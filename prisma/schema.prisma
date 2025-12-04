@@ -1,0 +1,282 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------
+// USER ROLES
+// -----------------------------------------------------
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+// -----------------------------------------------------
+// USER (identità unica cross-canale)
+// -----------------------------------------------------
+
+model User {
+  id          String       @id @default(cuid())
+
+  // Solo se userai Clerk (per web chat)
+  clerkId     String?      @unique
+  email       String?      @unique
+
+  // Role-based access control
+  role        UserRole     @default(USER)
+
+  // Relazioni
+  profile     Profile?
+  preferences Preferences?
+  memories    Memory[]
+  messages    Message[]
+  identities  ChannelIdentity[]
+  subscription Subscription?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// -----------------------------------------------------
+// CHANNEL IDENTITY (una identità per ogni canale: es. WhatsApp=numero telefono)
+// -----------------------------------------------------
+
+model ChannelIdentity {
+  id          String    @id @default(cuid())
+
+  channel     Channel   @default(WHATSAPP)
+  externalId  String    // es: numero whatsapp, telegram user id, instagram psid
+
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
+
+  createdAt   DateTime  @default(now())
+
+  @@unique([channel, externalId])
+}
+
+enum Channel {
+  WHATSAPP
+  // FUTURO: WEB, TELEGRAM, INSTAGRAM, MESSENGER, EMAIL, IOS_APP, ANDROID_APP
+}
+
+// -----------------------------------------------------
+// MESSAGE (supporta testo, media, template, location, audio, ecc.)
+// -----------------------------------------------------
+
+model Message {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id])
+
+  channel   Channel       @default(WHATSAPP)
+  direction MessageDirection
+  role      MessageRole
+
+  // Type: TEXT, IMAGE, AUDIO, VIDEO, DOCUMENT, TEMPLATE, LOCATION, etc.
+  type      MessageType   @default(TEXT)
+
+  content   String?        // solo per TEXT
+
+  mediaUrl    String?      // immagini, audio, video, documenti, sticker
+  mediaType   String?      // MIME type es: image/jpeg, audio/ogg
+
+  externalMessageId String? // ID messaggio lato WhatsApp/Telegram/Instagram
+  metadata Json?            // payload dinamico (location, template params, button events, ecc.)
+
+  // -----------------------------------------------------
+  // AI TRACKING (solo per messaggi ASSISTANT)
+  // -----------------------------------------------------
+  model             String?   // es: "x-ai/grok-4.1-fast:free", "google/gemini-2.5-flash"
+  inputTokens       Int?      // token di input (prompt)
+  outputTokens      Int?      // token di output generati
+  reasoningTokens   Int?      // token di reasoning (per modelli che lo supportano)
+  reasoningContent  String?   // contenuto del processo di reasoning
+  toolCalls         Json?     // array di tool calls effettuate [{name, args, result}]
+  ragUsed           Boolean?  // se il RAG è stato usato per questa risposta
+  ragChunksCount    Int?      // numero di chunk RAG usati
+  costUsd           Float?    // costo in USD per questa risposta
+  generationTimeMs  Int?      // tempo totale di generazione in ms
+  reasoningTimeMs   Int?      // tempo di reasoning in ms (se disponibile)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, channel, createdAt])
+}
+
+enum MessageDirection {
+  INBOUND   // utente → Anthon
+  OUTBOUND  // Anthon → utente
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  STICKER
+  TEMPLATE
+  LOCATION
+  CONTACT
+  UNKNOWN
+}
+
+// -----------------------------------------------------
+// PROFILE (informazioni di coaching dell’utente)
+// -----------------------------------------------------
+
+model Profile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+
+  name        String?
+  sport       String?
+  goal        String?
+  experience  String?
+  birthday    DateTime?
+  notes       String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// -----------------------------------------------------
+// PREFERENCES (tono, stile, lingua, notifiche)
+// -----------------------------------------------------
+
+model Preferences {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+
+  tone       String?   // es: "calmo", "energico", "professionale"
+  mode       String?   // es: "coaching", "friendly", "diretto"
+  language   String?   // IT, EN, ecc.
+  push       Boolean?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// -----------------------------------------------------
+// MEMORY (memoria persistente condivisa tra tutti i canali)
+// -----------------------------------------------------
+
+model Memory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  key       String
+  value     Json
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, key])
+}
+
+// -----------------------------------------------------
+// RAG DOCUMENTS (Metodo Sincro, PDF, ecc.)
+// -----------------------------------------------------
+
+model RagDocument {
+  id        String   @id @default(cuid())
+  title     String
+  url       String?
+  source    String?
+
+  chunks    RagChunk[]
+
+  createdAt DateTime @default(now())
+}
+
+// -----------------------------------------------------
+// RAG CHUNKS (embedding pgvector)
+// -----------------------------------------------------
+
+model RagChunk {
+  id         String        @id @default(cuid())
+  documentId String
+  document   RagDocument   @relation(fields: [documentId], references: [id])
+
+  content    String
+  embedding  Unsupported("vector(4096)")?
+  index      Int
+
+  createdAt  DateTime @default(now())
+
+  @@index([documentId])
+  // Note: Vector index is created via raw SQL migration (HNSW index)
+  // See: prisma/migrations/20251202120000_fix_vector_index/migration.sql
+}
+
+// -----------------------------------------------------
+// MODEL PRICING (prezzi per calcolo costi AI)
+// -----------------------------------------------------
+
+model ModelPricing {
+  id                      String   @id @default(cuid())
+  modelId                 String   @unique  // es: "x-ai/grok-4.1-fast:free"
+  displayName             String             // es: "Grok 4.1 Fast (Free)"
+  inputPricePerMillion    Float              // prezzo per 1M token input in USD
+  outputPricePerMillion   Float              // prezzo per 1M token output in USD
+  reasoningPricePerMillion Float?            // prezzo per 1M token reasoning (se applicabile)
+  
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// -----------------------------------------------------
+// SUBSCRIPTION (tracking trial/conversioni)
+// -----------------------------------------------------
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  CANCELED
+  EXPIRED
+  PAST_DUE
+}
+
+model Subscription {
+  id                  String             @id @default(cuid())
+  userId              String             @unique
+  user                User               @relation(fields: [userId], references: [id])
+
+  status              SubscriptionStatus @default(TRIAL)
+  clerkSubscriptionId String?            @unique  // ID subscription da Clerk Billing
+
+  trialStartedAt      DateTime?          // quando ha iniziato il trial
+  trialEndsAt         DateTime?          // quando scade il trial
+  convertedAt         DateTime?          // quando è passato a pagante
+  canceledAt          DateTime?          // quando ha cancellato
+  
+  planId              String?            // ID del piano (da Clerk)
+  planName            String?            // nome del piano per reference
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([status])
+}
