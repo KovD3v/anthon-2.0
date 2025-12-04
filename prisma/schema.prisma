@@ -42,6 +42,8 @@ model User {
   preferences Preferences?
   memories    Memory[]
   messages    Message[]
+  chats       Chat[]
+  dailyUsage  DailyUsage[]
   identities  ChannelIdentity[]
   subscription Subscription?
 
@@ -73,6 +75,32 @@ enum Channel {
 }
 
 // -----------------------------------------------------
+// CHAT (conversation sessions)
+// -----------------------------------------------------
+
+enum ChatVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+model Chat {
+  id          String         @id @default(cuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id])
+  
+  title       String?        // Auto-generated or user-provided
+  visibility  ChatVisibility @default(PRIVATE)
+  
+  messages    Message[]
+  artifacts   Artifact[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+// -----------------------------------------------------
 // MESSAGE (supporta testo, media, template, location, audio, ecc.)
 // -----------------------------------------------------
 
@@ -80,6 +108,10 @@ model Message {
   id        String        @id @default(cuid())
   userId    String
   user      User          @relation(fields: [userId], references: [id])
+  
+  // Chat reference (for multi-chat support)
+  chatId    String?
+  chat      Chat?         @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   channel   Channel       @default(WHATSAPP)
   direction MessageDirection
@@ -88,7 +120,8 @@ model Message {
   // Type: TEXT, IMAGE, AUDIO, VIDEO, DOCUMENT, TEMPLATE, LOCATION, etc.
   type      MessageType   @default(TEXT)
 
-  content   String?        // solo per TEXT
+  content   String?        // solo per TEXT (backward compat, also stores simple text)
+  parts     Json?          // AI SDK v5 message parts format
 
   mediaUrl    String?      // immagini, audio, video, documenti, sticker
   mediaType   String?      // MIME type es: image/jpeg, audio/ogg
@@ -113,7 +146,12 @@ model Message {
 
   createdAt DateTime @default(now())
 
+  // Relations
+  attachments Attachment[]
+  artifacts   Artifact[]    @relation("MessageArtifacts")
+
   @@index([userId, channel, createdAt])
+  @@index([chatId, createdAt])
 }
 
 enum MessageDirection {
@@ -232,19 +270,91 @@ model RagChunk {
 
 // -----------------------------------------------------
 // MODEL PRICING (prezzi per calcolo costi AI)
+// NOTE: Removed - replaced by TokenLens which fetches pricing from OpenRouter API
 // -----------------------------------------------------
 
-model ModelPricing {
-  id                      String   @id @default(cuid())
-  modelId                 String   @unique  // es: "x-ai/grok-4.1-fast:free"
-  displayName             String             // es: "Grok 4.1 Fast (Free)"
-  inputPricePerMillion    Float              // prezzo per 1M token input in USD
-  outputPricePerMillion   Float              // prezzo per 1M token output in USD
-  reasoningPricePerMillion Float?            // prezzo per 1M token reasoning (se applicabile)
+// -----------------------------------------------------
+// ARTIFACT (generated code, text, etc.)
+// -----------------------------------------------------
+
+enum ArtifactKind {
+  CODE
+  TEXT
+  SHEET
+  IMAGE
+}
+
+model Artifact {
+  id        String       @id @default(cuid())
+  chatId    String
+  chat      Chat         @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  messageId String?
+  message   Message?     @relation("MessageArtifacts", fields: [messageId], references: [id], onDelete: SetNull)
   
-  isActive    Boolean  @default(true)
+  title     String
+  kind      ArtifactKind
+  language  String?      // Programming language if kind=CODE
+  
+  versions  ArtifactVersion[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([chatId])
+}
+
+model ArtifactVersion {
+  id            String   @id @default(cuid())
+  artifactId    String
+  artifact      Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  
+  content       String   // Actual artifact content
+  blobUrl       String?  // Vercel Blob URL for large content
+  versionNumber Int      @default(1)
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([artifactId, versionNumber(sort: Desc)])
+}
+
+// -----------------------------------------------------
+// ATTACHMENT (file uploads)
+// -----------------------------------------------------
+
+model Attachment {
+  id          String   @id @default(cuid())
+  messageId   String?  // Optional - can be attached later
+  message     Message?  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  name        String   // Original filename
+  contentType String   // MIME type
+  size        Int      // Size in bytes
+  blobUrl     String   // Vercel Blob URL
+  
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  
+  @@index([messageId])
+}
+
+// -----------------------------------------------------
+// DAILY USAGE (rate limiting & analytics)
+// -----------------------------------------------------
+
+model DailyUsage {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  date         DateTime @db.Date    // UTC date
+  requestCount Int      @default(0)
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  totalCostUsd Float    @default(0)
+  
+  updatedAt    DateTime @updatedAt
+  
+  @@unique([userId, date])
+  @@index([userId, date(sort: Desc)])
 }
 
 // -----------------------------------------------------

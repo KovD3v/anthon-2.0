@@ -1,73 +1,35 @@
 /**
  * AI Cost Calculator
- * Calculates the cost of AI API calls based on token usage and model pricing.
+ *
+ * Calculates the cost of AI API calls based on token usage.
+ * Uses TokenLens for pricing data from OpenRouter API.
  */
 
-import { prisma } from "@/lib/db";
-
-// Cache model pricing to avoid DB lookups on every request
-let pricingCache: Map<
-  string,
-  {
-    inputPricePerMillion: number;
-    outputPricePerMillion: number;
-    reasoningPricePerMillion: number | null;
-  }
-> | null = null;
-
-let pricingCacheTime = 0;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-/**
- * Get model pricing from database with caching.
- */
-async function getModelPricing(modelId: string) {
-  const now = Date.now();
-
-  // Refresh cache if expired or not initialized
-  if (!pricingCache || now - pricingCacheTime > CACHE_TTL) {
-    const pricing = await prisma.modelPricing.findMany({
-      where: { isActive: true },
-    });
-
-    pricingCache = new Map();
-    for (const p of pricing) {
-      pricingCache.set(p.modelId, {
-        inputPricePerMillion: p.inputPricePerMillion,
-        outputPricePerMillion: p.outputPricePerMillion,
-        reasoningPricePerMillion: p.reasoningPricePerMillion,
-      });
-    }
-    pricingCacheTime = now;
-  }
-
-  return pricingCache.get(modelId) ?? null;
-}
+import { type CostResult, calculateCost as tokenlensCost } from "./tokenlens";
 
 /**
  * Calculate cost for a single AI call.
+ * Returns the total cost in USD.
  */
-export async function calculateCost(
+export function calculateCost(
   modelId: string,
   inputTokens: number,
   outputTokens: number,
-  reasoningTokens?: number
-): Promise<number> {
-  const pricing = await getModelPricing(modelId);
+  _reasoningTokens?: number // Kept for API compatibility
+): number {
+  const result = tokenlensCost(modelId, inputTokens, outputTokens);
+  return result.totalCost;
+}
 
-  if (!pricing) {
-    console.warn(`[Cost] No pricing found for model: ${modelId}`);
-    return 0;
-  }
-
-  const inputCost = (inputTokens / 1_000_000) * pricing.inputPricePerMillion;
-  const outputCost = (outputTokens / 1_000_000) * pricing.outputPricePerMillion;
-  const reasoningCost =
-    reasoningTokens && pricing.reasoningPricePerMillion
-      ? (reasoningTokens / 1_000_000) * pricing.reasoningPricePerMillion
-      : 0;
-
-  return inputCost + outputCost + reasoningCost;
+/**
+ * Calculate cost with full breakdown.
+ */
+export function calculateCostDetailed(
+  modelId: string,
+  inputTokens: number,
+  outputTokens: number
+): CostResult {
+  return tokenlensCost(modelId, inputTokens, outputTokens);
 }
 
 /**
@@ -109,11 +71,14 @@ interface FinishResultInput {
   ragChunksCount?: number;
 }
 
-export async function extractAIMetrics(
+/**
+ * Extract and calculate AI metrics from a finish result.
+ */
+export function extractAIMetrics(
   modelId: string,
   startTime: number,
   finishResult: FinishResultInput
-): Promise<AIMetrics> {
+): AIMetrics {
   const endTime = Date.now();
   const generationTimeMs = endTime - startTime;
 
@@ -133,8 +98,8 @@ export async function extractAIMetrics(
   // Use collected tool calls
   const toolCalls = finishResult.collectedToolCalls ?? null;
 
-  // Calculate cost
-  const costUsd = await calculateCost(
+  // Calculate cost using TokenLens (synchronous now)
+  const costUsd = calculateCost(
     modelId,
     inputTokens,
     outputTokens,
@@ -157,9 +122,12 @@ export async function extractAIMetrics(
 }
 
 /**
- * Clear the pricing cache (useful for testing or after updates).
+ * Pre-warm the TokenLens catalog cache.
+ * Note: TokenLens now uses a built-in catalog, no warmup needed.
  */
-export function clearPricingCache() {
-  pricingCache = null;
-  pricingCacheTime = 0;
+export function warmPricingCache(): void {
+  // No-op - tokenlens uses embedded catalog
 }
+
+// Re-export for convenience
+export type { CostResult };

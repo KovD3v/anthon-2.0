@@ -1,0 +1,268 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import {
+  AlertTriangle,
+  AlertCircle,
+  X,
+  Clock,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+
+interface DailyUsage {
+  requestCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalCostUsd: number;
+}
+
+interface RateLimits {
+  maxRequests: number;
+  maxInputTokens: number;
+  maxOutputTokens: number;
+  maxCostUsd: number;
+}
+
+interface UsageBannerProps {
+  /**
+   * Current daily usage stats
+   */
+  usage?: DailyUsage | null;
+  /**
+   * Rate limits for the user's tier
+   */
+  limits?: RateLimits | null;
+  /**
+   * User's subscription status
+   */
+  subscriptionStatus?: "TRIAL" | "ACTIVE" | "CANCELLED" | "EXPIRED" | null;
+  /**
+   * Optional class name
+   */
+  className?: string;
+}
+
+/**
+ * Banner showing daily usage statistics and rate limit warnings
+ */
+export function UsageBanner({
+  usage,
+  limits,
+  subscriptionStatus,
+  className,
+}: UsageBannerProps) {
+  const [isDismissed, setIsDismissed] = useState(false);
+
+  // Reset dismissal at midnight
+  useEffect(() => {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+
+    const msUntilMidnight = tomorrow.getTime() - now.getTime();
+
+    const timeout = setTimeout(() => {
+      setIsDismissed(false);
+    }, msUntilMidnight);
+
+    return () => clearTimeout(timeout);
+  }, []);
+
+  if (isDismissed || !usage || !limits) return null;
+
+  const requestPercent = (usage.requestCount / limits.maxRequests) * 100;
+  const tokenPercent =
+    ((usage.inputTokens + usage.outputTokens) /
+      (limits.maxInputTokens + limits.maxOutputTokens)) *
+    100;
+  const costPercent = (usage.totalCostUsd / limits.maxCostUsd) * 100;
+
+  const maxPercent = Math.max(requestPercent, tokenPercent, costPercent);
+
+  // Only show if approaching limits (>70%)
+  if (maxPercent < 70) return null;
+
+  const isAtLimit = maxPercent >= 100;
+  const isNearLimit = maxPercent >= 90;
+
+  const getBannerStyle = () => {
+    if (isAtLimit) {
+      return "bg-red-50 border-red-200 text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-200";
+    }
+    if (isNearLimit) {
+      return "bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-950 dark:border-yellow-800 dark:text-yellow-200";
+    }
+    return "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-200";
+  };
+
+  const getIcon = () => {
+    if (isAtLimit) return <AlertCircle className="h-4 w-4" />;
+    if (isNearLimit) return <AlertTriangle className="h-4 w-4" />;
+    return <TrendingUp className="h-4 w-4" />;
+  };
+
+  const getMessage = () => {
+    if (isAtLimit) {
+      return "You've reached your daily limit. Your usage will reset at midnight.";
+    }
+    if (isNearLimit) {
+      return `You're at ${Math.round(maxPercent)}% of your daily limit.`;
+    }
+    return `You've used ${Math.round(maxPercent)}% of your daily limit.`;
+  };
+
+  const getTierName = () => {
+    if (subscriptionStatus === "ACTIVE") return "Pro";
+    return "Free";
+  };
+
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between rounded-lg border px-4 py-3",
+        getBannerStyle(),
+        className
+      )}
+    >
+      <div className="flex items-center gap-3">
+        {getIcon()}
+        <div className="flex flex-col gap-0.5">
+          <p className="text-sm font-medium">{getMessage()}</p>
+          <p className="text-xs opacity-75">
+            {getTierName()} tier: {usage.requestCount}/{limits.maxRequests}{" "}
+            requests today
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {subscriptionStatus !== "ACTIVE" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs font-medium"
+            onClick={() => {
+              window.location.href = "/pricing";
+            }}
+          >
+            <Zap className="mr-1 h-3 w-3" />
+            Upgrade
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={() => setIsDismissed(true)}
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Compact usage stats for sidebars or footers
+ */
+export function UsageStats({
+  usage,
+  limits,
+  className,
+}: Omit<UsageBannerProps, "subscriptionStatus">) {
+  if (!usage || !limits) return null;
+
+  const requestPercent = Math.min(
+    (usage.requestCount / limits.maxRequests) * 100,
+    100
+  );
+
+  return (
+    <div className={cn("space-y-2", className)}>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <div className="flex items-center gap-1">
+          <Clock className="h-3 w-3" />
+          <span>Today&apos;s usage</span>
+        </div>
+        <span>
+          {usage.requestCount}/{limits.maxRequests} requests
+        </span>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            "h-full transition-all duration-300",
+            requestPercent >= 90
+              ? "bg-red-500"
+              : requestPercent >= 70
+              ? "bg-yellow-500"
+              : "bg-primary"
+          )}
+          style={{ width: `${requestPercent}%` }}
+        />
+      </div>
+
+      {/* Token and cost info */}
+      <div className="flex justify-between text-[10px] text-muted-foreground">
+        <span>
+          {((usage.inputTokens + usage.outputTokens) / 1000).toFixed(1)}k tokens
+        </span>
+        <span>${usage.totalCostUsd.toFixed(4)}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Rate limit error display
+ */
+export function RateLimitError({
+  reason,
+  onDismiss,
+  className,
+}: {
+  reason: string;
+  onDismiss?: () => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950",
+        className
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <AlertCircle className="mt-0.5 h-5 w-5 text-red-500" />
+        <div className="flex-1">
+          <h4 className="font-medium text-red-800 dark:text-red-200">
+            Rate Limit Reached
+          </h4>
+          <p className="mt-1 text-sm text-red-700 dark:text-red-300">
+            {reason}
+          </p>
+          <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+            Your usage will reset at midnight. Consider upgrading for higher
+            limits.
+          </p>
+        </div>
+        {onDismiss && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-red-500"
+            onClick={onDismiss}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}

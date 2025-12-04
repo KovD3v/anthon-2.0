@@ -5,7 +5,7 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import type { User, UserRole } from "@/generated/prisma";
+import type { UserRole } from "@/generated/prisma";
 
 export type { UserRole };
 
@@ -75,7 +75,7 @@ export async function getAuthUser(): Promise<AuthResult> {
 /**
  * Get the full user record with all relations.
  */
-export async function getFullUser(userId: string): Promise<User | null> {
+export async function getFullUser(userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
     include: {
