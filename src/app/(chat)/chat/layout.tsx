@@ -17,6 +17,7 @@ import {
 	PanelLeftClose,
 	PanelLeft,
 	Loader2,
+	Home,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -182,7 +183,7 @@ export default function ChatLayout({
 				deleteChat,
 				refreshChats,
 			}}>
-			<div className="flex h-[calc(100vh-4rem)] overflow-hidden">
+			<div className="flex h-screen overflow-hidden">
 				{/* Sidebar */}
 				<aside
 					className={`${
@@ -243,6 +244,15 @@ export default function ChatLayout({
 									))}
 								</ul>
 							)}
+						</div>
+						<div className="border-t p-2">
+							<Button
+								variant="ghost"
+								className="w-full justify-start gap-2"
+								onClick={() => router.push("/")}>
+								<Home className="h-4 w-4" />
+								Back to Home
+							</Button>
 						</div>
 					</div>
 				</aside>
