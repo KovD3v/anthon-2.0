@@ -16,8 +16,6 @@ export async function GET(req: NextRequest) {
   const range = searchParams.get("range") || "7d"; // 7d, 30d, 90d, all
   const type = searchParams.get("type") || "overview"; // overview, usage, costs, funnel
 
-
-
   try {
     const startDate = getStartDate(range);
 
@@ -37,7 +35,7 @@ export async function GET(req: NextRequest) {
     console.error("[Analytics API] Error:", error);
     return NextResponse.json(
       { error: "Failed to fetch analytics" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -91,8 +89,6 @@ async function getOverviewStats(startDate: Date | null) {
     // RAG documents count
     prisma.ragDocument.count(),
   ]);
-
-
 
   // Average messages per user
   const avgMessagesPerUser = totalUsers > 0 ? totalMessages / totalUsers : 0;

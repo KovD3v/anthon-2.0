@@ -63,7 +63,7 @@ export interface ConversationContext {
 export function compactConversation(
   modelId: string,
   messages: Message[],
-  existingSummary?: string
+  existingSummary?: string,
 ): ConversationContext {
   // Not enough messages to compact
   if (messages.length < MIN_MESSAGES_FOR_COMPACTION) {
@@ -89,8 +89,8 @@ export function compactConversation(
 
   console.log(
     `[ContextCompactor] Context at ${contextBudget.percentUsed.toFixed(
-      1
-    )}%, compaction needed`
+      1,
+    )}%, compaction needed`,
   );
 
   // Determine how many messages to summarize
@@ -124,7 +124,7 @@ export function compactConversation(
     estimateStringTokens(placeholderSummary);
 
   console.log(
-    `[ContextCompactor] Compacted ${messagesToSummarize.length} messages, kept ${messagesToPreserve.length} recent`
+    `[ContextCompactor] Compacted ${messagesToSummarize.length} messages, kept ${messagesToPreserve.length} recent`,
   );
 
   return {
@@ -158,7 +158,7 @@ function buildQuickSummary(messages: Message[]): string {
  */
 export async function summarizeMessages(
   messages: Message[],
-  existingSummary?: string
+  existingSummary?: string,
 ): Promise<string> {
   const conversationText = messages
     .map((m) => {
@@ -268,7 +268,7 @@ function convertToSimpleMessages(messages: Message[]): MessageForContext[] {
 export function shouldCompact(
   modelId: string,
   messageCount: number,
-  estimatedTokens: number
+  estimatedTokens: number,
 ): boolean {
   if (messageCount < MIN_MESSAGES_FOR_COMPACTION) {
     return false;
@@ -282,7 +282,7 @@ export function shouldCompact(
  * Generate a title for a conversation based on the first few messages.
  */
 export async function generateChatTitle(
-  firstUserMessage: string
+  firstUserMessage: string,
 ): Promise<string> {
   try {
     const result = await generateText({

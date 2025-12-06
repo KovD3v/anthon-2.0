@@ -34,15 +34,13 @@ export interface CostResult {
 export function calculateCost(
   modelId: string,
   inputTokens: number,
-  outputTokens: number
+  outputTokens: number,
 ): CostResult {
   try {
     const cost = estimateCost({
       modelId,
       usage: { promptTokens: inputTokens, completionTokens: outputTokens },
     });
-
-
 
     return {
       inputCost: cost.inputUSD ?? 0,
@@ -53,7 +51,7 @@ export function calculateCost(
   } catch (error) {
     console.error(
       `[TokenLens] Error calculating cost for model ${modelId}:`,
-      error
+      error,
     );
     return {
       inputCost: 0,
@@ -85,7 +83,7 @@ export interface ContextBudgetResult {
  */
 export function getContextBudget(
   modelId: string,
-  tokenCount: number
+  tokenCount: number,
 ): ContextBudgetResult {
   const context = getContext({ modelId });
   const remaining = remainingContext({
@@ -111,7 +109,7 @@ export function getContextBudget(
 export function getContextHealthStatus(
   modelId: string,
   inputTokens: number,
-  outputTokens: number
+  outputTokens: number,
 ): {
   percentUsed: number;
   remaining?: number;
@@ -152,7 +150,7 @@ export function buildStreamUsageData(
   modelId: string,
   inputTokens: number,
   outputTokens: number,
-  totalConversationTokens: number
+  totalConversationTokens: number,
 ): StreamUsageData {
   const cost = calculateCost(modelId, inputTokens, outputTokens);
   const contextBudget = getContextBudget(modelId, totalConversationTokens);

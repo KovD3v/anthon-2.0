@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
     console.error("[Users API] Error:", error);
     return NextResponse.json(
       { error: "Failed to fetch users" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -111,7 +111,7 @@ export async function PATCH(req: NextRequest) {
     if (!userId || !role) {
       return NextResponse.json(
         { error: "userId and role are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -131,7 +131,7 @@ export async function PATCH(req: NextRequest) {
     console.error("[Users API] Error updating role:", error);
     return NextResponse.json(
       { error: "Failed to update role" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

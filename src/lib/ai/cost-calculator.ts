@@ -15,7 +15,7 @@ export function calculateCost(
   modelId: string,
   inputTokens: number,
   outputTokens: number,
-  _reasoningTokens?: number // Kept for API compatibility
+  _reasoningTokens?: number, // Kept for API compatibility
 ): number {
   const result = tokenlensCost(modelId, inputTokens, outputTokens);
   return result.totalCost;
@@ -27,7 +27,7 @@ export function calculateCost(
 export function calculateCostDetailed(
   modelId: string,
   inputTokens: number,
-  outputTokens: number
+  outputTokens: number,
 ): CostResult {
   return tokenlensCost(modelId, inputTokens, outputTokens);
 }
@@ -77,7 +77,7 @@ interface FinishResultInput {
 export function extractAIMetrics(
   modelId: string,
   startTime: number,
-  finishResult: FinishResultInput
+  finishResult: FinishResultInput,
 ): AIMetrics {
   const endTime = Date.now();
   const generationTimeMs = endTime - startTime;
@@ -93,10 +93,6 @@ export function extractAIMetrics(
     (finishResult.usage?.completionTokens as number) ??
     0;
 
-
-
-
-
   // Try to extract cost and tokens from OpenRouter metadata
   let costFromOpenRouter: number | undefined;
   if (finishResult.providerMetadata) {
@@ -104,15 +100,12 @@ export function extractAIMetrics(
       | Record<string, unknown>
       | undefined;
     if (openrouterMeta) {
-
-
       // Extract from nested usage object if available
       const usage = openrouterMeta.usage as Record<string, unknown> | undefined;
       if (usage) {
         inputTokens = (usage.promptTokens as number) || inputTokens;
         outputTokens = (usage.completionTokens as number) || outputTokens;
         costFromOpenRouter = usage.cost as number | undefined;
-
       }
     }
   }
@@ -130,16 +123,14 @@ export function extractAIMetrics(
   const toolCalls = finishResult.collectedToolCalls ?? null;
 
   // Calculate cost: prefer OpenRouter's cost if available, otherwise calculate with TokenLens
-  let costUsd =
+  const costUsd =
     costFromOpenRouter ??
     calculateCost(
       modelId,
       inputTokens,
       outputTokens,
-      reasoningTokens ?? undefined
+      reasoningTokens ?? undefined,
     );
-
-
 
   return {
     model: modelId,
