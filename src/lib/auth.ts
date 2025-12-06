@@ -299,5 +299,5 @@ export async function updateUserRole(
  */
 export async function invalidateAuthCache(): Promise<void> {
   const { revalidateTag } = await import("next/cache");
-  revalidateTag("user-auth");
+  revalidateTag("user-auth", "page");
 }

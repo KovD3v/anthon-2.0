@@ -51,7 +51,7 @@ export async function parseDocument(
  */
 async function parsePDF(buffer: Buffer): Promise<ParsedDocument> {
   // Dynamic import to avoid pdf-parse trying to load test files at module load
-  const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
+  const pdfParse = (await import("pdf-parse")).default;
   const data = await pdfParse(buffer);
 
   return {
