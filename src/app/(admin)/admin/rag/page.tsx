@@ -16,11 +16,31 @@ interface RagDocument {
   createdAt: string;
 }
 
+interface UploadResult {
+  success: boolean;
+  fileName: string;
+  document?: {
+    id: string;
+    title: string;
+    source: string | null;
+    url: string | undefined;
+    chunkCount: number;
+    pageCount?: number;
+  };
+  error?: string;
+}
+
+interface UploadProgress {
+  fileName: string;
+  status: "pending" | "uploading" | "success" | "error";
+  message?: string;
+}
+
 export default function RagPage() {
   const [documents, setDocuments] = useState<RagDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -47,23 +67,47 @@ export default function RagPage() {
   async function handleUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
 
-    const file = files[0];
     const validExtensions = [".pdf", ".docx", ".txt", ".md"];
-    const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
+    const fileArray = Array.from(files);
 
-    if (!validExtensions.includes(ext)) {
+    // Validate all files first
+    const invalidFiles = fileArray.filter((file) => {
+      const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
+      return !validExtensions.includes(ext);
+    });
+
+    if (invalidFiles.length > 0) {
       toast.error(
-        `Invalid file type. Supported: ${validExtensions.join(", ")}`
+        `Invalid file type(s): ${invalidFiles
+          .map((f) => f.name)
+          .join(", ")}. Supported: ${validExtensions.join(", ")}`
       );
       return;
     }
 
     setUploading(true);
-    setUploadProgress("Uploading and parsing...");
+
+    // Initialize progress for all files
+    const initialProgress: UploadProgress[] = fileArray.map((file) => ({
+      fileName: file.name,
+      status: "pending",
+    }));
+    setUploadProgress(initialProgress);
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      fileArray.forEach((file) => {
+        formData.append("files", file);
+      });
+
+      // Update status to uploading
+      setUploadProgress(
+        fileArray.map((file) => ({
+          fileName: file.name,
+          status: "uploading",
+          message: "Processing...",
+        }))
+      );
 
       const res = await fetch("/api/admin/rag", {
         method: "POST",
@@ -71,28 +115,74 @@ export default function RagPage() {
       });
 
       if (res.ok) {
-        const data = await res.json();
-        setUploadProgress(
-          `✓ Uploaded "${data.document.title}" with ${data.document.chunkCount} chunks`
+        const data: {
+          success: boolean;
+          totalFiles: number;
+          successCount: number;
+          failureCount: number;
+          results: UploadResult[];
+        } = await res.json();
+
+        // Update progress with results
+        const updatedProgress: UploadProgress[] = data.results.map(
+          (result) => ({
+            fileName: result.fileName,
+            status: result.success ? "success" : "error",
+            message: result.success
+              ? `✓ ${result.document?.chunkCount} chunks`
+              : `✕ ${result.error}`,
+          })
         );
+        setUploadProgress(updatedProgress);
+
+        // Show summary toast
+        if (data.successCount > 0 && data.failureCount === 0) {
+          toast.success(
+            `Successfully uploaded ${data.successCount} file${
+              data.successCount > 1 ? "s" : ""
+            }`
+          );
+        } else if (data.successCount > 0 && data.failureCount > 0) {
+          toast.warning(
+            `Uploaded ${data.successCount}/${data.totalFiles} files. ${data.failureCount} failed.`
+          );
+        } else {
+          toast.error(`Failed to upload ${data.failureCount} file(s)`);
+        }
+
+        // Refresh documents list
         fetchDocuments();
-        toast.success(
-          `Uploaded "${data.document.title}" with ${data.document.chunkCount} chunks`
-        );
-        setTimeout(() => setUploadProgress(null), 3000);
+
+        // Clear progress after 5 seconds
+        setTimeout(() => setUploadProgress([]), 5000);
       } else {
         const error = await res.json();
-        setUploadProgress(`✕ Error: ${error.error}`);
+        setUploadProgress(
+          fileArray.map((file) => ({
+            fileName: file.name,
+            status: "error",
+            message: `✕ ${error.error}`,
+          }))
+        );
         toast.error(error.error || "Upload failed");
-        setTimeout(() => setUploadProgress(null), 5000);
+        setTimeout(() => setUploadProgress([]), 5000);
       }
     } catch (error) {
       console.error("Upload failed:", error);
-      setUploadProgress("✕ Upload failed");
+      setUploadProgress(
+        fileArray.map((file) => ({
+          fileName: file.name,
+          status: "error",
+          message: "✕ Upload failed",
+        }))
+      );
       toast.error("Upload failed");
-      setTimeout(() => setUploadProgress(null), 5000);
+      setTimeout(() => setUploadProgress([]), 5000);
     } finally {
       setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   }
 
@@ -144,7 +234,7 @@ export default function RagPage() {
     e.stopPropagation();
     setDragActive(false);
 
-    if (e.dataTransfer.files?.[0]) {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleUpload(e.dataTransfer.files);
     }
   }
@@ -159,7 +249,7 @@ export default function RagPage() {
       {/* Upload Zone */}
       <Card className="bg-white mb-8">
         <CardHeader>
-          <CardTitle>Upload Document</CardTitle>
+          <CardTitle>Upload Documents</CardTitle>
         </CardHeader>
         <CardContent>
           <label
@@ -177,35 +267,49 @@ export default function RagPage() {
               ref={fileInputRef}
               type="file"
               accept=".pdf,.docx,.txt,.md"
+              multiple
               onChange={(e) => handleUpload(e.target.files)}
               className="hidden"
             />
 
             <div className="text-4xl mb-4">📄</div>
             <p className="text-slate-600 mb-4">
-              Drag & drop a file here, or{" "}
+              Drag &amp; drop file(s) here, or{" "}
               <span className="text-blue-600 hover:text-blue-700 font-medium">
                 browse
               </span>
             </p>
             <p className="text-sm text-slate-400">
-              Supported formats: PDF, DOCX, TXT, MD
+              Supported formats: PDF, DOCX, TXT, MD &bull; Multiple files
+              supported
             </p>
 
-            {uploadProgress && (
-              <div
-                className={`mt-4 px-4 py-2 rounded-lg ${
-                  uploadProgress.startsWith("✓")
-                    ? "bg-green-100 text-green-700"
-                    : uploadProgress.startsWith("✕")
-                    ? "bg-red-100 text-red-700"
-                    : "bg-blue-100 text-blue-700"
-                }`}
-              >
-                {uploading && (
-                  <span className="inline-block animate-spin mr-2">⟳</span>
-                )}
-                {uploadProgress}
+            {uploadProgress.length > 0 && (
+              <div className="mt-4 space-y-2 max-h-48 overflow-y-auto">
+                {uploadProgress.map((progress) => (
+                  <div
+                    key={progress.fileName}
+                    className={`px-4 py-2 rounded-lg text-sm ${
+                      progress.status === "success"
+                        ? "bg-green-100 text-green-700"
+                        : progress.status === "error"
+                        ? "bg-red-100 text-red-700"
+                        : "bg-blue-100 text-blue-700"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium truncate">
+                        {progress.fileName}
+                      </span>
+                      <span className="shrink-0">
+                        {progress.status === "uploading" && (
+                          <span className="inline-block animate-spin">⟳</span>
+                        )}
+                        {progress.message}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </label>

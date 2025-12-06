@@ -48,93 +48,142 @@ export async function GET() {
   }
 }
 
-// POST /api/admin/rag - Upload and process a new document
+// POST /api/admin/rag - Upload and process document(s)
 export async function POST(req: NextRequest) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
   try {
     const formData = await req.formData();
-    const file = formData.get("file") as File | null;
-    const title = formData.get("title") as string | null;
+    const files = formData.getAll("files") as File[];
     const source = formData.get("source") as string | null;
 
-    if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    if (!files || files.length === 0) {
+      return NextResponse.json({ error: "No files provided" }, { status: 400 });
     }
 
-    // Validate file type
-    if (!isValidFileType(file.type, file.name)) {
-      return NextResponse.json(
-        {
-          error: `Unsupported file type. Supported: ${SUPPORTED_EXTENSIONS.join(
-            ", "
-          )}`,
-        },
-        { status: 400 }
-      );
+    console.log(`[RAG API] Processing ${files.length} file(s)...`);
+
+    const results: Array<{
+      success: boolean;
+      fileName: string;
+      document?: {
+        id: string;
+        title: string;
+        source: string | null;
+        url: string | undefined;
+        chunkCount: number;
+        pageCount?: number;
+      };
+      error?: string;
+    }> = [];
+
+    // Process each file
+    for (const file of files) {
+      try {
+        // Validate file type
+        if (!isValidFileType(file.type, file.name)) {
+          results.push({
+            success: false,
+            fileName: file.name,
+            error: `Unsupported file type. Supported: ${SUPPORTED_EXTENSIONS.join(
+              ", "
+            )}`,
+          });
+          continue;
+        }
+
+        // Read file buffer
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        // Parse document content
+        console.log(`[RAG API] Parsing file: ${file.name} (${file.type})`);
+        const parsed = await parseDocument(buffer, file.type, file.name);
+
+        if (!parsed.content || parsed.content.trim().length === 0) {
+          results.push({
+            success: false,
+            fileName: file.name,
+            error: "Could not extract text from file",
+          });
+          continue;
+        }
+
+        // Upload original file to Vercel Blob for storage (optional)
+        let blobUrl: string | undefined;
+        try {
+          const blob = await put(`rag/${Date.now()}-${file.name}`, buffer, {
+            access: "public",
+            contentType: file.type,
+          });
+          blobUrl = blob.url;
+        } catch (blobError) {
+          // Blob upload is optional - continue without it
+          console.warn("[RAG API] Blob upload failed (optional):", blobError);
+        }
+
+        // Determine title
+        const documentTitle =
+          parsed.metadata?.title || file.name.replace(/\.[^.]+$/, "");
+
+        // Add document to RAG system (creates embeddings)
+        const documentId = await addDocument(
+          documentTitle,
+          parsed.content,
+          source || undefined,
+          blobUrl
+        );
+
+        // Get chunk count
+        const chunkCount = await prisma.ragChunk.count({
+          where: { documentId },
+        });
+
+        results.push({
+          success: true,
+          fileName: file.name,
+          document: {
+            id: documentId,
+            title: documentTitle,
+            source,
+            url: blobUrl,
+            chunkCount,
+            pageCount: parsed.metadata?.pageCount,
+          },
+        });
+
+        console.log(
+          `[RAG API] Successfully processed ${file.name}: ${chunkCount} chunks`
+        );
+      } catch (fileError) {
+        console.error(`[RAG API] Error processing ${file.name}:`, fileError);
+        results.push({
+          success: false,
+          fileName: file.name,
+          error:
+            fileError instanceof Error
+              ? fileError.message
+              : "Failed to process file",
+        });
+      }
     }
 
-    // Read file buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Parse document content
-    console.log(`[RAG API] Parsing file: ${file.name} (${file.type})`);
-    const parsed = await parseDocument(buffer, file.type, file.name);
-
-    if (!parsed.content || parsed.content.trim().length === 0) {
-      return NextResponse.json(
-        { error: "Could not extract text from file" },
-        { status: 400 }
-      );
-    }
-
-    // Upload original file to Vercel Blob for storage (optional)
-    let blobUrl: string | undefined;
-    try {
-      const blob = await put(`rag/${Date.now()}-${file.name}`, buffer, {
-        access: "public",
-        contentType: file.type,
-      });
-      blobUrl = blob.url;
-    } catch (blobError) {
-      // Blob upload is optional - continue without it
-      console.warn("[RAG API] Blob upload failed (optional):", blobError);
-    }
-
-    // Determine title
-    const documentTitle =
-      title || parsed.metadata?.title || file.name.replace(/\.[^.]+$/, "");
-
-    // Add document to RAG system (creates embeddings)
-    const documentId = await addDocument(
-      documentTitle,
-      parsed.content,
-      source || undefined,
-      blobUrl
-    );
-
-    // Get chunk count
-    const chunkCount = await prisma.ragChunk.count({
-      where: { documentId },
-    });
+    // Return results
+    const successCount = results.filter((r) => r.success).length;
+    const failureCount = results.filter((r) => !r.success).length;
 
     return NextResponse.json({
-      success: true,
-      document: {
-        id: documentId,
-        title: documentTitle,
-        source,
-        url: blobUrl,
-        chunkCount,
-        pageCount: parsed.metadata?.pageCount,
-      },
+      success: successCount > 0,
+      totalFiles: files.length,
+      successCount,
+      failureCount,
+      results,
     });
   } catch (error) {
-    console.error("[RAG API] Error uploading document:", error);
+    console.error("[RAG API] Error uploading documents:", error);
     return NextResponse.json(
-      { error: "Failed to process document" },
+      { error: "Failed to process documents" },
       { status: 500 }
     );
   }
