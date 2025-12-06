@@ -26,25 +26,46 @@ interface OverviewStats {
   ragDocuments: number;
 }
 
+interface HealthStatus {
+  status: "connected" | "error";
+  message?: string;
+}
+
+interface HealthResponse {
+  database: HealthStatus;
+  openrouter: HealthStatus;
+  clerk: HealthStatus;
+  vercelBlob: HealthStatus;
+}
+
 export default function AdminDashboard() {
   const [stats, setStats] = useState<OverviewStats | null>(null);
+  const [health, setHealth] = useState<HealthResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchStats() {
+    async function fetchData() {
       try {
-        const res = await fetch("/api/admin/analytics?type=overview&range=30d");
-        if (!res.ok) throw new Error("Failed to fetch stats");
-        const data = await res.json();
-        setStats(data);
+        const [statsRes, healthRes] = await Promise.all([
+          fetch("/api/admin/analytics?type=overview&range=30d"),
+          fetch("/api/health"),
+        ]);
+
+        if (!statsRes.ok) throw new Error("Failed to fetch stats");
+        const statsData = await statsRes.json();
+        setStats(statsData);
+
+        if (!healthRes.ok) throw new Error("Failed to fetch health");
+        const healthData = await healthRes.json();
+        setHealth(healthData);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
         setLoading(false);
       }
     }
-    fetchStats();
+    fetchData();
   }, []);
 
   if (loading) {
@@ -55,10 +76,10 @@ export default function AdminDashboard() {
     );
   }
 
-  if (error || !stats) {
+  if (error || !stats || !health) {
     return (
       <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
-        Error: {error || "Failed to load stats"}
+        Error: {error || "Failed to load data"}
       </div>
     );
   }
@@ -92,6 +113,29 @@ export default function AdminDashboard() {
       title: "RAG Documents",
       value: stats.ragDocuments.toLocaleString(),
       subtitle: "Knowledge base",
+      icon: FileText,
+    },
+  ];
+
+  const systemServices = [
+    {
+      key: "database" as keyof HealthResponse,
+      name: "Database",
+      icon: Database,
+    },
+    {
+      key: "openrouter" as keyof HealthResponse,
+      name: "OpenRouter API",
+      icon: Activity,
+    },
+    {
+      key: "clerk" as keyof HealthResponse,
+      name: "Clerk Auth",
+      icon: Key,
+    },
+    {
+      key: "vercelBlob" as keyof HealthResponse,
+      name: "Vercel Blob",
       icon: FileText,
     },
   ];
@@ -169,42 +213,40 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <Database className="h-4 w-4 text-muted-foreground" />
-                  Database
-                </span>
-                <span className="inline-flex items-center rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-500">
-                  ● Connected
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                  OpenRouter API
-                </span>
-                <span className="inline-flex items-center rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-500">
-                  ● Active
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <Key className="h-4 w-4 text-muted-foreground" />
-                  Clerk Auth
-                </span>
-                <span className="inline-flex items-center rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-500">
-                  ● Active
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  Vercel Blob
-                </span>
-                <span className="inline-flex items-center rounded-full bg-yellow-500/10 px-2.5 py-0.5 text-xs font-medium text-yellow-500">
-                  ○ Optional
-                </span>
-              </div>
+              {systemServices.map((service) => {
+                const serviceHealth = health[service.key];
+                const isConnected = serviceHealth.status === "connected";
+                return (
+                  <div
+                    key={service.key}
+                    className="flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <service.icon className="h-4 w-4 text-muted-foreground" />
+                      {service.name}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          isConnected
+                            ? "bg-green-500/10 text-green-500"
+                            : "bg-red-500/10 text-red-500"
+                        }`}
+                      >
+                        {isConnected ? "● Connected" : "● Error"}
+                      </span>
+                      {!isConnected && serviceHealth.message && (
+                        <span
+                          className="text-xs text-muted-foreground max-w-48 truncate"
+                          title={serviceHealth.message}
+                        >
+                          {serviceHealth.message}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>

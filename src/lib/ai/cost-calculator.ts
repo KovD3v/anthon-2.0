@@ -84,14 +84,8 @@ export function extractAIMetrics(
 
   // Extract token usage - AI SDK v5 uses different property names
   // The streamText callback returns: inputTokens, outputTokens, totalTokens, reasoningTokens, cachedInputTokens
-  let inputTokens =
-    (finishResult.usage?.inputTokens as number) ??
-    (finishResult.usage?.promptTokens as number) ??
-    0;
-  let outputTokens =
-    (finishResult.usage?.outputTokens as number) ??
-    (finishResult.usage?.completionTokens as number) ??
-    0;
+  let inputTokens = (finishResult.usage?.promptTokens as number) ?? 0;
+  let outputTokens = (finishResult.usage?.completionTokens as number) ?? 0;
 
   // Try to extract cost and tokens from OpenRouter metadata
   let costFromOpenRouter: number | undefined;
