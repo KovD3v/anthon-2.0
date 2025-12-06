@@ -1,28 +1,28 @@
 "use client";
 
-import {
-  useState,
-  useEffect,
-  createContext,
-  useContext,
-  useCallback,
-} from "react";
-import { useRouter, usePathname } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import {
   Brain,
-  Plus,
-  MessageSquare,
-  Trash2,
-  PanelLeftClose,
-  PanelLeft,
-  Loader2,
   Home,
+  Loader2,
+  MessageSquare,
+  PanelLeft,
+  PanelLeftClose,
+  Plus,
+  Trash2,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useConfirm } from "@/hooks/use-confirm";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/hooks/use-confirm";
 
 // -----------------------------------------------------
 // Types
@@ -72,8 +72,7 @@ export default function ChatLayout({
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
-  const { confirm, isOpen, options, handleConfirm, handleCancel, setIsOpen } =
-    useConfirm();
+  const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
 
   // Get current chat ID from pathname
   const currentChatId = pathname?.split("/chat/")?.[1] || null;

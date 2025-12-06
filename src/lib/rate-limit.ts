@@ -94,7 +94,7 @@ export async function incrementUsage(
   userId: string,
   inputTokens: number,
   outputTokens: number,
-  costUsd: number
+  costUsd: number,
 ): Promise<DailyUsageData> {
   const today = getUTCDateOnly();
 
@@ -152,7 +152,7 @@ export interface RateLimitResult {
 export async function checkRateLimit(
   userId: string,
   subscriptionStatus?: string,
-  userRole?: string
+  userRole?: string,
 ): Promise<RateLimitResult> {
   const usage = await getDailyUsage(userId);
   const limits = getRateLimitsForUser(subscriptionStatus, userRole);
@@ -218,7 +218,7 @@ export async function checkRateLimit(
  */
 export function getRateLimitsForUser(
   subscriptionStatus?: string,
-  userRole?: string
+  userRole?: string,
 ): RateLimits {
   // Admin users have unlimited access
   if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
@@ -244,7 +244,7 @@ export function getRateLimitsForUser(
 function getUTCDateOnly(): Date {
   const now = new Date();
   return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
   );
 }
 
@@ -254,7 +254,7 @@ function getUTCDateOnly(): Date {
 export async function getRemainingAllowance(
   userId: string,
   subscriptionStatus?: string,
-  userRole?: string
+  userRole?: string,
 ): Promise<{
   requests: number;
   inputTokens: number;
@@ -269,7 +269,7 @@ export async function getRemainingAllowance(
     inputTokens: Math.max(0, limits.maxInputTokensPerDay - usage.inputTokens),
     outputTokens: Math.max(
       0,
-      limits.maxOutputTokensPerDay - usage.outputTokens
+      limits.maxOutputTokensPerDay - usage.outputTokens,
     ),
     costUsd: Math.max(0, limits.maxCostPerDay - usage.totalCostUsd),
   };
@@ -287,7 +287,7 @@ export function formatRateLimitStatus(result: RateLimitResult): {
     result.percentUsed.requests,
     result.percentUsed.inputTokens,
     result.percentUsed.outputTokens,
-    result.percentUsed.cost
+    result.percentUsed.cost,
   );
 
   if (!result.allowed) {

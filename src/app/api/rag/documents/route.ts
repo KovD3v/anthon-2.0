@@ -7,8 +7,8 @@ import { auth } from "@clerk/nextjs/server";
 import { type NextRequest, NextResponse } from "next/server";
 import {
   addDocument,
-  listDocuments,
   deleteDocument,
+  listDocuments,
   updateMissingEmbeddings,
 } from "@/lib/ai/rag";
 
@@ -27,7 +27,7 @@ export async function GET() {
     console.error("[RAG API] Error listing documents:", error);
     return NextResponse.json(
       { error: "Failed to list documents" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     if (!title || !content) {
       return NextResponse.json(
         { error: "Title and content are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     console.error("[RAG API] Error adding document:", error);
     return NextResponse.json(
       { error: "Failed to add document" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -82,7 +82,7 @@ export async function DELETE(req: NextRequest) {
     if (!documentId) {
       return NextResponse.json(
         { error: "Document ID is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -96,7 +96,7 @@ export async function DELETE(req: NextRequest) {
     console.error("[RAG API] Error deleting document:", error);
     return NextResponse.json(
       { error: "Failed to delete document" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -121,7 +121,7 @@ export async function PATCH() {
     console.error("[RAG API] Error updating embeddings:", error);
     return NextResponse.json(
       { error: "Failed to update embeddings" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

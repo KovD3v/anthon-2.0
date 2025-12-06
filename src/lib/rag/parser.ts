@@ -19,7 +19,7 @@ export interface ParsedDocument {
 export async function parseDocument(
   buffer: Buffer,
   mimeType: string,
-  fileName: string
+  fileName: string,
 ): Promise<ParsedDocument> {
   if (mimeType === "application/pdf" || fileName.endsWith(".pdf")) {
     return parsePDF(buffer);
@@ -90,7 +90,7 @@ export function chunkText(
   options: {
     chunkSize?: number;
     chunkOverlap?: number;
-  } = {}
+  } = {},
 ): string[] {
   const { chunkSize = 1000, chunkOverlap = 200 } = options;
 

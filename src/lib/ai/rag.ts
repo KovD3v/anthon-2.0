@@ -6,8 +6,8 @@
 
 import { generateObject } from "ai";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
 import { subAgentModel } from "@/lib/ai/providers/openrouter";
+import { prisma } from "@/lib/db";
 
 // Embedding dimensions for Qwen3-embedding-8b
 // The model outputs 4096-dimensional embeddings
@@ -391,7 +391,7 @@ function splitIntoChunks(
       // Keep overlap from the end of the current chunk
       const words = currentChunk.split(/\s+/);
       const overlapWords = words.slice(-Math.floor(overlap / 5)); // Approximate word count for overlap
-      currentChunk = overlapWords.join(" ") + "\n\n" + paragraph;
+      currentChunk = `${overlapWords.join(" ")}\n\n${paragraph}`;
     } else {
       currentChunk += (currentChunk ? "\n\n" : "") + paragraph;
     }

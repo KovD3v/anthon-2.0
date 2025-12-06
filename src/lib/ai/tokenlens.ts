@@ -6,10 +6,10 @@
  */
 
 import {
+  contextHealth,
   estimateCost,
   getContext,
   remainingContext,
-  contextHealth,
 } from "tokenlens";
 
 // -----------------------------------------------------
@@ -34,7 +34,7 @@ export interface CostResult {
 export function calculateCost(
   modelId: string,
   inputTokens: number,
-  outputTokens: number
+  outputTokens: number,
 ): CostResult {
   const cost = estimateCost({
     modelId,
@@ -70,7 +70,7 @@ export interface ContextBudgetResult {
  */
 export function getContextBudget(
   modelId: string,
-  tokenCount: number
+  tokenCount: number,
 ): ContextBudgetResult {
   const context = getContext({ modelId });
   const remaining = remainingContext({
@@ -96,7 +96,7 @@ export function getContextBudget(
 export function getContextHealthStatus(
   modelId: string,
   inputTokens: number,
-  outputTokens: number
+  outputTokens: number,
 ): {
   percentUsed: number;
   remaining?: number;
@@ -137,7 +137,7 @@ export function buildStreamUsageData(
   modelId: string,
   inputTokens: number,
   outputTokens: number,
-  totalConversationTokens: number
+  totalConversationTokens: number,
 ): StreamUsageData {
   const cost = calculateCost(modelId, inputTokens, outputTokens);
   const contextBudget = getContextBudget(modelId, totalConversationTokens);

@@ -1,17 +1,17 @@
 "use client";
 
-import { useState } from "react";
 import {
-  Lightbulb,
-  Code,
-  FileText,
-  Sparkles,
-  HelpCircle,
   ChevronDown,
   ChevronUp,
+  Code,
+  FileText,
+  HelpCircle,
+  Lightbulb,
+  Sparkles,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface SuggestedAction {
   id: string;
@@ -271,7 +271,7 @@ function getContextualSuggestions(context?: string): SuggestedAction[] {
   ];
 
   const hasCode = codeIndicators.some((indicator) =>
-    context.toLowerCase().includes(indicator.toLowerCase())
+    context.toLowerCase().includes(indicator.toLowerCase()),
   );
 
   if (hasCode) {

@@ -5,8 +5,8 @@
  * POST /api/chats - Create a new chat
  */
 
-import { prisma } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
         createdAt: chat.createdAt.toISOString(),
         updatedAt: chat.updatedAt.toISOString(),
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (err) {
     console.error("[Chats API] POST error:", err);

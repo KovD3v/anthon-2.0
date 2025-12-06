@@ -15,7 +15,7 @@ export function calculateCost(
   modelId: string,
   inputTokens: number,
   outputTokens: number,
-  _reasoningTokens?: number // Kept for API compatibility
+  _reasoningTokens?: number, // Kept for API compatibility
 ): number {
   const result = tokenlensCost(modelId, inputTokens, outputTokens);
   return result.totalCost;
@@ -27,7 +27,7 @@ export function calculateCost(
 export function calculateCostDetailed(
   modelId: string,
   inputTokens: number,
-  outputTokens: number
+  outputTokens: number,
 ): CostResult {
   return tokenlensCost(modelId, inputTokens, outputTokens);
 }
@@ -77,7 +77,7 @@ interface FinishResultInput {
 export function extractAIMetrics(
   modelId: string,
   startTime: number,
-  finishResult: FinishResultInput
+  finishResult: FinishResultInput,
 ): AIMetrics {
   const endTime = Date.now();
   const generationTimeMs = endTime - startTime;
@@ -103,7 +103,7 @@ export function extractAIMetrics(
     modelId,
     inputTokens,
     outputTokens,
-    reasoningTokens ?? undefined
+    reasoningTokens ?? undefined,
   );
 
   return {

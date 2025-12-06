@@ -8,7 +8,8 @@
  * - file: File to upload
  */
 
-import { put, del } from "@vercel/blob";
+import { del, put } from "@vercel/blob";
+
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
     const rateLimitResult = await checkRateLimit(
       user.id,
       fullUser?.subscription?.status,
-      user.role
+      user.role,
     );
 
     if (!rateLimitResult.allowed) {
@@ -105,7 +106,7 @@ export async function POST(request: Request) {
           usage: rateLimitResult.usage,
           limits: rateLimitResult.limits,
         },
-        { status: 429 }
+        { status: 429 },
       );
     }
 
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
             MAX_FILE_SIZE / 1024 / 1024
           }MB`,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -134,7 +135,7 @@ export async function POST(request: Request) {
     if (!ALLOWED_TYPES.includes(fileType)) {
       return Response.json(
         { error: `File type not allowed: ${fileType}` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -170,7 +171,7 @@ export async function POST(request: Request) {
     });
 
     console.log(
-      `[Upload API] File uploaded by ${user.id}: ${file.name} (${file.size} bytes)`
+      `[Upload API] File uploaded by ${user.id}: ${file.name} (${file.size} bytes)`,
     );
 
     return Response.json({
@@ -186,7 +187,7 @@ export async function POST(request: Request) {
     console.error("[Upload API] Error:", err);
     return Response.json(
       { error: err instanceof Error ? err.message : "Failed to upload file" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -232,7 +233,7 @@ export async function DELETE(request: Request) {
     if (!upload) {
       return Response.json(
         { error: "File not found or access denied" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -254,7 +255,7 @@ export async function DELETE(request: Request) {
     console.error("[Upload API] Delete error:", err);
     return Response.json(
       { error: err instanceof Error ? err.message : "Failed to delete file" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

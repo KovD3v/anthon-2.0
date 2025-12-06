@@ -3,16 +3,17 @@
  * List, upload, and manage RAG documents
  */
 
+import { del, put } from "@vercel/blob";
 import { type NextRequest, NextResponse } from "next/server";
-import { put, del } from "@vercel/blob";
+
+import { addDocument, deleteDocument as removeDocument } from "@/lib/ai/rag";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
-  parseDocument,
   isValidFileType,
+  parseDocument,
   SUPPORTED_EXTENSIONS,
 } from "@/lib/rag/parser";
-import { addDocument, deleteDocument as removeDocument } from "@/lib/ai/rag";
 
 // GET /api/admin/rag - List all RAG documents
 export async function GET() {
@@ -43,7 +44,7 @@ export async function GET() {
     console.error("[RAG API] Error listing documents:", error);
     return NextResponse.json(
       { error: "Failed to list documents" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
             success: false,
             fileName: file.name,
             error: `Unsupported file type. Supported: ${SUPPORTED_EXTENSIONS.join(
-              ", "
+              ", ",
             )}`,
           });
           continue;
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
           documentTitle,
           parsed.content,
           source || undefined,
-          blobUrl
+          blobUrl,
         );
 
         // Get chunk count
@@ -154,7 +155,7 @@ export async function POST(req: NextRequest) {
         });
 
         console.log(
-          `[RAG API] Successfully processed ${file.name}: ${chunkCount} chunks`
+          `[RAG API] Successfully processed ${file.name}: ${chunkCount} chunks`,
         );
       } catch (fileError) {
         console.error(`[RAG API] Error processing ${file.name}:`, fileError);
@@ -184,7 +185,7 @@ export async function POST(req: NextRequest) {
     console.error("[RAG API] Error uploading documents:", error);
     return NextResponse.json(
       { error: "Failed to process documents" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -201,7 +202,7 @@ export async function DELETE(req: NextRequest) {
     if (!documentId) {
       return NextResponse.json(
         { error: "Document ID required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -213,7 +214,7 @@ export async function DELETE(req: NextRequest) {
     if (!document) {
       return NextResponse.json(
         { error: "Document not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -234,7 +235,7 @@ export async function DELETE(req: NextRequest) {
     console.error("[RAG API] Error deleting document:", error);
     return NextResponse.json(
       { error: "Failed to delete document" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

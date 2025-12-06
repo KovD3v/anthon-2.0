@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     console.error("[Analytics API] Error:", error);
     return NextResponse.json(
       { error: "Failed to fetch analytics" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

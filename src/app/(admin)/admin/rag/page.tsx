@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useConfirm } from "@/hooks/use-confirm";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/hooks/use-confirm";
 
 interface RagDocument {
   id: string;
@@ -80,7 +80,7 @@ export default function RagPage() {
       toast.error(
         `Invalid file type(s): ${invalidFiles
           .map((f) => f.name)
-          .join(", ")}. Supported: ${validExtensions.join(", ")}`
+          .join(", ")}. Supported: ${validExtensions.join(", ")}`,
       );
       return;
     }
@@ -106,7 +106,7 @@ export default function RagPage() {
           fileName: file.name,
           status: "uploading",
           message: "Processing...",
-        }))
+        })),
       );
 
       const res = await fetch("/api/admin/rag", {
@@ -131,7 +131,7 @@ export default function RagPage() {
             message: result.success
               ? `✓ ${result.document?.chunkCount} chunks`
               : `✕ ${result.error}`,
-          })
+          }),
         );
         setUploadProgress(updatedProgress);
 
@@ -140,11 +140,11 @@ export default function RagPage() {
           toast.success(
             `Successfully uploaded ${data.successCount} file${
               data.successCount > 1 ? "s" : ""
-            }`
+            }`,
           );
         } else if (data.successCount > 0 && data.failureCount > 0) {
           toast.warning(
-            `Uploaded ${data.successCount}/${data.totalFiles} files. ${data.failureCount} failed.`
+            `Uploaded ${data.successCount}/${data.totalFiles} files. ${data.failureCount} failed.`,
           );
         } else {
           toast.error(`Failed to upload ${data.failureCount} file(s)`);
@@ -162,7 +162,7 @@ export default function RagPage() {
             fileName: file.name,
             status: "error",
             message: `✕ ${error.error}`,
-          }))
+          })),
         );
         toast.error(error.error || "Upload failed");
         setTimeout(() => setUploadProgress([]), 5000);
@@ -174,7 +174,7 @@ export default function RagPage() {
           fileName: file.name,
           status: "error",
           message: "✕ Upload failed",
-        }))
+        })),
       );
       toast.error("Upload failed");
       setTimeout(() => setUploadProgress([]), 5000);
@@ -293,8 +293,8 @@ export default function RagPage() {
                       progress.status === "success"
                         ? "bg-green-100 text-green-700"
                         : progress.status === "error"
-                        ? "bg-red-100 text-red-700"
-                        : "bg-blue-100 text-blue-700"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-blue-100 text-blue-700"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">

@@ -1,19 +1,19 @@
-import { streamText, type ModelMessage, stepCountIs } from "ai";
+import { type ModelMessage, stepCountIs, streamText } from "ai";
+import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
 import {
-  orchestratorModel,
   ORCHESTRATOR_MODEL_ID,
+  orchestratorModel,
 } from "@/lib/ai/providers/openrouter";
+import { getRagContext, shouldUseRag } from "@/lib/ai/rag";
 import { buildConversationContext } from "@/lib/ai/session-manager";
 import {
-  formatMemoriesForPrompt,
   createMemoryTools,
+  formatMemoriesForPrompt,
 } from "@/lib/ai/tools/memory";
 import {
-  formatUserContextForPrompt,
   createUserContextTools,
+  formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
-import { getRagContext, shouldUseRag } from "@/lib/ai/rag";
-import { extractAIMetrics, type AIMetrics } from "@/lib/ai/cost-calculator";
 
 // System prompt template
 const SYSTEM_PROMPT_TEMPLATE = `Sei **Anthon**, un assistente di coaching sportivo intelligente, empatico e personalizzato.
@@ -163,7 +163,7 @@ interface StreamChatOptions {
  */
 async function buildSystemPrompt(
   userId: string,
-  ragContext?: string
+  ragContext?: string,
 ): Promise<string> {
   // Fetch user context and memories in parallel
   const [userContext, userMemories] = await Promise.all([
@@ -182,25 +182,25 @@ async function buildSystemPrompt(
       year: "numeric",
       month: "long",
       day: "numeric",
-    })
+    }),
   );
 
   // Inject RAG context
   systemPrompt = systemPrompt.replace(
     "{{RAG_CONTEXT}}",
-    ragContext || "Nessun documento RAG disponibile al momento."
+    ragContext || "Nessun documento RAG disponibile al momento.",
   );
 
   // Inject user context
   systemPrompt = systemPrompt.replace(
     "{{USER_CONTEXT}}",
-    userContext || "Nessun profilo utente disponibile."
+    userContext || "Nessun profilo utente disponibile.",
   );
 
   // Inject memories
   systemPrompt = systemPrompt.replace(
     "{{USER_MEMORIES}}",
-    userMemories || "Nessuna memoria salvata per questo utente."
+    userMemories || "Nessuna memoria salvata per questo utente.",
   );
 
   return systemPrompt;
@@ -244,7 +244,7 @@ export async function streamChat({
       // Count chunks by counting "**" which marks each document title
       ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || []).length;
       console.log(
-        `[Orchestrator] RAG context loaded (${ragChunksCount} chunks)`
+        `[Orchestrator] RAG context loaded (${ragChunksCount} chunks)`,
       );
     }
   } catch (error) {
@@ -302,7 +302,7 @@ export async function streamChat({
               // RAG tracking
               ragUsed,
               ragChunksCount,
-            }
+            },
           );
 
           onFinish({ text, metrics });
@@ -341,7 +341,7 @@ export async function streamChat({
  */
 export async function generateChatResponse(
   userId: string,
-  userMessage: string
+  userMessage: string,
 ): Promise<string> {
   const result = await streamChat({ userId, userMessage });
 

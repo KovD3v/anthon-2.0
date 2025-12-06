@@ -9,10 +9,10 @@
  * 4. Copy the Signing Secret and add to .env as CLERK_WEBHOOK_SECRET
  */
 
-import { Webhook } from "svix";
 import { headers } from "next/headers";
-import { prisma } from "@/lib/db";
+import { Webhook } from "svix";
 import type { SubscriptionStatus } from "@/generated/prisma";
+import { prisma } from "@/lib/db";
 
 // Clerk webhook event types
 interface WebhookEvent {
@@ -90,19 +90,19 @@ export async function POST(req: Request) {
 
       case "subscription.created":
         await handleSubscriptionCreated(
-          evt.data as unknown as SubscriptionData
+          evt.data as unknown as SubscriptionData,
         );
         break;
 
       case "subscription.updated":
         await handleSubscriptionUpdated(
-          evt.data as unknown as SubscriptionData
+          evt.data as unknown as SubscriptionData,
         );
         break;
 
       case "subscription.deleted":
         await handleSubscriptionDeleted(
-          evt.data as unknown as SubscriptionData
+          evt.data as unknown as SubscriptionData,
         );
         break;
 
@@ -229,7 +229,7 @@ async function handleSubscriptionCreated(data: SubscriptionData) {
   let trialEndsAt: Date | undefined;
   if (status === "TRIAL" && data.trial_period_days) {
     trialEndsAt = new Date(
-      now.getTime() + data.trial_period_days * 24 * 60 * 60 * 1000
+      now.getTime() + data.trial_period_days * 24 * 60 * 60 * 1000,
     );
   }
 
@@ -258,7 +258,7 @@ async function handleSubscriptionCreated(data: SubscriptionData) {
   });
 
   console.log(
-    `[Webhook] Subscription record created/updated for user: ${user.id}`
+    `[Webhook] Subscription record created/updated for user: ${user.id}`,
   );
 }
 
@@ -342,7 +342,7 @@ async function handleSubscriptionDeleted(data: SubscriptionData) {
   });
 
   console.log(
-    `[Webhook] Subscription marked as expired: ${subscription.userId}`
+    `[Webhook] Subscription marked as expired: ${subscription.userId}`,
   );
 }
 
@@ -366,7 +366,7 @@ function mapClerkStatus(clerkStatus: string): SubscriptionStatus {
       return "EXPIRED";
     default:
       console.warn(
-        `[Webhook] Unknown Clerk status: ${clerkStatus}, defaulting to TRIAL`
+        `[Webhook] Unknown Clerk status: ${clerkStatus}, defaulting to TRIAL`,
       );
       return "TRIAL";
   }

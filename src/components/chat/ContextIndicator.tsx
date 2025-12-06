@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, AlertTriangle, AlertCircle } from "lucide-react";
+import { AlertCircle, AlertTriangle, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ContextIndicatorProps {
@@ -115,7 +115,7 @@ export function ContextBadge({
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
         getColorClass(),
-        className
+        className,
       )}
     >
       <Brain className="h-3 w-3" />

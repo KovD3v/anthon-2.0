@@ -1,11 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import type { UIMessage } from "ai";
 import type { Prisma } from "@/generated/prisma";
-import { prisma } from "@/lib/db";
-import { streamChat } from "@/lib/ai/orchestrator";
-import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
-import { checkRateLimit, incrementUsage } from "@/lib/rate-limit";
 import { generateChatTitle } from "@/lib/ai/context-compactor";
+import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
+import { streamChat } from "@/lib/ai/orchestrator";
+import { prisma } from "@/lib/db";
+import { checkRateLimit, incrementUsage } from "@/lib/rate-limit";
 
 export const maxDuration = 60; // Allow up to 60 seconds for streaming
 
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     const rateLimitResult = await checkRateLimit(
       user.id,
       user.subscription?.status,
-      user.role
+      user.role,
     );
 
     if (!rateLimitResult.allowed) {
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
           usage: rateLimitResult.usage,
           limits: rateLimitResult.limits,
         },
-        { status: 429 }
+        { status: 429 },
       );
     }
 
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     if (!chat) {
       return Response.json(
         { error: "Chat not found or access denied" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -170,13 +170,13 @@ export async function POST(request: Request) {
               currentUserId,
               metrics.inputTokens,
               metrics.outputTokens,
-              metrics.costUsd
+              metrics.costUsd,
             );
 
             console.log(
               `[Chat API] Assistant message saved: ${text.substring(
                 0,
-                50
+                50,
               )}... | tokens: ${metrics.inputTokens}/${
                 metrics.outputTokens
               } | RAG: ${
@@ -185,14 +185,14 @@ export async function POST(request: Request) {
                   : "no"
               } | cost: $${metrics.costUsd.toFixed(6)} | time: ${
                 metrics.generationTimeMs
-              }ms`
+              }ms`,
             );
 
             // Extract and save memories in background
             extractAndSaveMemories(currentUserId, userMessageText, text).catch(
               (err) => {
                 console.error("[Chat API] Memory extraction error:", err);
-              }
+              },
             );
           } catch (error) {
             console.error("[Chat API] Error saving assistant message:", error);

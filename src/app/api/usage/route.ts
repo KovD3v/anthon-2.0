@@ -28,7 +28,7 @@ export async function GET() {
     // Determine rate limits based on subscription and role
     const limits = getRateLimitsForUser(
       subscriptionStatus ?? undefined,
-      userRole
+      userRole,
     );
 
     // Determine tier name for display

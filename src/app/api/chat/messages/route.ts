@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { type NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
 
 /**
  * GET /api/chat/messages?chatId=<chatId>
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     console.error("[Chat Messages API] Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -108,7 +108,7 @@ export async function DELETE(request: NextRequest) {
     if (!messageId) {
       return NextResponse.json(
         { error: "Message ID is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -139,7 +139,7 @@ export async function DELETE(request: NextRequest) {
     if (message.role !== "USER") {
       return NextResponse.json(
         { error: "Only user messages can be deleted" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -157,7 +157,7 @@ export async function DELETE(request: NextRequest) {
     });
 
     console.log(
-      `[Chat Messages API] Deleted ${deleteResult.count} messages (cascade from ${messageId})`
+      `[Chat Messages API] Deleted ${deleteResult.count} messages (cascade from ${messageId})`,
     );
 
     return NextResponse.json({
@@ -168,7 +168,7 @@ export async function DELETE(request: NextRequest) {
     console.error("[Chat Messages API] Delete error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -198,7 +198,7 @@ export async function PATCH(request: NextRequest) {
     if (!messageId) {
       return NextResponse.json(
         { error: "Message ID is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -229,7 +229,7 @@ export async function PATCH(request: NextRequest) {
     if (message.role !== "USER") {
       return NextResponse.json(
         { error: "Only user messages can be edited" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -245,7 +245,7 @@ export async function PATCH(request: NextRequest) {
     });
 
     console.log(
-      `[Chat Messages API] Edited message - deleted ${deleteResult.count} messages`
+      `[Chat Messages API] Edited message - deleted ${deleteResult.count} messages`,
     );
 
     // Return the new content so the frontend can re-send it
@@ -259,7 +259,7 @@ export async function PATCH(request: NextRequest) {
     console.error("[Chat Messages API] Edit error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

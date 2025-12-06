@@ -4,9 +4,9 @@
  */
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
-import type { UserRole } from "@/generated/prisma";
 import { unstable_cache } from "next/cache";
+import type { UserRole } from "@/generated/prisma";
+import { prisma } from "@/lib/db";
 
 export type { UserRole };
 
@@ -42,7 +42,7 @@ const getCachedUserByClerkId = unstable_cache(
   {
     revalidate: 60, // Cache for 60 seconds
     tags: ["user-auth"],
-  }
+  },
 );
 
 /**
@@ -116,7 +116,7 @@ export async function getAuthUser(): Promise<AuthResult> {
  */
 async function syncUserProfileFromClerk(
   clerkId: string,
-  userId: string
+  userId: string,
 ): Promise<void> {
   try {
     // Check if profile already exists with a name
@@ -199,7 +199,7 @@ export async function requireAdmin(): Promise<{
         {
           status: 401,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       ),
     };
   }
@@ -212,7 +212,7 @@ export async function requireAdmin(): Promise<{
         {
           status: 403,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       ),
     };
   }
@@ -238,7 +238,7 @@ export async function requireSuperAdmin(): Promise<{
         {
           status: 401,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       ),
     };
   }
@@ -251,7 +251,7 @@ export async function requireSuperAdmin(): Promise<{
         {
           status: 403,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       ),
     };
   }
@@ -265,7 +265,7 @@ export async function requireSuperAdmin(): Promise<{
 export async function updateUserRole(
   userId: string,
   newRole: UserRole,
-  actingUser: AuthUser
+  actingUser: AuthUser,
 ): Promise<{ success: boolean; error?: string }> {
   // Only super admins can change roles
   if (!isSuperAdmin(actingUser.role)) {

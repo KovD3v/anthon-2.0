@@ -10,7 +10,7 @@ import { prisma } from "@/lib/db";
 // GET /api/admin/users/[userId] - Get user details with messages
 export async function GET(
   _req: NextRequest,
-  context: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> },
 ) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
@@ -83,7 +83,7 @@ export async function GET(
         messageCount: messages.length,
         lastMessageAt: messages[0]?.createdAt,
         messages: messages.reverse(), // oldest first
-      })
+      }),
     );
 
     return NextResponse.json({
@@ -109,7 +109,7 @@ export async function GET(
     console.error("[User Detail API] Error:", error);
     return NextResponse.json(
       { error: "Failed to fetch user" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

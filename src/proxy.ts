@@ -10,7 +10,7 @@ const isProtectedRoute = createRouteMatcher([
 ]);
 
 // Routes that require admin role
-const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
+const _isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();

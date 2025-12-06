@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Loader2, X } from "lucide-react";
-import type { UserRole } from "@/generated/prisma";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { UserRole } from "@/generated/prisma";
 
 interface User {
   id: string;
@@ -270,7 +270,7 @@ export default function UsersPage() {
                   Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
                   {Math.min(
                     pagination.page * pagination.limit,
-                    pagination.total
+                    pagination.total,
                   )}{" "}
                   of {pagination.total}
                 </div>
@@ -352,7 +352,7 @@ export default function UsersPage() {
                             onChange={(e) =>
                               updateUserRole(
                                 selectedUser.user.id,
-                                e.target.value as UserRole
+                                e.target.value as UserRole,
                               )
                             }
                             disabled={updatingRole === selectedUser.user.id}
@@ -426,7 +426,7 @@ export default function UsersPage() {
                             </span>
                             <span>
                               {new Date(
-                                channel.lastMessageAt
+                                channel.lastMessageAt,
                               ).toLocaleDateString("it-IT")}
                             </span>
                           </div>

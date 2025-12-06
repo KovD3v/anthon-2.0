@@ -1,21 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  LineChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
   Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface UsageStats {
   messagesByDay: Array<{ date: string; count: number }>;
@@ -123,10 +123,10 @@ export default function AnalyticsPage() {
               {r === "all"
                 ? "All Time"
                 : r === "7d"
-                ? "7 Days"
-                : r === "30d"
-                ? "30 Days"
-                : "90 Days"}
+                  ? "7 Days"
+                  : r === "30d"
+                    ? "30 Days"
+                    : "90 Days"}
             </button>
           ))}
         </div>

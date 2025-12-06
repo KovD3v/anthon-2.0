@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import {
-  AlertTriangle,
   AlertCircle,
-  X,
+  AlertTriangle,
   Clock,
   TrendingUp,
+  X,
   Zap,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface DailyUsage {
   requestCount: number;
@@ -125,7 +125,7 @@ export function UsageBanner({
       className={cn(
         "flex items-center justify-between rounded-lg border px-4 py-3",
         getBannerStyle(),
-        className
+        className,
       )}
     >
       <div className="flex items-center gap-3">
@@ -178,7 +178,7 @@ export function UsageStats({
 
   const requestPercent = Math.min(
     (usage.requestCount / limits.maxRequests) * 100,
-    100
+    100,
   );
 
   return (
@@ -201,8 +201,8 @@ export function UsageStats({
             requestPercent >= 90
               ? "bg-red-500"
               : requestPercent >= 70
-              ? "bg-yellow-500"
-              : "bg-primary"
+                ? "bg-yellow-500"
+                : "bg-primary",
           )}
           style={{ width: `${requestPercent}%` }}
         />
@@ -235,7 +235,7 @@ export function RateLimitError({
     <div
       className={cn(
         "rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950",
-        className
+        className,
       )}
     >
       <div className="flex items-start gap-3">

@@ -6,7 +6,7 @@
  * Uses Vercel Blob for storage. Files are linked to messages.
  */
 
-import { put, del } from "@vercel/blob";
+import { del, put } from "@vercel/blob";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     if (!chat) {
       return Response.json(
         { error: "Chat not found or access denied" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
             MAX_FILE_SIZE / 1024 / 1024
           }MB`,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     if (!ALLOWED_TYPES.includes(file.type)) {
       return Response.json(
         { error: `File type not allowed: ${file.type}` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
     });
 
     console.log(
-      `[Upload API] File uploaded: ${file.name} (${file.size} bytes)`
+      `[Upload API] File uploaded: ${file.name} (${file.size} bytes)`,
     );
 
     return Response.json({
@@ -168,7 +168,7 @@ export async function DELETE(request: Request) {
   if (!attachmentId) {
     return Response.json(
       { error: "Attachment ID is required" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 

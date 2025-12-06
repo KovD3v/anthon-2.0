@@ -1,7 +1,7 @@
 import { generateObject } from "ai";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
 import { subAgentModel } from "@/lib/ai/providers/openrouter";
+import { prisma } from "@/lib/db";
 
 // Schema for extracted memory facts
 const ExtractedFactsSchema = z.object({
@@ -10,7 +10,7 @@ const ExtractedFactsSchema = z.object({
       key: z
         .string()
         .describe(
-          "A unique key for this fact, e.g., 'user_name', 'user_sport', 'user_goal', 'user_preference_*'"
+          "A unique key for this fact, e.g., 'user_name', 'user_sport', 'user_goal', 'user_preference_*'",
         ),
       value: z
         .string()
@@ -31,7 +31,7 @@ const ExtractedFactsSchema = z.object({
         .min(0)
         .max(1)
         .describe("Confidence score 0-1 that this fact is accurate"),
-    })
+    }),
   ),
 });
 
@@ -43,7 +43,7 @@ const ExtractedFactsSchema = z.object({
 export async function extractAndSaveMemories(
   userId: string,
   userMessage: string,
-  assistantResponse: string
+  assistantResponse: string,
 ): Promise<void> {
   try {
     // Use generateObject for structured extraction
@@ -126,7 +126,7 @@ async function getMemoryId(userId: string, key: string): Promise<string> {
  */
 export async function extractMemoriesFromHistory(
   userId: string,
-  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>
+  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>,
 ): Promise<void> {
   // Build conversation text
   const conversationText = conversationHistory

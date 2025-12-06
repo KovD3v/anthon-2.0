@@ -35,7 +35,7 @@ come nome, sport praticato, obiettivi, preferenze e altre informazioni personali
           ])
           .optional()
           .describe(
-            "Filtra per categoria specifica o 'all' per tutte le memorie"
+            "Filtra per categoria specifica o 'all' per tutte le memorie",
           ),
       }),
       execute: async ({ category }) => {
@@ -86,7 +86,7 @@ per le conversazioni future, come preferenze, obiettivi o dettagli personali.`,
         key: z
           .string()
           .describe(
-            "Chiave univoca per questa informazione in snake_case (es: user_name, primary_goal)"
+            "Chiave univoca per questa informazione in snake_case (es: user_name, primary_goal)",
           ),
         value: z.string().describe("Il valore dell'informazione da salvare"),
         category: z
@@ -200,7 +200,7 @@ o quando un'informazione non è più valida.`,
  * Utility function to get all memories for a user (not a tool, for internal use).
  */
 export async function getAllMemories(
-  userId: string
+  userId: string,
 ): Promise<Map<string, MemoryValue>> {
   const memories = await prisma.memory.findMany({
     where: { userId },

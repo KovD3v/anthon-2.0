@@ -304,7 +304,7 @@ Title (no quotes, no punctuation at end):`,
   } catch (error) {
     console.error("[ContextCompactor] Title generation failed:", error);
     // Fallback: use first few words
-    return firstUserMessage.slice(0, 40).trim() + "...";
+    return `${firstUserMessage.slice(0, 40).trim()}...`;
   }
 }
 

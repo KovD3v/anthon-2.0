@@ -9,7 +9,7 @@ export default async function AdminLayout({
 }) {
   // Server-side admin check
   const { errorResponse } = await requireAdmin();
-  
+
   if (errorResponse) {
     // Not an admin, redirect to home
     redirect("/");

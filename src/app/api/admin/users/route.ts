@@ -4,9 +4,9 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
+import type { UserRole } from "@/generated/prisma";
 import { requireAdmin, requireSuperAdmin, updateUserRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import type { UserRole } from "@/generated/prisma";
 
 // GET /api/admin/users - List users with pagination and search
 export async function GET(req: NextRequest) {
@@ -14,8 +14,8 @@ export async function GET(req: NextRequest) {
   if (errorResponse) return errorResponse;
 
   const { searchParams } = new URL(req.url);
-  const page = Number.parseInt(searchParams.get("page") || "1");
-  const limit = Number.parseInt(searchParams.get("limit") || "20");
+  const page = Number.parseInt(searchParams.get("page") || "1", 10);
+  const limit = Number.parseInt(searchParams.get("limit") || "20", 10);
   const search = searchParams.get("search") || "";
   const role = searchParams.get("role") as UserRole | null;
 

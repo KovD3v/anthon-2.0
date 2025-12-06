@@ -1,19 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import NextImage from "next/image";
 import {
+  Download,
+  ExternalLink,
   File,
+  FileCode,
   FileText,
   Image as ImageIcon,
-  FileCode,
-  Download,
-  X,
-  ExternalLink,
   Loader2,
+  X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import NextImage from "next/image";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface AttachmentData {
   id: string;
@@ -44,7 +44,7 @@ export function AttachmentPreview({
     <div
       className={cn(
         "relative flex items-center gap-2 rounded-lg border bg-card p-2",
-        className
+        className,
       )}
     >
       {isImage ? (
@@ -177,7 +177,7 @@ export function AttachmentUploader({
           ? "border-primary bg-primary/5"
           : "border-muted-foreground/25 hover:border-muted-foreground/50",
         isUploading && "pointer-events-none opacity-50",
-        className
+        className,
       )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -228,7 +228,7 @@ export function AttachmentButton({
       className={cn(
         "h-10 w-10 shrink-0 text-muted-foreground",
         hasAttachment && "text-primary",
-        className
+        className,
       )}
       title="Attach file"
     >
@@ -254,7 +254,7 @@ export function AttachmentChip({
       rel="noopener noreferrer"
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border bg-muted/50 px-2.5 py-1 text-xs transition-colors hover:bg-muted",
-        className
+        className,
       )}
     >
       {getFileIcon(attachment.contentType, "h-3 w-3")}
@@ -268,7 +268,7 @@ export function AttachmentChip({
  */
 function getFileIcon(
   contentType: string,
-  className = "h-5 w-5 text-muted-foreground"
+  className = "h-5 w-5 text-muted-foreground",
 ) {
   if (contentType.startsWith("image/")) {
     return <ImageIcon className={className} />;

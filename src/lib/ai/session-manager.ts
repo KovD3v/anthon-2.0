@@ -1,7 +1,7 @@
 import { generateText, type ModelMessage } from "ai";
-import { prisma } from "@/lib/db";
-import { subAgentModel } from "@/lib/ai/providers/openrouter";
 import type { Message } from "@/generated/prisma/client";
+import { subAgentModel } from "@/lib/ai/providers/openrouter";
+import { prisma } from "@/lib/db";
 
 // Session gap threshold: 15 minutes in milliseconds
 const SESSION_GAP_MS = 15 * 60 * 1000;
@@ -91,8 +91,8 @@ function toModelMessage(message: Message): ModelMessage {
     message.role === "USER"
       ? "user"
       : message.role === "ASSISTANT"
-      ? "assistant"
-      : "system";
+        ? "assistant"
+        : "system";
 
   return {
     role,
@@ -114,7 +114,7 @@ function toModelMessage(message: Message): ModelMessage {
  *    include previous session(s) as context
  */
 export async function buildConversationContext(
-  userId: string
+  userId: string,
 ): Promise<ModelMessage[]> {
   // Fetch all messages for the user, ordered chronologically
   const allMessages = await prisma.message.findMany({
@@ -158,7 +158,7 @@ export async function buildConversationContext(
       contextMessages.unshift({
         role: "system",
         content: `[Riassunto della sessione precedente (${session.startTime.toLocaleDateString(
-          "it-IT"
+          "it-IT",
         )})]: ${summary}`,
       } as ModelMessage);
 

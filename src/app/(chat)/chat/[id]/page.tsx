@@ -1,26 +1,28 @@
 "use client";
 
-import type { UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
+import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
-import { useParams } from "next/navigation";
 import {
   Brain,
-  Send,
+  Check,
   Loader2,
-  Trash2,
-  Square,
   Pencil,
   RefreshCw,
-  Check,
+  Send,
+  Square,
+  Trash2,
   X,
 } from "lucide-react";
-import { useRef, useEffect, useState, useCallback, useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { useChatContext } from "../layout";
-import { useConfirm } from "@/hooks/use-confirm";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/hooks/use-confirm";
+import { useChatContext } from "../layout";
 
 interface ChatData {
   id: string;
@@ -52,7 +54,7 @@ export default function ChatConversationPage() {
   const [error, setError] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(
-    null
+    null,
   );
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
@@ -125,7 +127,7 @@ export default function ChatConversationPage() {
                   },
                 ],
             createdAt: new Date(msg.createdAt),
-          })
+          }),
         );
 
         return newMessages;
@@ -166,7 +168,7 @@ export default function ChatConversationPage() {
   }, [initialMessages, hasInitialized, setMessages]);
 
   // Combine stored and streaming messages
-  const displayMessages = useCallback(() => {
+  const displayMessages = useMemo(() => {
     if (streamingMessages.length > 0) {
       return streamingMessages;
     }
@@ -189,7 +191,7 @@ export default function ChatConversationPage() {
       });
       hasInitialScrolledRef.current = true;
     }
-  }, [streamingMessages, initialMessages]);
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -245,7 +247,7 @@ export default function ChatConversationPage() {
                     },
                   ],
               createdAt: new Date(msg.createdAt),
-            })
+            }),
           );
 
           setMessages(newMessages);
@@ -316,7 +318,7 @@ export default function ChatConversationPage() {
                     },
                   ],
               createdAt: new Date(msg.createdAt),
-            })
+            }),
           );
 
           // Set the messages in useChat state
@@ -339,7 +341,7 @@ export default function ChatConversationPage() {
 
   // Handle regenerate (re-send the last user message)
   const handleRegenerate = async () => {
-    const messages = displayMessages();
+    const messages = displayMessages;
 
     // Find the last assistant message
     const lastAssistantIdx = [...messages]
@@ -390,7 +392,7 @@ export default function ChatConversationPage() {
                     },
                   ],
               createdAt: new Date(msg.createdAt),
-            })
+            }),
           );
 
           setMessages(newMessages);
@@ -408,7 +410,7 @@ export default function ChatConversationPage() {
   };
 
   // Helper to extract text from message parts
-  const getMessageText = (message: ReturnType<typeof displayMessages>[0]) => {
+  const getMessageText = (message: UIMessage) => {
     return (
       message.parts
         ?.map((part) => (part.type === "text" ? part.text : ""))
@@ -436,11 +438,11 @@ export default function ChatConversationPage() {
   }
 
   const isLoading = status === "streaming" || status === "submitted";
-  const messages = displayMessages();
+  const messages = displayMessages;
   const hasAssistantMessage = messages.some((m) => m.role === "assistant");
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
       {/* Chat Header */}
       <header className="flex h-14 items-center justify-between border-b px-4">
         <div className="flex items-center gap-2">
@@ -463,7 +465,7 @@ export default function ChatConversationPage() {
       </header>
 
       {/* Messages Container */}
-      <main className="flex-1 overflow-y-auto" onScroll={handleScroll}>
+      <main className="flex-1 overflow-y-auto min-h-0" onScroll={handleScroll}>
         <div className="mx-auto max-w-3xl px-4 py-8">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -565,6 +567,12 @@ export default function ChatConversationPage() {
                               Save & Send
                             </Button>
                           </div>
+                        </div>
+                      ) : message.role === "assistant" ? (
+                        <div className="prose max-w-none text-sm dark:prose-invert">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {messageText}
+                          </ReactMarkdown>
                         </div>
                       ) : (
                         <div className="whitespace-pre-wrap text-sm">

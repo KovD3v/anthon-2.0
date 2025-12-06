@@ -6,9 +6,9 @@
  * DELETE /api/chats/[id] - Delete chat and all its messages
  */
 
-import { prisma } from "@/lib/db";
-import { getAuthUser } from "@/lib/auth";
 import { generateChatTitle } from "@/lib/ai/context-compactor";
+import { getAuthUser } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -125,7 +125,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     if (!chat) {
       return Response.json(
         { error: "Chat not found or access denied" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -199,7 +199,7 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
     if (!chat) {
       return Response.json(
         { error: "Chat not found or access denied" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
