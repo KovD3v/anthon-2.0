@@ -34,19 +34,34 @@ export interface CostResult {
 export function calculateCost(
   modelId: string,
   inputTokens: number,
-  outputTokens: number,
+  outputTokens: number
 ): CostResult {
-  const cost = estimateCost({
-    modelId,
-    usage: { promptTokens: inputTokens, completionTokens: outputTokens },
-  });
+  try {
+    const cost = estimateCost({
+      modelId,
+      usage: { promptTokens: inputTokens, completionTokens: outputTokens },
+    });
 
-  return {
-    inputCost: cost.inputUSD ?? 0,
-    outputCost: cost.outputUSD ?? 0,
-    totalCost: cost.totalUSD ?? 0,
-    model: modelId,
-  };
+
+
+    return {
+      inputCost: cost.inputUSD ?? 0,
+      outputCost: cost.outputUSD ?? 0,
+      totalCost: cost.totalUSD ?? 0,
+      model: modelId,
+    };
+  } catch (error) {
+    console.error(
+      `[TokenLens] Error calculating cost for model ${modelId}:`,
+      error
+    );
+    return {
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      model: modelId,
+    };
+  }
 }
 
 // -----------------------------------------------------
@@ -70,7 +85,7 @@ export interface ContextBudgetResult {
  */
 export function getContextBudget(
   modelId: string,
-  tokenCount: number,
+  tokenCount: number
 ): ContextBudgetResult {
   const context = getContext({ modelId });
   const remaining = remainingContext({
@@ -96,7 +111,7 @@ export function getContextBudget(
 export function getContextHealthStatus(
   modelId: string,
   inputTokens: number,
-  outputTokens: number,
+  outputTokens: number
 ): {
   percentUsed: number;
   remaining?: number;
@@ -137,7 +152,7 @@ export function buildStreamUsageData(
   modelId: string,
   inputTokens: number,
   outputTokens: number,
-  totalConversationTokens: number,
+  totalConversationTokens: number
 ): StreamUsageData {
   const cost = calculateCost(modelId, inputTokens, outputTokens);
   const contextBudget = getContextBudget(modelId, totalConversationTokens);

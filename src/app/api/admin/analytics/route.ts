@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
   const range = searchParams.get("range") || "7d"; // 7d, 30d, 90d, all
   const type = searchParams.get("type") || "overview"; // overview, usage, costs, funnel
 
+
+
   try {
     const startDate = getStartDate(range);
 
@@ -35,7 +37,7 @@ export async function GET(req: NextRequest) {
     console.error("[Analytics API] Error:", error);
     return NextResponse.json(
       { error: "Failed to fetch analytics" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
@@ -90,6 +92,8 @@ async function getOverviewStats(startDate: Date | null) {
     prisma.ragDocument.count(),
   ]);
 
+
+
   // Average messages per user
   const avgMessagesPerUser = totalUsers > 0 ? totalMessages / totalUsers : 0;
 
@@ -116,33 +120,31 @@ async function getOverviewStats(startDate: Date | null) {
 async function getUsageStats(startDate: Date | null) {
   const whereDate = startDate ? { createdAt: { gte: startDate } } : {};
 
-  // Get messages grouped by day
-  const messagesRaw = await prisma.message.groupBy({
-    by: ["createdAt"],
+  // Get all messages and manually group by date
+  const messages = await prisma.message.findMany({
     where: whereDate,
-    _count: true,
+    select: { createdAt: true, userId: true, role: true },
     orderBy: { createdAt: "asc" },
   });
 
-  // Group by date string for charting
+  // Group messages by day
   const messagesByDay = new Map<string, number>();
-  for (const m of messagesRaw) {
+  for (const m of messages) {
     const dateStr = m.createdAt.toISOString().split("T")[0];
-    messagesByDay.set(dateStr, (messagesByDay.get(dateStr) || 0) + m._count);
+    messagesByDay.set(dateStr, (messagesByDay.get(dateStr) || 0) + 1);
   }
 
   // Get user registrations by day
-  const usersRaw = await prisma.user.groupBy({
-    by: ["createdAt"],
+  const users = await prisma.user.findMany({
     where: whereDate,
-    _count: true,
+    select: { createdAt: true },
     orderBy: { createdAt: "asc" },
   });
 
   const usersByDay = new Map<string, number>();
-  for (const u of usersRaw) {
+  for (const u of users) {
     const dateStr = u.createdAt.toISOString().split("T")[0];
-    usersByDay.set(dateStr, (usersByDay.get(dateStr) || 0) + u._count);
+    usersByDay.set(dateStr, (usersByDay.get(dateStr) || 0) + 1);
   }
 
   // Get message distribution per user
@@ -226,8 +228,9 @@ async function getCostStats(startDate: Date | null) {
   }));
 
   // Cost over time (by day)
+  // Include all assistant messages, not just those with non-null costUsd
   const messagesWithCost = await prisma.message.findMany({
-    where: { ...whereDate, costUsd: { not: null } },
+    where: { ...whereDate, role: "ASSISTANT" },
     select: { createdAt: true, costUsd: true },
     orderBy: { createdAt: "asc" },
   });

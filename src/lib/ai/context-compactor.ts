@@ -15,8 +15,8 @@ import { getContextBudget } from "./tokenlens";
 // -----------------------------------------------------
 
 // Model for summarization - fast and cheap
-const SUMMARIZATION_MODEL = openrouter("google/gemini-2.0-flash");
-const SUMMARIZATION_MODEL_ID = "google/gemini-2.0-flash";
+const SUMMARIZATION_MODEL = openrouter("google/gemini-2.0-flash-001");
+const SUMMARIZATION_MODEL_ID = "google/gemini-2.0-flash-001";
 
 // Thresholds for triggering compaction
 const COMPACTION_THRESHOLD_PERCENT = 70; // Start compacting at 70% context usage

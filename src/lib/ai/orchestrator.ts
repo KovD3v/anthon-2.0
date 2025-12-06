@@ -163,7 +163,7 @@ interface StreamChatOptions {
  */
 async function buildSystemPrompt(
   userId: string,
-  ragContext?: string,
+  ragContext?: string
 ): Promise<string> {
   // Fetch user context and memories in parallel
   const [userContext, userMemories] = await Promise.all([
@@ -182,25 +182,25 @@ async function buildSystemPrompt(
       year: "numeric",
       month: "long",
       day: "numeric",
-    }),
+    })
   );
 
   // Inject RAG context
   systemPrompt = systemPrompt.replace(
     "{{RAG_CONTEXT}}",
-    ragContext || "Nessun documento RAG disponibile al momento.",
+    ragContext || "Nessun documento RAG disponibile al momento."
   );
 
   // Inject user context
   systemPrompt = systemPrompt.replace(
     "{{USER_CONTEXT}}",
-    userContext || "Nessun profilo utente disponibile.",
+    userContext || "Nessun profilo utente disponibile."
   );
 
   // Inject memories
   systemPrompt = systemPrompt.replace(
     "{{USER_MEMORIES}}",
-    userMemories || "Nessuna memoria salvata per questo utente.",
+    userMemories || "Nessuna memoria salvata per questo utente."
   );
 
   return systemPrompt;
@@ -243,9 +243,6 @@ export async function streamChat({
       ragUsed = true;
       // Count chunks by counting "**" which marks each document title
       ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || []).length;
-      console.log(
-        `[Orchestrator] RAG context loaded (${ragChunksCount} chunks)`,
-      );
     }
   } catch (error) {
     console.error("[Orchestrator] RAG error:", error);
@@ -282,6 +279,9 @@ export async function streamChat({
     stopWhen: stepCountIs(5), // Limit tool calling loops
     onFinish: onFinish
       ? async ({ text, usage, providerMetadata }) => {
+
+
+
           // Extract AI metrics including cost calculation
           const metrics = await extractAIMetrics(
             ORCHESTRATOR_MODEL_ID,
@@ -302,7 +302,7 @@ export async function streamChat({
               // RAG tracking
               ragUsed,
               ragChunksCount,
-            },
+            }
           );
 
           onFinish({ text, metrics });
@@ -341,7 +341,7 @@ export async function streamChat({
  */
 export async function generateChatResponse(
   userId: string,
-  userMessage: string,
+  userMessage: string
 ): Promise<string> {
   const result = await streamChat({ userId, userMessage });
 

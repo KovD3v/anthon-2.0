@@ -15,7 +15,7 @@ export function calculateCost(
   modelId: string,
   inputTokens: number,
   outputTokens: number,
-  _reasoningTokens?: number, // Kept for API compatibility
+  _reasoningTokens?: number // Kept for API compatibility
 ): number {
   const result = tokenlensCost(modelId, inputTokens, outputTokens);
   return result.totalCost;
@@ -27,7 +27,7 @@ export function calculateCost(
 export function calculateCostDetailed(
   modelId: string,
   inputTokens: number,
-  outputTokens: number,
+  outputTokens: number
 ): CostResult {
   return tokenlensCost(modelId, inputTokens, outputTokens);
 }
@@ -77,14 +77,45 @@ interface FinishResultInput {
 export function extractAIMetrics(
   modelId: string,
   startTime: number,
-  finishResult: FinishResultInput,
+  finishResult: FinishResultInput
 ): AIMetrics {
   const endTime = Date.now();
   const generationTimeMs = endTime - startTime;
 
   // Extract token usage - AI SDK v5 uses different property names
-  const inputTokens = finishResult.usage?.promptTokens ?? 0;
-  const outputTokens = finishResult.usage?.completionTokens ?? 0;
+  // The streamText callback returns: inputTokens, outputTokens, totalTokens, reasoningTokens, cachedInputTokens
+  let inputTokens =
+    (finishResult.usage?.inputTokens as number) ??
+    (finishResult.usage?.promptTokens as number) ??
+    0;
+  let outputTokens =
+    (finishResult.usage?.outputTokens as number) ??
+    (finishResult.usage?.completionTokens as number) ??
+    0;
+
+
+
+
+
+  // Try to extract cost and tokens from OpenRouter metadata
+  let costFromOpenRouter: number | undefined;
+  if (finishResult.providerMetadata) {
+    const openrouterMeta = finishResult.providerMetadata.openrouter as
+      | Record<string, unknown>
+      | undefined;
+    if (openrouterMeta) {
+
+
+      // Extract from nested usage object if available
+      const usage = openrouterMeta.usage as Record<string, unknown> | undefined;
+      if (usage) {
+        inputTokens = (usage.promptTokens as number) || inputTokens;
+        outputTokens = (usage.completionTokens as number) || outputTokens;
+        costFromOpenRouter = usage.cost as number | undefined;
+
+      }
+    }
+  }
 
   // Extract reasoning info from provider metadata (if available)
   // OpenRouter may provide this in experimental metadata
@@ -98,13 +129,17 @@ export function extractAIMetrics(
   // Use collected tool calls
   const toolCalls = finishResult.collectedToolCalls ?? null;
 
-  // Calculate cost using TokenLens (synchronous now)
-  const costUsd = calculateCost(
-    modelId,
-    inputTokens,
-    outputTokens,
-    reasoningTokens ?? undefined,
-  );
+  // Calculate cost: prefer OpenRouter's cost if available, otherwise calculate with TokenLens
+  let costUsd =
+    costFromOpenRouter ??
+    calculateCost(
+      modelId,
+      inputTokens,
+      outputTokens,
+      reasoningTokens ?? undefined
+    );
+
+
 
   return {
     model: modelId,
