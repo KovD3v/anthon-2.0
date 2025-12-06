@@ -7,15 +7,21 @@ import {
   SignUpButton,
   UserButton,
 } from "@clerk/nextjs";
-import { Brain, Menu, X } from "lucide-react";
+import { Brain, Menu, X, Sun, Moon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark");
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
@@ -53,6 +59,20 @@ export function Navbar() {
 
         {/* Auth Buttons (Desktop) */}
         <div className="hidden md:flex items-center gap-4">
+          {/* Theme Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="h-9 w-9"
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            {theme === "dark" ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </Button>
           <SignedOut>
             <SignInButton mode="modal">
               <Button variant="ghost">Accedi</Button>
@@ -111,6 +131,29 @@ export function Navbar() {
             </Link>
           </nav>
           <div className="flex flex-col gap-2 pt-4 border-t">
+            {/* Mobile Theme Toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                toggleTheme();
+                setIsMenuOpen(false);
+              }}
+              className="justify-start gap-2 w-full"
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              {theme === "dark" ? (
+                <>
+                  <Sun className="h-4 w-4" />
+                  Light Mode
+                </>
+              ) : (
+                <>
+                  <Moon className="h-4 w-4" />
+                  Dark Mode
+                </>
+              )}
+            </Button>
             <SignedOut>
               <SignInButton mode="modal">
                 <Button variant="ghost" className="w-full justify-start">

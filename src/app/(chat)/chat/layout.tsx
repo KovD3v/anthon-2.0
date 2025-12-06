@@ -9,8 +9,15 @@ import {
   PanelLeft,
   PanelLeftClose,
   Plus,
+  Settings,
+  User,
+  LogOut,
+  HelpCircle,
+  Sun,
+  Moon,
   Trash2,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
@@ -68,10 +75,12 @@ export default function ChatLayout({
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const pathname = usePathname();
+  const { theme, setTheme } = useTheme();
   const [chats, setChats] = useState<Chat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
 
   // Get current chat ID from pathname
@@ -179,6 +188,35 @@ export default function ChatLayout({
     return false;
   };
 
+  // Handle user menu actions
+  const handleUserAction = (action: string) => {
+    switch (action) {
+      case "profile":
+        setShowUserMenu(false);
+        router.push("/profile");
+        break;
+      case "settings":
+        setShowUserMenu(false);
+        router.push("/settings");
+        break;
+      case "help":
+        setShowUserMenu(false);
+        router.push("/help");
+        break;
+      case "theme":
+        // Don't close menu for theme toggle
+        setTheme(theme === "dark" ? "light" : "dark");
+        break;
+      case "signout":
+        setShowUserMenu(false);
+        // Sign out logic would go here
+        router.push("/sign-out");
+        break;
+      default:
+        break;
+    }
+  };
+
   // Show loading state
   if (!isLoaded) {
     return (
@@ -276,15 +314,111 @@ export default function ChatLayout({
                 </ul>
               )}
             </div>
-            <div className="border-t p-2">
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-2"
-                onClick={() => router.push("/")}
-              >
-                <Home className="h-4 w-4" />
-                Back to Home
-              </Button>
+            {/* Enhanced Bottom Section */}
+            <div className="border-t bg-background/50 backdrop-blur-sm">
+              {/* User Profile Section */}
+              <div className="p-3 border-b">
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors text-left"
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setShowUserMenu(!showUserMenu);
+                    }
+                  }}
+                >
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {user?.firstName || "User"}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {user?.emailAddresses?.[0]?.emailAddress || "user@example.com"}
+                    </p>
+                  </div>
+                  <Settings className="h-4 w-4 text-muted-foreground" />
+                </button>
+
+                {/* User Dropdown Menu */}
+                {showUserMenu && (
+                  <div className="mt-2 py-1 bg-background border rounded-lg shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => handleUserAction("profile")}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                    >
+                      <User className="h-4 w-4" />
+                      Profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUserAction("settings")}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Settings
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUserAction("theme")}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                    >
+                      {theme === "dark" ? (
+                        <>
+                          <Sun className="h-4 w-4" />
+                          Light Mode
+                        </>
+                      ) : (
+                        <>
+                          <Moon className="h-4 w-4" />
+                          Dark Mode
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUserAction("help")}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                    >
+                      <HelpCircle className="h-4 w-4" />
+                      Help & Support
+                    </button>
+                    <div className="border-t my-1"></div>
+                    <button
+                      type="button"
+                      onClick={() => handleUserAction("signout")}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-destructive transition-colors"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="p-2 space-y-1">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+                  onClick={() => router.push("/")}
+                >
+                  <Home className="h-4 w-4" />
+                  Back to Home
+                </Button>
+              </div>
+
+              {/* Footer Info */}
+              <div className="px-3 pb-3">
+                <div className="text-xs text-muted-foreground text-center">
+                  <p className="mb-1">Anthon v2.0</p>
+                  <p className="text-[10px]">Your AI Coach</p>
+                </div>
+              </div>
             </div>
           </div>
         </aside>
