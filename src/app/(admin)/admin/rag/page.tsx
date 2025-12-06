@@ -3,6 +3,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/hooks/use-confirm";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "sonner";
 
 interface RagDocument {
   id: string;
@@ -21,6 +24,7 @@ export default function RagPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -48,7 +52,9 @@ export default function RagPage() {
     const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
 
     if (!validExtensions.includes(ext)) {
-      alert(`Invalid file type. Supported: ${validExtensions.join(", ")}`);
+      toast.error(
+        `Invalid file type. Supported: ${validExtensions.join(", ")}`
+      );
       return;
     }
 
@@ -70,15 +76,20 @@ export default function RagPage() {
           `✓ Uploaded "${data.document.title}" with ${data.document.chunkCount} chunks`
         );
         fetchDocuments();
+        toast.success(
+          `Uploaded "${data.document.title}" with ${data.document.chunkCount} chunks`
+        );
         setTimeout(() => setUploadProgress(null), 3000);
       } else {
         const error = await res.json();
         setUploadProgress(`✕ Error: ${error.error}`);
+        toast.error(error.error || "Upload failed");
         setTimeout(() => setUploadProgress(null), 5000);
       }
     } catch (error) {
       console.error("Upload failed:", error);
       setUploadProgress("✕ Upload failed");
+      toast.error("Upload failed");
       setTimeout(() => setUploadProgress(null), 5000);
     } finally {
       setUploading(false);
@@ -86,7 +97,16 @@ export default function RagPage() {
   }
 
   async function handleDelete(documentId: string) {
-    if (!confirm("Are you sure you want to delete this document?")) return;
+    const confirmed = await confirm({
+      title: "Delete document?",
+      description:
+        "This will permanently delete this document and all its chunks. This action cannot be undone.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      variant: "destructive",
+    });
+
+    if (!confirmed) return;
 
     setDeleting(documentId);
     try {
@@ -96,12 +116,14 @@ export default function RagPage() {
 
       if (res.ok) {
         setDocuments((docs) => docs.filter((d) => d.id !== documentId));
+        toast.success("Document deleted");
       } else {
         const error = await res.json();
-        alert(error.error || "Failed to delete");
+        toast.error(error.error || "Failed to delete");
       }
     } catch (error) {
       console.error("Delete failed:", error);
+      toast.error("Failed to delete");
     } finally {
       setDeleting(null);
     }
@@ -284,6 +306,16 @@ export default function RagPage() {
           as context to the AI coach.
         </p>
       </div>
+      <ConfirmDialog
+        open={isOpen}
+        onOpenChange={setIsOpen}
+        onConfirm={handleConfirm}
+        title={options.title}
+        description={options.description}
+        confirmText={options.confirmText}
+        cancelText={options.cancelText}
+        variant={options.variant}
+      />
     </div>
   );
 }

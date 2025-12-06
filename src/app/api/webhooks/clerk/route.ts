@@ -1,11 +1,11 @@
 /**
  * Clerk Webhook Handler
- * Handles subscription events from Clerk Billing for funnel tracking.
+ * Handles user profile sync and subscription events from Clerk Billing for funnel tracking.
  *
  * ⚠️ SETUP REQUIRED:
  * 1. Go to Clerk Dashboard → Webhooks
  * 2. Create a new webhook endpoint pointing to: https://your-domain.com/api/webhooks/clerk
- * 3. Select events: user.created, subscription.created, subscription.updated, subscription.deleted
+ * 3. Select events: user.created, user.updated, subscription.created, subscription.updated, subscription.deleted
  * 4. Copy the Signing Secret and add to .env as CLERK_WEBHOOK_SECRET
  */
 
@@ -23,6 +23,8 @@ interface WebhookEvent {
 interface UserCreatedData {
   id: string;
   email_addresses?: Array<{ email_address: string }>;
+  first_name?: string | null;
+  last_name?: string | null;
 }
 
 interface SubscriptionData {
@@ -82,6 +84,10 @@ export async function POST(req: Request) {
         await handleUserCreated(evt.data as unknown as UserCreatedData);
         break;
 
+      case "user.updated":
+        await handleUserUpdated(evt.data as unknown as UserCreatedData);
+        break;
+
       case "subscription.created":
         await handleSubscriptionCreated(
           evt.data as unknown as SubscriptionData
@@ -118,6 +124,8 @@ export async function POST(req: Request) {
 async function handleUserCreated(data: UserCreatedData) {
   const clerkId = data.id;
   const email = data.email_addresses?.[0]?.email_address;
+  const firstName = data.first_name;
+  const lastName = data.last_name;
 
   console.log(`[Webhook] User created: ${clerkId}`);
 
@@ -127,13 +135,69 @@ async function handleUserCreated(data: UserCreatedData) {
   });
 
   if (!existingUser) {
-    await prisma.user.create({
+    // Create user
+    const user = await prisma.user.create({
       data: {
         clerkId,
         email,
       },
     });
     console.log(`[Webhook] Created user in database: ${clerkId}`);
+
+    // Create profile with name if available
+    if (firstName || lastName) {
+      const fullName = [firstName, lastName].filter(Boolean).join(" ");
+      await prisma.profile.create({
+        data: {
+          userId: user.id,
+          name: fullName,
+        },
+      });
+      console.log(`[Webhook] Created profile with name: ${fullName}`);
+    }
+  }
+}
+
+/**
+ * Handle user.updated event
+ * Updates user profile with name changes from Clerk
+ */
+async function handleUserUpdated(data: UserCreatedData) {
+  const clerkId = data.id;
+  const firstName = data.first_name;
+  const lastName = data.last_name;
+
+  console.log(`[Webhook] User updated: ${clerkId}`);
+
+  // Find user
+  const user = await prisma.user.findUnique({
+    where: { clerkId },
+    include: { profile: true },
+  });
+
+  if (!user) {
+    console.error(`[Webhook] User not found: ${clerkId}`);
+    return;
+  }
+
+  // Update profile with name if available
+  if (firstName || lastName) {
+    const fullName = [firstName, lastName].filter(Boolean).join(" ");
+
+    if (user.profile) {
+      await prisma.profile.update({
+        where: { userId: user.id },
+        data: { name: fullName },
+      });
+    } else {
+      await prisma.profile.create({
+        data: {
+          userId: user.id,
+          name: fullName,
+        },
+      });
+    }
+    console.log(`[Webhook] Updated profile name: ${fullName}`);
   }
 }
 

@@ -3,9 +3,10 @@
  * Provides role-based access control functions.
  */
 
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import type { UserRole } from "@/generated/prisma";
+import { unstable_cache } from "next/cache";
 
 export type { UserRole };
 
@@ -22,8 +23,35 @@ export interface AuthResult {
 }
 
 /**
+ * Cached user lookup by clerkId.
+ * Cache is revalidated every 60 seconds to keep role changes relatively fresh.
+ */
+const getCachedUserByClerkId = unstable_cache(
+  async (clerkId: string) => {
+    return prisma.user.findUnique({
+      where: { clerkId },
+      select: {
+        id: true,
+        clerkId: true,
+        email: true,
+        role: true,
+      },
+    });
+  },
+  ["user-by-clerk-id"],
+  {
+    revalidate: 60, // Cache for 60 seconds
+    tags: ["user-auth"],
+  }
+);
+
+/**
  * Get the authenticated user with their role from the database.
  * Creates a new user if they don't exist yet.
+ *
+ * PERFORMANCE: This function is optimized to avoid slow Clerk API calls.
+ * Profile syncing is now done asynchronously in the background.
+ * User lookups are cached for 60 seconds to reduce database queries.
  */
 export async function getAuthUser(): Promise<AuthResult> {
   try {
@@ -33,21 +61,13 @@ export async function getAuthUser(): Promise<AuthResult> {
       return { user: null, error: "Not authenticated" };
     }
 
-    // Find or create user
-    let user = await prisma.user.findUnique({
-      where: { clerkId },
-      select: {
-        id: true,
-        clerkId: true,
-        email: true,
-        role: true,
-      },
-    });
+    // Try cached lookup first
+    let user = await getCachedUserByClerkId(clerkId);
 
     if (!user) {
-      // Create new user with default role
-      user = await prisma.user.create({
-        data: { clerkId },
+      // User not in cache, check database directly
+      user = await prisma.user.findUnique({
+        where: { clerkId },
         select: {
           id: true,
           clerkId: true,
@@ -55,6 +75,24 @@ export async function getAuthUser(): Promise<AuthResult> {
           role: true,
         },
       });
+
+      if (!user) {
+        // Create new user with default role
+        user = await prisma.user.create({
+          data: { clerkId },
+          select: {
+            id: true,
+            clerkId: true,
+            email: true,
+            role: true,
+          },
+        });
+
+        // Sync profile asynchronously (don't await - let it run in background)
+        syncUserProfileFromClerk(clerkId, user.id).catch((error) => {
+          console.error("[Auth] Background profile sync error:", error);
+        });
+      }
     }
 
     return {
@@ -69,6 +107,49 @@ export async function getAuthUser(): Promise<AuthResult> {
   } catch (error) {
     console.error("[Auth] Error getting user:", error);
     return { user: null, error: "Authentication error" };
+  }
+}
+
+/**
+ * Sync user profile from Clerk asynchronously.
+ * This is called in the background to avoid blocking the main request.
+ */
+async function syncUserProfileFromClerk(
+  clerkId: string,
+  userId: string
+): Promise<void> {
+  try {
+    // Check if profile already exists with a name
+    const profile = await prisma.profile.findUnique({
+      where: { userId },
+      select: { name: true },
+    });
+
+    // Skip if profile already has a name
+    if (profile?.name) {
+      return;
+    }
+
+    // Fetch user data from Clerk
+    const client = await clerkClient();
+    const clerkUser = await client.users.getUser(clerkId);
+    const firstName = clerkUser.firstName;
+    const lastName = clerkUser.lastName;
+
+    if (firstName || lastName) {
+      const fullName = [firstName, lastName].filter(Boolean).join(" ");
+      await prisma.profile.upsert({
+        where: { userId },
+        update: { name: fullName },
+        create: {
+          userId,
+          name: fullName,
+        },
+      });
+      console.log(`[Auth] Synced profile name from Clerk: ${fullName}`);
+    }
+  } catch (error) {
+    console.error("[Auth] Error syncing user profile from Clerk:", error);
   }
 }
 
@@ -202,9 +283,21 @@ export async function updateUserRole(
       data: { role: newRole },
     });
 
+    // Invalidate auth cache when role changes
+    await invalidateAuthCache();
+
     return { success: true };
   } catch (error) {
     console.error("[Auth] Error updating user role:", error);
     return { success: false, error: "Failed to update role" };
   }
+}
+
+/**
+ * Invalidate the auth cache.
+ * Call this when user data changes (e.g., role updates).
+ */
+export async function invalidateAuthCache(): Promise<void> {
+  const { revalidateTag } = await import("next/cache");
+  revalidateTag("user-auth");
 }
