@@ -24,6 +24,14 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
 import { useChatContext } from "../layout";
 
+interface Usage {
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+  generationTimeMs?: number;
+  reasoningTimeMs?: number;
+}
+
 interface ChatData {
   id: string;
   title: string;
@@ -36,11 +44,7 @@ interface ChatData {
     parts: unknown;
     createdAt: string;
     model?: string;
-    usage?: {
-      inputTokens: number;
-      outputTokens: number;
-      cost: number;
-    };
+    usage?: Usage;
   }>;
 }
 
@@ -102,6 +106,7 @@ export default function ChatConversationPage() {
         ? (msg.parts as UIMessage["parts"])
         : [{ type: "text" as const, text: msg.content || "" }],
       createdAt: new Date(msg.createdAt),
+      annotations: msg.usage ? [msg.usage] : undefined,
     }));
   }, [chatData?.messages]);
 
@@ -127,6 +132,7 @@ export default function ChatConversationPage() {
                   },
                 ],
             createdAt: new Date(msg.createdAt),
+            annotations: msg.usage ? [msg.usage] : undefined,
           }),
         );
 
@@ -534,9 +540,40 @@ export default function ChatConversationPage() {
                       }`}
                     >
                       {message.role === "assistant" && (
-                        <div className="mb-1 flex items-center gap-1 text-xs font-medium text-primary">
-                          <Brain className="h-3 w-3" />
-                          Anthon
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1 text-xs font-medium text-primary">
+                            <Brain className="h-3 w-3" />
+                            Anthon
+                          </div>
+                          {message.annotations?.[0] && (
+                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                              <span>
+                                {(message.annotations[0] as Usage).outputTokens}{" "}
+                                tokens
+                              </span>
+                              {(message.annotations[0] as Usage)
+                                .generationTimeMs && (
+                                <span>
+                                  {(
+                                    (message.annotations[0] as Usage)
+                                      .generationTimeMs / 1000
+                                  ).toFixed(2)}
+                                  s
+                                </span>
+                              )}
+                              {(message.annotations[0] as Usage)
+                                .reasoningTimeMs > 0 && (
+                                <span>
+                                  (reasoning:{" "}
+                                  {(
+                                    (message.annotations[0] as Usage)
+                                      .reasoningTimeMs / 1000
+                                  ).toFixed(2)}
+                                  s)
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
 

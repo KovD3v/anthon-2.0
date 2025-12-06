@@ -51,6 +51,8 @@ export async function GET(_request: Request, { params }: RouteParams) {
             inputTokens: true,
             outputTokens: true,
             costUsd: true,
+            generationTimeMs: true,
+            reasoningTimeMs: true,
             ragUsed: true,
             toolCalls: true,
             attachments: {
@@ -90,6 +92,8 @@ export async function GET(_request: Request, { params }: RouteParams) {
               inputTokens: m.inputTokens,
               outputTokens: m.outputTokens,
               cost: m.costUsd,
+              generationTimeMs: m.generationTimeMs,
+              reasoningTimeMs: m.reasoningTimeMs,
             }
           : undefined,
         ragUsed: m.ragUsed,
