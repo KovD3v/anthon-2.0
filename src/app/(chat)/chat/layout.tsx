@@ -3,22 +3,22 @@
 import { useUser } from "@clerk/nextjs";
 import {
   Brain,
+  HelpCircle,
   Home,
   Loader2,
+  LogOut,
   MessageSquare,
+  Moon,
   PanelLeft,
   PanelLeftClose,
   Plus,
   Settings,
-  User,
-  LogOut,
-  HelpCircle,
   Sun,
-  Moon,
   Trash2,
+  User,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { usePathname, useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import {
   createContext,
   useCallback,
@@ -337,7 +337,8 @@ export default function ChatLayout({
                       {user?.firstName || "User"}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {user?.emailAddresses?.[0]?.emailAddress || "user@example.com"}
+                      {user?.emailAddresses?.[0]?.emailAddress ||
+                        "user@example.com"}
                     </p>
                   </div>
                   <Settings className="h-4 w-4 text-muted-foreground" />

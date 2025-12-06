@@ -7,10 +7,10 @@ import {
   SignUpButton,
   UserButton,
 } from "@clerk/nextjs";
-import { Brain, Menu, X, Sun, Moon } from "lucide-react";
+import { Brain, Menu, Moon, Sun, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
 import { useTheme } from "next-themes";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 export function Navbar() {
