@@ -44,7 +44,7 @@ export function ChatInput({
     <div className="relative mx-auto w-full max-w-3xl px-4 pb-6 pt-2">
       <form
         onSubmit={onSubmit}
-        className="relative flex items-end gap-2 rounded-[2rem] border border-white/10 bg-background/60 p-2 shadow-lg backdrop-blur-xl ring-1 ring-black/5 dark:bg-muted/40 dark:ring-white/10 transition-all focus-within:ring-2 focus-within:ring-primary/20"
+        className="relative flex items-end gap-2 rounded-4xl border border-white/10 bg-background/60 p-2 shadow-lg backdrop-blur-xl ring-1 ring-black/5 dark:bg-muted/40 dark:ring-white/10 transition-all focus-within:ring-2 focus-within:ring-primary/20"
       >
         <textarea
           ref={textareaRef}
