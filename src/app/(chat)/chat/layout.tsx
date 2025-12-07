@@ -31,6 +31,22 @@ interface Chat {
   messageCount: number;
 }
 
+interface ChatData {
+  id: string;
+  title: string;
+  visibility: string;
+  isOwner: boolean;
+  messages: Array<{
+    id: string;
+    role: "user" | "assistant";
+    content: string | null;
+    parts: unknown;
+    createdAt: string;
+    model?: string;
+    usage?: unknown;
+  }>;
+}
+
 interface ChatContextType {
   chats: Chat[];
   isLoading: boolean;
@@ -38,6 +54,9 @@ interface ChatContextType {
   createChat: () => Promise<string | null>;
   deleteChat: (id: string) => Promise<boolean>;
   refreshChats: () => Promise<void>;
+  preFetchChat: (id: string) => Promise<void>;
+  getCachedChat: (id: string) => ChatData | null;
+  navigateToChat: (id: string) => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -68,6 +87,10 @@ export default function ChatLayout({
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
 
+  // Chat data cache for avoiding redundant API calls
+  const [chatCache, setChatCache] = useState<Map<string, ChatData>>(new Map());
+  const [preFetchingIds, setPreFetchingIds] = useState<Set<string>>(new Set());
+
   // Get current chat ID from pathname
   const currentChatId = pathname?.split("/chat/")?.[1] || null;
 
@@ -96,6 +119,52 @@ export default function ChatLayout({
     }
     loadChats();
   }, [isLoaded, user, refreshChats]);
+
+  // Pre-fetch chat data on hover
+  const preFetchChat = useCallback(
+    async (id: string) => {
+      // Skip if already cached or currently pre-fetching
+      if (chatCache.has(id) || preFetchingIds.has(id)) {
+        return;
+      }
+
+      setPreFetchingIds((prev) => new Set(prev).add(id));
+
+      try {
+        const response = await fetch(`/api/chats/${id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setChatCache((prev) => new Map(prev).set(id, data));
+        }
+      } catch (error) {
+        console.error("Failed to pre-fetch chat:", error);
+      } finally {
+        setPreFetchingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    },
+    [chatCache, preFetchingIds],
+  );
+
+  // Get cached chat data
+  const getCachedChat = useCallback(
+    (id: string): ChatData | null => {
+      return chatCache.get(id) || null;
+    },
+    [chatCache],
+  );
+
+  // Navigate to chat with client-side state management
+  const navigateToChat = useCallback(
+    (id: string) => {
+      // Use shallow routing to avoid full page reload
+      router.push(`/chat/${id}`, { scroll: false });
+    },
+    [router],
+  );
 
   // Create new chat
   const createChat = async (): Promise<string | null> => {
@@ -207,6 +276,9 @@ export default function ChatLayout({
         createChat,
         deleteChat,
         refreshChats,
+        preFetchChat,
+        getCachedChat,
+        navigateToChat,
       }}
     >
       <div className="flex h-screen overflow-hidden">
@@ -225,8 +297,9 @@ export default function ChatLayout({
               currentChatId={currentChatId}
               deletingChatId={deletingChatId}
               onDelete={deleteChat}
-              onSelect={(id) => router.push(`/chat/${id}`)}
+              onSelect={navigateToChat}
               onCreate={createChat}
+              onPreFetch={preFetchChat}
             />
 
             <SidebarBottom />

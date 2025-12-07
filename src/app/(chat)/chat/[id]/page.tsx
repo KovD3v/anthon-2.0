@@ -42,7 +42,7 @@ interface ChatData {
 export default function ChatConversationPage() {
   const params = useParams();
   const chatId = params.id as string;
-  useChatContext(); // Access context to ensure we're in provider
+  const { getCachedChat } = useChatContext(); // Access context to get cached data
 
   const [chatData, setChatData] = useState<ChatData | null>(null);
   const [isLoadingChat, setIsLoadingChat] = useState(true);
@@ -56,9 +56,19 @@ export default function ChatConversationPage() {
   const [hasInitialized, setHasInitialized] = useState(false);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
 
-  // Load chat data
+  // Load chat data with cache support
   useEffect(() => {
     async function loadChat() {
+      // Try to get from cache first
+      const cached = getCachedChat(chatId);
+      if (cached) {
+        setChatData(cached);
+        setIsLoadingChat(false);
+        setError(null);
+        return;
+      }
+
+      // If not in cache, fetch from API
       setIsLoadingChat(true);
       setError(null);
       try {
@@ -82,7 +92,7 @@ export default function ChatConversationPage() {
     if (chatId) {
       loadChat();
     }
-  }, [chatId]);
+  }, [chatId, getCachedChat]);
 
   // Convert stored messages to useChat format - memoized to avoid recalculation
   const initialMessages: UIMessage[] = useMemo(() => {
@@ -411,7 +421,7 @@ export default function ChatConversationPage() {
   return (
     <div className="flex flex-1 flex-col min-h-0 relative bg-linear-to-b from-background to-muted/20">
       {/* Background decoration */}
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background/0 to-background/0" />
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-primary/5 via-background/0 to-background/0" />
 
       <ChatHeader
         title={chatData?.title || "New Chat"}

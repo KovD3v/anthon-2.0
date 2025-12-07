@@ -19,6 +19,7 @@ interface ChatListProps {
   onDelete: (id: string) => void;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onPreFetch: (id: string) => void;
 }
 
 export function ChatList({
@@ -29,6 +30,7 @@ export function ChatList({
   onDelete,
   onSelect,
   onCreate,
+  onPreFetch,
 }: ChatListProps) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -69,6 +71,7 @@ export function ChatList({
                   isDeleting={deletingChatId === chat.id}
                   onDelete={() => onDelete(chat.id)}
                   onClick={() => onSelect(chat.id)}
+                  onPreFetch={() => onPreFetch(chat.id)}
                 />
               ))}
             </AnimatePresence>
@@ -85,14 +88,22 @@ function ChatItem({
   isDeleting,
   onDelete,
   onClick,
+  onPreFetch,
 }: {
   chat: Chat;
   isActive: boolean;
   isDeleting: boolean;
   onDelete: () => void;
   onClick: () => void;
+  onPreFetch: () => void;
 }) {
   const [showActions, setShowActions] = useState(false);
+
+  const handleMouseEnter = () => {
+    setShowActions(true);
+    // Pre-fetch chat data on hover
+    onPreFetch();
+  };
 
   return (
     <motion.li
@@ -105,7 +116,7 @@ function ChatItem({
           ? "bg-white/10 font-medium text-foreground shadow-sm ring-1 ring-white/10"
           : "text-muted-foreground"
       }`}
-      onMouseEnter={() => setShowActions(true)}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setShowActions(false)}
     >
       <button
