@@ -28,27 +28,30 @@ enum UserRole {
 // -----------------------------------------------------
 
 model User {
-  id          String       @id @default(cuid())
+  id String @id @default(cuid())
 
-  // Solo se userai Clerk (per web chat)
-  clerkId     String?      @unique
-  email       String?      @unique
+  // Authentication - Clerk integration for web chat
+  clerkId String? @unique
+  email   String? @unique
 
   // Role-based access control
-  role        UserRole     @default(USER)
+  role UserRole @default(USER)
 
-  // Relazioni
-  profile     Profile?
-  preferences Preferences?
-  memories    Memory[]
-  messages    Message[]
-  chats       Chat[]
-  dailyUsage  DailyUsage[]
-  identities  ChannelIdentity[]
+  // Relationships
+  profile      Profile?
+  preferences  Preferences?
+  memories     Memory[]
+  messages     Message[]
+  chats        Chat[]
+  dailyUsage   DailyUsage[]
+  identities   ChannelIdentity[]
   subscription Subscription?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+  @@index([email])
 }
 
 // -----------------------------------------------------
@@ -56,18 +59,19 @@ model User {
 // -----------------------------------------------------
 
 model ChannelIdentity {
-  id          String    @id @default(cuid())
+  id String @id @default(cuid())
 
-  channel     Channel   @default(WHATSAPP)
-  externalId  String    // es: numero whatsapp, telegram user id, instagram psid
+  channel    Channel @default(WHATSAPP)
+  externalId String // e.g.: WhatsApp phone number, Telegram user ID, Instagram PSID
 
-  userId      String?
-  user        User?     @relation(fields: [userId], references: [id])
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  createdAt   DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([channel, externalId])
   @@index([userId])
+  @@index([channel])
 }
 
 enum Channel {
@@ -85,20 +89,21 @@ enum ChatVisibility {
 }
 
 model Chat {
-  id          String         @id @default(cuid())
-  userId      String
-  user        User           @relation(fields: [userId], references: [id])
-  
-  title       String?        // Auto-generated or user-provided
-  visibility  ChatVisibility @default(PRIVATE)
-  
-  messages    Message[]
-  artifacts   Artifact[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title      String? // Auto-generated or user-provided
+  visibility ChatVisibility @default(PRIVATE)
+
+  messages  Message[]
+  artifacts Artifact[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([userId, createdAt(sort: Desc)])
+  @@index([visibility])
 }
 
 // -----------------------------------------------------
@@ -106,60 +111,62 @@ model Chat {
 // -----------------------------------------------------
 
 model Message {
-  id        String        @id @default(cuid())
-  userId    String
-  user      User          @relation(fields: [userId], references: [id])
-  
-  // Chat reference (for multi-chat support)
-  chatId    String?
-  chat      Chat?         @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  channel   Channel       @default(WHATSAPP)
+  // Chat reference (for multi-chat support)
+  chatId String?
+  chat   Chat?   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  channel   Channel          @default(WHATSAPP)
   direction MessageDirection
   role      MessageRole
 
-  // Type: TEXT, IMAGE, AUDIO, VIDEO, DOCUMENT, TEMPLATE, LOCATION, etc.
-  type      MessageType   @default(TEXT)
+  // Message content and media
+  type    MessageType @default(TEXT)
+  content String? // Text content (backward compatible, also stores simple text)
+  parts   Json? // AI SDK v5 message parts format
 
-  content   String?        // solo per TEXT (backward compat, also stores simple text)
-  parts     Json?          // AI SDK v5 message parts format
+  mediaUrl  String? // Media URL: images, audio, video, documents, stickers
+  mediaType String? // MIME type e.g.: image/jpeg, audio/ogg
 
-  mediaUrl    String?      // immagini, audio, video, documenti, sticker
-  mediaType   String?      // MIME type es: image/jpeg, audio/ogg
-
-  externalMessageId String? // ID messaggio lato WhatsApp/Telegram/Instagram
-  metadata Json?            // payload dinamico (location, template params, button events, ecc.)
+  externalMessageId String? // External message ID from WhatsApp/Telegram/Instagram
+  metadata          Json? // Dynamic payload (location, template params, button events, etc.)
 
   // -----------------------------------------------------
-  // AI TRACKING (solo per messaggi ASSISTANT)
+  // AI TRACKING (for ASSISTANT messages only)
   // -----------------------------------------------------
-  model             String?   // es: "x-ai/grok-4.1-fast:free", "google/gemini-2.5-flash"
-  inputTokens       Int?      // token di input (prompt)
-  outputTokens      Int?      // token di output generati
-  reasoningTokens   Int?      // token di reasoning (per modelli che lo supportano)
-  reasoningContent  String?   // contenuto del processo di reasoning
-  toolCalls         Json?     // array di tool calls effettuate [{name, args, result}]
-  ragUsed           Boolean?  // se il RAG è stato usato per questa risposta
-  ragChunksCount    Int?      // numero di chunk RAG usati
-  costUsd           Float?    // costo in USD per questa risposta
-  generationTimeMs  Int?      // tempo totale di generazione in ms
-  reasoningTimeMs   Int?      // tempo di reasoning in ms (se disponibile)
+  model            String? // e.g.: "x-ai/grok-4.1-fast:free", "google/gemini-2.5-flash"
+  inputTokens      Int? // Input tokens (prompt)
+  outputTokens     Int? // Output tokens generated
+  reasoningTokens  Int? // Reasoning tokens (for models that support it)
+  reasoningContent String? // Reasoning process content
+  toolCalls        Json? // Array of tool calls made [{name, args, result}]
+  ragUsed          Boolean? @default(false) // Whether RAG was used for this response
+  ragChunksCount   Int? // Number of RAG chunks used
+  costUsd          Float? // Cost in USD for this response
+  generationTimeMs Int? // Total generation time in ms
+  reasoningTimeMs  Int? // Reasoning time in ms (if available)
 
   createdAt DateTime @default(now())
 
-  // Relations
+  // Relationships
   attachments Attachment[]
-  artifacts   Artifact[]    @relation("MessageArtifacts")
+  artifacts   Artifact[]   @relation("MessageArtifacts")
 
   @@index([userId, channel, createdAt])
   @@index([chatId, createdAt])
   @@index([externalMessageId])
   @@index([role, createdAt])
+  @@index([direction, createdAt])
+  @@index([type])
+  @@index([userId, role, createdAt])
 }
 
 enum MessageDirection {
-  INBOUND   // utente → Anthon
-  OUTBOUND  // Anthon → utente
+  INBOUND // utente → Anthon
+  OUTBOUND // Anthon → utente
 }
 
 enum MessageRole {
@@ -186,19 +193,20 @@ enum MessageType {
 // -----------------------------------------------------
 
 model Profile {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id])
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  name        String?
-  sport       String?
-  goal        String?
-  experience  String?
-  birthday    DateTime?
-  notes       String?
+  // User coaching information
+  name       String?
+  sport      String?
+  goal       String?
+  experience String?
+  birthday   DateTime?
+  notes      String?   @db.Text // Use TEXT for potentially long notes
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // -----------------------------------------------------
@@ -206,17 +214,17 @@ model Profile {
 // -----------------------------------------------------
 
 model Preferences {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id])
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  tone       String?   // es: "calmo", "energico", "professionale"
-  mode       String?   // es: "coaching", "friendly", "diretto"
-  language   String?   // IT, EN, ecc.
-  push       Boolean?
+  tone     String? // e.g.: "calm", "energetic", "professional"
+  mode     String? // e.g.: "coaching", "friendly", "direct"
+  language String?  @default("IT") // IT, EN, etc.
+  push     Boolean? @default(true) // Push notifications enabled by default
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // -----------------------------------------------------
@@ -224,15 +232,17 @@ model Preferences {
 // -----------------------------------------------------
 
 model Memory {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  key       String
-  value     Json
+  key   String
+  value Json
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
+  @@unique([userId, key]) // Ensure unique keys per user
   @@index([userId, key])
 }
 
@@ -244,11 +254,14 @@ model RagDocument {
   id        String   @id @default(cuid())
   title     String
   url       String?
-  source    String?
+  source    String?  // Source identifier (e.g., "training_manual", "knowledge_base")
 
   chunks    RagChunk[]
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  
+  @@index([source])
 }
 
 // -----------------------------------------------------
@@ -256,19 +269,20 @@ model RagDocument {
 // -----------------------------------------------------
 
 model RagChunk {
-  id         String        @id @default(cuid())
+  id         String      @id @default(cuid())
   documentId String
-  document   RagDocument   @relation(fields: [documentId], references: [id])
+  document   RagDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
-  content    String
-  embedding  Unsupported("vector(4096)")?
-  index      Int
+  content   String                       @db.Text
+  embedding Unsupported("vector(4096)")?
+  index     Int // Chunk sequence number within document
 
-  createdAt  DateTime @default(now())
-
-  @@index([documentId])
+  createdAt DateTime @default(now())
   // Note: Vector index is created via raw SQL migration (HNSW index)
   // See: prisma/migrations/20251202120000_fix_vector_index/migration.sql
+
+  @@index([documentId])
+  @@index([documentId, index])
 }
 
 // -----------------------------------------------------
@@ -288,36 +302,36 @@ enum ArtifactKind {
 }
 
 model Artifact {
-  id        String       @id @default(cuid())
+  id        String   @id @default(cuid())
   chatId    String
-  chat      Chat         @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
   messageId String?
-  message   Message?     @relation("MessageArtifacts", fields: [messageId], references: [id], onDelete: SetNull)
-  
-  title     String
-  kind      ArtifactKind
-  language  String?      // Programming language if kind=CODE
-  
-  versions  ArtifactVersion[]
-  
+  message   Message? @relation("MessageArtifacts", fields: [messageId], references: [id], onDelete: SetNull)
+
+  title    String
+  kind     ArtifactKind
+  language String? // Programming language if kind=CODE
+
+  versions ArtifactVersion[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([chatId])
   @@index([messageId])
 }
 
 model ArtifactVersion {
-  id            String   @id @default(cuid())
-  artifactId    String
-  artifact      Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
-  
-  content       String   // Actual artifact content
-  blobUrl       String?  // Vercel Blob URL for large content
-  versionNumber Int      @default(1)
-  
-  createdAt     DateTime @default(now())
-  
+  id         String   @id @default(cuid())
+  artifactId String
+  artifact   Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+
+  content       String // Actual artifact content
+  blobUrl       String? // Vercel Blob URL for large content
+  versionNumber Int     @default(1)
+
+  createdAt DateTime @default(now())
+
   @@index([artifactId, versionNumber(sort: Desc)])
 }
 
@@ -326,17 +340,17 @@ model ArtifactVersion {
 // -----------------------------------------------------
 
 model Attachment {
-  id          String   @id @default(cuid())
-  messageId   String?  // Optional - can be attached later
-  message     Message?  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  
-  name        String   // Original filename
-  contentType String   // MIME type
-  size        Int      // Size in bytes
-  blobUrl     String   // Vercel Blob URL
-  
-  createdAt   DateTime @default(now())
-  
+  id        String   @id @default(cuid())
+  messageId String? // Optional - can be attached later
+  message   Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  name        String // Original filename
+  contentType String // MIME type
+  size        Int // Size in bytes
+  blobUrl     String // Vercel Blob URL
+
+  createdAt DateTime @default(now())
+
   @@index([messageId])
 }
 
@@ -345,18 +359,18 @@ model Attachment {
 // -----------------------------------------------------
 
 model DailyUsage {
-  id           String   @id @default(cuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  date         DateTime @db.Date    // UTC date
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date         DateTime @db.Date // UTC date
   requestCount Int      @default(0)
   inputTokens  Int      @default(0)
   outputTokens Int      @default(0)
   totalCostUsd Float    @default(0)
-  
-  updatedAt    DateTime @updatedAt
-  
+
+  updatedAt DateTime @updatedAt
+
   @@unique([userId, date])
   @@index([userId, date(sort: Desc)])
 }
@@ -374,25 +388,30 @@ enum SubscriptionStatus {
 }
 
 model Subscription {
-  id                  String             @id @default(cuid())
-  userId              String             @unique
-  user                User               @relation(fields: [userId], references: [id])
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   status              SubscriptionStatus @default(TRIAL)
-  clerkSubscriptionId String?            @unique  // ID subscription da Clerk Billing
+  clerkSubscriptionId String?            @unique // Clerk Billing subscription ID
 
-  trialStartedAt      DateTime?          // quando ha iniziato il trial
-  trialEndsAt         DateTime?          // quando scade il trial
-  convertedAt         DateTime?          // quando è passato a pagante
-  canceledAt          DateTime?          // quando ha cancellato
-  
-  planId              String?            // ID del piano (da Clerk)
-  planName            String?            // nome del piano per reference
+  // Trial tracking
+  trialStartedAt DateTime? @default(now()) // When trial started
+  trialEndsAt    DateTime? // When trial expires
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  // Conversion tracking
+  convertedAt DateTime? // When converted to paid
+  canceledAt  DateTime? // When subscription was canceled
+
+  // Plan information
+  planId   String? // Plan ID (from Clerk)
+  planName String? // Plan name for reference
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([trialEndsAt])
   @@index([userId, status])
+  @@index([status, trialEndsAt])
 }
