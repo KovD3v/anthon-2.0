@@ -11,12 +11,13 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-import { ChatList } from "@/components/chat/ChatList";
-import { SidebarBottom } from "@/components/chat/SidebarBottom";
-import { SidebarHeader } from "@/components/chat/SidebarHeader";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
+import { ChatList } from "../../(chat)/components/ChatList";
+import { SidebarBottom } from "../../(chat)/components/SidebarBottom";
+import { SidebarHeader } from "../../(chat)/components/SidebarHeader";
+import { UsageBanner } from "../../(chat)/components/UsageBanner";
 
 // -----------------------------------------------------
 // Types
@@ -87,6 +88,23 @@ export default function ChatLayout({
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
 
+  // Usage tracking state
+  const [usageData, setUsageData] = useState<{
+    usage: {
+      requestCount: number;
+      inputTokens: number;
+      outputTokens: number;
+      totalCostUsd: number;
+    };
+    limits: {
+      maxRequests: number;
+      maxInputTokens: number;
+      maxOutputTokens: number;
+      maxCostUsd: number;
+    };
+    subscriptionStatus: "TRIAL" | "ACTIVE" | "CANCELLED" | "EXPIRED" | null;
+  } | null>(null);
+
   // Chat data cache for avoiding redundant API calls
   const [chatCache, setChatCache] = useState<Map<string, ChatData>>(new Map());
   const [preFetchingIds, setPreFetchingIds] = useState<Set<string>>(new Set());
@@ -119,6 +137,23 @@ export default function ChatLayout({
     }
     loadChats();
   }, [isLoaded, user, refreshChats]);
+
+  // Fetch usage data on mount
+  useEffect(() => {
+    async function loadUsage() {
+      if (!user) return;
+      try {
+        const response = await fetch("/api/usage");
+        if (response.ok) {
+          const data = await response.json();
+          setUsageData(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch usage:", error);
+      }
+    }
+    loadUsage();
+  }, [user]);
 
   // Pre-fetch chat data on hover
   const preFetchChat = useCallback(
@@ -308,6 +343,15 @@ export default function ChatLayout({
 
         {/* Main Content */}
         <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Usage Banner */}
+          {usageData && (
+            <UsageBanner
+              usage={usageData.usage}
+              limits={usageData.limits}
+              subscriptionStatus={usageData.subscriptionStatus}
+            />
+          )}
+
           {/* Header with sidebar toggle */}
           {!isSidebarOpen && (
             <div className="flex h-14 items-center border-b px-4">

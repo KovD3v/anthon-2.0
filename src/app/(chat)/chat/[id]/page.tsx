@@ -7,12 +7,13 @@ import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ChatHeader } from "@/components/chat/ChatHeader";
-import { ChatInput } from "@/components/chat/ChatInput";
-import { MessageList } from "@/components/chat/MessageList";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
+import { ChatHeader } from "../../../(chat)/components/ChatHeader";
+import { ChatInput } from "../../../(chat)/components/ChatInput";
+import { MessageList } from "../../../(chat)/components/MessageList";
+import { SuggestedActions } from "../../../(chat)/components/SuggestedActions";
 import { useChatContext } from "../layout";
 
 interface Usage {
@@ -179,10 +180,44 @@ export default function ChatConversationPage() {
     return initialMessages;
   }, [streamingMessages, initialMessages]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (
+    e: React.FormEvent,
+    attachments?: Array<{
+      id: string;
+      name: string;
+      contentType: string;
+      size: number;
+      url: string;
+    }>,
+  ) => {
     e.preventDefault();
     if (input.trim() && status === "ready") {
-      sendMessage({ text: input });
+      // Create message with text and file parts if attachments exist
+      const parts: Array<{
+        type: string;
+        text?: string;
+        [key: string]: unknown;
+      }> = [{ type: "text", text: input }];
+
+      // Add file parts for attachments
+      if (attachments && attachments.length > 0) {
+        attachments.forEach((att) => {
+          parts.push({
+            type: "file",
+            data: att.url,
+            mimeType: att.contentType,
+            name: att.name,
+            size: att.size,
+            attachmentId: att.id,
+          });
+        });
+      }
+
+      sendMessage({
+        role: "user",
+        content: input,
+        parts: parts,
+      });
       setInput("");
     }
   };
@@ -442,6 +477,18 @@ export default function ChatConversationPage() {
         onDelete={handleDeleteMessage}
         onRegenerate={handleRegenerate}
       />
+
+      {/* Suggested Actions for empty chat */}
+      {messages.length === 0 && !isLoading && (
+        <div className="flex-1 flex items-center justify-center px-4">
+          <SuggestedActions
+            onSelect={(prompt) => {
+              setInput(prompt);
+            }}
+            variant="cards"
+          />
+        </div>
+      )}
 
       {/* Error display inline */}
       {chatError && (

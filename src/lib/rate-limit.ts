@@ -20,19 +20,40 @@ export interface RateLimits {
 
 // Default limits for different subscription tiers
 export const RATE_LIMITS: Record<string, RateLimits> = {
-  // Free tier / Trial users
+  // Trial users (no active subscription)
   TRIAL: {
     maxRequestsPerDay: 50,
     maxInputTokensPerDay: 100_000,
     maxOutputTokensPerDay: 50_000,
     maxCostPerDay: 0.5,
   },
-  // Active subscription
+  // Basic plan ($7/month) - 3 day trial
+  basic: {
+    maxRequestsPerDay: 200,
+    maxInputTokensPerDay: 500_000,
+    maxOutputTokensPerDay: 250_000,
+    maxCostPerDay: 3,
+  },
+  // Basic Plus plan ($12/month)
+  basic_plus: {
+    maxRequestsPerDay: 400,
+    maxInputTokensPerDay: 800_000,
+    maxOutputTokensPerDay: 400_000,
+    maxCostPerDay: 5,
+  },
+  // Pro plan ($25/month)
+  pro: {
+    maxRequestsPerDay: 1000,
+    maxInputTokensPerDay: 2_000_000,
+    maxOutputTokensPerDay: 1_000_000,
+    maxCostPerDay: 15,
+  },
+  // Active subscription (fallback for ACTIVE status without plan)
   ACTIVE: {
-    maxRequestsPerDay: 500,
-    maxInputTokensPerDay: 1_000_000,
-    maxOutputTokensPerDay: 500_000,
-    maxCostPerDay: 10,
+    maxRequestsPerDay: 200,
+    maxInputTokensPerDay: 500_000,
+    maxOutputTokensPerDay: 250_000,
+    maxCostPerDay: 3,
   },
   // Admin / Unlimited
   ADMIN: {
@@ -153,9 +174,10 @@ export async function checkRateLimit(
   userId: string,
   subscriptionStatus?: string,
   userRole?: string,
+  planId?: string | null,
 ): Promise<RateLimitResult> {
   const usage = await getDailyUsage(userId);
-  const limits = getRateLimitsForUser(subscriptionStatus, userRole);
+  const limits = getRateLimitsForUser(subscriptionStatus, userRole, planId);
 
   const percentUsed = {
     requests: (usage.requestCount / limits.maxRequestsPerDay) * 100,
@@ -214,18 +236,33 @@ export async function checkRateLimit(
 }
 
 /**
- * Get rate limits based on subscription status and user role.
+ * Get rate limits based on subscription plan and user role.
  */
 export function getRateLimitsForUser(
   subscriptionStatus?: string,
   userRole?: string,
+  planId?: string | null,
 ): RateLimits {
   // Admin users have unlimited access
   if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
     return RATE_LIMITS.ADMIN;
   }
 
-  // Check subscription status
+  // Check specific plan ID first (from Clerk)
+  if (planId && subscriptionStatus === "ACTIVE") {
+    const normalizedPlanId = planId.toLowerCase();
+    if (normalizedPlanId.includes("pro")) {
+      return RATE_LIMITS.pro;
+    }
+    if (normalizedPlanId.includes("basic_plus")) {
+      return RATE_LIMITS.basic_plus;
+    }
+    if (normalizedPlanId.includes("basic")) {
+      return RATE_LIMITS.basic;
+    }
+  }
+
+  // Fallback to ACTIVE limits if subscription is active but no specific plan
   if (subscriptionStatus === "ACTIVE") {
     return RATE_LIMITS.ACTIVE;
   }

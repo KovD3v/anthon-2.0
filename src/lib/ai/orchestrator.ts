@@ -1,8 +1,8 @@
 import { type ModelMessage, stepCountIs, streamText } from "ai";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
 import {
-  ORCHESTRATOR_MODEL_ID,
-  orchestratorModel,
+  getModelForUser,
+  getModelIdForPlan,
 } from "@/lib/ai/providers/openrouter";
 import { getRagContext, shouldUseRag } from "@/lib/ai/rag";
 import { buildConversationContext } from "@/lib/ai/session-manager";
@@ -150,6 +150,16 @@ Data: {{CURRENT_DATE}}
 interface StreamChatOptions {
   userId: string;
   userMessage: string;
+  planId?: string | null;
+  userRole?: string;
+  hasImages?: boolean;
+  messageParts?: Array<{
+    type: string;
+    text?: string;
+    data?: string;
+    mimeType?: string;
+    [key: string]: unknown;
+  }>;
   onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
   onStepFinish?: (step: {
     text?: string;
@@ -226,11 +236,20 @@ function createToolsWithContext(userId: string) {
 export async function streamChat({
   userId,
   userMessage,
+  planId,
+  userRole,
+  hasImages = false,
+  messageParts,
   onFinish,
   onStepFinish,
 }: StreamChatOptions) {
   // Record start time for performance tracking
   const startTime = Date.now();
+
+  // Get the appropriate model based on user's subscription plan
+  // All Gemini models support vision, so we just use the orchestrator model
+  const model = getModelForUser(planId, userRole, "orchestrator");
+  const modelId = getModelIdForPlan(planId, userRole, "orchestrator");
 
   // Check if we need RAG context for this query
   let ragContext: string | undefined;
@@ -254,11 +273,40 @@ export async function streamChat({
   // Get conversation history
   const conversationHistory = await buildConversationContext(userId);
 
+  // Build the last message with proper image support
+  let lastMessage: ModelMessage;
+
+  if (hasImages && messageParts && messageParts.length > 0) {
+    // Convert parts to AI SDK format with images
+    const contentParts: Array<
+      { type: "text"; text: string } | { type: "image"; image: string }
+    > = [];
+
+    for (const part of messageParts) {
+      if (part.type === "text" && part.text) {
+        contentParts.push({ type: "text", text: part.text });
+      } else if (
+        part.type === "file" &&
+        part.mimeType?.startsWith("image/") &&
+        part.data
+      ) {
+        contentParts.push({
+          type: "image",
+          image: part.data, // The blob URL
+        });
+      }
+    }
+
+    lastMessage = {
+      role: "user",
+      content: contentParts,
+    };
+  } else {
+    lastMessage = { role: "user", content: userMessage };
+  }
+
   // Add the new user message
-  const messages: ModelMessage[] = [
-    ...conversationHistory,
-    { role: "user", content: userMessage },
-  ];
+  const messages: ModelMessage[] = [...conversationHistory, lastMessage];
 
   // Create tools with userId context
   const tools = createToolsWithContext(userId);
@@ -272,7 +320,7 @@ export async function streamChat({
 
   // Stream the response
   const result = streamText({
-    model: orchestratorModel,
+    model,
     system: systemPrompt,
     messages,
     tools,
@@ -280,27 +328,22 @@ export async function streamChat({
     onFinish: onFinish
       ? async ({ text, usage, providerMetadata }) => {
           // Extract AI metrics including cost calculation
-          const metrics = await extractAIMetrics(
-            ORCHESTRATOR_MODEL_ID,
-            startTime,
-            {
-              text,
-              usage: {
-                promptTokens: (usage as { promptTokens?: number })
-                  ?.promptTokens,
-                completionTokens: (usage as { completionTokens?: number })
-                  ?.completionTokens,
-                totalTokens: (usage as { totalTokens?: number })?.totalTokens,
-              },
-              providerMetadata: providerMetadata as Record<string, unknown>,
-              // Pass collected tool calls
-              collectedToolCalls:
-                collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
-              // RAG tracking
-              ragUsed,
-              ragChunksCount,
+          const metrics = await extractAIMetrics(modelId, startTime, {
+            text,
+            usage: {
+              promptTokens: (usage as { promptTokens?: number })?.promptTokens,
+              completionTokens: (usage as { completionTokens?: number })
+                ?.completionTokens,
+              totalTokens: (usage as { totalTokens?: number })?.totalTokens,
             },
-          );
+            providerMetadata: providerMetadata as Record<string, unknown>,
+            // Pass collected tool calls
+            collectedToolCalls:
+              collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
+            // RAG tracking
+            ragUsed,
+            ragChunksCount,
+          });
 
           onFinish({ text, metrics });
         }

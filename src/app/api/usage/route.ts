@@ -20,6 +20,7 @@ export async function GET() {
     // Get full user with subscription
     const fullUser = await getFullUser(user.id);
     const subscriptionStatus = fullUser?.subscription?.status;
+    const planId = fullUser?.subscription?.planId;
     const userRole = user.role;
 
     // Get daily usage
@@ -29,6 +30,7 @@ export async function GET() {
     const limits = getRateLimitsForUser(
       subscriptionStatus ?? undefined,
       userRole,
+      planId,
     );
 
     // Determine tier name for display

@@ -74,12 +74,18 @@ export function UsageBanner({
 
   if (isDismissed || !usage || !limits) return null;
 
-  const requestPercent = (usage.requestCount / limits.maxRequests) * 100;
+  const requestPercent =
+    limits.maxRequests > 0
+      ? (usage.requestCount / limits.maxRequests) * 100
+      : 0;
   const tokenPercent =
-    ((usage.inputTokens + usage.outputTokens) /
-      (limits.maxInputTokens + limits.maxOutputTokens)) *
-    100;
-  const costPercent = (usage.totalCostUsd / limits.maxCostUsd) * 100;
+    limits.maxInputTokens + limits.maxOutputTokens > 0
+      ? ((usage.inputTokens + usage.outputTokens) /
+          (limits.maxInputTokens + limits.maxOutputTokens)) *
+        100
+      : 0;
+  const costPercent =
+    limits.maxCostUsd > 0 ? (usage.totalCostUsd / limits.maxCostUsd) * 100 : 0;
 
   const maxPercent = Math.max(requestPercent, tokenPercent, costPercent);
 

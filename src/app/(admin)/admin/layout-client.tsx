@@ -10,8 +10,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SidebarBottom } from "@/components/chat/SidebarBottom";
 import { cn } from "@/lib/utils";
+import { SidebarBottom } from "../../(chat)/components/SidebarBottom";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },

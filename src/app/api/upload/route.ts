@@ -150,23 +150,13 @@ export async function POST(request: Request) {
       contentType: fileType,
     });
 
-    // 8. Track upload in database
-    const upload = await prisma.message.create({
+    // 8. Create attachment record (not linked to a message yet)
+    const attachment = await prisma.attachment.create({
       data: {
-        userId: user.id,
-        channel: "WHATSAPP", // Default channel, can be customized
-        direction: "INBOUND",
-        role: "USER",
-        type: "DOCUMENT",
-        content: `File uploaded: ${file.name}`,
-        mediaUrl: url,
-        mediaType: fileType,
-        metadata: {
-          filename: file.name,
-          size: file.size,
-          uploadedAt: new Date().toISOString(),
-          pathname,
-        },
+        name: file.name,
+        contentType: fileType,
+        size: file.size,
+        blobUrl: url,
       },
     });
 
@@ -175,13 +165,13 @@ export async function POST(request: Request) {
     );
 
     return Response.json({
-      id: upload.id,
+      id: attachment.id,
       url,
       downloadUrl,
       name: file.name,
       contentType: fileType,
       size: file.size,
-      createdAt: upload.createdAt,
+      createdAt: attachment.createdAt,
     });
   } catch (err) {
     console.error("[Upload API] Error:", err);

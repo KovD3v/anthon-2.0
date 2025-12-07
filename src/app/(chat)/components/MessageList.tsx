@@ -18,6 +18,15 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { AttachmentPreview } from "./Attachments";
+
+interface AttachmentData {
+  id: string;
+  name: string;
+  contentType: string;
+  size: number;
+  url: string;
+}
 
 interface MessageListProps {
   messages: UIMessage[];
@@ -207,6 +216,56 @@ export function MessageList({
                       ) : (
                         <div className="whitespace-pre-wrap">{messageText}</div>
                       )}
+
+                      {/* Display attachments from message parts */}
+                      {message.parts?.some((part) => part.type === "file") && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {message.parts
+                            ?.filter((part) => part.type === "file")
+                            .map((part, idx: number) => (
+                              <AttachmentPreview
+                                key={part.attachmentId || idx}
+                                attachment={{
+                                  id:
+                                    part.attachmentId || `${message.id}-${idx}`,
+                                  name: part.name,
+                                  contentType: part.mimeType,
+                                  size: part.size || 0,
+                                  url: part.data,
+                                }}
+                                className="max-w-[200px]"
+                              />
+                            ))}
+                        </div>
+                      )}
+
+                      {/* Display attachments from annotations (legacy) */}
+                      {message.annotations &&
+                        Array.isArray(message.annotations) &&
+                        message.annotations.some(
+                          (ann: unknown) =>
+                            (ann as Record<string, unknown>)?.attachments,
+                        ) && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {message.annotations
+                              .filter(
+                                (ann: unknown) =>
+                                  (ann as Record<string, unknown>)?.attachments,
+                              )
+                              .flatMap(
+                                (ann: unknown) =>
+                                  (ann as Record<string, unknown>)
+                                    .attachments as AttachmentData[],
+                              )
+                              .map((attachment: AttachmentData) => (
+                                <AttachmentPreview
+                                  key={attachment.id}
+                                  attachment={attachment}
+                                  className="max-w-[200px]"
+                                />
+                              ))}
+                          </div>
+                        )}
                     </div>
 
                     {/* Actions Row */}

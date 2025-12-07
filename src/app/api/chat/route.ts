@@ -37,6 +37,7 @@ export async function POST(request: Request) {
       user.id,
       user.subscription?.status,
       user.role,
+      user.subscription?.planId,
     );
 
     if (!rateLimitResult.allowed) {
@@ -92,6 +93,11 @@ export async function POST(request: Request) {
       return new Response("Empty message", { status: 400 });
     }
 
+    // Check if message has images
+    const hasImages = lastUserMessage.parts?.some(
+      (part) => part.type === "file" && part.mimeType?.startsWith("image/"),
+    );
+
     // Save the user message to the database with parts
     await prisma.message.create({
       data: {
@@ -122,12 +128,18 @@ export async function POST(request: Request) {
 
     // Capture userId for the callback (user might be reassigned)
     const currentUserId = user.id;
+    const userPlanId = user.subscription?.planId;
+    const userRole = user.role;
 
     // Stream the response from the orchestrator
     // Use onFinish callback to save the response after streaming completes
     const result = await streamChat({
       userId: currentUserId,
       userMessage: userMessageText,
+      planId: userPlanId,
+      userRole,
+      hasImages,
+      messageParts: lastUserMessage.parts,
       onFinish: async ({ text, metrics }) => {
         if (text && text.trim().length > 0) {
           try {

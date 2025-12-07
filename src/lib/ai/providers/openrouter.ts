@@ -5,12 +5,100 @@ export const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
 });
 
-// Orchestrator model: Gemini 2.0 Flash for main agent (free tier available)
-export const orchestratorModel = openrouter("google/gemini-2.0-flash-001");
+// Model configuration based on Clerk subscription plan
+// Note: All Gemini models support vision, so we just use the orchestrator models
+export const MODEL_CONFIG = {
+  // No subscription / trial users
+  trial: {
+    orchestrator: "google/gemini-2.0-flash-lite-001",
+    subAgent: "google/gemini-2.0-flash-lite-001",
+  },
+  // Basic plan ($7/month)
+  basic: {
+    orchestrator: "google/gemini-2.0-flash-001",
+    subAgent: "google/gemini-2.0-flash-lite-001",
+  },
+  // Basic Plus plan ($12/month)
+  basic_plus: {
+    orchestrator: "google/gemini-2.0-flash-001",
+    subAgent: "google/gemini-2.0-flash-001",
+  },
+  // Pro plan ($25/month)
+  pro: {
+    orchestrator: "google/gemini-2.5-flash-lite-preview-09-2025",
+    subAgent: "google/gemini-2.5-flash-lite-preview-09-2025",
+  },
+  // Admin (unlimited)
+  admin: {
+    orchestrator: "google/gemini-2.5-flash-lite-preview-09-2025",
+    subAgent: "google/gemini-2.5-flash-lite-preview-09-2025",
+  },
+} as const;
 
-// Sub-agent model: Gemini 2.0 Flash Lite for memory extraction and summarization
-export const subAgentModel = openrouter("google/gemini-2.0-flash-lite-001");
+// Default models (for backward compatibility - uses trial tier)
+export const orchestratorModel = openrouter(MODEL_CONFIG.trial.orchestrator);
+export const subAgentModel = openrouter(MODEL_CONFIG.trial.subAgent);
+
+/**
+ * Get the appropriate model based on user's subscription plan from Clerk
+ */
+export function getModelForUser(
+  planId: string | null | undefined,
+  userRole?: string,
+  modelType: "orchestrator" | "subAgent" = "orchestrator",
+) {
+  // Admin/Super Admin always get best models
+  if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
+    return openrouter(MODEL_CONFIG.admin[modelType]);
+  }
+
+  // Map Clerk plan IDs to our config
+  let planKey: keyof typeof MODEL_CONFIG = "trial";
+
+  if (planId) {
+    // Match plan IDs from Clerk (basic, basic_plus, pro)
+    const normalizedPlanId = planId.toLowerCase();
+    if (normalizedPlanId.includes("pro")) {
+      planKey = "pro";
+    } else if (normalizedPlanId.includes("basic_plus")) {
+      planKey = "basic_plus";
+    } else if (normalizedPlanId.includes("basic")) {
+      planKey = "basic";
+    }
+  }
+
+  const modelId = MODEL_CONFIG[planKey][modelType];
+  return openrouter(modelId);
+}
+
+/**
+ * Get model ID string for a given plan (useful for logging/tracking)
+ */
+export function getModelIdForPlan(
+  planId: string | null | undefined,
+  userRole?: string,
+  modelType: "orchestrator" | "subAgent" = "orchestrator",
+): string {
+  if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
+    return MODEL_CONFIG.admin[modelType];
+  }
+
+  let planKey: keyof typeof MODEL_CONFIG = "trial";
+
+  if (planId) {
+    const normalizedPlanId = planId.toLowerCase();
+    if (normalizedPlanId.includes("pro")) {
+      planKey = "pro";
+    } else if (normalizedPlanId.includes("basic_plus")) {
+      planKey = "basic_plus";
+    } else if (normalizedPlanId.includes("basic")) {
+      planKey = "basic";
+    }
+  }
+
+  return MODEL_CONFIG[planKey][modelType];
+}
 
 // Model IDs for reference
-export const ORCHESTRATOR_MODEL_ID = "google/gemini-2.0-flash-001";
-export const SUB_AGENT_MODEL_ID = "google/gemini-2.0-flash-lite-001";
+export const ORCHESTRATOR_MODEL_ID = MODEL_CONFIG.trial.orchestrator;
+export const SUB_AGENT_MODEL_ID = MODEL_CONFIG.trial.subAgent;
