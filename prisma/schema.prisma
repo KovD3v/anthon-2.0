@@ -67,6 +67,7 @@ model ChannelIdentity {
   createdAt   DateTime  @default(now())
 
   @@unique([channel, externalId])
+  @@index([userId])
 }
 
 enum Channel {
@@ -152,6 +153,8 @@ model Message {
 
   @@index([userId, channel, createdAt])
   @@index([chatId, createdAt])
+  @@index([externalMessageId])
+  @@index([role, createdAt])
 }
 
 enum MessageDirection {
@@ -301,6 +304,7 @@ model Artifact {
   updatedAt DateTime @updatedAt
   
   @@index([chatId])
+  @@index([messageId])
 }
 
 model ArtifactVersion {
@@ -389,4 +393,6 @@ model Subscription {
   updatedAt           DateTime @updatedAt
 
   @@index([status])
+  @@index([trialEndsAt])
+  @@index([userId, status])
 }
