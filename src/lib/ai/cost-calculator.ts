@@ -78,6 +78,8 @@ export function extractAIMetrics(
   modelId: string,
   startTime: number,
   finishResult: FinishResultInput,
+  excludePromptTokens: number = 0,
+  excludeToolTokens: number = 0,
 ): AIMetrics {
   const endTime = Date.now();
   const generationTimeMs = endTime - startTime;
@@ -117,6 +119,7 @@ export function extractAIMetrics(
   const toolCalls = finishResult.collectedToolCalls ?? null;
 
   // Calculate cost: prefer OpenRouter's cost if available, otherwise calculate with TokenLens
+  // NOTE: We use the FULL input tokens for cost calculation before subtraction
   const costUsd =
     costFromOpenRouter ??
     calculateCost(
@@ -126,9 +129,16 @@ export function extractAIMetrics(
       reasoningTokens ?? undefined,
     );
 
+  // Adjust input tokens to exclude system prompt AND tools (for user display/quota)
+  // Ensure we don't go below 0
+  const adjustedInputTokens = Math.max(
+    0,
+    inputTokens - excludePromptTokens - excludeToolTokens,
+  );
+
   return {
     model: modelId,
-    inputTokens,
+    inputTokens: adjustedInputTokens,
     outputTokens,
     reasoningTokens,
     reasoningContent,

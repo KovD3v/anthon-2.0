@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
+import type { Chat, ChatData } from "@/types/chat";
 import { ChatList } from "../../(chat)/components/ChatList";
 import { SidebarBottom } from "../../(chat)/components/SidebarBottom";
 import { SidebarHeader } from "../../(chat)/components/SidebarHeader";
@@ -22,31 +23,6 @@ import { UsageBanner } from "../../(chat)/components/UsageBanner";
 // -----------------------------------------------------
 // Types
 // -----------------------------------------------------
-
-interface Chat {
-  id: string;
-  title: string;
-  visibility: "PRIVATE" | "PUBLIC";
-  createdAt: string;
-  updatedAt: string;
-  messageCount: number;
-}
-
-interface ChatData {
-  id: string;
-  title: string;
-  visibility: string;
-  isOwner: boolean;
-  messages: Array<{
-    id: string;
-    role: "user" | "assistant";
-    content: string | null;
-    parts: unknown;
-    createdAt: string;
-    model?: string;
-    usage?: unknown;
-  }>;
-}
 
 interface ChatContextType {
   chats: Chat[];

@@ -1,4 +1,4 @@
-import { type ModelMessage, stepCountIs, streamText } from "ai";
+import { type ModelMessage, streamText } from "ai";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
 import {
   getModelForUser,
@@ -324,26 +324,41 @@ export async function streamChat({
     system: systemPrompt,
     messages,
     tools,
-    stopWhen: stepCountIs(5), // Limit tool calling loops
     onFinish: onFinish
       ? async ({ text, usage, providerMetadata }) => {
+          // Calculate estimated system prompt tokens (approx 3.5 chars per token)
+          const systemPromptTokens = Math.ceil(systemPrompt.length / 3.5);
+
+          // Calculate estimated tool definition tokens (approx)
+          // Based on inspection of src/lib/ai/tools/memory.ts and user-context.ts
+          // The schemas and descriptions add up to roughly 1400 tokens
+          // This allows us to show the user the tokens THEY are paying for vs system overhead
+          const toolDefinitionTokens = 1400;
+
           // Extract AI metrics including cost calculation
-          const metrics = await extractAIMetrics(modelId, startTime, {
-            text,
-            usage: {
-              promptTokens: (usage as { promptTokens?: number })?.promptTokens,
-              completionTokens: (usage as { completionTokens?: number })
-                ?.completionTokens,
-              totalTokens: (usage as { totalTokens?: number })?.totalTokens,
+          const metrics = await extractAIMetrics(
+            modelId,
+            startTime,
+            {
+              text,
+              usage: {
+                promptTokens: (usage as { promptTokens?: number })
+                  ?.promptTokens,
+                completionTokens: (usage as { completionTokens?: number })
+                  ?.completionTokens,
+                totalTokens: (usage as { totalTokens?: number })?.totalTokens,
+              },
+              providerMetadata: providerMetadata as Record<string, unknown>,
+              // Pass collected tool calls
+              collectedToolCalls:
+                collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
+              // RAG tracking
+              ragUsed,
+              ragChunksCount,
             },
-            providerMetadata: providerMetadata as Record<string, unknown>,
-            // Pass collected tool calls
-            collectedToolCalls:
-              collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
-            // RAG tracking
-            ragUsed,
-            ragChunksCount,
-          });
+            systemPromptTokens, // Exclude system prompt
+            toolDefinitionTokens, // Exclude tool definitions
+          );
 
           onFinish({ text, metrics });
         }
@@ -352,7 +367,10 @@ export async function streamChat({
       // Collect tool calls from each step
       if (step.toolCalls && Array.isArray(step.toolCalls)) {
         for (let i = 0; i < step.toolCalls.length; i++) {
-          const tc = step.toolCalls[i] as { toolName: string; args?: unknown };
+          const tc = step.toolCalls[i] as {
+            toolName: string;
+            args?: unknown;
+          };
           const tr = step.toolResults?.[i] as { result?: unknown } | undefined;
           collectedToolCalls.push({
             name: tc.toolName,

@@ -4,8 +4,11 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
   images: {
-    domains: ["img.clerk.com"],
     remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "img.clerk.com",
+      },
       {
         protocol: "https",
         hostname: "*.public.blob.vercel-storage.com",

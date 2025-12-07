@@ -94,9 +94,13 @@ export async function POST(request: Request) {
     }
 
     // Check if message has images
-    const hasImages = lastUserMessage.parts?.some(
-      (part) => part.type === "file" && part.mimeType?.startsWith("image/"),
-    );
+    const hasImages = lastUserMessage.parts?.some((part) => {
+      if (part.type === "file") {
+        const filePart = part as unknown as { mimeType?: string };
+        return filePart.mimeType?.startsWith("image/");
+      }
+      return false;
+    });
 
     // Save the user message to the database with parts
     await prisma.message.create({
@@ -131,6 +135,30 @@ export async function POST(request: Request) {
     const userPlanId = user.subscription?.planId;
     const userRole = user.role;
 
+    // Convert UI message parts to simplified format for orchestrator
+    const messageParts = lastUserMessage.parts?.map((part) => {
+      if (part.type === "text") {
+        return { type: "text", text: part.text || "" };
+      } else if (part.type === "file") {
+        const filePart = part as unknown as {
+          data?: string;
+          mimeType?: string;
+          name?: string;
+          size?: number;
+          attachmentId?: string;
+        };
+        return {
+          type: "file",
+          data: filePart.data,
+          mimeType: filePart.mimeType,
+          name: filePart.name,
+          size: filePart.size,
+          attachmentId: filePart.attachmentId,
+        };
+      }
+      return part as { type: string; [key: string]: unknown };
+    });
+
     // Stream the response from the orchestrator
     // Use onFinish callback to save the response after streaming completes
     const result = await streamChat({
@@ -139,7 +167,7 @@ export async function POST(request: Request) {
       planId: userPlanId,
       userRole,
       hasImages,
-      messageParts: lastUserMessage.parts,
+      messageParts,
       onFinish: async ({ text, metrics }) => {
         if (text && text.trim().length > 0) {
           try {

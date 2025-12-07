@@ -10,35 +10,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
+import type { ChatData } from "@/types/chat";
 import { ChatHeader } from "../../../(chat)/components/ChatHeader";
 import { ChatInput } from "../../../(chat)/components/ChatInput";
 import { MessageList } from "../../../(chat)/components/MessageList";
 import { SuggestedActions } from "../../../(chat)/components/SuggestedActions";
 import { useChatContext } from "../layout";
-
-interface Usage {
-  inputTokens: number;
-  outputTokens: number;
-  cost: number;
-  generationTimeMs?: number;
-  reasoningTimeMs?: number;
-}
-
-interface ChatData {
-  id: string;
-  title: string;
-  visibility: string;
-  isOwner: boolean;
-  messages: Array<{
-    id: string;
-    role: "user" | "assistant";
-    content: string | null;
-    parts: unknown;
-    createdAt: string;
-    model?: string;
-    usage?: Usage;
-  }>;
-}
 
 export default function ChatConversationPage() {
   const params = useParams();
@@ -193,11 +170,17 @@ export default function ChatConversationPage() {
     e.preventDefault();
     if (input.trim() && status === "ready") {
       // Create message with text and file parts if attachments exist
-      const parts: Array<{
-        type: string;
-        text?: string;
-        [key: string]: unknown;
-      }> = [{ type: "text", text: input }];
+      const parts: Array<
+        | { type: "text"; text: string }
+        | {
+            type: "file";
+            data: string;
+            mimeType: string;
+            name: string;
+            size: number;
+            attachmentId: string;
+          }
+      > = [{ type: "text", text: input }];
 
       // Add file parts for attachments
       if (attachments && attachments.length > 0) {
@@ -215,8 +198,7 @@ export default function ChatConversationPage() {
 
       sendMessage({
         role: "user",
-        content: input,
-        parts: parts,
+        parts: parts as UIMessage["parts"],
       });
       setInput("");
     }

@@ -20,14 +20,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AttachmentPreview } from "./Attachments";
 
-interface AttachmentData {
-  id: string;
-  name: string;
-  contentType: string;
-  size: number;
-  url: string;
-}
-
 interface MessageListProps {
   messages: UIMessage[];
   isLoading: boolean;
@@ -222,50 +214,95 @@ export function MessageList({
                         <div className="mt-2 flex flex-wrap gap-2">
                           {message.parts
                             ?.filter((part) => part.type === "file")
-                            .map((part, idx: number) => (
-                              <AttachmentPreview
-                                key={part.attachmentId || idx}
-                                attachment={{
-                                  id:
-                                    part.attachmentId || `${message.id}-${idx}`,
-                                  name: part.name,
-                                  contentType: part.mimeType,
-                                  size: part.size || 0,
-                                  url: part.data,
-                                }}
-                                className="max-w-[200px]"
-                              />
-                            ))}
+                            .map((part, idx: number) => {
+                              const filePart = part as unknown as {
+                                type: "file";
+                                data: string;
+                                mimeType: string;
+                                name: string;
+                                size?: number;
+                                attachmentId?: string;
+                              };
+                              return (
+                                <AttachmentPreview
+                                  key={filePart.attachmentId || idx}
+                                  attachment={{
+                                    id:
+                                      filePart.attachmentId ||
+                                      `${message.id}-${idx}`,
+                                    name: filePart.name,
+                                    contentType: filePart.mimeType,
+                                    size: filePart.size || 0,
+                                    url: filePart.data,
+                                  }}
+                                  className="max-w-[200px]"
+                                />
+                              );
+                            })}
                         </div>
                       )}
 
-                      {/* Display attachments from annotations (legacy) */}
-                      {message.annotations &&
-                        Array.isArray(message.annotations) &&
-                        message.annotations.some(
-                          (ann: unknown) =>
-                            (ann as Record<string, unknown>)?.attachments,
-                        ) && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {message.annotations
-                              .filter(
-                                (ann: unknown) =>
-                                  (ann as Record<string, unknown>)?.attachments,
-                              )
-                              .flatMap(
-                                (ann: unknown) =>
-                                  (ann as Record<string, unknown>)
-                                    .attachments as AttachmentData[],
-                              )
-                              .map((attachment: AttachmentData) => (
-                                <AttachmentPreview
-                                  key={attachment.id}
-                                  attachment={attachment}
-                                  className="max-w-[200px]"
-                                />
-                              ))}
-                          </div>
-                        )}
+                      {/* Message Metrics (Assistant only) */}
+                      {!isUser &&
+                        (() => {
+                          const annotations = (
+                            message as { annotations?: unknown[] }
+                          ).annotations;
+
+                          if (!annotations || annotations.length === 0)
+                            return null;
+
+                          const usageAnn = annotations.find((ann: unknown) => {
+                            const a = ann as Record<string, unknown>;
+                            return (
+                              a.inputTokens !== undefined ||
+                              a.outputTokens !== undefined
+                            );
+                          }) as
+                            | {
+                                inputTokens?: number;
+                                outputTokens?: number;
+                                generationTimeMs?: number;
+                                reasoningTimeMs?: number;
+                              }
+                            | undefined;
+
+                          if (!usageAnn) return null;
+
+                          const timeInSeconds = usageAnn.generationTimeMs
+                            ? (usageAnn.generationTimeMs / 1000).toFixed(2)
+                            : null;
+
+                          const totalTokens =
+                            (usageAnn.inputTokens || 0) +
+                            (usageAnn.outputTokens || 0);
+
+                          return (
+                            <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground/60 select-none">
+                              <div className="flex items-center gap-1.5">
+                                <span>{totalTokens} tokens</span>
+                                <span className="text-muted-foreground/30">
+                                  •
+                                </span>
+                                <span>{usageAnn.inputTokens || 0} in</span>
+                                <span className="text-muted-foreground/30">
+                                  /
+                                </span>
+                                <span>{usageAnn.outputTokens || 0} out</span>
+                              </div>
+                              {timeInSeconds && (
+                                <>
+                                  <span className="text-muted-foreground/30">
+                                    •
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{timeInSeconds}s</span>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()}
                     </div>
 
                     {/* Actions Row */}
