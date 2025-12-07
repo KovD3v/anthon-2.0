@@ -84,7 +84,7 @@ export function HowItWorks() {
             <motion.div
               key={step.id}
               variants={item}
-              className="flex flex-col items-center text-center bg-background p-4"
+              className="flex flex-col items-center text-center bg-background/60 backdrop-blur-xl border border-white/10 rounded-xl p-6 shadow-xl"
             >
               <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center mb-6 border-4 border-background relative z-10">
                 <step.icon className="h-10 w-10 text-primary" />

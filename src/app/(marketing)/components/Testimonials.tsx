@@ -81,7 +81,7 @@ export function Testimonials() {
         >
           {testimonials.map((testimonial) => (
             <motion.div key={testimonial.id} variants={item}>
-              <Card className="bg-background border-none shadow-sm h-full">
+              <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl h-full">
                 <CardContent className="pt-6">
                   <div className="flex mb-4">
                     {[...Array(testimonial.rating)].map((_, i) => (

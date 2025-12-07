@@ -242,12 +242,14 @@ export default function RagPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">RAG Documents</h1>
-        <p className="text-slate-600">Upload documents to the knowledge base</p>
+        <h1 className="text-3xl font-bold text-foreground">RAG Documents</h1>
+        <p className="text-muted-foreground">
+          Upload documents to the knowledge base
+        </p>
       </div>
 
       {/* Upload Zone */}
-      <Card className="bg-white mb-8">
+      <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl mb-8">
         <CardHeader>
           <CardTitle>Upload Documents</CardTitle>
         </CardHeader>
@@ -255,8 +257,8 @@ export default function RagPage() {
           <label
             className={`block border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
               dragActive
-                ? "border-blue-500 bg-blue-50"
-                : "border-slate-300 hover:border-slate-400"
+                ? "border-primary bg-primary/10"
+                : "border-border hover:border-primary/50"
             } ${uploading ? "opacity-50 pointer-events-none" : ""}`}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
@@ -273,13 +275,13 @@ export default function RagPage() {
             />
 
             <div className="text-4xl mb-4">📄</div>
-            <p className="text-slate-600 mb-4">
+            <p className="text-muted-foreground mb-4">
               Drag &amp; drop file(s) here, or{" "}
-              <span className="text-blue-600 hover:text-blue-700 font-medium">
+              <span className="text-primary hover:text-primary/80 font-medium">
                 browse
               </span>
             </p>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted-foreground/60">
               Supported formats: PDF, DOCX, TXT, MD &bull; Multiple files
               supported
             </p>
@@ -291,10 +293,10 @@ export default function RagPage() {
                     key={progress.fileName}
                     className={`px-4 py-2 rounded-lg text-sm ${
                       progress.status === "success"
-                        ? "bg-green-100 text-green-700"
+                        ? "bg-green-500/10 text-green-500"
                         : progress.status === "error"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-blue-100 text-blue-700"
+                          ? "bg-destructive/10 text-destructive"
+                          : "bg-primary/10 text-primary"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -317,35 +319,35 @@ export default function RagPage() {
       </Card>
 
       {/* Documents List */}
-      <Card className="bg-white">
+      <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
         <CardHeader>
           <CardTitle>Documents ({documents.length})</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900" />
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
           ) : documents.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
+            <div className="text-center py-12 text-muted-foreground">
               <div className="text-4xl mb-2">📭</div>
               <p>No documents uploaded yet</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-slate-50 border-b">
+                <thead className="bg-muted/50 border-b border-border">
                   <tr>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-slate-600">
+                    <th className="text-left px-6 py-3 text-sm font-medium text-muted-foreground">
                       Title
                     </th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-slate-600">
+                    <th className="text-left px-6 py-3 text-sm font-medium text-muted-foreground">
                       Source
                     </th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-slate-600">
+                    <th className="text-left px-6 py-3 text-sm font-medium text-muted-foreground">
                       Chunks
                     </th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-slate-600">
+                    <th className="text-left px-6 py-3 text-sm font-medium text-muted-foreground">
                       Uploaded
                     </th>
                     <th className="px-6 py-3" />
@@ -353,9 +355,12 @@ export default function RagPage() {
                 </thead>
                 <tbody className="divide-y">
                   {documents.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-slate-50">
+                    <tr
+                      key={doc.id}
+                      className="hover:bg-muted/30 border-b border-border last:border-0"
+                    >
                       <td className="px-6 py-4">
-                        <div className="font-medium text-slate-900">
+                        <div className="font-medium text-foreground">
                           {doc.title}
                         </div>
                         {doc.url && (
@@ -363,21 +368,21 @@ export default function RagPage() {
                             href={doc.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-blue-500 hover:underline"
+                            className="text-xs text-primary hover:underline"
                           >
                             View original
                           </a>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-slate-600">
+                      <td className="px-6 py-4 text-muted-foreground">
                         {doc.source || "-"}
                       </td>
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
                           {doc.chunkCount} chunks
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-500">
+                      <td className="px-6 py-4 text-sm text-muted-foreground">
                         {new Date(doc.createdAt).toLocaleDateString("it-IT")}
                       </td>
                       <td className="px-6 py-4">
@@ -386,7 +391,7 @@ export default function RagPage() {
                           size="sm"
                           onClick={() => handleDelete(doc.id)}
                           disabled={deleting === doc.id}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         >
                           {deleting === doc.id ? "..." : "Delete"}
                         </Button>
@@ -401,9 +406,9 @@ export default function RagPage() {
       </Card>
 
       {/* Help */}
-      <div className="mt-8 p-4 bg-slate-100 rounded-lg">
-        <h3 className="font-medium text-slate-900 mb-2">💡 How RAG works</h3>
-        <p className="text-sm text-slate-600">
+      <div className="mt-8 p-4 bg-muted/30 rounded-lg border border-border">
+        <h3 className="font-medium text-foreground mb-2">💡 How RAG works</h3>
+        <p className="text-sm text-muted-foreground">
           Uploaded documents are automatically parsed and split into chunks.
           Each chunk is embedded using AI and stored in the vector database.
           When users ask questions, relevant chunks are retrieved and provided

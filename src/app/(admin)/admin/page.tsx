@@ -151,7 +151,10 @@ export default function AdminDashboard() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {kpiCards.map((card) => (
-          <Card key={card.title}>
+          <Card
+            key={card.title}
+            className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl"
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {card.title}
@@ -169,7 +172,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-8 lg:grid-cols-2">
-        <Card>
+        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
@@ -207,7 +210,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
           <CardHeader>
             <CardTitle>System Status</CardTitle>
           </CardHeader>

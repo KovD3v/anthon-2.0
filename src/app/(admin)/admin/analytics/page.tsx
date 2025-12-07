@@ -93,7 +93,7 @@ export default function AnalyticsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
@@ -102,8 +102,8 @@ export default function AnalyticsPage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Analytics</h1>
-          <p className="text-slate-600">
+          <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
+          <p className="text-muted-foreground">
             Detailed usage and engagement metrics
           </p>
         </div>
@@ -116,8 +116,8 @@ export default function AnalyticsPage() {
               onClick={() => setRange(r)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 range === r
-                  ? "bg-slate-900 text-white"
-                  : "bg-white text-slate-600 hover:bg-slate-100"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background/60 backdrop-blur-md text-muted-foreground hover:bg-background/80 border border-white/10"
               }`}
             >
               {r === "all"
@@ -134,7 +134,7 @@ export default function AnalyticsPage() {
 
       {/* Messages Over Time */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <Card className="bg-white">
+        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
           <CardHeader>
             <CardTitle>Messages Over Time</CardTitle>
           </CardHeader>
@@ -168,14 +168,14 @@ export default function AnalyticsPage() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-slate-400">
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
                 No data available
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="bg-white">
+        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
           <CardHeader>
             <CardTitle>New Users Over Time</CardTitle>
           </CardHeader>
@@ -203,7 +203,7 @@ export default function AnalyticsPage() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-slate-400">
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
                 No data available
               </div>
             )}
@@ -213,7 +213,7 @@ export default function AnalyticsPage() {
 
       {/* Cost Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <Card className="bg-white">
+        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
           <CardHeader>
             <CardTitle>AI Costs by Model</CardTitle>
           </CardHeader>
@@ -249,14 +249,14 @@ export default function AnalyticsPage() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-slate-400">
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
                 No cost data available
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="bg-white">
+        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
           <CardHeader>
             <CardTitle>Daily AI Costs</CardTitle>
           </CardHeader>
@@ -293,7 +293,7 @@ export default function AnalyticsPage() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-slate-400">
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
                 No cost data available
               </div>
             )}
@@ -303,7 +303,7 @@ export default function AnalyticsPage() {
 
       {/* User Distribution & Funnel */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <Card className="bg-white">
+        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
           <CardHeader>
             <CardTitle>User Message Distribution</CardTitle>
           </CardHeader>
@@ -323,14 +323,14 @@ export default function AnalyticsPage() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-slate-400">
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
                 No distribution data
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="bg-white">
+        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
           <CardHeader>
             <CardTitle>Conversion Funnel</CardTitle>
           </CardHeader>
@@ -357,9 +357,9 @@ export default function AnalyticsPage() {
                   count={funnelStats.funnel.converted}
                   percentage={funnelStats.conversionRates.trialToConverted}
                 />
-                <div className="pt-4 border-t">
+                <div className="pt-4 border-t border-border">
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">
+                    <span className="text-muted-foreground">
                       Overall Conversion Rate
                     </span>
                     <span className="font-bold text-green-600">
@@ -368,13 +368,15 @@ export default function AnalyticsPage() {
                     </span>
                   </div>
                   <div className="flex justify-between text-sm mt-2">
-                    <span className="text-slate-600">Active Subscribers</span>
+                    <span className="text-muted-foreground">
+                      Active Subscribers
+                    </span>
                     <span className="font-bold text-blue-600">
                       {funnelStats.funnel.active}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm mt-2">
-                    <span className="text-slate-600">Churned</span>
+                    <span className="text-muted-foreground">Churned</span>
                     <span className="font-bold text-red-600">
                       {funnelStats.funnel.churned}
                     </span>
@@ -382,7 +384,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-slate-400">
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
                 No funnel data
               </div>
             )}
@@ -393,33 +395,39 @@ export default function AnalyticsPage() {
       {/* Cost Summary Cards */}
       {costStats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="bg-white">
+          <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
             <CardContent className="pt-6">
-              <div className="text-sm text-slate-600">Total Cost</div>
+              <div className="text-sm text-muted-foreground">Total Cost</div>
               <div className="text-2xl font-bold">
                 ${costStats.totalCostUsd.toFixed(2)}
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-white">
+          <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
             <CardContent className="pt-6">
-              <div className="text-sm text-slate-600">Total Output Tokens</div>
+              <div className="text-sm text-muted-foreground">
+                Total Output Tokens
+              </div>
               <div className="text-2xl font-bold">
                 {costStats.totalOutputTokens.toLocaleString()}
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-white">
+          <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
             <CardContent className="pt-6">
-              <div className="text-sm text-slate-600">Avg Cost/Message</div>
+              <div className="text-sm text-muted-foreground">
+                Avg Cost/Message
+              </div>
               <div className="text-2xl font-bold">
                 ${costStats.avgCostPerMessage.toFixed(4)}
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-white">
+          <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
             <CardContent className="pt-6">
-              <div className="text-sm text-slate-600">Avg Generation Time</div>
+              <div className="text-sm text-muted-foreground">
+                Avg Generation Time
+              </div>
               <div className="text-2xl font-bold">
                 {costStats.avgGenerationTimeMs.toFixed(0)}ms
               </div>
@@ -443,10 +451,10 @@ function FunnelRow({
   return (
     <div>
       <div className="flex justify-between mb-1">
-        <span className="text-sm text-slate-600">{label}</span>
+        <span className="text-sm text-muted-foreground">{label}</span>
         <span className="text-sm font-medium">{count}</span>
       </div>
-      <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+      <div className="h-3 bg-muted rounded-full overflow-hidden">
         <div
           className="h-full bg-blue-500 rounded-full transition-all"
           style={{ width: `${Math.min(percentage, 100)}%` }}

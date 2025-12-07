@@ -138,5 +138,28 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Premium Glassmorphism Background */
+    background-image:
+      radial-gradient(
+        at 0% 0%,
+        hsla(var(--primary) / 0.15) 0px,
+        transparent 50%
+      ),
+      radial-gradient(
+        at 100% 0%,
+        hsla(var(--primary) / 0.1) 0px,
+        transparent 50%
+      ),
+      radial-gradient(
+        at 100% 100%,
+        hsla(var(--primary) / 0.15) 0px,
+        transparent 50%
+      ),
+      radial-gradient(
+        at 0% 100%,
+        hsla(var(--primary) / 0.1) 0px,
+        transparent 50%
+      );
+    background-attachment: fixed;
   }
 }

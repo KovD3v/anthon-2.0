@@ -1,15 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import {
-  Brain,
-  Loader2,
-  MessageSquare,
-  PanelLeft,
-  PanelLeftClose,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { Brain, Loader2, PanelLeft } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
@@ -19,7 +11,9 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
+import { ChatList } from "@/components/chat/ChatList";
 import { SidebarBottom } from "@/components/chat/SidebarBottom";
+import { SidebarHeader } from "@/components/chat/SidebarHeader";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -219,63 +213,21 @@ export default function ChatLayout({
         {/* Sidebar */}
         <aside
           className={`${
-            isSidebarOpen ? "w-64" : "w-0"
-          } shrink-0 overflow-hidden border-r bg-muted/30 transition-all duration-300`}
+            isSidebarOpen ? "w-72" : "w-0"
+          } shrink-0 overflow-hidden border-r border-white/10 bg-muted/40 backdrop-blur-xl transition-all duration-300 ease-in-out`}
         >
-          <div className="flex h-full w-64 flex-col">
-            {/* Sidebar Header */}
-            <div className="flex h-14 items-center justify-between border-b px-4">
-              <div className="flex items-center gap-2">
-                <Brain className="h-5 w-5 text-primary" />
-                <span className="font-semibold">Anthon</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setIsSidebarOpen(false)}
-              >
-                <PanelLeftClose className="h-4 w-4" />
-              </Button>
-            </div>
+          <div className="flex h-full w-72 flex-col">
+            <SidebarHeader onCollapse={() => setIsSidebarOpen(false)} />
 
-            {/* New Chat Button */}
-            <div className="p-2">
-              <Button
-                onClick={createChat}
-                className="w-full justify-start gap-2"
-                variant="outline"
-              >
-                <Plus className="h-4 w-4" />
-                New Chat
-              </Button>
-            </div>
-
-            {/* Chat List */}
-            <div className="flex-1 overflow-y-auto p-2">
-              {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : chats.length === 0 ? (
-                <p className="px-2 py-4 text-center text-sm text-muted-foreground">
-                  No conversations yet
-                </p>
-              ) : (
-                <ul className="space-y-1">
-                  {chats.map((chat) => (
-                    <ChatItem
-                      key={chat.id}
-                      chat={chat}
-                      isActive={chat.id === currentChatId}
-                      isDeleting={deletingChatId === chat.id}
-                      onDelete={() => deleteChat(chat.id)}
-                      onClick={() => router.push(`/chat/${chat.id}`)}
-                    />
-                  ))}
-                </ul>
-              )}
-            </div>
+            <ChatList
+              chats={chats}
+              isLoading={isLoading}
+              currentChatId={currentChatId}
+              deletingChatId={deletingChatId}
+              onDelete={deleteChat}
+              onSelect={(id) => router.push(`/chat/${id}`)}
+              onCreate={createChat}
+            />
 
             <SidebarBottom />
           </div>
@@ -310,63 +262,5 @@ export default function ChatLayout({
         variant={options.variant}
       />
     </ChatContext.Provider>
-  );
-}
-
-// -----------------------------------------------------
-// Chat Item Component
-// -----------------------------------------------------
-
-function ChatItem({
-  chat,
-  isActive,
-  isDeleting,
-  onDelete,
-  onClick,
-}: {
-  chat: Chat;
-  isActive: boolean;
-  isDeleting: boolean;
-  onDelete: () => void;
-  onClick: () => void;
-}) {
-  const [showActions, setShowActions] = useState(false);
-
-  return (
-    <li
-      className={`group relative flex list-none items-center rounded-lg px-2 py-2 text-sm transition-colors hover:bg-muted ${
-        isActive ? "bg-muted" : ""
-      }`}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
-    >
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex flex-1 items-center gap-2 truncate text-left"
-      >
-        <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <span className="truncate">{chat.title}</span>
-      </button>
-
-      {/* Actions */}
-      {showActions && !isDeleting && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-        >
-          <Trash2 className="h-3 w-3" />
-        </Button>
-      )}
-
-      {isDeleting && (
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-      )}
-    </li>
   );
 }

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { SidebarBottom } from "@/components/chat/SidebarBottom";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -28,20 +28,26 @@ export default function AdminLayout({
   const pathname = usePathname();
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
-      <aside className="flex w-64 shrink-0 flex-col border-r bg-muted/30">
-        <div className="flex h-14 items-center gap-2 border-b px-6">
-          <Brain className="h-6 w-6 text-primary" />
-          <div>
-            <span className="font-bold">Anthon</span>
-            <span className="ml-2 text-xs font-medium text-muted-foreground">
-              Admin
+      <aside className="flex w-64 shrink-0 flex-col border-r border-white/10 bg-muted/40 backdrop-blur-xl">
+        {/* Header */}
+        <div className="flex h-14 items-center gap-2 border-b border-white/10 bg-background/40 backdrop-blur-md px-4">
+          <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-primary/20 to-primary/10 shadow-sm ring-1 ring-white/20">
+            <Brain className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex flex-col">
+            <span className="font-semibold text-foreground/90 leading-none">
+              Anthon
+            </span>
+            <span className="text-[10px] font-medium text-muted-foreground">
+              Admin Console
             </span>
           </div>
         </div>
 
-        <nav className="flex-1 p-4 overflow-y-auto">
+        {/* Navigation */}
+        <nav className="flex-1 p-2 overflow-y-auto custom-scrollbar">
           <ul className="space-y-1">
             {navItems.map((item) => {
               const isActive =
@@ -54,10 +60,10 @@ export default function AdminLayout({
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
                       isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        ? "bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20"
+                        : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
                     )}
                   >
                     <item.icon className="h-4 w-4" />
@@ -66,25 +72,25 @@ export default function AdminLayout({
                 </li>
               );
             })}
+            {/* Back to Chat Link inserted into Nav */}
+            <li>
+              <Link
+                href="/chat"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200"
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span>Back to Chat</span>
+              </Link>
+            </li>
           </ul>
         </nav>
 
-        <div className="border-t p-4">
-          <Button
-            asChild
-            variant="outline"
-            className="w-full gap-2 justify-start"
-          >
-            <Link href="/chat">
-              <MessageSquare className="h-4 w-4" />
-              Back to Chat
-            </Link>
-          </Button>
-        </div>
+        {/* Footer */}
+        <SidebarBottom />
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto bg-background">
+      <main className="flex-1 overflow-auto bg-background/50 backdrop-blur-sm">
         <div className="container mx-auto max-w-7xl p-8">{children}</div>
       </main>
     </div>

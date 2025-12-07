@@ -76,7 +76,7 @@ export function Hero() {
             className="mt-12 relative w-full max-w-5xl mx-auto"
           >
             <div className="absolute inset-0 bg-linear-to-t from-background via-transparent to-transparent z-10" />
-            <div className="rounded-xl border bg-card p-2 shadow-2xl">
+            <div className="rounded-xl border border-white/10 bg-background/60 backdrop-blur-xl p-2 shadow-2xl">
               <div className="rounded-lg bg-muted/50 aspect-video flex items-center justify-center overflow-hidden">
                 {/* Placeholder for a dashboard image or demo video */}
                 <div className="flex flex-col items-center gap-4 text-muted-foreground">

@@ -3,22 +3,13 @@
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
-import {
-  Brain,
-  Check,
-  Loader2,
-  Pencil,
-  RefreshCw,
-  Send,
-  Square,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ChatHeader } from "@/components/chat/ChatHeader";
+import { ChatInput } from "@/components/chat/ChatInput";
+import { MessageList } from "@/components/chat/MessageList";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -63,9 +54,6 @@ export default function ChatConversationPage() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [hasInitialized, setHasInitialized] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const isUserScrolledUpRef = useRef(false);
-  const hasInitialScrolledRef = useRef(false);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
 
   // Load chat data
@@ -180,24 +168,6 @@ export default function ChatConversationPage() {
     }
     return initialMessages;
   }, [streamingMessages, initialMessages]);
-
-  // Auto-scroll to bottom
-  // Handle scroll events to detect if user is at bottom
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
-    isUserScrolledUpRef.current = !isAtBottom;
-  };
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    if (!isUserScrolledUpRef.current) {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: hasInitialScrolledRef.current ? "smooth" : "auto",
-      });
-      hasInitialScrolledRef.current = true;
-    }
-  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -415,15 +385,6 @@ export default function ChatConversationPage() {
     }
   };
 
-  // Helper to extract text from message parts
-  const getMessageText = (message: UIMessage) => {
-    return (
-      message.parts
-        ?.map((part) => (part.type === "text" ? part.text : ""))
-        .join("") || ""
-    );
-  };
-
   // Loading state
   if (isLoadingChat) {
     return (
@@ -448,257 +409,45 @@ export default function ChatConversationPage() {
   const hasAssistantMessage = messages.some((m) => m.role === "assistant");
 
   return (
-    <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-      {/* Chat Header */}
-      <header className="flex h-14 items-center justify-between border-b px-4">
-        <div className="flex items-center gap-2">
-          <h1 className="font-semibold truncate">
-            {chatData?.title || "New Chat"}
-          </h1>
+    <div className="flex flex-1 flex-col min-h-0 relative bg-linear-to-b from-background to-muted/20">
+      {/* Background decoration */}
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background/0 to-background/0" />
+
+      <ChatHeader
+        title={chatData?.title || "New Chat"}
+        showRegenerate={hasAssistantMessage && !isLoading}
+        onRegenerate={handleRegenerate}
+      />
+
+      <MessageList
+        messages={messages}
+        isLoading={isLoading}
+        editingMessageId={editingMessageId}
+        deletingMessageId={deletingMessageId}
+        editContent={editContent}
+        onEditStart={handleStartEdit}
+        onEditCancel={handleCancelEdit}
+        onEditSave={handleSaveEdit}
+        onEditContentChange={setEditContent}
+        onDelete={handleDeleteMessage}
+        onRegenerate={handleRegenerate}
+      />
+
+      {/* Error display inline */}
+      {chatError && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400 shadow-xl">
+          An error occurred: {chatError.message}
         </div>
-        {/* Regenerate button in header when not loading */}
-        {hasAssistantMessage && !isLoading && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleRegenerate}
-            className="text-muted-foreground"
-          >
-            <RefreshCw className="mr-1 h-4 w-4" />
-            Regenerate
-          </Button>
-        )}
-      </header>
+      )}
 
-      {/* Messages Container */}
-      <main className="flex-1 overflow-y-auto min-h-0" onScroll={handleScroll}>
-        <div className="mx-auto max-w-3xl px-4 py-8">
-          {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <Brain className="h-16 w-16 text-primary/20" />
-              <h2 className="mt-4 text-xl font-semibold">
-                Start the conversation
-              </h2>
-              <p className="mt-2 text-muted-foreground">
-                Send a message to begin chatting with Anthon
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {messages.map((message, index) => {
-                const isEditing = editingMessageId === message.id;
-                const messageText = getMessageText(message);
-                const isLastAssistant =
-                  message.role === "assistant" && index === messages.length - 1;
+      <ChatInput
+        input={input}
+        setInput={setInput}
+        onSubmit={handleSubmit}
+        isLoading={isLoading}
+        onStop={handleStop}
+      />
 
-                return (
-                  <div
-                    key={message.id}
-                    className={`group flex items-start gap-2 ${
-                      message.role === "user" ? "justify-end" : "justify-start"
-                    }`}
-                  >
-                    {/* Action buttons for user messages */}
-                    {message.role === "user" && !isEditing && (
-                      <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          onClick={() =>
-                            handleStartEdit(message.id, messageText)
-                          }
-                          disabled={isLoading}
-                          title="Edit message"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => handleDeleteMessage(message.id)}
-                          disabled={
-                            deletingMessageId === message.id || isLoading
-                          }
-                          title="Delete message and following"
-                        >
-                          {deletingMessageId === message.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                    )}
-
-                    <div
-                      className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                        message.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted"
-                      }`}
-                    >
-                      {message.role === "assistant" && (
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1 text-xs font-medium text-primary">
-                            <Brain className="h-3 w-3" />
-                            Anthon
-                          </div>
-                          {message.annotations?.[0] && (
-                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                              <span>
-                                {(message.annotations[0] as Usage).outputTokens}{" "}
-                                tokens
-                              </span>
-                              {(message.annotations[0] as Usage)
-                                .generationTimeMs && (
-                                <span>
-                                  {(
-                                    (message.annotations[0] as Usage)
-                                      .generationTimeMs / 1000
-                                  ).toFixed(2)}
-                                  s
-                                </span>
-                              )}
-                              {(message.annotations[0] as Usage)
-                                .reasoningTimeMs > 0 && (
-                                <span>
-                                  (reasoning:{" "}
-                                  {(
-                                    (message.annotations[0] as Usage)
-                                      .reasoningTimeMs / 1000
-                                  ).toFixed(2)}
-                                  s)
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {isEditing ? (
-                        <div className="space-y-2">
-                          <textarea
-                            value={editContent}
-                            onChange={(e) => setEditContent(e.target.value)}
-                            className="w-full min-w-[200px] rounded border bg-background p-2 text-sm text-foreground"
-                            rows={3}
-                            ref={(el) => el?.focus()}
-                          />
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={handleCancelEdit}
-                            >
-                              <X className="mr-1 h-3 w-3" />
-                              Cancel
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={handleSaveEdit}
-                              disabled={!editContent.trim()}
-                            >
-                              <Check className="mr-1 h-3 w-3" />
-                              Save & Send
-                            </Button>
-                          </div>
-                        </div>
-                      ) : message.role === "assistant" ? (
-                        <div className="prose max-w-none text-sm dark:prose-invert">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {messageText}
-                          </ReactMarkdown>
-                        </div>
-                      ) : (
-                        <div className="whitespace-pre-wrap text-sm">
-                          {messageText}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Regenerate button for last assistant message */}
-                    {isLastAssistant && !isLoading && (
-                      <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          onClick={handleRegenerate}
-                          title="Regenerate response"
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Loading indicator */}
-              {isLoading && messages[messages.length - 1]?.role === "user" && (
-                <div className="flex justify-start">
-                  <div className="max-w-[80%] rounded-2xl bg-muted px-4 py-3">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Anthon is thinking...
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-
-          {/* Error display */}
-          {chatError && (
-            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
-              An error occurred: {chatError.message}
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* Input Form */}
-      <footer className="border-t bg-background">
-        <div className="mx-auto max-w-3xl px-4 py-4">
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Send a message..."
-              className="flex-1 rounded-full border bg-muted/50 px-4 py-3 text-sm outline-none transition-colors focus:border-primary focus:bg-background"
-              disabled={isLoading}
-            />
-            {isLoading ? (
-              <Button
-                type="button"
-                size="icon"
-                variant="destructive"
-                className="h-12 w-12 shrink-0 rounded-full"
-                onClick={handleStop}
-              >
-                <Square className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                size="icon"
-                className="h-12 w-12 shrink-0 rounded-full"
-                disabled={!input.trim()}
-              >
-                <Send className="h-5 w-5" />
-              </Button>
-            )}
-          </form>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            Anthon can make mistakes. Verify important information.
-          </p>
-        </div>
-      </footer>
       <ConfirmDialog
         open={isOpen}
         onOpenChange={setIsOpen}
