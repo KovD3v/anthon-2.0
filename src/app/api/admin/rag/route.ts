@@ -63,8 +63,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No files provided" }, { status: 400 });
     }
 
-    console.log(`[RAG API] Processing ${files.length} file(s)...`);
-
     const results: Array<{
       success: boolean;
       fileName: string;
@@ -99,7 +97,7 @@ export async function POST(req: NextRequest) {
         const buffer = Buffer.from(arrayBuffer);
 
         // Parse document content
-        console.log(`[RAG API] Parsing file: ${file.name} (${file.type})`);
+
         const parsed = await parseDocument(buffer, file.type, file.name);
 
         if (!parsed.content || parsed.content.trim().length === 0) {
@@ -153,10 +151,6 @@ export async function POST(req: NextRequest) {
             pageCount: parsed.metadata?.pageCount,
           },
         });
-
-        console.log(
-          `[RAG API] Successfully processed ${file.name}: ${chunkCount} chunks`,
-        );
       } catch (fileError) {
         console.error(`[RAG API] Error processing ${file.name}:`, fileError);
         results.push({

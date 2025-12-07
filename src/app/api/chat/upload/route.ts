@@ -134,10 +134,6 @@ export async function POST(request: Request) {
       data: attachmentData,
     });
 
-    console.log(
-      `[Upload API] File uploaded: ${file.name} (${file.size} bytes)`,
-    );
-
     return Response.json({
       id: attachment.id,
       name: attachment.name,
@@ -197,8 +193,6 @@ export async function DELETE(request: Request) {
 
     // Delete from database
     await prisma.attachment.delete({ where: { id: attachmentId } });
-
-    console.log(`[Upload API] File deleted: ${attachment.name}`);
 
     return Response.json({ success: true });
   } catch (err) {

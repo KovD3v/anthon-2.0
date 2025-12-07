@@ -196,10 +196,10 @@ export function AttachmentUploader({
         <>
           <File className="h-8 w-8 text-muted-foreground" />
           <p className="mt-2 text-sm text-muted-foreground">
-            Drop a file here or click to upload
+            Trascina un file qui o clicca per caricare{" "}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Max 10MB • Images, PDFs, and documents
+            Max 10MB • Immagini, PDF e documenti
           </p>
         </>
       )}

@@ -68,7 +68,7 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
  * Generate embeddings for multiple texts in batch.
  */
 async function generateEmbeddings(
-  texts: string[]
+  texts: string[],
 ): Promise<(number[] | null)[]> {
   try {
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -104,10 +104,10 @@ async function generateEmbeddings(
     if (data.data && Array.isArray(data.data)) {
       // Sort by index to maintain order
       const sorted = data.data.sort(
-        (a: { index: number }, b: { index: number }) => a.index - b.index
+        (a: { index: number }, b: { index: number }) => a.index - b.index,
       );
       return sorted.map(
-        (item: { embedding: number[] }) => item.embedding || null
+        (item: { embedding: number[] }) => item.embedding || null,
       );
     }
 
@@ -125,7 +125,7 @@ async function generateEmbeddings(
  */
 export async function searchDocuments(
   query: string,
-  limit: number = 5
+  limit: number = 5,
 ): Promise<Array<{ content: string; title: string; similarity: number }>> {
   try {
     // Generate embedding for the query
@@ -160,7 +160,7 @@ export async function searchDocuments(
       LIMIT $2
       `,
       embeddingStr,
-      limit
+      limit,
     );
 
     // Filter by similarity threshold (0.3 is a good starting point for semantic search)
@@ -175,7 +175,7 @@ export async function searchDocuments(
  * Format RAG results into a context string for the system prompt.
  */
 export function formatRagContext(
-  results: Array<{ content: string; title: string; similarity: number }>
+  results: Array<{ content: string; title: string; similarity: number }>,
 ): string {
   if (results.length === 0) {
     return "Nessun documento rilevante trovato.";
@@ -186,8 +186,8 @@ export function formatRagContext(
   for (const result of results) {
     lines.push(
       `\n**${result.title}** (rilevanza: ${Math.round(
-        result.similarity * 100
-      )}%)`
+        result.similarity * 100,
+      )}%)`,
     );
     lines.push(result.content);
   }
@@ -212,7 +212,7 @@ export async function addDocument(
   title: string,
   content: string,
   source?: string,
-  url?: string
+  url?: string,
 ): Promise<string> {
   try {
     // Create the document
@@ -226,8 +226,6 @@ export async function addDocument(
 
     // Split content into chunks
     const chunks = splitIntoChunks(content);
-
-    console.log(`[RAG] Generating embeddings for ${chunks.length} chunks...`);
 
     // Generate embeddings for all chunks in batch
     const embeddings = await generateEmbeddings(chunks);
@@ -250,11 +248,10 @@ export async function addDocument(
         document.id,
         chunks[i],
         i,
-        embeddingStr
+        embeddingStr,
       );
     }
 
-    console.log(`[RAG] Added document "${title}" with ${chunks.length} chunks`);
     return document.id;
   } catch (error) {
     console.error("[RAG] Error adding document:", error);
@@ -276,11 +273,8 @@ export async function updateMissingEmbeddings(): Promise<number> {
     `;
 
     if (chunks.length === 0) {
-      console.log("[RAG] No chunks need embedding updates");
       return 0;
     }
-
-    console.log(`[RAG] Updating embeddings for ${chunks.length} chunks...`);
 
     // Generate embeddings in batches of 10
     const batchSize = 10;
@@ -298,13 +292,11 @@ export async function updateMissingEmbeddings(): Promise<number> {
           await prisma.$executeRawUnsafe(
             `UPDATE "RagChunk" SET embedding = $1::vector WHERE id = $2`,
             embeddingStr,
-            batch[j].id
+            batch[j].id,
           );
           updated++;
         }
       }
-
-      console.log(`[RAG] Updated ${updated}/${chunks.length} chunks...`);
     }
 
     return updated;
@@ -328,8 +320,6 @@ export async function deleteDocument(documentId: string): Promise<void> {
     await prisma.ragDocument.delete({
       where: { id: documentId },
     });
-
-    console.log(`[RAG] Deleted document ${documentId}`);
   } catch (error) {
     console.error("[RAG] Error deleting document:", error);
     throw error;
@@ -373,7 +363,7 @@ export async function listDocuments(): Promise<
 function splitIntoChunks(
   content: string,
   maxChunkSize: number = 800,
-  overlap: number = 100
+  overlap: number = 100,
 ): string[] {
   const chunks: string[] = [];
   const paragraphs = content.split(/\n\n+/);

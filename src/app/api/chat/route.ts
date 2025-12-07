@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import type { UIMessage } from "ai";
 import type { Prisma } from "@/generated/prisma";
-import { generateChatTitle } from "@/lib/ai/context-compactor";
+import { generateChatTitle } from "@/lib/ai/chat-title";
 import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
 import { streamChat } from "@/lib/ai/orchestrator";
 import { prisma } from "@/lib/db";
@@ -211,21 +211,6 @@ export async function POST(request: Request) {
               metrics.inputTokens,
               metrics.outputTokens,
               metrics.costUsd,
-            );
-
-            console.log(
-              `[Chat API] Assistant message saved: ${text.substring(
-                0,
-                50,
-              )}... | tokens: ${metrics.inputTokens}/${
-                metrics.outputTokens
-              } | RAG: ${
-                metrics.ragUsed
-                  ? `yes (${metrics.ragChunksCount} chunks)`
-                  : "no"
-              } | cost: $${metrics.costUsd.toFixed(6)} | time: ${
-                metrics.generationTimeMs
-              }ms`,
             );
 
             // Extract and save memories in background

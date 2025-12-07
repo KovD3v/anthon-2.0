@@ -192,7 +192,7 @@ export default function ChatLayout({
         // Optimistically add the new chat to the list (avoid re-fetch)
         const newChat: Chat = {
           id: chat.id,
-          title: chat.title ?? "New Chat",
+          title: chat.title ?? "Nuova Chat",
           visibility: chat.visibility,
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,
@@ -215,11 +215,11 @@ export default function ChatLayout({
   // Delete chat
   const deleteChat = async (id: string): Promise<boolean> => {
     const confirmed = await confirm({
-      title: "Delete conversation?",
+      title: "Eliminare la conversazione?",
       description:
-        "This will permanently delete this conversation and all its messages. This action cannot be undone.",
-      confirmText: "Delete",
-      cancelText: "Cancel",
+        "Questo eliminerà permanentemente questa conversazione e tutti i suoi messaggi. Questa azione non può essere annullata.",
+      confirmText: "Elimina",
+      cancelText: "Annulla",
       variant: "destructive",
     });
 
@@ -242,11 +242,11 @@ export default function ChatLayout({
         toast.success("Conversation deleted");
         return true;
       } else {
-        toast.error("Failed to delete conversation");
+        toast.error("Eliminazione conversazione fallita");
       }
     } catch (error) {
       console.error("Failed to delete chat:", error);
-      toast.error("Failed to delete conversation");
+      toast.error("Eliminazione conversazione fallita");
     } finally {
       setDeletingChatId(null);
     }
@@ -269,10 +269,10 @@ export default function ChatLayout({
         <Brain className="h-16 w-16 text-primary" />
         <h1 className="text-2xl font-bold">Anthon</h1>
         <p className="text-muted-foreground">
-          Sign in to start chatting with your personal coach
+          Accedi per iniziare a chattare con Anthon
         </p>
         <Button asChild>
-          <a href="/sign-in">Sign In</a>
+          <a href="/sign-in">Accedi</a>
         </Button>
       </div>
     );

@@ -144,12 +144,6 @@ export function SidebarBottom() {
             }`}
           />
         </button>
-
-        <div className="mt-2 text-center">
-          <p className="text-[10px] font-medium text-muted-foreground/50 text-shadow-sm">
-            Anthon v2.0
-          </p>
-        </div>
       </div>
     </div>
   );

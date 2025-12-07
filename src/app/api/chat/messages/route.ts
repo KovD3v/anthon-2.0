@@ -156,10 +156,6 @@ export async function DELETE(request: NextRequest) {
       },
     });
 
-    console.log(
-      `[Chat Messages API] Deleted ${deleteResult.count} messages (cascade from ${messageId})`,
-    );
-
     return NextResponse.json({
       success: true,
       deletedCount: deleteResult.count,
@@ -243,10 +239,6 @@ export async function PATCH(request: NextRequest) {
         },
       },
     });
-
-    console.log(
-      `[Chat Messages API] Edited message - deleted ${deleteResult.count} messages`,
-    );
 
     // Return the new content so the frontend can re-send it
     return NextResponse.json({

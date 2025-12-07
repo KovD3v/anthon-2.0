@@ -6,7 +6,7 @@
  * DELETE /api/chats/[id] - Delete chat and all its messages
  */
 
-import { generateChatTitle } from "@/lib/ai/context-compactor";
+import { generateChatTitle } from "@/lib/ai/chat-title";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 

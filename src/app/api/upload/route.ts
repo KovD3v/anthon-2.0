@@ -160,10 +160,6 @@ export async function POST(request: Request) {
       },
     });
 
-    console.log(
-      `[Upload API] File uploaded by ${user.id}: ${file.name} (${file.size} bytes)`,
-    );
-
     return Response.json({
       id: attachment.id,
       url,
@@ -176,7 +172,9 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("[Upload API] Error:", err);
     return Response.json(
-      { error: err instanceof Error ? err.message : "Failed to upload file" },
+      {
+        error: err instanceof Error ? err.message : "Failed to upload file",
+      },
       { status: 500 },
     );
   }
@@ -235,8 +233,6 @@ export async function DELETE(request: Request) {
       where: { id: upload.id },
     });
 
-    console.log(`[Upload API] File deleted by ${user.id}: ${blobUrl}`);
-
     return Response.json({
       success: true,
       message: "File deleted successfully",
@@ -244,7 +240,9 @@ export async function DELETE(request: Request) {
   } catch (err) {
     console.error("[Upload API] Delete error:", err);
     return Response.json(
-      { error: err instanceof Error ? err.message : "Failed to delete file" },
+      {
+        error: err instanceof Error ? err.message : "Failed to delete file",
+      },
       { status: 500 },
     );
   }

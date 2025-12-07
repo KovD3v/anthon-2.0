@@ -51,32 +51,32 @@ interface SuggestedActionsProps {
 const DEFAULT_SUGGESTIONS: SuggestedAction[] = [
   {
     id: "clarify",
-    label: "Help me understand this better",
+    label: "Aiutami a capire meglio questo concetto",
     prompt:
-      "Can you explain that in simpler terms? I'd like to understand the core concept better.",
+      "Puoi spiegarmelo in termini piu semplici? Vorrei comprendere meglio il concetto di base.",
     icon: "help",
     category: "Understanding",
   },
   {
     id: "example",
-    label: "Give me an example",
-    prompt: "Can you give me a concrete example of how this works in practice?",
+    label: "Dammi un esempio",
+    prompt: "Puoi farmi un esempio concreto di come funziona nella pratica?",
     icon: "lightbulb",
     category: "Learning",
   },
   {
     id: "action",
-    label: "What should I do next?",
+    label: "Cosa dovrei fare dopo?",
     prompt:
-      "Based on what we discussed, what specific action should I take next?",
+      "In base a quanto abbiamo discusso, quale azione specifica dovrei intraprendere successivamente?",
     icon: "sparkles",
     category: "Action",
   },
   {
     id: "deeper",
-    label: "Go deeper on this topic",
+    label: "Approfondisci questo argomento",
     prompt:
-      "I'd like to explore this topic more deeply. What aspects should I consider?",
+      "Vorrei esplorare questo argomento più a fondo. Quali aspetti dovrei considerare?",
     icon: "document",
     category: "Exploration",
   },
@@ -88,22 +88,24 @@ const DEFAULT_SUGGESTIONS: SuggestedAction[] = [
 const CODE_SUGGESTIONS: SuggestedAction[] = [
   {
     id: "explain-code",
-    label: "Explain this code",
-    prompt: "Can you walk me through this code step by step?",
+    label: "Spiega questo codice",
+    prompt: "Puoi spiegarmi questo codice passo dopo passo?",
     icon: "code",
     category: "Code",
   },
   {
     id: "improve-code",
-    label: "How can I improve this?",
-    prompt: "What improvements or best practices could I apply to this code?",
+    label: "Come posso migliorarlo?",
+    prompt:
+      "Quali miglioramenti o best practice potrei applicare a questo codice?",
     icon: "sparkles",
     category: "Code",
   },
   {
     id: "test-code",
-    label: "Help me test this",
-    prompt: "How should I test this code? What test cases should I consider?",
+    label: "Aiutami a testarlo",
+    prompt:
+      "Come dovrei testare questo codice? Quali casi di test dovrei considerare?",
     icon: "help",
     category: "Testing",
   },
@@ -324,32 +326,32 @@ export function WelcomeSuggestions({
   const welcomeSuggestions: SuggestedAction[] = [
     {
       id: "intro",
-      label: "Tell me about yourself",
-      prompt: "What can you help me with? Tell me about your capabilities.",
+      label: "Parlami di te",
+      prompt: "Cosa puoi fare per me? Parlami delle tue capacità.",
       icon: "sparkles",
       category: "Getting Started",
     },
     {
       id: "goals",
-      label: "Help me set goals",
+      label: "Aiutami a fissare degli obiettivi",
       prompt:
-        "I'd like help setting and achieving my goals. Where should I start?",
+        "Vorrei aiuto per fissare e raggiungere i miei obiettivi. Da dove dovrei iniziare?",
       icon: "lightbulb",
       category: "Goal Setting",
     },
     {
       id: "learn",
-      label: "Help me learn something new",
+      label: "Aiutami a imparare qualcosa di nuovo",
       prompt:
-        "I want to learn something new. What topics or skills would you recommend?",
+        "Vorrei imparare qualcosa di nuovo. Quali argomenti o abilità mi consiglieresti?",
       icon: "document",
       category: "Learning",
     },
     {
       id: "problem",
-      label: "Help me solve a problem",
+      label: "Aiutami a risolvere un problema",
       prompt:
-        "I'm facing a challenge and could use some guidance on how to approach it.",
+        "Sto affrontando una sfida e potrei usare qualche consiglio su come affrontarla.",
       icon: "help",
       category: "Problem Solving",
     },

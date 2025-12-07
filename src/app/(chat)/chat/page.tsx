@@ -18,10 +18,10 @@ export default function ChatPage() {
   };
 
   const suggestedPrompts = [
-    "Create a personalized training plan for me",
-    "What should I eat before a workout?",
-    "Help me analyze my recent performance",
-    "I need motivation to keep going",
+    "Crea un piano di allenamento per le mie esigenze",
+    "Cosa dovrei mangiare prima di un allenamento?",
+    "Aiutami ad analizzare le mie prestazioni recenti",
+    "Ho bisogno di motivazione per andare avanti nella mia vita",
   ];
 
   return (
@@ -31,23 +31,23 @@ export default function ChatPage() {
         <div className="mb-8">
           <Brain className="mx-auto h-16 w-16 text-primary/80" />
           <h1 className="mt-4 text-3xl font-bold">
-            Welcome{user?.firstName ? `, ${user.firstName}` : ""}!
+            Ciao {user?.firstName ? `, ${user.firstName}` : ""}!
           </h1>
           <p className="mt-2 text-lg text-muted-foreground">
-            I'm Anthon, your personal AI coach. How can I help you today?
+            Sono Anthon, il tuo coach AI personale. Come posso aiutarti oggi?
           </p>
         </div>
 
         {/* New Chat Button */}
         <Button onClick={handleNewChat} size="lg" className="gap-2">
           <Sparkles className="h-5 w-5" />
-          Start New Conversation
+          Inizia una nuova conversazione
         </Button>
 
         {/* Suggested Prompts */}
         <div className="mt-12">
           <p className="mb-4 text-sm font-medium text-muted-foreground">
-            Or try one of these:
+            Oppure prova uno di questi suggerimenti:
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             {suggestedPrompts.map((prompt) => (
@@ -67,8 +67,8 @@ export default function ChatPage() {
         {/* Recent Chats Shortcut */}
         {chats.length > 0 && (
           <div className="mt-8 text-sm text-muted-foreground">
-            You have {chats.length} conversation{chats.length !== 1 ? "s" : ""}.
-            Select one from the sidebar to continue.
+            Hai {chats.length} conversazione{chats.length !== 1 ? "i" : "e"}.
+            Seleziona una dalla barra laterale per continuare.
           </div>
         )}
       </div>

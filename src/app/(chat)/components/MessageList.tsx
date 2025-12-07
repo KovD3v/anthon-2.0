@@ -192,10 +192,10 @@ export function MessageList({
                               variant="ghost"
                               onClick={onEditCancel}
                             >
-                              <X className="mr-1 h-3 w-3" /> Cancel
+                              <X className="mr-1 h-3 w-3" /> Cancella
                             </Button>
                             <Button size="sm" onClick={onEditSave}>
-                              <Check className="mr-1 h-3 w-3" /> Save
+                              <Check className="mr-1 h-3 w-3" /> Salva
                             </Button>
                           </div>
                         </div>

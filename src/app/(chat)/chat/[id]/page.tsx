@@ -55,13 +55,13 @@ export default function ChatConversationPage() {
           const data = await response.json();
           setChatData(data);
         } else if (response.status === 404) {
-          setError("Chat not found");
+          setError("Chat non trovata");
         } else {
-          setError("Failed to load chat");
+          setError("Caricamento chat fallito");
         }
       } catch (err) {
-        console.error("Failed to load chat:", err);
-        setError("Failed to load chat");
+        console.error("Load chat error:", err);
+        setError("Caricamento chat fallito");
       } finally {
         setIsLoadingChat(false);
       }
@@ -211,11 +211,11 @@ export default function ChatConversationPage() {
   // Handle message deletion
   const handleDeleteMessage = async (messageId: string) => {
     const confirmed = await confirm({
-      title: "Delete message?",
+      title: "Eliminare il messaggio?",
       description:
-        "This will delete this message and all following messages. This action cannot be undone.",
-      confirmText: "Delete",
-      cancelText: "Cancel",
+        "Questo eliminerà questo messaggio e tutti i messaggi successivi. Questa azione non può essere annullata.",
+      confirmText: "Elimina",
+      cancelText: "Annulla",
       variant: "destructive",
     });
 
@@ -254,17 +254,17 @@ export default function ChatConversationPage() {
           );
 
           setMessages(newMessages);
-          toast.success("Message deleted");
+          toast.success("Messaggio eliminato con successo");
         } else {
           setMessages([]);
         }
       } else {
         const data = await response.json();
-        toast.error(data.error || "Failed to delete message");
+        toast.error(data.error || "Eliminazione messaggio fallita");
       }
     } catch (err) {
       console.error("Delete error:", err);
-      toast.error("Failed to delete message");
+      toast.error("Eliminazione messaggio fallita");
     } finally {
       setDeletingMessageId(null);
     }
@@ -426,25 +426,20 @@ export default function ChatConversationPage() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4">
         <p className="text-destructive">{error}</p>
-        <Button onClick={() => window.location.reload()}>Retry</Button>
+        <Button onClick={() => window.location.reload()}>Riprova</Button>
       </div>
     );
   }
 
   const isLoading = status === "streaming" || status === "submitted";
   const messages = displayMessages;
-  const hasAssistantMessage = messages.some((m) => m.role === "assistant");
 
   return (
     <div className="flex flex-1 flex-col min-h-0 relative bg-linear-to-b from-background to-muted/20">
       {/* Background decoration */}
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-primary/5 via-background/0 to-background/0" />
 
-      <ChatHeader
-        title={chatData?.title || "New Chat"}
-        showRegenerate={hasAssistantMessage && !isLoading}
-        onRegenerate={handleRegenerate}
-      />
+      <ChatHeader title={chatData?.title || "New Chat"} />
 
       <MessageList
         messages={messages}
@@ -475,7 +470,7 @@ export default function ChatConversationPage() {
       {/* Error display inline */}
       {chatError && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400 shadow-xl">
-          An error occurred: {chatError.message}
+          Un errore si è verificato: {chatError.message}
         </div>
       )}
 

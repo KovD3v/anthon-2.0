@@ -43,7 +43,7 @@ export function ChatList({
           <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
             <Plus className="h-3.5 w-3.5" />
           </div>
-          New Chat
+          Nuova Chat
         </Button>
       </div>
 
@@ -58,7 +58,7 @@ export function ChatList({
             animate={{ opacity: 1 }}
             className="px-2 py-8 text-center text-sm text-muted-foreground"
           >
-            No conversations yet
+            Nessuna conversazione ancora. Clicca su "Nuova Chat" per iniziare!
           </motion.p>
         ) : (
           <ul className="space-y-1">

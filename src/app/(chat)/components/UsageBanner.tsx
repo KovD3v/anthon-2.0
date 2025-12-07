@@ -139,8 +139,8 @@ export function UsageBanner({
         <div className="flex flex-col gap-0.5">
           <p className="text-sm font-medium">{getMessage()}</p>
           <p className="text-xs opacity-75">
-            {getTierName()} tier: {usage.requestCount}/{limits.maxRequests}{" "}
-            requests today
+            {getTierName()}: {usage.requestCount}/{limits.maxRequests} messaggi
+            scritti oggi
           </p>
         </div>
       </div>
@@ -248,14 +248,14 @@ export function RateLimitError({
         <AlertCircle className="mt-0.5 h-5 w-5 text-red-500" />
         <div className="flex-1">
           <h4 className="font-medium text-red-800 dark:text-red-200">
-            Rate Limit Reached
+            Limite raggiunto
           </h4>
           <p className="mt-1 text-sm text-red-700 dark:text-red-300">
             {reason}
           </p>
           <p className="mt-2 text-xs text-red-600 dark:text-red-400">
-            Your usage will reset at midnight. Consider upgrading for higher
-            limits.
+            Il tuo utilizzo si azzererà a mezzanotte. Considera di effettuare
+            l'upgrade per limiti più alti.
           </p>
         </div>
         {onDismiss && (

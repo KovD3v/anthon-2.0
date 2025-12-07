@@ -194,9 +194,6 @@ export function ChatInput({
           )}
         </div>
       </form>
-      <div className="mt-2 text-center text-[10px] text-muted-foreground/40 font-medium select-none">
-        Anthon AI • v2.0
-      </div>
     </div>
   );
 }

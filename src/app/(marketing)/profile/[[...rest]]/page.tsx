@@ -30,7 +30,7 @@ export default function ProfilePage() {
               className="gap-2 text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back
+              Torna indietro
             </Button>
             <span className="text-muted-foreground">/</span>
             <Button
@@ -43,7 +43,7 @@ export default function ProfilePage() {
               Home
             </Button>
             <span className="text-muted-foreground">/</span>
-            <span className="text-sm font-medium">Profile</span>
+            <span className="text-sm font-medium">Profilo</span>
           </div>
         </div>
       </div>
