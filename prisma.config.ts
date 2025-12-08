@@ -4,16 +4,16 @@ import "dotenv/config";
 import { defineConfig, env } from "prisma/config";
 
 export default defineConfig({
-	schema: "prisma/schema.prisma",
-	migrations: {
-		path: "prisma/migrations",
-		seed: "npx tsx prisma/seed.ts",
-	},
-	datasource: {
-		// Use direct connection for migrations when available (no pooler)
-		// Falls back to DATABASE_URL if DIRECT_DATABASE_URL is not set
-		url: process.env.DIRECT_DATABASE_URL
-			? env("DIRECT_DATABASE_URL")
-			: env("DATABASE_URL"),
-	},
+  schema: "prisma/schema.prisma",
+  migrations: {
+    path: "prisma/migrations",
+    seed: "npx tsx prisma/seed.ts",
+  },
+  datasource: {
+    // Use direct connection for migrations when available (no pooler)
+    // Falls back to DATABASE_URL if DIRECT_DATABASE_URL is not set
+    url: process.env.DIRECT_DATABASE_URL
+      ? env("DIRECT_DATABASE_URL")
+      : env("DATABASE_URL"),
+  },
 });
