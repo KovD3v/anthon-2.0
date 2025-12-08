@@ -10,12 +10,17 @@ import {
 import { Brain, Menu, Moon, Sun, X } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
@@ -65,9 +70,15 @@ export function Navbar() {
             size="icon"
             onClick={toggleTheme}
             className="h-9 w-9"
-            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            title={
+              mounted
+                ? `Switch to ${theme === "dark" ? "light" : "dark"} mode`
+                : "Toggle theme"
+            }
           >
-            {theme === "dark" ? (
+            {!mounted ? (
+              <Sun className="h-4 w-4 opacity-0" />
+            ) : theme === "dark" ? (
               <Sun className="h-4 w-4" />
             ) : (
               <Moon className="h-4 w-4" />

@@ -59,6 +59,14 @@ export async function POST(request: Request) {
       chatId?: string;
     };
 
+    // Validate messages array
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return Response.json(
+        { error: "messages must be a non-empty array" },
+        { status: 400 },
+      );
+    }
+
     // Require chatId for the new multi-chat system
     if (!chatId) {
       return Response.json({ error: "chatId is required" }, { status: 400 });

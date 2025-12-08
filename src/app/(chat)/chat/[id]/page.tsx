@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
+import { convertToUIMessages } from "@/lib/chat";
 import type { ChatData } from "@/types/chat";
 import { ChatHeader } from "../../../(chat)/components/ChatHeader";
 import { ChatInput } from "../../../(chat)/components/ChatInput";
@@ -34,10 +35,19 @@ export default function ChatConversationPage() {
   const [hasInitialized, setHasInitialized] = useState(false);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
 
+  // Reset state when chatId changes for faster switching
+  useEffect(() => {
+    setHasInitialized(false);
+    setChatData(null);
+    setIsLoadingChat(true);
+  }, []);
+
   // Load chat data with cache support
   useEffect(() => {
+    const controller = new AbortController();
+
     async function loadChat() {
-      // Try to get from cache first
+      // Try to get from cache first - instant display
       const cached = getCachedChat(chatId);
       if (cached) {
         setChatData(cached);
@@ -50,7 +60,9 @@ export default function ChatConversationPage() {
       setIsLoadingChat(true);
       setError(null);
       try {
-        const response = await fetch(`/api/chats/${chatId}`);
+        const response = await fetch(`/api/chats/${chatId}`, {
+          signal: controller.signal,
+        });
         if (response.ok) {
           const data = await response.json();
           setChatData(data);
@@ -60,6 +72,9 @@ export default function ChatConversationPage() {
           setError("Caricamento chat fallito");
         }
       } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          return; // Ignore abort errors
+        }
         console.error("Load chat error:", err);
         setError("Caricamento chat fallito");
       } finally {
@@ -70,20 +85,14 @@ export default function ChatConversationPage() {
     if (chatId) {
       loadChat();
     }
+
+    return () => controller.abort();
   }, [chatId, getCachedChat]);
 
   // Convert stored messages to useChat format - memoized to avoid recalculation
   const initialMessages: UIMessage[] = useMemo(() => {
     if (!chatData?.messages) return [];
-    return chatData.messages.map((msg) => ({
-      id: msg.id,
-      role: msg.role,
-      parts: msg.parts
-        ? (msg.parts as UIMessage["parts"])
-        : [{ type: "text" as const, text: msg.content || "" }],
-      createdAt: new Date(msg.createdAt),
-      annotations: msg.usage ? [msg.usage] : undefined,
-    }));
+    return convertToUIMessages(chatData.messages);
   }, [chatData?.messages]);
 
   // Refresh chat data to get real database IDs
@@ -93,32 +102,23 @@ export default function ChatConversationPage() {
       if (response.ok) {
         const data = await response.json();
         setChatData(data);
-
-        // Convert to UI messages and sync with useChat state
-        const newMessages: UIMessage[] = data.messages.map(
-          (msg: ChatData["messages"][0]) => ({
-            id: msg.id,
-            role: msg.role,
-            parts: msg.parts
-              ? (msg.parts as UIMessage["parts"])
-              : [
-                  {
-                    type: "text" as const,
-                    text: msg.content || "",
-                  },
-                ],
-            createdAt: new Date(msg.createdAt),
-            annotations: msg.usage ? [msg.usage] : undefined,
-          }),
-        );
-
-        return newMessages;
+        return convertToUIMessages(data.messages);
       }
     } catch (err) {
       console.error("Failed to refresh chat data:", err);
     }
     return null;
   }, [chatId]);
+
+  // Memoize transport to prevent useChat re-initialization on every render
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        body: { chatId },
+      }),
+    [chatId],
+  );
 
   const {
     messages: streamingMessages,
@@ -128,10 +128,7 @@ export default function ChatConversationPage() {
     setMessages,
     stop,
   } = useChat({
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-      body: { chatId },
-    }),
+    transport,
     onFinish: async () => {
       // Refresh chat data to get real database IDs after streaming completes
       const newMessages = await refreshChatData();
@@ -235,25 +232,7 @@ export default function ChatConversationPage() {
         if (reloadResponse.ok) {
           const data = await reloadResponse.json();
           setChatData(data);
-
-          // Convert to UI messages and set them
-          const newMessages: UIMessage[] = data.messages.map(
-            (msg: ChatData["messages"][0]) => ({
-              id: msg.id,
-              role: msg.role,
-              parts: msg.parts
-                ? (msg.parts as UIMessage["parts"])
-                : [
-                    {
-                      type: "text" as const,
-                      text: msg.content || "",
-                    },
-                  ],
-              createdAt: new Date(msg.createdAt),
-            }),
-          );
-
-          setMessages(newMessages);
+          setMessages(convertToUIMessages(data.messages));
           toast.success("Messaggio eliminato con successo");
         } else {
           setMessages([]);
@@ -306,31 +285,10 @@ export default function ChatConversationPage() {
         if (reloadResponse.ok) {
           const data = await reloadResponse.json();
           setChatData(data);
+          setMessages(convertToUIMessages(data.messages));
 
-          // Convert to UI messages and set them
-          const newMessages: UIMessage[] = data.messages.map(
-            (msg: ChatData["messages"][0]) => ({
-              id: msg.id,
-              role: msg.role,
-              parts: msg.parts
-                ? (msg.parts as UIMessage["parts"])
-                : [
-                    {
-                      type: "text" as const,
-                      text: msg.content || "",
-                    },
-                  ],
-              createdAt: new Date(msg.createdAt),
-            }),
-          );
-
-          // Set the messages in useChat state
-          setMessages(newMessages);
-
-          // Send the edited message after state is updated
-          setTimeout(() => {
-            sendMessage({ text: newContent });
-          }, 100);
+          // Send the edited message - React batches state updates so this is safe
+          sendMessage({ text: newContent });
         }
       } else {
         const data = await response.json();
@@ -380,30 +338,10 @@ export default function ChatConversationPage() {
         if (reloadResponse.ok) {
           const data = await reloadResponse.json();
           setChatData(data);
+          setMessages(convertToUIMessages(data.messages));
 
-          // Convert to UI messages and set them
-          const newMessages: UIMessage[] = data.messages.map(
-            (msg: ChatData["messages"][0]) => ({
-              id: msg.id,
-              role: msg.role,
-              parts: msg.parts
-                ? (msg.parts as UIMessage["parts"])
-                : [
-                    {
-                      type: "text" as const,
-                      text: msg.content || "",
-                    },
-                  ],
-              createdAt: new Date(msg.createdAt),
-            }),
-          );
-
-          setMessages(newMessages);
-
-          // Re-send the user message after state is updated
-          setTimeout(() => {
-            sendMessage({ text: userText });
-          }, 100);
+          // Re-send the user message - React batches state updates so this is safe
+          sendMessage({ text: userText });
         }
       }
     } catch (err) {

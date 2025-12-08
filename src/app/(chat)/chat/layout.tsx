@@ -5,9 +5,11 @@ import { Brain, Loader2, PanelLeft } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
+  startTransition,
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { toast } from "sonner";
@@ -81,9 +83,9 @@ export default function ChatLayout({
     subscriptionStatus: "TRIAL" | "ACTIVE" | "CANCELLED" | "EXPIRED" | null;
   } | null>(null);
 
-  // Chat data cache for avoiding redundant API calls
-  const [chatCache, setChatCache] = useState<Map<string, ChatData>>(new Map());
-  const [preFetchingIds, setPreFetchingIds] = useState<Set<string>>(new Set());
+  // Chat data cache for avoiding redundant API calls (using refs to avoid stale closures)
+  const chatCacheRef = useRef<Map<string, ChatData>>(new Map());
+  const preFetchingIdsRef = useRef<Set<string>>(new Set());
 
   // Get current chat ID from pathname
   const currentChatId = pathname?.split("/chat/")?.[1] || null;
@@ -132,47 +134,39 @@ export default function ChatLayout({
   }, [user]);
 
   // Pre-fetch chat data on hover
-  const preFetchChat = useCallback(
-    async (id: string) => {
-      // Skip if already cached or currently pre-fetching
-      if (chatCache.has(id) || preFetchingIds.has(id)) {
-        return;
-      }
+  const preFetchChat = useCallback(async (id: string) => {
+    // Skip if already cached or currently pre-fetching
+    if (chatCacheRef.current.has(id) || preFetchingIdsRef.current.has(id)) {
+      return;
+    }
 
-      setPreFetchingIds((prev) => new Set(prev).add(id));
+    preFetchingIdsRef.current.add(id);
 
-      try {
-        const response = await fetch(`/api/chats/${id}`);
-        if (response.ok) {
-          const data = await response.json();
-          setChatCache((prev) => new Map(prev).set(id, data));
-        }
-      } catch (error) {
-        console.error("Failed to pre-fetch chat:", error);
-      } finally {
-        setPreFetchingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
+    try {
+      const response = await fetch(`/api/chats/${id}`);
+      if (response.ok) {
+        const data = await response.json();
+        chatCacheRef.current.set(id, data);
       }
-    },
-    [chatCache, preFetchingIds],
-  );
+    } catch (error) {
+      console.error("Failed to pre-fetch chat:", error);
+    } finally {
+      preFetchingIdsRef.current.delete(id);
+    }
+  }, []);
 
   // Get cached chat data
-  const getCachedChat = useCallback(
-    (id: string): ChatData | null => {
-      return chatCache.get(id) || null;
-    },
-    [chatCache],
-  );
+  const getCachedChat = useCallback((id: string): ChatData | null => {
+    return chatCacheRef.current.get(id) || null;
+  }, []);
 
   // Navigate to chat with client-side state management
   const navigateToChat = useCallback(
     (id: string) => {
-      // Use shallow routing to avoid full page reload
-      router.push(`/chat/${id}`, { scroll: false });
+      // Use startTransition for non-blocking navigation
+      startTransition(() => {
+        router.push(`/chat/${id}`, { scroll: false });
+      });
     },
     [router],
   );

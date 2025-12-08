@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -119,8 +120,9 @@ function ChatItem({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setShowActions(false)}
     >
-      <button
-        type="button"
+      <Link
+        href={`/chat/${chat.id}`}
+        prefetch={true}
         onClick={onClick}
         className="flex flex-1 items-center gap-3 truncate text-left"
       >
@@ -132,7 +134,7 @@ function ChatItem({
           }`}
         />
         <span className="truncate">{chat.title}</span>
-      </button>
+      </Link>
 
       {/* Actions */}
       {showActions && !isDeleting && (

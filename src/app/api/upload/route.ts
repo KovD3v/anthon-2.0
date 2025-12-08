@@ -139,10 +139,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // 6. Generate unique filename with user ID
+    // 6. Optional: Verify chat ownership if chatId is provided
+    const chatId = formData.get("chatId") as string | null;
+    if (chatId) {
+      const chat = await prisma.chat.findFirst({
+        where: { id: chatId, userId: user.id },
+      });
+
+      if (!chat) {
+        return Response.json(
+          { error: "Chat not found or access denied" },
+          { status: 404 },
+        );
+      }
+    }
+
+    // 7. Generate unique filename with user ID
     const timestamp = Date.now();
     const sanitizedName = sanitizeFilename(file.name);
-    const pathname = `uploads/${user.id}/${timestamp}-${sanitizedName}`;
+    const pathname = chatId
+      ? `attachments/${user.id}/${chatId}/${timestamp}-${sanitizedName}`
+      : `uploads/${user.id}/${timestamp}-${sanitizedName}`;
 
     // 7. Upload to Vercel Blob
     const { url, downloadUrl } = await put(pathname, file, {
