@@ -351,8 +351,8 @@ model ArtifactVersion {
 
 model Attachment {
   id        String  @id @default(cuid())
-  messageId String
-  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId String?
+  message   Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   name        String // Original filename
   contentType String // MIME type
