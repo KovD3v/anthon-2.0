@@ -47,11 +47,13 @@ model User {
   identities   ChannelIdentity[]
   subscription Subscription?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // Soft delete
 
   @@index([role])
   @@index([email])
+  @@index([deletedAt])
 }
 
 // -----------------------------------------------------
@@ -75,8 +77,9 @@ model ChannelIdentity {
 }
 
 enum Channel {
+  WEB
   WHATSAPP
-  // FUTURO: WEB, TELEGRAM, INSTAGRAM, MESSENGER, EMAIL, IOS_APP, ANDROID_APP
+  // FUTURE: TELEGRAM, INSTAGRAM, MESSENGER, EMAIL, IOS_APP, ANDROID_APP
 }
 
 // -----------------------------------------------------
@@ -99,11 +102,13 @@ model Chat {
   messages  Message[]
   artifacts Artifact[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // Soft delete
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([visibility])
+  @@index([deletedAt])
 }
 
 // -----------------------------------------------------
@@ -150,7 +155,9 @@ model Message {
   reasoningTimeMs  Int? // Reasoning time in ms (if available)
   feedback         Int? // User feedback: -1 = negative, 0 = neutral, 1 = positive
 
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // Soft delete
 
   // Relationships
   attachments Attachment[]
@@ -163,6 +170,8 @@ model Message {
   @@index([direction, createdAt])
   @@index([type])
   @@index([userId, role, createdAt])
+  @@index([model, createdAt])
+  @@index([deletedAt])
 }
 
 enum MessageDirection {
@@ -341,9 +350,9 @@ model ArtifactVersion {
 // -----------------------------------------------------
 
 model Attachment {
-  id        String   @id @default(cuid())
-  messageId String? // Optional - can be attached later
-  message   Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   name        String // Original filename
   contentType String // MIME type
