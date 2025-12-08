@@ -6,17 +6,17 @@ import AdminLayoutClient from "./layout-client";
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({
-	children,
+  children,
 }: {
-	children: React.ReactNode;
+  children: React.ReactNode;
 }) {
-	// Server-side admin check
-	const { errorResponse } = await requireAdmin();
+  // Server-side admin check
+  const { errorResponse } = await requireAdmin();
 
-	if (errorResponse) {
-		// Not an admin, redirect to home
-		redirect("/");
-	}
+  if (errorResponse) {
+    // Not an admin, redirect to home
+    redirect("/");
+  }
 
-	return <AdminLayoutClient>{children}</AdminLayoutClient>;
+  return <AdminLayoutClient>{children}</AdminLayoutClient>;
 }
