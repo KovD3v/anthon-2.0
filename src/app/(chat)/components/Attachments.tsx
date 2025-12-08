@@ -14,14 +14,7 @@ import NextImage from "next/image";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-interface AttachmentData {
-  id: string;
-  name: string;
-  contentType: string;
-  size: number;
-  url: string;
-}
+import type { AttachmentData } from "@/types/chat";
 
 interface AttachmentPreviewProps {
   attachment: AttachmentData;

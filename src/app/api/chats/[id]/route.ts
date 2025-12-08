@@ -20,7 +20,7 @@ interface RouteParams {
 // GET - Get chat with messages
 // -----------------------------------------------------
 
-export async function GET(_request: Request, { params }: RouteParams) {
+export async function GET(request: Request, { params }: RouteParams) {
   const { user, error } = await getAuthUser();
 
   if (error || !user) {
@@ -29,7 +29,16 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   const { id } = await params;
 
+  // Parse pagination parameters
+  const url = new URL(request.url);
+  const cursor = url.searchParams.get("cursor"); // Message ID to fetch before
+  const limit = Math.min(
+    Math.max(parseInt(url.searchParams.get("limit") || "50", 10), 1),
+    100,
+  ); // Clamp between 1-100
+
   try {
+    // First fetch the chat to verify access
     const chat = await prisma.chat.findFirst({
       where: {
         id,
@@ -38,40 +47,65 @@ export async function GET(_request: Request, { params }: RouteParams) {
           { visibility: "PUBLIC" }, // Public chats are accessible to all
         ],
       },
-      include: {
-        messages: {
-          orderBy: { createdAt: "asc" },
-          select: {
-            id: true,
-            role: true,
-            content: true,
-            parts: true,
-            createdAt: true,
-            model: true,
-            inputTokens: true,
-            outputTokens: true,
-            costUsd: true,
-            generationTimeMs: true,
-            reasoningTimeMs: true,
-            ragUsed: true,
-            toolCalls: true,
-            attachments: {
-              select: {
-                id: true,
-                name: true,
-                contentType: true,
-                size: true,
-                blobUrl: true,
-              },
-            },
-          },
-        },
+      select: {
+        id: true,
+        title: true,
+        visibility: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 
     if (!chat) {
       return Response.json({ error: "Chat not found" }, { status: 404 });
     }
+
+    // Fetch messages with cursor-based pagination
+    // Fetch newest first, then reverse for chronological display
+    const messages = await prisma.message.findMany({
+      where: { chatId: id },
+      orderBy: { createdAt: "desc" }, // Newest first
+      take: limit + 1, // Extra to check for hasMore
+      ...(cursor && {
+        cursor: { id: cursor },
+        skip: 1, // Skip the cursor message itself
+      }),
+      select: {
+        id: true,
+        role: true,
+        content: true,
+        parts: true,
+        createdAt: true,
+        model: true,
+        inputTokens: true,
+        outputTokens: true,
+        costUsd: true,
+        generationTimeMs: true,
+        reasoningTimeMs: true,
+        ragUsed: true,
+        toolCalls: true,
+        attachments: {
+          select: {
+            id: true,
+            name: true,
+            contentType: true,
+            size: true,
+            blobUrl: true,
+          },
+        },
+      },
+    });
+
+    // Determine if more messages exist
+    const hasMore = messages.length > limit;
+    const messagesToReturn = hasMore ? messages.slice(0, -1) : messages;
+    const nextCursor = hasMore
+      ? messagesToReturn[messagesToReturn.length - 1]?.id
+      : null;
+
+    // Reverse to chronological order for display
+    messagesToReturn.reverse();
 
     return Response.json({
       id: chat.id,
@@ -80,7 +114,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
       isOwner: chat.userId === user.id,
       createdAt: chat.createdAt.toISOString(),
       updatedAt: chat.updatedAt.toISOString(),
-      messages: chat.messages.map((m) => ({
+      messages: messagesToReturn.map((m) => ({
         id: m.id,
         role: m.role.toLowerCase(),
         content: m.content,
@@ -100,6 +134,10 @@ export async function GET(_request: Request, { params }: RouteParams) {
         toolCalls: m.toolCalls,
         attachments: m.attachments,
       })),
+      pagination: {
+        hasMore,
+        nextCursor,
+      },
     });
   } catch (err) {
     console.error("[Chat API] GET error:", err);

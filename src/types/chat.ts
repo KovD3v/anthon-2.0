@@ -1,12 +1,50 @@
 /**
- * Shared Chat Types
+ * Shared Types
  *
- * These types are used across the chat UI, API routes, and components
- * to ensure type consistency throughout the application.
+ * Centralized types used across the application.
+ * Import from here instead of defining inline.
  */
 
 // -----------------------------------------------------
-// Usage Metrics
+// Attachments
+// -----------------------------------------------------
+
+export interface AttachmentData {
+  id: string;
+  name: string;
+  contentType: string;
+  size: number;
+  url: string;
+}
+
+export interface StoredAttachment {
+  id: string;
+  name: string;
+  contentType: string;
+  size: number;
+  blobUrl: string;
+}
+
+// -----------------------------------------------------
+// Usage & Rate Limits
+// -----------------------------------------------------
+
+export interface DailyUsage {
+  requestCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalCostUsd: number;
+}
+
+export interface RateLimits {
+  maxRequests: number;
+  maxInputTokens: number;
+  maxOutputTokens: number;
+  maxCostUsd: number;
+}
+
+// -----------------------------------------------------
+// Usage Metrics (for messages)
 // -----------------------------------------------------
 
 export interface Usage {
@@ -31,13 +69,7 @@ export interface ChatMessage {
   usage?: Usage;
   ragUsed?: boolean;
   toolCalls?: unknown;
-  attachments?: Array<{
-    id: string;
-    name: string;
-    contentType: string;
-    size: number;
-    blobUrl: string;
-  }>;
+  attachments?: StoredAttachment[];
 }
 
 // -----------------------------------------------------
@@ -52,6 +84,10 @@ export interface ChatData {
   createdAt?: string;
   updatedAt?: string;
   messages: ChatMessage[];
+  pagination?: {
+    hasMore: boolean;
+    nextCursor: string | null;
+  };
 }
 
 // -----------------------------------------------------

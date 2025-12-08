@@ -112,19 +112,20 @@ function ChatItem({
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -10, transition: { duration: 0.2 } }}
-      className={`group relative flex list-none items-center rounded-xl px-3 py-2.5 text-sm transition-all hover:bg-white/5 ${
-        isActive
-          ? "bg-white/10 font-medium text-foreground shadow-sm ring-1 ring-white/10"
-          : "text-muted-foreground"
-      }`}
+      className="group relative list-none"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setShowActions(false)}
     >
+      {/* Full area clickable link */}
       <Link
         href={`/chat/${chat.id}`}
         prefetch={true}
         onClick={onClick}
-        className="flex flex-1 items-center gap-3 truncate text-left"
+        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all hover:bg-white/5 ${
+          isActive
+            ? "bg-white/10 font-medium text-foreground shadow-sm ring-1 ring-white/10"
+            : "text-muted-foreground"
+        }`}
       >
         <MessageSquare
           className={`h-4 w-4 shrink-0 transition-colors ${
@@ -133,16 +134,17 @@ function ChatItem({
               : "text-muted-foreground/50 group-hover:text-muted-foreground"
           }`}
         />
-        <span className="truncate">{chat.title}</span>
+        <span className="truncate pr-8">{chat.title}</span>
       </Link>
 
-      {/* Actions */}
+      {/* Actions - positioned absolutely on top of link */}
       {showActions && !isDeleting && (
         <Button
           variant="ghost"
           size="icon"
-          className="absolute right-2 h-6 w-6 shrink-0 text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive"
+          className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 shrink-0 text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive z-10"
           onClick={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             onDelete();
           }}
@@ -152,7 +154,7 @@ function ChatItem({
       )}
 
       {isDeleting && (
-        <div className="absolute right-2">
+        <div className="absolute right-2 top-1/2 -translate-y-1/2">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       )}

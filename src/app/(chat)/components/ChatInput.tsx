@@ -1,18 +1,12 @@
 "use client";
 
 import { Send, Square } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useDebouncedCallback } from "@/hooks/useDebounce";
+import type { AttachmentData } from "@/types/chat";
 import { AttachmentButton, AttachmentPreview } from "./Attachments";
-
-interface AttachmentData {
-  id: string;
-  name: string;
-  contentType: string;
-  size: number;
-  url: string;
-}
 
 interface ChatInputProps {
   input: string;
@@ -34,13 +28,13 @@ export function ChatInput({
   const [attachments, setAttachments] = useState<AttachmentData[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
-  const adjustHeight = useCallback(() => {
+  const adjustHeight = useDebouncedCallback(() => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = "auto";
       textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
     }
-  }, []);
+  }, 16); // ~60fps debounce
 
   useEffect(() => {
     adjustHeight();

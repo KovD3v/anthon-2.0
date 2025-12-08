@@ -16,8 +16,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
+import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 import type { Chat, ChatData } from "@/types/chat";
 import { ChatList } from "../../(chat)/components/ChatList";
+import { SearchDialog } from "../../(chat)/components/SearchDialog";
 import { SidebarBottom } from "../../(chat)/components/SidebarBottom";
 import { SidebarHeader } from "../../(chat)/components/SidebarHeader";
 import { UsageBanner } from "../../(chat)/components/UsageBanner";
@@ -64,6 +66,7 @@ export default function ChatLayout({
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
 
   // Usage tracking state
@@ -83,9 +86,34 @@ export default function ChatLayout({
     subscriptionStatus: "TRIAL" | "ACTIVE" | "CANCELLED" | "EXPIRED" | null;
   } | null>(null);
 
+  // Keyboard shortcuts
+  useKeyboardShortcut({
+    key: "n",
+    modifiers: ["meta"],
+    callback: () => {
+      if (user) createChat();
+    },
+    enabled: !!user,
+  });
+
+  useKeyboardShortcut({
+    key: "/",
+    modifiers: ["meta"],
+    callback: () => setIsSidebarOpen((prev) => !prev),
+  });
+
+  // Cmd+K for search
+  useKeyboardShortcut({
+    key: "k",
+    modifiers: ["meta"],
+    callback: () => setIsSearchOpen(true),
+    enabled: !!user,
+  });
+
   // Chat data cache for avoiding redundant API calls (using refs to avoid stale closures)
   const chatCacheRef = useRef<Map<string, ChatData>>(new Map());
   const preFetchingIdsRef = useRef<Set<string>>(new Set());
+  const MAX_CACHE_SIZE = 20; // LRU cache limit
 
   // Get current chat ID from pathname
   const currentChatId = pathname?.split("/chat/")?.[1] || null;
@@ -133,7 +161,7 @@ export default function ChatLayout({
     loadUsage();
   }, [user]);
 
-  // Pre-fetch chat data on hover
+  // Pre-fetch chat data on hover with LRU cache eviction
   const preFetchChat = useCallback(async (id: string) => {
     // Skip if already cached or currently pre-fetching
     if (chatCacheRef.current.has(id) || preFetchingIdsRef.current.has(id)) {
@@ -146,6 +174,15 @@ export default function ChatLayout({
       const response = await fetch(`/api/chats/${id}`);
       if (response.ok) {
         const data = await response.json();
+
+        // LRU eviction: remove oldest entry if cache is full
+        if (chatCacheRef.current.size >= MAX_CACHE_SIZE) {
+          const firstKey = chatCacheRef.current.keys().next().value;
+          if (firstKey) {
+            chatCacheRef.current.delete(firstKey);
+          }
+        }
+
         chatCacheRef.current.set(id, data);
       }
     } catch (error) {
@@ -287,11 +324,25 @@ export default function ChatLayout({
       }}
     >
       <div className="flex h-screen overflow-hidden">
+        {/* Mobile Backdrop */}
+        {isSidebarOpen && (
+          <button
+            type="button"
+            aria-label="Close sidebar"
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden cursor-default"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
         <aside
           className={`${
-            isSidebarOpen ? "w-72" : "w-0"
-          } shrink-0 overflow-hidden border-r border-white/10 bg-muted/40 backdrop-blur-xl transition-all duration-300 ease-in-out`}
+            isSidebarOpen
+              ? "translate-x-0"
+              : "-translate-x-full md:translate-x-0"
+          } ${
+            isSidebarOpen ? "md:w-72" : "md:w-0"
+          } fixed left-0 top-0 z-50 h-full w-72 shrink-0 overflow-hidden border-r border-white/10 bg-muted/40 backdrop-blur-xl transition-all duration-300 ease-in-out md:relative md:z-auto`}
         >
           <div className="flex h-full w-72 flex-col">
             <SidebarHeader onCollapse={() => setIsSidebarOpen(false)} />
@@ -302,7 +353,13 @@ export default function ChatLayout({
               currentChatId={currentChatId}
               deletingChatId={deletingChatId}
               onDelete={deleteChat}
-              onSelect={navigateToChat}
+              onSelect={(id) => {
+                navigateToChat(id);
+                // Close sidebar on mobile after selecting
+                if (window.innerWidth < 768) {
+                  setIsSidebarOpen(false);
+                }
+              }}
               onCreate={createChat}
               onPreFetch={preFetchChat}
             />
@@ -338,6 +395,10 @@ export default function ChatLayout({
           {children}
         </div>
       </div>
+      <SearchDialog
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+      />
       <ConfirmDialog
         open={isOpen}
         onOpenChange={setIsOpen}

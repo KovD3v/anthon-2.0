@@ -11,20 +11,7 @@ import {
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-interface DailyUsage {
-  requestCount: number;
-  inputTokens: number;
-  outputTokens: number;
-  totalCostUsd: number;
-}
-
-interface RateLimits {
-  maxRequests: number;
-  maxInputTokens: number;
-  maxOutputTokens: number;
-  maxCostUsd: number;
-}
+import type { DailyUsage, RateLimits } from "@/types/chat";
 
 interface UsageBannerProps {
   /**
@@ -55,6 +42,34 @@ export function UsageBanner({
   className,
 }: UsageBannerProps) {
   const [isDismissed, setIsDismissed] = useState(false);
+  const [countdown, setCountdown] = useState("");
+
+  // Calculate and update countdown to midnight
+  useEffect(() => {
+    const updateCountdown = () => {
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+
+      const msRemaining = tomorrow.getTime() - now.getTime();
+      const hours = Math.floor(msRemaining / (1000 * 60 * 60));
+      const minutes = Math.floor(
+        (msRemaining % (1000 * 60 * 60)) / (1000 * 60),
+      );
+
+      if (hours > 0) {
+        setCountdown(`${hours}h ${minutes}m`);
+      } else {
+        setCountdown(`${minutes}m`);
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Reset dismissal at midnight
   useEffect(() => {
@@ -113,12 +128,14 @@ export function UsageBanner({
 
   const getMessage = () => {
     if (isAtLimit) {
-      return "You've reached your daily limit. Your usage will reset at midnight.";
+      return countdown
+        ? `Limite raggiunto. Reset tra ${countdown}.`
+        : "Limite raggiunto. Reset a mezzanotte.";
     }
     if (isNearLimit) {
-      return `You're at ${Math.round(maxPercent)}% of your daily limit.`;
+      return `Sei al ${Math.round(maxPercent)}% del limite giornaliero.`;
     }
-    return `You've used ${Math.round(maxPercent)}% of your daily limit.`;
+    return `Hai usato il ${Math.round(maxPercent)}% del limite giornaliero.`;
   };
 
   const getTierName = () => {
