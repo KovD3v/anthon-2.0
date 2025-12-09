@@ -1,0 +1,202 @@
+# Database Schema
+
+Anthon 2.0 uses PostgreSQL with Prisma ORM and pgvector for vector embeddings.
+
+## Entity Relationship Overview
+
+```
+┌─────────────────┐
+│      User       │
+├─────────────────┤
+│ id              │───┬───────────────────────────────────┐
+│ clerkId         │   │                                   │
+│ email           │   │    ┌──────────────┐               │
+│ role            │   ├───▶│   Profile    │               │
+└─────────────────┘   │    └──────────────┘               │
+                      │    ┌──────────────┐               │
+                      ├───▶│ Preferences  │               │
+                      │    └──────────────┘               │
+                      │    ┌──────────────┐               │
+                      ├───▶│    Memory    │ (many)        │
+                      │    └──────────────┘               │
+                      │    ┌──────────────┐    ┌────────┐ │
+                      ├───▶│     Chat     │───▶│Message │ │
+                      │    └──────────────┘    └────────┘ │
+                      │    ┌──────────────┐               │
+                      ├───▶│  DailyUsage  │ (many)        │
+                      │    └──────────────┘               │
+                      │    ┌──────────────┐               │
+                      ├───▶│ Subscription │               │
+                      │    └──────────────┘               │
+                      │    ┌───────────────┐              │
+                      └───▶│ChannelIdentity│ (many)       │
+                           └───────────────┘
+```
+
+## Core Models
+
+### User
+
+Central identity for all user data across channels.
+
+| Field       | Type      | Description                 |
+| ----------- | --------- | --------------------------- |
+| `id`        | String    | CUID primary key            |
+| `clerkId`   | String?   | Clerk authentication ID     |
+| `email`     | String?   | User email                  |
+| `role`      | UserRole  | USER, ADMIN, or SUPER_ADMIN |
+| `deletedAt` | DateTime? | Soft delete timestamp       |
+
+### Chat
+
+Conversation container for grouping messages.
+
+| Field        | Type           | Description                |
+| ------------ | -------------- | -------------------------- |
+| `id`         | String         | CUID primary key           |
+| `userId`     | String         | Owner reference            |
+| `title`      | String?        | Auto-generated or user-set |
+| `visibility` | ChatVisibility | PRIVATE or PUBLIC          |
+| `deletedAt`  | DateTime?      | Soft delete timestamp      |
+
+### Message
+
+Individual messages supporting text, media, and AI metadata.
+
+| Field          | Type             | Description                          |
+| -------------- | ---------------- | ------------------------------------ |
+| `id`           | String           | CUID primary key                     |
+| `chatId`       | String?          | Parent chat reference                |
+| `role`         | MessageRole      | USER, ASSISTANT, SYSTEM              |
+| `direction`    | MessageDirection | INBOUND or OUTBOUND                  |
+| `type`         | MessageType      | TEXT, IMAGE, AUDIO, etc.             |
+| `content`      | String?          | Text content                         |
+| `parts`        | Json?            | AI SDK v5 message parts              |
+| `model`        | String?          | AI model used (e.g., "gpt-4.1-mini") |
+| `inputTokens`  | Int?             | Prompt tokens                        |
+| `outputTokens` | Int?             | Generated tokens                     |
+| `costUsd`      | Float?           | Response cost                        |
+| `ragUsed`      | Boolean?         | Whether RAG was used                 |
+
+### Profile
+
+User coaching information.
+
+| Field        | Type      | Description      |
+| ------------ | --------- | ---------------- |
+| `name`       | String?   | User's name      |
+| `sport`      | String?   | Primary sport    |
+| `goal`       | String?   | Coaching goal    |
+| `experience` | String?   | Experience level |
+| `birthday`   | DateTime? | Date of birth    |
+| `notes`      | String?   | Coach's notes    |
+
+### Preferences
+
+Communication and behavior preferences.
+
+| Field      | Type     | Description                         |
+| ---------- | -------- | ----------------------------------- |
+| `tone`     | String?  | "calm", "energetic", "professional" |
+| `mode`     | String?  | "coaching", "friendly", "direct"    |
+| `language` | String?  | "IT", "EN", etc.                    |
+| `push`     | Boolean? | Push notifications enabled          |
+
+### Memory
+
+Persistent key-value storage for user information.
+
+| Field   | Type   | Description       |
+| ------- | ------ | ----------------- |
+| `key`   | String | Memory identifier |
+| `value` | Json   | Stored data       |
+
+Unique constraint on `(userId, key)` ensures one value per key per user.
+
+## RAG Models
+
+### RagDocument
+
+Container for knowledge base documents.
+
+| Field    | Type    | Description       |
+| -------- | ------- | ----------------- |
+| `id`     | String  | CUID primary key  |
+| `title`  | String  | Document title    |
+| `url`    | String? | Source URL        |
+| `source` | String? | Source identifier |
+
+### RagChunk
+
+Embedded document chunks for vector search.
+
+| Field        | Type         | Description           |
+| ------------ | ------------ | --------------------- |
+| `documentId` | String       | Parent document       |
+| `content`    | String       | Chunk text            |
+| `embedding`  | vector(4096) | pgvector embedding    |
+| `index`      | Int          | Chunk sequence number |
+
+Uses HNSW index for efficient cosine similarity search.
+
+## Usage & Billing
+
+### DailyUsage
+
+Per-day usage tracking for rate limiting.
+
+| Field          | Type  | Description         |
+| -------------- | ----- | ------------------- |
+| `date`         | Date  | UTC date            |
+| `requestCount` | Int   | Daily requests      |
+| `inputTokens`  | Int   | Total input tokens  |
+| `outputTokens` | Int   | Total output tokens |
+| `totalCostUsd` | Float | Total cost          |
+
+### Subscription
+
+User subscription and trial tracking.
+
+| Field            | Type               | Description                   |
+| ---------------- | ------------------ | ----------------------------- |
+| `status`         | SubscriptionStatus | TRIAL, ACTIVE, CANCELED, etc. |
+| `trialStartedAt` | DateTime?          | Trial start                   |
+| `trialEndsAt`    | DateTime?          | Trial expiration              |
+| `planId`         | String?            | Clerk plan ID                 |
+| `planName`       | String?            | Plan display name             |
+
+## Multi-Channel
+
+### ChannelIdentity
+
+Links external identifiers to users.
+
+| Field        | Type    | Description          |
+| ------------ | ------- | -------------------- |
+| `channel`    | Channel | WEB, WHATSAPP        |
+| `externalId` | String  | Platform-specific ID |
+
+Unique constraint on `(channel, externalId)`.
+
+## Useful Queries
+
+```sql
+-- Get user's recent messages with chat context
+SELECT m.* FROM "Message" m
+JOIN "Chat" c ON m."chatId" = c.id
+WHERE m."userId" = 'user_id'
+ORDER BY m."createdAt" DESC
+LIMIT 50;
+
+-- Search RAG chunks by similarity
+SELECT content, 1 - (embedding <=> query_embedding) as similarity
+FROM "RagChunk"
+WHERE embedding IS NOT NULL
+ORDER BY embedding <=> query_embedding
+LIMIT 5;
+```
+
+## Related Documentation
+
+-   [AI System](./ai-system.md) - How the database is used in AI processing
+-   [Rate Limiting](./rate-limiting.md) - DailyUsage in action

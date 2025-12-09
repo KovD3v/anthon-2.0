@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Anthon 2.0
 
-## Getting Started
+An AI-powered coaching chat application built with Next.js 16, featuring intelligent conversation management, RAG-based knowledge retrieval, and multi-channel support.
 
-First, run the development server:
+## ✨ Features
+
+-   **AI Coaching Chat** - Streaming conversations with GPT-4.1 and Gemini via OpenRouter
+-   **RAG System** - Knowledge retrieval using pgvector embeddings
+-   **Session Management** - Intelligent context building with automatic summarization
+-   **Persistent Memory** - AI remembers user preferences and important information
+-   **Multi-Channel** - Web and WhatsApp support with unified user identity
+-   **Rate Limiting** - Usage tracking with subscription tiers
+-   **Authentication** - Secure auth with Clerk
+
+## 🚀 Quick Start
 
 ```bash
+# Install dependencies
+npm install
+
+# Setup environment variables
+cp .env.example .env
+# Edit .env with your credentials
+
+# Run database migrations
+npx prisma migrate dev
+
+# Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📚 Documentation
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Document                                     | Description                                  |
+| -------------------------------------------- | -------------------------------------------- |
+| [Getting Started](./docs/getting-started.md) | Setup, installation, and running the project |
+| [Architecture](./docs/architecture.md)       | System architecture and project structure    |
+| [Database](./docs/database.md)               | Prisma schema and data models                |
+| [AI System](./docs/ai-system.md)             | Orchestrator, RAG, sessions, and memory      |
+| [API Reference](./docs/api.md)               | REST API endpoints documentation             |
+| [Authentication](./docs/authentication.md)   | Clerk integration and user roles             |
+| [Rate Limiting](./docs/rate-limiting.md)     | Usage limits and subscription tiers          |
 
-## Learn More
+## 🛠 Tech Stack
 
-To learn more about Next.js, take a look at the following resources:
+-   **Framework:** Next.js 16 (App Router)
+-   **Language:** TypeScript
+-   **Database:** PostgreSQL + Prisma + pgvector
+-   **AI:** Vercel AI SDK v5 + OpenRouter
+-   **Auth:** Clerk
+-   **Styling:** Tailwind CSS + Radix UI + Framer Motion
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 📁 Project Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+anthon-2.0/
+├── src/
+│   ├── app/           # Next.js App Router pages
+│   │   ├── (marketing)/ # Public pages
+│   │   ├── (chat)/      # Chat interface
+│   │   ├── (admin)/     # Admin dashboard
+│   │   └── api/         # API routes
+│   ├── components/    # Shared UI components
+│   ├── lib/           # Core business logic
+│   │   ├── ai/        # AI orchestrator, RAG, sessions
+│   │   └── ...        # Auth, rate-limit, utils
+│   └── hooks/         # React hooks
+├── prisma/            # Database schema & migrations
+├── docs/              # Documentation
+└── public/            # Static assets
+```
 
-## Deploy on Vercel
+## 📜 Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Script           | Description              |
+| ---------------- | ------------------------ |
+| `npm run dev`    | Start development server |
+| `npm run build`  | Build for production     |
+| `npm run lint`   | Run Biome linter         |
+| `npm run format` | Format code with Biome   |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📄 License
+
+Private - All rights reserved

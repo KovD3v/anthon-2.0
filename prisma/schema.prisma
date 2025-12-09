@@ -38,14 +38,15 @@ model User {
   role UserRole @default(USER)
 
   // Relationships
-  profile      Profile?
-  preferences  Preferences?
-  memories     Memory[]
-  messages     Message[]
-  chats        Chat[]
-  dailyUsage   DailyUsage[]
-  identities   ChannelIdentity[]
-  subscription Subscription?
+  profile         Profile?
+  preferences     Preferences?
+  memories        Memory[]
+  messages        Message[]
+  chats           Chat[]
+  dailyUsage      DailyUsage[]
+  identities      ChannelIdentity[]
+  subscription    Subscription?
+  sessionSummaries SessionSummary[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -67,7 +68,7 @@ model ChannelIdentity {
   externalId String // e.g.: WhatsApp phone number, Telegram user ID, Instagram PSID
 
   userId String?
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
@@ -257,6 +258,25 @@ model Memory {
 }
 
 // -----------------------------------------------------
+// SESSION SUMMARY (persistent cache for session summaries)
+// -----------------------------------------------------
+
+model SessionSummary {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  sessionId String   @unique // Composite of start/end timestamps
+  summary   String   @db.Text
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// -----------------------------------------------------
 // RAG DOCUMENTS (Metodo Sincro, PDF, ecc.)
 // -----------------------------------------------------
 
@@ -284,7 +304,7 @@ model RagChunk {
   document   RagDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   content   String                       @db.Text
-  embedding Unsupported("vector(4096)")?
+  embedding Unsupported("vector(1536)")?
   index     Int // Chunk sequence number within document
 
   createdAt DateTime @default(now())
@@ -316,7 +336,7 @@ model Artifact {
   chatId    String
   chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
   messageId String?
-  message   Message? @relation("MessageArtifacts", fields: [messageId], references: [id], onDelete: SetNull)
+  message   Message? @relation("MessageArtifacts", fields: [messageId], references: [id], onDelete: Cascade)
 
   title    String
   kind     ArtifactKind
