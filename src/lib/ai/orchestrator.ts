@@ -1,18 +1,18 @@
 import { type ModelMessage, streamText } from "ai";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
 import {
-	getModelForUser,
-	getModelIdForPlan,
+  getModelForUser,
+  getModelIdForPlan,
 } from "@/lib/ai/providers/openrouter";
 import { getRagContext, shouldUseRag } from "@/lib/ai/rag";
 import { buildConversationContext } from "@/lib/ai/session-manager";
 import {
-	createMemoryTools,
-	formatMemoriesForPrompt,
+  createMemoryTools,
+  formatMemoriesForPrompt,
 } from "@/lib/ai/tools/memory";
 import {
-	createUserContextTools,
-	formatUserContextForPrompt,
+  createUserContextTools,
+  formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
 
 // System prompt template
@@ -180,85 +180,85 @@ Data: {{CURRENT_DATE}}
 {{USER_MEMORIES}}`;
 
 interface StreamChatOptions {
-	userId: string;
-	userMessage: string;
-	planId?: string | null;
-	userRole?: string;
-	hasImages?: boolean;
-	messageParts?: Array<{
-		type: string;
-		text?: string;
-		data?: string;
-		mimeType?: string;
-		[key: string]: unknown;
-	}>;
-	onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
-	onStepFinish?: (step: {
-		text?: string;
-		toolCalls?: unknown[];
-		toolResults?: unknown[];
-	}) => void;
+  userId: string;
+  userMessage: string;
+  planId?: string | null;
+  userRole?: string;
+  hasImages?: boolean;
+  messageParts?: Array<{
+    type: string;
+    text?: string;
+    data?: string;
+    mimeType?: string;
+    [key: string]: unknown;
+  }>;
+  onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
+  onStepFinish?: (step: {
+    text?: string;
+    toolCalls?: unknown[];
+    toolResults?: unknown[];
+  }) => void;
 }
 
 /**
  * Builds the complete system prompt with user context and memories injected.
  */
 async function buildSystemPrompt(
-	userId: string,
-	ragContext?: string
+  userId: string,
+  ragContext?: string,
 ): Promise<string> {
-	// Fetch user context and memories in parallel
-	const [userContext, userMemories] = await Promise.all([
-		formatUserContextForPrompt(userId),
-		formatMemoriesForPrompt(userId),
-	]);
+  // Fetch user context and memories in parallel
+  const [userContext, userMemories] = await Promise.all([
+    formatUserContextForPrompt(userId),
+    formatMemoriesForPrompt(userId),
+  ]);
 
-	// Build system prompt
-	let systemPrompt = SYSTEM_PROMPT_TEMPLATE;
+  // Build system prompt
+  let systemPrompt = SYSTEM_PROMPT_TEMPLATE;
 
-	// Inject current date
-	systemPrompt = systemPrompt.replace(
-		"{{CURRENT_DATE}}",
-		new Date().toLocaleDateString("it-IT", {
-			weekday: "long",
-			year: "numeric",
-			month: "long",
-			day: "numeric",
-		})
-	);
+  // Inject current date
+  systemPrompt = systemPrompt.replace(
+    "{{CURRENT_DATE}}",
+    new Date().toLocaleDateString("it-IT", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }),
+  );
 
-	// Inject RAG context
-	systemPrompt = systemPrompt.replace(
-		"{{RAG_CONTEXT}}",
-		ragContext || "Nessun documento RAG disponibile al momento."
-	);
+  // Inject RAG context
+  systemPrompt = systemPrompt.replace(
+    "{{RAG_CONTEXT}}",
+    ragContext || "Nessun documento RAG disponibile al momento.",
+  );
 
-	// Inject user context
-	systemPrompt = systemPrompt.replace(
-		"{{USER_CONTEXT}}",
-		userContext || "Nessun profilo utente disponibile."
-	);
+  // Inject user context
+  systemPrompt = systemPrompt.replace(
+    "{{USER_CONTEXT}}",
+    userContext || "Nessun profilo utente disponibile.",
+  );
 
-	// Inject memories
-	systemPrompt = systemPrompt.replace(
-		"{{USER_MEMORIES}}",
-		userMemories || "Nessuna memoria salvata per questo utente."
-	);
+  // Inject memories
+  systemPrompt = systemPrompt.replace(
+    "{{USER_MEMORIES}}",
+    userMemories || "Nessuna memoria salvata per questo utente.",
+  );
 
-	return systemPrompt;
+  return systemPrompt;
 }
 
 /**
  * Creates all tools with the userId context injected via factory pattern.
  */
 function createToolsWithContext(userId: string) {
-	const memoryTools = createMemoryTools(userId);
-	const userContextTools = createUserContextTools(userId);
+  const memoryTools = createMemoryTools(userId);
+  const userContextTools = createUserContextTools(userId);
 
-	return {
-		...memoryTools,
-		...userContextTools,
-	};
+  return {
+    ...memoryTools,
+    ...userContextTools,
+  };
 }
 
 /**
@@ -266,194 +266,182 @@ function createToolsWithContext(userId: string) {
  * Uses GPT-4.1-mini via OpenRouter with tool calling.
  */
 export async function streamChat({
-	userId,
-	userMessage,
-	planId,
-	userRole,
-	hasImages = false,
-	messageParts,
-	onFinish,
-	onStepFinish,
+  userId,
+  userMessage,
+  planId,
+  userRole,
+  hasImages = false,
+  messageParts,
+  onFinish,
+  onStepFinish,
 }: StreamChatOptions) {
-	// Record start time for performance tracking
-	const startTime = Date.now();
+  // Record start time for performance tracking
+  const startTime = Date.now();
 
-	// Get the appropriate model based on user's subscription plan
-	// All Gemini models support vision, so we just use the orchestrator model
-	const model = getModelForUser(planId, userRole, "orchestrator");
-	const modelId = getModelIdForPlan(planId, userRole, "orchestrator");
+  // Get the appropriate model based on user's subscription plan
+  // All Gemini models support vision, so we just use the orchestrator model
+  const model = getModelForUser(planId, userRole, "orchestrator");
+  const modelId = getModelIdForPlan(planId, userRole, "orchestrator");
 
-	// Check if we need RAG context for this query
-	let ragContext: string | undefined;
-	let ragUsed = false;
-	let ragChunksCount = 0;
-	try {
-		const needsRag = await shouldUseRag(userMessage);
-		if (needsRag) {
-			ragContext = await getRagContext(userMessage);
-			ragUsed = true;
-			// Count chunks by counting "**" which marks each document title
-			ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || []).length;
-		}
-	} catch (error) {
-		console.error("[Orchestrator] RAG error:", error);
-	}
+  // Check if we need RAG context for this query
+  let ragContext: string | undefined;
+  let ragUsed = false;
+  let ragChunksCount = 0;
+  try {
+    const needsRag = await shouldUseRag(userMessage);
+    if (needsRag) {
+      ragContext = await getRagContext(userMessage);
+      ragUsed = true;
+      // Count chunks by counting "**" which marks each document title
+      ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || []).length;
+    }
+  } catch (error) {
+    console.error("[Orchestrator] RAG error:", error);
+  }
 
-	// Build system prompt with user context and optional RAG
-	const systemPrompt = await buildSystemPrompt(userId, ragContext);
+  // Build system prompt with user context and optional RAG
+  const systemPrompt = await buildSystemPrompt(userId, ragContext);
 
-	// Get conversation history
-	const conversationHistory = await buildConversationContext(userId);
+  // Get conversation history
+  const conversationHistory = await buildConversationContext(userId);
 
-	// Build the last message with proper image support
-	let lastMessage: ModelMessage;
+  // Build the last message with proper image support
+  let lastMessage: ModelMessage;
 
-	if (hasImages && messageParts && messageParts.length > 0) {
-		// Convert parts to AI SDK format with images
-		const contentParts: Array<
-			{ type: "text"; text: string } | { type: "image"; image: string }
-		> = [];
+  if (hasImages && messageParts && messageParts.length > 0) {
+    // Convert parts to AI SDK format with images
+    const contentParts: Array<
+      { type: "text"; text: string } | { type: "image"; image: string }
+    > = [];
 
-		for (const part of messageParts) {
-			if (part.type === "text" && part.text) {
-				contentParts.push({ type: "text", text: part.text });
-			} else if (
-				part.type === "file" &&
-				part.mimeType?.startsWith("image/") &&
-				part.data
-			) {
-				contentParts.push({
-					type: "image",
-					image: part.data, // The blob URL
-				});
-			}
-		}
+    for (const part of messageParts) {
+      if (part.type === "text" && part.text) {
+        contentParts.push({ type: "text", text: part.text });
+      } else if (
+        part.type === "file" &&
+        part.mimeType?.startsWith("image/") &&
+        part.data
+      ) {
+        contentParts.push({
+          type: "image",
+          image: part.data, // The blob URL
+        });
+      }
+    }
 
-		lastMessage = {
-			role: "user",
-			content: contentParts,
-		};
-	} else {
-		lastMessage = { role: "user", content: userMessage };
-	}
+    lastMessage = {
+      role: "user",
+      content: contentParts,
+    };
+  } else {
+    lastMessage = { role: "user", content: userMessage };
+  }
 
-	// Add the new user message
-	const messages: ModelMessage[] = [...conversationHistory, lastMessage];
+  // Add the new user message
+  const messages: ModelMessage[] = [...conversationHistory, lastMessage];
 
-	// Create tools with userId context
-	const tools = createToolsWithContext(userId);
+  // Create tools with userId context
+  const tools = createToolsWithContext(userId);
 
-	// Collect tool calls during execution
-	const collectedToolCalls: Array<{
-		name: string;
-		args: unknown;
-		result?: unknown;
-	}> = [];
+  // Collect tool calls during execution
+  const collectedToolCalls: Array<{
+    name: string;
+    args: unknown;
+    result?: unknown;
+  }> = [];
 
-	// Stream the response
-	const result = streamText({
-		model,
-		system: systemPrompt,
-		messages,
-		tools,
-		onFinish: onFinish
-			? async ({ text, usage, providerMetadata }) => {
-					// Calculate estimated system prompt tokens (approx 3.5 chars per token)
-					const systemPromptTokens = Math.ceil(
-						systemPrompt.length / 3.5
-					);
+  // Stream the response
+  const result = streamText({
+    model,
+    system: systemPrompt,
+    messages,
+    tools,
+    onFinish: onFinish
+      ? async ({ text, usage, providerMetadata }) => {
+          // Calculate estimated system prompt tokens (approx 3.5 chars per token)
+          const systemPromptTokens = Math.ceil(systemPrompt.length / 3.5);
 
-					// Calculate estimated tool definition tokens (approx)
-					// Based on inspection of src/lib/ai/tools/memory.ts and user-context.ts
-					// The schemas and descriptions add up to roughly 1400 tokens
-					// This allows us to show the user the tokens THEY are paying for vs system overhead
-					const toolDefinitionTokens = 1400;
+          // Calculate estimated tool definition tokens (approx)
+          // Based on inspection of src/lib/ai/tools/memory.ts and user-context.ts
+          // The schemas and descriptions add up to roughly 1400 tokens
+          // This allows us to show the user the tokens THEY are paying for vs system overhead
+          const toolDefinitionTokens = 1400;
 
-					// Extract AI metrics including cost calculation
-					const metrics = await extractAIMetrics(
-						modelId,
-						startTime,
-						{
-							text,
-							usage: {
-								promptTokens: (
-									usage as { promptTokens?: number }
-								)?.promptTokens,
-								completionTokens: (
-									usage as { completionTokens?: number }
-								)?.completionTokens,
-								totalTokens: (usage as { totalTokens?: number })
-									?.totalTokens,
-							},
-							providerMetadata: providerMetadata as Record<
-								string,
-								unknown
-							>,
-							// Pass collected tool calls
-							collectedToolCalls:
-								collectedToolCalls.length > 0
-									? collectedToolCalls
-									: undefined,
-							// RAG tracking
-							ragUsed,
-							ragChunksCount,
-						},
-						systemPromptTokens, // Exclude system prompt
-						toolDefinitionTokens // Exclude tool definitions
-					);
+          // Extract AI metrics including cost calculation
+          const metrics = await extractAIMetrics(
+            modelId,
+            startTime,
+            {
+              text,
+              usage: {
+                promptTokens: (usage as { promptTokens?: number })
+                  ?.promptTokens,
+                completionTokens: (usage as { completionTokens?: number })
+                  ?.completionTokens,
+                totalTokens: (usage as { totalTokens?: number })?.totalTokens,
+              },
+              providerMetadata: providerMetadata as Record<string, unknown>,
+              // Pass collected tool calls
+              collectedToolCalls:
+                collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
+              // RAG tracking
+              ragUsed,
+              ragChunksCount,
+            },
+            systemPromptTokens, // Exclude system prompt
+            toolDefinitionTokens, // Exclude tool definitions
+          );
 
-					onFinish({ text, metrics });
-			  }
-			: undefined,
-		onStepFinish: (step) => {
-			// Collect tool calls from each step
-			if (step.toolCalls && Array.isArray(step.toolCalls)) {
-				for (let i = 0; i < step.toolCalls.length; i++) {
-					const tc = step.toolCalls[i] as {
-						toolName: string;
-						args?: unknown;
-					};
-					const tr = step.toolResults?.[i] as
-						| { result?: unknown }
-						| undefined;
-					collectedToolCalls.push({
-						name: tc.toolName,
-						args: tc.args,
-						result: tr?.result,
-					});
-				}
-			}
+          onFinish({ text, metrics });
+        }
+      : undefined,
+    onStepFinish: (step) => {
+      // Collect tool calls from each step
+      if (step.toolCalls && Array.isArray(step.toolCalls)) {
+        for (let i = 0; i < step.toolCalls.length; i++) {
+          const tc = step.toolCalls[i] as {
+            toolName: string;
+            args?: unknown;
+          };
+          const tr = step.toolResults?.[i] as { result?: unknown } | undefined;
+          collectedToolCalls.push({
+            name: tc.toolName,
+            args: tc.args,
+            result: tr?.result,
+          });
+        }
+      }
 
-			// Call user's onStepFinish if provided
-			if (onStepFinish) {
-				onStepFinish({
-					text: step.text,
-					toolCalls: step.toolCalls,
-					toolResults: step.toolResults,
-				});
-			}
-		},
-	});
+      // Call user's onStepFinish if provided
+      if (onStepFinish) {
+        onStepFinish({
+          text: step.text,
+          toolCalls: step.toolCalls,
+          toolResults: step.toolResults,
+        });
+      }
+    },
+  });
 
-	return result;
+  return result;
 }
 
 /**
  * Non-streaming version for testing or simple use cases.
  */
 export async function generateChatResponse(
-	userId: string,
-	userMessage: string
+  userId: string,
+  userMessage: string,
 ): Promise<string> {
-	const result = await streamChat({ userId, userMessage });
+  const result = await streamChat({ userId, userMessage });
 
-	// Collect the full response
-	let fullText = "";
-	for await (const chunk of result.textStream) {
-		fullText += chunk;
-	}
+  // Collect the full response
+  let fullText = "";
+  for await (const chunk of result.textStream) {
+    fullText += chunk;
+  }
 
-	return fullText;
+  return fullText;
 }
 
 // Export types for external use
