@@ -341,7 +341,7 @@ export default function ChatLayout({
 							: "-translate-x-full md:translate-x-0"
 					} ${
 						isSidebarOpen ? "md:w-72" : "md:w-0"
-					} fixed left-0 top-0 z-50 h-full w-72 shrink-0 overflow-hidden border-r border-white/10 bg-muted/40 backdrop-blur-xl transition-all duration-300 ease-in-out md:relative md:z-auto`}>
+					} fixed left-0 top-0 z-50 h-full w-72 shrink-0 overflow-hidden border-r border-border/50 dark:border-white/10 bg-background/80 dark:bg-muted/40 backdrop-blur-xl transition-all duration-300 ease-in-out md:relative md:z-auto`}>
 					<div className="flex h-full w-72 flex-col">
 						<SidebarHeader
 							onCollapse={() => setIsSidebarOpen(false)}

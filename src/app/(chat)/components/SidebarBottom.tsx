@@ -78,7 +78,7 @@ export function SidebarBottom() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute bottom-full left-0 mb-2 w-[calc(100%-16px)] mx-2 overflow-hidden rounded-xl border border-white/20 bg-background/60 backdrop-blur-xl shadow-xl ring-1 ring-black/5 dark:bg-black/60 dark:ring-white/10"
+            className="absolute bottom-full left-0 mb-2 w-[calc(100%-16px)] mx-2 overflow-hidden rounded-xl border border-border dark:border-white/20 bg-background/95 dark:bg-black/60 backdrop-blur-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10"
           >
             <div className="flex flex-col p-1">
               {menuItems.map((item) => (
@@ -108,13 +108,13 @@ export function SidebarBottom() {
         )}
       </AnimatePresence>
 
-      <div className="border-t border-white/10 bg-background/40 backdrop-blur-md p-3">
+      <div className="border-t border-border/50 dark:border-white/10 bg-background/80 dark:bg-background/40 backdrop-blur-md p-3">
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
           className="group flex w-full items-center gap-3 rounded-xl bg-background/50 p-2.5 transition-all hover:bg-background/80 hover:shadow-sm active:scale-[0.98]"
         >
-          <div className="relative h-9 w-9 overflow-hidden rounded-full bg-linear-to-br from-primary/20 to-primary/10 ring-2 ring-white/20 transition-all group-hover:ring-primary/20">
+          <div className="relative h-9 w-9 overflow-hidden rounded-full bg-linear-to-br from-primary/20 to-primary/10 ring-2 ring-border dark:ring-white/20 transition-all group-hover:ring-primary/20">
             {user?.imageUrl ? (
               <Image
                 src={user.imageUrl}

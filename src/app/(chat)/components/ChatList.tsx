@@ -38,7 +38,7 @@ export function ChatList({
       <div className="p-3">
         <Button
           onClick={onCreate}
-          className="group w-full justify-start gap-2 bg-background/50 text-foreground/80 shadow-sm backdrop-blur-sm transition-all hover:bg-background/80 hover:shadow-md active:scale-[0.98] border border-white/10"
+          className="group w-full justify-start gap-2 bg-background/50 text-foreground/80 shadow-sm backdrop-blur-sm transition-all hover:bg-background/80 hover:shadow-md active:scale-[0.98] border border-border/50 dark:border-white/10"
           variant="outline"
         >
           <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
@@ -121,10 +121,10 @@ function ChatItem({
         href={`/chat/${chat.id}`}
         prefetch={true}
         onClick={onClick}
-        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all hover:bg-white/5 ${
+        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all hover:bg-accent dark:hover:bg-white/5 ${
           isActive
-            ? "bg-white/10 font-medium text-foreground shadow-sm ring-1 ring-white/10"
-            : "text-muted-foreground"
+            ? "bg-accent dark:bg-white/10 font-medium text-foreground shadow-sm ring-1 ring-border dark:ring-white/10"
+            : "text-muted-foreground hover:text-foreground"
         }`}
       >
         <MessageSquare
