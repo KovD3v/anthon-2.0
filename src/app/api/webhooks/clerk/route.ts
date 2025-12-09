@@ -155,6 +155,15 @@ async function handleUserCreated(data: UserCreatedData) {
       });
       console.log(`[Webhook] Created profile with name: ${fullName}`);
     }
+  } else {
+    // Update existing user with email if missing or changed
+    if (existingUser.email !== email) {
+      await prisma.user.update({
+        where: { id: existingUser.id },
+        data: { email },
+      });
+      console.log(`[Webhook] Updated existing user email: ${clerkId}`);
+    }
   }
 }
 
@@ -164,6 +173,7 @@ async function handleUserCreated(data: UserCreatedData) {
  */
 async function handleUserUpdated(data: UserCreatedData) {
   const clerkId = data.id;
+  const email = data.email_addresses?.[0]?.email_address;
   const firstName = data.first_name;
   const lastName = data.last_name;
 
@@ -198,6 +208,15 @@ async function handleUserUpdated(data: UserCreatedData) {
       });
     }
     console.log(`[Webhook] Updated profile name: ${fullName}`);
+  }
+
+  // Update email if provided
+  if (email && user.email !== email) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { email },
+    });
+    console.log(`[Webhook] Updated user email: ${clerkId}`);
   }
 }
 

@@ -263,7 +263,7 @@ export async function addDocument(
     const document = await prisma.ragDocument.create({
       data: {
         title,
-        source,
+        source: source || "user-upload",
         url,
       },
     });

@@ -112,7 +112,7 @@ export async function POST(request: Request) {
     });
 
     // Save the user message to the database with parts
-    await prisma.message.create({
+    const message = await prisma.message.create({
       data: {
         userId: user.id,
         chatId,
@@ -124,6 +124,27 @@ export async function POST(request: Request) {
         parts: lastUserMessage.parts as Prisma.InputJsonValue,
       },
     });
+
+    // Link attachments to the message
+    if (lastUserMessage.parts && Array.isArray(lastUserMessage.parts)) {
+      for (const part of lastUserMessage.parts) {
+        if (part.type === "file") {
+          const filePart = part as unknown as {
+            attachmentId?: string;
+          };
+          if (filePart.attachmentId) {
+            await prisma.attachment
+              .update({
+                where: { id: filePart.attachmentId },
+                data: { messageId: message.id },
+              })
+              .catch((err) =>
+                console.error("[Chat API] Failed to link attachment:", err),
+              );
+          }
+        }
+      }
+    }
 
     // Auto-generate chat title if this is the first message
     const messageCount = await prisma.message.count({ where: { chatId } });
