@@ -164,18 +164,36 @@ export async function buildConversationContext(
 
     // Check if this session needs summarization (too many user messages)
     if (session.userMessageCount > SESSION.MAX_USER_MESSAGES_PER_SESSION) {
-      // Summarize this session (pass userId for database caching)
-      const summary = await summarizeSession(userId, session);
+      // Generate session ID for cache lookup
+      const sessionId = `${userId}_${session.startTime.getTime()}_${session.endTime.getTime()}`;
 
-      // Add summary as a system message at the beginning
-      contextMessages.unshift({
-        role: "system",
-        content: `[Riassunto della sessione precedente (${session.startTime.toLocaleDateString(
-          "it-IT",
-        )})]: ${summary}`,
-      } as ModelMessage);
+      // Check cache first (fast path - no blocking)
+      const cachedSummary = await getCachedSummary(sessionId);
 
-      totalMessageCount += 1; // Summary counts as 1 message
+      if (cachedSummary) {
+        // Cache hit: use the cached summary
+        contextMessages.unshift({
+          role: "system",
+          content: `[Riassunto della sessione precedente (${session.startTime.toLocaleDateString(
+            "it-IT",
+          )})]: ${cachedSummary}`,
+        } as ModelMessage);
+        totalMessageCount += 1;
+      } else {
+        // Cache miss: trigger background summarization for next time
+        // Fire-and-forget - don't await
+        summarizeSession(userId, session).catch((err) => {
+          console.error("Background summarization failed:", err);
+        });
+
+        // Use quick fallback: include only the last few messages from this session
+        const recentFromSession = session.messages.slice(
+          -SESSION.FALLBACK_RECENT_MESSAGES,
+        );
+        const fallbackMessages = recentFromSession.map(toModelMessage);
+        contextMessages.unshift(...fallbackMessages);
+        totalMessageCount += fallbackMessages.length;
+      }
     } else {
       // Add all messages from this session
       const sessionModelMessages = session.messages.map(toModelMessage);

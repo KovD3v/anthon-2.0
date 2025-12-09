@@ -19,6 +19,8 @@ export const SESSION = {
   RECENT_MESSAGES_LIMIT: 200,
   /** Cache TTL for session summaries - 5 minutes */
   CACHE_TTL_MS: 5 * 60 * 1000,
+  /** Messages to include as fallback when summary not cached (for non-blocking UX) */
+  FALLBACK_RECENT_MESSAGES: 6,
 } as const;
 
 // -----------------------------------------------------
@@ -26,7 +28,7 @@ export const SESSION = {
 // -----------------------------------------------------
 export const RAG = {
   /** Min cosine similarity to include in results (0.3 = 70% different is still ok) */
-  SIMILARITY_THRESHOLD: 0.3,
+  SIMILARITY_THRESHOLD: 0.5,
   /** Number of chunks to process per batch for embeddings */
   BATCH_SIZE: 10,
   /** Maximum chunks to return from search */
