@@ -159,25 +159,30 @@ export async function POST(request: Request) {
 
 		// Link attachments to the message
 		if (lastUserMessage.parts && Array.isArray(lastUserMessage.parts)) {
+			const attachmentIds: string[] = [];
 			for (const part of lastUserMessage.parts) {
 				if (part.type === "file") {
 					const filePart = part as unknown as {
 						attachmentId?: string;
 					};
 					if (filePart.attachmentId) {
-						await prisma.attachment
-							.update({
-								where: { id: filePart.attachmentId },
-								data: { messageId: message.id },
-							})
-							.catch((err) =>
-								console.error(
-									"[Chat API] Failed to link attachment:",
-									err
-								)
-							);
+						attachmentIds.push(filePart.attachmentId);
 					}
 				}
+			}
+
+			if (attachmentIds.length > 0) {
+				await prisma.attachment
+					.updateMany({
+						where: { id: { in: attachmentIds } },
+						data: { messageId: message.id },
+					})
+					.catch((err) =>
+						console.error(
+							"[Chat API] Failed to link attachments:",
+							err
+						)
+					);
 			}
 		}
 
