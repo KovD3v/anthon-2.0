@@ -140,7 +140,7 @@ export default function HelpPage() {
                   {shortcut.keys.map((key) => (
                     <kbd
                       key={key}
-                      className="inline-flex h-8 min-w-[32px] items-center justify-center rounded-lg border border-white/10 bg-black/20 px-2 text-sm font-semibold text-muted-foreground shadow-sm"
+                      className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-white/10 bg-black/20 px-2 text-sm font-semibold text-muted-foreground shadow-sm"
                     >
                       {key === "Cmd" ? (
                         <Command className="h-4 w-4" />
