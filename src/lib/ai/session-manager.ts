@@ -5,15 +5,15 @@ import { subAgentModel } from "@/lib/ai/providers/openrouter";
 import { cacheSummary, getCachedSummary } from "@/lib/ai/session-cache";
 import { prisma } from "@/lib/db";
 
+// Define a subset of Message fields needed for session management
+type SessionMessage = Pick<Message, "role" | "content" | "createdAt">;
+
 interface Session {
-  messages: Message[];
+  messages: SessionMessage[];
   startTime: Date;
   endTime: Date;
   userMessageCount: number;
 }
-
-// Define a subset of Message fields needed for session management
-type SessionMessage = Pick<Message, "role" | "content" | "createdAt">;
 
 /**
  * Groups messages into sessions based on time gaps.
