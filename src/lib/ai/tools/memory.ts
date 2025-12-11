@@ -2,6 +2,18 @@ import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 
+type MemoriesPromptCacheEntry = {
+  value: string;
+  expiresAt: number;
+};
+
+const MEMORIES_PROMPT_CACHE_TTL_MS = 30 * 1000; // 30s
+const memoriesPromptCache = new Map<string, MemoriesPromptCacheEntry>();
+
+export function invalidateMemoriesForPromptCache(userId: string) {
+  memoriesPromptCache.delete(userId);
+}
+
 // Type for memory value stored in JSON
 interface MemoryValue {
   content: string;
@@ -35,7 +47,7 @@ come nome, sport praticato, obiettivi, preferenze e altre informazioni personali
           ])
           .optional()
           .describe(
-            "Filtra per categoria specifica o 'all' per tutte le memorie",
+            "Filtra per categoria specifica o 'all' per tutte le memorie"
           ),
       }),
       execute: async ({ category }) => {
@@ -86,7 +98,7 @@ per le conversazioni future, come preferenze, obiettivi o dettagli personali.`,
         key: z
           .string()
           .describe(
-            "Chiave univoca per questa informazione in snake_case (es: user_name, primary_goal)",
+            "Chiave univoca per questa informazione in snake_case (es: user_name, primary_goal)"
           ),
         value: z.string().describe("Il valore dell'informazione da salvare"),
         category: z
@@ -122,6 +134,8 @@ per le conversazioni future, come preferenze, obiettivi o dettagli personali.`,
               },
             });
 
+            invalidateMemoriesForPromptCache(userId);
+
             return {
               success: true,
               message: `Memoria "${key}" aggiornata con successo.`,
@@ -141,6 +155,8 @@ per le conversazioni future, come preferenze, obiettivi o dettagli personali.`,
               },
             },
           });
+
+          invalidateMemoriesForPromptCache(userId);
 
           return {
             success: true,
@@ -180,6 +196,8 @@ o quando un'informazione non è più valida.`,
             where: { id: memory.id },
           });
 
+          invalidateMemoriesForPromptCache(userId);
+
           return {
             success: true,
             message: `Memoria "${key}" eliminata con successo.`,
@@ -200,7 +218,7 @@ o quando un'informazione non è più valida.`,
  * Utility function to get all memories for a user (not a tool, for internal use).
  */
 export async function getAllMemories(
-  userId: string,
+  userId: string
 ): Promise<Map<string, MemoryValue>> {
   const memories = await prisma.memory.findMany({
     where: { userId },
@@ -218,6 +236,11 @@ export async function getAllMemories(
  * Formats memories into a readable string for system prompt injection.
  */
 export async function formatMemoriesForPrompt(userId: string): Promise<string> {
+  const cached = memoriesPromptCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
   const memories = await getAllMemories(userId);
 
   if (memories.size === 0) {
@@ -257,5 +280,10 @@ export async function formatMemoriesForPrompt(userId: string): Promise<string> {
     }
   }
 
-  return lines.join("\n");
+  const value = lines.join("\n");
+  memoriesPromptCache.set(userId, {
+    value,
+    expiresAt: Date.now() + MEMORIES_PROMPT_CACHE_TTL_MS,
+  });
+  return value;
 }

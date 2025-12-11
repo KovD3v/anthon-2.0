@@ -5,12 +5,12 @@ import { tavilySearch } from "@tavily/ai-sdk";
  * This enables the AI assistant to search the web for current information.
  */
 export function createTavilyTools() {
-	return {
-		tavilySearch: tavilySearch({
-			searchDepth: "basic",
-			includeAnswer: true,
-			maxResults: 5,
-			topic: "general",
-		}),
-	};
+  return {
+    tavilySearch: tavilySearch({
+      searchDepth: "basic",
+      includeAnswer: true,
+      maxResults: 5,
+      topic: "general",
+    }),
+  };
 }

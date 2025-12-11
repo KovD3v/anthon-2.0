@@ -115,27 +115,37 @@ interface StreamChatOptions {
  */
 async function buildSystemPrompt(
   userId: string,
-  ragContext?: string
+  ragContext?: string,
+  prefetched?: {
+    userContext?: string;
+    userMemories?: string;
+    currentDate?: string;
+  }
 ): Promise<string> {
-  // Fetch user context and memories in parallel
+  const currentDate =
+    prefetched?.currentDate ??
+    new Date().toLocaleDateString("it-IT", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+  // Fetch user context and memories in parallel (unless prefetched)
   const [userContext, userMemories] = await Promise.all([
-    formatUserContextForPrompt(userId),
-    formatMemoriesForPrompt(userId),
+    prefetched?.userContext !== undefined
+      ? Promise.resolve(prefetched.userContext)
+      : formatUserContextForPrompt(userId),
+    prefetched?.userMemories !== undefined
+      ? Promise.resolve(prefetched.userMemories)
+      : formatMemoriesForPrompt(userId),
   ]);
 
   // Build system prompt
   let systemPrompt = SYSTEM_PROMPT_TEMPLATE;
 
   // Inject current date
-  systemPrompt = systemPrompt.replaceAll(
-    "{{CURRENT_DATE}}",
-    new Date().toLocaleDateString("it-IT", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-  );
+  systemPrompt = systemPrompt.replaceAll("{{CURRENT_DATE}}", currentDate);
 
   // Inject RAG context
   systemPrompt = systemPrompt.replaceAll(
@@ -195,37 +205,62 @@ export async function streamChat({
   const model = getModelForUser(planId, userRole, "orchestrator");
   const modelId = getModelIdForPlan(planId, userRole, "orchestrator");
 
-  // Check if we need RAG context for this query
-  let ragContext: string | undefined;
-  let ragUsed = false;
-  let ragChunksCount = 0;
-  try {
-    const needsRag = await LatencyLogger.measure(
-      "📚 RAG: Check if needed",
-      () => shouldUseRag(userMessage)
-    );
-    if (needsRag) {
-      ragContext = await LatencyLogger.measure("📚 RAG: Get context", () =>
-        getRagContext(userMessage)
+  // Kick off independent work ASAP to reduce end-to-end latency
+  const conversationHistoryPromise = LatencyLogger.measure(
+    "📋 Orchestrator: Get conversation history",
+    () => buildConversationContext(userId)
+  );
+
+  const userContextPromise = formatUserContextForPrompt(userId);
+  const userMemoriesPromise = formatMemoriesForPrompt(userId);
+  const currentDate = new Date().toLocaleDateString("it-IT", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const ragPromise = (async () => {
+    let ragContext: string | undefined;
+    let ragUsed = false;
+    let ragChunksCount = 0;
+    try {
+      const needsRag = await LatencyLogger.measure(
+        "📚 RAG: Check if needed",
+        () => shouldUseRag(userMessage)
       );
-      ragUsed = true;
-      // Count chunks by counting "**" which marks each document title
-      ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || []).length;
+      if (needsRag) {
+        ragContext = await LatencyLogger.measure("📚 RAG: Get context", () =>
+          getRagContext(userMessage)
+        );
+        ragUsed = true;
+        // Count chunks by counting "**" which marks each document title
+        ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || []).length;
+      }
+    } catch (error) {
+      console.error("[Orchestrator] RAG error:", error);
     }
-  } catch (error) {
-    console.error("[Orchestrator] RAG error:", error);
-  }
+
+    return { ragContext, ragUsed, ragChunksCount };
+  })();
+
+  const [{ ragContext, ragUsed, ragChunksCount }, conversationHistory] =
+    await Promise.all([ragPromise, conversationHistoryPromise]);
 
   // Build system prompt with user context and optional RAG
   const systemPrompt = await LatencyLogger.measure(
     "🛠️ Orchestrator: Build system prompt",
-    () => buildSystemPrompt(userId, ragContext)
-  );
-
-  // Get conversation history
-  const conversationHistory = await LatencyLogger.measure(
-    "📋 Orchestrator: Get conversation history",
-    () => buildConversationContext(userId)
+    async () => {
+      const [userContext, userMemories] = await Promise.all([
+        userContextPromise,
+        userMemoriesPromise,
+      ]);
+      return buildSystemPrompt(userId, ragContext, {
+        userContext,
+        userMemories,
+        currentDate,
+      });
+    }
   );
 
   // Build the last message with proper image support

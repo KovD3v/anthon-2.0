@@ -2,6 +2,18 @@ import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 
+type UserContextPromptCacheEntry = {
+  value: string;
+  expiresAt: number;
+};
+
+const USER_CONTEXT_PROMPT_CACHE_TTL_MS = 30 * 1000; // 30s
+const userContextPromptCache = new Map<string, UserContextPromptCacheEntry>();
+
+function invalidateUserContextPromptCache(userId: string) {
+  userContextPromptCache.delete(userId);
+}
+
 /**
  * Creates user context tools with userId context injected via closure.
  */
@@ -87,7 +99,7 @@ sport, obiettivi, livello di esperienza o altri dettagli del profilo.`,
           .string()
           .optional()
           .describe(
-            "Livello di esperienza (principiante, intermedio, avanzato, professionista)",
+            "Livello di esperienza (principiante, intermedio, avanzato, professionista)"
           ),
         notes: z.string().optional().describe("Note aggiuntive sul profilo"),
       }),
@@ -114,6 +126,8 @@ sport, obiettivi, livello di esperienza o altri dettagli del profilo.`,
             },
           });
 
+          invalidateUserContextPromptCache(userId);
+
           return {
             success: true,
             data: profile,
@@ -138,13 +152,13 @@ esplicitamente come vuole essere comunicato - tono, modalità o lingua.`,
           .string()
           .optional()
           .describe(
-            "Tono preferito: diretto, empatico, tecnico, motivazionale",
+            "Tono preferito: diretto, empatico, tecnico, motivazionale"
           ),
         mode: z
           .string()
           .optional()
           .describe(
-            "Modalità di risposta: conciso, elaborato, sfidante, supportivo",
+            "Modalità di risposta: conciso, elaborato, sfidante, supportivo"
           ),
         language: z
           .string()
@@ -178,6 +192,8 @@ esplicitamente come vuole essere comunicato - tono, modalità o lingua.`,
             },
           });
 
+          invalidateUserContextPromptCache(userId);
+
           return {
             success: true,
             data: preferences,
@@ -204,7 +220,7 @@ Esempi: "Tende ad essere più motivato il lunedì", "Preferisce esempi pratici",
         note: z
           .string()
           .describe(
-            "L'appunto da aggiungere. Sarà concatenato alle note esistenti.",
+            "L'appunto da aggiungere. Sarà concatenato alle note esistenti."
           ),
       }),
       execute: async ({ note }) => {
@@ -233,6 +249,8 @@ Esempi: "Tende ad essere più motivato il lunedì", "Preferisce esempi pratici",
             create: { userId, notes: updatedNotes },
           });
 
+          invalidateUserContextPromptCache(userId);
+
           return {
             success: true,
             message: "Appunto aggiunto con successo.",
@@ -253,8 +271,13 @@ Esempi: "Tende ad essere più motivato il lunedì", "Preferisce esempi pratici",
  * Utility function to get formatted user context for system prompt.
  */
 export async function formatUserContextForPrompt(
-  userId: string,
+  userId: string
 ): Promise<string> {
+  const cached = userContextPromptCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
@@ -280,7 +303,7 @@ export async function formatUserContextForPrompt(
     if (user.profile.birthday) {
       const age = Math.floor(
         (Date.now() - user.profile.birthday.getTime()) /
-          (365.25 * 24 * 60 * 60 * 1000),
+          (365.25 * 24 * 60 * 60 * 1000)
       );
       lines.push(`- **Età**: ${age} anni`);
     }
@@ -298,5 +321,10 @@ export async function formatUserContextForPrompt(
       lines.push(`- **Lingua**: ${user.preferences.language}`);
   }
 
-  return lines.join("\n");
+  const value = lines.join("\n");
+  userContextPromptCache.set(userId, {
+    value,
+    expiresAt: Date.now() + USER_CONTEXT_PROMPT_CACHE_TTL_MS,
+  });
+  return value;
 }
