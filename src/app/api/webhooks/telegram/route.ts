@@ -1,4 +1,5 @@
 import { waitUntil } from "@vercel/functions";
+import { createHash, randomBytes } from "node:crypto";
 import type { Prisma } from "@/generated/prisma";
 import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
 import { streamChat } from "@/lib/ai/orchestrator";
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
   if (!secret) {
     return Response.json(
       { ok: false, error: "TELEGRAM_WEBHOOK_SECRET not configured" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
   safeWaitUntil(
     handleUpdate(update).catch((err) => {
       console.error("[Telegram Webhook] Background handler error:", err);
-    }),
+    })
   );
 
   return Response.json({ ok: true });
@@ -117,6 +118,24 @@ async function handleUpdate(update: TelegramUpdate) {
   });
 
   if (existing) {
+    return;
+  }
+
+  // Non-tech linking flow: user asks the bot to connect their profile.
+  if (isTelegramConnectCommand(text)) {
+    const linkUrl = await createTelegramLinkUrl(String(fromId), String(chatId));
+    if (!linkUrl) {
+      await sendTelegramMessage(
+        chatId,
+        "Non riesco a generare il link di collegamento in questo momento. Riprova più tardi.",
+      );
+      return;
+    }
+
+    await sendTelegramMessage(
+      chatId,
+      `Per collegare Telegram al tuo profilo, apri questo link:\n${linkUrl}\n\nSe non sei loggato, ti verrà chiesto di accedere o registrarti e poi il canale verrà collegato automaticamente.`,
+    );
     return;
   }
 
@@ -159,13 +178,13 @@ async function handleUpdate(update: TelegramUpdate) {
     user.subscription?.status,
     user.role,
     user.subscription?.planId,
-    user.isGuest,
+    user.isGuest
   );
 
   if (!rateLimit.allowed) {
     await sendTelegramMessage(
       chatId,
-      "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti.",
+      "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti."
     );
     return;
   }
@@ -217,7 +236,7 @@ async function handleUpdate(update: TelegramUpdate) {
   if (!process.env.OPENROUTER_API_KEY) {
     await sendTelegramMessage(
       chatId,
-      "Servizio AI non configurato. Riprova più tardi.",
+      "Servizio AI non configurato. Riprova più tardi."
     );
     return;
   }
@@ -268,7 +287,7 @@ async function handleUpdate(update: TelegramUpdate) {
           .catch((err) => {
             console.error(
               "[Telegram Webhook] Failed to save assistant message:",
-              err,
+              err
             );
           });
 
@@ -276,7 +295,7 @@ async function handleUpdate(update: TelegramUpdate) {
           user.id,
           metrics.inputTokens,
           metrics.outputTokens,
-          metrics.costUsd,
+          metrics.costUsd
         ).catch((err) => {
           console.error("[Telegram Webhook] Failed to increment usage:", err);
         });
@@ -284,7 +303,7 @@ async function handleUpdate(update: TelegramUpdate) {
         safeWaitUntil(
           extractAndSaveMemories(user.id, text, finalText).catch((err) => {
             console.error("[Telegram Webhook] Memory extraction error:", err);
-          }),
+          })
         );
       },
     });
@@ -318,7 +337,7 @@ async function handleUpdate(update: TelegramUpdate) {
 
     await sendTelegramMessage(
       chatId,
-      "Errore temporaneo. Riprova tra qualche secondo.",
+      "Errore temporaneo. Riprova tra qualche secondo."
     );
     return;
   }
@@ -346,12 +365,59 @@ async function handleUpdate(update: TelegramUpdate) {
 
     await sendTelegramMessage(
       chatId,
-      "Non ho generato una risposta. Riprova tra qualche secondo.",
+      "Non ho generato una risposta. Riprova tra qualche secondo."
     );
     return;
   }
 
   await sendTelegramMessage(chatId, assistantText);
+}
+
+function isTelegramConnectCommand(text: string) {
+  const normalized = text.trim().toLowerCase();
+  return (
+    normalized === "/connect" ||
+    normalized.startsWith("/connect ") ||
+    normalized === "collega" ||
+    normalized === "collega profilo" ||
+    normalized === "collega account"
+  );
+}
+
+function getPublicAppUrl() {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000";
+}
+
+function hashLinkToken(token: string) {
+  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (!secret) return null;
+  return createHash("sha256")
+    .update(`tg-link:${secret}:${token}`)
+    .digest("hex");
+}
+
+async function createTelegramLinkUrl(externalId: string, chatId: string) {
+  const rawToken = randomBytes(24).toString("hex");
+  const tokenHash = hashLinkToken(rawToken);
+  if (!tokenHash) return null;
+
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  await prisma.channelLinkToken.create({
+    data: {
+      channel: "TELEGRAM",
+      tokenHash,
+      externalId,
+      chatId,
+      expiresAt,
+    },
+    select: { id: true },
+  });
+
+  const baseUrl = getPublicAppUrl().replace(/\/$/, "");
+  return `${baseUrl}/link/telegram?token=${rawToken}`;
 }
 
 async function createGuestUserForTelegramIdentity(externalId: string) {

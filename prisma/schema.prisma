@@ -51,6 +51,7 @@ model User {
   chats           Chat[]
   dailyUsage      DailyUsage[]
   identities      ChannelIdentity[]
+  consumedLinkTokens ChannelLinkToken[] @relation("ChannelLinkTokenConsumedBy")
   subscription    Subscription?
   sessionSummaries SessionSummary[]
 
@@ -82,6 +83,32 @@ model ChannelIdentity {
   @@unique([channel, externalId])
   @@index([userId])
   @@index([channel])
+}
+
+// -----------------------------------------------------
+// CHANNEL LINK TOKENS (one-time linking flow)
+// -----------------------------------------------------
+
+model ChannelLinkToken {
+  id String @id @default(cuid())
+
+  channel   Channel
+  tokenHash String @unique
+
+  // External identity to link (e.g. Telegram user id)
+  externalId String
+  chatId     String
+
+  expiresAt DateTime
+  consumedAt DateTime?
+
+  consumedByUserId String?
+  consumedByUser   User?   @relation("ChannelLinkTokenConsumedBy", fields: [consumedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([channel, externalId])
+  @@index([expiresAt])
 }
 
 enum Channel {
