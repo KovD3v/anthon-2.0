@@ -673,7 +673,7 @@ export async function shouldUseRag(userMessage: string): Promise<boolean> {
         generateObject({
           model: ragClassifierModel, // ⚡ Faster model!
           temperature: 0,
-          maxTokens: 120,
+          maxOutputTokens: 120,
           schema: z.object({
             needsRag: z
               .boolean()

@@ -35,9 +35,9 @@ Streams an AI chat response.
 
 **Response:** Server-Sent Events stream with:
 
--   Text chunks
--   Tool calls/results
--   Final message metadata
+- Text chunks
+- Tool calls/results
+- Final message metadata
 
 **Rate Limiting:** Enforced per subscription tier.
 
@@ -97,7 +97,7 @@ Update chat title.
 
 ```typescript
 {
-	title: string;
+  title: string;
 }
 ```
 
@@ -135,11 +135,11 @@ List all RAG documents.
 
 ```typescript
 Array<{
-	id: string;
-	title: string;
-	source: string | null;
-	chunkCount: number;
-	createdAt: string;
+  id: string;
+  title: string;
+  source: string | null;
+  chunkCount: number;
+  createdAt: string;
 }>;
 ```
 
@@ -179,9 +179,9 @@ Search documents semantically.
 
 ```typescript
 Array<{
-	content: string;
-	title: string;
-	similarity: number;
+  content: string;
+  title: string;
+  similarity: number;
 }>;
 ```
 
@@ -197,24 +197,24 @@ Get current user's daily usage and limits.
 
 ```typescript
 {
-	usage: {
-		requestCount: number;
-		inputTokens: number;
-		outputTokens: number;
-		totalCostUsd: number;
-	}
-	limits: {
-		maxRequestsPerDay: number;
-		maxInputTokensPerDay: number;
-		maxOutputTokensPerDay: number;
-		maxCostPerDay: number;
-	}
-	percentUsed: {
-		requests: number;
-		inputTokens: number;
-		outputTokens: number;
-		cost: number;
-	}
+  usage: {
+    requestCount: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalCostUsd: number;
+  }
+  limits: {
+    maxRequestsPerDay: number;
+    maxInputTokensPerDay: number;
+    maxOutputTokensPerDay: number;
+    maxCostPerDay: number;
+  }
+  percentUsed: {
+    requests: number;
+    inputTokens: number;
+    outputTokens: number;
+    cost: number;
+  }
 }
 ```
 
@@ -232,9 +232,9 @@ Upload a file to Vercel Blob.
 
 ```typescript
 {
-	url: string; // Blob URL
-	contentType: string;
-	size: number;
+  url: string; // Blob URL
+  contentType: string;
+  size: number;
 }
 ```
 
@@ -264,16 +264,16 @@ Bulk upload RAG documents.
 
 Handles Clerk webhook events:
 
--   `user.created` - Create user in database
--   `user.updated` - Update user data
--   `user.deleted` - Soft delete user
--   `subscription.*` - Update subscription status
+- `user.created` - Create user in database
+- `user.updated` - Update user data
+- `user.deleted` - Soft delete user
+- `subscription.*` - Update subscription status
 
 **Headers Required:**
 
--   `svix-id`
--   `svix-timestamp`
--   `svix-signature`
+- `svix-id`
+- `svix-timestamp`
+- `svix-signature`
 
 ### `POST /api/webhooks/telegram`
 
@@ -281,12 +281,12 @@ Receives Telegram Bot API updates and responds via `sendMessage`.
 
 **Headers Required:**
 
--   `x-telegram-bot-api-secret-token` (must match `TELEGRAM_WEBHOOK_SECRET`)
+- `x-telegram-bot-api-secret-token` (must match `TELEGRAM_WEBHOOK_SECRET`)
 
 **Environment Variables:**
 
--   `TELEGRAM_BOT_TOKEN`
--   `TELEGRAM_WEBHOOK_SECRET`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_WEBHOOK_SECRET`
 
 **Telegram Setup (example):**
 
@@ -322,6 +322,6 @@ All endpoints return consistent error format:
 
 ## Related Documentation
 
--   [Authentication](./authentication.md) - Clerk setup
--   [Rate Limiting](./rate-limiting.md) - Usage limits
--   [AI System](./ai-system.md) - Chat processing
+- [Authentication](./authentication.md) - Clerk setup
+- [Rate Limiting](./rate-limiting.md) - Usage limits
+- [AI System](./ai-system.md) - Chat processing
