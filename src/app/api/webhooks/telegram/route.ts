@@ -200,76 +200,96 @@ async function handleUpdate(update: TelegramUpdate) {
     return;
   }
 
-  // Generate assistant response.
-  const result = await streamChat({
-    userId: user.id,
-    userMessage: text,
-    planId: user.subscription?.planId,
-    userRole: user.role,
-    onFinish: async ({ text: assistantText, metrics }) => {
-      if (!assistantText || assistantText.trim().length === 0) return;
+  if (!process.env.OPENROUTER_API_KEY) {
+    await sendTelegramMessage(
+      chatId,
+      "Servizio AI non configurato. Riprova più tardi.",
+    );
+    return;
+  }
 
-      await prisma.message
-        .create({
-          data: {
-            userId: user.id,
-            channel: "TELEGRAM",
-            direction: "OUTBOUND",
-            role: "ASSISTANT",
-            type: "TEXT",
-            content: assistantText,
-            parts: [
-              { type: "text", text: assistantText },
-            ] as Prisma.InputJsonValue,
-            metadata: {
-              telegram: {
-                inReplyTo: inbound.id,
-                chatId,
-              },
-            } as Prisma.InputJsonValue,
-            model: metrics.model,
-            inputTokens: metrics.inputTokens,
-            outputTokens: metrics.outputTokens,
-            reasoningTokens: metrics.reasoningTokens,
-            reasoningContent: metrics.reasoningContent,
-            toolCalls: metrics.toolCalls as Prisma.InputJsonValue | undefined,
-            ragUsed: metrics.ragUsed,
-            ragChunksCount: metrics.ragChunksCount,
-            costUsd: metrics.costUsd,
-            generationTimeMs: metrics.generationTimeMs,
-            reasoningTimeMs: metrics.reasoningTimeMs,
-          },
-        })
-        .catch((err) => {
-          console.error(
-            "[Telegram Webhook] Failed to save assistant message:",
-            err,
-          );
+  // Generate assistant response.
+  let assistantText = "";
+
+  try {
+    const result = await streamChat({
+      userId: user.id,
+      userMessage: text,
+      planId: user.subscription?.planId,
+      userRole: user.role,
+      onFinish: async ({ text: finalText, metrics }) => {
+        if (!finalText || finalText.trim().length === 0) return;
+
+        await prisma.message
+          .create({
+            data: {
+              userId: user.id,
+              channel: "TELEGRAM",
+              direction: "OUTBOUND",
+              role: "ASSISTANT",
+              type: "TEXT",
+              content: finalText,
+              parts: [{ type: "text", text: finalText }] as Prisma.InputJsonValue,
+              metadata: {
+                telegram: {
+                  inReplyTo: inbound.id,
+                  chatId,
+                },
+              } as Prisma.InputJsonValue,
+              model: metrics.model,
+              inputTokens: metrics.inputTokens,
+              outputTokens: metrics.outputTokens,
+              reasoningTokens: metrics.reasoningTokens,
+              reasoningContent: metrics.reasoningContent,
+              toolCalls: metrics.toolCalls as Prisma.InputJsonValue | undefined,
+              ragUsed: metrics.ragUsed,
+              ragChunksCount: metrics.ragChunksCount,
+              costUsd: metrics.costUsd,
+              generationTimeMs: metrics.generationTimeMs,
+              reasoningTimeMs: metrics.reasoningTimeMs,
+            },
+          })
+          .catch((err) => {
+            console.error(
+              "[Telegram Webhook] Failed to save assistant message:",
+              err,
+            );
+          });
+
+        await incrementUsage(
+          user.id,
+          metrics.inputTokens,
+          metrics.outputTokens,
+          metrics.costUsd,
+        ).catch((err) => {
+          console.error("[Telegram Webhook] Failed to increment usage:", err);
         });
 
-      await incrementUsage(
-        user.id,
-        metrics.inputTokens,
-        metrics.outputTokens,
-        metrics.costUsd,
-      ).catch((err) => {
-        console.error("[Telegram Webhook] Failed to increment usage:", err);
-      });
+        safeWaitUntil(
+          extractAndSaveMemories(user.id, text, finalText).catch((err) => {
+            console.error("[Telegram Webhook] Memory extraction error:", err);
+          }),
+        );
+      },
+    });
 
-      waitUntil(
-        extractAndSaveMemories(user.id, text, assistantText).catch((err) => {
-          console.error("[Telegram Webhook] Memory extraction error:", err);
-        }),
-      );
-    },
-  });
-
-  let assistantText = "";
-  for await (const chunk of result.textStream) {
-    assistantText += chunk;
+    for await (const chunk of result.textStream) {
+      assistantText += chunk;
+    }
+  } catch (err) {
+    console.error("[Telegram Webhook] streamChat failed:", err);
+    await sendTelegramMessage(
+      chatId,
+      "Errore temporaneo. Riprova tra qualche secondo.",
+    );
+    return;
   }
 
   if (assistantText.trim().length === 0) {
+    await sendTelegramMessage(
+      chatId,
+      "Non ho generato una risposta. Riprova tra qualche secondo.",
+    );
     return;
   }
 
