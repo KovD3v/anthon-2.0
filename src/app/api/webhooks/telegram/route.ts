@@ -127,14 +127,14 @@ async function handleUpdate(update: TelegramUpdate) {
     if (!linkUrl) {
       await sendTelegramMessage(
         chatId,
-        "Non riesco a generare il link di collegamento in questo momento. Riprova più tardi.",
+        "Non riesco a generare il link di collegamento in questo momento. Riprova più tardi."
       );
       return;
     }
 
     await sendTelegramMessage(
       chatId,
-      `Per collegare Telegram al tuo profilo, apri questo link:\n${linkUrl}\n\nSe non sei loggato, ti verrà chiesto di accedere o registrarti e poi il canale verrà collegato automaticamente.`,
+      `Per collegare Telegram al tuo profilo, apri questo link:\n${linkUrl}\n\nSe non sei loggato, ti verrà chiesto di accedere o registrarti e poi il canale verrà collegato automaticamente.`
     );
     return;
   }

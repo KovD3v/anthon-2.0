@@ -8,7 +8,9 @@ import { prisma } from "@/lib/db";
 function hashLinkToken(token: string) {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
   if (!secret) return null;
-  return createHash("sha256").update(`tg-link:${secret}:${token}`).digest("hex");
+  return createHash("sha256")
+    .update(`tg-link:${secret}:${token}`)
+    .digest("hex");
 }
 
 export default async function TelegramLinkPage({
@@ -24,22 +26,24 @@ export default async function TelegramLinkPage({
     return (
       <main className="mx-auto max-w-lg p-6">
         <h1 className="text-xl font-semibold">Collegamento Telegram</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Link non valido.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">Link non valido.</p>
       </main>
     );
   }
 
   const { userId } = await auth();
   if (!userId) {
-    redirect(`/sign-in?redirect_url=${encodeURIComponent(`/link/telegram?token=${token}`)}`);
+    redirect(
+      `/sign-in?redirect_url=${encodeURIComponent(`/link/telegram?token=${token}`)}`,
+    );
   }
 
   const authResult = await getAuthUser();
   const dbUser = authResult.user;
   if (!dbUser) {
-    redirect(`/sign-in?redirect_url=${encodeURIComponent(`/link/telegram?token=${token}`)}`);
+    redirect(
+      `/sign-in?redirect_url=${encodeURIComponent(`/link/telegram?token=${token}`)}`,
+    );
   }
 
   const tokenHash = hashLinkToken(token);
@@ -165,8 +169,8 @@ export default async function TelegramLinkPage({
       <main className="mx-auto max-w-lg p-6">
         <h1 className="text-xl font-semibold">Collegamento Telegram</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Il link non è valido o è scaduto. Torna su Telegram e richiedi un nuovo
-          link con <span className="font-mono">/connect</span>.
+          Il link non è valido o è scaduto. Torna su Telegram e richiedi un
+          nuovo link con <span className="font-mono">/connect</span>.
         </p>
       </main>
     );
