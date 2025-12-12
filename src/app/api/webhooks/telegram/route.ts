@@ -15,6 +15,20 @@ function safeWaitUntil(promise: Promise<unknown>) {
   }
 }
 
+function safeErrorSummary(err: unknown) {
+  if (!err) return "Unknown error";
+  if (typeof err === "string") return err.slice(0, 300);
+  if (err instanceof Error) {
+    const msg = `${err.name}: ${err.message}`.trim();
+    return msg.slice(0, 300);
+  }
+  try {
+    return JSON.stringify(err).slice(0, 300);
+  } catch {
+    return "Unserializable error";
+  }
+}
+
 type TelegramUpdate = {
   update_id: number;
   message?: {
@@ -229,7 +243,9 @@ async function handleUpdate(update: TelegramUpdate) {
               role: "ASSISTANT",
               type: "TEXT",
               content: finalText,
-              parts: [{ type: "text", text: finalText }] as Prisma.InputJsonValue,
+              parts: [
+                { type: "text", text: finalText },
+              ] as Prisma.InputJsonValue,
               metadata: {
                 telegram: {
                   inReplyTo: inbound.id,
@@ -278,6 +294,28 @@ async function handleUpdate(update: TelegramUpdate) {
     }
   } catch (err) {
     console.error("[Telegram Webhook] streamChat failed:", err);
+
+    await prisma.message
+      .update({
+        where: { id: inbound.id },
+        data: {
+          metadata: {
+            telegram: {
+              updateId: update.update_id,
+              chatId,
+              fromId,
+              username: message?.from?.username,
+              languageCode: message?.from?.language_code,
+              error: {
+                kind: "streamChat_failed",
+                summary: safeErrorSummary(err),
+              },
+            },
+          } as Prisma.InputJsonValue,
+        },
+      })
+      .catch(() => undefined);
+
     await sendTelegramMessage(
       chatId,
       "Errore temporaneo. Riprova tra qualche secondo.",
@@ -286,6 +324,26 @@ async function handleUpdate(update: TelegramUpdate) {
   }
 
   if (assistantText.trim().length === 0) {
+    await prisma.message
+      .update({
+        where: { id: inbound.id },
+        data: {
+          metadata: {
+            telegram: {
+              updateId: update.update_id,
+              chatId,
+              fromId,
+              username: message?.from?.username,
+              languageCode: message?.from?.language_code,
+              error: {
+                kind: "empty_assistant_response",
+              },
+            },
+          } as Prisma.InputJsonValue,
+        },
+      })
+      .catch(() => undefined);
+
     await sendTelegramMessage(
       chatId,
       "Non ho generato una risposta. Riprova tra qualche secondo.",
