@@ -673,6 +673,7 @@ export async function shouldUseRag(userMessage: string): Promise<boolean> {
         generateObject({
           model: ragClassifierModel, // ⚡ Faster model!
           temperature: 0,
+          // @ts-expect-error - maxTokens is supported but types might be outdated
           maxTokens: 120,
           schema: z.object({
             needsRag: z
