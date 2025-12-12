@@ -275,6 +275,27 @@ Handles Clerk webhook events:
 -   `svix-timestamp`
 -   `svix-signature`
 
+### `POST /api/webhooks/telegram`
+
+Receives Telegram Bot API updates and responds via `sendMessage`.
+
+**Headers Required:**
+
+-   `x-telegram-bot-api-secret-token` (must match `TELEGRAM_WEBHOOK_SECRET`)
+
+**Environment Variables:**
+
+-   `TELEGRAM_BOT_TOKEN`
+-   `TELEGRAM_WEBHOOK_SECRET`
+
+**Telegram Setup (example):**
+
+```bash
+curl -sS "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+	-d "url=https://YOUR_DOMAIN/api/webhooks/telegram" \
+	-d "secret_token=$TELEGRAM_WEBHOOK_SECRET"
+```
+
 ---
 
 ## Error Responses

@@ -22,6 +22,7 @@ Rate limiting is enforced at the API level before processing chat requests. Limi
 
 | Tier        | Requests/Day | Input Tokens | Output Tokens | Cost/Day |
 | ----------- | ------------ | ------------ | ------------- | -------- |
+| **GUEST**   | 10           | 20,000       | 10,000        | $0.05    |
 | **TRIAL**   | 50           | 100,000      | 50,000        | $1.00    |
 | **STARTER** | 200          | 500,000      | 200,000       | $5.00    |
 | **PRO**     | 1,000        | 2,000,000    | 1,000,000     | $25.00   |
@@ -78,7 +79,7 @@ await incrementUsage(
 
 ## API Functions
 
-### `checkRateLimit(userId, subscriptionStatus?, userRole?, planId?)`
+### `checkRateLimit(userId, subscriptionStatus?, userRole?, planId?, isGuest?)`
 
 Check if user can make a request:
 

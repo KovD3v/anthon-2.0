@@ -97,6 +97,8 @@ export async function POST(request: Request) {
       user.id,
       fullUser?.subscription?.status,
       user.role,
+      fullUser?.subscription?.planId,
+      fullUser?.isGuest,
     );
 
     if (!rateLimitResult.allowed) {

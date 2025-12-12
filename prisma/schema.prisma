@@ -34,6 +34,12 @@ model User {
   clerkId String? @unique
   email   String? @unique
 
+  // Guest / anonymous mode
+  // Guest users can chat before registering; they should NOT get the full trial.
+  isGuest          Boolean  @default(false)
+  guestAbuseIdHash String?  @unique // e.g. hash of phone number or other identifier
+  guestConvertedAt DateTime? // set when the guest account is merged/converted
+
   // Role-based access control
   role UserRole @default(USER)
 
@@ -54,6 +60,7 @@ model User {
 
   @@index([role])
   @@index([email])
+  @@index([isGuest])
   @@index([deletedAt])
 }
 
@@ -80,6 +87,7 @@ model ChannelIdentity {
 enum Channel {
   WEB
   WHATSAPP
+  TELEGRAM
   // FUTURE: TELEGRAM, INSTAGRAM, MESSENGER, EMAIL, IOS_APP, ANDROID_APP
 }
 
@@ -167,6 +175,7 @@ model Message {
   @@index([userId, channel, createdAt])
   @@index([chatId, createdAt])
   @@index([externalMessageId])
+  @@unique([channel, externalMessageId])
   @@index([role, createdAt])
   @@index([direction, createdAt])
   @@index([type])

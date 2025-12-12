@@ -20,6 +20,14 @@ export interface RateLimits {
 
 // Default limits for different subscription tiers
 export const RATE_LIMITS: Record<string, RateLimits> = {
+  // Guest users (anonymous / pre-registration)
+  // Intentionally stricter than TRIAL to mitigate abuse before identity verification.
+  GUEST: {
+    maxRequestsPerDay: 10,
+    maxInputTokensPerDay: 20_000,
+    maxOutputTokensPerDay: 10_000,
+    maxCostPerDay: 0.05,
+  },
   // Trial users (no active subscription)
   TRIAL: {
     maxRequestsPerDay: 50,
@@ -175,9 +183,15 @@ export async function checkRateLimit(
   subscriptionStatus?: string,
   userRole?: string,
   planId?: string | null,
+  isGuest?: boolean,
 ): Promise<RateLimitResult> {
   const usage = await getDailyUsage(userId);
-  const limits = getRateLimitsForUser(subscriptionStatus, userRole, planId);
+  const limits = getRateLimitsForUser(
+    subscriptionStatus,
+    userRole,
+    planId,
+    isGuest,
+  );
 
   const percentUsed = {
     requests: (usage.requestCount / limits.maxRequestsPerDay) * 100,
@@ -242,10 +256,16 @@ export function getRateLimitsForUser(
   subscriptionStatus?: string,
   userRole?: string,
   planId?: string | null,
+  isGuest?: boolean,
 ): RateLimits {
   // Admin users have unlimited access
   if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
     return RATE_LIMITS.ADMIN;
+  }
+
+  // Guest users (pre-registration)
+  if (isGuest) {
+    return RATE_LIMITS.GUEST;
   }
 
   // Check specific plan ID first (from Clerk)

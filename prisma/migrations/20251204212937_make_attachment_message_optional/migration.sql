@@ -1,28 +1,39 @@
 /*
-  Warnings:
-
-  - The `visibility` column on the `Chat` table would be dropped and recreated. This will lead to data loss if there is data in the column.
-  - Changed the type of `kind` on the `Artifact` table. No cast exists, the column would be dropped and recreated, which cannot be done if there is data, since the column is required.
-
+  NOTE: This migration was made resilient to out-of-order table creation.
+  Some environments create Artifact/Chat in later migrations; shadow DB applies
+  migrations from scratch and would otherwise fail.
 */
--- CreateEnum
-CREATE TYPE "ChatVisibility" AS ENUM ('PRIVATE', 'PUBLIC');
 
--- CreateEnum
-CREATE TYPE "ArtifactKind" AS ENUM ('CODE', 'TEXT', 'SHEET', 'IMAGE');
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ChatVisibility') THEN
+    CREATE TYPE "ChatVisibility" AS ENUM ('PRIVATE', 'PUBLIC');
+  END IF;
+END $$;
 
--- AlterTable
-ALTER TABLE "Artifact" DROP COLUMN "kind",
-ADD COLUMN     "kind" "ArtifactKind" NOT NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ArtifactKind') THEN
+    CREATE TYPE "ArtifactKind" AS ENUM ('CODE', 'TEXT', 'SHEET', 'IMAGE');
+  END IF;
+END $$;
 
--- AlterTable
-ALTER TABLE "Attachment" ALTER COLUMN "messageId" DROP NOT NULL;
+-- Artifact may not exist yet (introduced later)
+ALTER TABLE IF EXISTS "Artifact"
+  DROP COLUMN IF EXISTS "kind",
+  ADD COLUMN IF NOT EXISTS "kind" "ArtifactKind";
 
--- AlterTable
-ALTER TABLE "Chat" DROP COLUMN "visibility",
-ADD COLUMN     "visibility" "ChatVisibility" NOT NULL DEFAULT 'PRIVATE';
+-- Attachment may not exist yet (introduced later)
+ALTER TABLE IF EXISTS "Attachment"
+  ALTER COLUMN "messageId" DROP NOT NULL;
 
--- AlterTable
-ALTER TABLE "Message" ADD COLUMN     "inputTokens" INTEGER,
-ADD COLUMN     "ragChunksCount" INTEGER,
-ADD COLUMN     "ragUsed" BOOLEAN;
+-- Chat may not exist yet (introduced later)
+ALTER TABLE IF EXISTS "Chat"
+  DROP COLUMN IF EXISTS "visibility",
+  ADD COLUMN IF NOT EXISTS "visibility" "ChatVisibility" NOT NULL DEFAULT 'PRIVATE';
+
+-- Message may not exist yet (introduced later)
+ALTER TABLE IF EXISTS "Message"
+  ADD COLUMN IF NOT EXISTS "inputTokens" INTEGER,
+  ADD COLUMN IF NOT EXISTS "ragChunksCount" INTEGER,
+  ADD COLUMN IF NOT EXISTS "ragUsed" BOOLEAN;
