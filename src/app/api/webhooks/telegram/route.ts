@@ -123,7 +123,35 @@ async function handleUpdate(update: TelegramUpdate) {
 
   // Non-tech linking flow: user asks the bot to connect their profile.
   if (isTelegramConnectCommand(text)) {
-    const linkUrl = await createTelegramLinkUrl(String(fromId), String(chatId));
+    const externalId = String(fromId);
+
+    // Check if user is already connected to a non-guest account
+    const existingIdentity = await prisma.channelIdentity.findUnique({
+      where: {
+        channel_externalId: {
+          channel: "TELEGRAM",
+          externalId,
+        },
+      },
+      select: {
+        user: {
+          select: {
+            isGuest: true,
+          },
+        },
+      },
+    });
+
+    // If connected to a non-guest user, inform them they're already connected
+    if (existingIdentity?.user && !existingIdentity.user.isGuest) {
+      await sendTelegramMessage(
+        chatId,
+        "Il tuo account Telegram è già collegato al tuo profilo. Puoi gestire i canali collegati dalla pagina del tuo account.",
+      );
+      return;
+    }
+
+    const linkUrl = await createTelegramLinkUrl(externalId, String(chatId));
     if (!linkUrl) {
       await sendTelegramMessage(
         chatId,

@@ -382,26 +382,9 @@ export default async function TelegramLinkTokenPage({
     );
   }
 
-  return (
-    <main className="mx-auto max-w-lg p-6 text-center">
-      <div className="mx-auto mb-4 w-fit">
-        <SuccessIcon />
-      </div>
-      <h1 className="text-xl font-semibold text-green-600">
-        Telegram collegato!
-      </h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Fatto! Il tuo account Telegram è ora collegato. Puoi tornare su Telegram
-        oppure aprire il tuo profilo.
-      </p>
-      <div className="mt-4">
-        <Link
-          className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          href="/profile"
-        >
-          Vai al profilo
-        </Link>
-      </div>
-    </main>
-  );
+  if (process.env.TELEGRAM_BOT_USERNAME) {
+    redirect(`https://t.me/${process.env.TELEGRAM_BOT_USERNAME}`);
+  }
+
+  redirect("/channels");
 }

@@ -73,6 +73,7 @@ interface LinkToken {
 interface ChannelsPageClientProps {
   connectedChannels: ChannelIdentity[];
   linkTokens: LinkToken[];
+  userCreatedAt?: string;
 }
 
 function ChannelIcon({
@@ -126,6 +127,7 @@ function formatDate(dateString: string) {
 export function ChannelsPageClient({
   connectedChannels: initialChannels,
   linkTokens,
+  userCreatedAt,
 }: ChannelsPageClientProps) {
   const [connectedChannels, setConnectedChannels] =
     useState<ChannelIdentity[]>(initialChannels);
@@ -260,7 +262,20 @@ export function ChannelsPageClient({
         <div className="grid gap-6 md:grid-cols-3">
           {allChannels.map((channelType) => {
             const config = channelConfig[channelType];
-            const connected = connectedByChannel[channelType] || [];
+            let connected = connectedByChannel[channelType] || [];
+
+            // Web is always connected
+            if (channelType === "WEB" && connected.length === 0) {
+              connected = [
+                {
+                  id: "web-internal",
+                  channel: "WEB",
+                  externalId: "Web",
+                  createdAt: userCreatedAt || new Date().toISOString(),
+                },
+              ];
+            }
+
             const isConnected = connected.length > 0;
             const Icon = config.icon;
 

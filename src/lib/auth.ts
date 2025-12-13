@@ -16,6 +16,7 @@ export interface AuthUser {
   clerkId: string;
   email: string | null;
   role: UserRole;
+  createdAt: Date;
 }
 
 export interface AuthResult {
@@ -36,6 +37,7 @@ const getCachedUserByClerkId = unstable_cache(
         clerkId: true,
         email: true,
         role: true,
+        createdAt: true,
       },
     });
   },
@@ -74,6 +76,7 @@ export async function getAuthUser(): Promise<AuthResult> {
           clerkId: true,
           email: true,
           role: true,
+          createdAt: true,
         },
       });
 
@@ -86,6 +89,7 @@ export async function getAuthUser(): Promise<AuthResult> {
             clerkId: true,
             email: true,
             role: true,
+            createdAt: true,
           },
         });
 
@@ -104,6 +108,7 @@ export async function getAuthUser(): Promise<AuthResult> {
         clerkId: user.clerkId ?? "",
         email: user.email,
         role: user.role,
+        createdAt: user.createdAt,
       },
       error: null,
     };

@@ -50,6 +50,7 @@ export default async function ChannelsPage() {
     <ChannelsPageClient
       connectedChannels={serializedChannels}
       linkTokens={serializedTokens}
+      userCreatedAt={dbUser.createdAt.toISOString()}
     />
   );
 }
