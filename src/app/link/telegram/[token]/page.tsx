@@ -74,6 +74,38 @@ function hashLinkToken(token: string) {
     .digest("hex");
 }
 
+/**
+ * Send a message to a Telegram chat.
+ */
+async function sendTelegramMessage(chatId: string, text: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    console.error("[Telegram Link] TELEGRAM_BOT_TOKEN not configured");
+    return;
+  }
+
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        disable_web_page_preview: true,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error("[Telegram Link] sendMessage failed:", res.status, body);
+    }
+  } catch (error) {
+    console.error("[Telegram Link] Error sending message:", error);
+  }
+}
+
 export default async function TelegramLinkTokenPage({
   params,
 }: {
@@ -265,7 +297,7 @@ export default async function TelegramLinkTokenPage({
       select: { id: true },
     });
 
-    return { status: "ok" as const };
+    return { status: "ok" as const, chatId: linkToken.chatId };
   });
 
   if (outcome.status === "conflict") {
@@ -379,6 +411,14 @@ export default async function TelegramLinkTokenPage({
           </Link>
         </div>
       </main>
+    );
+  }
+
+  // Send confirmation message to Telegram
+  if (outcome.chatId) {
+    await sendTelegramMessage(
+      outcome.chatId,
+      "✅ Account collegato con successo! Ora puoi chattare direttamente da qui.",
     );
   }
 
