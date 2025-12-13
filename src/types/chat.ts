@@ -15,6 +15,7 @@ export interface AttachmentData {
   contentType: string;
   size: number;
   url: string;
+  base64Data?: string; // Base64-encoded data for audio files sent to AI
 }
 
 export interface StoredAttachment {

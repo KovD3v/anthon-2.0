@@ -8,6 +8,7 @@ import {
   FileText,
   Image as ImageIcon,
   Loader2,
+  Mic,
   X,
 } from "lucide-react";
 import NextImage from "next/image";
@@ -33,6 +34,54 @@ export function AttachmentPreview({
   const [imageError, setImageError] = useState(false);
   const isImage = attachment.contentType.startsWith("image/") && !imageError;
 
+  // Compact display mode (no onRemove means display-only in message)
+  const isDisplayMode = !onRemove;
+
+  if (isDisplayMode) {
+    return (
+      <a
+        href={attachment.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          "group flex items-center gap-3 p-2 pr-3 rounded-xl transition-all duration-200",
+          "bg-black/5 border border-black/5 dark:bg-white/5 dark:border-white/10 backdrop-blur-sm",
+          "hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/10 dark:hover:border-white/20",
+          "max-w-[280px]",
+          className,
+        )}
+      >
+        {isImage ? (
+          <div className="relative h-10 w-10 overflow-hidden rounded-lg shrink-0 border border-black/5 dark:border-white/10">
+            <NextImage
+              src={attachment.url}
+              alt={attachment.name}
+              fill
+              className="object-cover transition-transform duration-300 group-hover:scale-110"
+              onError={() => setImageError(true)}
+            />
+          </div>
+        ) : (
+          <div className="flex h-10 w-10 items-center justify-center shrink-0 rounded-lg bg-primary/10 text-primary group-hover:bg-primary/15 transition-colors">
+            {getFileIcon(attachment.contentType, "h-5 w-5")}
+          </div>
+        )}
+        <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+          <p className="font-medium text-xs leading-none truncate opacity-90 group-hover:opacity-100 transition-opacity">
+            {attachment.name}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground font-mono">
+              {formatFileSize(attachment.size)}
+            </span>
+            <ExternalLink className="h-3 w-3 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity -ml-1" />
+          </div>
+        </div>
+      </a>
+    );
+  }
+
+  // Edit mode with remove button
   return (
     <div
       className={cn(
@@ -41,7 +90,7 @@ export function AttachmentPreview({
       )}
     >
       {isImage ? (
-        <div className="relative h-12 w-12 overflow-hidden rounded">
+        <div className="relative h-12 w-12 overflow-hidden rounded shrink-0">
           <NextImage
             src={attachment.url}
             alt={attachment.name}
@@ -51,7 +100,7 @@ export function AttachmentPreview({
           />
         </div>
       ) : (
-        <div className="flex h-12 w-12 items-center justify-center rounded bg-muted">
+        <div className="flex h-12 w-12 items-center justify-center rounded bg-muted shrink-0">
           {getFileIcon(attachment.contentType)}
         </div>
       )}
@@ -81,16 +130,14 @@ export function AttachmentPreview({
         >
           <Download className="h-4 w-4" />
         </a>
-        {onRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-            title="Remove"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onRemove}
+          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+          title="Remove"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );
@@ -265,6 +312,9 @@ function getFileIcon(
 ) {
   if (contentType.startsWith("image/")) {
     return <ImageIcon className={className} />;
+  }
+  if (contentType.startsWith("audio/")) {
+    return <Mic className={className} />;
   }
   if (contentType === "application/pdf") {
     return <FileText className={className} />;

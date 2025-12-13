@@ -30,12 +30,33 @@ function safeErrorSummary(err: unknown) {
   }
 }
 
+type TelegramVoice = {
+  file_id: string;
+  file_unique_id: string;
+  duration: number;
+  mime_type?: string;
+  file_size?: number;
+};
+
+type TelegramAudio = {
+  file_id: string;
+  file_unique_id: string;
+  duration: number;
+  performer?: string;
+  title?: string;
+  mime_type?: string;
+  file_size?: number;
+};
+
 type TelegramUpdate = {
   update_id: number;
   message?: {
     message_id: number;
     date: number;
     text?: string;
+    caption?: string;
+    voice?: TelegramVoice;
+    audio?: TelegramAudio;
     from?: {
       id: number;
       is_bot: boolean;
@@ -97,12 +118,24 @@ export async function POST(request: Request) {
 
 async function handleUpdate(update: TelegramUpdate) {
   const message = update.message;
-  const text = message?.text?.trim();
   const fromId = message?.from?.id;
   const chatId = message?.chat?.id;
   const telegramMessageId = message?.message_id;
 
-  if (!text || !fromId || !chatId || !telegramMessageId) {
+  if (!fromId || !chatId || !telegramMessageId) {
+    return;
+  }
+
+  // Extract text (either direct text or caption for audio/photo messages)
+  const text = message?.text?.trim() || message?.caption?.trim();
+
+  // Check for voice/audio messages
+  const hasVoice = !!message?.voice;
+  const hasAudio = !!message?.audio;
+  const hasAudioMessage = hasVoice || hasAudio;
+
+  // Require either text or audio
+  if (!text && !hasAudioMessage) {
     return;
   }
 
@@ -122,7 +155,7 @@ async function handleUpdate(update: TelegramUpdate) {
   }
 
   // Non-tech linking flow: user asks the bot to connect their profile.
-  if (isTelegramConnectCommand(text)) {
+  if (text && isTelegramConnectCommand(text)) {
     const externalId = String(fromId);
 
     // Check if user is already connected to a non-guest account
@@ -225,8 +258,8 @@ async function handleUpdate(update: TelegramUpdate) {
         channel: "TELEGRAM",
         direction: "INBOUND",
         role: "USER",
-        type: "TEXT",
-        content: text,
+        type: hasAudioMessage ? "AUDIO" : "TEXT",
+        content: text || "Messaggio vocale",
         externalMessageId,
         metadata: {
           telegram: {
@@ -235,6 +268,8 @@ async function handleUpdate(update: TelegramUpdate) {
             fromId,
             username: message?.from?.username,
             languageCode: message?.from?.language_code,
+            hasVoice: hasVoice || undefined,
+            hasAudio: hasAudio || undefined,
           },
         } as Prisma.InputJsonValue,
       },
@@ -269,15 +304,71 @@ async function handleUpdate(update: TelegramUpdate) {
     return;
   }
 
+  // Download audio if present
+  let audioData: { base64: string; mimeType: string } | null = null;
+  if (hasAudioMessage) {
+    audioData = await downloadTelegramAudio(message?.voice, message?.audio);
+    if (!audioData) {
+      await sendTelegramMessage(
+        chatId,
+        "Non sono riuscito a scaricare il messaggio audio. Riprova.",
+      );
+      return;
+    }
+  }
+
+  // Build message parts for the AI
+  type MessagePart =
+    | { type: "text"; text: string }
+    | {
+        type: "file";
+        data: string;
+        mimeType: string;
+        name: string;
+        size: number;
+        attachmentId: string;
+      };
+  const messageParts: MessagePart[] = [];
+
+  // Add text part if present
+  if (text) {
+    messageParts.push({ type: "text", text });
+  }
+
+  // Add audio part if present
+  if (audioData) {
+    messageParts.push({
+      type: "file",
+      data: audioData.base64,
+      mimeType: audioData.mimeType,
+      name: "voice_message",
+      size: 0,
+      attachmentId: "telegram-voice",
+    });
+  }
+
+  // Determine the user message for context (text or a placeholder for audio)
+  const userMessageText = text || "Messaggio vocale";
+
   // Generate assistant response.
   let assistantText = "";
 
   try {
     const result = await streamChat({
       userId: user.id,
-      userMessage: text,
+      userMessage: userMessageText,
       planId: user.subscription?.planId,
       userRole: user.role,
+      hasAudio: hasAudioMessage,
+      messageParts: messageParts as Array<{
+        type: string;
+        text?: string;
+        data?: string;
+        mimeType?: string;
+        name?: string;
+        size?: number;
+        attachmentId?: string;
+      }>,
       onFinish: async ({ text: finalText, metrics }) => {
         if (!finalText || finalText.trim().length === 0) return;
 
@@ -329,9 +420,11 @@ async function handleUpdate(update: TelegramUpdate) {
         });
 
         safeWaitUntil(
-          extractAndSaveMemories(user.id, text, finalText).catch((err) => {
-            console.error("[Telegram Webhook] Memory extraction error:", err);
-          }),
+          extractAndSaveMemories(user.id, userMessageText, finalText).catch(
+            (err) => {
+              console.error("[Telegram Webhook] Memory extraction error:", err);
+            },
+          ),
         );
       },
     });
@@ -516,4 +609,103 @@ async function sendTelegramMessage(chatId: number, text: string) {
     const body = await res.text().catch(() => "");
     console.error("[Telegram] sendMessage failed:", res.status, body);
   }
+}
+
+/**
+ * Get the file path for a Telegram file using getFile API.
+ */
+async function getTelegramFilePath(fileId: string): Promise<string | null> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    console.error("[Telegram] TELEGRAM_BOT_TOKEN not configured");
+    return null;
+  }
+
+  try {
+    const url = `https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(
+      fileId,
+    )}`;
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error("[Telegram] getFile failed:", res.status, body);
+      return null;
+    }
+
+    const data = (await res.json()) as {
+      ok: boolean;
+      result?: { file_path?: string };
+    };
+
+    if (!data.ok || !data.result?.file_path) {
+      console.error("[Telegram] getFile returned no file_path:", data);
+      return null;
+    }
+
+    return data.result.file_path;
+  } catch (error) {
+    console.error("[Telegram] Error getting file path:", error);
+    return null;
+  }
+}
+
+/**
+ * Download a file from Telegram and return as base64.
+ */
+async function downloadTelegramFileAsBase64(
+  filePath: string,
+): Promise<string | null> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    console.error("[Telegram] TELEGRAM_BOT_TOKEN not configured");
+    return null;
+  }
+
+  try {
+    const url = `https://api.telegram.org/file/bot${token}/${filePath}`;
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error("[Telegram] File download failed:", res.status, body);
+      return null;
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    return base64;
+  } catch (error) {
+    console.error("[Telegram] Error downloading file:", error);
+    return null;
+  }
+}
+
+/**
+ * Download audio from Telegram voice/audio message.
+ * Returns base64 data and mime type, or null if failed.
+ */
+async function downloadTelegramAudio(
+  voice?: TelegramVoice,
+  audio?: TelegramAudio,
+): Promise<{ base64: string; mimeType: string } | null> {
+  const fileId = voice?.file_id || audio?.file_id;
+  if (!fileId) {
+    return null;
+  }
+
+  // Voice messages are always OGG/Opus, audio files may vary
+  const mimeType = voice?.mime_type || audio?.mime_type || "audio/ogg";
+
+  const filePath = await getTelegramFilePath(fileId);
+  if (!filePath) {
+    return null;
+  }
+
+  const base64 = await downloadTelegramFileAsBase64(filePath);
+  if (!base64) {
+    return null;
+  }
+
+  return { base64, mimeType };
 }

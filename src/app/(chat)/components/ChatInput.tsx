@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useDebouncedCallback } from "@/hooks/useDebounce";
 import type { AttachmentData } from "@/types/chat";
 import { AttachmentButton, AttachmentPreview } from "./Attachments";
+import { AudioRecorder } from "./AudioRecorder";
 
 interface ChatInputProps {
   input: string;
@@ -112,6 +113,10 @@ export function ChatInput({
     setAttachments(attachments.filter((a) => a.id !== id));
   };
 
+  const handleRecordingComplete = (attachment: AttachmentData) => {
+    setAttachments([...attachments, attachment]);
+  };
+
   return (
     <div className="relative mx-auto w-full max-w-3xl px-4 pb-6 pt-2">
       {/* Attachment previews */}
@@ -139,7 +144,7 @@ export function ChatInput({
           className="sr-only"
           onChange={(e) => handleFileSelect(e.target.files)}
           disabled={isUploading || isLoading}
-          accept="image/*,.pdf,.doc,.docx,.txt"
+          accept="image/*,.pdf,.doc,.docx,.txt,audio/*,.mp3,.wav,.ogg,.aac,.flac,.m4a"
         />
 
         {/* Attachment button */}
@@ -148,6 +153,14 @@ export function ChatInput({
             onClick={() => fileInputRef.current?.click()}
             hasAttachment={attachments.length > 0}
             className="h-9 w-9"
+          />
+        </div>
+
+        {/* Microphone button for voice recording */}
+        <div className="pb-1">
+          <AudioRecorder
+            onRecordingComplete={handleRecordingComplete}
+            disabled={isLoading || isUploading}
           />
         </div>
 
@@ -177,11 +190,11 @@ export function ChatInput({
               type="submit"
               size="icon"
               className={`h-9 w-9 rounded-full transition-all duration-200 ${
-                input.trim()
+                input.trim() || attachments.length > 0
                   ? "bg-primary text-primary-foreground shadow-md hover:shadow-lg hover:scale-105"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
-              disabled={!input.trim()}
+              disabled={!input.trim() && attachments.length === 0}
             >
               <Send className="h-4 w-4 ml-0.5" />
             </Button>

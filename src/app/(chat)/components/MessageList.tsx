@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { formatRelativeTime } from "@/lib/format-time";
 import { AttachmentPreview } from "./Attachments";
+import { AudioPlayer } from "./AudioPlayer";
 import { MemoizedMarkdown } from "./MemoizedMarkdown";
 
 // Extended UIMessage type that includes database fields
@@ -217,6 +218,12 @@ export function MessageList({
                 virtualRow.index === messages.length - 1;
               const isUser = message.role === "user";
 
+              const hasAttachments = message.parts?.some(
+                (part) => part.type === "file",
+              );
+              const hasText = messageText.trim().length > 0;
+              const isAttachmentOnly = hasAttachments && !hasText;
+
               return (
                 <div
                   key={virtualRow.key}
@@ -281,10 +288,15 @@ export function MessageList({
                       )}
 
                       <div
-                        className={`relative px-5 py-3.5 shadow-sm text-sm leading-relaxed ${
-                          isUser
-                            ? "rounded-2xl rounded-tr-sm bg-primary text-primary-foreground"
-                            : "rounded-2xl rounded-tl-sm bg-background/60 backdrop-blur-sm border border-white/10 text-foreground"
+                        className={`relative text-sm leading-relaxed ${
+                          /* Only apply bubble styling if there's text or we are editing */
+                          !isAttachmentOnly || isEditing
+                            ? `px-5 py-3.5 shadow-sm ${
+                                isUser
+                                  ? "rounded-2xl rounded-tr-sm bg-primary text-primary-foreground"
+                                  : "rounded-2xl rounded-tl-sm bg-background/60 backdrop-blur-sm border border-white/10 text-foreground"
+                              }`
+                            : "p-0 bg-transparent" /* Transparent for standalone attachments */
                         } ${isEditing ? "w-full min-w-[300px]" : ""}`}
                       >
                         {isEditing ? (
@@ -319,10 +331,12 @@ export function MessageList({
                         )}
 
                         {/* Display attachments from message parts */}
-                        {message.parts?.some(
-                          (part) => part.type === "file",
-                        ) && (
-                          <div className="mt-2 flex flex-wrap gap-2">
+                        {hasAttachments && (
+                          <div
+                            className={`${
+                              hasText ? "mt-2" : ""
+                            } flex flex-wrap gap-2`}
+                          >
                             {message.parts
                               ?.filter((part) => part.type === "file")
                               .map((part, idx: number) => {
@@ -334,6 +348,19 @@ export function MessageList({
                                   size?: number;
                                   attachmentId?: string;
                                 };
+
+                                // Use AudioPlayer for audio files
+                                if (filePart.mimeType?.startsWith("audio/")) {
+                                  return (
+                                    <AudioPlayer
+                                      key={filePart.attachmentId || idx}
+                                      src={filePart.data}
+                                      name={filePart.name}
+                                      mimeType={filePart.mimeType}
+                                    />
+                                  );
+                                }
+
                                 return (
                                   <AttachmentPreview
                                     key={filePart.attachmentId || idx}
@@ -346,7 +373,6 @@ export function MessageList({
                                       size: filePart.size || 0,
                                       url: filePart.data,
                                     }}
-                                    className="max-w-[200px]"
                                   />
                                 );
                               })}
@@ -542,7 +568,7 @@ export function MessageList({
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10"
+            className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10"
           >
             <Button
               size="sm"

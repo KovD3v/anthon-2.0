@@ -47,6 +47,10 @@ export const ALLOWED_TYPES = [
   "audio/mpeg",
   "audio/wav",
   "audio/ogg",
+  "audio/aac",
+  "audio/flac",
+  "audio/mp4",
+  "audio/x-m4a",
   // Video
   "video/mp4",
   "video/mpeg",
@@ -91,6 +95,9 @@ export function detectFileType(filename: string): string {
     mp3: "audio/mpeg",
     wav: "audio/wav",
     ogg: "audio/ogg",
+    aac: "audio/aac",
+    flac: "audio/flac",
+    m4a: "audio/x-m4a",
     // Video
     mp4: "video/mp4",
     mpeg: "video/mpeg",

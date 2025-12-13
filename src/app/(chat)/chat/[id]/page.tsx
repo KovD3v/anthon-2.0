@@ -21,7 +21,7 @@ import { useChatContext } from "../layout";
 export default function ChatConversationPage() {
   const params = useParams();
   const chatId = params.id as string;
-  const { getCachedChat } = useChatContext(); // Access context to get cached data
+  const { getCachedChat, renameChat } = useChatContext(); // Access context to get cached data
 
   const [chatData, setChatData] = useState<ChatData | null>(null);
   const [isLoadingChat, setIsLoadingChat] = useState(true);
@@ -199,10 +199,14 @@ export default function ChatConversationPage() {
       contentType: string;
       size: number;
       url: string;
+      base64Data?: string;
     }>,
   ) => {
     e.preventDefault();
-    if (input.trim() && status === "ready") {
+    if (
+      (input.trim() || (attachments && attachments.length > 0)) &&
+      status === "ready"
+    ) {
       // Create message with text and file parts if attachments exist
       const parts: Array<
         | { type: "text"; text: string }
@@ -214,14 +218,22 @@ export default function ChatConversationPage() {
             size: number;
             attachmentId: string;
           }
-      > = [{ type: "text", text: input }];
+      > = [];
+
+      // Add text part only if there's input
+      if (input.trim()) {
+        parts.push({ type: "text", text: input });
+      }
 
       // Add file parts for attachments
       if (attachments && attachments.length > 0) {
         attachments.forEach((att) => {
+          // For audio files, use base64Data if available
+          // This allows the AI model to process the audio directly
+          const isAudio = att.contentType.startsWith("audio/");
           parts.push({
             type: "file",
-            data: att.url,
+            data: isAudio && att.base64Data ? att.base64Data : att.url,
             mimeType: att.contentType,
             name: att.name,
             size: att.size,
@@ -473,7 +485,17 @@ export default function ChatConversationPage() {
       {/* Background decoration */}
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-primary/5 via-background/0 to-background/0" />
 
-      <ChatHeader title={chatData?.title || "New Chat"} />
+      <ChatHeader
+        chatId={chatId}
+        title={chatData?.title || "New Chat"}
+        onRename={async (id, newTitle) => {
+          const success = await renameChat(id, newTitle);
+          if (success) {
+            setChatData((prev) => (prev ? { ...prev, title: newTitle } : null));
+          }
+          return success;
+        }}
+      />
 
       <MessageList
         messages={messages}

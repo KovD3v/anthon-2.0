@@ -128,10 +128,6 @@ export async function POST(request: Request) {
         ?.map((part) => (part.type === "text" ? part.text : ""))
         .join("") || "";
 
-    if (!userMessageText) {
-      return new Response("Empty message", { status: 400 });
-    }
-
     // Check if message has images
     const hasImages = lastUserMessage.parts?.some((part) => {
       if (part.type === "file") {
@@ -140,6 +136,25 @@ export async function POST(request: Request) {
       }
       return false;
     });
+
+    // Check if message has audio files
+    const hasAudio = lastUserMessage.parts?.some((part) => {
+      if (part.type === "file") {
+        const filePart = part as unknown as { mimeType?: string };
+        return filePart.mimeType?.startsWith("audio/");
+      }
+      return false;
+    });
+
+    // Check if message has any file attachments
+    const hasAttachments = lastUserMessage.parts?.some(
+      (part) => part.type === "file",
+    );
+
+    // Allow messages with text OR any file attachment
+    if (!userMessageText && !hasAttachments) {
+      return new Response("Empty message", { status: 400 });
+    }
 
     // Save the user message to the database with parts
     const message = await LatencyLogger.measure(
@@ -242,6 +257,7 @@ export async function POST(request: Request) {
       subscriptionStatus,
       isGuest,
       hasImages,
+      hasAudio,
       messageParts,
       onFinish: async ({ text, metrics }) => {
         const finishTimer = LatencyLogger.start("✏️ onFinish: Save response");

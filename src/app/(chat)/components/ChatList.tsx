@@ -1,7 +1,15 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
+import {
+  Check,
+  Loader2,
+  MessageSquare,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -20,6 +28,7 @@ interface ChatListProps {
   onDelete: (id: string) => void;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onRename: (id: string, newTitle: string) => Promise<boolean>;
   onPreFetch: (id: string) => void;
 }
 
@@ -31,6 +40,7 @@ export function ChatList({
   onDelete,
   onSelect,
   onCreate,
+  onRename,
   onPreFetch,
 }: ChatListProps) {
   return (
@@ -73,6 +83,7 @@ export function ChatList({
                   onDelete={() => onDelete(chat.id)}
                   onClick={() => onSelect(chat.id)}
                   onPreFetch={() => onPreFetch(chat.id)}
+                  onRename={(newTitle) => onRename(chat.id, newTitle)}
                 />
               ))}
             </AnimatePresence>
@@ -90,6 +101,7 @@ function ChatItem({
   onDelete,
   onClick,
   onPreFetch,
+  onRename,
 }: {
   chat: Chat;
   isActive: boolean;
@@ -97,13 +109,41 @@ function ChatItem({
   onDelete: () => void;
   onClick: () => void;
   onPreFetch: () => void;
+  onRename: (newTitle: string) => Promise<boolean>;
 }) {
   const [showActions, setShowActions] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(chat.title);
+  const [isSavingRename, setIsSavingRename] = useState(false);
 
   const handleMouseEnter = () => {
     setShowActions(true);
     // Pre-fetch chat data on hover
     onPreFetch();
+  };
+
+  const handleRename = async () => {
+    if (!renameValue.trim() || renameValue === chat.title) {
+      setIsRenaming(false);
+      return;
+    }
+
+    setIsSavingRename(true);
+    const success = await onRename(renameValue);
+    setIsSavingRename(false);
+    if (success) {
+      setIsRenaming(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleRename();
+    } else if (e.key === "Escape") {
+      setIsRenaming(false);
+      setRenameValue(chat.title);
+    }
+    e.stopPropagation();
   };
 
   return (
@@ -134,23 +174,94 @@ function ChatItem({
               : "text-muted-foreground/50 group-hover:text-muted-foreground"
           }`}
         />
-        <span className="truncate pr-8">{chat.title}</span>
+        <span className="truncate pr-8">
+          {isRenaming ? (
+            <input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onClick={(e) => e.preventDefault()}
+              className="w-full bg-transparent outline-none ring-0 p-0 text-foreground placeholder:text-muted-foreground/50"
+              onBlur={() => {
+                // If clicking usage banner or outside, we might want to save or cancel
+                // For now let's cancel to be safe, or we can save
+                setIsRenaming(false);
+                setRenameValue(chat.title);
+              }}
+            />
+          ) : (
+            chat.title
+          )}
+        </span>
       </Link>
 
       {/* Actions - positioned absolutely on top of link */}
-      {showActions && !isDeleting && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 shrink-0 text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive z-10"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onDelete();
-          }}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+      {showActions && !isDeleting && !isRenaming && (
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 z-10">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 text-muted-foreground/50 hover:bg-primary/10 hover:text-primary"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsRenaming(true);
+            }}
+          >
+            <Pencil className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDelete();
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
+
+      {/* Rename Actions */}
+      {isRenaming && (
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 z-10 bg-background/80 backdrop-blur-sm rounded-md shadow-sm">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 text-green-500 hover:bg-green-500/10 hover:text-green-600"
+            disabled={isSavingRename}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleRename();
+            }}
+          >
+            {isSavingRename ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Check className="h-3.5 w-3.5" />
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            disabled={isSavingRename}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsRenaming(false);
+              setRenameValue(chat.title);
+            }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       )}
 
       {isDeleting && (

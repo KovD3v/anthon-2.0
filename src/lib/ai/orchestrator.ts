@@ -98,6 +98,7 @@ interface StreamChatOptions {
   subscriptionStatus?: string;
   isGuest?: boolean;
   hasImages?: boolean;
+  hasAudio?: boolean;
   messageParts?: Array<{
     type: string;
     text?: string;
@@ -172,6 +173,43 @@ async function buildSystemPrompt(
 }
 
 /**
+ * Converts an audio MIME type to the format string expected by OpenRouter.
+ * Supported formats: wav, mp3, aiff, aac, ogg, flac, m4a, pcm16
+ */
+function _getAudioFormat(mimeType: string): string {
+  const formatMap: Record<string, string> = {
+    "audio/wav": "wav",
+    "audio/wave": "wav",
+    "audio/x-wav": "wav",
+    "audio/mpeg": "mp3",
+    "audio/mp3": "mp3",
+    "audio/aiff": "aiff",
+    "audio/x-aiff": "aiff",
+    "audio/aac": "aac",
+    "audio/ogg": "ogg",
+    "audio/flac": "flac",
+    "audio/x-flac": "flac",
+    "audio/mp4": "m4a",
+    "audio/x-m4a": "m4a",
+    "audio/m4a": "m4a",
+    "audio/webm": "ogg", // WebM audio typically uses Opus/Vorbis, map to ogg
+  };
+  return formatMap[mimeType] || "wav"; // Default to wav if unknown
+}
+
+/**
+ * Converts a base64 string to Uint8Array for the AI SDK file type.
+ */
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
  * Creates all tools with the userId context injected via factory pattern.
  */
 function createToolsWithContext(userId: string) {
@@ -198,6 +236,7 @@ export async function streamChat({
   subscriptionStatus,
   isGuest = false,
   hasImages = false,
+  hasAudio = false,
   messageParts,
   onFinish,
   onStepFinish,
@@ -277,18 +316,31 @@ export async function streamChat({
     },
   );
 
-  // Build the last message with proper image support
+  // Build the last message with proper image/audio support
   let lastMessage: ModelMessage;
 
-  if (hasImages && messageParts && messageParts.length > 0) {
-    // Convert parts to AI SDK format with images
-    const contentParts: Array<
-      { type: "text"; text: string } | { type: "image"; image: string }
-    > = [];
+  // Check for any file parts to ensure we handle PDFs and other documents
+  const hasFileParts = messageParts?.some((p) => p.type === "file");
+
+  if (
+    (hasImages || hasAudio || hasFileParts) &&
+    messageParts &&
+    messageParts.length > 0
+  ) {
+    // Convert parts to AI SDK format with images and audio
+    type ContentPart =
+      | { type: "text"; text: string }
+      | { type: "image"; image: string }
+      | { type: "file"; data: Uint8Array; mediaType: string };
+    const contentParts: ContentPart[] = [];
+
+    // Track if we have any text
+    let hasText = false;
 
     for (const part of messageParts) {
       if (part.type === "text" && part.text) {
         contentParts.push({ type: "text", text: part.text });
+        hasText = true;
       } else if (
         part.type === "file" &&
         part.mimeType?.startsWith("image/") &&
@@ -296,9 +348,39 @@ export async function streamChat({
       ) {
         contentParts.push({
           type: "image",
-          image: part.data, // The blob URL
+          image: part.data, // The blob URL or base64
+        });
+      } else if (
+        part.type === "file" &&
+        part.mimeType?.startsWith("audio/") &&
+        part.data
+      ) {
+        // Convert base64 to Uint8Array for the AI SDK file type
+        const binaryData = base64ToUint8Array(part.data);
+        // Strip codec parameters from mimeType (e.g., "audio/webm;codecs=opus" -> "audio/webm")
+        const cleanMimeType = part.mimeType.split(";")[0];
+        contentParts.push({
+          type: "file",
+          data: binaryData,
+          mediaType: cleanMimeType,
+        });
+      } else if (part.type === "file" && part.data) {
+        // Handle other file types (PDF, text, etc.)
+        const binaryData = base64ToUint8Array(part.data);
+        contentParts.push({
+          type: "file",
+          data: binaryData,
+          mediaType: part.mimeType || "application/octet-stream",
         });
       }
+    }
+
+    // Add a default prompt for audio-only messages
+    if (!hasText && hasAudio) {
+      contentParts.unshift({
+        type: "text",
+        text: "Ascolta questo messaggio vocale e rispondi.",
+      });
     }
 
     lastMessage = {

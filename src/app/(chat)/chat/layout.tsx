@@ -38,6 +38,7 @@ interface ChatContextType {
   preFetchChat: (id: string) => Promise<void>;
   getCachedChat: (id: string) => ChatData | null;
   navigateToChat: (id: string) => void;
+  renameChat: (id: string, newTitle: string) => Promise<boolean>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -208,7 +209,6 @@ export default function ChatLayout({
     [router],
   );
 
-  // Create new chat
   const createChat = async (): Promise<string | null> => {
     try {
       const response = await fetch("/api/chats", {
@@ -241,6 +241,51 @@ export default function ChatLayout({
       console.error("Failed to create chat:", error);
     }
     return null;
+  };
+
+  // Rename chat
+  const renameChat = async (id: string, newTitle: string): Promise<boolean> => {
+    try {
+      // Optimistically update UI and move to top
+      setChats((prev) => {
+        const chat = prev.find((c) => c.id === id);
+        if (!chat) return prev;
+
+        // Remove from current position
+        const filtered = prev.filter((c) => c.id !== id);
+
+        // Add to top with new title
+        return [{ ...chat, title: newTitle }, ...filtered];
+      });
+
+      const response = await fetch(`/api/chats/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTitle }),
+      });
+
+      if (response.ok) {
+        // Update cache if exists
+        const cached = chatCacheRef.current.get(id);
+        if (cached) {
+          chatCacheRef.current.set(id, {
+            ...cached,
+            title: newTitle,
+          });
+        }
+        return true;
+      } else {
+        // Revert on failure
+        await refreshChats();
+        toast.error("Failed to rename chat");
+        return false;
+      }
+    } catch (error) {
+      console.error("Failed to rename chat:", error);
+      await refreshChats();
+      toast.error("Failed to rename chat");
+      return false;
+    }
   };
 
   // Delete chat
@@ -321,6 +366,7 @@ export default function ChatLayout({
         preFetchChat,
         getCachedChat,
         navigateToChat,
+        renameChat,
       }}
     >
       <div className="flex h-dvh overflow-hidden">
@@ -361,6 +407,7 @@ export default function ChatLayout({
                 }
               }}
               onCreate={createChat}
+              onRename={renameChat}
               onPreFetch={preFetchChat}
             />
 

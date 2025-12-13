@@ -81,6 +81,66 @@ export const RATE_LIMITS: Record<string, RateLimits> = {
 };
 
 // -----------------------------------------------------
+// ATTACHMENT RETENTION CONFIGURATION
+// -----------------------------------------------------
+
+/**
+ * Attachment retention days per subscription tier.
+ * After this period, attachments may be deleted to save storage.
+ */
+export const ATTACHMENT_RETENTION_DAYS: Record<string, number> = {
+  GUEST: 1, // 1 day for guests
+  TRIAL: 7, // 7 days for trial users
+  basic: 30, // 30 days for basic plan
+  basic_plus: 60, // 60 days for basic+ plan
+  pro: 180, // 6 months for pro plan
+  ACTIVE: 30, // 30 days fallback
+  ADMIN: 365 * 10, // 10 years for admins (effectively forever)
+};
+
+/**
+ * Get attachment retention days based on subscription plan and user role.
+ */
+export function getAttachmentRetentionDays(
+  subscriptionStatus?: string,
+  userRole?: string,
+  planId?: string | null,
+  isGuest?: boolean,
+): number {
+  // Admin users keep files for a long time
+  if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
+    return ATTACHMENT_RETENTION_DAYS.ADMIN;
+  }
+
+  // Guest users
+  if (isGuest) {
+    return ATTACHMENT_RETENTION_DAYS.GUEST;
+  }
+
+  // Check specific plan ID first
+  if (planId && subscriptionStatus === "ACTIVE") {
+    const normalizedPlanId = planId.toLowerCase();
+    if (normalizedPlanId.includes("pro")) {
+      return ATTACHMENT_RETENTION_DAYS.pro;
+    }
+    if (normalizedPlanId.includes("basic_plus")) {
+      return ATTACHMENT_RETENTION_DAYS.basic_plus;
+    }
+    if (normalizedPlanId.includes("basic")) {
+      return ATTACHMENT_RETENTION_DAYS.basic;
+    }
+  }
+
+  // Fallback to ACTIVE if subscription is active but no specific plan
+  if (subscriptionStatus === "ACTIVE") {
+    return ATTACHMENT_RETENTION_DAYS.ACTIVE;
+  }
+
+  // Default to trial retention
+  return ATTACHMENT_RETENTION_DAYS.TRIAL;
+}
+
+// -----------------------------------------------------
 // USAGE DATA
 // -----------------------------------------------------
 

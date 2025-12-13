@@ -57,6 +57,11 @@ const ALLOWED_TYPES = [
   "audio/mpeg",
   "audio/wav",
   "audio/ogg",
+  "audio/webm",
+  "audio/aac",
+  "audio/flac",
+  "audio/mp4",
+  "audio/x-m4a",
   // Video
   "video/mp4",
   "video/mpeg",
@@ -133,7 +138,9 @@ export async function POST(request: Request) {
     }
 
     // 5. Validate file type
-    const fileType = file.type || detectFileType(file.name);
+    // Strip codec parameters (e.g., "audio/webm;codecs=opus" -> "audio/webm")
+    const rawType = file.type || detectFileType(file.name);
+    const fileType = rawType.split(";")[0].trim();
     if (!ALLOWED_TYPES.includes(fileType)) {
       return Response.json(
         { error: `File type not allowed: ${fileType}` },
@@ -319,10 +326,14 @@ function detectFileType(filename: string): string {
     mp3: "audio/mpeg",
     wav: "audio/wav",
     ogg: "audio/ogg",
+    webm: "audio/webm",
+    aac: "audio/aac",
+    flac: "audio/flac",
+    m4a: "audio/x-m4a",
     // Video
     mp4: "video/mp4",
     mpeg: "video/mpeg",
-    webm: "video/webm",
+    // Note: webm handled above for audio
   };
 
   return typeMap[ext || ""] || "application/octet-stream";
