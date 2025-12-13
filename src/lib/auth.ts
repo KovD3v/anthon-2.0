@@ -108,7 +108,8 @@ export async function getAuthUser(): Promise<AuthResult> {
         clerkId: user.clerkId ?? "",
         email: user.email,
         role: user.role,
-        createdAt: user.createdAt,
+        // unstable_cache serializes Date objects to strings, so we need to convert back
+        createdAt: new Date(user.createdAt),
       },
       error: null,
     };
