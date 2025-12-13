@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const { userId: clerkId } = await LatencyLogger.measure(
       "Auth: Clerk authentication",
       () => auth(),
-      "🌐 Chat API Request"
+      "🌐 Chat API Request",
     );
 
     if (!clerkId) {
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
             },
           },
         }),
-      "🌐 Chat API Request"
+      "🌐 Chat API Request",
     );
 
     // Check rate limit
@@ -59,9 +59,9 @@ export async function POST(request: Request) {
           user.id,
           user.subscription?.status,
           user.role,
-          user.subscription?.planId
+          user.subscription?.planId,
         ),
-      "🌐 Chat API Request"
+      "🌐 Chat API Request",
     );
 
     if (!rateLimitResult.allowed) {
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
           usage: rateLimitResult.usage,
           limits: rateLimitResult.limits,
         },
-        { status: 429 }
+        { status: 429 },
       );
     }
 
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     if (!Array.isArray(messages) || messages.length === 0) {
       return Response.json(
         { error: "messages must be a non-empty array" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -103,13 +103,13 @@ export async function POST(request: Request) {
         prisma.chat.findFirst({
           where: { id: chatId, userId: user.id },
         }),
-      "🌐 Chat API Request"
+      "🌐 Chat API Request",
     );
 
     if (!chat) {
       return Response.json(
         { error: "Chat not found or access denied" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -155,7 +155,7 @@ export async function POST(request: Request) {
             parts: lastUserMessage.parts as Prisma.InputJsonValue,
           },
         }),
-      "🌐 Chat API Request"
+      "🌐 Chat API Request",
     );
 
     // Link attachments to the message
@@ -172,7 +172,7 @@ export async function POST(request: Request) {
                 data: { messageId: message.id },
               })
               .catch((err) =>
-                console.error("[Chat API] Failed to link attachment:", err)
+                console.error("[Chat API] Failed to link attachment:", err),
               );
           }
         }
@@ -183,7 +183,7 @@ export async function POST(request: Request) {
     const messageCount = await LatencyLogger.measure(
       "DB: Count messages",
       () => prisma.message.count({ where: { chatId } }),
-      "🌐 Chat API Request"
+      "🌐 Chat API Request",
     );
     if (messageCount === 1 && !chat.title) {
       // Generate title in background (wrapped with waitUntil for serverless)
@@ -195,7 +195,7 @@ export async function POST(request: Request) {
               data: { title },
             })
             .catch(console.error);
-        })
+        }),
       );
     }
 
@@ -271,7 +271,7 @@ export async function POST(request: Request) {
                     reasoningTimeMs: metrics.reasoningTimeMs,
                   },
                 }),
-              "✏️ onFinish: Save response"
+              "✏️ onFinish: Save response",
             );
 
             // Update chat's updatedAt
@@ -282,7 +282,7 @@ export async function POST(request: Request) {
                   where: { id: chatId },
                   data: { updatedAt: new Date() },
                 }),
-              "✏️ onFinish: Save response"
+              "✏️ onFinish: Save response",
             );
 
             // Increment usage for rate limiting
@@ -293,9 +293,9 @@ export async function POST(request: Request) {
                   currentUserId,
                   metrics.inputTokens,
                   metrics.outputTokens,
-                  metrics.costUsd
+                  metrics.costUsd,
                 ),
-              "✏️ onFinish: Save response"
+              "✏️ onFinish: Save response",
             );
 
             // Extract and save memories in background (wrapped with waitUntil for serverless)
@@ -303,10 +303,10 @@ export async function POST(request: Request) {
               extractAndSaveMemories(
                 currentUserId,
                 userMessageText,
-                text
+                text,
               ).catch((err) => {
                 console.error("[Chat API] Memory extraction error:", err);
-              })
+              }),
             );
           } catch (error) {
             console.error("[Chat API] Error saving assistant message:", error);

@@ -99,7 +99,7 @@ sport, obiettivi, livello di esperienza o altri dettagli del profilo.`,
           .string()
           .optional()
           .describe(
-            "Livello di esperienza (principiante, intermedio, avanzato, professionista)"
+            "Livello di esperienza (principiante, intermedio, avanzato, professionista)",
           ),
         notes: z.string().optional().describe("Note aggiuntive sul profilo"),
       }),
@@ -152,13 +152,13 @@ esplicitamente come vuole essere comunicato - tono, modalità o lingua.`,
           .string()
           .optional()
           .describe(
-            "Tono preferito: diretto, empatico, tecnico, motivazionale"
+            "Tono preferito: diretto, empatico, tecnico, motivazionale",
           ),
         mode: z
           .string()
           .optional()
           .describe(
-            "Modalità di risposta: conciso, elaborato, sfidante, supportivo"
+            "Modalità di risposta: conciso, elaborato, sfidante, supportivo",
           ),
         language: z
           .string()
@@ -220,7 +220,7 @@ Esempi: "Tende ad essere più motivato il lunedì", "Preferisce esempi pratici",
         note: z
           .string()
           .describe(
-            "L'appunto da aggiungere. Sarà concatenato alle note esistenti."
+            "L'appunto da aggiungere. Sarà concatenato alle note esistenti.",
           ),
       }),
       execute: async ({ note }) => {
@@ -271,7 +271,7 @@ Esempi: "Tende ad essere più motivato il lunedì", "Preferisce esempi pratici",
  * Utility function to get formatted user context for system prompt.
  */
 export async function formatUserContextForPrompt(
-  userId: string
+  userId: string,
 ): Promise<string> {
   const cached = userContextPromptCache.get(userId);
   if (cached && cached.expiresAt > Date.now()) {
@@ -303,7 +303,7 @@ export async function formatUserContextForPrompt(
     if (user.profile.birthday) {
       const age = Math.floor(
         (Date.now() - user.profile.birthday.getTime()) /
-          (365.25 * 24 * 60 * 60 * 1000)
+          (365.25 * 24 * 60 * 60 * 1000),
       );
       lines.push(`- **Età**: ${age} anni`);
     }

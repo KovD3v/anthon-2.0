@@ -32,7 +32,7 @@ function sleep(ms: number): Promise<void> {
 async function fetchWithRetry(
   url: string,
   options: RequestInit,
-  maxRetries: number = RAG.MAX_RETRIES
+  maxRetries: number = RAG.MAX_RETRIES,
 ): Promise<Response> {
   let lastError: Error | null = null;
 
@@ -90,7 +90,7 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
             model: EMBEDDING_MODEL,
             input: text,
           }),
-        })
+        }),
     );
 
     if (!response.ok) {
@@ -117,7 +117,7 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
  * Generate embeddings for multiple texts in batch.
  */
 async function generateEmbeddings(
-  texts: string[]
+  texts: string[],
 ): Promise<(number[] | null)[]> {
   try {
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -153,10 +153,10 @@ async function generateEmbeddings(
     if (data.data && Array.isArray(data.data)) {
       // Sort by index to maintain order
       const sorted = data.data.sort(
-        (a: { index: number }, b: { index: number }) => a.index - b.index
+        (a: { index: number }, b: { index: number }) => a.index - b.index,
       );
       return sorted.map(
-        (item: { embedding: number[] }) => item.embedding || null
+        (item: { embedding: number[] }) => item.embedding || null,
       );
     }
 
@@ -174,7 +174,7 @@ async function generateEmbeddings(
  */
 export async function searchDocuments(
   query: string,
-  limit: number = 5
+  limit: number = 5,
 ): Promise<Array<{ content: string; title: string; similarity: number }>> {
   try {
     // Generate embedding for the query
@@ -212,8 +212,8 @@ export async function searchDocuments(
       LIMIT $2
       `,
           embeddingStr,
-          limit
-        )
+          limit,
+        ),
     );
 
     // Filter by similarity threshold
@@ -228,7 +228,7 @@ export async function searchDocuments(
  * Format RAG results into a context string for the system prompt.
  */
 export function formatRagContext(
-  results: Array<{ content: string; title: string; similarity: number }>
+  results: Array<{ content: string; title: string; similarity: number }>,
 ): string {
   if (results.length === 0) {
     return "Nessun documento rilevante trovato.";
@@ -239,8 +239,8 @@ export function formatRagContext(
   for (const result of results) {
     lines.push(
       `\n**${result.title}** (rilevanza: ${Math.round(
-        result.similarity * 100
-      )}%)`
+        result.similarity * 100,
+      )}%)`,
     );
     lines.push(result.content);
   }
@@ -265,7 +265,7 @@ export async function addDocument(
   title: string,
   content: string,
   source?: string,
-  url?: string
+  url?: string,
 ): Promise<string> {
   try {
     // Create the document
@@ -301,7 +301,7 @@ export async function addDocument(
         document.id,
         chunks[i],
         i,
-        embeddingStr
+        embeddingStr,
       );
     }
 
@@ -345,7 +345,7 @@ export async function updateMissingEmbeddings(): Promise<number> {
           await prisma.$executeRawUnsafe(
             `UPDATE "RagChunk" SET embedding = $1::vector WHERE id = $2`,
             embeddingStr,
-            batch[j].id
+            batch[j].id,
           );
           updated++;
         }
@@ -416,7 +416,7 @@ export async function listDocuments(): Promise<
 function splitIntoChunks(
   content: string,
   maxChunkSize: number = 800,
-  overlap: number = 100
+  overlap: number = 100,
 ): string[] {
   const chunks: string[] = [];
   const paragraphs = content.split(/\n\n+/);
@@ -583,7 +583,7 @@ async function hasRagDocuments(): Promise<boolean> {
 
   // Query database
   const count = await LatencyLogger.measure("RAG: Count documents", () =>
-    prisma.ragDocument.count()
+    prisma.ragDocument.count(),
   );
 
   // Update cache
@@ -697,7 +697,7 @@ Answer needsRag: false if the question is:
 - Generic motivation requests
 - Information already in profile/memories`,
           prompt: `User query: "${userMessage}"`,
-        })
+        }),
     );
 
     if (ragClassificationCache.size > RAG_CLASSIFICATION_CACHE_MAX_ENTRIES) {
