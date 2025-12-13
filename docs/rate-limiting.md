@@ -20,13 +20,30 @@ Rate limiting is enforced at the API level before processing chat requests. Limi
 
 ## Subscription Tiers
 
-| Tier        | Requests/Day | Input Tokens | Output Tokens | Cost/Day |
-| ----------- | ------------ | ------------ | ------------- | -------- |
-| **GUEST**   | 10           | 20,000       | 10,000        | $0.05    |
-| **TRIAL**   | 50           | 100,000      | 50,000        | $1.00    |
-| **STARTER** | 200          | 500,000      | 200,000       | $5.00    |
-| **PRO**     | 1,000        | 2,000,000    | 1,000,000     | $25.00   |
-| **ADMIN**   | ∞            | ∞            | ∞             | ∞        |
+### Usage Limits
+
+| Tier           | Requests/Day | Input Tokens | Output Tokens | Cost/Day |
+| -------------- | ------------ | ------------ | ------------- | -------- |
+| **GUEST**      | 10           | 20,000       | 10,000        | $0.05    |
+| **TRIAL**      | 50           | 100,000      | 50,000        | $0.50    |
+| **basic**      | 200          | 500,000      | 250,000       | $3.00    |
+| **basic_plus** | 400          | 800,000      | 400,000       | $5.00    |
+| **pro**        | 1,000        | 2,000,000    | 1,000,000     | $15.00   |
+| **ADMIN**      | ∞            | ∞            | ∞             | ∞        |
+
+### Session Context Limits
+
+The number of messages included in conversation context is also limited by plan. This affects how much conversation history the AI can "remember" in a single request.
+
+| Tier            | Max Context Messages |
+| --------------- | -------------------- |
+| **GUEST**       | 5                    |
+| **TRIAL**       | 10                   |
+| **basic**       | 15                   |
+| **basic_plus**  | 30                   |
+| **pro / ADMIN** | 100                  |
+
+> **Note:** Sessions are never cut mid-conversation. If adding a complete session would exceed the limit, it's excluded entirely.
 
 ## Configuration
 
@@ -34,19 +51,21 @@ Rate limiting is enforced at the API level before processing chat requests. Limi
 
 ```typescript
 export const RATE_LIMITS: Record<string, RateLimits> = {
-  TRIAL: {
-    maxRequestsPerDay: 50,
-    maxInputTokensPerDay: 100_000,
-    maxOutputTokensPerDay: 50_000,
-    maxCostPerDay: 1.0,
-  },
-  STARTER: {
-    maxRequestsPerDay: 200,
-    maxInputTokensPerDay: 500_000,
-    maxOutputTokensPerDay: 200_000,
-    maxCostPerDay: 5.0,
-  },
-  // ...
+	TRIAL: {
+		maxRequestsPerDay: 50,
+		maxInputTokensPerDay: 100_000,
+		maxOutputTokensPerDay: 50_000,
+		maxCostPerDay: 0.5,
+		maxContextMessages: 10,
+	},
+	basic: {
+		maxRequestsPerDay: 200,
+		maxInputTokensPerDay: 500_000,
+		maxOutputTokensPerDay: 250_000,
+		maxCostPerDay: 3.0,
+		maxContextMessages: 15,
+	},
+	// ...
 };
 ```
 
@@ -70,10 +89,10 @@ After each chat response:
 
 ```typescript
 await incrementUsage(
-  userId,
-  metrics.inputTokens,
-  metrics.outputTokens,
-  metrics.costUsd
+	userId,
+	metrics.inputTokens,
+	metrics.outputTokens,
+	metrics.costUsd
 );
 ```
 
@@ -87,13 +106,13 @@ Check if user can make a request:
 const result = await checkRateLimit(userId, "ACTIVE", "USER", "plan_starter");
 
 if (!result.allowed) {
-  return new Response(
-    JSON.stringify({
-      error: result.reason,
-      code: "RATE_LIMIT_EXCEEDED",
-    }),
-    { status: 429 }
-  );
+	return new Response(
+		JSON.stringify({
+			error: result.reason,
+			code: "RATE_LIMIT_EXCEEDED",
+		}),
+		{ status: 429 }
+	);
 }
 ```
 
@@ -101,16 +120,16 @@ if (!result.allowed) {
 
 ```typescript
 interface RateLimitResult {
-  allowed: boolean;
-  usage: DailyUsageData;
-  limits: RateLimits;
-  reason?: string; // Why blocked
-  percentUsed: {
-    requests: number; // 0-100+
-    inputTokens: number;
-    outputTokens: number;
-    cost: number;
-  };
+	allowed: boolean;
+	usage: DailyUsageData;
+	limits: RateLimits;
+	reason?: string; // Why blocked
+	percentUsed: {
+		requests: number; // 0-100+
+		inputTokens: number;
+		outputTokens: number;
+		cost: number;
+	};
 }
 ```
 
@@ -139,24 +158,24 @@ const status = formatRateLimitStatus(result);
 ```typescript
 // /api/chat/route.ts
 export async function POST(request: Request) {
-  const { dbUser } = await requireAuth();
+	const { dbUser } = await requireAuth();
 
-  // Check rate limit
-  const rateLimit = await checkRateLimit(
-    dbUser.id,
-    dbUser.subscription?.status,
-    dbUser.role,
-    dbUser.subscription?.planId
-  );
+	// Check rate limit
+	const rateLimit = await checkRateLimit(
+		dbUser.id,
+		dbUser.subscription?.status,
+		dbUser.role,
+		dbUser.subscription?.planId
+	);
 
-  if (!rateLimit.allowed) {
-    return Response.json(
-      { error: rateLimit.reason, code: "RATE_LIMIT_EXCEEDED" },
-      { status: 429 }
-    );
-  }
+	if (!rateLimit.allowed) {
+		return Response.json(
+			{ error: rateLimit.reason, code: "RATE_LIMIT_EXCEEDED" },
+			{ status: 429 }
+		);
+	}
 
-  // Process chat...
+	// Process chat...
 }
 ```
 
@@ -166,12 +185,18 @@ The frontend displays usage status:
 
 ```tsx
 function UsageIndicator({ percentUsed }: { percentUsed: number }) {
-  const status =
-    percentUsed >= 100 ? "limit-reached" : percentUsed >= 80 ? "warning" : "ok";
+	const status =
+		percentUsed >= 100
+			? "limit-reached"
+			: percentUsed >= 80
+			? "warning"
+			: "ok";
 
-  return (
-    <div className={`usage-${status}`}>{percentUsed}% of daily limit used</div>
-  );
+	return (
+		<div className={`usage-${status}`}>
+			{percentUsed}% of daily limit used
+		</div>
+	);
 }
 ```
 
@@ -181,10 +206,10 @@ Usage counters reset at **00:00 UTC** daily. The `date` field uses UTC to ensure
 
 ```typescript
 function getUTCDateOnly(): Date {
-  const now = new Date();
-  return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-  );
+	const now = new Date();
+	return new Date(
+		Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+	);
 }
 ```
 
@@ -194,12 +219,13 @@ Users with `ADMIN` or `SUPER_ADMIN` role have unlimited access:
 
 ```typescript
 if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
-  return RATE_LIMITS.ADMIN; // All limits = Infinity
+	return RATE_LIMITS.ADMIN; // All limits = Infinity
 }
 ```
 
 ## Related Documentation
 
-- [Authentication](./authentication.md) - User roles
-- [API Reference](./api.md) - Usage endpoint
-- [Database](./database.md) - DailyUsage model
+-   [Authentication](./authentication.md) - User roles
+-   [API Reference](./api.md) - Usage endpoint
+-   [Database](./database.md) - DailyUsage model
+-   [Guest Migration](./guest-migration.md) - Guest vs registered limits

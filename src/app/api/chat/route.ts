@@ -205,6 +205,8 @@ export async function POST(request: Request) {
     const currentUserId = user.id;
     const userPlanId = user.subscription?.planId;
     const userRole = user.role;
+    const subscriptionStatus = user.subscription?.status;
+    const isGuest = user.isGuest;
 
     // Convert UI message parts to simplified format for orchestrator
     const messageParts = lastUserMessage.parts?.map((part) => {
@@ -237,6 +239,8 @@ export async function POST(request: Request) {
       userMessage: userMessageText,
       planId: userPlanId,
       userRole,
+      subscriptionStatus,
+      isGuest,
       hasImages,
       messageParts,
       onFinish: async ({ text, metrics }) => {

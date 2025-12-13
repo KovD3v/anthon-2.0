@@ -47,6 +47,12 @@ Central identity for all user data across channels.
 | `role`      | UserRole  | USER, ADMIN, or SUPER_ADMIN |
 | `deletedAt` | DateTime? | Soft delete timestamp       |
 
+Guest support (used mainly by non-web channels like Telegram):
+
+- `isGuest` marks a user created before sign-up.
+- `guestAbuseIdHash` can be used to de-duplicate/abuse-protect guest identities.
+- `guestConvertedAt` is set when a guest profile is migrated into a registered user.
+
 ### Chat
 
 Conversation container for grouping messages.
@@ -72,11 +78,16 @@ Individual messages supporting text, media, and AI metadata.
 | `type`         | MessageType      | TEXT, IMAGE, AUDIO, etc.             |
 | `content`      | String?          | Text content                         |
 | `parts`        | Json?            | AI SDK v5 message parts              |
+| `mediaUrl`     | String?          | Media URL (for non-web channels)     |
+| `mediaType`    | String?          | Media MIME type                      |
+| `externalMessageId` | String?     | External message id (unique per channel) |
+| `metadata`     | Json?            | Channel-specific payload (e.g. Telegram) |
 | `model`        | String?          | AI model used (e.g., "gpt-4.1-mini") |
 | `inputTokens`  | Int?             | Prompt tokens                        |
 | `outputTokens` | Int?             | Generated tokens                     |
 | `costUsd`      | Float?           | Response cost                        |
 | `ragUsed`      | Boolean?         | Whether RAG was used                 |
+| `feedback`     | Int?             | -1, 0, 1 user feedback on assistants |
 
 ### Profile
 
@@ -134,10 +145,12 @@ Embedded document chunks for vector search.
 | ------------ | ------------ | --------------------- |
 | `documentId` | String       | Parent document       |
 | `content`    | String       | Chunk text            |
-| `embedding`  | vector(4096) | pgvector embedding    |
+| `embedding`  | vector(1536) | pgvector embedding    |
 | `index`      | Int          | Chunk sequence number |
 
 Uses HNSW index for efficient cosine similarity search.
+
+Note: embedding dimensions are defined in the Prisma schema and depend on the embedding model.
 
 ## Usage & Billing
 
@@ -173,10 +186,38 @@ Links external identifiers to users.
 
 | Field        | Type    | Description          |
 | ------------ | ------- | -------------------- |
-| `channel`    | Channel | WEB, WHATSAPP        |
+| `channel`    | Channel | WEB, WHATSAPP, TELEGRAM |
 | `externalId` | String  | Platform-specific ID |
 
 Unique constraint on `(channel, externalId)`.
+
+### ChannelLinkToken
+
+One-time linking tokens used to connect an external identity (e.g. Telegram user id) to a signed-in user.
+
+Key fields:
+
+- `tokenHash` is stored instead of the raw token.
+- `expiresAt` enforces a short validity window (e.g. ~10 minutes).
+- `consumedAt` / `consumedByUserId` track successful consumption.
+
+---
+
+## Attachments & Artifacts
+
+### Attachment
+
+Tracks an uploaded file (stored in Vercel Blob) and optionally links it to a message.
+
+- During upload, the record can be created without `messageId`.
+- When the user sends a message, the server links attachments to the saved message.
+
+### Artifact / ArtifactVersion
+
+Artifacts are generated outputs associated with a chat (and optionally a message).
+
+- `Artifact` is the logical container.
+- `ArtifactVersion` stores versioned content (optionally in Blob for large payloads).
 
 ## Useful Queries
 

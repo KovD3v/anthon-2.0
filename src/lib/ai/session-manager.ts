@@ -123,6 +123,7 @@ function toModelMessage(message: Message): ModelMessage {
  */
 export async function buildConversationContext(
   userId: string,
+  maxContextMessages: number = SESSION.MAX_CONTEXT_MESSAGES,
 ): Promise<ModelMessage[]> {
   // Fetch recent messages for the user (limited for scalability)
   // Ordered desc, then reversed to get chronological order
@@ -154,8 +155,7 @@ export async function buildConversationContext(
 
     // Check if adding this session would exceed the cap
     if (
-      totalMessageCount + session.messages.length >
-        SESSION.MAX_CONTEXT_MESSAGES &&
+      totalMessageCount + session.messages.length > maxContextMessages &&
       totalMessageCount > 0
     ) {
       // We can't add this full session, stop here
@@ -215,7 +215,7 @@ export async function buildConversationContext(
     // If we've reached a reasonable amount of context, we can stop
     // (but always include at least the current session)
     if (
-      totalMessageCount >= SESSION.MAX_CONTEXT_MESSAGES / 2 &&
+      totalMessageCount >= maxContextMessages / 2 &&
       i < sessions.length - 1
     ) {
       break;

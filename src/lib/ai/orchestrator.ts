@@ -16,6 +16,7 @@ import {
   formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
 import { LatencyLogger } from "@/lib/latency-logger";
+import { getRateLimitsForUser } from "@/lib/rate-limit";
 
 // System prompt template
 const SYSTEM_PROMPT_TEMPLATE = `Sei Anthon, un coach digitale di performance sportiva.
@@ -94,6 +95,8 @@ interface StreamChatOptions {
   userMessage: string;
   planId?: string | null;
   userRole?: string;
+  subscriptionStatus?: string;
+  isGuest?: boolean;
   hasImages?: boolean;
   messageParts?: Array<{
     type: string;
@@ -192,6 +195,8 @@ export async function streamChat({
   userMessage,
   planId,
   userRole,
+  subscriptionStatus,
+  isGuest = false,
   hasImages = false,
   messageParts,
   onFinish,
@@ -205,10 +210,19 @@ export async function streamChat({
   const model = getModelForUser(planId, userRole, "orchestrator");
   const modelId = getModelIdForPlan(planId, userRole, "orchestrator");
 
+  // Get plan-based session cap
+  const limits = getRateLimitsForUser(
+    subscriptionStatus,
+    userRole,
+    planId,
+    isGuest,
+  );
+  const maxContextMessages = limits.maxContextMessages;
+
   // Kick off independent work ASAP to reduce end-to-end latency
   const conversationHistoryPromise = LatencyLogger.measure(
     "📋 Orchestrator: Get conversation history",
-    () => buildConversationContext(userId),
+    () => buildConversationContext(userId, maxContextMessages),
   );
 
   const userContextPromise = formatUserContextForPrompt(userId);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { migrateGuestToUser } from "@/lib/guest-migration";
 
 // Error state icons
 function ErrorIcon() {
@@ -253,25 +254,22 @@ export default async function TelegramLinkTokenPage({
       if (existing.user?.isGuest) {
         const guestId = existing.userId;
 
-        await tx.message.updateMany({
-          where: {
-            userId: guestId,
-            channel: "TELEGRAM",
-          },
-          data: {
-            userId: dbUser.id,
-          },
-        });
+        // Use centralized migration utility for complete data migration
+        const migrationResult = await migrateGuestToUser(guestId, dbUser.id);
 
-        await tx.channelIdentity.update({
-          where: { id: existing.id },
-          data: { userId: dbUser.id },
-        });
+        if (!migrationResult.success) {
+          console.error(
+            "[Telegram Link] Guest migration failed:",
+            migrationResult.error,
+          );
+          return { status: "conflict" as const };
+        }
 
-        await tx.user.update({
-          where: { id: guestId },
-          data: { guestConvertedAt: new Date() },
-        });
+        console.log(
+          "[Telegram Link] Guest migration successful:",
+          migrationResult.migratedCounts,
+          `(${migrationResult.conflicts.length} conflicts resolved)`,
+        );
       } else {
         return { status: "conflict" as const };
       }

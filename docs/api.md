@@ -12,6 +12,14 @@ import { auth } from "@clerk/nextjs/server";
 const { userId } = await auth();
 ```
 
+Many routes also use the internal helper:
+
+```ts
+import { getAuthUser } from "@/lib/auth";
+
+const { user, error } = await getAuthUser();
+```
+
 ## Chat API
 
 ### `POST /api/chat`
@@ -22,13 +30,20 @@ Streams an AI chat response.
 
 ```typescript
 {
-  userMessage: string;
-  chatId?: string;         // Optional, creates new chat if not provided
-  messageParts?: Array<{   // For multimodal (images)
-    type: "text" | "image";
-    text?: string;
-    data?: string;         // Base64 image data
-    mimeType?: string;
+  chatId: string;
+  messages: Array<{
+    role: "user" | "assistant";
+    parts?: Array<
+      | { type: "text"; text: string }
+      | {
+          type: "file";
+          mimeType?: string;
+          name?: string;
+          size?: number;
+          attachmentId?: string;
+          data?: string;
+        }
+    >;
   }>;
 }
 ```
@@ -49,12 +64,6 @@ Streams an AI chat response.
 
 List user's chats.
 
-**Query Params:**
-| Param | Type | Default | Description |
-|-------|------|---------|-------------|
-| `limit` | number | 20 | Max chats to return |
-| `cursor` | string | - | Pagination cursor |
-
 **Response:**
 
 ```typescript
@@ -62,10 +71,11 @@ List user's chats.
   chats: Array<{
     id: string;
     title: string | null;
+    visibility: "PRIVATE" | "PUBLIC";
+    createdAt: string;
     updatedAt: string;
     messageCount: number;
   }>;
-  nextCursor?: string;
 }
 ```
 
@@ -97,31 +107,74 @@ Update chat title.
 
 ```typescript
 {
-  title: string;
+  title?: string;
+  visibility?: "PRIVATE" | "PUBLIC";
+  generateTitle?: boolean;
 }
 ```
 
 ### `DELETE /api/chats/[chatId]`
 
-Delete a chat (soft delete).
+Delete a chat (hard delete; cascades to related messages/artifacts).
 
 ---
 
-## Messages API
+## Chat Export
 
-### `GET /api/chats/[chatId]/messages`
+### `GET /api/chats/[id]/export`
 
-Get paginated messages for a chat.
+Downloads the chat as Markdown.
 
-**Query Params:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `limit` | number | Messages per page |
-| `before` | string | Cursor for older messages |
+---
 
-### `DELETE /api/chats/[chatId]/messages/[messageId]`
+## Chat Search
 
-Delete a message (soft delete).
+### `GET /api/chats/search?q=...`
+
+Searches within the user's messages (case-insensitive contains).
+
+Notes:
+
+- `q` must be at least 2 characters.
+- Results are limited.
+
+---
+
+## Chat Messages API
+
+This is used by the UI to load/edit/delete messages.
+
+### `GET /api/chat/messages?chatId=<chatId>`
+
+Returns message history for a chat.
+
+### `PATCH /api/chat/messages`
+
+Edits a user message by deleting that message and all subsequent messages in the same chat.
+
+Body:
+
+```ts
+{ messageId: string; content?: string }
+```
+
+### `DELETE /api/chat/messages?id=<messageId>`
+
+Deletes a user message and all subsequent messages in the same chat.
+
+---
+
+## Feedback API
+
+### `POST /api/chat/feedback`
+
+Stores thumbs up/down feedback for an assistant message.
+
+Body:
+
+```ts
+{ messageId: string; feedback: -1 | 0 | 1 }
+```
 
 ---
 
@@ -133,14 +186,8 @@ List all RAG documents.
 
 **Response:**
 
-```typescript
-Array<{
-  id: string;
-  title: string;
-  source: string | null;
-  chunkCount: number;
-  createdAt: string;
-}>;
+```ts
+{ documents: Array<{ id: string; title: string; source: string | null; url: string | null }> }
 ```
 
 ### `POST /api/rag/documents`
@@ -162,6 +209,12 @@ Add a new document.
 
 Delete a document and its chunks.
 
+Note: the current implementation deletes via query param (`DELETE /api/rag/documents?id=...`).
+
+### `PATCH /api/rag/documents`
+
+Backfills missing embeddings (admin/dev utility).
+
 ### `POST /api/rag/search`
 
 Search documents semantically.
@@ -172,18 +225,11 @@ Search documents semantically.
 {
   query: string;
   limit?: number;  // Default: 5
+  checkNeedsRag?: boolean;
 }
 ```
 
-**Response:**
-
-```typescript
-Array<{
-  content: string;
-  title: string;
-  similarity: number;
-}>;
-```
+**Response:** includes results and, optionally, a prebuilt context string.
 
 ---
 
@@ -232,11 +278,26 @@ Upload a file to Vercel Blob.
 
 ```typescript
 {
+  id: string;
   url: string; // Blob URL
+  downloadUrl?: string;
+  name: string;
   contentType: string;
   size: number;
 }
 ```
+
+Notes:
+
+- If `chatId` is provided in the multipart form, the API verifies chat ownership and stores the file under a chat-specific path.
+
+---
+
+## Channels API
+
+### `DELETE /api/channels/[id]`
+
+Disconnects a channel identity (e.g. Telegram/WhatsApp) from the authenticated user.
 
 ---
 
@@ -244,17 +305,44 @@ Upload a file to Vercel Blob.
 
 Admin routes require `ADMIN` or `SUPER_ADMIN` role.
 
+### `GET /api/admin/analytics?type=...&range=...`
+
+Aggregated metrics for the admin dashboard.
+
+- `type`: `overview` | `usage` | `costs` | `funnel`
+- `range`: `7d` | `30d` | `90d` | `all`
+
 ### `GET /api/admin/users`
 
-List all users with stats.
+Lists users with pagination/search.
 
-### `GET /api/admin/stats`
+### `PATCH /api/admin/users`
 
-Get system-wide statistics.
+Updates a user's role (SUPER_ADMIN only).
 
-### `POST /api/admin/rag/upload`
+### `GET /api/admin/users/[userId]`
 
-Bulk upload RAG documents.
+User detail + stats + recent messages.
+
+### `GET /api/admin/rag`
+
+Lists all RAG documents.
+
+### `POST /api/admin/rag`
+
+Uploads and processes one or more documents (multipart form field: `files`).
+
+### `DELETE /api/admin/rag?id=<documentId>`
+
+Deletes a RAG document and its chunks.
+
+---
+
+## Health
+
+### `GET /api/health`
+
+Returns connectivity status for DB, OpenRouter, Clerk, and Vercel Blob.
 
 ---
 
@@ -283,10 +371,15 @@ Receives Telegram Bot API updates and responds via `sendMessage`.
 
 - `x-telegram-bot-api-secret-token` (must match `TELEGRAM_WEBHOOK_SECRET`)
 
-**Environment Variables:**
+Clerk webhook secret:
 
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_WEBHOOK_SECRET`
+- `CLERK_WEBHOOK_SECRET`
+
+Optional:
+
+- `NEXT_PUBLIC_APP_URL` (used to generate link URLs)
+- `TELEGRAM_SYNC_WEBHOOK` (dev mode: process synchronously)
+- `TELEGRAM_DISABLE_AI` / `TELEGRAM_DISABLE_SEND`
 
 **Telegram Setup (example):**
 

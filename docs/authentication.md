@@ -23,7 +23,7 @@ Anthon 2.0 uses [Clerk](https://clerk.com) for authentication and user managemen
 ```env
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
 CLERK_SECRET_KEY="sk_test_..."
-CLERK_WEBHOOK_SIGNING_SECRET="whsec_..."
+CLERK_WEBHOOK_SECRET="whsec_..."
 ```
 
 ### 2. Middleware
@@ -53,14 +53,12 @@ In Clerk Dashboard, configure webhook for:
 
 ### Role Assignment
 
-Roles are stored in the database User model and synced from Clerk metadata:
+Roles are stored in the database `User.role` field.
 
-```typescript
-// Set role in Clerk Dashboard or via API
-await clerkClient.users.updateUser(userId, {
-	publicMetadata: { role: "ADMIN" },
-});
-```
+- Admin UI and admin APIs enforce role checks.
+- Only `SUPER_ADMIN` can change roles (see admin endpoints in [API Reference](./api.md)).
+
+If you also want to mirror roles into Clerk metadata for visibility, that is optional and not required by the app.
 
 ## Auth Utilities
 
@@ -73,14 +71,14 @@ Gets the authenticated user with database record:
 ```typescript
 import { getAuthUser } from "@/lib/auth";
 
-const { clerkUser, dbUser } = await getAuthUser();
-// clerkUser: Clerk user object
-// dbUser: Prisma User with profile, preferences, subscription
+const { user, error } = await getAuthUser();
+// user: internal AuthUser (id, role, etc.)
+// error: string when not authenticated or on failure
 ```
 
 ### `requireAuth()`
 
-Throws if not authenticated:
+This codebase primarily uses `getAuthUser()` and role-gated helpers like `requireAdmin()`.
 
 ```typescript
 import { requireAuth } from "@/lib/auth";
@@ -95,14 +93,7 @@ export async function GET() {
 
 Checks user has required role:
 
-```typescript
-import { requireRole } from "@/lib/auth";
-
-export async function GET() {
-	const { dbUser } = await requireRole(["ADMIN", "SUPER_ADMIN"]);
-	// Only ADMIN or SUPER_ADMIN can access
-}
-```
+For admin-only routes, prefer `requireAdmin()` / `requireSuperAdmin()`.
 
 ## Protected Routes
 
@@ -130,26 +121,9 @@ export default async function ChatLayout({ children }) {
 
 ## User Sync
 
-When a user signs up via Clerk, a webhook creates the database record:
+When a user signs up via Clerk, a webhook creates/updates the database record and subscription tracking:
 
-```typescript
-// /api/webhooks/clerk/route.ts
-case "user.created":
-  await prisma.user.create({
-    data: {
-      clerkId: event.data.id,
-      email: event.data.email_addresses[0]?.email_address,
-      role: "USER",
-      subscription: {
-        create: {
-          status: "TRIAL",
-          trialStartedAt: new Date(),
-          trialEndsAt: addDays(new Date(), 7),
-        },
-      },
-    },
-  });
-```
+See the handler implementation in `/api/webhooks/clerk` for the exact event mapping.
 
 ## Client Components
 

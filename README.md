@@ -35,7 +35,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 | Document                                     | Description                                  |
 | -------------------------------------------- | -------------------------------------------- |
-| [Getting Started](./docs/getting-started.md) | Setup, installation, and running the project |
+| [Getting Started](./docs/getting-started.md) | Setup + user/admin runbook (non-technical)   |
 | [Architecture](./docs/architecture.md)       | System architecture and project structure    |
 | [Database](./docs/database.md)               | Prisma schema and data models                |
 | [AI System](./docs/ai-system.md)             | Orchestrator, RAG, sessions, and memory      |

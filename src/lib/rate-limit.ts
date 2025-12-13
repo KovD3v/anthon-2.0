@@ -16,6 +16,7 @@ export interface RateLimits {
   maxInputTokensPerDay: number;
   maxOutputTokensPerDay: number;
   maxCostPerDay: number; // USD
+  maxContextMessages: number; // Session message cap
 }
 
 // Default limits for different subscription tiers
@@ -27,6 +28,7 @@ export const RATE_LIMITS: Record<string, RateLimits> = {
     maxInputTokensPerDay: 20_000,
     maxOutputTokensPerDay: 10_000,
     maxCostPerDay: 0.05,
+    maxContextMessages: 5,
   },
   // Trial users (no active subscription)
   TRIAL: {
@@ -34,6 +36,7 @@ export const RATE_LIMITS: Record<string, RateLimits> = {
     maxInputTokensPerDay: 100_000,
     maxOutputTokensPerDay: 50_000,
     maxCostPerDay: 0.5,
+    maxContextMessages: 10,
   },
   // Basic plan ($7/month) - 3 day trial
   basic: {
@@ -41,6 +44,7 @@ export const RATE_LIMITS: Record<string, RateLimits> = {
     maxInputTokensPerDay: 500_000,
     maxOutputTokensPerDay: 250_000,
     maxCostPerDay: 3,
+    maxContextMessages: 15,
   },
   // Basic Plus plan ($12/month)
   basic_plus: {
@@ -48,6 +52,7 @@ export const RATE_LIMITS: Record<string, RateLimits> = {
     maxInputTokensPerDay: 800_000,
     maxOutputTokensPerDay: 400_000,
     maxCostPerDay: 5,
+    maxContextMessages: 30,
   },
   // Pro plan ($25/month)
   pro: {
@@ -55,6 +60,7 @@ export const RATE_LIMITS: Record<string, RateLimits> = {
     maxInputTokensPerDay: 2_000_000,
     maxOutputTokensPerDay: 1_000_000,
     maxCostPerDay: 15,
+    maxContextMessages: 100,
   },
   // Active subscription (fallback for ACTIVE status without plan)
   ACTIVE: {
@@ -62,6 +68,7 @@ export const RATE_LIMITS: Record<string, RateLimits> = {
     maxInputTokensPerDay: 500_000,
     maxOutputTokensPerDay: 250_000,
     maxCostPerDay: 3,
+    maxContextMessages: 15,
   },
   // Admin / Unlimited
   ADMIN: {
@@ -69,6 +76,7 @@ export const RATE_LIMITS: Record<string, RateLimits> = {
     maxInputTokensPerDay: Number.POSITIVE_INFINITY,
     maxOutputTokensPerDay: Number.POSITIVE_INFINITY,
     maxCostPerDay: Number.POSITIVE_INFINITY,
+    maxContextMessages: 100,
   },
 };
 

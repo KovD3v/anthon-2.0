@@ -6,13 +6,14 @@ Welcome to the Anthon 2.0 documentation. Anthon is an AI-powered coaching chat a
 
 | Document                                | Description                                  |
 | --------------------------------------- | -------------------------------------------- |
-| [Getting Started](./getting-started.md) | Setup, installation, and running the project |
+| [Getting Started](./getting-started.md) | Setup + user/admin runbook (non-technical)   |
 | [Architecture](./architecture.md)       | System architecture and project structure    |
 | [Database](./database.md)               | Prisma schema and data models                |
 | [AI System](./ai-system.md)             | Orchestrator, RAG, sessions, and memory      |
 | [API Reference](./api.md)               | REST API endpoints documentation             |
 | [Authentication](./authentication.md)   | Clerk integration and user roles             |
 | [Rate Limiting](./rate-limiting.md)     | Usage limits and subscription tiers          |
+| [Guest Migration](./guest-migration.md) | Guest to registered user data migration      |
 
 ## 🛠 Technology Stack
 
