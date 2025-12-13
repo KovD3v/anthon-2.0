@@ -53,6 +53,12 @@ export function Navbar() {
             >
               Profilo
             </Link>
+            <Link
+              href="/channels"
+              className="text-muted-foreground hover:text-primary transition-colors"
+            >
+              Canali
+            </Link>
           </SignedIn>
           <Link
             href="/pricing"
@@ -131,6 +137,13 @@ export function Navbar() {
                 onClick={() => setIsMenuOpen(false)}
               >
                 Profilo
+              </Link>
+              <Link
+                href="/channels"
+                className="text-sm font-medium text-muted-foreground hover:text-primary"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Canali
               </Link>
             </SignedIn>
             <Link
