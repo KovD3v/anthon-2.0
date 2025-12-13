@@ -70,6 +70,7 @@ export function AttachmentPreview({
           rel="noopener noreferrer"
           className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           title="Open in new tab"
+          aria-label={`Open ${attachment.name} in new tab`}
         >
           <ExternalLink className="h-4 w-4" />
         </a>
@@ -78,6 +79,7 @@ export function AttachmentPreview({
           download={attachment.name}
           className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           title="Download"
+          aria-label={`Download ${attachment.name}`}
         >
           <Download className="h-4 w-4" />
         </a>
@@ -87,6 +89,7 @@ export function AttachmentPreview({
             onClick={onRemove}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
             title="Remove"
+            aria-label={`Remove ${attachment.name}`}
           >
             <X className="h-4 w-4" />
           </button>
@@ -224,6 +227,7 @@ export function AttachmentButton({
         className,
       )}
       title="Attach file"
+      aria-label="Attach file"
     >
       <File className="h-5 w-5" />
     </Button>

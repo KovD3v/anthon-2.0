@@ -120,7 +120,7 @@ async function buildSystemPrompt(
     userContext?: string;
     userMemories?: string;
     currentDate?: string;
-  }
+  },
 ): Promise<string> {
   const currentDate =
     prefetched?.currentDate ??
@@ -150,19 +150,19 @@ async function buildSystemPrompt(
   // Inject RAG context
   systemPrompt = systemPrompt.replaceAll(
     "{{RAG_CONTEXT}}",
-    ragContext || "Nessun documento RAG disponibile al momento."
+    ragContext || "Nessun documento RAG disponibile al momento.",
   );
 
   // Inject user context
   systemPrompt = systemPrompt.replaceAll(
     "{{USER_CONTEXT}}",
-    userContext || "Nessun profilo utente disponibile."
+    userContext || "Nessun profilo utente disponibile.",
   );
 
   // Inject memories
   systemPrompt = systemPrompt.replaceAll(
     "{{USER_MEMORIES}}",
-    userMemories || "Nessuna memoria salvata per questo utente."
+    userMemories || "Nessuna memoria salvata per questo utente.",
   );
 
   return systemPrompt;
@@ -208,7 +208,7 @@ export async function streamChat({
   // Kick off independent work ASAP to reduce end-to-end latency
   const conversationHistoryPromise = LatencyLogger.measure(
     "📋 Orchestrator: Get conversation history",
-    () => buildConversationContext(userId)
+    () => buildConversationContext(userId),
   );
 
   const userContextPromise = formatUserContextForPrompt(userId);
@@ -227,11 +227,11 @@ export async function streamChat({
     try {
       const needsRag = await LatencyLogger.measure(
         "📚 RAG: Check if needed",
-        () => shouldUseRag(userMessage)
+        () => shouldUseRag(userMessage),
       );
       if (needsRag) {
         ragContext = await LatencyLogger.measure("📚 RAG: Get context", () =>
-          getRagContext(userMessage)
+          getRagContext(userMessage),
         );
         ragUsed = true;
         // Count chunks by counting "**" which marks each document title
@@ -260,7 +260,7 @@ export async function streamChat({
         userMemories,
         currentDate,
       });
-    }
+    },
   );
 
   // Build the last message with proper image support
@@ -375,7 +375,7 @@ export async function streamChat({
  */
 export async function generateChatResponse(
   userId: string,
-  userMessage: string
+  userMessage: string,
 ): Promise<string> {
   const result = await streamChat({ userId, userMessage });
 
