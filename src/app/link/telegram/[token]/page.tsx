@@ -13,14 +13,12 @@ function hashLinkToken(token: string) {
     .digest("hex");
 }
 
-export default async function TelegramLinkPage({
-  searchParams,
+export default async function TelegramLinkTokenPage({
+  params,
 }: {
-  searchParams: { token?: string | string[] };
+  params: { token: string };
 }) {
-  const token = Array.isArray(searchParams.token)
-    ? searchParams.token[0]
-    : searchParams.token;
+  const token = params.token;
 
   if (!token) {
     return (
@@ -37,7 +35,7 @@ export default async function TelegramLinkPage({
   const { userId } = await auth();
   if (!userId) {
     redirect(
-      `/sign-in?redirect_url=${encodeURIComponent(`/link/telegram?token=${token}`)}`,
+      `/sign-in?redirect_url=${encodeURIComponent(`/link/telegram/${token}`)}`,
     );
   }
 
@@ -45,7 +43,7 @@ export default async function TelegramLinkPage({
   const dbUser = authResult.user;
   if (!dbUser) {
     redirect(
-      `/sign-in?redirect_url=${encodeURIComponent(`/link/telegram?token=${token}`)}`,
+      `/sign-in?redirect_url=${encodeURIComponent(`/link/telegram/${token}`)}`,
     );
   }
 
