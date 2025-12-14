@@ -14,6 +14,7 @@ import {
   ThumbsDown,
   ThumbsUp,
   Trash2,
+  Volume2,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -46,6 +47,9 @@ interface MessageListProps {
   hasMoreMessages?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
+  // Voice message props
+  voiceMessages?: Map<string, string>;
+  voiceGeneratingMessageId?: string | null;
 }
 
 export function MessageList({
@@ -63,6 +67,9 @@ export function MessageList({
   hasMoreMessages = false,
   isLoadingMore = false,
   onLoadMore,
+  // Voice
+  voiceMessages,
+  voiceGeneratingMessageId,
 }: MessageListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -224,6 +231,25 @@ export function MessageList({
               const hasText = messageText.trim().length > 0;
               const isAttachmentOnly = hasAttachments && !hasText;
 
+              // Voice message state - check both in-memory and DB attachments
+              // First check in-memory state (for newly generated voices)
+              const inMemoryVoiceSrc = voiceMessages?.get(message.id);
+
+              // Then check for audio attachments from DB
+              const dbVoiceAttachment = (
+                message as unknown as {
+                  attachments?: Array<{
+                    contentType: string;
+                    blobUrl: string;
+                  }>;
+                }
+              ).attachments?.find((a) => a.contentType.startsWith("audio/"));
+
+              const isVoiceMessage = !!inMemoryVoiceSrc || !!dbVoiceAttachment;
+              const voiceAudioSrc =
+                inMemoryVoiceSrc || dbVoiceAttachment?.blobUrl;
+              const isGeneratingVoice = voiceGeneratingMessageId === message.id;
+
               return (
                 <div
                   key={virtualRow.key}
@@ -323,7 +349,31 @@ export function MessageList({
                             </div>
                           </div>
                         ) : message.role === "assistant" ? (
-                          <MemoizedMarkdown content={messageText} />
+                          <>
+                            {/* Voice generating indicator */}
+                            {isGeneratingVoice && (
+                              <div className="flex items-center gap-2 py-2 text-primary/80">
+                                <Volume2 className="h-4 w-4 animate-pulse" />
+                                <span className="text-sm">
+                                  Generando vocale...
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Voice message: show only audio player */}
+                            {isVoiceMessage && voiceAudioSrc ? (
+                              <AudioPlayer
+                                src={voiceAudioSrc}
+                                name="Messaggio vocale"
+                                mimeType="audio/mpeg"
+                              />
+                            ) : (
+                              /* Text message: show markdown */
+                              !isGeneratingVoice && (
+                                <MemoizedMarkdown content={messageText} />
+                              )
+                            )}
+                          </>
                         ) : (
                           <div className="whitespace-pre-wrap">
                             {messageText}

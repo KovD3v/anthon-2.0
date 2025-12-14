@@ -4,7 +4,16 @@ import type { Prisma } from "@/generated/prisma";
 import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
 import { streamChat } from "@/lib/ai/orchestrator";
 import { prisma } from "@/lib/db";
+import { LatencyLogger } from "@/lib/latency-logger";
 import { checkRateLimit, incrementUsage } from "@/lib/rate-limit";
+import {
+  generateVoice,
+  getSystemLoad,
+  getVoicePlanConfig,
+  isElevenLabsConfigured,
+  shouldGenerateVoice,
+  trackVoiceUsage,
+} from "@/lib/voice";
 
 export const runtime = "nodejs";
 
@@ -622,6 +631,46 @@ async function handleUpdate(update: TelegramUpdate) {
     return;
   }
 
+  // Voice generation decision
+  if (isElevenLabsConfigured()) {
+    try {
+      // Fetch user preferences for voice
+      const preferences = await prisma.preferences.findUnique({
+        where: { userId: user.id },
+        select: { voiceEnabled: true },
+      });
+
+      const voiceResult = await shouldGenerateVoice({
+        userId: user.id,
+        userMessage: userMessageText,
+        assistantText,
+        userPreferences: {
+          voiceEnabled: preferences?.voiceEnabled ?? true,
+        },
+        planConfig: getVoicePlanConfig(
+          user.subscription?.status,
+          user.role,
+          user.subscription?.planId,
+          user.isGuest,
+        ),
+        systemLoad: await getSystemLoad(),
+        planId: user.subscription?.planId,
+      });
+
+      if (voiceResult.shouldGenerateVoice) {
+        const audio = await generateVoice(assistantText);
+        await LatencyLogger.measure("Voice: Telegram Send", async () =>
+          sendTelegramVoice(chatId, audio.audioBuffer),
+        );
+        await trackVoiceUsage(user.id, audio.characterCount, "TELEGRAM");
+        return;
+      }
+    } catch (err) {
+      console.error("[Telegram Webhook] Voice generation failed:", err);
+      // Fallback to text on any voice error
+    }
+  }
+
   await sendTelegramMessage(chatId, assistantText);
 }
 
@@ -739,6 +788,42 @@ async function sendTelegramMessage(chatId: number, text: string) {
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     console.error("[Telegram] sendMessage failed:", res.status, body);
+  }
+}
+
+/**
+ * Send a voice message to a Telegram chat.
+ */
+async function sendTelegramVoice(chatId: number, audioBuffer: Buffer) {
+  if (process.env.TELEGRAM_DISABLE_SEND === "true") {
+    return;
+  }
+
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    console.error("[Telegram] TELEGRAM_BOT_TOKEN not configured");
+    return;
+  }
+
+  const url = `https://api.telegram.org/bot${token}/sendVoice`;
+
+  // Create form data for file upload
+  const formData = new FormData();
+  formData.append("chat_id", chatId.toString());
+  formData.append(
+    "voice",
+    new Blob([new Uint8Array(audioBuffer)], { type: "audio/mpeg" }),
+    "voice.mp3",
+  );
+
+  const res = await fetch(url, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error("[Telegram] sendVoice failed:", res.status, body);
   }
 }
 

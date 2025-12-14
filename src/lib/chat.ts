@@ -44,6 +44,8 @@ export function convertToUIMessages(messages: ChatMessage[]): UIMessage[] {
       : [{ type: "text" as const, text: msg.content || "" }],
     createdAt: new Date(msg.createdAt),
     annotations: msg.usage ? [msg.usage] : undefined,
+    // Pass attachments through for voice message detection
+    attachments: msg.attachments,
   }));
 }
 

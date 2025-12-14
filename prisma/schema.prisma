@@ -54,6 +54,7 @@ model User {
   consumedLinkTokens ChannelLinkToken[] @relation("ChannelLinkTokenConsumedBy")
   subscription    Subscription?
   sessionSummaries SessionSummary[]
+  voiceUsage      VoiceUsage[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -269,6 +270,7 @@ model Preferences {
   mode     String? // e.g.: "coaching", "friendly", "direct"
   language String?  @default("IT") // IT, EN, etc.
   push     Boolean? @default(true) // Push notifications enabled by default
+  voiceEnabled Boolean? @default(true) // Voice messages enabled (false = Quiet Mode)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -480,4 +482,22 @@ model Subscription {
   @@index([trialEndsAt])
   @@index([userId, status])
   @@index([status, trialEndsAt])
+}
+
+// -----------------------------------------------------
+// VOICE USAGE (tracking Eleven Labs voice generation)
+// -----------------------------------------------------
+
+model VoiceUsage {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  generatedAt    DateTime @default(now())
+  characterCount Int      // Characters sent to Eleven Labs
+  costUsd        Float?   // Estimated cost in USD
+  channel        Channel  @default(TELEGRAM) // Which channel triggered the voice
+
+  @@index([userId, generatedAt(sort: Desc)])
+  @@index([generatedAt])
 }

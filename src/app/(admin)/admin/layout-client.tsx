@@ -6,6 +6,7 @@ import {
   FileText,
   LayoutDashboard,
   MessageSquare,
+  Mic,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -18,6 +19,7 @@ const navItems = [
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/rag", label: "RAG Documents", icon: FileText },
+  { href: "/admin/voice", label: "Voice", icon: Mic },
 ];
 
 export default function AdminLayout({

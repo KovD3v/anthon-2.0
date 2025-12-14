@@ -594,10 +594,9 @@ async function hasRagDocuments(): Promise<boolean> {
 
 /**
  * Fast classifier model for RAG detection
- * Uses GPT-OSS-Safeguard-20B - a tiny, ultra-fast model optimized for classification
- * Much faster than GPT-3.5-turbo or Gemini for simple yes/no tasks (~100-200ms)
+ * Uses Gemini 2.0 Flash for reliable, fast classification (~100-200ms)
  */
-const ragClassifierModel = openrouter("openai/gpt-oss-safeguard-20b");
+const ragClassifierModel = openrouter("google/gemini-2.0-flash-001");
 
 /**
  * Short-lived cache for LLM classification results.

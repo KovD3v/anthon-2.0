@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
-import { convertToUIMessages } from "@/lib/chat";
+import { convertToUIMessages, extractTextFromParts } from "@/lib/chat";
 import type { ChatData } from "@/types/chat";
 import { ChatHeader } from "../../../(chat)/components/ChatHeader";
 import { ChatInput } from "../../../(chat)/components/ChatInput";
@@ -35,6 +35,21 @@ export default function ChatConversationPage() {
   const [hasInitialized, setHasInitialized] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
+
+  // Audio player state
+  const [_audioState, setAudioState] = useState<{
+    src: string;
+    isPlaying: boolean;
+  } | null>(null);
+
+  // Voice generation state
+  const [voiceGeneratingMessageId, setVoiceGeneratingMessageId] = useState<
+    string | null
+  >(null);
+  // Map of messageId -> audio source for voice messages
+  const [voiceMessages, setVoiceMessages] = useState<Map<string, string>>(
+    () => new Map(),
+  );
 
   // Reset state when chatId changes for faster switching
   useEffect(() => {
@@ -166,11 +181,64 @@ export default function ChatConversationPage() {
     stop,
   } = useChat({
     transport,
-    onFinish: async () => {
+    onFinish: async (_message) => {
       // Refresh chat data to get real database IDs after streaming completes
       const newMessages = await refreshChatData();
       if (newMessages) {
         setMessages(newMessages);
+
+        // TRIGGER VOICE GENERATION
+        // Find the last assistant message (which should be the one just finished)
+        // We filter for assistant because newMessages might include optimistic updates or other things?
+        // Actually newMessages is the full list from DB. The last one should be the assistant's.
+        const lastMessage = newMessages[newMessages.length - 1];
+
+        // Find the user message before it for context
+        const lastUserMessage = newMessages
+          .slice(0, newMessages.length - 1)
+          .reverse()
+          .find((m) => m.role === "user");
+
+        if (lastMessage && lastMessage.role === "assistant") {
+          // Start voice generation indicator
+          setVoiceGeneratingMessageId(lastMessage.id);
+
+          try {
+            const userText = extractTextFromParts(lastUserMessage?.parts);
+            const res = await fetch("/api/voice/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                messageId: lastMessage.id,
+                userMessage: userText,
+              }),
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              if (data.shouldGenerateVoice && data.audio) {
+                const audioSrc = `data:${data.mimeType};base64,${data.audio}`;
+
+                // Store voice message (to hide text)
+                setVoiceMessages((prev) => {
+                  const newMap = new Map(prev);
+                  newMap.set(lastMessage.id, audioSrc);
+                  return newMap;
+                });
+
+                // Also set audioState for floating player
+                setAudioState({
+                  src: audioSrc,
+                  isPlaying: true,
+                });
+              }
+            }
+          } catch (err) {
+            console.error("Voice generation request failed:", err);
+          } finally {
+            setVoiceGeneratingMessageId(null);
+          }
+        }
       }
     },
   });
@@ -511,6 +579,8 @@ export default function ChatConversationPage() {
         onRegenerate={handleRegenerate}
         hasMoreMessages={chatData?.pagination?.hasMore ?? false}
         isLoadingMore={isLoadingMore}
+        voiceMessages={voiceMessages}
+        voiceGeneratingMessageId={voiceGeneratingMessageId}
         onLoadMore={loadMoreMessages}
       />
 
