@@ -304,10 +304,14 @@ async function handleUpdate(update: TelegramUpdate) {
     return;
   }
 
-  // Download audio if present
-  let audioData: { base64: string; mimeType: string } | null = null;
+  // If Telegram provides voice/audio, transcribe it BEFORE calling streamChat.
+  // OpenRouter/Vercel AI SDK accept TEXT-only input.
+  let transcribedText: string | null = null;
   if (hasAudioMessage) {
-    audioData = await downloadTelegramAudio(message?.voice, message?.audio);
+    const audioData = await downloadTelegramAudio(
+      message?.voice,
+      message?.audio,
+    );
     if (!audioData) {
       await sendTelegramMessage(
         chatId,
@@ -315,40 +319,61 @@ async function handleUpdate(update: TelegramUpdate) {
       );
       return;
     }
+
+    try {
+      transcribedText = await transcribeWithOpenRouterWhisper(audioData);
+    } catch (err) {
+      console.error("[Telegram Webhook] Transcription failed:", err);
+
+      await prisma.message
+        .update({
+          where: { id: inbound.id },
+          data: {
+            metadata: {
+              telegram: {
+                updateId: update.update_id,
+                chatId,
+                fromId,
+                username: message?.from?.username,
+                languageCode: message?.from?.language_code,
+                error: {
+                  kind: "transcription_failed",
+                  summary: safeErrorSummary(err),
+                },
+              },
+            } as Prisma.InputJsonValue,
+          },
+        })
+        .catch(() => undefined);
+
+      await sendTelegramMessage(
+        chatId,
+        "Non sono riuscito a trascrivere l'audio in questo momento. Riprova.",
+      );
+      return;
+    }
+
+    if (!transcribedText || transcribedText.trim().length === 0) {
+      await sendTelegramMessage(
+        chatId,
+        "Non sono riuscito a trascrivere l'audio. Prova a reinviare il messaggio.",
+      );
+      return;
+    }
   }
 
-  // Build message parts for the AI
-  type MessagePart =
-    | { type: "text"; text: string }
-    | {
-        type: "file";
-        data: string;
-        mimeType: string;
-        name: string;
-        size: number;
-        attachmentId: string;
-      };
-  const messageParts: MessagePart[] = [];
+  // Determine the user message for context (pure text; include transcription as text).
+  const userMessageText = text
+    ? transcribedText
+      ? `${text}\n\n[Trascrizione audio]\n${transcribedText}`
+      : text
+    : transcribedText || "Messaggio vocale";
 
-  // Add text part if present
-  if (text) {
-    messageParts.push({ type: "text", text });
+  // Build TEXT-only message parts for the AI (no audio/file parts).
+  const messageParts: Array<{ type: "text"; text: string }> = [];
+  if (userMessageText) {
+    messageParts.push({ type: "text", text: userMessageText });
   }
-
-  // Add audio part if present
-  if (audioData) {
-    messageParts.push({
-      type: "file",
-      data: audioData.base64,
-      mimeType: audioData.mimeType,
-      name: "voice_message",
-      size: 0,
-      attachmentId: "telegram-voice",
-    });
-  }
-
-  // Determine the user message for context (text or a placeholder for audio)
-  const userMessageText = text || "Messaggio vocale";
 
   // Generate assistant response.
   let assistantText = "";
@@ -363,11 +388,6 @@ async function handleUpdate(update: TelegramUpdate) {
       messageParts: messageParts as Array<{
         type: string;
         text?: string;
-        data?: string;
-        mimeType?: string;
-        name?: string;
-        size?: number;
-        attachmentId?: string;
       }>,
       onFinish: async ({ text: finalText, metrics }) => {
         if (!finalText || finalText.trim().length === 0) return;
@@ -708,4 +728,42 @@ async function downloadTelegramAudio(
   }
 
   return { base64, mimeType };
+}
+
+async function transcribeWithOpenRouterWhisper(audio: {
+  base64: string;
+  mimeType: string;
+}): Promise<string> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY not configured");
+  }
+
+  const bytes = Buffer.from(audio.base64, "base64");
+  const blob = new Blob([bytes], { type: audio.mimeType });
+
+  const form = new FormData();
+  // OpenRouter uses OpenAI-compatible multipart fields.
+  form.append("model", "openai/whisper-1");
+  form.append("file", blob, "telegram-audio");
+
+  const res = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`OpenRouter transcription failed: ${res.status} ${body}`);
+  }
+
+  const data = (await res.json()) as { text?: unknown };
+  if (typeof data.text !== "string") {
+    throw new Error("OpenRouter transcription response missing 'text'");
+  }
+
+  return data.text;
 }
