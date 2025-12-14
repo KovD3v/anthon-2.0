@@ -5,8 +5,12 @@ import { subAgentModel } from "@/lib/ai/providers/openrouter";
 import { cacheSummary, getCachedSummary } from "@/lib/ai/session-cache";
 import { prisma } from "@/lib/db";
 
+// Optimization: Select only necessary fields to reduce payload
+// We don't need parts, reasoningContent, toolCalls, embeddings etc. for context building
+type SessionMessage = Pick<Message, "role" | "content" | "createdAt">;
+
 interface Session {
-  messages: Message[];
+  messages: SessionMessage[];
   startTime: Date;
   endTime: Date;
   userMessageCount: number;
@@ -16,11 +20,11 @@ interface Session {
  * Groups messages into sessions based on time gaps.
  * A new session starts when there's more than 15 minutes between consecutive messages.
  */
-function groupMessagesIntoSessions(messages: Message[]): Session[] {
+function groupMessagesIntoSessions(messages: SessionMessage[]): Session[] {
   if (messages.length === 0) return [];
 
   const sessions: Session[] = [];
-  let currentSession: Message[] = [messages[0]];
+  let currentSession: SessionMessage[] = [messages[0]];
 
   for (let i = 1; i < messages.length; i++) {
     const prevTime = new Date(messages[i - 1].createdAt).getTime();
@@ -43,7 +47,7 @@ function groupMessagesIntoSessions(messages: Message[]): Session[] {
   return sessions;
 }
 
-function createSession(messages: Message[]): Session {
+function createSession(messages: SessionMessage[]): Session {
   return {
     messages,
     startTime: new Date(messages[0].createdAt),
@@ -94,7 +98,7 @@ Mantieni il contesto importante per continuare la conversazione.`,
 /**
  * Converts a Message from database to ModelMessage for AI SDK.
  */
-function toModelMessage(message: Message): ModelMessage {
+function toModelMessage(message: SessionMessage): ModelMessage {
   const role =
     message.role === "USER"
       ? "user"
@@ -131,6 +135,13 @@ export async function buildConversationContext(
       where: { userId },
       orderBy: { createdAt: "desc" },
       take: SESSION.RECENT_MESSAGES_LIMIT,
+      // Optimization: Only select fields needed for context building
+      // This avoids fetching large 'reasoningContent', 'parts' JSON, etc.
+      select: {
+        role: true,
+        content: true,
+        createdAt: true,
+      },
     })
     .then((msgs) => msgs.reverse());
 
