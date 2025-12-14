@@ -84,7 +84,7 @@ export async function POST(request: Request) {
   if (!secret) {
     return Response.json(
       { ok: false, error: "TELEGRAM_WEBHOOK_SECRET not configured" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
   safeWaitUntil(
     handleUpdate(update).catch((err) => {
       console.error("[Telegram Webhook] Background handler error:", err);
-    }),
+    })
   );
 
   return Response.json({ ok: true });
@@ -179,7 +179,7 @@ async function handleUpdate(update: TelegramUpdate) {
     if (existingIdentity?.user && !existingIdentity.user.isGuest) {
       await sendTelegramMessage(
         chatId,
-        "Il tuo account Telegram è già collegato al tuo profilo. Puoi gestire i canali collegati dalla pagina del tuo account.",
+        "Il tuo account Telegram è già collegato al tuo profilo. Puoi gestire i canali collegati dalla pagina del tuo account."
       );
       return;
     }
@@ -188,14 +188,14 @@ async function handleUpdate(update: TelegramUpdate) {
     if (!linkUrl) {
       await sendTelegramMessage(
         chatId,
-        "Non riesco a generare il link di collegamento in questo momento. Riprova più tardi.",
+        "Non riesco a generare il link di collegamento in questo momento. Riprova più tardi."
       );
       return;
     }
 
     await sendTelegramMessage(
       chatId,
-      `Per collegare Telegram al tuo profilo, apri questo link:\n${linkUrl}\n\nSe non sei loggato, ti verrà chiesto di accedere o registrarti e poi il canale verrà collegato automaticamente.`,
+      `Per collegare Telegram al tuo profilo, apri questo link:\n${linkUrl}\n\nSe non sei loggato, ti verrà chiesto di accedere o registrarti e poi il canale verrà collegato automaticamente.`
     );
     return;
   }
@@ -239,13 +239,13 @@ async function handleUpdate(update: TelegramUpdate) {
     user.subscription?.status,
     user.role,
     user.subscription?.planId,
-    user.isGuest,
+    user.isGuest
   );
 
   if (!rateLimit.allowed) {
     await sendTelegramMessage(
       chatId,
-      "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti.",
+      "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti."
     );
     return;
   }
@@ -299,7 +299,7 @@ async function handleUpdate(update: TelegramUpdate) {
   if (!process.env.OPENROUTER_API_KEY) {
     await sendTelegramMessage(
       chatId,
-      "Servizio AI non configurato. Riprova più tardi.",
+      "Servizio AI non configurato. Riprova più tardi."
     );
     return;
   }
@@ -310,12 +310,12 @@ async function handleUpdate(update: TelegramUpdate) {
   if (hasAudioMessage) {
     const audioData = await downloadTelegramAudio(
       message?.voice,
-      message?.audio,
+      message?.audio
     );
     if (!audioData) {
       await sendTelegramMessage(
         chatId,
-        "Non sono riuscito a scaricare il messaggio audio. Riprova.",
+        "Non sono riuscito a scaricare il messaggio audio. Riprova."
       );
       return;
     }
@@ -348,7 +348,7 @@ async function handleUpdate(update: TelegramUpdate) {
 
       await sendTelegramMessage(
         chatId,
-        "Non sono riuscito a trascrivere l'audio in questo momento. Riprova.",
+        "Non sono riuscito a trascrivere l'audio in questo momento. Riprova."
       );
       return;
     }
@@ -356,7 +356,7 @@ async function handleUpdate(update: TelegramUpdate) {
     if (!transcribedText || transcribedText.trim().length === 0) {
       await sendTelegramMessage(
         chatId,
-        "Non sono riuscito a trascrivere l'audio. Prova a reinviare il messaggio.",
+        "Non sono riuscito a trascrivere l'audio. Prova a reinviare il messaggio."
       );
       return;
     }
@@ -384,7 +384,10 @@ async function handleUpdate(update: TelegramUpdate) {
       userMessage: userMessageText,
       planId: user.subscription?.planId,
       userRole: user.role,
-      hasAudio: hasAudioMessage,
+      // Telegram audio is transcribed before calling the AI, so the AI receives text-only input.
+      // Setting hasAudio=false prevents audio-specific prompting that can cause the model
+      // to reply that it cannot listen to voice notes.
+      hasAudio: false,
       messageParts: messageParts as Array<{
         type: string;
         text?: string;
@@ -426,7 +429,7 @@ async function handleUpdate(update: TelegramUpdate) {
           .catch((err) => {
             console.error(
               "[Telegram Webhook] Failed to save assistant message:",
-              err,
+              err
             );
           });
 
@@ -434,7 +437,7 @@ async function handleUpdate(update: TelegramUpdate) {
           user.id,
           metrics.inputTokens,
           metrics.outputTokens,
-          metrics.costUsd,
+          metrics.costUsd
         ).catch((err) => {
           console.error("[Telegram Webhook] Failed to increment usage:", err);
         });
@@ -443,8 +446,8 @@ async function handleUpdate(update: TelegramUpdate) {
           extractAndSaveMemories(user.id, userMessageText, finalText).catch(
             (err) => {
               console.error("[Telegram Webhook] Memory extraction error:", err);
-            },
-          ),
+            }
+          )
         );
       },
     });
@@ -478,7 +481,7 @@ async function handleUpdate(update: TelegramUpdate) {
 
     await sendTelegramMessage(
       chatId,
-      "Errore temporaneo. Riprova tra qualche secondo.",
+      "Errore temporaneo. Riprova tra qualche secondo."
     );
     return;
   }
@@ -506,7 +509,7 @@ async function handleUpdate(update: TelegramUpdate) {
 
     await sendTelegramMessage(
       chatId,
-      "Non ho generato una risposta. Riprova tra qualche secondo.",
+      "Non ho generato una risposta. Riprova tra qualche secondo."
     );
     return;
   }
@@ -643,7 +646,7 @@ async function getTelegramFilePath(fileId: string): Promise<string | null> {
 
   try {
     const url = `https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(
-      fileId,
+      fileId
     )}`;
     const res = await fetch(url);
 
@@ -674,7 +677,7 @@ async function getTelegramFilePath(fileId: string): Promise<string | null> {
  * Download a file from Telegram and return as base64.
  */
 async function downloadTelegramFileAsBase64(
-  filePath: string,
+  filePath: string
 ): Promise<string | null> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
@@ -707,7 +710,7 @@ async function downloadTelegramFileAsBase64(
  */
 async function downloadTelegramAudio(
   voice?: TelegramVoice,
-  audio?: TelegramAudio,
+  audio?: TelegramAudio
 ): Promise<{ base64: string; mimeType: string } | null> {
   const fileId = voice?.file_id || audio?.file_id;
   if (!fileId) {
