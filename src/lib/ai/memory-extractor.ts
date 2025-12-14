@@ -12,7 +12,7 @@ const ExtractedFactsSchema = z.object({
       key: z
         .string()
         .describe(
-          "A unique key for this fact, e.g., 'user_name', 'user_sport', 'user_goal', 'user_preference_*'"
+          "A unique key for this fact, e.g., 'user_name', 'user_sport', 'user_goal', 'user_preference_*'",
         ),
       value: z
         .string()
@@ -33,7 +33,7 @@ const ExtractedFactsSchema = z.object({
         .min(0)
         .max(1)
         .describe("Confidence score 0-1 that this fact is accurate"),
-    })
+    }),
   ),
 });
 
@@ -45,7 +45,7 @@ const ExtractedFactsSchema = z.object({
 export async function extractAndSaveMemories(
   userId: string,
   userMessage: string,
-  assistantResponse: string
+  assistantResponse: string,
 ): Promise<void> {
   try {
     // Use generateObject for structured extraction
@@ -73,7 +73,7 @@ Restituisci i fatti estratti o un array vuoto se non ce ne sono.`,
 
     // Filter facts with high enough confidence and save them
     const highConfidenceFacts = object.facts.filter(
-      (f) => f.confidence >= MEMORY.MIN_CONFIDENCE
+      (f) => f.confidence >= MEMORY.MIN_CONFIDENCE,
     );
 
     for (const fact of highConfidenceFacts) {
@@ -118,7 +118,7 @@ Restituisci i fatti estratti o un array vuoto se non ce ne sono.`,
  */
 export async function extractMemoriesFromHistory(
   userId: string,
-  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>
+  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>,
 ): Promise<void> {
   // Build conversation text
   const conversationText = conversationHistory
@@ -146,7 +146,7 @@ Regole:
 
     // Save all high-confidence facts
     const validFacts = object.facts.filter(
-      (f) => f.confidence >= MEMORY.HISTORY_MIN_CONFIDENCE
+      (f) => f.confidence >= MEMORY.HISTORY_MIN_CONFIDENCE,
     );
 
     for (const fact of validFacts) {
