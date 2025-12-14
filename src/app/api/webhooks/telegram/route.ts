@@ -321,7 +321,7 @@ async function handleUpdate(update: TelegramUpdate) {
     }
 
     try {
-      transcribedText = await transcribeWithOpenRouterWhisper(audioData);
+      transcribedText = await transcribeWithOpenRouterResponses(audioData);
     } catch (err) {
       console.error("[Telegram Webhook] Transcription failed:", err);
 
@@ -730,7 +730,7 @@ async function downloadTelegramAudio(
   return { base64, mimeType };
 }
 
-async function transcribeWithOpenRouterWhisper(audio: {
+async function transcribeWithOpenRouterResponses(audio: {
   base64: string;
   mimeType: string;
 }): Promise<string> {
@@ -739,32 +739,59 @@ async function transcribeWithOpenRouterWhisper(audio: {
     throw new Error("OPENROUTER_API_KEY not configured");
   }
 
-  const bytes = Buffer.from(audio.base64, "base64");
-  // Use File (not Blob) for most reliable multipart encoding on Vercel/Node.
-  const file = new File([bytes], "telegram-audio", { type: audio.mimeType });
+  // Creiamo il Data URI standard
+  const dataUri = `data:${audio.mimeType};base64,${audio.base64}`;
 
-  const form = new FormData();
-  // OpenRouter uses OpenAI-compatible multipart fields.
-  form.append("model", "openai/whisper-1");
-  form.append("file", file);
-
-  const res = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
+  // Usiamo l'endpoint chat/completions standard
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      // A volte OpenRouter richiede questo header per instradare correttamente i siti
+      "HTTP-Referer":
+        process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      "X-Title": "Telegram Bot",
     },
-    body: form,
+    body: JSON.stringify({
+      model: "google/gemini-2.0-flash-lite-001",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Trascrivi questo messaggio audio in testo. Rispondi SOLO con la trascrizione, senza commenti.",
+            },
+            {
+              // TRUCCO: Usiamo 'image_url' per passare il file base64.
+              // OpenRouter capirà dal mime-type (audio/ogg) che è un audio
+              // e lo passerà correttamente a Gemini.
+              type: "image_url",
+              image_url: {
+                url: dataUri,
+              },
+            },
+          ],
+        },
+      ],
+    }),
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`OpenRouter transcription failed: ${res.status} ${body}`);
+    throw new Error(`OpenRouter API failed: ${res.status} ${body}`);
   }
 
-  const data = (await res.json()) as { text?: unknown };
-  if (typeof data.text !== "string") {
-    throw new Error("OpenRouter transcription response missing 'text'");
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+
+  const text = data.choices?.[0]?.message?.content?.trim();
+
+  if (!text) {
+    throw new Error("OpenRouter returned no text output");
   }
 
-  return data.text;
+  return text;
 }
