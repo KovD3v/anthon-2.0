@@ -48,6 +48,22 @@ type TelegramAudio = {
   file_size?: number;
 };
 
+type TelegramPhotoSize = {
+  file_id: string;
+  file_unique_id: string;
+  width: number;
+  height: number;
+  file_size?: number;
+};
+
+type TelegramDocument = {
+  file_id: string;
+  file_unique_id: string;
+  file_name?: string;
+  mime_type?: string;
+  file_size?: number;
+};
+
 type TelegramUpdate = {
   update_id: number;
   message?: {
@@ -57,6 +73,8 @@ type TelegramUpdate = {
     caption?: string;
     voice?: TelegramVoice;
     audio?: TelegramAudio;
+    photo?: TelegramPhotoSize[];
+    document?: TelegramDocument;
     from?: {
       id: number;
       is_bot: boolean;
@@ -134,8 +152,13 @@ async function handleUpdate(update: TelegramUpdate) {
   const hasAudio = !!message?.audio;
   const hasAudioMessage = hasVoice || hasAudio;
 
-  // Require either text or audio
-  if (!text && !hasAudioMessage) {
+  // Check for photo/document messages
+  const hasPhoto = !!message?.photo && message.photo.length > 0;
+  const hasDocument = !!message?.document;
+  const hasMediaAttachment = hasPhoto || hasDocument;
+
+  // Require either text, audio, or media attachment
+  if (!text && !hasAudioMessage && !hasMediaAttachment) {
     return;
   }
 
@@ -251,6 +274,21 @@ async function handleUpdate(update: TelegramUpdate) {
   }
 
   // Save inbound message.
+  // Determine message type
+  const messageType = hasPhoto
+    ? "IMAGE"
+    : hasDocument
+      ? "DOCUMENT"
+      : hasAudioMessage
+        ? "AUDIO"
+        : "TEXT";
+  const defaultContent = hasPhoto
+    ? "Foto"
+    : hasDocument
+      ? "Documento"
+      : hasAudioMessage
+        ? "Messaggio vocale"
+        : "";
   const inbound = await prisma.message
     .create({
       data: {
@@ -258,8 +296,8 @@ async function handleUpdate(update: TelegramUpdate) {
         channel: "TELEGRAM",
         direction: "INBOUND",
         role: "USER",
-        type: hasAudioMessage ? "AUDIO" : "TEXT",
-        content: text || "Messaggio vocale",
+        type: messageType,
+        content: text || defaultContent,
         externalMessageId,
         metadata: {
           telegram: {
@@ -270,6 +308,10 @@ async function handleUpdate(update: TelegramUpdate) {
             languageCode: message?.from?.language_code,
             hasVoice: hasVoice || undefined,
             hasAudio: hasAudio || undefined,
+            hasPhoto: hasPhoto || undefined,
+            hasDocument: hasDocument || undefined,
+            documentName: message?.document?.file_name,
+            documentMimeType: message?.document?.mime_type,
           },
         } as Prisma.InputJsonValue,
       },
@@ -375,10 +417,67 @@ async function handleUpdate(update: TelegramUpdate) {
       ? `${voiceInstruction}\n\n[Trascrizione audio]\n${transcribedText}`
       : "Messaggio vocale";
 
-  // Build TEXT-only message parts for the AI (no audio/file parts).
-  const messageParts: Array<{ type: "text"; text: string }> = [];
+  // Build message parts for the AI - can now include photos/documents.
+  type MessagePart =
+    | { type: "text"; text: string }
+    | { type: "file"; mimeType: string; data: string };
+
+  const messageParts: MessagePart[] = [];
+
+  // Add text if present
   if (userMessageText) {
     messageParts.push({ type: "text", text: userMessageText });
+  }
+
+  // Download and add photo if present
+  let downloadedPhoto = false;
+  if (hasPhoto && message?.photo) {
+    try {
+      const photoData = await downloadTelegramPhoto(message.photo);
+      if (photoData) {
+        messageParts.push({
+          type: "file",
+          mimeType: photoData.mimeType,
+          data: photoData.base64,
+        });
+        downloadedPhoto = true;
+      }
+    } catch (err) {
+      console.error("[Telegram Webhook] Failed to download photo:", err);
+    }
+  }
+
+  // Download and add document if present
+  if (hasDocument && message?.document) {
+    try {
+      const docData = await downloadTelegramDocument(message.document);
+      if (docData) {
+        messageParts.push({
+          type: "file",
+          mimeType: docData.mimeType,
+          data: docData.base64,
+        });
+        // Add context about the document name if no caption
+        if (!text && docData.fileName) {
+          messageParts.unshift({
+            type: "text",
+            text: `L'utente ha inviato il file: ${docData.fileName}`,
+          });
+        }
+      }
+    } catch (err) {
+      console.error("[Telegram Webhook] Failed to download document:", err);
+    }
+  }
+
+  // Add default prompt for media-only messages
+  if (messageParts.length > 0 && !messageParts.some((p) => p.type === "text")) {
+    messageParts.unshift({
+      type: "text",
+      text: hasPhoto
+        ? "L'utente ha inviato questa immagine."
+        : "L'utente ha inviato questo file.",
+    });
   }
 
   // Generate assistant response.
@@ -387,16 +486,19 @@ async function handleUpdate(update: TelegramUpdate) {
   try {
     const result = await streamChat({
       userId: user.id,
-      userMessage: userMessageText,
+      userMessage: userMessageText || (hasPhoto ? "Immagine" : "Documento"),
       planId: user.subscription?.planId,
       userRole: user.role,
       // Telegram audio is transcribed before calling the AI, so the AI receives text-only input.
       // Setting hasAudio=false prevents audio-specific prompting that can cause the model
       // to reply that it cannot listen to voice notes.
       hasAudio: false,
+      hasImages: downloadedPhoto, // Enable vision model when photos are present
       messageParts: messageParts as Array<{
         type: string;
         text?: string;
+        data?: string;
+        mimeType?: string;
       }>,
       onFinish: async ({ text: finalText, metrics }) => {
         if (!finalText || finalText.trim().length === 0) return;
@@ -737,6 +839,58 @@ async function downloadTelegramAudio(
   }
 
   return { base64, mimeType };
+}
+
+/**
+ * Download photo from Telegram.
+ * Gets the largest size available for better quality.
+ * Returns base64 data and mime type, or null if failed.
+ */
+async function downloadTelegramPhoto(
+  photos: TelegramPhotoSize[],
+): Promise<{ base64: string; mimeType: string } | null> {
+  if (!photos || photos.length === 0) {
+    return null;
+  }
+
+  // Get the largest photo (last in array)
+  const largestPhoto = photos[photos.length - 1];
+  const filePath = await getTelegramFilePath(largestPhoto.file_id);
+  if (!filePath) {
+    return null;
+  }
+
+  const base64 = await downloadTelegramFileAsBase64(filePath);
+  if (!base64) {
+    return null;
+  }
+
+  // Telegram photos are always JPEG
+  return { base64, mimeType: "image/jpeg" };
+}
+
+/**
+ * Download document from Telegram.
+ * Returns base64 data and mime type, or null if failed.
+ */
+async function downloadTelegramDocument(
+  document: TelegramDocument,
+): Promise<{ base64: string; mimeType: string; fileName?: string } | null> {
+  const filePath = await getTelegramFilePath(document.file_id);
+  if (!filePath) {
+    return null;
+  }
+
+  const base64 = await downloadTelegramFileAsBase64(filePath);
+  if (!base64) {
+    return null;
+  }
+
+  return {
+    base64,
+    mimeType: document.mime_type || "application/octet-stream",
+    fileName: document.file_name,
+  };
 }
 
 async function transcribeWithOpenRouterResponses(audio: {
