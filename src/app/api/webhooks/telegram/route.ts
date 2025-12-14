@@ -740,12 +740,13 @@ async function transcribeWithOpenRouterWhisper(audio: {
   }
 
   const bytes = Buffer.from(audio.base64, "base64");
-  const blob = new Blob([bytes], { type: audio.mimeType });
+  // Use File (not Blob) for most reliable multipart encoding on Vercel/Node.
+  const file = new File([bytes], "telegram-audio", { type: audio.mimeType });
 
   const form = new FormData();
   // OpenRouter uses OpenAI-compatible multipart fields.
   form.append("model", "openai/whisper-1");
-  form.append("file", blob, "telegram-audio");
+  form.append("file", file);
 
   const res = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
     method: "POST",
