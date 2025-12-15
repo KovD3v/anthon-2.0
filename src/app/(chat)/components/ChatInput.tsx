@@ -157,6 +157,7 @@ export function ChatInput({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Send a message..."
+          aria-label="Message input"
           rows={1}
           className="flex-1 resize-none bg-transparent px-2 py-3 text-sm outline-none placeholder:text-muted-foreground/50 max-h-[200px] overflow-y-auto scrollbar-none"
           disabled={isLoading}
@@ -169,6 +170,7 @@ export function ChatInput({
               variant="destructive"
               className="h-9 w-9 rounded-full shadow-sm transition-all hover:shadow-md"
               onClick={onStop}
+              aria-label="Stop generating"
             >
               <Square className="h-4 w-4 fill-current" />
             </Button>
@@ -182,6 +184,7 @@ export function ChatInput({
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
               disabled={!input.trim()}
+              aria-label="Send message"
             >
               <Send className="h-4 w-4 ml-0.5" />
             </Button>
