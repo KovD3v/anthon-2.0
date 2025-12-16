@@ -271,6 +271,7 @@ export function AttachmentButton({
         className,
       )}
       title="Attach file"
+      aria-label="Attach file"
     >
       <File className="h-5 w-5" />
     </Button>
