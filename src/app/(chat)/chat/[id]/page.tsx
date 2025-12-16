@@ -426,17 +426,20 @@ export default function ChatConversationPage() {
   };
 
   // Handle message edit
-  const handleStartEdit = (messageId: string, currentText: string) => {
-    setEditingMessageId(messageId);
-    setEditContent(currentText);
-  };
+  const handleStartEdit = useCallback(
+    (messageId: string, currentText: string) => {
+      setEditingMessageId(messageId);
+      setEditContent(currentText);
+    },
+    [],
+  );
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     setEditingMessageId(null);
     setEditContent("");
-  };
+  }, []);
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = useCallback(async () => {
     if (!editingMessageId || !editContent.trim()) return;
 
     const newContent = editContent.trim();
@@ -474,10 +477,10 @@ export default function ChatConversationPage() {
       console.error("Edit error:", err);
       toast.error("Failed to edit message");
     }
-  };
+  }, [editingMessageId, editContent, chatId, sendMessage, setMessages]);
 
   // Handle regenerate (re-send the last user message)
-  const handleRegenerate = async () => {
+  const handleRegenerate = useCallback(async () => {
     const messages = displayMessages;
 
     // Find the last assistant message
@@ -524,7 +527,7 @@ export default function ChatConversationPage() {
       console.error("Regenerate error:", err);
       toast.error("Failed to regenerate response");
     }
-  };
+  }, [displayMessages, chatId, sendMessage, setMessages]);
 
   // Loading state
   if (isLoadingChat) {
