@@ -4,6 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
 import { Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -21,7 +22,10 @@ import { useChatContext } from "../layout";
 export default function ChatConversationPage() {
   const params = useParams();
   const chatId = params.id as string;
-  const { getCachedChat, renameChat } = useChatContext(); // Access context to get cached data
+  const { getCachedChat, renameChat, isGuest } = useChatContext();
+
+  // Use guest API when in guest mode
+  const apiBase = isGuest ? "/api/guest" : "/api";
 
   const [chatData, setChatData] = useState<ChatData | null>(null);
   const [isLoadingChat, setIsLoadingChat] = useState(true);
@@ -76,7 +80,7 @@ export default function ChatConversationPage() {
       setIsLoadingChat(true);
       setError(null);
       try {
-        const response = await fetch(`/api/chats/${chatId}`, {
+        const response = await fetch(`${apiBase}/chats/${chatId}`, {
           signal: controller.signal,
         });
         if (response.ok) {
@@ -103,7 +107,7 @@ export default function ChatConversationPage() {
     }
 
     return () => controller.abort();
-  }, [chatId, getCachedChat]);
+  }, [chatId, getCachedChat, apiBase]);
 
   // Convert stored messages to useChat format - memoized to avoid recalculation
   const initialMessages: UIMessage[] = useMemo(() => {
@@ -114,7 +118,7 @@ export default function ChatConversationPage() {
   // Refresh chat data to get real database IDs
   const refreshChatData = useCallback(async () => {
     try {
-      const response = await fetch(`/api/chats/${chatId}`);
+      const response = await fetch(`${apiBase}/chats/${chatId}`);
       if (response.ok) {
         const data = await response.json();
         setChatData(data);
@@ -124,7 +128,7 @@ export default function ChatConversationPage() {
       console.error("Failed to refresh chat data:", err);
     }
     return null;
-  }, [chatId]);
+  }, [chatId, apiBase]);
 
   // Load more (older) messages
   const loadMoreMessages = useCallback(async () => {
@@ -139,7 +143,7 @@ export default function ChatConversationPage() {
     setIsLoadingMore(true);
     try {
       const response = await fetch(
-        `/api/chats/${chatId}?cursor=${chatData.pagination.nextCursor}&limit=50`,
+        `${apiBase}/chats/${chatId}?cursor=${chatData.pagination.nextCursor}&limit=50`,
       );
       if (response.ok) {
         const data = await response.json();
@@ -160,16 +164,17 @@ export default function ChatConversationPage() {
     } finally {
       setIsLoadingMore(false);
     }
-  }, [chatId, chatData?.pagination, isLoadingMore]);
+  }, [chatId, chatData?.pagination, isLoadingMore, apiBase]);
 
   // Memoize transport to prevent useChat re-initialization on every render
+  // Use guest chat API when in guest mode
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
-        api: "/api/chat",
+        api: isGuest ? "/api/guest/chat" : "/api/chat",
         body: { chatId },
       }),
-    [chatId],
+    [chatId, isGuest],
   );
 
   const {
@@ -198,6 +203,9 @@ export default function ChatConversationPage() {
           .slice(0, newMessages.length - 1)
           .reverse()
           .find((m) => m.role === "user");
+
+        // Skip voice generation for guests
+        if (isGuest) return;
 
         if (lastMessage && lastMessage.role === "assistant") {
           // Start voice generation indicator
@@ -258,6 +266,38 @@ export default function ChatConversationPage() {
     }
     return initialMessages;
   }, [streamingMessages, initialMessages]);
+
+  // Parse error message for better UI
+  const formattedError = useMemo(() => {
+    if (!chatError) return null;
+    try {
+      // Try to parse if it looks like JSON
+      if (chatError.message.trim().startsWith("{")) {
+        const parsed = JSON.parse(chatError.message);
+        if (parsed.error === "Rate limit exceeded") {
+          return {
+            title: "Limite Raggiunto",
+            message:
+              "Hai raggiunto il limite di messaggi giornalieri per gli ospiti.",
+            action: (
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="mt-2 w-full border-red-200 bg-white hover:bg-red-50 text-red-700 dark:bg-transparent dark:hover:bg-red-900/20"
+              >
+                <Link href="/sign-up">Registrati per continuare</Link>
+              </Button>
+            ),
+          };
+        }
+        return { message: parsed.error || chatError.message };
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+    return { message: chatError.message };
+  }, [chatError]);
 
   const handleSubmit = (
     e: React.FormEvent,
@@ -597,9 +637,17 @@ export default function ChatConversationPage() {
       )}
 
       {/* Error display inline */}
-      {chatError && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400 shadow-xl">
-          Un errore si è verificato: {chatError.message}
+      {/* Error display inline */}
+      {formattedError && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 min-w-[300px] max-w-md rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400 shadow-xl backdrop-blur-sm">
+          {formattedError.title && (
+            <div className="mb-1 font-semibold">{formattedError.title}</div>
+          )}
+          <div>
+            {formattedError.title ? "" : "Un errore si è verificato: "}
+            {formattedError.message}
+          </div>
+          {formattedError.action}
         </div>
       )}
 
@@ -609,6 +657,7 @@ export default function ChatConversationPage() {
         onSubmit={handleSubmit}
         isLoading={isLoading}
         onStop={handleStop}
+        disableAttachments={isGuest}
       />
 
       <ConfirmDialog

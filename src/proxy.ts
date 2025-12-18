@@ -2,11 +2,12 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 // Routes that require authentication
+// Note: /chat is NOT protected - guests can access via cookie-based auth
 const isProtectedRoute = createRouteMatcher([
-  "/chat(.*)",
   "/profile(.*)",
   "/settings(.*)",
   "/admin(.*)",
+  "/channels(.*)",
 ]);
 
 // Routes that require admin role

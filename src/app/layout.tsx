@@ -1,5 +1,5 @@
 import { ClerkProvider } from "@clerk/nextjs";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { ToastProvider } from "@/components/providers/toast-provider";
@@ -15,9 +15,27 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Viewport configuration for mobile optimization
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+};
+
 export const metadata: Metadata = {
   title: "Anthon - AI Mental Coach",
   description: "Il tuo mental coach personale basato sull'IA.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Anthon",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({

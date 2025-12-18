@@ -7,6 +7,12 @@
 
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import {
+  clearGuestCookie,
+  getGuestTokenFromCookies,
+  hashGuestToken,
+} from "@/lib/guest-auth";
+import { migrateGuestToUser } from "@/lib/guest-migration";
 
 export const runtime = "nodejs";
 
@@ -22,6 +28,42 @@ export async function GET() {
   }
 
   try {
+    // Check for guest migration: if user has a guest cookie, migrate their data
+    const guestToken = await getGuestTokenFromCookies();
+    if (guestToken) {
+      const tokenHash = hashGuestToken(guestToken);
+
+      // Find guest user by token hash
+      const guestUser = await prisma.user.findFirst({
+        where: {
+          isGuest: true,
+          guestAbuseIdHash: tokenHash,
+          guestConvertedAt: null,
+        },
+        select: { id: true },
+      });
+
+      if (guestUser && guestUser.id !== user.id) {
+        // Migrate guest data to authenticated user
+        console.log(
+          `[Chats API] Migrating guest ${guestUser.id} to user ${user.id}`,
+        );
+        const migrationResult = await migrateGuestToUser(guestUser.id, user.id);
+
+        if (migrationResult.success) {
+          console.log(
+            `[Chats API] Migration successful:`,
+            migrationResult.migratedCounts,
+          );
+        } else {
+          console.error(`[Chats API] Migration failed:`, migrationResult.error);
+        }
+
+        // Clear guest cookie after migration attempt
+        await clearGuestCookie();
+      }
+    }
+
     const chats = await prisma.chat.findMany({
       where: { userId: user.id },
       orderBy: { updatedAt: "desc" },

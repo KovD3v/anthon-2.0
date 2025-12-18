@@ -12,6 +12,7 @@ import { AudioRecorder } from "./AudioRecorder";
 interface ChatInputProps {
   input: string;
   isLoading: boolean;
+  disableAttachments?: boolean;
   setInput: (value: string) => void;
   onSubmit: (e: React.FormEvent, attachments?: AttachmentData[]) => void;
   onStop: () => void;
@@ -20,6 +21,7 @@ interface ChatInputProps {
 export function ChatInput({
   input,
   isLoading,
+  disableAttachments = false,
   setInput,
   onSubmit,
   onStop,
@@ -118,7 +120,7 @@ export function ChatInput({
   };
 
   return (
-    <div className="relative mx-auto w-full max-w-3xl px-4 pb-6 pt-2">
+    <div className="relative mx-auto w-full max-w-3xl px-4 pb-6 pt-2 safe-area-bottom">
       {/* Attachment previews */}
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
@@ -147,22 +149,26 @@ export function ChatInput({
           accept="image/*,.pdf,.doc,.docx,.txt,audio/*,.mp3,.wav,.ogg,.aac,.flac,.m4a"
         />
 
-        {/* Attachment button */}
-        <div className="pb-1 pl-1">
-          <AttachmentButton
-            onClick={() => fileInputRef.current?.click()}
-            hasAttachment={attachments.length > 0}
-            className="h-9 w-9"
-          />
-        </div>
+        {/* Attachment button - hidden for guests */}
+        {!disableAttachments && (
+          <div className="pb-1 pl-1">
+            <AttachmentButton
+              onClick={() => fileInputRef.current?.click()}
+              hasAttachment={attachments.length > 0}
+              className="h-9 w-9"
+            />
+          </div>
+        )}
 
-        {/* Microphone button for voice recording */}
-        <div className="pb-1">
-          <AudioRecorder
-            onRecordingComplete={handleRecordingComplete}
-            disabled={isLoading || isUploading}
-          />
-        </div>
+        {/* Microphone button for voice recording - hidden for guests */}
+        {!disableAttachments && (
+          <div className="pb-1">
+            <AudioRecorder
+              onRecordingComplete={handleRecordingComplete}
+              disabled={isLoading || isUploading}
+            />
+          </div>
+        )}
 
         <textarea
           ref={textareaRef}

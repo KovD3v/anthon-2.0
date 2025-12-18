@@ -1,7 +1,8 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { Brain, Loader2, PanelLeft } from "lucide-react";
+import { Loader2, PanelLeft, Sparkles, UserPlus } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
@@ -32,6 +33,7 @@ interface ChatContextType {
   chats: Chat[];
   isLoading: boolean;
   currentChatId: string | null;
+  isGuest: boolean;
   createChat: () => Promise<string | null>;
   deleteChat: (id: string) => Promise<boolean>;
   refreshChats: () => Promise<void>;
@@ -52,6 +54,39 @@ export function useChatContext() {
 }
 
 // -----------------------------------------------------
+// Guest Banner Component
+// -----------------------------------------------------
+
+function GuestBanner({ remaining }: { remaining?: number }) {
+  return (
+    <div className="flex items-center justify-between gap-3 bg-linear-to-r from-primary/10 via-primary/5 to-transparent border-b border-primary/20 px-4 py-2.5">
+      <div className="flex items-center gap-2 text-sm">
+        <Sparkles className="h-4 w-4 text-primary" />
+        <span className="text-muted-foreground">
+          Stai chattando come ospite.
+          {remaining !== undefined && (
+            <span className="ml-1 font-medium text-primary">
+              {remaining} messaggi rimanenti
+            </span>
+          )}
+        </span>
+      </div>
+      <Button
+        asChild
+        size="sm"
+        variant="default"
+        className="gap-1.5 h-7 text-xs"
+      >
+        <Link href="/sign-up">
+          <UserPlus className="h-3.5 w-3.5" />
+          Registrati per salvare
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
+// -----------------------------------------------------
 // Layout Component
 // -----------------------------------------------------
 
@@ -68,7 +103,14 @@ export default function ChatLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [guestInitialized, setGuestInitialized] = useState(false);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
+
+  // Determine if we're in guest mode
+  const isGuest = isLoaded && !user;
+
+  // API base path switches based on auth mode
+  const apiBase = isGuest ? "/api/guest" : "/api";
 
   // Usage tracking state
   const [usageData, setUsageData] = useState<{
@@ -92,9 +134,9 @@ export default function ChatLayout({
     key: "n",
     modifiers: ["meta"],
     callback: () => {
-      if (user) createChat();
+      createChat();
     },
-    enabled: !!user,
+    enabled: isLoaded,
   });
 
   useKeyboardShortcut({
@@ -103,7 +145,7 @@ export default function ChatLayout({
     callback: () => setIsSidebarOpen((prev) => !prev),
   });
 
-  // Cmd+K for search
+  // Cmd+K for search (disabled for guests - no search API)
   useKeyboardShortcut({
     key: "k",
     modifiers: ["meta"],
@@ -111,18 +153,18 @@ export default function ChatLayout({
     enabled: !!user,
   });
 
-  // Chat data cache for avoiding redundant API calls (using refs to avoid stale closures)
+  // Chat data cache for avoiding redundant API calls
   const chatCacheRef = useRef<Map<string, ChatData>>(new Map());
   const preFetchingIdsRef = useRef<Set<string>>(new Set());
-  const MAX_CACHE_SIZE = 20; // LRU cache limit
+  const MAX_CACHE_SIZE = 20;
 
   // Get current chat ID from pathname
   const currentChatId = pathname?.split("/chat/")?.[1] || null;
 
-  // Fetch chats
+  // Fetch chats (uses appropriate API based on auth mode)
   const refreshChats = useCallback(async () => {
     try {
-      const response = await fetch("/api/chats");
+      const response = await fetch(`${apiBase}/chats`);
       if (response.ok) {
         const data = await response.json();
         setChats(data.chats || []);
@@ -130,27 +172,46 @@ export default function ChatLayout({
     } catch (error) {
       console.error("Failed to fetch chats:", error);
     }
-  }, []);
+  }, [apiBase]);
 
-  // Load chats on mount
+  // Initialize guest session or load authenticated chats
   useEffect(() => {
-    async function loadChats() {
-      if (isLoaded && user) {
+    async function initialize() {
+      if (!isLoaded) return;
+
+      if (user) {
+        // Authenticated user - load their chats
         await refreshChats();
         setIsLoading(false);
-      } else if (isLoaded && !user) {
+      } else {
+        // Guest mode - initialize guest session by fetching chats
+        // This will create a guest user if needed (via cookie)
+        try {
+          const response = await fetch("/api/guest/chats");
+          if (response.ok) {
+            const data = await response.json();
+            setChats(data.chats || []);
+            setGuestInitialized(true);
+          }
+        } catch (error) {
+          console.error("Failed to initialize guest session:", error);
+        }
         setIsLoading(false);
       }
     }
-    loadChats();
+    initialize();
   }, [isLoaded, user, refreshChats]);
 
-  // Fetch usage data on mount
+  // Fetch usage data (for both guests and authenticated users)
   useEffect(() => {
     async function loadUsage() {
-      if (!user) return;
+      if (!isLoaded) return;
+      // Wait for guest initialization if in guest mode
+      if (!user && !guestInitialized) return;
+
       try {
-        const response = await fetch("/api/usage");
+        const endpoint = user ? "/api/usage" : "/api/guest/usage";
+        const response = await fetch(endpoint);
         if (response.ok) {
           const data = await response.json();
           setUsageData(data);
@@ -160,48 +221,48 @@ export default function ChatLayout({
       }
     }
     loadUsage();
-  }, [user]);
+  }, [user, isLoaded, guestInitialized]);
 
-  // Pre-fetch chat data on hover with LRU cache eviction
-  const preFetchChat = useCallback(async (id: string) => {
-    // Skip if already cached or currently pre-fetching
-    if (chatCacheRef.current.has(id) || preFetchingIdsRef.current.has(id)) {
-      return;
-    }
-
-    preFetchingIdsRef.current.add(id);
-
-    try {
-      const response = await fetch(`/api/chats/${id}`);
-      if (response.ok) {
-        const data = await response.json();
-
-        // LRU eviction: remove oldest entry if cache is full
-        if (chatCacheRef.current.size >= MAX_CACHE_SIZE) {
-          const firstKey = chatCacheRef.current.keys().next().value;
-          if (firstKey) {
-            chatCacheRef.current.delete(firstKey);
-          }
-        }
-
-        chatCacheRef.current.set(id, data);
+  // Pre-fetch chat data on hover
+  const preFetchChat = useCallback(
+    async (id: string) => {
+      if (chatCacheRef.current.has(id) || preFetchingIdsRef.current.has(id)) {
+        return;
       }
-    } catch (error) {
-      console.error("Failed to pre-fetch chat:", error);
-    } finally {
-      preFetchingIdsRef.current.delete(id);
-    }
-  }, []);
+
+      preFetchingIdsRef.current.add(id);
+
+      try {
+        const response = await fetch(`${apiBase}/chats/${id}`);
+        if (response.ok) {
+          const data = await response.json();
+
+          if (chatCacheRef.current.size >= MAX_CACHE_SIZE) {
+            const firstKey = chatCacheRef.current.keys().next().value;
+            if (firstKey) {
+              chatCacheRef.current.delete(firstKey);
+            }
+          }
+
+          chatCacheRef.current.set(id, data);
+        }
+      } catch (error) {
+        console.error("Failed to pre-fetch chat:", error);
+      } finally {
+        preFetchingIdsRef.current.delete(id);
+      }
+    },
+    [apiBase],
+  );
 
   // Get cached chat data
   const getCachedChat = useCallback((id: string): ChatData | null => {
     return chatCacheRef.current.get(id) || null;
   }, []);
 
-  // Navigate to chat with client-side state management
+  // Navigate to chat
   const navigateToChat = useCallback(
     (id: string) => {
-      // Use startTransition for non-blocking navigation
       startTransition(() => {
         router.push(`/chat/${id}`, { scroll: false });
       });
@@ -209,9 +270,10 @@ export default function ChatLayout({
     [router],
   );
 
+  // Create chat
   const createChat = async (): Promise<string | null> => {
     try {
-      const response = await fetch("/api/chats", {
+      const response = await fetch(`${apiBase}/chats`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -220,7 +282,6 @@ export default function ChatLayout({
       if (response.ok) {
         const chat = await response.json();
 
-        // Optimistically add the new chat to the list (avoid re-fetch)
         const newChat: Chat = {
           id: chat.id,
           title: chat.title ?? "Nuova Chat",
@@ -230,10 +291,7 @@ export default function ChatLayout({
           messageCount: 0,
         };
 
-        // Add to the beginning of the list
         setChats((prev) => [newChat, ...prev]);
-
-        // Navigate to the new chat
         router.push(`/chat/${chat.id}`);
         return chat.id;
       }
@@ -246,26 +304,20 @@ export default function ChatLayout({
   // Rename chat
   const renameChat = async (id: string, newTitle: string): Promise<boolean> => {
     try {
-      // Optimistically update UI and move to top
       setChats((prev) => {
         const chat = prev.find((c) => c.id === id);
         if (!chat) return prev;
-
-        // Remove from current position
         const filtered = prev.filter((c) => c.id !== id);
-
-        // Add to top with new title
         return [{ ...chat, title: newTitle }, ...filtered];
       });
 
-      const response = await fetch(`/api/chats/${id}`, {
+      const response = await fetch(`${apiBase}/chats/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: newTitle }),
       });
 
       if (response.ok) {
-        // Update cache if exists
         const cached = chatCacheRef.current.get(id);
         if (cached) {
           chatCacheRef.current.set(id, {
@@ -275,7 +327,6 @@ export default function ChatLayout({
         }
         return true;
       } else {
-        // Revert on failure
         await refreshChats();
         toast.error("Failed to rename chat");
         return false;
@@ -305,17 +356,16 @@ export default function ChatLayout({
 
     setDeletingChatId(id);
     try {
-      const response = await fetch(`/api/chats/${id}`, {
+      const response = await fetch(`${apiBase}/chats/${id}`, {
         method: "DELETE",
       });
 
       if (response.ok) {
         await refreshChats();
-        // If we deleted the current chat, navigate to /chat
         if (currentChatId === id) {
           router.push("/chat");
         }
-        toast.success("Conversation deleted");
+        toast.success("Conversazione eliminata");
         return true;
       } else {
         toast.error("Eliminazione conversazione fallita");
@@ -330,26 +380,10 @@ export default function ChatLayout({
   };
 
   // Show loading state
-  if (!isLoaded) {
+  if (!isLoaded || (isGuest && !guestInitialized && isLoading)) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  // Show sign in prompt if not authenticated
-  if (!user) {
-    return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4">
-        <Brain className="h-16 w-16 text-primary" />
-        <h1 className="text-2xl font-bold">Anthon</h1>
-        <p className="text-muted-foreground">
-          Accedi per iniziare a chattare con Anthon
-        </p>
-        <Button asChild>
-          <a href="/sign-in">Accedi</a>
-        </Button>
       </div>
     );
   }
@@ -360,6 +394,7 @@ export default function ChatLayout({
         chats,
         isLoading,
         currentChatId,
+        isGuest,
         createChat,
         deleteChat,
         refreshChats,
@@ -401,7 +436,6 @@ export default function ChatLayout({
               onDelete={deleteChat}
               onSelect={(id) => {
                 navigateToChat(id);
-                // Close sidebar on mobile after selecting
                 if (window.innerWidth < 768) {
                   setIsSidebarOpen(false);
                 }
@@ -417,8 +451,23 @@ export default function ChatLayout({
 
         {/* Main Content */}
         <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Usage Banner */}
-          {usageData && (
+          {/* Guest Banner */}
+          {isGuest && (
+            <GuestBanner
+              remaining={
+                usageData
+                  ? Math.max(
+                      0,
+                      usageData.limits.maxRequests -
+                        usageData.usage.requestCount,
+                    )
+                  : undefined
+              }
+            />
+          )}
+
+          {/* Usage Banner (authenticated users only) */}
+          {!isGuest && usageData && (
             <UsageBanner
               usage={usageData.usage}
               limits={usageData.limits}

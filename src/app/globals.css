@@ -163,3 +163,27 @@
     background-attachment: fixed;
   }
 }
+
+/* Safe area insets for notched devices */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Mobile keyboard handling */
+@media (max-width: 768px) {
+  /* Prevent body scroll when keyboard is open */
+  html {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+}
