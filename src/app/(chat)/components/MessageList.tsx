@@ -17,7 +17,7 @@ import {
   Volume2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
@@ -52,7 +52,7 @@ interface MessageListProps {
   voiceGeneratingMessageId?: string | null;
 }
 
-export function MessageList({
+function MessageListBase({
   messages,
   isLoading,
   editingMessageId,
@@ -635,3 +635,5 @@ export function MessageList({
     </>
   );
 }
+
+export const MessageList = memo(MessageListBase);
