@@ -369,77 +369,88 @@ export default function ChatConversationPage() {
     previousChatData: ChatData | null;
   } | null>(null);
 
-  const handleDeleteMessage = async (messageId: string) => {
-    const confirmed = await confirm({
-      title: "Eliminare il messaggio?",
-      description:
-        "Questo eliminerà questo messaggio e tutti i messaggi successivi.",
-      confirmText: "Elimina",
-      cancelText: "Annulla",
-      variant: "destructive",
-    });
+  const handleDeleteMessage = useCallback(
+    async (messageId: string) => {
+      const confirmed = await confirm({
+        title: "Eliminare il messaggio?",
+        description:
+          "Questo eliminerà questo messaggio e tutti i messaggi successivi.",
+        confirmText: "Elimina",
+        cancelText: "Annulla",
+        variant: "destructive",
+      });
 
-    if (!confirmed) {
-      return;
-    }
+      if (!confirmed) {
+        return;
+      }
 
-    // Store current messages for potential undo using ref to avoid stale closure
-    deleteStateRef.current = {
-      cancelled: false,
-      previousMessages: [...displayMessages],
-      previousChatData: chatData,
-    };
+      // Store current messages for potential undo using ref to avoid stale closure
+      deleteStateRef.current = {
+        cancelled: false,
+        previousMessages: [...displayMessages],
+        previousChatData: chatData,
+      };
 
-    // Optimistically remove messages (find index and remove from there)
-    const msgIndex = displayMessages.findIndex((m) => m.id === messageId);
-    if (msgIndex !== -1) {
-      setMessages(displayMessages.slice(0, msgIndex));
-    }
+      // Optimistically remove messages (find index and remove from there)
+      const msgIndex = displayMessages.findIndex((m) => m.id === messageId);
+      if (msgIndex !== -1) {
+        setMessages(displayMessages.slice(0, msgIndex));
+      }
 
-    setDeletingMessageId(messageId);
+      setDeletingMessageId(messageId);
 
-    // Show undo toast
-    toast("Messaggio eliminato", {
-      description: "Clicca per annullare",
-      action: {
-        label: "Annulla",
-        onClick: () => {
-          // Mark as cancelled
-          if (deleteStateRef.current) {
-            deleteStateRef.current.cancelled = true;
-            // Restore previous messages
-            setMessages(deleteStateRef.current.previousMessages);
-            if (deleteStateRef.current.previousChatData) {
-              setChatData(deleteStateRef.current.previousChatData);
+      // Show undo toast
+      toast("Messaggio eliminato", {
+        description: "Clicca per annullare",
+        action: {
+          label: "Annulla",
+          onClick: () => {
+            // Mark as cancelled
+            if (deleteStateRef.current) {
+              deleteStateRef.current.cancelled = true;
+              // Restore previous messages
+              setMessages(deleteStateRef.current.previousMessages);
+              if (deleteStateRef.current.previousChatData) {
+                setChatData(deleteStateRef.current.previousChatData);
+              }
+              setDeletingMessageId(null);
+              toast.success("Eliminazione annullata");
             }
-            setDeletingMessageId(null);
-            toast.success("Eliminazione annullata");
-          }
+          },
         },
-      },
-      duration: 5000,
-      onAutoClose: async () => {
-        // Check if cancelled before performing deletion
-        if (deleteStateRef.current?.cancelled) {
-          return;
-        }
+        duration: 5000,
+        onAutoClose: async () => {
+          // Check if cancelled before performing deletion
+          if (deleteStateRef.current?.cancelled) {
+            return;
+          }
 
-        // Perform actual deletion after toast closes
-        try {
-          const response = await fetch(`/api/chat/messages?id=${messageId}`, {
-            method: "DELETE",
-          });
+          // Perform actual deletion after toast closes
+          try {
+            const response = await fetch(`/api/chat/messages?id=${messageId}`, {
+              method: "DELETE",
+            });
 
-          if (response.ok) {
-            // Reload chat data to sync with server
-            const reloadResponse = await fetch(`/api/chats/${chatId}`);
-            if (reloadResponse.ok) {
-              const data = await reloadResponse.json();
-              setChatData(data);
-              setMessages(convertToUIMessages(data.messages));
+            if (response.ok) {
+              // Reload chat data to sync with server
+              const reloadResponse = await fetch(`/api/chats/${chatId}`);
+              if (reloadResponse.ok) {
+                const data = await reloadResponse.json();
+                setChatData(data);
+                setMessages(convertToUIMessages(data.messages));
+              }
+            } else {
+              // Restore on error
+              if (deleteStateRef.current) {
+                setMessages(deleteStateRef.current.previousMessages);
+                if (deleteStateRef.current.previousChatData) {
+                  setChatData(deleteStateRef.current.previousChatData);
+                }
+              }
+              toast.error("Eliminazione fallita");
             }
-          } else {
-            // Restore on error
+          } catch (err) {
+            console.error("Delete error:", err);
             if (deleteStateRef.current) {
               setMessages(deleteStateRef.current.previousMessages);
               if (deleteStateRef.current.previousChatData) {
@@ -447,36 +458,31 @@ export default function ChatConversationPage() {
               }
             }
             toast.error("Eliminazione fallita");
+          } finally {
+            setDeletingMessageId(null);
+            deleteStateRef.current = null;
           }
-        } catch (err) {
-          console.error("Delete error:", err);
-          if (deleteStateRef.current) {
-            setMessages(deleteStateRef.current.previousMessages);
-            if (deleteStateRef.current.previousChatData) {
-              setChatData(deleteStateRef.current.previousChatData);
-            }
-          }
-          toast.error("Eliminazione fallita");
-        } finally {
-          setDeletingMessageId(null);
-          deleteStateRef.current = null;
-        }
-      },
-    });
-  };
+        },
+      });
+    },
+    [confirm, displayMessages, chatData, setMessages, chatId],
+  );
 
   // Handle message edit
-  const handleStartEdit = (messageId: string, currentText: string) => {
-    setEditingMessageId(messageId);
-    setEditContent(currentText);
-  };
+  const handleStartEdit = useCallback(
+    (messageId: string, currentText: string) => {
+      setEditingMessageId(messageId);
+      setEditContent(currentText);
+    },
+    [],
+  );
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     setEditingMessageId(null);
     setEditContent("");
-  };
+  }, []);
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = useCallback(async () => {
     if (!editingMessageId || !editContent.trim()) return;
 
     const newContent = editContent.trim();
@@ -514,10 +520,10 @@ export default function ChatConversationPage() {
       console.error("Edit error:", err);
       toast.error("Failed to edit message");
     }
-  };
+  }, [editingMessageId, editContent, chatId, sendMessage, setMessages]);
 
   // Handle regenerate (re-send the last user message)
-  const handleRegenerate = async () => {
+  const handleRegenerate = useCallback(async () => {
     const messages = displayMessages;
 
     // Find the last assistant message
@@ -564,7 +570,7 @@ export default function ChatConversationPage() {
       console.error("Regenerate error:", err);
       toast.error("Failed to regenerate response");
     }
-  };
+  }, [displayMessages, chatId, setMessages, sendMessage]);
 
   // Loading state
   if (isLoadingChat) {
