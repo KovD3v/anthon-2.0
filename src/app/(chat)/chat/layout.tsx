@@ -404,7 +404,7 @@ export default function ChatLayout({
         renameChat,
       }}
     >
-      <div className="flex h-dvh overflow-hidden">
+      <div className="flex h-dvh overflow-hidden safe-area-top">
         {/* Mobile Backdrop */}
         {isSidebarOpen && (
           <button
@@ -425,7 +425,7 @@ export default function ChatLayout({
             isSidebarOpen ? "md:w-72" : "md:w-0"
           } fixed left-0 top-0 z-50 h-full w-72 shrink-0 overflow-hidden border-r border-border/50 dark:border-white/10 bg-background/80 dark:bg-muted/40 backdrop-blur-xl transition-all duration-300 ease-in-out md:relative md:z-auto`}
         >
-          <div className="flex h-full w-72 flex-col">
+          <div className="flex h-full w-72 flex-col pt-[env(safe-area-inset-top)]">
             <SidebarHeader onCollapse={() => setIsSidebarOpen(false)} />
 
             <ChatList
