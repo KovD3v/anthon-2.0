@@ -59,14 +59,15 @@ export function useChatContext() {
 
 function GuestBanner({ remaining }: { remaining?: number }) {
   return (
-    <div className="flex items-center justify-between gap-3 bg-linear-to-r from-primary/10 via-primary/5 to-transparent border-b border-primary/20 px-4 py-2.5">
-      <div className="flex items-center gap-2 text-sm">
-        <Sparkles className="h-4 w-4 text-primary" />
-        <span className="text-muted-foreground">
-          Stai chattando come ospite.
+    <div className="flex items-center justify-between gap-3 bg-linear-to-r from-primary/10 via-primary/5 to-transparent border-b border-primary/20 px-3 py-2 sm:px-4 sm:py-2.5 mx-2 rounded-2xl">
+      <div className="flex items-center gap-2 text-xs sm:text-sm min-w-0">
+        <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
+        <span className="text-muted-foreground truncate">
+          <span className="hidden sm:inline">Stai chattando come ospite. </span>
           {remaining !== undefined && (
-            <span className="ml-1 font-medium text-primary">
-              {remaining} messaggi rimanenti
+            <span className="font-medium text-primary">
+              {remaining} <span className="hidden xs:inline">messaggi</span>{" "}
+              rimanenti
             </span>
           )}
         </span>
@@ -75,11 +76,11 @@ function GuestBanner({ remaining }: { remaining?: number }) {
         asChild
         size="sm"
         variant="default"
-        className="gap-1.5 h-7 text-xs"
+        className="gap-1.5 h-7 text-xs shrink-0"
       >
         <Link href="/sign-up">
           <UserPlus className="h-3.5 w-3.5" />
-          Registrati per salvare
+          <span className="hidden sm:inline">Registrati</span>
         </Link>
       </Button>
     </div>
@@ -100,7 +101,13 @@ export default function ChatLayout({
   const pathname = usePathname();
   const [chats, setChats] = useState<Chat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    // Default to closed on mobile/PWA, open on desktop
+    if (typeof window !== "undefined") {
+      return window.innerWidth >= 768;
+    }
+    return true; // SSR fallback
+  });
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [guestInitialized, setGuestInitialized] = useState(false);
@@ -404,7 +411,7 @@ export default function ChatLayout({
         renameChat,
       }}
     >
-      <div className="flex h-dvh overflow-hidden safe-area-top">
+      <div className="flex h-dvh overflow-hidden">
         {/* Mobile Backdrop */}
         {isSidebarOpen && (
           <button
@@ -477,7 +484,7 @@ export default function ChatLayout({
 
           {/* Header with sidebar toggle */}
           {!isSidebarOpen && (
-            <div className="flex h-14 items-center border-b px-4">
+            <div className="flex h-12 sm:h-14 items-center border-b px-3 sm:px-4 first:h-[calc(3rem+env(safe-area-inset-top))] sm:first:h-[calc(3.5rem+env(safe-area-inset-top))] first:pt-[env(safe-area-inset-top)] first:items-end first:pb-2 sm:first:pb-3">
               <Button
                 variant="ghost"
                 size="icon"

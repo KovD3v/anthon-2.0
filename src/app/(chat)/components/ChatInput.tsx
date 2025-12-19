@@ -120,7 +120,7 @@ export function ChatInput({
   };
 
   return (
-    <div className="relative mx-auto w-full max-w-3xl px-4 pb-6 pt-2 safe-area-bottom">
+    <div className="relative mx-auto w-full max-w-3xl px-3 sm:px-4 pb-4 sm:pb-6 pt-2 safe-area-bottom">
       {/* Attachment previews */}
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">

@@ -146,6 +146,15 @@ function ChatItem({
     e.stopPropagation();
   };
 
+  // Toggle actions on tap for mobile
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    // Only toggle if not clicking on action buttons
+    const target = e.target as HTMLElement;
+    if (!target.closest("button")) {
+      setShowActions((prev) => !prev);
+    }
+  };
+
   return (
     <motion.li
       layout
@@ -155,16 +164,17 @@ function ChatItem({
       className="group relative list-none"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setShowActions(false)}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Full area clickable link */}
       <Link
         href={`/chat/${chat.id}`}
         prefetch={true}
         onClick={onClick}
-        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all hover:bg-accent dark:hover:bg-white/5 ${
+        className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 sm:py-2.5 text-sm transition-all active:scale-[0.98] ${
           isActive
             ? "bg-accent dark:bg-white/10 font-medium text-foreground shadow-sm ring-1 ring-border dark:ring-white/10"
-            : "text-muted-foreground hover:text-foreground"
+            : "text-muted-foreground hover:text-foreground hover:bg-accent dark:hover:bg-white/5"
         }`}
       >
         <MessageSquare
@@ -174,7 +184,7 @@ function ChatItem({
               : "text-muted-foreground/50 group-hover:text-muted-foreground"
           }`}
         />
-        <span className="truncate pr-8">
+        <span className={`truncate ${showActions ? "pr-16" : "pr-2"}`}>
           {isRenaming ? (
             <input
               value={renameValue}
@@ -183,11 +193,11 @@ function ChatItem({
               onClick={(e) => e.preventDefault()}
               className="w-full bg-transparent outline-none ring-0 p-0 text-foreground placeholder:text-muted-foreground/50"
               onBlur={() => {
-                // If clicking usage banner or outside, we might want to save or cancel
-                // For now let's cancel to be safe, or we can save
                 setIsRenaming(false);
                 setRenameValue(chat.title);
               }}
+              // biome-ignore lint/a11y/noAutofocus: Needed for rename UX
+              autoFocus
             />
           ) : (
             chat.title
@@ -195,74 +205,90 @@ function ChatItem({
         </span>
       </Link>
 
-      {/* Actions - positioned absolutely on top of link */}
-      {showActions && !isDeleting && !isRenaming && (
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 z-10">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 shrink-0 text-muted-foreground/50 hover:bg-primary/10 hover:text-primary"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsRenaming(true);
-            }}
+      {/* Actions - visible on hover/touch */}
+      <AnimatePresence>
+        {showActions && !isDeleting && !isRenaming && (
+          <motion.div
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10 bg-background/90 dark:bg-muted/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-border/50 dark:border-white/10"
           >
-            <Pencil className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 shrink-0 text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onDelete();
-            }}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 sm:h-6 sm:w-6 shrink-0 text-muted-foreground hover:bg-primary/10 hover:text-primary rounded-md"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsRenaming(true);
+                setShowActions(false);
+              }}
+            >
+              <Pencil className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 sm:h-6 sm:w-6 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-md"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete();
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Rename Actions */}
-      {isRenaming && (
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 z-10 bg-background/80 backdrop-blur-sm rounded-md shadow-sm">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 shrink-0 text-green-500 hover:bg-green-500/10 hover:text-green-600"
-            disabled={isSavingRename}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleRename();
-            }}
+      <AnimatePresence>
+        {isRenaming && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10 bg-background/95 dark:bg-muted/95 backdrop-blur-sm rounded-lg p-0.5 shadow-md border border-border/50 dark:border-white/10"
           >
-            {isSavingRename ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Check className="h-3.5 w-3.5" />
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            disabled={isSavingRename}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsRenaming(false);
-              setRenameValue(chat.title);
-            }}
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 sm:h-6 sm:w-6 shrink-0 text-green-500 hover:bg-green-500/10 hover:text-green-600 rounded-md"
+              disabled={isSavingRename}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleRename();
+              }}
+            >
+              {isSavingRename ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 sm:h-6 sm:w-6 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-md"
+              disabled={isSavingRename}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsRenaming(false);
+                setRenameValue(chat.title);
+              }}
+            >
+              <X className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {isDeleting && (
         <div className="absolute right-2 top-1/2 -translate-y-1/2">

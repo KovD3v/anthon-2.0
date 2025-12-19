@@ -50,7 +50,7 @@ export function ChatHeader({ chatId, title, onRename }: ChatHeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-white/10 bg-background/40 backdrop-blur-xl px-4 transition-all">
+    <header className="sticky top-0 z-10 flex h-12 sm:h-14 items-center justify-between border-b border-white/10 bg-background/40 backdrop-blur-xl px-3 sm:px-4 transition-all">
       <div className="flex items-center gap-2 overflow-hidden">
         {isRenaming ? (
           <form
