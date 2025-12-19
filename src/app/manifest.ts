@@ -4,6 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Anthon - AI Mental Coach",
     short_name: "Anthon",
+    id: "anthon.chat",
     description: "Il tuo mental coach personale basato sull'IA",
     start_url: "/chat",
     display: "standalone",
