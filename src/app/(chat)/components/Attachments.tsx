@@ -254,10 +254,12 @@ export function AttachmentButton({
   onClick,
   hasAttachment,
   className,
+  "aria-label": ariaLabel = "Attach file",
 }: {
   onClick: () => void;
   hasAttachment?: boolean;
   className?: string;
+  "aria-label"?: string;
 }) {
   return (
     <Button
@@ -271,6 +273,7 @@ export function AttachmentButton({
         className,
       )}
       title="Attach file"
+      aria-label={ariaLabel}
     >
       <File className="h-5 w-5" />
     </Button>
