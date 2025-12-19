@@ -4,6 +4,7 @@ import {
   AlertCircle,
   AlertTriangle,
   Clock,
+  PanelLeft,
   TrendingUp,
   X,
   Zap,
@@ -30,6 +31,14 @@ interface UsageBannerProps {
    * Optional class name
    */
   className?: string;
+  /**
+   * Whether to show the sidebar toggle
+   */
+  showToggle?: boolean;
+  /**
+   * Callback to toggle sidebar
+   */
+  onToggleSidebar?: () => void;
 }
 
 /**
@@ -40,6 +49,8 @@ export function UsageBanner({
   limits,
   subscriptionStatus,
   className,
+  showToggle,
+  onToggleSidebar,
 }: UsageBannerProps) {
   const [isDismissed, setIsDismissed] = useState(false);
   const [countdown, setCountdown] = useState("");
@@ -144,46 +155,60 @@ export function UsageBanner({
   };
 
   return (
-    <div
-      className={cn(
-        "flex items-center justify-between rounded-lg border px-4 py-3",
-        getBannerStyle(),
-        className,
-      )}
-    >
-      <div className="flex items-center gap-3">
-        {getIcon()}
-        <div className="flex flex-col gap-0.5">
-          <p className="text-sm font-medium">{getMessage()}</p>
-          <p className="text-xs opacity-75">
-            {getTierName()}: {usage.requestCount}/{limits.maxRequests} messaggi
-            scritti oggi
-          </p>
+    <div className="mx-2 mt-2 md:mx-4 md:mt-4">
+      <div
+        className={cn(
+          "flex items-center justify-between rounded-2xl border px-4 py-3 backdrop-blur-xl shadow-sm",
+          getBannerStyle(),
+          className,
+        )}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          {showToggle && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 -ml-2 shrink-0"
+              onClick={onToggleSidebar}
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+          )}
+          <div className="flex items-center gap-3">
+            {getIcon()}
+            <div className="flex flex-col gap-0.5">
+              <p className="text-sm font-medium">{getMessage()}</p>
+              <p className="text-xs opacity-75">
+                {getTierName()}: {usage.requestCount}/{limits.maxRequests}{" "}
+                messaggi scritti oggi
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="flex items-center gap-2">
-        {subscriptionStatus !== "ACTIVE" && (
+        <div className="flex items-center gap-2">
+          {subscriptionStatus !== "ACTIVE" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs font-medium"
+              onClick={() => {
+                window.location.href = "/pricing";
+              }}
+            >
+              <Zap className="mr-1 h-3 w-3" />
+              Upgrade
+            </Button>
+          )}
           <Button
             variant="ghost"
-            size="sm"
-            className="h-7 text-xs font-medium"
-            onClick={() => {
-              window.location.href = "/pricing";
-            }}
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => setIsDismissed(true)}
           >
-            <Zap className="mr-1 h-3 w-3" />
-            Upgrade
+            <X className="h-3 w-3" />
           </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          onClick={() => setIsDismissed(true)}
-        >
-          <X className="h-3 w-3" />
-        </Button>
+        </div>
       </div>
     </div>
   );

@@ -57,32 +57,53 @@ export function useChatContext() {
 // Guest Banner Component
 // -----------------------------------------------------
 
-function GuestBanner({ remaining }: { remaining?: number }) {
+function GuestBanner({
+  remaining,
+  showToggle,
+  onToggleSidebar,
+}: {
+  remaining?: number;
+  showToggle?: boolean;
+  onToggleSidebar?: () => void;
+}) {
   return (
-    <div className="flex items-center justify-between gap-3 bg-linear-to-r from-primary/10 via-primary/5 to-transparent border-b border-primary/20 px-3 py-2 sm:px-4 sm:py-2.5 mx-2 rounded-2xl">
-      <div className="flex items-center gap-2 text-xs sm:text-sm min-w-0">
-        <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
-        <span className="text-muted-foreground truncate">
-          <span className="hidden sm:inline">Stai chattando come ospite. </span>
-          {remaining !== undefined && (
-            <span className="font-medium text-primary">
-              {remaining} <span className="hidden xs:inline">messaggi</span>{" "}
-              rimanenti
-            </span>
+    <div className="mx-2 mt-2 md:mx-4 md:mt-4">
+      <div className="flex items-center justify-between gap-3 bg-linear-to-r from-primary/10 via-primary/5 to-transparent backdrop-blur-xl border border-primary/20 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl shadow-sm shadow-primary/5">
+        <div className="flex items-center gap-3 min-w-0">
+          {showToggle && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 -ml-1 shrink-0"
+              onClick={onToggleSidebar}
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
           )}
-        </span>
+          <div className="flex items-center gap-2 min-w-0">
+            <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
+            <span className="text-muted-foreground truncate text-sm">
+              <span className="hidden xs:inline">Ospite: </span>
+              {remaining !== undefined && (
+                <span className="font-medium text-primary">
+                  {remaining} {remaining === 1 ? "messaggio" : "messaggi"}
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+        <Button
+          asChild
+          size="sm"
+          variant="default"
+          className="gap-1.5 h-8 text-xs shrink-0 rounded-xl px-3"
+        >
+          <Link href="/sign-up">
+            <UserPlus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Registrati</span>
+          </Link>
+        </Button>
       </div>
-      <Button
-        asChild
-        size="sm"
-        variant="default"
-        className="gap-1.5 h-7 text-xs shrink-0"
-      >
-        <Link href="/sign-up">
-          <UserPlus className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Registrati</span>
-        </Link>
-      </Button>
     </div>
   );
 }
@@ -180,6 +201,17 @@ export default function ChatLayout({
       console.error("Failed to fetch chats:", error);
     }
   }, [apiBase]);
+
+  // Handle mobile scroll locking
+  useEffect(() => {
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+      document.documentElement.classList.add("no-scroll");
+    }
+    return () => {
+      document.documentElement.classList.remove("no-scroll");
+    };
+  }, []);
 
   // Initialize guest session or load authenticated chats
   useEffect(() => {
@@ -458,9 +490,11 @@ export default function ChatLayout({
 
         {/* Main Content */}
         <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Guest Banner */}
-          {isGuest && (
+          {/* Integrated Header Bar */}
+          {isGuest ? (
             <GuestBanner
+              showToggle={!isSidebarOpen}
+              onToggleSidebar={() => setIsSidebarOpen(true)}
               remaining={
                 usageData
                   ? Math.max(
@@ -471,29 +505,29 @@ export default function ChatLayout({
                   : undefined
               }
             />
-          )}
-
-          {/* Usage Banner (authenticated users only) */}
-          {!isGuest && usageData && (
+          ) : usageData ? (
             <UsageBanner
+              showToggle={!isSidebarOpen}
+              onToggleSidebar={() => setIsSidebarOpen(true)}
               usage={usageData.usage}
               limits={usageData.limits}
               subscriptionStatus={usageData.subscriptionStatus}
             />
-          )}
-
-          {/* Header with sidebar toggle */}
-          {!isSidebarOpen && (
-            <div className="flex h-12 sm:h-14 items-center border-b px-3 sm:px-4 first:h-[calc(3rem+env(safe-area-inset-top))] sm:first:h-[calc(3.5rem+env(safe-area-inset-top))] first:pt-[env(safe-area-inset-top)] first:items-end first:pb-2 sm:first:pb-3">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setIsSidebarOpen(true)}
-              >
-                <PanelLeft className="h-4 w-4" />
-              </Button>
-            </div>
+          ) : (
+            !isSidebarOpen && (
+              <div className="mx-2 mt-2 md:mx-4 md:mt-4">
+                <div className="flex h-12 sm:h-14 items-center border border-border/50 dark:border-white/10 bg-background/60 backdrop-blur-xl rounded-2xl px-3 sm:px-4 shadow-sm">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setIsSidebarOpen(true)}
+                  >
+                    <PanelLeft className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )
           )}
           {children}
         </div>

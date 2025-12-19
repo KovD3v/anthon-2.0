@@ -176,14 +176,11 @@
 
 /* Mobile keyboard handling */
 @media (max-width: 768px) {
-  /* Prevent body scroll when keyboard is open */
-  html {
-    height: 100%;
+  /* Prevent body scroll when keyboard is open or in focused views */
+  .no-scroll {
     overflow: hidden;
-  }
-
-  body {
-    height: 100%;
-    overflow: hidden;
+    height: 100dvh;
+    position: fixed;
+    width: 100%;
   }
 }
