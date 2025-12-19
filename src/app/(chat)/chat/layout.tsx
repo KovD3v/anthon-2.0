@@ -489,7 +489,7 @@ export default function ChatLayout({
         </aside>
 
         {/* Main Content */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
           {/* Integrated Header Bar */}
           {isGuest ? (
             <GuestBanner
