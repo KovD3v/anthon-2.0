@@ -113,7 +113,14 @@ export async function getAuthUser(): Promise<AuthResult> {
       },
       error: null,
     };
-  } catch (error) {
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      ((error as any).digest === "DYNAMIC_SERVER_USAGE" ||
+        error.message.includes("Dynamic server usage"))
+    ) {
+      return { user: null, error: null };
+    }
     console.error("[Auth] Error getting user:", error);
     return { user: null, error: "Authentication error" };
   }

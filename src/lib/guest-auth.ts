@@ -42,9 +42,20 @@ export function hashGuestToken(token: string): string {
  * Get the guest token from cookies (if present).
  */
 export async function getGuestTokenFromCookies(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const cookie = cookieStore.get(GUEST_COOKIE_NAME);
-  return cookie?.value ?? null;
+  try {
+    const cookieStore = await cookies();
+    const cookie = cookieStore.get(GUEST_COOKIE_NAME);
+    return cookie?.value ?? null;
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      ((error as any).digest === "DYNAMIC_SERVER_USAGE" ||
+        error.message.includes("Dynamic server usage"))
+    ) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 /**
