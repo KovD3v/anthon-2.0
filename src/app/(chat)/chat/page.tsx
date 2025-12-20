@@ -3,7 +3,7 @@
 import { useUser } from "@clerk/nextjs";
 import { Brain, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useChatContext } from "./layout";
+import { useChatContext } from "./layout-client";
 
 /**
  * Chat landing page - shows when no chat is selected

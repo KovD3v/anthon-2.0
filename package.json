@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@ai-sdk/react": "^2.0.105",
-    "@clerk/nextjs": "^6.35.5",
+    "@clerk/nextjs": "^6.36.5",
     "@openrouter/ai-sdk-provider": "^1.2.8",
     "@prisma/adapter-pg": "^7.0.1",
     "@prisma/client": "^7.0.1",

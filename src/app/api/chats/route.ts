@@ -5,6 +5,7 @@
  * POST /api/chats - Create a new chat
  */
 
+import { revalidateTag } from "next/cache";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
@@ -135,6 +136,8 @@ export async function POST(request: Request) {
         updatedAt: true,
       },
     });
+
+    revalidateTag(`chats-${user.id}`, "page");
 
     return Response.json(
       {

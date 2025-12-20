@@ -6,6 +6,7 @@
  * DELETE /api/guest/chats/[id] - Delete chat
  */
 
+import { revalidateTag } from "next/cache";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { prisma } from "@/lib/db";
 import { authenticateGuest } from "@/lib/guest-auth";
@@ -181,6 +182,8 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         updatedAt: true,
       },
     });
+    revalidateTag(`chat-${id}`, "page");
+    revalidateTag(`chats-${user.id}`, "page");
 
     return Response.json({
       id: updatedChat.id,
@@ -220,6 +223,9 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
     await prisma.chat.delete({
       where: { id },
     });
+
+    revalidateTag(`chats-${user.id}`, "page");
+    revalidateTag(`chat-${id}`, "page");
 
     return Response.json({ success: true });
   } catch (err) {

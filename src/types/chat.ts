@@ -45,6 +45,23 @@ export interface RateLimits {
 }
 
 // -----------------------------------------------------
+// Full Usage and Limits (for layout/sidebar)
+// -----------------------------------------------------
+
+export interface UsageData {
+  usage: DailyUsage;
+  limits: RateLimits;
+  tier: "TRIAL" | "ACTIVE" | "ADMIN";
+  subscriptionStatus:
+    | "TRIAL"
+    | "ACTIVE"
+    | "CANCELED"
+    | "EXPIRED"
+    | "PAST_DUE"
+    | null;
+}
+
+// -----------------------------------------------------
 // Usage Metrics (for messages)
 // -----------------------------------------------------
 

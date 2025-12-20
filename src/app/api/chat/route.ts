@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { waitUntil } from "@vercel/functions";
 import type { UIMessage } from "ai";
+import { revalidateTag } from "next/cache";
 import type { Prisma } from "@/generated/prisma";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
@@ -319,6 +320,10 @@ export async function POST(request: Request) {
                 ),
               "✏️ onFinish: Save response",
             );
+
+            // Revalidate cache (Next.js 16 requires 2 arguments)
+            revalidateTag(`chats-${currentUserId}`, "page");
+            revalidateTag(`chat-${chatId}`, "page");
 
             // Extract and save memories in background (wrapped with waitUntil for serverless)
             waitUntil(

@@ -26,7 +26,13 @@ interface UsageBannerProps {
   /**
    * User's subscription status
    */
-  subscriptionStatus?: "TRIAL" | "ACTIVE" | "CANCELLED" | "EXPIRED" | null;
+  subscriptionStatus?:
+    | "TRIAL"
+    | "ACTIVE"
+    | "CANCELED"
+    | "EXPIRED"
+    | "PAST_DUE"
+    | null;
   /**
    * Optional class name
    */
