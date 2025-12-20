@@ -1,96 +1,96 @@
 "use client";
 
-import { useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
+import { useCallback, useEffect } from "react";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
 export function PWARegistration() {
-	const { user, isLoaded } = useUser();
+  const { user, isLoaded } = useUser();
 
-	useEffect(() => {
-		if (
-			typeof window === "undefined" ||
-			!("serviceWorker" in navigator) ||
-			!isLoaded
-		) {
-			return;
-		}
+  const subscribeToPush = useCallback(
+    async (registration: ServiceWorkerRegistration) => {
+      try {
+        console.log("Checking push permission state:", Notification.permission);
 
-		const registerSW = async () => {
-			try {
-				await navigator.serviceWorker.register("/sw.js", {
-					scope: "/",
-				});
+        // Check if permission is already granted
+        if (Notification.permission === "denied") {
+          console.warn("Push notification permission denied by user");
+          return;
+        }
 
-				// Wait for the service worker to be ready (active and controlling the page)
-				const registration = await navigator.serviceWorker.ready;
-				console.log("SW ready and active:", registration);
+        // Request permission if not granted
+        if (Notification.permission === "default") {
+          console.log("Requesting push notification permission...");
+          const permission = await Notification.requestPermission();
+          console.log("Permission request result:", permission);
+          if (permission !== "granted") return;
+        }
 
-				if (user) {
-					await subscribeToPush(registration);
-				}
-			} catch (error) {
-				console.error("SW registration failed:", error);
-			}
-		};
+        console.log("Subscribing to push manager...");
+        // Subscribe to push
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: VAPID_PUBLIC_KEY,
+        });
 
-		registerSW();
-	}, [user, isLoaded]);
+        console.log("Push subscription successful:", subscription);
 
-	const subscribeToPush = async (registration: ServiceWorkerRegistration) => {
-		try {
-			console.log(
-				"Checking push permission state:",
-				Notification.permission
-			);
+        // Send subscription to backend
+        console.log("Sending subscription to backend...");
+        const response = await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(subscription),
+        });
 
-			// Check if permission is already granted
-			if (Notification.permission === "denied") {
-				console.warn("Push notification permission denied by user");
-				return;
-			}
+        if (response.ok) {
+          console.log("Subscription saved to backend successfully");
+        } else {
+          console.error(
+            "Failed to save subscription to backend:",
+            response.status,
+            await response.text(),
+          );
+        }
+      } catch (error) {
+        console.error("Push subscription process failed:", error);
+      }
+    },
+    [],
+  );
 
-			// Request permission if not granted
-			if (Notification.permission === "default") {
-				console.log("Requesting push notification permission...");
-				const permission = await Notification.requestPermission();
-				console.log("Permission request result:", permission);
-				if (permission !== "granted") return;
-			}
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      !("serviceWorker" in navigator) ||
+      !isLoaded
+    ) {
+      return;
+    }
 
-			console.log("Subscribing to push manager...");
-			// Subscribe to push
-			const subscription = await registration.pushManager.subscribe({
-				userVisibleOnly: true,
-				applicationServerKey: VAPID_PUBLIC_KEY,
-			});
+    const registerSW = async () => {
+      try {
+        await navigator.serviceWorker.register("/sw.js", {
+          scope: "/",
+        });
 
-			console.log("Push subscription successful:", subscription);
+        // Wait for the service worker to be ready (active and controlling the page)
+        const registration = await navigator.serviceWorker.ready;
+        console.log("SW ready and active:", registration);
 
-			// Send subscription to backend
-			console.log("Sending subscription to backend...");
-			const response = await fetch("/api/push/subscribe", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(subscription),
-			});
+        if (user) {
+          await subscribeToPush(registration);
+        }
+      } catch (error) {
+        console.error("SW registration failed:", error);
+      }
+    };
 
-			if (response.ok) {
-				console.log("Subscription saved to backend successfully");
-			} else {
-				console.error(
-					"Failed to save subscription to backend:",
-					response.status,
-					await response.text()
-				);
-			}
-		} catch (error) {
-			console.error("Push subscription process failed:", error);
-		}
-	};
+    registerSW();
+  }, [user, isLoaded, subscribeToPush]);
 
-	return null; // This is a logic-only component
+  return null; // This is a logic-only component
 }

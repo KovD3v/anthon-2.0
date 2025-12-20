@@ -653,7 +653,7 @@ async function handleUpdate(update: TelegramUpdate) {
           user.subscription?.planId,
           user.isGuest,
         ),
-        systemLoad: await getSystemLoad(),
+        systemLoad: getSystemLoad,
         planId: user.subscription?.planId,
       });
 

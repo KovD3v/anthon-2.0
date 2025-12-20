@@ -113,6 +113,7 @@ interface StreamChatOptions {
     toolCalls?: unknown[];
     toolResults?: unknown[];
   }) => void;
+  voiceEnabled?: boolean;
 }
 
 /**
@@ -125,6 +126,7 @@ async function buildSystemPrompt(
     userContext?: string;
     userMemories?: string;
     currentDate?: string;
+    voiceEnabled?: boolean;
   },
 ): Promise<string> {
   const currentDate =
@@ -140,10 +142,14 @@ async function buildSystemPrompt(
   const [userContext, userMemories] = await Promise.all([
     prefetched?.userContext !== undefined
       ? Promise.resolve(prefetched.userContext)
-      : formatUserContextForPrompt(userId),
+      : formatUserContextForPrompt(userId).catch(
+          () => "Errore caricamento contesto.",
+        ),
     prefetched?.userMemories !== undefined
       ? Promise.resolve(prefetched.userMemories)
-      : formatMemoriesForPrompt(userId),
+      : formatMemoriesForPrompt(userId).catch(
+          () => "Errore caricamento memorie.",
+        ),
   ]);
 
   // Build system prompt
@@ -169,6 +175,15 @@ async function buildSystemPrompt(
     "{{USER_MEMORIES}}",
     userMemories || "Nessuna memoria salvata per questo utente.",
   );
+
+  // Dynamic voice instructions
+  const voiceEnabled = prefetched?.voiceEnabled ?? true;
+  if (!voiceEnabled) {
+    systemPrompt = systemPrompt.replace(
+      /- VOCE: Se l'utente chiede un vocale\/audio, rispondi come se potessi parlare\. Il sistema convertirà il tuo testo in audio\. Non dire "non posso mandare audio"\./,
+      "- VOCE: La generazione vocale è disabilitata per questo utente. Se chiede un vocale, spiega gentilmente che al momento puoi solo scrivere o che deve fare l'upgrade del piano.",
+    );
+  }
 
   return systemPrompt;
 }
@@ -241,6 +256,7 @@ export async function streamChat({
   messageParts,
   onFinish,
   onStepFinish,
+  voiceEnabled,
 }: StreamChatOptions) {
   // Record start time for performance tracking
   const startTime = Date.now();
@@ -301,6 +317,16 @@ export async function streamChat({
   const [{ ragContext, ragUsed, ragChunksCount }, conversationHistory] =
     await Promise.all([ragPromise, conversationHistoryPromise]);
 
+  // Calculate if voice is enabled for this user/plan
+  const { getVoicePlanConfig } = await import("@/lib/voice");
+  const planConfig = getVoicePlanConfig(
+    subscriptionStatus,
+    userRole,
+    planId,
+    isGuest,
+  );
+  const voiceEnabledResult = planConfig.enabled && (voiceEnabled ?? true);
+
   // Build system prompt with user context and optional RAG
   const systemPrompt = await LatencyLogger.measure(
     "🛠️ Orchestrator: Build system prompt",
@@ -313,6 +339,7 @@ export async function streamChat({
         userContext,
         userMemories,
         currentDate,
+        voiceEnabled: voiceEnabledResult,
       });
     },
   );

@@ -133,7 +133,7 @@ export async function POST(request: Request) {
         user.subscription?.planId,
         user.isGuest,
       ),
-      systemLoad: getSystemLoad(), // Pass promise, do not await
+      systemLoad: getSystemLoad, // Pass reference, do not call here
       planId: user.subscription?.planId,
     });
 

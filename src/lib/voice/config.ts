@@ -23,9 +23,9 @@ const VOICE_PLAN_CONFIG: Record<string, VoicePlanConfig> = {
     maxPerWindow: 0,
   },
 
-  // Trial users - limited voice
+  // Trial users - voice disabled by default
   TRIAL: {
-    enabled: true,
+    enabled: false,
     baseProbability: 0.3,
     decayFactor: 0.7,
     capWindowMs: 6 * 60 * 60 * 1000, // 6 hours

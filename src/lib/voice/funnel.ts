@@ -34,7 +34,7 @@ export interface FunnelParams {
   conversationContext?: Array<{ role: string; content: string }>;
   userPreferences: { voiceEnabled?: boolean | null };
   planConfig: VoicePlanConfig;
-  systemLoad: number | Promise<number>;
+  systemLoad: number | Promise<number> | (() => Promise<number>);
   planId?: string | null;
 }
 
@@ -73,6 +73,7 @@ export async function shouldGenerateVoice(
     // L1: User Preference (Quiet Mode)
     const l1Result = checkLevel1Preference(userPreferences);
     if (!l1Result.pass) {
+      console.log(`[VoiceFunnel] Blocked at L1: ${l1Result.reason}`);
       return {
         shouldGenerateVoice: false,
         blockedAt: "L1_PREFERENCE",
@@ -83,6 +84,7 @@ export async function shouldGenerateVoice(
     // L2: Structural Analysis
     const l2Result = checkLevel2Structure(assistantText);
     if (!l2Result.pass) {
+      console.log(`[VoiceFunnel] Blocked at L2: ${l2Result.reason}`);
       return {
         shouldGenerateVoice: false,
         blockedAt: "L2_STRUCTURE",
@@ -97,6 +99,7 @@ export async function shouldGenerateVoice(
       conversationContext,
     );
     if (!l3Result.pass) {
+      console.log(`[VoiceFunnel] Blocked at L3: ${l3Result.reason}`);
       return {
         shouldGenerateVoice: false,
         blockedAt: "L3_SEMANTIC",
@@ -106,7 +109,11 @@ export async function shouldGenerateVoice(
 
     // L4: Business Logic (always runs, even with voice requests)
     const loadValue =
-      typeof systemLoad === "number" ? systemLoad : await systemLoad;
+      typeof systemLoad === "function"
+        ? await systemLoad()
+        : typeof systemLoad === "number"
+          ? systemLoad
+          : await systemLoad;
 
     const l4Result = await checkLevel4Business(
       userId,
@@ -115,6 +122,7 @@ export async function shouldGenerateVoice(
       planId,
     );
     if (!l4Result.pass) {
+      console.log(`[VoiceFunnel] Blocked at L4: ${l4Result.reason}`);
       return {
         shouldGenerateVoice: false,
         blockedAt: "L4_BUSINESS",
@@ -122,6 +130,7 @@ export async function shouldGenerateVoice(
       };
     }
 
+    console.log("[VoiceFunnel] Passed all checks!");
     return { shouldGenerateVoice: true };
   });
 }
@@ -291,10 +300,22 @@ async function checkLevel4Business(
 
   // Entropy check for natural distribution
   const random = Math.random();
+
+  console.log("[VoiceFunnel] L4 Probabilities:", {
+    base: config.baseProbability,
+    decay: config.decayFactor,
+    count: voiceCount,
+    load: systemLoad,
+    final: pFinal,
+    roll: random,
+  });
+
   if (random >= pFinal) {
     return {
       pass: false,
-      reason: `Probability check failed (${(pFinal * 100).toFixed(1)}%)`,
+      reason: `Probability check failed (${(pFinal * 100).toFixed(
+        1,
+      )}% vs roll ${(random * 100).toFixed(1)}%)`,
     };
   }
 
