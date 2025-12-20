@@ -286,7 +286,7 @@ function getContextualSuggestions(context?: string): SuggestedAction[] {
 /**
  * Compact suggestion list for use in chat footer
  */
-export function QuickSuggestions({
+function _QuickSuggestions({
   onSelect,
   context,
   className,
@@ -316,7 +316,7 @@ export function QuickSuggestions({
 /**
  * Welcome suggestions for empty chat state
  */
-export function WelcomeSuggestions({
+function _WelcomeSuggestions({
   onSelect,
   className,
 }: {

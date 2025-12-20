@@ -153,7 +153,7 @@ interface AttachmentUploaderProps {
 /**
  * File upload dropzone
  */
-export function AttachmentUploader({
+function _AttachmentUploader({
   chatId,
   onUpload,
   onError,
@@ -280,7 +280,7 @@ export function AttachmentButton({
 /**
  * Compact attachment preview for displaying in messages
  */
-export function AttachmentChip({
+function _AttachmentChip({
   attachment,
   className,
 }: {

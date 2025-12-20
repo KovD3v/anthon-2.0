@@ -59,7 +59,7 @@ export async function cacheSummary(
  * Clean up expired session summaries.
  * Call this periodically or as part of a cron job.
  */
-export async function cleanupExpiredSummaries(): Promise<number> {
+async function _cleanupExpiredSummaries(): Promise<number> {
   const result = await prisma.sessionSummary.deleteMany({
     where: { expiresAt: { lt: new Date() } },
   });

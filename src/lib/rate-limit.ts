@@ -20,7 +20,7 @@ export interface RateLimits {
 }
 
 // Default limits for different subscription tiers
-export const RATE_LIMITS: Record<string, RateLimits> = {
+const RATE_LIMITS: Record<string, RateLimits> = {
   // Guest users (anonymous / pre-registration)
   // Intentionally stricter than TRIAL to mitigate abuse before identity verification.
   GUEST: {
@@ -101,7 +101,7 @@ export const ATTACHMENT_RETENTION_DAYS: Record<string, number> = {
 /**
  * Get attachment retention days based on subscription plan and user role.
  */
-export function getAttachmentRetentionDays(
+function _getAttachmentRetentionDays(
   subscriptionStatus?: string,
   userRole?: string,
   planId?: string | null,
@@ -376,7 +376,7 @@ function getUTCDateOnly(): Date {
 /**
  * Get remaining allowance for the day.
  */
-export async function getRemainingAllowance(
+async function _getRemainingAllowance(
   userId: string,
   subscriptionStatus?: string,
   userRole?: string,
@@ -403,7 +403,7 @@ export async function getRemainingAllowance(
 /**
  * Format rate limit info for display in UI.
  */
-export function formatRateLimitStatus(result: RateLimitResult): {
+function _formatRateLimitStatus(result: RateLimitResult): {
   status: "ok" | "warning" | "limit-reached";
   message: string;
   percentUsed: number;

@@ -229,7 +229,7 @@ export async function buildConversationContext(
  * Gets the timestamp of the last message for a user.
  * Useful for determining if we're in an active session.
  */
-export async function getLastMessageTime(userId: string): Promise<Date | null> {
+async function getLastMessageTime(userId: string): Promise<Date | null> {
   const lastMessage = await prisma.message.findFirst({
     where: { userId },
     orderBy: { createdAt: "desc" },
@@ -243,7 +243,7 @@ export async function getLastMessageTime(userId: string): Promise<Date | null> {
  * Checks if the user is currently in an active session.
  * Returns true if the last message was within 15 minutes.
  */
-export async function isInActiveSession(userId: string): Promise<boolean> {
+async function _isInActiveSession(userId: string): Promise<boolean> {
   const lastMessageTime = await getLastMessageTime(userId);
   if (!lastMessageTime) return false;
 

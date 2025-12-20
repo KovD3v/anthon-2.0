@@ -11,7 +11,7 @@ import { type CostResult, calculateCost as tokenlensCost } from "./tokenlens";
  * Calculate cost for a single AI call.
  * Returns the total cost in USD.
  */
-export function calculateCost(
+function calculateCost(
   modelId: string,
   inputTokens: number,
   outputTokens: number,
@@ -24,7 +24,7 @@ export function calculateCost(
 /**
  * Calculate cost with full breakdown.
  */
-export function calculateCostDetailed(
+function _calculateCostDetailed(
   modelId: string,
   inputTokens: number,
   outputTokens: number,
@@ -155,7 +155,7 @@ export function extractAIMetrics(
  * Pre-warm the TokenLens catalog cache.
  * Note: TokenLens now uses a built-in catalog, no warmup needed.
  */
-export function warmPricingCache(): void {
+function _warmPricingCache(): void {
   // No-op - tokenlens uses embedded catalog
 }
 

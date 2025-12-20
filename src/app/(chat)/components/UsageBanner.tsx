@@ -217,7 +217,7 @@ export function UsageBanner({
 /**
  * Compact usage stats for sidebars or footers
  */
-export function UsageStats({
+function _UsageStats({
   usage,
   limits,
   className,
@@ -270,7 +270,7 @@ export function UsageStats({
 /**
  * Rate limit error display
  */
-export function RateLimitError({
+function _RateLimitError({
   reason,
   onDismiss,
   className,

@@ -179,14 +179,14 @@ export async function getFullUser(userId: string) {
 /**
  * Check if user is an admin (ADMIN or SUPER_ADMIN).
  */
-export function isAdmin(role: UserRole): boolean {
+function isAdmin(role: UserRole): boolean {
   return role === "ADMIN" || role === "SUPER_ADMIN";
 }
 
 /**
  * Check if user is a super admin.
  */
-export function isSuperAdmin(role: UserRole): boolean {
+function isSuperAdmin(role: UserRole): boolean {
   return role === "SUPER_ADMIN";
 }
 
@@ -311,7 +311,7 @@ export async function updateUserRole(
  * Invalidate the auth cache.
  * Call this when user data changes (e.g., role updates).
  */
-export async function invalidateAuthCache(): Promise<void> {
+async function invalidateAuthCache(): Promise<void> {
   const { revalidateTag } = await import("next/cache");
   revalidateTag("user-auth", "page");
 }

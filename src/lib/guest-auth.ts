@@ -27,7 +27,7 @@ export interface GuestUser {
 /**
  * Generate a secure random guest token.
  */
-export function generateGuestToken(): string {
+function generateGuestToken(): string {
   return randomBytes(32).toString("hex");
 }
 
@@ -51,7 +51,7 @@ export async function getGuestTokenFromCookies(): Promise<string | null> {
  * Set the guest token cookie.
  * Call this from API routes that need to set the cookie.
  */
-export async function setGuestCookie(token: string): Promise<void> {
+async function setGuestCookie(token: string): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(GUEST_COOKIE_NAME, token, {
     httpOnly: true,
@@ -75,7 +75,7 @@ export async function clearGuestCookie(): Promise<void> {
  * Get or create a guest user from the token.
  * If no token is provided, creates a new guest user and returns both user and token.
  */
-export async function getOrCreateGuestUser(
+async function getOrCreateGuestUser(
   existingToken?: string | null,
 ): Promise<{ user: GuestUser; token: string; isNew: boolean }> {
   // If we have an existing token, try to find the user
@@ -143,7 +143,7 @@ export async function getOrCreateGuestUser(
  * Get an existing guest user from cookies (does not create new).
  * Returns null if no guest session exists.
  */
-export async function getExistingGuestUser(): Promise<GuestUser | null> {
+async function _getExistingGuestUser(): Promise<GuestUser | null> {
   const token = await getGuestTokenFromCookies();
   if (!token) return null;
 

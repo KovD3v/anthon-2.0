@@ -470,7 +470,7 @@ export async function streamChat({
 /**
  * Non-streaming version for testing or simple use cases.
  */
-export async function generateChatResponse(
+async function _generateChatResponse(
   userId: string,
   userMessage: string,
 ): Promise<string> {

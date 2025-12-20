@@ -95,7 +95,7 @@ export const MEMORY = {
 // -----------------------------------------------------
 // COST TRACKING
 // -----------------------------------------------------
-export const COST = {
+const _COST = {
   /** Warning threshold for session costs (USD) */
   WARNING_THRESHOLD_USD: 0.5,
 } as const;

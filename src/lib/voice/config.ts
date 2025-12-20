@@ -13,7 +13,7 @@ export interface VoicePlanConfig {
   maxPerWindow: number; // Maximum voice messages per window
 }
 
-export const VOICE_PLAN_CONFIG: Record<string, VoicePlanConfig> = {
+const VOICE_PLAN_CONFIG: Record<string, VoicePlanConfig> = {
   // Guest users - voice disabled
   GUEST: {
     enabled: false,

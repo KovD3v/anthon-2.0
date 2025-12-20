@@ -11,22 +11,6 @@ import type { ChatMessage } from "@/types/chat";
 // Message Part Types
 // -----------------------------------------------------
 
-export interface TextPart {
-  type: "text";
-  text: string;
-}
-
-export interface FilePart {
-  type: "file";
-  data: string;
-  mimeType: string;
-  name: string;
-  size: number;
-  attachmentId?: string;
-}
-
-export type MessagePart = TextPart | FilePart;
-
 // -----------------------------------------------------
 // Conversion Utilities
 // -----------------------------------------------------

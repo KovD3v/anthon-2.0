@@ -116,7 +116,7 @@ Restituisci i fatti estratti o un array vuoto se non ce ne sono.`,
  * Bulk extract memories from a conversation history.
  * Useful for initial profile building or catch-up.
  */
-export async function extractMemoriesFromHistory(
+async function _extractMemoriesFromHistory(
   userId: string,
   conversationHistory: Array<{ role: "user" | "assistant"; content: string }>,
 ): Promise<void> {

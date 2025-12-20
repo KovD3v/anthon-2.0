@@ -7,7 +7,7 @@ export const openrouter = createOpenRouter({
 
 // Model configuration based on Clerk subscription plan
 // Note: All Gemini models support vision, so we just use the orchestrator models
-export const MODEL_CONFIG = {
+const MODEL_CONFIG = {
   // No subscription / trial users
   trial: {
     orchestrator: "google/gemini-2.0-flash-lite-001",
@@ -36,7 +36,7 @@ export const MODEL_CONFIG = {
 } as const;
 
 // Default models (for backward compatibility - uses trial tier)
-export const orchestratorModel = openrouter(MODEL_CONFIG.trial.orchestrator);
+const _orchestratorModel = openrouter(MODEL_CONFIG.trial.orchestrator);
 export const subAgentModel = openrouter(MODEL_CONFIG.trial.subAgent);
 
 /**
@@ -96,5 +96,5 @@ export function getModelIdForPlan(
 }
 
 // Model IDs for reference
-export const ORCHESTRATOR_MODEL_ID = MODEL_CONFIG.trial.orchestrator;
-export const SUB_AGENT_MODEL_ID = MODEL_CONFIG.trial.subAgent;
+const _ORCHESTRATOR_MODEL_ID = MODEL_CONFIG.trial.orchestrator;
+const _SUB_AGENT_MODEL_ID = MODEL_CONFIG.trial.subAgent;

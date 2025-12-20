@@ -4,11 +4,7 @@
  * Exports all voice-related functionality.
  */
 
-export {
-  getVoicePlanConfig,
-  VOICE_PLAN_CONFIG,
-  type VoicePlanConfig,
-} from "./config";
+export { getVoicePlanConfig, type VoicePlanConfig } from "./config";
 export {
   generateVoice,
   getElevenLabsSubscription,

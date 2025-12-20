@@ -142,7 +142,7 @@ function parsePlainText(buffer: Buffer): ParsedDocument {
   };
 }
 
-export function chunkText(
+function _chunkText(
   text: string,
   options: {
     chunkSize?: number;
@@ -232,7 +232,7 @@ export function chunkText(
 /**
  * Get supported MIME types
  */
-export const SUPPORTED_MIME_TYPES = [
+const SUPPORTED_MIME_TYPES = [
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "text/plain",

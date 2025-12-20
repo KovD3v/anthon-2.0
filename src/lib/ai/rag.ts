@@ -13,7 +13,7 @@ import { LatencyLogger } from "@/lib/latency-logger";
 
 // Embedding dimensions for OpenAI text-embedding-3-small
 // The model outputs 1536-dimensional embeddings
-const EMBEDDING_DIMENSIONS = 1536;
+const _EMBEDDING_DIMENSIONS = 1536;
 
 // OpenRouter API endpoint for embeddings
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/embeddings";
@@ -227,7 +227,7 @@ export async function searchDocuments(
 /**
  * Format RAG results into a context string for the system prompt.
  */
-export function formatRagContext(
+function formatRagContext(
   results: Array<{ content: string; title: string; similarity: number }>,
 ): string {
   if (results.length === 0) {
@@ -713,6 +713,3 @@ Answer needsRag: false if the question is:
     return false;
   }
 }
-
-// Export embedding dimensions for schema migrations
-export { EMBEDDING_DIMENSIONS };

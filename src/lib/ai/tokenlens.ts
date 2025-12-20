@@ -39,7 +39,10 @@ export function calculateCost(
   try {
     const cost = estimateCost({
       modelId,
-      usage: { promptTokens: inputTokens, completionTokens: outputTokens },
+      usage: {
+        promptTokens: inputTokens,
+        completionTokens: outputTokens,
+      },
     });
 
     return {
@@ -81,7 +84,7 @@ export interface ContextBudgetResult {
  * @param tokenCount - Current token count in the conversation
  * @returns Context budget information
  */
-export function getContextBudget(
+function getContextBudget(
   modelId: string,
   tokenCount: number,
 ): ContextBudgetResult {
@@ -106,7 +109,7 @@ export function getContextBudget(
 /**
  * Get health status of context usage.
  */
-export function getContextHealthStatus(
+function _getContextHealthStatus(
   modelId: string,
   inputTokens: number,
   outputTokens: number,
@@ -128,7 +131,7 @@ export function getContextHealthStatus(
 /**
  * Get the context length for a model.
  */
-export function getModelContextLength(modelId: string): number {
+function _getModelContextLength(modelId: string): number {
   const context = getContext({ modelId });
   return context.maxTotal ?? context.maxInput ?? 128000;
 }
@@ -146,7 +149,7 @@ export interface StreamUsageData {
  * Build usage data to stream to the client after a response.
  * This is sent as a data event with useChat.
  */
-export function buildStreamUsageData(
+function _buildStreamUsageData(
   modelId: string,
   inputTokens: number,
   outputTokens: number,

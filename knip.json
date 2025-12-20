@@ -1,0 +1,10 @@
+{
+	"$schema": "https://unpkg.com/knip@5/schema.json",
+	"ignoreExportsUsedInFile": {
+		"interface": true,
+		"type": true
+	},
+	"ignore": ["src/components/ui/**/*"],
+	"ignoreDependencies": ["@prisma/client", "@types/pg"],
+	"tags": ["-lintignore"]
+}

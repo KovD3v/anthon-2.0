@@ -217,7 +217,7 @@ o quando un'informazione non è più valida.`,
 /**
  * Utility function to get all memories for a user (not a tool, for internal use).
  */
-export async function getAllMemories(
+async function getAllMemories(
   userId: string,
 ): Promise<Map<string, MemoryValue>> {
   const memories = await prisma.memory.findMany({
