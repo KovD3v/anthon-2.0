@@ -178,43 +178,52 @@ export async function POST(request: Request) {
 
     // Link attachments to the message
     if (lastUserMessage.parts && Array.isArray(lastUserMessage.parts)) {
-      for (const part of lastUserMessage.parts) {
-        if (part.type === "file") {
-          const filePart = part as unknown as {
-            attachmentId?: string;
-          };
-          if (filePart.attachmentId) {
-            await prisma.attachment
-              .update({
-                where: { id: filePart.attachmentId },
+      const attachmentIds = lastUserMessage.parts
+        .filter((part) => part.type === "file")
+        .map(
+          (part) => (part as unknown as { attachmentId?: string }).attachmentId,
+        )
+        .filter((id): id is string => !!id);
+
+      if (attachmentIds.length > 0) {
+        await LatencyLogger.measure(
+          "DB: Link attachments",
+          () =>
+            prisma.attachment
+              .updateMany({
+                where: { id: { in: attachmentIds } },
                 data: { messageId: message.id },
               })
               .catch((err) =>
-                console.error("[Chat API] Failed to link attachment:", err),
-              );
-          }
-        }
+                console.error("[Chat API] Failed to link attachments:", err),
+              ),
+          "🌐 Chat API Request",
+        );
       }
     }
 
     // Auto-generate chat title if this is the first message
-    const messageCount = await LatencyLogger.measure(
-      "DB: Count messages",
-      () => prisma.message.count({ where: { chatId } }),
-      "🌐 Chat API Request",
-    );
-    if (messageCount === 1 && !chat.title) {
-      // Generate title in background (wrapped with waitUntil for serverless)
-      waitUntil(
-        generateChatTitle(userMessageText).then((title) => {
-          prisma.chat
-            .update({
-              where: { id: chatId },
-              data: { title },
-            })
-            .catch(console.error);
-        }),
+    // Performance optimization: Only count messages if title is missing
+    if (!chat.title) {
+      const messageCount = await LatencyLogger.measure(
+        "DB: Count messages",
+        () => prisma.message.count({ where: { chatId } }),
+        "🌐 Chat API Request",
       );
+
+      if (messageCount === 1) {
+        // Generate title in background (wrapped with waitUntil for serverless)
+        waitUntil(
+          generateChatTitle(userMessageText).then((title) => {
+            prisma.chat
+              .update({
+                where: { id: chatId },
+                data: { title },
+              })
+              .catch(console.error);
+          }),
+        );
+      }
     }
 
     // Capture userId for the callback (user might be reassigned)
