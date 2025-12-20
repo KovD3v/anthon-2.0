@@ -55,7 +55,10 @@ model User {
   subscription    Subscription?
   sessionSummaries SessionSummary[]
   voiceUsage      VoiceUsage[]
+  pushSubscriptions PushSubscription[]
+  scheduledNotifications ScheduledNotification[]
 
+  lastActivityAt DateTime @default(now())
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime? // Soft delete
@@ -64,6 +67,7 @@ model User {
   @@index([email])
   @@index([isGuest])
   @@index([deletedAt])
+  @@index([lastActivityAt])
 }
 
 // -----------------------------------------------------
@@ -500,4 +504,44 @@ model VoiceUsage {
 
   @@index([userId, generatedAt(sort: Desc)])
   @@index([generatedAt])
+}
+
+// -----------------------------------------------------
+// PUSH SUBSCRIPTIONS (Web Push)
+// -----------------------------------------------------
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// -----------------------------------------------------
+// SCHEDULED NOTIFICATIONS (AI-initiated engagement)
+// -----------------------------------------------------
+
+model ScheduledNotification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // e.g., "PROMISED_FOLLOWUP", "RE_ENGAGEMENT"
+  intent    String?  // The detected intent or context
+  channel   Channel  @default(WEB)
+  scheduledFor DateTime
+  processed Boolean  @default(false)
+  sentAt    DateTime?
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([scheduledFor])
+  @@index([processed])
 }
