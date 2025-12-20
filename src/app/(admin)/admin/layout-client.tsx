@@ -17,6 +17,7 @@ import { SidebarBottom } from "../../(chat)/components/SidebarBottom";
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/admin/costs", label: "Costs", icon: Brain },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/rag", label: "RAG Documents", icon: FileText },
   { href: "/admin/voice", label: "Voice", icon: Mic },
