@@ -35,21 +35,6 @@ const ExtractedFactsSchema = z.object({
         .describe("Confidence score 0-1 that this fact is accurate"),
     }),
   ),
-  intents: z
-    .array(
-      z.object({
-        type: z.enum(["PROMISED_FOLLOWUP", "RE_ENGAGEMENT"]),
-        intent: z
-          .string()
-          .describe("The user's promise or intent, e.g., 'talk tonight'"),
-        scheduledFor: z
-          .string()
-          .describe("ISO timestamp for when to follow up"),
-        confidence: z.number().min(0).max(1),
-      }),
-    )
-    .optional()
-    .describe("Detected promises or intents to follow up"),
 });
 
 /**
@@ -76,11 +61,7 @@ Regole:
 - Ignora informazioni transitorie o specifiche del momento
 - Usa key in snake_case in inglese (es: user_name, user_sport, user_goal)
 - Assegna confidence alta (>0.8) solo se l'informazione è chiara e non ambigua
-- Se l'utente fa una promessa temporale (es: "ci sentiamo stasera", "ne parliamo domani"), estraila in 'intents' con tipo 'PROMISED_FOLLOWUP' e calcola un 'scheduledFor' approssimativo (usa come riferimento la data/ora locale dell'utente: ${new Date().toLocaleString(
-        "it-IT",
-        { timeZone: "Europe/Rome" },
-      )} (CET/CEST)).
-- Se non ci sono fatti o intenti da estrarre, restituisci array vuoti`,
+- Se non ci sono fatti da estrarre, restituisci un array vuoto`,
       prompt: `Estrai i fatti importanti da questo scambio:
 
 UTENTE: ${userMessage}
@@ -124,22 +105,6 @@ Restituisci i fatti estratti o un array vuoto se non ce ne sono.`,
 
     if (highConfidenceFacts.length > 0) {
       invalidateMemoriesForPromptCache(userId);
-    }
-
-    // Handle Intents
-    const highConfidenceIntents =
-      object.intents?.filter((i) => i.confidence >= 0.7) || [];
-
-    for (const intent of highConfidenceIntents) {
-      await prisma.scheduledNotification.create({
-        data: {
-          userId,
-          type: intent.type,
-          intent: intent.intent,
-          scheduledFor: new Date(intent.scheduledFor),
-          channel: "WEB", // Default to WEB for now
-        },
-      });
     }
 
     // Update lastActivityAt for the user
