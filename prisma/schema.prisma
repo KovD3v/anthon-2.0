@@ -36,32 +36,30 @@ model User {
 
   // Guest / anonymous mode
   // Guest users can chat before registering; they should NOT get the full trial.
-  isGuest          Boolean  @default(false)
-  guestAbuseIdHash String?  @unique // e.g. hash of phone number or other identifier
+  isGuest          Boolean   @default(false)
+  guestAbuseIdHash String?   @unique // e.g. hash of phone number or other identifier
   guestConvertedAt DateTime? // set when the guest account is merged/converted
 
   // Role-based access control
   role UserRole @default(USER)
 
   // Relationships
-  profile         Profile?
-  preferences     Preferences?
-  memories        Memory[]
-  messages        Message[]
-  chats           Chat[]
-  dailyUsage      DailyUsage[]
-  identities      ChannelIdentity[]
+  profile            Profile?
+  preferences        Preferences?
+  memories           Memory[]
+  messages           Message[]
+  chats              Chat[]
+  dailyUsage         DailyUsage[]
+  identities         ChannelIdentity[]
   consumedLinkTokens ChannelLinkToken[] @relation("ChannelLinkTokenConsumedBy")
-  subscription    Subscription?
-  sessionSummaries SessionSummary[]
-  voiceUsage      VoiceUsage[]
-  pushSubscriptions PushSubscription[]
-  scheduledNotifications ScheduledNotification[]
+  subscription       Subscription?
+  sessionSummaries   SessionSummary[]
+  voiceUsage         VoiceUsage[]
 
-  lastActivityAt DateTime @default(now())
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime? // Soft delete
+  lastActivityAt DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime? // Soft delete
 
   @@index([role])
   @@index([email])
@@ -98,13 +96,13 @@ model ChannelLinkToken {
   id String @id @default(cuid())
 
   channel   Channel
-  tokenHash String @unique
+  tokenHash String  @unique
 
   // External identity to link (e.g. Telegram user id)
   externalId String
   chatId     String
 
-  expiresAt DateTime
+  expiresAt  DateTime
   consumedAt DateTime?
 
   consumedByUserId String?
@@ -204,10 +202,10 @@ model Message {
   attachments Attachment[]
   artifacts   Artifact[]   @relation("MessageArtifacts")
 
+  @@unique([channel, externalMessageId])
   @@index([userId, channel, createdAt])
   @@index([chatId, createdAt])
   @@index([externalMessageId])
-  @@unique([channel, externalMessageId])
   @@index([role, createdAt])
   @@index([direction, createdAt])
   @@index([type])
@@ -270,10 +268,10 @@ model Preferences {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  tone     String? // e.g.: "calm", "energetic", "professional"
-  mode     String? // e.g.: "coaching", "friendly", "direct"
-  language String?  @default("IT") // IT, EN, etc.
-  push     Boolean? @default(true) // Push notifications enabled by default
+  tone         String? // e.g.: "calm", "energetic", "professional"
+  mode         String? // e.g.: "coaching", "friendly", "direct"
+  language     String?  @default("IT") // IT, EN, etc.
+  push         Boolean? @default(true) // Push notifications enabled by default
   voiceEnabled Boolean? @default(true) // Voice messages enabled (false = Quiet Mode)
 
   createdAt DateTime @default(now())
@@ -308,8 +306,8 @@ model SessionSummary {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  sessionId String   @unique // Composite of start/end timestamps
-  summary   String   @db.Text
+  sessionId String @unique // Composite of start/end timestamps
+  summary   String @db.Text
 
   createdAt DateTime @default(now())
   expiresAt DateTime
@@ -323,16 +321,16 @@ model SessionSummary {
 // -----------------------------------------------------
 
 model RagDocument {
-  id        String   @id @default(cuid())
-  title     String
-  url       String?
-  source    String?  // Source identifier (e.g., "training_manual", "knowledge_base")
+  id     String  @id @default(cuid())
+  title  String
+  url    String?
+  source String? // Source identifier (e.g., "training_manual", "knowledge_base")
 
-  chunks    RagChunk[]
+  chunks RagChunk[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
-  
+
   @@index([source])
 }
 
@@ -412,7 +410,7 @@ model ArtifactVersion {
 // -----------------------------------------------------
 
 model Attachment {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   messageId String?
   message   Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
@@ -498,50 +496,10 @@ model VoiceUsage {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   generatedAt    DateTime @default(now())
-  characterCount Int      // Characters sent to Eleven Labs
-  costUsd        Float?   // Estimated cost in USD
+  characterCount Int // Characters sent to Eleven Labs
+  costUsd        Float? // Estimated cost in USD
   channel        Channel  @default(TELEGRAM) // Which channel triggered the voice
 
   @@index([userId, generatedAt(sort: Desc)])
   @@index([generatedAt])
-}
-
-// -----------------------------------------------------
-// PUSH SUBSCRIPTIONS (Web Push)
-// -----------------------------------------------------
-
-model PushSubscription {
-  id        String   @id @default(cuid())
-  userId    String
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
-// -----------------------------------------------------
-// SCHEDULED NOTIFICATIONS (AI-initiated engagement)
-// -----------------------------------------------------
-
-model ScheduledNotification {
-  id        String   @id @default(cuid())
-  userId    String
-  type      String   // e.g., "PROMISED_FOLLOWUP", "RE_ENGAGEMENT"
-  intent    String?  // The detected intent or context
-  channel   Channel  @default(WEB)
-  scheduledFor DateTime
-  processed Boolean  @default(false)
-  sentAt    DateTime?
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
-  @@index([scheduledFor])
-  @@index([processed])
 }

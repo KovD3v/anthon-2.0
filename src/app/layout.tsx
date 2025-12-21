@@ -3,7 +3,6 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { ToastProvider } from "@/components/providers/toast-provider";
-import { PWARegistration } from "@/components/pwa-registration";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,7 +28,6 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "Anthon - AI Mental Coach",
   description: "Il tuo mental coach personale basato sull'IA.",
-  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -58,7 +56,6 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             {children}
-            <PWARegistration />
             <ToastProvider />
           </ThemeProvider>
         </body>
