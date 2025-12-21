@@ -200,13 +200,12 @@ export function LayoutClient({
   // Handle mobile scroll locking
   useEffect(() => {
     const isMobile = window.innerWidth <= 768;
-    if (isMobile) {
+    if (isMobile && isSidebarOpen) {
       document.documentElement.classList.add("no-scroll");
-    }
-    return () => {
+    } else {
       document.documentElement.classList.remove("no-scroll");
-    };
-  }, []);
+    }
+  }, [isSidebarOpen]);
 
   // Pre-fetch chat data on hover
   const preFetchChat = useCallback(

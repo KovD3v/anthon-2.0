@@ -104,7 +104,7 @@ export function UsageBanner({
     return () => clearTimeout(timeout);
   }, []);
 
-  if (isDismissed || !usage || !limits) return null;
+  if (!usage || !limits) return null;
 
   const requestPercent =
     limits.maxRequests > 0
@@ -121,8 +121,30 @@ export function UsageBanner({
 
   const maxPercent = Math.max(requestPercent, tokenPercent, costPercent);
 
-  // Only show if approaching limits (>70%)
-  if (maxPercent < 70) return null;
+  // Calculate visibility
+  const isApproachingLimit = maxPercent >= 70;
+  const shouldShowFullBanner = !isDismissed && isApproachingLimit;
+
+  // If we shouldn't show the full banner, check if we need to show the toggle
+  if (!shouldShowFullBanner) {
+    if (showToggle) {
+      return (
+        <div className="mx-2 mt-2 md:mx-4 md:mt-4">
+          <div className="flex h-12 sm:h-14 items-center border border-border/50 dark:border-white/10 bg-background/60 backdrop-blur-xl rounded-2xl px-3 sm:px-4 shadow-sm">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onToggleSidebar}
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
 
   const isAtLimit = maxPercent >= 100;
   const isNearLimit = maxPercent >= 90;
