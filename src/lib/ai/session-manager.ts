@@ -5,8 +5,15 @@ import { subAgentModel } from "@/lib/ai/providers/openrouter";
 import { cacheSummary, getCachedSummary } from "@/lib/ai/session-cache";
 import { prisma } from "@/lib/db";
 
+// Define a subset of Message that we actually need for context building
+// This allows us to use `select` in Prisma to avoid fetching large JSON fields
+type ContextMessage = Pick<
+  Message,
+  "id" | "role" | "content" | "createdAt" | "userId"
+>;
+
 interface Session {
-  messages: Message[];
+  messages: ContextMessage[];
   startTime: Date;
   endTime: Date;
   userMessageCount: number;
@@ -16,11 +23,11 @@ interface Session {
  * Groups messages into sessions based on time gaps.
  * A new session starts when there's more than 15 minutes between consecutive messages.
  */
-function groupMessagesIntoSessions(messages: Message[]): Session[] {
+function groupMessagesIntoSessions(messages: ContextMessage[]): Session[] {
   if (messages.length === 0) return [];
 
   const sessions: Session[] = [];
-  let currentSession: Message[] = [messages[0]];
+  let currentSession: ContextMessage[] = [messages[0]];
 
   for (let i = 1; i < messages.length; i++) {
     const prevTime = new Date(messages[i - 1].createdAt).getTime();
@@ -43,7 +50,7 @@ function groupMessagesIntoSessions(messages: Message[]): Session[] {
   return sessions;
 }
 
-function createSession(messages: Message[]): Session {
+function createSession(messages: ContextMessage[]): Session {
   return {
     messages,
     startTime: new Date(messages[0].createdAt),
@@ -94,7 +101,7 @@ Mantieni il contesto importante per continuare la conversazione.`,
 /**
  * Converts a Message from database to ModelMessage for AI SDK.
  */
-function toModelMessage(message: Message): ModelMessage {
+function toModelMessage(message: ContextMessage): ModelMessage {
   const role =
     message.role === "USER"
       ? "user"
@@ -127,11 +134,19 @@ export async function buildConversationContext(
 ): Promise<ModelMessage[]> {
   // Fetch recent messages for the user (limited for scalability)
   // Ordered desc, then reversed to get chronological order
+  // Optimization: Select only fields needed for context building to avoid fetching large JSON fields
   const recentMessages = await prisma.message
     .findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
       take: SESSION.RECENT_MESSAGES_LIMIT,
+      select: {
+        id: true,
+        role: true,
+        content: true,
+        createdAt: true,
+        userId: true,
+      },
     })
     .then((msgs) => msgs.reverse());
 
