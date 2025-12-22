@@ -503,3 +503,92 @@ model VoiceUsage {
   @@index([userId, generatedAt(sort: Desc)])
   @@index([generatedAt])
 }
+
+// -----------------------------------------------------
+// BENCHMARK (AI model evaluation system)
+// -----------------------------------------------------
+
+model BenchmarkRun {
+  id String @id @default(cuid())
+
+  name        String // Human-readable run name, e.g. "December 2024 Evaluation"
+  description String? @db.Text
+
+  // Models tested in this run
+  models String[] // Array of model IDs tested
+
+  // Aggregated scores
+  status    BenchmarkStatus @default(PENDING)
+  startedAt DateTime?
+  endedAt   DateTime?
+
+  // Admin review
+  reviewedBy   String? // Admin user ID who reviewed
+  reviewedAt   DateTime?
+  reviewNotes  String?  @db.Text
+  approved     Boolean?
+
+  results BenchmarkResult[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+}
+
+enum BenchmarkStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model BenchmarkResult {
+  id    String       @id @default(cuid())
+  runId String
+  run   BenchmarkRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  // Test case identification
+  testCaseId String
+  category   BenchmarkCategory
+  modelId    String
+
+  // Collected metrics
+  inferenceTimeMs  Int
+  inputTokens      Int
+  outputTokens     Int
+  reasoningTokens  Int?
+  costUsd          Float
+  responseText     String   @db.Text
+  toolCalls        Json? // Array of {name, args, result}
+  sessionUsed      Json? // {messageCount, sessions}
+  memoriesUsed     String[] // Array of memory keys used
+
+  // AI Judge scores
+  toolUsageScore       Float? // 0-10
+  toolUsageReasoning   String? @db.Text
+  writingQualityScore  Float? // 0-10
+  writingQualityReasoning String? @db.Text
+  overallScore         Float // 0-10 (AI judge score)
+
+  // Admin evaluation (weight: 0.6 admin + 0.4 judge)
+  adminScore       Float? // 0-10 admin rating
+  adminReasoning   String? @db.Text
+  adminReviewedBy  String? // Admin user ID
+  adminReviewedAt  DateTime?
+  finalScore       Float? // Weighted: 0.6 * adminScore + 0.4 * overallScore
+
+  createdAt DateTime @default(now())
+
+  @@index([runId])
+  @@index([modelId])
+  @@index([category])
+  @@index([testCaseId])
+  @@index([runId, modelId])
+}
+
+enum BenchmarkCategory {
+  TOOL_USAGE
+  WRITING_QUALITY
+}
