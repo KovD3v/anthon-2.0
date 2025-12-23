@@ -1,5 +1,6 @@
-import { prisma } from "../src/lib/db";
+import type { Prisma } from "../src/generated/prisma";
 import dataset from "../src/lib/benchmark/dataset.json";
+import { prisma } from "../src/lib/db";
 
 async function main() {
   console.log("🌱 Seeding benchmark test cases...");
@@ -14,9 +15,9 @@ async function main() {
       category: tc.category.toUpperCase() as "TOOL_USAGE" | "WRITING_QUALITY",
       name: tc.name,
       description: tc.description,
-      setup: tc.setup as any,
+      setup: tc.setup as Prisma.InputJsonValue,
       userMessage: tc.userMessage,
-      expectedBehavior: tc.expectedBehavior as any,
+      expectedBehavior: tc.expectedBehavior as Prisma.InputJsonValue,
       tags: [],
       isActive: true,
     };

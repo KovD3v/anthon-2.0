@@ -4,14 +4,18 @@
  * Public exports for the benchmark module.
  */
 
-export { evaluateResult, evaluateResultWithConsensus, reEvaluateRun } from "./judge";
 export {
-  generateAdversarialCases,
-  saveAdversarialCase,
-  getPendingAdversarialCases,
   approveAdversarialCase,
+  generateAdversarialCases,
+  getPendingAdversarialCases,
   rejectAdversarialCase,
+  saveAdversarialCase,
 } from "./adversarial";
+export {
+  evaluateResult,
+  evaluateResultWithConsensus,
+  reEvaluateRun,
+} from "./judge";
 export {
   getBenchmarkRun,
   getModelScores,

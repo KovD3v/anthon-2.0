@@ -5,29 +5,39 @@
  */
 
 import { type ModelMessage, stepCountIs, streamText } from "ai";
+import {
+  BenchmarkCategory,
+  BenchmarkStatus,
+  type Prisma,
+} from "@/generated/prisma";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
-import { evaluateResult, evaluateResultWithConsensus } from "./judge";
+import { evaluateResultWithConsensus } from "./judge";
 import type {
   BenchmarkResultInput,
   BenchmarkRunnerOptions,
   TestCase,
+  TestCaseSetup,
+  ToolUsageExpected,
+  WritingQualityExpected,
 } from "./types";
 
 // Fetches test cases from database
-async function fetchTestCases(options: { 
-  testCaseIds?: string[]; 
+async function fetchTestCases(options: {
+  testCaseIds?: string[];
   categories?: ("tool_usage" | "writing_quality")[];
 }): Promise<TestCase[]> {
-  const where: any = { isActive: true };
-  
+  const where: Prisma.BenchmarkTestCaseWhereInput = { isActive: true };
+
   if (options.testCaseIds?.length) {
     where.externalId = { in: options.testCaseIds };
   }
-  
+
   if (options.categories?.length) {
-    where.category = { 
-      in: options.categories.map(c => c.toUpperCase()) as any
+    where.category = {
+      in: options.categories.map((c) =>
+        c.toUpperCase(),
+      ) as unknown as BenchmarkCategory[],
     };
   }
 
@@ -38,25 +48,13 @@ async function fetchTestCases(options: {
     category: tc.category.toLowerCase() as "tool_usage" | "writing_quality",
     name: tc.name,
     description: tc.description || "",
-    setup: tc.setup as any,
+    setup: tc.setup as unknown as TestCaseSetup,
     userMessage: tc.userMessage,
-    expectedBehavior: tc.expectedBehavior as any,
+    expectedBehavior: tc.expectedBehavior as unknown as
+      | ToolUsageExpected
+      | WritingQualityExpected,
   }));
 }
-
-// Enum values (hardcoded to avoid import issues before migration)
-const BenchmarkStatus = {
-  PENDING: "PENDING",
-  RUNNING: "RUNNING",
-  COMPLETED: "COMPLETED",
-  FAILED: "FAILED",
-  CANCELLED: "CANCELLED",
-} as const;
-
-const BenchmarkCategory = {
-  TOOL_USAGE: "TOOL_USAGE",
-  WRITING_QUALITY: "WRITING_QUALITY",
-} as const;
 
 // Models to benchmark (current production models)
 const DEFAULT_MODELS = [
@@ -108,7 +106,11 @@ export async function runBenchmark(
 
     // Build list of all test runs (testCase + model combinations)
     const iterations = options.iterations || 1;
-    const testRuns: Array<{ testCase: TestCase; modelId: string; iteration: number }> = [];
+    const testRuns: Array<{
+      testCase: TestCase;
+      modelId: string;
+      iteration: number;
+    }> = [];
     for (let i = 0; i < iterations; i++) {
       for (const testCase of testCases) {
         for (const modelId of models) {
@@ -128,7 +130,7 @@ export async function runBenchmark(
     // Run tests with worker pool (constant concurrency)
     const concurrency = options.concurrency || 10;
     let completed = 0;
-    
+
     // Function to run a single test and handle results
     const runWorker = async (runIndex: number) => {
       const { testCase, modelId, iteration } = testRuns[runIndex];
@@ -165,7 +167,13 @@ export async function runBenchmark(
 
         // Evaluate with AI judges (multi-judge consensus)
         const consensus = await evaluateResultWithConsensus(testCase, result);
-        const { judge1, judge2, consensusScore, judgeDisagreement, flaggedForReview } = consensus;
+        const {
+          judge1,
+          judge2,
+          consensusScore,
+          judgeDisagreement,
+          flaggedForReview,
+        } = consensus;
 
         // Save to database with all judge data
         await prisma.benchmarkResult.create({
@@ -190,7 +198,8 @@ export async function runBenchmark(
             toolUsageCritique: judge1.toolUsage?.critique ?? undefined,
             writingQualityScore: judge1.writingQuality?.score,
             writingQualityReasoning: judge1.writingQuality?.reasoning,
-            writingQualityCritique: judge1.writingQuality?.critique ?? undefined,
+            writingQualityCritique:
+              judge1.writingQuality?.critique ?? undefined,
             overallScore: judge1.overall,
             // Judge 2 scores
             judge2ToolUsageScore: judge2.toolUsage?.score,
@@ -198,7 +207,8 @@ export async function runBenchmark(
             judge2ToolUsageCritique: judge2.toolUsage?.critique ?? undefined,
             judge2WritingQualityScore: judge2.writingQuality?.score,
             judge2WritingQualityReasoning: judge2.writingQuality?.reasoning,
-            judge2WritingQualityCritique: judge2.writingQuality?.critique ?? undefined,
+            judge2WritingQualityCritique:
+              judge2.writingQuality?.critique ?? undefined,
             judge2OverallScore: judge2.overall,
             // Consensus metrics
             consensusScore,
@@ -208,7 +218,7 @@ export async function runBenchmark(
         });
 
         completed++;
-        
+
         // Update progress in database
         await prisma.benchmarkRun.update({
           where: { id: run.id },
@@ -242,9 +252,9 @@ export async function runBenchmark(
             overallScore: 0,
           },
         });
-        
+
         completed++;
-        
+
         // Update progress in database even on failure
         await prisma.benchmarkRun.update({
           where: { id: run.id },
@@ -337,7 +347,11 @@ export async function runBenchmarkForExistingRun(
 
     // Build list of all test runs (testCase + model combinations)
     const iterations = options.iterations || 1;
-    const testRuns: Array<{ testCase: TestCase; modelId: string; iteration: number }> = [];
+    const testRuns: Array<{
+      testCase: TestCase;
+      modelId: string;
+      iteration: number;
+    }> = [];
     for (let i = 0; i < iterations; i++) {
       for (const testCase of testCases) {
         for (const modelId of models) {
@@ -357,7 +371,7 @@ export async function runBenchmarkForExistingRun(
     // Run tests with worker pool (constant concurrency)
     const concurrency = options.concurrency || 10;
     let completed = 0;
-    
+
     // Function to run a single test and handle results
     const runWorker = async (runIndex: number) => {
       const { testCase, modelId, iteration } = testRuns[runIndex];
@@ -394,7 +408,13 @@ export async function runBenchmarkForExistingRun(
 
         // Evaluate with AI judges (multi-judge consensus)
         const consensus = await evaluateResultWithConsensus(testCase, result);
-        const { judge1, judge2, consensusScore, judgeDisagreement, flaggedForReview } = consensus;
+        const {
+          judge1,
+          judge2,
+          consensusScore,
+          judgeDisagreement,
+          flaggedForReview,
+        } = consensus;
 
         // Save to database with all judge data
         await prisma.benchmarkResult.create({
@@ -419,7 +439,8 @@ export async function runBenchmarkForExistingRun(
             toolUsageCritique: judge1.toolUsage?.critique ?? undefined,
             writingQualityScore: judge1.writingQuality?.score,
             writingQualityReasoning: judge1.writingQuality?.reasoning,
-            writingQualityCritique: judge1.writingQuality?.critique ?? undefined,
+            writingQualityCritique:
+              judge1.writingQuality?.critique ?? undefined,
             overallScore: judge1.overall,
             // Judge 2 scores
             judge2ToolUsageScore: judge2.toolUsage?.score,
@@ -427,7 +448,8 @@ export async function runBenchmarkForExistingRun(
             judge2ToolUsageCritique: judge2.toolUsage?.critique ?? undefined,
             judge2WritingQualityScore: judge2.writingQuality?.score,
             judge2WritingQualityReasoning: judge2.writingQuality?.reasoning,
-            judge2WritingQualityCritique: judge2.writingQuality?.critique ?? undefined,
+            judge2WritingQualityCritique:
+              judge2.writingQuality?.critique ?? undefined,
             judge2OverallScore: judge2.overall,
             // Consensus metrics
             consensusScore,
@@ -437,7 +459,7 @@ export async function runBenchmarkForExistingRun(
         });
 
         completed++;
-        
+
         // Update progress in database
         await prisma.benchmarkRun.update({
           where: { id: runId },
@@ -471,9 +493,9 @@ export async function runBenchmarkForExistingRun(
             overallScore: 0,
           },
         });
-        
+
         completed++;
-        
+
         // Update progress in database even on failure
         await prisma.benchmarkRun.update({
           where: { id: runId },
@@ -566,8 +588,15 @@ async function runSingleTest(
       onStepFinish: (step) => {
         if (step.toolCalls && Array.isArray(step.toolCalls)) {
           for (let i = 0; i < step.toolCalls.length; i++) {
-            const tc = step.toolCalls[i] as { toolName?: string; name?: string; args?: unknown; input?: unknown };
-            const tr = step.toolResults?.[i] as { result?: unknown } | undefined;
+            const tc = step.toolCalls[i] as {
+              toolName?: string;
+              name?: string;
+              args?: unknown;
+              input?: unknown;
+            };
+            const tr = step.toolResults?.[i] as
+              | { result?: unknown }
+              | undefined;
 
             const toolName = tc.toolName || tc.name || "unknown";
             const args = tc.args || tc.input || {};
@@ -603,10 +632,11 @@ async function runSingleTest(
 
     usage = {
       promptTokens: finalUsage.inputTokens ?? finalUsage.promptTokens ?? 0,
-      completionTokens: finalUsage.outputTokens ?? finalUsage.completionTokens ?? 0,
+      completionTokens:
+        finalUsage.outputTokens ?? finalUsage.completionTokens ?? 0,
     };
     const reasoningTokens = finalUsage.reasoningTokens ?? null;
-    
+
     const ttftMs = firstTokenTime ? firstTokenTime - startTime : null;
     const inferenceTimeMs = Date.now() - startTime;
 
@@ -978,7 +1008,7 @@ export async function getModelScores(runId: string) {
       // Priority: finalScore (admin-weighted) > consensusScore (multi-judge) > overallScore (Judge 1)
       const effectiveScore = r.finalScore ?? r.consensusScore ?? r.overallScore;
       m.scores.push(effectiveScore);
-      
+
       // Track individual judge scores
       m.judge1Scores.push(r.overallScore);
       if (r.judge2OverallScore !== null) {
@@ -990,7 +1020,7 @@ export async function getModelScores(runId: string) {
       if (r.flaggedForReview) {
         m.flaggedCount++;
       }
-      
+
       m.times.push(r.inferenceTimeMs);
       if (r.ttftMs !== null) m.ttfts.push(r.ttftMs);
       m.costs.push(r.costUsd);
@@ -1013,39 +1043,43 @@ export async function getModelScores(runId: string) {
   const stdDev = (arr: number[]) => {
     if (arr.length <= 1) return 0;
     const mean = avg(arr);
-    const variance = arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
+    const variance = arr.reduce((a, b) => a + (b - mean) ** 2, 0) / arr.length;
     return Math.sqrt(variance);
   };
 
   return Array.from(byModel.entries()).map(([modelId, data]) => {
     const overallAvg = avg(data.scores);
-    const reliability = data.scores.filter((s) => s > 0).length / data.scores.length;
+    const reliability =
+      data.scores.filter((s) => s > 0).length / data.scores.length;
     const variance = stdDev(data.scores);
-    
-    // Reasoning Efficiency: reasoning tokens / output tokens
-    const reasoningEfficiency = data.outputTokens > 0 
-      ? data.reasoningTokens / data.outputTokens 
-      : null;
 
-    // Token Efficiency Index: 
+    // Reasoning Efficiency: reasoning tokens / output tokens
+    const reasoningEfficiency =
+      data.outputTokens > 0 ? data.reasoningTokens / data.outputTokens : null;
+
+    // Token Efficiency Index:
     // Very simple heuristic: 10 * (1 - clamp(outputTokens / avgTokensInRun, 0, 1))
     // better: 10 / (1 + outputTokens / (data.scores.length * 50)) // normalized against expected length
-    const tokenEfficiencyIndex = data.outputTokens > 0 
-      ? 10 / (1 + (data.outputTokens / (data.scores.length * 100))) 
-      : null;
+    const tokenEfficiencyIndex =
+      data.outputTokens > 0
+        ? 10 / (1 + data.outputTokens / (data.scores.length * 100))
+        : null;
 
     return {
       modelId,
       testCount: data.scores.length,
       avgOverallScore: overallAvg, // Now uses consensus score when available
       avgJudge1Score: avg(data.judge1Scores),
-      avgJudge2Score: data.judge2Scores.length > 0 ? avg(data.judge2Scores) : null,
-      avgConsensusScore: data.consensusScores.length > 0 ? avg(data.consensusScores) : null,
+      avgJudge2Score:
+        data.judge2Scores.length > 0 ? avg(data.judge2Scores) : null,
+      avgConsensusScore:
+        data.consensusScores.length > 0 ? avg(data.consensusScores) : null,
       flaggedForReviewCount: data.flaggedCount,
       avgInferenceTimeMs: avg(data.times),
       avgTtftMs: data.ttfts.length > 0 ? avg(data.ttfts) : null,
       avgCostUsd: avg(data.costs),
-      avgToolUsageScore: data.toolScores.length > 0 ? avg(data.toolScores) : null,
+      avgToolUsageScore:
+        data.toolScores.length > 0 ? avg(data.toolScores) : null,
       avgWritingQualityScore:
         data.writingScores.length > 0 ? avg(data.writingScores) : null,
       reliability,

@@ -7,9 +7,15 @@
 
 import { generateObject } from "ai";
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
-import type { TestCase, ToolUsageExpected, WritingQualityExpected } from "./types";
+import type {
+  TestCase,
+  TestCaseSetup,
+  ToolUsageExpected,
+  WritingQualityExpected,
+} from "./types";
 
 // Model used for adversarial generation
 const ADVERSARIAL_MODEL = "google/gemini-2.5-flash";
@@ -18,50 +24,72 @@ const ADVERSARIAL_MODEL = "google/gemini-2.5-flash";
 const AdversarialTestCaseSchema = z.object({
   category: z.enum(["tool_usage", "writing_quality"]),
   name: z.string().describe("Nome breve del test case"),
-  description: z.string().describe("Descrizione del comportamento edge case testato"),
-  userMessage: z.string().describe("Messaggio dell'utente (deve essere sfidante e ambiguo)"),
+  description: z
+    .string()
+    .describe("Descrizione del comportamento edge case testato"),
+  userMessage: z
+    .string()
+    .describe("Messaggio dell'utente (deve essere sfidante e ambiguo)"),
   setup: z.object({
-    session: z.array(z.object({
-      role: z.enum(["user", "assistant"]),
-      content: z.string(),
-    })).describe("Cronologia conversazione (opzionale)"),
-    memories: z.array(z.object({
-      key: z.string(),
-      value: z.string(),
-    })).describe("Memorie utente (opzionale)"),
+    session: z
+      .array(
+        z.object({
+          role: z.enum(["user", "assistant"]),
+          content: z.string(),
+        }),
+      )
+      .describe("Cronologia conversazione (opzionale)"),
+    memories: z
+      .array(
+        z.object({
+          key: z.string(),
+          value: z.string(),
+        }),
+      )
+      .describe("Memorie utente (opzionale)"),
     userContext: z.object({
-      profile: z.object({
-        name: z.string().optional(),
-        sport: z.string().optional(),
-        goal: z.string().optional(),
-        experience: z.string().optional(),
-      }).optional(),
-      preferences: z.object({
-        tone: z.string().optional(),
-        mode: z.string().optional(),
-        language: z.string().optional(),
-      }).optional(),
+      profile: z
+        .object({
+          name: z.string().optional(),
+          sport: z.string().optional(),
+          goal: z.string().optional(),
+          experience: z.string().optional(),
+        })
+        .optional(),
+      preferences: z
+        .object({
+          tone: z.string().optional(),
+          mode: z.string().optional(),
+          language: z.string().optional(),
+        })
+        .optional(),
     }),
   }),
-  expectedBehavior: z.union([
-    z.object({
-      shouldUseTool: z.boolean(),
-      expectedTools: z.array(z.string()).optional(),
-      forbiddenTools: z.array(z.string()).optional(),
-      expectedFields: z.record(z.string(), z.unknown()).optional(),
-    }),
-    z.object({
-      shouldBeShort: z.boolean().optional(),
-      maxLength: z.number().optional(),
-      minLength: z.number().optional(),
-      shouldMentionName: z.boolean().optional(),
-      expectedTone: z.string().optional(),
-      mustContain: z.array(z.string()).optional(),
-      mustNotContain: z.array(z.string()).optional(),
-    }),
-  ]).describe("Aspettative per la valutazione"),
-  adversarialRationale: z.string().describe("Spiegazione di perché questo test case è sfidante"),
-  targetWeakness: z.string().describe("Debolezza specifica che questo test case mira a esporre"),
+  expectedBehavior: z
+    .union([
+      z.object({
+        shouldUseTool: z.boolean(),
+        expectedTools: z.array(z.string()).optional(),
+        forbiddenTools: z.array(z.string()).optional(),
+        expectedFields: z.record(z.string(), z.unknown()).optional(),
+      }),
+      z.object({
+        shouldBeShort: z.boolean().optional(),
+        maxLength: z.number().optional(),
+        minLength: z.number().optional(),
+        shouldMentionName: z.boolean().optional(),
+        expectedTone: z.string().optional(),
+        mustContain: z.array(z.string()).optional(),
+        mustNotContain: z.array(z.string()).optional(),
+      }),
+    ])
+    .describe("Aspettative per la valutazione"),
+  adversarialRationale: z
+    .string()
+    .describe("Spiegazione di perché questo test case è sfidante"),
+  targetWeakness: z
+    .string()
+    .describe("Debolezza specifica che questo test case mira a esporre"),
 });
 
 export interface AdversarialGenerationOptions {
@@ -80,7 +108,9 @@ export interface GeneratedAdversarialCase {
 /**
  * Analyze existing test cases and results to identify patterns and weaknesses.
  */
-async function analyzeExistingPatterns(options: AdversarialGenerationOptions): Promise<{
+async function analyzeExistingPatterns(
+  options: AdversarialGenerationOptions,
+): Promise<{
   existingTestCases: TestCase[];
   weaknessPatterns: string[];
   lowScoringCategories: string[];
@@ -95,9 +125,11 @@ async function analyzeExistingPatterns(options: AdversarialGenerationOptions): P
     category: tc.category.toLowerCase() as "tool_usage" | "writing_quality",
     name: tc.name,
     description: tc.description || "",
-    setup: tc.setup as any,
+    setup: tc.setup as unknown as TestCaseSetup,
     userMessage: tc.userMessage,
-    expectedBehavior: tc.expectedBehavior as any,
+    expectedBehavior: tc.expectedBehavior as unknown as
+      | ToolUsageExpected
+      | WritingQualityExpected,
   }));
 
   // Fetch recent low-scoring results if requested
@@ -121,9 +153,12 @@ async function analyzeExistingPatterns(options: AdversarialGenerationOptions): P
     });
 
     for (const result of lowResults) {
-      const reasoning = result.toolUsageReasoning || result.writingQualityReasoning;
+      const reasoning =
+        result.toolUsageReasoning || result.writingQualityReasoning;
       if (reasoning) {
-        weaknessPatterns.push(`Test: ${result.testCaseId}, Issue: ${reasoning.slice(0, 200)}`);
+        weaknessPatterns.push(
+          `Test: ${result.testCaseId}, Issue: ${reasoning.slice(0, 200)}`,
+        );
       }
       lowScoringCategories.push(result.category);
     }
@@ -142,7 +177,7 @@ export async function generateAdversarialCases(
   const categories = options.categories || ["tool_usage", "writing_quality"];
 
   // Analyze existing patterns
-  const { existingTestCases, weaknessPatterns, lowScoringCategories } = 
+  const { existingTestCases, weaknessPatterns } =
     await analyzeExistingPatterns(options);
 
   // Build context for generation
@@ -151,9 +186,10 @@ export async function generateAdversarialCases(
     .map((tc) => `- ${tc.name}: "${tc.userMessage.slice(0, 100)}..."`)
     .join("\n");
 
-  const weaknessContext = weaknessPatterns.length > 0
-    ? `\n\nDEBOLEZZE RILEVATE:\n${weaknessPatterns.slice(0, 10).join("\n")}`
-    : "";
+  const weaknessContext =
+    weaknessPatterns.length > 0
+      ? `\n\nDEBOLEZZE RILEVATE:\n${weaknessPatterns.slice(0, 10).join("\n")}`
+      : "";
 
   const generatedCases: GeneratedAdversarialCase[] = [];
 
@@ -202,9 +238,11 @@ Genera un test case sfidante ma realistico.`,
         category: object.category,
         name: object.name,
         description: object.description,
-        setup: object.setup as any,
+        setup: object.setup as TestCaseSetup,
         userMessage: object.userMessage,
-        expectedBehavior: object.expectedBehavior as any,
+        expectedBehavior: object.expectedBehavior as
+          | ToolUsageExpected
+          | WritingQualityExpected,
       },
       adversarialRationale: object.adversarialRationale,
       targetWeakness: object.targetWeakness,
@@ -228,9 +266,9 @@ export async function saveAdversarialCase(
       category: tc.category === "tool_usage" ? "TOOL_USAGE" : "WRITING_QUALITY",
       name: `[ADV] ${tc.name}`,
       description: `${tc.description}\n\n---\nAdversarial Rationale: ${generatedCase.adversarialRationale}\nTarget Weakness: ${generatedCase.targetWeakness}`,
-      setup: tc.setup as any,
+      setup: tc.setup as unknown as Prisma.InputJsonValue,
       userMessage: tc.userMessage,
-      expectedBehavior: tc.expectedBehavior as any,
+      expectedBehavior: tc.expectedBehavior as unknown as Prisma.InputJsonValue,
       tags: ["adversarial", "generated"],
       isActive: false, // Requires admin approval
     },
@@ -242,7 +280,9 @@ export async function saveAdversarialCase(
 /**
  * Get pending adversarial cases (not yet approved).
  */
-export async function getPendingAdversarialCases(): Promise<any[]> {
+export async function getPendingAdversarialCases(): Promise<
+  Prisma.BenchmarkTestCaseGetPayload<Record<string, never>>[]
+> {
   return prisma.benchmarkTestCase.findMany({
     where: {
       tags: { has: "adversarial" },
@@ -255,7 +295,9 @@ export async function getPendingAdversarialCases(): Promise<any[]> {
 /**
  * Approve an adversarial case (make it active for benchmarks).
  */
-export async function approveAdversarialCase(testCaseId: string): Promise<void> {
+export async function approveAdversarialCase(
+  testCaseId: string,
+): Promise<void> {
   await prisma.benchmarkTestCase.update({
     where: { id: testCaseId },
     data: { isActive: true },

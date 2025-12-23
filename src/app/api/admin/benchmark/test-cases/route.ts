@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { type NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 
 /**
@@ -26,8 +27,10 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category");
     const activeOnly = searchParams.get("activeOnly") !== "false";
 
-    const where: any = {};
-    if (category) where.category = category.toUpperCase();
+    const where: Prisma.BenchmarkTestCaseWhereInput = {};
+    if (category)
+      where.category =
+        category.toUpperCase() as Prisma.EnumBenchmarkCategoryFilter;
     if (activeOnly) where.isActive = true;
 
     const testCases = await prisma.benchmarkTestCase.findMany({
@@ -38,7 +41,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ testCases });
   } catch (error) {
     console.error("[TestCases API] GET error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
@@ -63,7 +69,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, externalId, category, name, description, setup, userMessage, expectedBehavior, isActive, tags } = body;
+    const {
+      id,
+      externalId,
+      category,
+      name,
+      description,
+      setup,
+      userMessage,
+      expectedBehavior,
+      isActive,
+      tags,
+    } = body;
 
     const data = {
       externalId,
@@ -77,7 +94,7 @@ export async function POST(request: NextRequest) {
       tags: tags || [],
     };
 
-    let testCase;
+    let testCase: Prisma.BenchmarkTestCaseGetPayload<Record<string, never>>;
     if (id) {
       testCase = await prisma.benchmarkTestCase.update({
         where: { id },
@@ -92,7 +109,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, testCase });
   } catch (error) {
     console.error("[TestCases API] POST error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
@@ -120,6 +140,9 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[TestCases API] DELETE error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

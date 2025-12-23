@@ -11,7 +11,9 @@ import type {
   BenchmarkResultInput,
   JudgeScores,
   TestCase,
+  ToolUsageCritique,
   ToolUsageExpected,
+  WritingQualityCritique,
   WritingQualityExpected,
 } from "./types";
 
@@ -24,17 +26,35 @@ const DISAGREEMENT_THRESHOLD = 3;
 
 // Critique schemas for Chain of Thought evaluation
 const ToolUsageCritiqueSchema = z.object({
-  toolsAnalysis: z.string().describe("Analisi dettagliata dei tool usati: quali sono stati chiamati, in che ordine, con quali parametri"),
-  parametersCheck: z.string().describe("Verifica dei parametri passati ai tool: sono corretti? Mancano campi? Valori sbagliati?"),
-  missingElements: z.string().describe("Elementi mancanti: quali tool dovevano essere chiamati ma non lo sono stati? Quali dati non sono stati salvati?"),
-  unexpectedBehaviors: z.string().describe("Comportamenti inattesi: tool chiamati quando non dovevano, parametri extra, azioni non richieste"),
+  toolsAnalysis: z
+    .string()
+    .describe(
+      "Analisi dettagliata dei tool usati: quali sono stati chiamati, in che ordine, con quali parametri",
+    ),
+  parametersCheck: z
+    .string()
+    .describe(
+      "Verifica dei parametri passati ai tool: sono corretti? Mancano campi? Valori sbagliati?",
+    ),
+  missingElements: z
+    .string()
+    .describe(
+      "Elementi mancanti: quali tool dovevano essere chiamati ma non lo sono stati? Quali dati non sono stati salvati?",
+    ),
+  unexpectedBehaviors: z
+    .string()
+    .describe(
+      "Comportamenti inattesi: tool chiamati quando non dovevano, parametri extra, azioni non richieste",
+    ),
 });
 
 // Schemas for structured evaluation (Chain of Thought: Critique → Evaluation → Score)
 const ToolUsageScoreSchema = z.object({
   // Step 1: Detailed critique (REQUIRED FIRST - Chain of Thought)
-  critique: ToolUsageCritiqueSchema.describe("Critica dettagliata PRIMA di assegnare un punteggio"),
-  
+  critique: ToolUsageCritiqueSchema.describe(
+    "Critica dettagliata PRIMA di assegnare un punteggio",
+  ),
+
   // Step 2: Structured evaluation based on critique
   toolsUsedCorrectly: z
     .boolean()
@@ -46,34 +66,68 @@ const ToolUsageScoreSchema = z.object({
   fieldsCorrect: z
     .boolean()
     .describe("Se i campi passati ai tool sono corretti"),
-  
+
   // Step 3: Final score with reasoning based on critique (LAST)
-  score: z.number().min(0).max(10).describe("Punteggio da 0 a 10 basato sulla critica"),
-  reasoning: z.string().describe("Conclusione finale che riassume la critica e giustifica il punteggio"),
+  score: z
+    .number()
+    .min(0)
+    .max(10)
+    .describe("Punteggio da 0 a 10 basato sulla critica"),
+  reasoning: z
+    .string()
+    .describe(
+      "Conclusione finale che riassume la critica e giustifica il punteggio",
+    ),
 });
 
 // Critique schema for writing quality Chain of Thought evaluation
 const WritingQualityCritiqueSchema = z.object({
-  contentAnalysis: z.string().describe("Analisi del contenuto: la risposta affronta la richiesta? È pertinente? Fornisce valore?"),
-  toneAnalysis: z.string().describe("Analisi del tono: è appropriato al contesto? Rispetta le preferenze dell'utente? È empatico quando serve?"),
-  structureAnalysis: z.string().describe("Analisi della struttura: lunghezza appropriata? Formattazione corretta? Flusso naturale?"),
-  complianceCheck: z.string().describe("Verifica conformità: contiene gli elementi richiesti? Evita quelli proibiti? Usa il contesto utente?"),
+  contentAnalysis: z
+    .string()
+    .describe(
+      "Analisi del contenuto: la risposta affronta la richiesta? È pertinente? Fornisce valore?",
+    ),
+  toneAnalysis: z
+    .string()
+    .describe(
+      "Analisi del tono: è appropriato al contesto? Rispetta le preferenze dell'utente? È empatico quando serve?",
+    ),
+  structureAnalysis: z
+    .string()
+    .describe(
+      "Analisi della struttura: lunghezza appropriata? Formattazione corretta? Flusso naturale?",
+    ),
+  complianceCheck: z
+    .string()
+    .describe(
+      "Verifica conformità: contiene gli elementi richiesti? Evita quelli proibiti? Usa il contesto utente?",
+    ),
 });
 
 const WritingQualityScoreSchema = z.object({
   // Step 1: Detailed critique (REQUIRED FIRST - Chain of Thought)
-  critique: WritingQualityCritiqueSchema.describe("Critica dettagliata PRIMA di assegnare un punteggio"),
-  
+  critique: WritingQualityCritiqueSchema.describe(
+    "Critica dettagliata PRIMA di assegnare un punteggio",
+  ),
+
   // Step 2: Structured evaluation based on critique
   lengthAppropriate: z.boolean().describe("Se la lunghezza è appropriata"),
   toneMatches: z.boolean().describe("Se il tono è appropriato al contesto"),
   containsRequired: z.boolean().describe("Se contiene elementi richiesti"),
   avoidsProhibited: z.boolean().describe("Se evita elementi proibiti"),
   naturalFlow: z.boolean().describe("Se la risposta scorre naturalmente"),
-  
+
   // Step 3: Final score with reasoning based on critique (LAST)
-  score: z.number().min(0).max(10).describe("Punteggio da 0 a 10 basato sulla critica"),
-  reasoning: z.string().describe("Conclusione finale che riassume la critica e giustifica il punteggio"),
+  score: z
+    .number()
+    .min(0)
+    .max(10)
+    .describe("Punteggio da 0 a 10 basato sulla critica"),
+  reasoning: z
+    .string()
+    .describe(
+      "Conclusione finale che riassume la critica e giustifica il punteggio",
+    ),
 });
 
 /**
@@ -125,14 +179,16 @@ export async function evaluateResultWithConsensus(
 
   // Calculate consensus metrics
   const consensusScore = (judge1Scores.overall + judge2Scores.overall) / 2;
-  const judgeDisagreement = Math.abs(judge1Scores.overall - judge2Scores.overall);
+  const judgeDisagreement = Math.abs(
+    judge1Scores.overall - judge2Scores.overall,
+  );
   const flaggedForReview = judgeDisagreement > DISAGREEMENT_THRESHOLD;
 
   if (flaggedForReview) {
     console.log(
       `⚠️ [Judge] Significant disagreement for ${result.testCaseId}: ` +
-      `Judge1=${judge1Scores.overall.toFixed(1)}, Judge2=${judge2Scores.overall.toFixed(1)} ` +
-      `(diff=${judgeDisagreement.toFixed(1)})`
+        `Judge1=${judge1Scores.overall.toFixed(1)}, Judge2=${judge2Scores.overall.toFixed(1)} ` +
+        `(diff=${judgeDisagreement.toFixed(1)})`,
     );
   }
 
@@ -157,11 +213,19 @@ async function evaluateWithModel(
 
   try {
     if (testCase.category === "tool_usage") {
-      const toolScore = await evaluateToolUsageWithModel(testCase, result, modelId);
+      const toolScore = await evaluateToolUsageWithModel(
+        testCase,
+        result,
+        modelId,
+      );
       scores.toolUsage = toolScore;
       scores.overall = toolScore.score;
     } else if (testCase.category === "writing_quality") {
-      const writingScore = await evaluateWritingQualityWithModel(testCase, result, modelId);
+      const writingScore = await evaluateWritingQualityWithModel(
+        testCase,
+        result,
+        modelId,
+      );
       scores.writingQuality = writingScore;
       scores.overall = writingScore.score;
     }
@@ -179,7 +243,7 @@ async function evaluateWithModel(
 async function evaluateToolUsage(
   testCase: TestCase,
   result: BenchmarkResultInput,
-): Promise<{ score: number; reasoning: string; critique?: any }> {
+): Promise<{ score: number; reasoning: string; critique?: ToolUsageCritique }> {
   const expected = testCase.expectedBehavior as ToolUsageExpected;
   const toolsUsed = result.toolCalls?.map((t) => t.name) || [];
 
@@ -248,7 +312,11 @@ ISTRUZIONI:
 async function evaluateWritingQuality(
   testCase: TestCase,
   result: BenchmarkResultInput,
-): Promise<{ score: number; reasoning: string; critique?: any }> {
+): Promise<{
+  score: number;
+  reasoning: string;
+  critique?: WritingQualityCritique;
+}> {
   const expected = testCase.expectedBehavior as WritingQualityExpected;
   const responseLength = result.responseText.length;
 
@@ -358,7 +426,7 @@ async function evaluateToolUsageWithModel(
   testCase: TestCase,
   result: BenchmarkResultInput,
   modelId: string,
-): Promise<{ score: number; reasoning: string; critique?: any }> {
+): Promise<{ score: number; reasoning: string; critique?: ToolUsageCritique }> {
   const expected = testCase.expectedBehavior as ToolUsageExpected;
   const toolsUsed = result.toolCalls?.map((t) => t.name) || [];
 
@@ -428,7 +496,11 @@ async function evaluateWritingQualityWithModel(
   testCase: TestCase,
   result: BenchmarkResultInput,
   modelId: string,
-): Promise<{ score: number; reasoning: string; critique?: any }> {
+): Promise<{
+  score: number;
+  reasoning: string;
+  critique?: WritingQualityCritique;
+}> {
   const expected = testCase.expectedBehavior as WritingQualityExpected;
   const responseLength = result.responseText.length;
 

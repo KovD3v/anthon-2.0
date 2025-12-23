@@ -4,14 +4,14 @@
  * GET - List pending (unapproved) adversarial cases
  */
 
-import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
+import { type NextRequest, NextResponse } from "next/server";
 import {
   generateAdversarialCases,
-  saveAdversarialCase,
   getPendingAdversarialCases,
+  saveAdversarialCase,
 } from "@/lib/benchmark";
+import { prisma } from "@/lib/db";
 
 /**
  * POST /api/admin/benchmark/adversarial
@@ -37,7 +37,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { count = 3, categories, focusOnLowScores = false } = body;
 
-    console.log("[Adversarial API] Generating cases:", { count, categories, focusOnLowScores });
+    console.log("[Adversarial API] Generating cases:", {
+      count,
+      categories,
+      focusOnLowScores,
+    });
 
     const generatedCases = await generateAdversarialCases({
       count: Math.min(count, 10), // Cap at 10

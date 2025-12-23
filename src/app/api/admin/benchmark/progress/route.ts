@@ -43,10 +43,14 @@ export async function GET(request: NextRequest) {
       total: run.totalTests,
       completed: run.completedTests,
       currentProgress: run.currentProgress,
-      progress: run.totalTests > 0 ? (run.completedTests / run.totalTests) * 100 : 0,
+      progress:
+        run.totalTests > 0 ? (run.completedTests / run.totalTests) * 100 : 0,
     });
   } catch (error) {
     console.error("[Progress API] GET error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

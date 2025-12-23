@@ -99,18 +99,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    
+
     // Create the run record FIRST so we can return immediately
     const models = body.models || [
       "google/gemini-2.0-flash-lite-001",
       "google/gemini-2.0-flash-001",
       "google/gemini-2.5-flash-lite-preview-09-2025",
     ];
-    const runName = body.name || `Benchmark ${new Date().toLocaleDateString("it-IT", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    })}`;
+    const runName =
+      body.name ||
+      `Benchmark ${new Date().toLocaleDateString("it-IT", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })}`;
 
     const run = await prisma.benchmarkRun.create({
       data: {
@@ -123,7 +125,7 @@ export async function POST(request: NextRequest) {
 
     // Start benchmark in background (fire-and-forget)
     const { runBenchmarkForExistingRun } = await getBenchmarkModule();
-    
+
     // Don't await - this runs in the background
     runBenchmarkForExistingRun(run.id, {
       models: body.models,
@@ -132,7 +134,10 @@ export async function POST(request: NextRequest) {
       iterations: body.iterations,
       concurrency: body.concurrency,
     }).catch((err: Error) => {
-      console.error(`[Benchmark API] Background run failed for ${run.id}:`, err);
+      console.error(
+        `[Benchmark API] Background run failed for ${run.id}:`,
+        err,
+      );
     });
 
     return NextResponse.json({
