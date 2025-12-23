@@ -11,7 +11,7 @@ import type { Prisma } from "@/generated/prisma";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
 import type {
-  TestCase,
+  BenchmarkCategory,
   TestCaseSetup,
   ToolUsageExpected,
   WritingQualityExpected,
@@ -100,7 +100,14 @@ export interface AdversarialGenerationOptions {
 }
 
 export interface GeneratedAdversarialCase {
-  testCase: Omit<TestCase, "id">;
+  testCase: {
+    category: BenchmarkCategory;
+    name: string;
+    description: string;
+    setup: TestCaseSetup;
+    userMessage: string;
+    expectedBehavior: ToolUsageExpected | WritingQualityExpected;
+  };
   adversarialRationale: string;
   targetWeakness: string;
 }
@@ -111,7 +118,7 @@ export interface GeneratedAdversarialCase {
 async function analyzeExistingPatterns(
   options: AdversarialGenerationOptions,
 ): Promise<{
-  existingTestCases: TestCase[];
+  existingTestCases: Array<{ name: string; userMessage: string }>;
   weaknessPatterns: string[];
   lowScoringCategories: string[];
 }> {
@@ -120,16 +127,9 @@ async function analyzeExistingPatterns(
     where: { isActive: true },
   });
 
-  const existingTestCases: TestCase[] = dbTestCases.map((tc) => ({
-    id: tc.externalId || tc.id,
-    category: tc.category.toLowerCase() as "tool_usage" | "writing_quality",
+  const existingTestCases = dbTestCases.map((tc) => ({
     name: tc.name,
-    description: tc.description || "",
-    setup: tc.setup as unknown as TestCaseSetup,
-    userMessage: tc.userMessage,
-    expectedBehavior: tc.expectedBehavior as unknown as
-      | ToolUsageExpected
-      | WritingQualityExpected,
+    userMessage: tc.userMessage || "",
   }));
 
   // Fetch recent low-scoring results if requested
@@ -183,7 +183,7 @@ export async function generateAdversarialCases(
   // Build context for generation
   const existingCaseSummary = existingTestCases
     .slice(0, 20)
-    .map((tc) => `- ${tc.name}: "${tc.userMessage.slice(0, 100)}..."`)
+    .map((tc) => `- ${tc.name}: "${(tc.userMessage || "").slice(0, 100)}..."`)
     .join("\n");
 
   const weaknessContext =
@@ -235,12 +235,13 @@ Genera un test case sfidante ma realistico.`,
 
     generatedCases.push({
       testCase: {
-        category: object.category,
+        category:
+          object.category === "tool_usage" ? "TOOL_USAGE" : "WRITING_QUALITY",
         name: object.name,
         description: object.description,
-        setup: object.setup as TestCaseSetup,
+        setup: object.setup as unknown as TestCaseSetup,
         userMessage: object.userMessage,
-        expectedBehavior: object.expectedBehavior as
+        expectedBehavior: object.expectedBehavior as unknown as
           | ToolUsageExpected
           | WritingQualityExpected,
       },
@@ -263,7 +264,7 @@ export async function saveAdversarialCase(
   const created = await prisma.benchmarkTestCase.create({
     data: {
       externalId: `adv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      category: tc.category === "tool_usage" ? "TOOL_USAGE" : "WRITING_QUALITY",
+      category: tc.category,
       name: `[ADV] ${tc.name}`,
       description: `${tc.description}\n\n---\nAdversarial Rationale: ${generatedCase.adversarialRationale}\nTarget Weakness: ${generatedCase.targetWeakness}`,
       setup: tc.setup as unknown as Prisma.InputJsonValue,
