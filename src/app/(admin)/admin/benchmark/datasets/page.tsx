@@ -199,7 +199,7 @@ export default function DatasetsPage() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-xl border border-purple-500/20"
+            className="mb-6 p-4 bg-linear-to-r from-purple-500/10 to-blue-500/10 rounded-xl border border-purple-500/20"
           >
             <div className="flex items-center justify-between">
               <div>

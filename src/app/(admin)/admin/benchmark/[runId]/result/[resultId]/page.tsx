@@ -275,7 +275,7 @@ export default function ResultDetailPage() {
             {/* Multi-Judge Consensus */}
             {(result.judge2OverallScore !== undefined ||
               result.consensusScore !== undefined) && (
-              <div className="p-6 bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-xl border border-purple-500/20">
+              <div className="p-6 bg-linear-to-r from-purple-500/10 to-blue-500/10 rounded-xl border border-purple-500/20">
                 <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
                   ⚖️ Multi-Judge Consensus
                   {result.flaggedForReview && (
