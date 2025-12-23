@@ -6,13 +6,13 @@
  * PATCH - Update admin review
  */
 
-import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 // Dynamically import benchmark functions to avoid issues before migration
 async function getBenchmarkModule() {
-	return import("@/lib/benchmark");
+  return import("@/lib/benchmark");
 }
 
 /**
@@ -22,57 +22,54 @@ async function getBenchmarkModule() {
  *   - limit: Number of runs to list (default 20)
  */
 export async function GET(request: NextRequest) {
-	try {
-		const { userId } = await auth();
-		if (!userId) {
-			return NextResponse.json(
-				{ error: "Unauthorized" },
-				{ status: 401 }
-			);
-		}
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-		// Check admin role
-		const user = await prisma.user.findFirst({
-			where: { clerkId: userId },
-			select: { role: true },
-		});
+    // Check admin role
+    const user = await prisma.user.findFirst({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
 
-		if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
-			return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-		}
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
-		const { searchParams } = new URL(request.url);
-		const runId = searchParams.get("runId");
-		const limit = parseInt(searchParams.get("limit") || "20", 10);
+    const { searchParams } = new URL(request.url);
+    const runId = searchParams.get("runId");
+    const limit = parseInt(searchParams.get("limit") || "20", 10);
 
-		const { getBenchmarkRun, listBenchmarkRuns, getModelScores } =
-			await getBenchmarkModule();
+    const { getBenchmarkRun, listBenchmarkRuns, getModelScores } =
+      await getBenchmarkModule();
 
-		if (runId) {
-			// Get specific run with results
-			const run = await getBenchmarkRun(runId);
-			if (!run) {
-				return NextResponse.json(
-					{ error: "Benchmark run not found" },
-					{ status: 404 }
-				);
-			}
+    if (runId) {
+      // Get specific run with results
+      const run = await getBenchmarkRun(runId);
+      if (!run) {
+        return NextResponse.json(
+          { error: "Benchmark run not found" },
+          { status: 404 },
+        );
+      }
 
-			const modelScores = await getModelScores(runId);
+      const modelScores = await getModelScores(runId);
 
-			return NextResponse.json({ run, modelScores });
-		}
+      return NextResponse.json({ run, modelScores });
+    }
 
-		// List all runs
-		const runs = await listBenchmarkRuns(limit);
-		return NextResponse.json({ runs });
-	} catch (error) {
-		console.error("[Benchmark API] GET error:", error);
-		return NextResponse.json(
-			{ error: "Internal server error" },
-			{ status: 500 }
-		);
-	}
+    // List all runs
+    const runs = await listBenchmarkRuns(limit);
+    return NextResponse.json({ runs });
+  } catch (error) {
+    console.error("[Benchmark API] GET error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
 }
 
 /**
@@ -85,49 +82,71 @@ export async function GET(request: NextRequest) {
  *   - categories?: ('tool_usage' | 'writing_quality')[]
  */
 export async function POST(request: NextRequest) {
-	try {
-		const { userId } = await auth();
-		if (!userId) {
-			return NextResponse.json(
-				{ error: "Unauthorized" },
-				{ status: 401 }
-			);
-		}
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-		// Check admin role
-		const user = await prisma.user.findFirst({
-			where: { clerkId: userId },
-			select: { role: true },
-		});
+    // Check admin role
+    const user = await prisma.user.findFirst({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
 
-		if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
-			return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-		}
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
-		const body = await request.json();
-		const { runBenchmark } = await getBenchmarkModule();
+    const body = await request.json();
+    
+    // Create the run record FIRST so we can return immediately
+    const models = body.models || [
+      "google/gemini-2.0-flash-lite-001",
+      "google/gemini-2.0-flash-001",
+      "google/gemini-2.5-flash-lite-preview-09-2025",
+    ];
+    const runName = body.name || `Benchmark ${new Date().toLocaleDateString("it-IT", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })}`;
 
-		// Start benchmark (runs in background)
-		const runId = await runBenchmark({
-			runName: body.name,
-			description: body.description,
-			models: body.models,
-			testCaseIds: body.testCaseIds,
-			categories: body.categories,
-		});
+    const run = await prisma.benchmarkRun.create({
+      data: {
+        name: runName,
+        description: body.description,
+        models,
+        status: "PENDING",
+      },
+    });
 
-		return NextResponse.json({
-			success: true,
-			runId,
-			message: "Benchmark started",
-		});
-	} catch (error) {
-		console.error("[Benchmark API] POST error:", error);
-		return NextResponse.json(
-			{ error: "Internal server error" },
-			{ status: 500 }
-		);
-	}
+    // Start benchmark in background (fire-and-forget)
+    const { runBenchmarkForExistingRun } = await getBenchmarkModule();
+    
+    // Don't await - this runs in the background
+    runBenchmarkForExistingRun(run.id, {
+      models: body.models,
+      testCaseIds: body.testCaseIds,
+      categories: body.categories,
+      iterations: body.iterations,
+      concurrency: body.concurrency,
+    }).catch((err: Error) => {
+      console.error(`[Benchmark API] Background run failed for ${run.id}:`, err);
+    });
+
+    return NextResponse.json({
+      success: true,
+      runId: run.id,
+      message: "Benchmark started",
+    });
+  } catch (error) {
+    console.error("[Benchmark API] POST error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
 }
 
 /**
@@ -142,104 +161,107 @@ export async function POST(request: NextRequest) {
  *   - adminReasoning?: string
  */
 export async function PATCH(request: NextRequest) {
-	try {
-		const { userId } = await auth();
-		if (!userId) {
-			return NextResponse.json(
-				{ error: "Unauthorized" },
-				{ status: 401 }
-			);
-		}
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-		// Check admin role
-		const user = await prisma.user.findFirst({
-			where: { clerkId: userId },
-			select: { id: true, role: true },
-		});
+    // Check admin role
+    const user = await prisma.user.findFirst({
+      where: { clerkId: userId },
+      select: { id: true, role: true },
+    });
 
-		if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
-			return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-		}
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
-		const body = await request.json();
+    const body = await request.json();
 
-		// Handle result admin scoring
-		if (body.resultId) {
-			const { resultId, adminScore, adminReasoning } = body;
+    // Handle result admin scoring
+    if (body.resultId) {
+      const { resultId, adminScore, adminReasoning } = body;
 
-			if (
-				typeof adminScore !== "number" ||
-				adminScore < 0 ||
-				adminScore > 10
-			) {
-				return NextResponse.json(
-					{ error: "adminScore must be a number between 0 and 10" },
-					{ status: 400 }
-				);
-			}
+      if (typeof adminScore !== "number" || adminScore < 0 || adminScore > 10) {
+        return NextResponse.json(
+          { error: "adminScore must be a number between 0 and 10" },
+          { status: 400 },
+        );
+      }
 
-			// Get current result to calculate weighted score
-			const currentResult = await prisma.benchmarkResult.findUnique({
-				where: { id: resultId },
-				select: { overallScore: true },
-			});
+      // Get current result to calculate weighted score
+      const currentResult = await prisma.benchmarkResult.findUnique({
+        where: { id: resultId },
+        select: { overallScore: true },
+      });
 
-			if (!currentResult) {
-				return NextResponse.json(
-					{ error: "Result not found" },
-					{ status: 404 }
-				);
-			}
+      if (!currentResult) {
+        return NextResponse.json(
+          { error: "Result not found" },
+          { status: 404 },
+        );
+      }
 
-			// Calculate weighted final score: 0.6 * admin + 0.4 * judge
-			const ADMIN_WEIGHT = 0.6;
-			const JUDGE_WEIGHT = 0.4;
-			const finalScore =
-				ADMIN_WEIGHT * adminScore +
-				JUDGE_WEIGHT * currentResult.overallScore;
+      // Calculate weighted final score: 0.6 * admin + 0.4 * judge
+      const ADMIN_WEIGHT = 0.6;
+      const JUDGE_WEIGHT = 0.4;
+      const finalScore =
+        ADMIN_WEIGHT * adminScore + JUDGE_WEIGHT * currentResult.overallScore;
 
-			const updated = await prisma.benchmarkResult.update({
-				where: { id: resultId },
-				data: {
-					adminScore,
-					adminReasoning,
-					adminReviewedBy: user.id,
-					adminReviewedAt: new Date(),
-					finalScore,
-				},
-			});
+      const updated = await prisma.benchmarkResult.update({
+        where: { id: resultId },
+        data: {
+          adminScore,
+          adminReasoning,
+          adminReviewedBy: user.id,
+          adminReviewedAt: new Date(),
+          finalScore,
+        },
+      });
 
-			return NextResponse.json({ success: true, result: updated });
-		}
+      return NextResponse.json({ success: true, result: updated });
+    }
 
-		// Handle run approval
-		const { runId, approved, notes } = body;
+    // Handle run approval
+    const { runId, approved, notes, action } = body;
 
-		if (!runId) {
-			return NextResponse.json(
-				{ error: "runId or resultId is required" },
-				{ status: 400 }
-			);
-		}
+    if (!runId) {
+      return NextResponse.json(
+        { error: "runId or resultId is required" },
+        { status: 400 },
+      );
+    }
 
-		const updated = await prisma.benchmarkRun.update({
-			where: { id: runId },
-			data: {
-				approved,
-				reviewNotes: notes,
-				reviewedBy: user.id,
-				reviewedAt: new Date(),
-			},
-		});
+    if (action === "cancel") {
+      const updated = await prisma.benchmarkRun.update({
+        where: { id: runId },
+        data: {
+          status: "CANCELLED",
+          endedAt: new Date(),
+        },
+      });
+      return NextResponse.json({ success: true, run: updated });
+    }
 
-		return NextResponse.json({ success: true, run: updated });
-	} catch (error) {
-		console.error("[Benchmark API] PATCH error:", error);
-		return NextResponse.json(
-			{ error: "Internal server error" },
-			{ status: 500 }
-		);
-	}
+    const updated = await prisma.benchmarkRun.update({
+      where: { id: runId },
+      data: {
+        approved,
+        reviewNotes: notes,
+        reviewedBy: user.id,
+        reviewedAt: new Date(),
+      },
+    });
+
+    return NextResponse.json({ success: true, run: updated });
+  } catch (error) {
+    console.error("[Benchmark API] PATCH error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
 }
 
 /**
@@ -248,49 +270,43 @@ export async function PATCH(request: NextRequest) {
  *   - runId: string - Delete entire benchmark run
  */
 export async function DELETE(request: NextRequest) {
-	try {
-		const { userId } = await auth();
-		if (!userId) {
-			return NextResponse.json(
-				{ error: "Unauthorized" },
-				{ status: 401 }
-			);
-		}
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-		// Check admin role
-		const user = await prisma.user.findFirst({
-			where: { clerkId: userId },
-			select: { role: true },
-		});
+    // Check admin role
+    const user = await prisma.user.findFirst({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
 
-		if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
-			return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-		}
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
-		const { searchParams } = new URL(request.url);
-		const runId = searchParams.get("runId");
+    const { searchParams } = new URL(request.url);
+    const runId = searchParams.get("runId");
 
-		if (!runId) {
-			return NextResponse.json(
-				{ error: "runId is required" },
-				{ status: 400 }
-			);
-		}
+    if (!runId) {
+      return NextResponse.json({ error: "runId is required" }, { status: 400 });
+    }
 
-		// Delete run (cascade will delete results)
-		await prisma.benchmarkRun.delete({
-			where: { id: runId },
-		});
+    // Delete run (cascade will delete results)
+    await prisma.benchmarkRun.delete({
+      where: { id: runId },
+    });
 
-		return NextResponse.json({
-			success: true,
-			message: "Benchmark run deleted",
-		});
-	} catch (error) {
-		console.error("[Benchmark API] DELETE error:", error);
-		return NextResponse.json(
-			{ error: "Internal server error" },
-			{ status: 500 }
-		);
-	}
+    return NextResponse.json({
+      success: true,
+      message: "Benchmark run deleted",
+    });
+  } catch (error) {
+    console.error("[Benchmark API] DELETE error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
 }

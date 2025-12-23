@@ -116,7 +116,7 @@ export async function getAuthUser(): Promise<AuthResult> {
   } catch (error: unknown) {
     if (
       error instanceof Error &&
-      ((error as any).digest === "DYNAMIC_SERVER_USAGE" ||
+      ((error as { digest?: string }).digest === "DYNAMIC_SERVER_USAGE" ||
         error.message.includes("Dynamic server usage"))
     ) {
       return { user: null, error: null };

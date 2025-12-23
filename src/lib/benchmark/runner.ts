@@ -4,372 +4,691 @@
  * Executes benchmark test cases against multiple AI models and collects metrics.
  */
 
-import { streamText, type ModelMessage, stepCountIs } from "ai";
+import { type ModelMessage, stepCountIs, streamText } from "ai";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
+import { evaluateResult, evaluateResultWithConsensus } from "./judge";
 import type {
-	TestCase,
-	BenchmarkDataset,
-	BenchmarkRunnerOptions,
-	BenchmarkResultInput,
+  BenchmarkResultInput,
+  BenchmarkRunnerOptions,
+  TestCase,
 } from "./types";
-import { evaluateResult } from "./judge";
-import { readFileSync } from "fs";
-import { join } from "path";
 
-// Load dataset from JSON file
-function loadDataset(): BenchmarkDataset {
-	const datasetPath = join(process.cwd(), "src/lib/benchmark/dataset.json");
-	const data = readFileSync(datasetPath, "utf-8");
-	return JSON.parse(data) as BenchmarkDataset;
+// Fetches test cases from database
+async function fetchTestCases(options: { 
+  testCaseIds?: string[]; 
+  categories?: ("tool_usage" | "writing_quality")[];
+}): Promise<TestCase[]> {
+  const where: any = { isActive: true };
+  
+  if (options.testCaseIds?.length) {
+    where.externalId = { in: options.testCaseIds };
+  }
+  
+  if (options.categories?.length) {
+    where.category = { 
+      in: options.categories.map(c => c.toUpperCase()) as any
+    };
+  }
+
+  const dbTestCases = await prisma.benchmarkTestCase.findMany({ where });
+
+  return dbTestCases.map((tc) => ({
+    id: tc.externalId || tc.id,
+    category: tc.category.toLowerCase() as "tool_usage" | "writing_quality",
+    name: tc.name,
+    description: tc.description || "",
+    setup: tc.setup as any,
+    userMessage: tc.userMessage,
+    expectedBehavior: tc.expectedBehavior as any,
+  }));
 }
 
 // Enum values (hardcoded to avoid import issues before migration)
 const BenchmarkStatus = {
-	PENDING: "PENDING",
-	RUNNING: "RUNNING",
-	COMPLETED: "COMPLETED",
-	FAILED: "FAILED",
+  PENDING: "PENDING",
+  RUNNING: "RUNNING",
+  COMPLETED: "COMPLETED",
+  FAILED: "FAILED",
+  CANCELLED: "CANCELLED",
 } as const;
 
 const BenchmarkCategory = {
-	TOOL_USAGE: "TOOL_USAGE",
-	WRITING_QUALITY: "WRITING_QUALITY",
+  TOOL_USAGE: "TOOL_USAGE",
+  WRITING_QUALITY: "WRITING_QUALITY",
 } as const;
 
 // Models to benchmark (current production models)
 const DEFAULT_MODELS = [
-	"google/gemini-2.0-flash-lite-001",
-	"google/gemini-2.0-flash-001",
-	"google/gemini-2.5-flash-lite-preview-09-2025",
+  "google/gemini-2.0-flash-lite-001",
+  "google/gemini-2.0-flash-001",
+  "google/gemini-2.5-flash-lite-preview-09-2025",
 ] as const;
 
 // Mock user ID for benchmark runs
-const BENCHMARK_USER_ID = "benchmark-user-000";
+const _BENCHMARK_USER_ID = "benchmark-user-000";
 
 /**
  * Run a complete benchmark with all test cases and models.
  */
 export async function runBenchmark(
-	options: BenchmarkRunnerOptions = {}
+  options: BenchmarkRunnerOptions = {},
 ): Promise<string> {
-	const models = options.models || [...DEFAULT_MODELS];
-	const runName =
-		options.runName ||
-		`Benchmark ${new Date().toLocaleDateString("it-IT", {
-			day: "2-digit",
-			month: "short",
-			year: "numeric",
-		})}`;
+  const models = options.models || [...DEFAULT_MODELS];
+  const runName =
+    options.runName ||
+    `Benchmark ${new Date().toLocaleDateString("it-IT", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })}`;
 
-	// Create benchmark run record
-	const run = await prisma.benchmarkRun.create({
-		data: {
-			name: runName,
-			description: options.description,
-			models,
-			status: BenchmarkStatus.RUNNING,
-			startedAt: new Date(),
-		},
-	});
+  // Create benchmark run record
+  const run = await prisma.benchmarkRun.create({
+    data: {
+      name: runName,
+      description: options.description,
+      models,
+      status: BenchmarkStatus.RUNNING,
+      startedAt: new Date(),
+    },
+  });
 
-	console.log(`🚀 Starting benchmark run: ${run.id}`);
-	console.log(`📊 Models: ${models.join(", ")}`);
+  console.log(`🚀 Starting benchmark run: ${run.id}`);
+  console.log(`📊 Models: ${models.join(", ")}`);
 
-	try {
-		// Load and filter test cases
-		const datasetData = loadDataset();
-		const allTestCases = datasetData.testCases as TestCase[];
-		let testCases = allTestCases;
+  try {
+    // Fetch test cases from database
+    const testCases = await fetchTestCases({
+      testCaseIds: options.testCaseIds,
+      categories: options.categories,
+    });
 
-		if (options.testCaseIds?.length) {
-			testCases = allTestCases.filter((tc) =>
-				options.testCaseIds!.includes(tc.id)
-			);
-		}
-		if (options.categories?.length) {
-			testCases = testCases.filter((tc) =>
-				options.categories!.includes(tc.category)
-			);
-		}
+    console.log(`📝 Test cases: ${testCases.length}`);
 
-		console.log(`📝 Test cases: ${testCases.length}`);
+    // Build list of all test runs (testCase + model combinations)
+    const iterations = options.iterations || 1;
+    const testRuns: Array<{ testCase: TestCase; modelId: string; iteration: number }> = [];
+    for (let i = 0; i < iterations; i++) {
+      for (const testCase of testCases) {
+        for (const modelId of models) {
+          testRuns.push({ testCase, modelId, iteration: i + 1 });
+        }
+      }
+    }
 
-		// Build list of all test runs (testCase + model combinations)
-		const testRuns: Array<{ testCase: TestCase; modelId: string }> = [];
-		for (const testCase of testCases) {
-			for (const modelId of models) {
-				testRuns.push({ testCase, modelId });
-			}
-		}
+    console.log(`🔄 Total runs: ${testRuns.length} (parallel worker pool)`);
 
-		console.log(`🔄 Total runs: ${testRuns.length} (parallel execution)`);
+    // Update run with total tests
+    await prisma.benchmarkRun.update({
+      where: { id: run.id },
+      data: { totalTests: testRuns.length },
+    });
 
-		// Run tests in parallel with concurrency limit
-		const CONCURRENCY = 10; // Max parallel API calls
-		const chunks: Array<Array<{ testCase: TestCase; modelId: string }>> =
-			[];
-		for (let i = 0; i < testRuns.length; i += CONCURRENCY) {
-			chunks.push(testRuns.slice(i, i + CONCURRENCY));
-		}
+    // Run tests with worker pool (constant concurrency)
+    const concurrency = options.concurrency || 10;
+    let completed = 0;
+    
+    // Function to run a single test and handle results
+    const runWorker = async (runIndex: number) => {
+      const { testCase, modelId, iteration } = testRuns[runIndex];
+      console.log(
+        `🧪 Running [${runIndex + 1}/${testRuns.length}]: ${testCase.id} with ${modelId.split("/")[1]} (Iter ${iteration}/${iterations})`,
+      );
 
-		let completed = 0;
-		for (const chunk of chunks) {
-			await Promise.all(
-				chunk.map(async ({ testCase, modelId }) => {
-					console.log(
-						`🧪 Running: ${testCase.id} with ${
-							modelId.split("/")[1]
-						}`
-					);
+      // Check for cancellation signal
+      const currentRun = await prisma.benchmarkRun.findUnique({
+        where: { id: run.id },
+        select: { status: true },
+      });
 
-					try {
-						// Execute test
-						const result = await runSingleTest(testCase, modelId);
+      if (currentRun?.status === BenchmarkStatus.CANCELLED) {
+        console.log(`⏹️ Benchmark ${run.id} was CANCELLED. Stopping worker.`);
+        return;
+      }
 
-						// Evaluate with AI judge
-						const scores = await evaluateResult(testCase, result);
+      // Record current progress
+      await prisma.benchmarkRun.update({
+        where: { id: run.id },
+        data: {
+          currentProgress: {
+            testCaseId: testCase.id,
+            modelId,
+            startedAt: new Date(),
+          },
+        },
+      });
 
-						// Save to database
-						await prisma.benchmarkResult.create({
-							data: {
-								runId: run.id,
-								testCaseId: result.testCaseId,
-								category: result.category,
-								modelId: result.modelId,
-								inferenceTimeMs: result.inferenceTimeMs,
-								inputTokens: result.inputTokens,
-								outputTokens: result.outputTokens,
-								reasoningTokens: result.reasoningTokens,
-								costUsd: result.costUsd,
-								responseText: result.responseText,
-								toolCalls: result.toolCalls ?? undefined,
-								sessionUsed: result.sessionUsed,
-								memoriesUsed: result.memoriesUsed,
-								toolUsageScore: scores.toolUsage?.score,
-								toolUsageReasoning: scores.toolUsage?.reasoning,
-								writingQualityScore:
-									scores.writingQuality?.score,
-								writingQualityReasoning:
-									scores.writingQuality?.reasoning,
-								overallScore: scores.overall,
-							},
-						});
+      try {
+        // Execute test
+        const result = await runSingleTest(testCase, modelId);
 
-						completed++;
-						console.log(
-							`   ✅ [${completed}/${testRuns.length}] ${
-								testCase.id
-							}@${
-								modelId.split("/")[1]
-							}: ${scores.overall.toFixed(1)}/10`
-						);
-					} catch (error) {
-						console.error(
-							`   ❌ ${testCase.id}@${modelId}: ${error}`
-						);
+        // Evaluate with AI judges (multi-judge consensus)
+        const consensus = await evaluateResultWithConsensus(testCase, result);
+        const { judge1, judge2, consensusScore, judgeDisagreement, flaggedForReview } = consensus;
 
-						// Save error result
-						await prisma.benchmarkResult.create({
-							data: {
-								runId: run.id,
-								testCaseId: testCase.id,
-								category:
-									testCase.category === "tool_usage"
-										? BenchmarkCategory.TOOL_USAGE
-										: BenchmarkCategory.WRITING_QUALITY,
-								modelId,
-								inferenceTimeMs: 0,
-								inputTokens: 0,
-								outputTokens: 0,
-								costUsd: 0,
-								responseText: `ERROR: ${error}`,
-								memoriesUsed: [],
-								overallScore: 0,
-							},
-						});
-						completed++;
-					}
-				})
-			);
-		}
+        // Save to database with all judge data
+        await prisma.benchmarkResult.create({
+          data: {
+            runId: run.id,
+            testCaseId: result.testCaseId,
+            category: result.category,
+            modelId: result.modelId,
+            inferenceTimeMs: result.inferenceTimeMs,
+            ttftMs: result.ttftMs,
+            inputTokens: result.inputTokens,
+            outputTokens: result.outputTokens,
+            reasoningTokens: result.reasoningTokens,
+            costUsd: result.costUsd,
+            responseText: result.responseText,
+            toolCalls: result.toolCalls ?? undefined,
+            sessionUsed: result.sessionUsed,
+            memoriesUsed: result.memoriesUsed,
+            // Judge 1 scores
+            toolUsageScore: judge1.toolUsage?.score,
+            toolUsageReasoning: judge1.toolUsage?.reasoning,
+            toolUsageCritique: judge1.toolUsage?.critique ?? undefined,
+            writingQualityScore: judge1.writingQuality?.score,
+            writingQualityReasoning: judge1.writingQuality?.reasoning,
+            writingQualityCritique: judge1.writingQuality?.critique ?? undefined,
+            overallScore: judge1.overall,
+            // Judge 2 scores
+            judge2ToolUsageScore: judge2.toolUsage?.score,
+            judge2ToolUsageReasoning: judge2.toolUsage?.reasoning,
+            judge2ToolUsageCritique: judge2.toolUsage?.critique ?? undefined,
+            judge2WritingQualityScore: judge2.writingQuality?.score,
+            judge2WritingQualityReasoning: judge2.writingQuality?.reasoning,
+            judge2WritingQualityCritique: judge2.writingQuality?.critique ?? undefined,
+            judge2OverallScore: judge2.overall,
+            // Consensus metrics
+            consensusScore,
+            judgeDisagreement,
+            flaggedForReview,
+          },
+        });
 
-		// Mark run as completed
-		await prisma.benchmarkRun.update({
-			where: { id: run.id },
-			data: {
-				status: BenchmarkStatus.COMPLETED,
-				endedAt: new Date(),
-			},
-		});
+        completed++;
+        
+        // Update progress in database
+        await prisma.benchmarkRun.update({
+          where: { id: run.id },
+          data: { completedTests: completed },
+        });
 
-		console.log(`\n✅ Benchmark completed: ${run.id}`);
-		return run.id;
-	} catch (error) {
-		// Mark run as failed
-		await prisma.benchmarkRun.update({
-			where: { id: run.id },
-			data: {
-				status: BenchmarkStatus.FAILED,
-				endedAt: new Date(),
-			},
-		});
+        console.log(
+          `   ✅ [${completed}/${testRuns.length}] ${testCase.id}@${
+            modelId.split("/")[1]
+          }: ${consensusScore.toFixed(1)}/10 ${flaggedForReview ? "⚠️ FLAGGED" : ""}`,
+        );
+      } catch (error) {
+        console.error(`   ❌ ${testCase.id}@${modelId}: ${error}`);
 
-		throw error;
-	}
+        // Save error result
+        await prisma.benchmarkResult.create({
+          data: {
+            runId: run.id,
+            testCaseId: testCase.id,
+            category:
+              testCase.category === "tool_usage"
+                ? BenchmarkCategory.TOOL_USAGE
+                : BenchmarkCategory.WRITING_QUALITY,
+            modelId,
+            inferenceTimeMs: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            costUsd: 0,
+            responseText: `ERROR: ${error}`,
+            memoriesUsed: [],
+            overallScore: 0,
+          },
+        });
+        
+        completed++;
+        
+        // Update progress in database even on failure
+        await prisma.benchmarkRun.update({
+          where: { id: run.id },
+          data: { completedTests: completed },
+        });
+      }
+    };
+
+    // Fill the pool
+    const pool: Promise<void>[] = [];
+    let nextIndex = 0;
+
+    const startNext = async (): Promise<void> => {
+      if (nextIndex >= testRuns.length) return;
+      const index = nextIndex++;
+      await runWorker(index);
+      await startNext();
+    };
+
+    for (let i = 0; i < Math.min(concurrency, testRuns.length); i++) {
+      pool.push(startNext());
+    }
+
+    await Promise.all(pool);
+
+    // Mark run as completed
+    await prisma.benchmarkRun.update({
+      where: { id: run.id },
+      data: {
+        status: BenchmarkStatus.COMPLETED,
+        endedAt: new Date(),
+      },
+    });
+
+    console.log(`\n✅ Benchmark completed: ${run.id}`);
+    return run.id;
+  } catch (error) {
+    // Mark run as failed
+    await prisma.benchmarkRun.update({
+      where: { id: run.id },
+      data: {
+        status: BenchmarkStatus.FAILED,
+        endedAt: new Date(),
+      },
+    });
+
+    throw error;
+  }
+}
+
+/**
+ * Run a benchmark for an existing run record.
+ * This is used for background execution where the run is created first.
+ */
+export async function runBenchmarkForExistingRun(
+  runId: string,
+  options: Omit<BenchmarkRunnerOptions, "runName" | "description"> = {},
+): Promise<void> {
+  // Fetch the existing run
+  const run = await prisma.benchmarkRun.findUnique({
+    where: { id: runId },
+  });
+
+  if (!run) {
+    throw new Error(`Benchmark run not found: ${runId}`);
+  }
+
+  const models = options.models || run.models;
+
+  // Update run to RUNNING status
+  await prisma.benchmarkRun.update({
+    where: { id: runId },
+    data: {
+      status: BenchmarkStatus.RUNNING,
+      startedAt: new Date(),
+    },
+  });
+
+  console.log(`🚀 Starting benchmark run: ${runId}`);
+  console.log(`📊 Models: ${models.join(", ")}`);
+
+  try {
+    // Fetch test cases from database
+    const testCases = await fetchTestCases({
+      testCaseIds: options.testCaseIds,
+      categories: options.categories,
+    });
+
+    console.log(`📝 Test cases: ${testCases.length}`);
+
+    // Build list of all test runs (testCase + model combinations)
+    const iterations = options.iterations || 1;
+    const testRuns: Array<{ testCase: TestCase; modelId: string; iteration: number }> = [];
+    for (let i = 0; i < iterations; i++) {
+      for (const testCase of testCases) {
+        for (const modelId of models) {
+          testRuns.push({ testCase, modelId, iteration: i + 1 });
+        }
+      }
+    }
+
+    console.log(`🔄 Total runs: ${testRuns.length} (parallel worker pool)`);
+
+    // Update run with total tests
+    await prisma.benchmarkRun.update({
+      where: { id: runId },
+      data: { totalTests: testRuns.length },
+    });
+
+    // Run tests with worker pool (constant concurrency)
+    const concurrency = options.concurrency || 10;
+    let completed = 0;
+    
+    // Function to run a single test and handle results
+    const runWorker = async (runIndex: number) => {
+      const { testCase, modelId, iteration } = testRuns[runIndex];
+      console.log(
+        `🧪 Running [${runIndex + 1}/${testRuns.length}]: ${testCase.id} with ${modelId.split("/")[1]} (Iter ${iteration}/${iterations})`,
+      );
+
+      // Check for cancellation signal
+      const currentRun = await prisma.benchmarkRun.findUnique({
+        where: { id: runId },
+        select: { status: true },
+      });
+
+      if (currentRun?.status === BenchmarkStatus.CANCELLED) {
+        console.log(`⏹️ Benchmark ${runId} was CANCELLED. Stopping worker.`);
+        return;
+      }
+
+      // Record current progress
+      await prisma.benchmarkRun.update({
+        where: { id: runId },
+        data: {
+          currentProgress: {
+            testCaseId: testCase.id,
+            modelId,
+            startedAt: new Date(),
+          },
+        },
+      });
+
+      try {
+        // Execute test
+        const result = await runSingleTest(testCase, modelId);
+
+        // Evaluate with AI judges (multi-judge consensus)
+        const consensus = await evaluateResultWithConsensus(testCase, result);
+        const { judge1, judge2, consensusScore, judgeDisagreement, flaggedForReview } = consensus;
+
+        // Save to database with all judge data
+        await prisma.benchmarkResult.create({
+          data: {
+            runId,
+            testCaseId: result.testCaseId,
+            category: result.category,
+            modelId: result.modelId,
+            inferenceTimeMs: result.inferenceTimeMs,
+            ttftMs: result.ttftMs,
+            inputTokens: result.inputTokens,
+            outputTokens: result.outputTokens,
+            reasoningTokens: result.reasoningTokens,
+            costUsd: result.costUsd,
+            responseText: result.responseText,
+            toolCalls: result.toolCalls ?? undefined,
+            sessionUsed: result.sessionUsed,
+            memoriesUsed: result.memoriesUsed,
+            // Judge 1 scores
+            toolUsageScore: judge1.toolUsage?.score,
+            toolUsageReasoning: judge1.toolUsage?.reasoning,
+            toolUsageCritique: judge1.toolUsage?.critique ?? undefined,
+            writingQualityScore: judge1.writingQuality?.score,
+            writingQualityReasoning: judge1.writingQuality?.reasoning,
+            writingQualityCritique: judge1.writingQuality?.critique ?? undefined,
+            overallScore: judge1.overall,
+            // Judge 2 scores
+            judge2ToolUsageScore: judge2.toolUsage?.score,
+            judge2ToolUsageReasoning: judge2.toolUsage?.reasoning,
+            judge2ToolUsageCritique: judge2.toolUsage?.critique ?? undefined,
+            judge2WritingQualityScore: judge2.writingQuality?.score,
+            judge2WritingQualityReasoning: judge2.writingQuality?.reasoning,
+            judge2WritingQualityCritique: judge2.writingQuality?.critique ?? undefined,
+            judge2OverallScore: judge2.overall,
+            // Consensus metrics
+            consensusScore,
+            judgeDisagreement,
+            flaggedForReview,
+          },
+        });
+
+        completed++;
+        
+        // Update progress in database
+        await prisma.benchmarkRun.update({
+          where: { id: runId },
+          data: { completedTests: completed },
+        });
+
+        console.log(
+          `   ✅ [${completed}/${testRuns.length}] ${testCase.id}@${
+            modelId.split("/")[1]
+          }: ${consensusScore.toFixed(1)}/10 ${flaggedForReview ? "⚠️ FLAGGED" : ""}`,
+        );
+      } catch (error) {
+        console.error(`   ❌ ${testCase.id}@${modelId}: ${error}`);
+
+        // Save error result
+        await prisma.benchmarkResult.create({
+          data: {
+            runId,
+            testCaseId: testCase.id,
+            category:
+              testCase.category === "tool_usage"
+                ? BenchmarkCategory.TOOL_USAGE
+                : BenchmarkCategory.WRITING_QUALITY,
+            modelId,
+            inferenceTimeMs: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            costUsd: 0,
+            responseText: `ERROR: ${error}`,
+            memoriesUsed: [],
+            overallScore: 0,
+          },
+        });
+        
+        completed++;
+        
+        // Update progress in database even on failure
+        await prisma.benchmarkRun.update({
+          where: { id: runId },
+          data: { completedTests: completed },
+        });
+      }
+    };
+
+    // Fill the pool
+    const pool: Promise<void>[] = [];
+    let nextIndex = 0;
+
+    const startNext = async (): Promise<void> => {
+      if (nextIndex >= testRuns.length) return;
+      const index = nextIndex++;
+      await runWorker(index);
+      await startNext();
+    };
+
+    for (let i = 0; i < Math.min(concurrency, testRuns.length); i++) {
+      pool.push(startNext());
+    }
+
+    await Promise.all(pool);
+
+    // Mark run as completed
+    await prisma.benchmarkRun.update({
+      where: { id: runId },
+      data: {
+        status: BenchmarkStatus.COMPLETED,
+        endedAt: new Date(),
+      },
+    });
+
+    console.log(`\n✅ Benchmark completed: ${runId}`);
+  } catch (error) {
+    // Mark run as failed
+    await prisma.benchmarkRun.update({
+      where: { id: runId },
+      data: {
+        status: BenchmarkStatus.FAILED,
+        endedAt: new Date(),
+      },
+    });
+
+    throw error;
+  }
 }
 
 /**
  * Run a single test case against a specific model.
  */
 async function runSingleTest(
-	testCase: TestCase,
-	modelId: string
+  testCase: TestCase,
+  modelId: string,
 ): Promise<BenchmarkResultInput> {
-	const startTime = Date.now();
-	const collectedToolCalls: Array<{
-		name: string;
-		args: unknown;
-		result?: unknown;
-	}> = [];
+  const startTime = Date.now();
+  let firstTokenTime: number | null = null;
+  const collectedToolCalls: Array<{
+    name: string;
+    args: unknown;
+    result?: unknown;
+  }> = [];
 
-	// Build conversation history from setup
-	const messages: ModelMessage[] = testCase.setup.session.map((m) => ({
-		role: m.role,
-		content: m.content,
-	}));
-	messages.push({ role: "user", content: testCase.userMessage });
+  // Build conversation history from setup
+  const messages: ModelMessage[] = testCase.setup.session.map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+  messages.push({ role: "user", content: testCase.userMessage });
 
-	// Build simplified system prompt
-	const systemPrompt = buildBenchmarkSystemPrompt(testCase);
+  // Build simplified system prompt
+  const systemPrompt = buildBenchmarkSystemPrompt(testCase);
 
-	// Create mock tools that capture calls but don't persist
-	const tools = createMockTools();
+  // Create mock tools that capture calls but don't persist
+  const tools = createMockTools();
 
-	// Initialize model
-	const model = openrouter(modelId);
-	let responseText = "";
-	let usage = { promptTokens: 0, completionTokens: 0 };
+  // Initialize model
+  const model = openrouter(modelId);
+  let responseText = "";
+  let usage = { promptTokens: 0, completionTokens: 0 };
 
-	try {
-		const result = streamText({
-			model,
-			system: systemPrompt,
-			messages,
-			tools,
-			stopWhen: stepCountIs(3), // Limit tool iterations for benchmark
-			onStepFinish: (step) => {
-				if (step.toolCalls && Array.isArray(step.toolCalls)) {
-					for (let i = 0; i < step.toolCalls.length; i++) {
-						const tc = step.toolCalls[i];
-						// Log the actual structure for debugging
-						console.log(
-							`[Benchmark] Tool call structure:`,
-							JSON.stringify(tc, null, 2)
-						);
+  try {
+    const result = streamText({
+      model,
+      system: systemPrompt,
+      messages,
+      tools,
+      stopWhen: stepCountIs(3), // Limit tool iterations for benchmark
+      onStepFinish: (step) => {
+        if (step.toolCalls && Array.isArray(step.toolCalls)) {
+          for (let i = 0; i < step.toolCalls.length; i++) {
+            const tc = step.toolCalls[i] as { toolName?: string; name?: string; args?: unknown; input?: unknown };
+            const tr = step.toolResults?.[i] as { result?: unknown } | undefined;
 
-						const tr = step.toolResults?.[i] as
-							| { result?: unknown }
-							| undefined;
+            const toolName = tc.toolName || tc.name || "unknown";
+            const args = tc.args || tc.input || {};
 
-						// AI SDK v5 might have different property names
-						const toolName =
-							(tc as { toolName?: string; name?: string })
-								.toolName ||
-							(tc as { name?: string }).name ||
-							"unknown";
-						const args =
-							(tc as { args?: unknown; input?: unknown }).args ||
-							(tc as { input?: unknown }).input ||
-							{};
+            collectedToolCalls.push({
+              name: toolName,
+              args: args,
+              result: tr?.result,
+            });
+          }
+        }
+      },
+      onChunk: (chunk) => {
+        if (!firstTokenTime && chunk.chunk.type === "text-delta") {
+          firstTokenTime = Date.now();
+        }
+      },
+    });
 
-						collectedToolCalls.push({
-							name: toolName,
-							args: args,
-							result: tr?.result,
-						});
-					}
-				}
-			},
-		});
+    // Collect full response
+    for await (const chunk of result.textStream) {
+      responseText += chunk;
+    }
 
-		// Collect full response
-		for await (const chunk of result.textStream) {
-			responseText += chunk;
-		}
+    // Get final usage
+    const finalUsage = (await result.usage) as {
+      promptTokens?: number;
+      inputTokens?: number;
+      completionTokens?: number;
+      outputTokens?: number;
+      reasoningTokens?: number;
+    };
 
-		// Get final usage - AI SDK v5 uses inputTokens/outputTokens
-		const finalUsage = await result.usage;
-		usage = {
-			promptTokens:
-				(finalUsage as { inputTokens?: number }).inputTokens ?? 0,
-			completionTokens:
-				(finalUsage as { outputTokens?: number }).outputTokens ?? 0,
-		};
-	} catch (error) {
-		console.error(`[Benchmark] Inference error for ${modelId}:`, error);
-		responseText = `ERROR: ${error}`;
-	}
+    usage = {
+      promptTokens: finalUsage.inputTokens ?? finalUsage.promptTokens ?? 0,
+      completionTokens: finalUsage.outputTokens ?? finalUsage.completionTokens ?? 0,
+    };
+    const reasoningTokens = finalUsage.reasoningTokens ?? null;
+    
+    const ttftMs = firstTokenTime ? firstTokenTime - startTime : null;
+    const inferenceTimeMs = Date.now() - startTime;
 
-	const inferenceTimeMs = Date.now() - startTime;
+    // Calculate cost
+    const costUsd = await fetchModelCost(
+      modelId,
+      usage.promptTokens,
+      usage.completionTokens,
+    );
 
-	// Calculate cost
-	const costUsd = await fetchModelCost(
-		modelId,
-		usage.promptTokens,
-		usage.completionTokens
-	);
-
-	return {
-		testCaseId: testCase.id,
-		category:
-			testCase.category === "tool_usage"
-				? BenchmarkCategory.TOOL_USAGE
-				: BenchmarkCategory.WRITING_QUALITY,
-		modelId,
-		inferenceTimeMs,
-		inputTokens: usage.promptTokens,
-		outputTokens: usage.completionTokens,
-		reasoningTokens: null,
-		costUsd,
-		responseText,
-		toolCalls: collectedToolCalls.length > 0 ? collectedToolCalls : null,
-		sessionUsed: {
-			messageCount: testCase.setup.session.length,
-			sessions: testCase.setup.session.length > 0 ? 1 : 0,
-		},
-		memoriesUsed: testCase.setup.memories.map((m) => m.key),
-	};
+    return {
+      testCaseId: testCase.id,
+      category:
+        testCase.category === "tool_usage"
+          ? BenchmarkCategory.TOOL_USAGE
+          : BenchmarkCategory.WRITING_QUALITY,
+      modelId,
+      inferenceTimeMs,
+      ttftMs,
+      inputTokens: usage.promptTokens,
+      outputTokens: usage.completionTokens,
+      reasoningTokens,
+      costUsd,
+      responseText,
+      toolCalls: collectedToolCalls.length > 0 ? collectedToolCalls : null,
+      sessionUsed: {
+        messageCount: testCase.setup.session.length,
+        sessions: testCase.setup.session.length > 0 ? 1 : 0,
+      },
+      memoriesUsed: testCase.setup.memories.map((m) => m.key),
+    };
+  } catch (error) {
+    console.error(`[Benchmark] Inference error for ${modelId}:`, error);
+    return {
+      testCaseId: testCase.id,
+      category:
+        testCase.category === "tool_usage"
+          ? BenchmarkCategory.TOOL_USAGE
+          : BenchmarkCategory.WRITING_QUALITY,
+      modelId,
+      inferenceTimeMs: 0,
+      ttftMs: null,
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: null,
+      costUsd: 0,
+      responseText: `ERROR: ${error}`,
+      toolCalls: null,
+      sessionUsed: { messageCount: 0, sessions: 0 },
+      memoriesUsed: [],
+    };
+  }
 }
 
 /**
  * Build a simplified system prompt for benchmark testing.
  */
 function buildBenchmarkSystemPrompt(testCase: TestCase): string {
-	const profile = testCase.setup.userContext.profile;
-	const preferences = testCase.setup.userContext.preferences;
-	const memories = testCase.setup.memories;
+  const profile = testCase.setup.userContext.profile;
+  const preferences = testCase.setup.userContext.preferences;
+  const memories = testCase.setup.memories;
 
-	const profileStr = profile
-		? `Nome: ${profile.name || "N/A"}, Sport: ${
-				profile.sport || "N/A"
-		  }, Obiettivo: ${profile.goal || "N/A"}, Esperienza: ${
-				profile.experience || "N/A"
-		  }`
-		: "Nessun profilo.";
+  const profileStr = profile
+    ? `Nome: ${profile.name || "N/A"}, Sport: ${
+        profile.sport || "N/A"
+      }, Obiettivo: ${profile.goal || "N/A"}, Esperienza: ${
+        profile.experience || "N/A"
+      }`
+    : "Nessun profilo.";
 
-	const preferencesStr = preferences
-		? `Tono: ${preferences.tone || "default"}, Modalità: ${
-				preferences.mode || "default"
-		  }, Lingua: ${preferences.language || "IT"}`
-		: "Preferenze default.";
+  const preferencesStr = preferences
+    ? `Tono: ${preferences.tone || "default"}, Modalità: ${
+        preferences.mode || "default"
+      }, Lingua: ${preferences.language || "IT"}`
+    : "Preferenze default.";
 
-	const memoriesStr =
-		memories.length > 0
-			? memories.map((m) => `- ${m.key}: ${m.value}`).join("\n")
-			: "Nessuna memoria salvata.";
+  const memoriesStr =
+    memories.length > 0
+      ? memories.map((m) => `- ${m.key}: ${m.value}`).join("\n")
+      : "Nessuna memoria salvata.";
 
-	return `Sei Anthon, un coach digitale di performance sportiva.
+  return `Sei Anthon, un coach digitale di performance sportiva.
 Aiuti atleti, coach e genitori a migliorare mentalità, tecnica, motivazione e performance.
 
 Non dire mai che sei un modello o un'AI. Sei un coach professionale.
@@ -428,10 +747,10 @@ REGOLE TOOL:
 
 DATA
 ${new Date().toLocaleDateString("it-IT", {
-	weekday: "long",
-	year: "numeric",
-	month: "long",
-	day: "numeric",
+  weekday: "long",
+  year: "numeric",
+  month: "long",
+  day: "numeric",
 })}
 
 CONTESTO UTENTE (già salvato)
@@ -448,232 +767,294 @@ ${memoriesStr}`;
  * Create mock tools that capture calls without persisting.
  */
 function createMockTools() {
-	const { tool } = require("ai");
-	const { z } = require("zod");
+  const { tool } = require("ai");
+  const { z } = require("zod");
 
-	return {
-		updateProfile: tool({
-			description: "Aggiorna il profilo dell'utente",
-			parameters: z.object({
-				name: z.string().optional(),
-				sport: z.string().optional(),
-				goal: z.string().optional(),
-				experience: z.string().optional(),
-			}),
-			execute: async (params: Record<string, string>) => ({
-				success: true,
-				message: "Profilo aggiornato (mock)",
-				data: params,
-			}),
-		}),
+  return {
+    updateProfile: tool({
+      description: "Aggiorna il profilo dell'utente",
+      parameters: z.object({
+        name: z.string().optional(),
+        sport: z.string().optional(),
+        goal: z.string().optional(),
+        experience: z.string().optional(),
+      }),
+      execute: async (params: Record<string, string>) => ({
+        success: true,
+        message: "Profilo aggiornato (mock)",
+        data: params,
+      }),
+    }),
 
-		updatePreferences: tool({
-			description: "Aggiorna le preferenze dell'utente",
-			parameters: z.object({
-				tone: z.string().optional(),
-				mode: z.string().optional(),
-				language: z.string().optional(),
-			}),
-			execute: async (params: Record<string, string>) => ({
-				success: true,
-				message: "Preferenze aggiornate (mock)",
-				data: params,
-			}),
-		}),
+    updatePreferences: tool({
+      description: "Aggiorna le preferenze dell'utente",
+      parameters: z.object({
+        tone: z.string().optional(),
+        mode: z.string().optional(),
+        language: z.string().optional(),
+      }),
+      execute: async (params: Record<string, string>) => ({
+        success: true,
+        message: "Preferenze aggiornate (mock)",
+        data: params,
+      }),
+    }),
 
-		saveMemory: tool({
-			description: "Salva un fatto nella memoria",
-			parameters: z.object({
-				key: z.string(),
-				value: z.string(),
-				category: z.string().optional(),
-			}),
-			execute: async (params: Record<string, string>) => ({
-				success: true,
-				message: "Memoria salvata (mock)",
-				data: params,
-			}),
-		}),
+    saveMemory: tool({
+      description: "Salva un fatto nella memoria",
+      parameters: z.object({
+        key: z.string(),
+        value: z.string(),
+        category: z.string().optional(),
+      }),
+      execute: async (params: Record<string, string>) => ({
+        success: true,
+        message: "Memoria salvata (mock)",
+        data: params,
+      }),
+    }),
 
-		getMemories: tool({
-			description: "Recupera le memorie dell'utente",
-			parameters: z.object({
-				category: z.string().optional(),
-			}),
-			execute: async () => ({
-				success: true,
-				data: [],
-				message: "Nessuna memoria (mock)",
-			}),
-		}),
+    getMemories: tool({
+      description: "Recupera le memorie dell'utente",
+      parameters: z.object({
+        category: z.string().optional(),
+      }),
+      execute: async () => ({
+        success: true,
+        data: [],
+        message: "Nessuna memoria (mock)",
+      }),
+    }),
 
-		tavilySearch: tool({
-			description: "Cerca informazioni sul web",
-			parameters: z.object({
-				query: z.string(),
-			}),
-			execute: async (params: { query: string }) => ({
-				success: true,
-				results: [
-					{
-						title: "Mock search result",
-						content: `Risultati di ricerca per: ${params.query}`,
-					},
-				],
-			}),
-		}),
+    tavilySearch: tool({
+      description: "Cerca informazioni sul web",
+      parameters: z.object({
+        query: z.string(),
+      }),
+      execute: async (params: { query: string }) => ({
+        success: true,
+        results: [
+          {
+            title: "Mock search result",
+            content: `Risultati di ricerca per: ${params.query}`,
+          },
+        ],
+      }),
+    }),
 
-		addNotes: tool({
-			description: "Aggiungi note sul profilo",
-			parameters: z.object({
-				note: z.string(),
-			}),
-			execute: async (params: { note: string }) => ({
-				success: true,
-				message: "Nota aggiunta (mock)",
-				note: params.note,
-			}),
-		}),
-	};
+    addNotes: tool({
+      description: "Aggiungi note sul profilo",
+      parameters: z.object({
+        note: z.string(),
+      }),
+      execute: async (params: { note: string }) => ({
+        success: true,
+        message: "Nota aggiunta (mock)",
+        note: params.note,
+      }),
+    }),
+  };
 }
 
 /**
  * Fetch model cost from OpenRouter API or fallback to TokenLens.
  */
 async function fetchModelCost(
-	modelId: string,
-	inputTokens: number,
-	outputTokens: number
+  modelId: string,
+  inputTokens: number,
+  outputTokens: number,
 ): Promise<number> {
-	try {
-		// Try OpenRouter API first
-		const res = await fetch(
-			`https://openrouter.ai/api/v1/models/${encodeURIComponent(
-				modelId
-			)}`,
-			{
-				headers: {
-					Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-				},
-			}
-		);
+  try {
+    // Try OpenRouter API first
+    const res = await fetch(
+      `https://openrouter.ai/api/v1/models/${encodeURIComponent(modelId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        },
+      },
+    );
 
-		if (res.ok) {
-			const data = (await res.json()) as {
-				data?: { pricing?: { prompt?: string; completion?: string } };
-			};
-			const pricing = data.data?.pricing;
+    if (res.ok) {
+      const data = (await res.json()) as {
+        data?: { pricing?: { prompt?: string; completion?: string } };
+      };
+      const pricing = data.data?.pricing;
 
-			if (pricing?.prompt && pricing?.completion) {
-				const inputCost =
-					(inputTokens / 1_000_000) * parseFloat(pricing.prompt);
-				const outputCost =
-					(outputTokens / 1_000_000) * parseFloat(pricing.completion);
-				return inputCost + outputCost;
-			}
-		}
-	} catch {
-		// Ignore and fallback
-	}
+      if (pricing?.prompt && pricing?.completion) {
+        const inputCost =
+          (inputTokens / 1_000_000) * parseFloat(pricing.prompt);
+        const outputCost =
+          (outputTokens / 1_000_000) * parseFloat(pricing.completion);
+        return inputCost + outputCost;
+      }
+    }
+  } catch {
+    // Ignore and fallback
+  }
 
-	// Fallback to TokenLens
-	const { calculateCost } = await import("@/lib/ai/tokenlens");
-	return calculateCost(modelId, inputTokens, outputTokens).totalCost;
+  // Fallback to TokenLens
+  const { calculateCost } = await import("@/lib/ai/tokenlens");
+  return calculateCost(modelId, inputTokens, outputTokens).totalCost;
 }
 
 /**
  * Get benchmark run with results.
  */
 export async function getBenchmarkRun(runId: string) {
-	return prisma.benchmarkRun.findUnique({
-		where: { id: runId },
-		include: {
-			results: {
-				orderBy: [{ modelId: "asc" }, { testCaseId: "asc" }],
-			},
-		},
-	});
+  return prisma.benchmarkRun.findUnique({
+    where: { id: runId },
+    include: {
+      results: {
+        orderBy: [{ modelId: "asc" }, { testCaseId: "asc" }],
+      },
+    },
+  });
 }
 
 /**
  * List all benchmark runs.
  */
 export async function listBenchmarkRuns(limit = 20) {
-	return prisma.benchmarkRun.findMany({
-		orderBy: { createdAt: "desc" },
-		take: limit,
-		include: {
-			_count: {
-				select: { results: true },
-			},
-		},
-	});
+  return prisma.benchmarkRun.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: {
+      _count: {
+        select: { results: true },
+      },
+    },
+  });
 }
 
 /**
  * Get aggregated scores by model for a run.
  */
 export async function getModelScores(runId: string) {
-	const results = await prisma.benchmarkResult.findMany({
-		where: { runId },
-	});
+  const results = await prisma.benchmarkResult.findMany({
+    where: { runId },
+  });
 
-	const byModel = new Map<
-		string,
-		{
-			scores: number[];
-			times: number[];
-			costs: number[];
-			toolScores: number[];
-			writingScores: number[];
-			inputTokens: number;
-			outputTokens: number;
-		}
-	>();
+  const byModel = new Map<
+    string,
+    {
+      scores: number[];
+      judge1Scores: number[];
+      judge2Scores: number[];
+      consensusScores: number[];
+      times: number[];
+      ttfts: number[];
+      costs: number[];
+      toolScores: number[];
+      writingScores: number[];
+      inputTokens: number;
+      outputTokens: number;
+      reasoningTokens: number;
+      flaggedCount: number;
+    }
+  >();
 
-	for (const r of results) {
-		if (!byModel.has(r.modelId)) {
-			byModel.set(r.modelId, {
-				scores: [],
-				times: [],
-				costs: [],
-				toolScores: [],
-				writingScores: [],
-				inputTokens: 0,
-				outputTokens: 0,
-			});
-		}
+  for (const r of results) {
+    if (!byModel.has(r.modelId)) {
+      byModel.set(r.modelId, {
+        scores: [],
+        judge1Scores: [],
+        judge2Scores: [],
+        consensusScores: [],
+        times: [],
+        ttfts: [],
+        costs: [],
+        toolScores: [],
+        writingScores: [],
+        inputTokens: 0,
+        outputTokens: 0,
+        reasoningTokens: 0,
+        flaggedCount: 0,
+      });
+    }
 
-		const m = byModel.get(r.modelId)!;
-		m.scores.push(r.overallScore);
-		m.times.push(r.inferenceTimeMs);
-		m.costs.push(r.costUsd);
-		m.inputTokens += r.inputTokens;
-		m.outputTokens += r.outputTokens;
+    const m = byModel.get(r.modelId);
+    if (m) {
+      // Priority: finalScore (admin-weighted) > consensusScore (multi-judge) > overallScore (Judge 1)
+      const effectiveScore = r.finalScore ?? r.consensusScore ?? r.overallScore;
+      m.scores.push(effectiveScore);
+      
+      // Track individual judge scores
+      m.judge1Scores.push(r.overallScore);
+      if (r.judge2OverallScore !== null) {
+        m.judge2Scores.push(r.judge2OverallScore);
+      }
+      if (r.consensusScore !== null) {
+        m.consensusScores.push(r.consensusScore);
+      }
+      if (r.flaggedForReview) {
+        m.flaggedCount++;
+      }
+      
+      m.times.push(r.inferenceTimeMs);
+      if (r.ttftMs !== null) m.ttfts.push(r.ttftMs);
+      m.costs.push(r.costUsd);
+      m.inputTokens += r.inputTokens;
+      m.outputTokens += r.outputTokens;
+      m.reasoningTokens += r.reasoningTokens ?? 0;
 
-		if (r.toolUsageScore !== null) {
-			m.toolScores.push(r.toolUsageScore);
-		}
-		if (r.writingQualityScore !== null) {
-			m.writingScores.push(r.writingQualityScore);
-		}
-	}
+      if (r.toolUsageScore !== null) {
+        m.toolScores.push(r.toolUsageScore);
+      }
+      if (r.writingQualityScore !== null) {
+        m.writingScores.push(r.writingQualityScore);
+      }
+    }
+  }
 
-	const avg = (arr: number[]) =>
-		arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+  const avg = (arr: number[]) =>
+    arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 
-	return Array.from(byModel.entries()).map(([modelId, data]) => ({
-		modelId,
-		testCount: data.scores.length,
-		avgOverallScore: avg(data.scores),
-		avgInferenceTimeMs: avg(data.times),
-		avgCostUsd: avg(data.costs),
-		avgToolUsageScore:
-			data.toolScores.length > 0 ? avg(data.toolScores) : null,
-		avgWritingQualityScore:
-			data.writingScores.length > 0 ? avg(data.writingScores) : null,
-		totalInputTokens: data.inputTokens,
-		totalOutputTokens: data.outputTokens,
-		totalCostUsd: data.costs.reduce((a, b) => a + b, 0),
-	}));
+  const stdDev = (arr: number[]) => {
+    if (arr.length <= 1) return 0;
+    const mean = avg(arr);
+    const variance = arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
+    return Math.sqrt(variance);
+  };
+
+  return Array.from(byModel.entries()).map(([modelId, data]) => {
+    const overallAvg = avg(data.scores);
+    const reliability = data.scores.filter((s) => s > 0).length / data.scores.length;
+    const variance = stdDev(data.scores);
+    
+    // Reasoning Efficiency: reasoning tokens / output tokens
+    const reasoningEfficiency = data.outputTokens > 0 
+      ? data.reasoningTokens / data.outputTokens 
+      : null;
+
+    // Token Efficiency Index: 
+    // Very simple heuristic: 10 * (1 - clamp(outputTokens / avgTokensInRun, 0, 1))
+    // better: 10 / (1 + outputTokens / (data.scores.length * 50)) // normalized against expected length
+    const tokenEfficiencyIndex = data.outputTokens > 0 
+      ? 10 / (1 + (data.outputTokens / (data.scores.length * 100))) 
+      : null;
+
+    return {
+      modelId,
+      testCount: data.scores.length,
+      avgOverallScore: overallAvg, // Now uses consensus score when available
+      avgJudge1Score: avg(data.judge1Scores),
+      avgJudge2Score: data.judge2Scores.length > 0 ? avg(data.judge2Scores) : null,
+      avgConsensusScore: data.consensusScores.length > 0 ? avg(data.consensusScores) : null,
+      flaggedForReviewCount: data.flaggedCount,
+      avgInferenceTimeMs: avg(data.times),
+      avgTtftMs: data.ttfts.length > 0 ? avg(data.ttfts) : null,
+      avgCostUsd: avg(data.costs),
+      avgToolUsageScore: data.toolScores.length > 0 ? avg(data.toolScores) : null,
+      avgWritingQualityScore:
+        data.writingScores.length > 0 ? avg(data.writingScores) : null,
+      reliability,
+      variance,
+      reasoningEfficiency,
+      tokenEfficiencyIndex,
+      totalInputTokens: data.inputTokens,
+      totalOutputTokens: data.outputTokens,
+      totalCostUsd: data.costs.reduce((a, b) => a + b, 0),
+    };
+  });
 }

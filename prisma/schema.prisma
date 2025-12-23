@@ -523,10 +523,14 @@ model BenchmarkRun {
   endedAt   DateTime?
 
   // Admin review
-  reviewedBy   String? // Admin user ID who reviewed
-  reviewedAt   DateTime?
-  reviewNotes  String?  @db.Text
-  approved     Boolean?
+  reviewedBy  String? // Admin user ID who reviewed
+  reviewedAt  DateTime?
+  reviewNotes String?   @db.Text
+  approved    Boolean?
+
+  totalTests      Int   @default(0)
+  completedTests  Int   @default(0)
+  currentProgress Json? // { testCaseId, modelId, startedAt }
 
   results BenchmarkResult[]
 
@@ -542,6 +546,7 @@ enum BenchmarkStatus {
   RUNNING
   COMPLETED
   FAILED
+  CANCELLED
 }
 
 model BenchmarkResult {
@@ -555,29 +560,49 @@ model BenchmarkResult {
   modelId    String
 
   // Collected metrics
-  inferenceTimeMs  Int
-  inputTokens      Int
-  outputTokens     Int
-  reasoningTokens  Int?
-  costUsd          Float
-  responseText     String   @db.Text
-  toolCalls        Json? // Array of {name, args, result}
-  sessionUsed      Json? // {messageCount, sessions}
-  memoriesUsed     String[] // Array of memory keys used
+  inferenceTimeMs Int
+  ttftMs          Int?
+  inputTokens     Int
+  outputTokens    Int
+  reasoningTokens Int?
+  costUsd         Float
+  responseText    String   @db.Text
+  toolCalls       Json? // Array of {name, args, result}
+  sessionUsed     Json? // {messageCount, sessions}
+  memoriesUsed    String[] // Array of memory keys used
 
   // AI Judge scores
-  toolUsageScore       Float? // 0-10
-  toolUsageReasoning   String? @db.Text
-  writingQualityScore  Float? // 0-10
+  toolUsageScore          Float? // 0-10
+  toolUsageReasoning      String? @db.Text
+  writingQualityScore     Float? // 0-10
   writingQualityReasoning String? @db.Text
-  overallScore         Float // 0-10 (AI judge score)
+
+  // Critique fields (Chain of Thought)
+  toolUsageCritique      Json? // Structured critique object
+  writingQualityCritique Json? // Structured critique object
+
+  overallScore Float // 0-10 (AI judge 1 score)
+
+  // Second judge scores (for consensus)
+  judge2ToolUsageScore          Float?
+  judge2ToolUsageReasoning      String? @db.Text
+  judge2ToolUsageCritique       Json?
+  judge2WritingQualityScore     Float?
+  judge2WritingQualityReasoning String? @db.Text
+  judge2WritingQualityCritique  Json?
+  judge2OverallScore            Float?
+
+  // Consensus metrics
+  consensusScore    Float? // Average of both judges
+  judgeDisagreement Float? // Absolute difference between judges
+  flaggedForReview  Boolean @default(false) // True if disagreement > 3
 
   // Admin evaluation (weight: 0.6 admin + 0.4 judge)
-  adminScore       Float? // 0-10 admin rating
-  adminReasoning   String? @db.Text
-  adminReviewedBy  String? // Admin user ID
-  adminReviewedAt  DateTime?
-  finalScore       Float? // Weighted: 0.6 * adminScore + 0.4 * overallScore
+  adminScore      Float? // 0-10 admin rating
+  adminReasoning  String?   @db.Text
+  adminReviewedBy String? // Admin user ID
+  adminReviewedAt DateTime?
+  finalScore      Float? // Weighted: 0.6 * adminScore + 0.4 * overallScore
 
   createdAt DateTime @default(now())
 
@@ -591,4 +616,23 @@ model BenchmarkResult {
 enum BenchmarkCategory {
   TOOL_USAGE
   WRITING_QUALITY
+}
+
+model BenchmarkTestCase {
+  id               String            @id @default(cuid())
+  externalId       String?           @unique // Original ID from JSON if any
+  category         BenchmarkCategory
+  name             String
+  description      String?           @db.Text
+  setup            Json // TestCaseSetup format
+  userMessage      String            @db.Text
+  expectedBehavior Json // ToolUsageExpected | WritingQualityExpected
+  tags             String[]
+  version          Int               @default(1)
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([category])
+  @@index([isActive])
 }

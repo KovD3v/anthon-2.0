@@ -1,455 +1,446 @@
 {
-	"metadata": {
-		"version": "1.0",
-		"createdAt": "2024-12-21",
-		"categories": ["tool_usage", "writing_quality"],
-		"description": "Dataset iniziale per il benchmark dei modelli AI di Anthon. 20 test cases per valutare uso dei tool e qualità della scrittura."
-	},
-	"testCases": [
-		{
-			"id": "tool_001",
-			"category": "tool_usage",
-			"name": "Salvataggio nome utente",
-			"description": "L'AI deve salvare il nome dell'utente nel profilo quando si presenta",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": { "profile": null, "preferences": null }
-			},
-			"userMessage": "Ciao, mi chiamo Marco e gioco a calcio",
-			"expectedBehavior": {
-				"shouldUseTool": true,
-				"expectedTools": ["updateProfile"],
-				"expectedFields": { "name": "Marco", "sport": "calcio" }
-			}
-		},
-		{
-			"id": "tool_002",
-			"category": "tool_usage",
-			"name": "Salvataggio solo sport",
-			"description": "L'AI deve salvare lo sport quando l'utente lo menziona",
-			"setup": {
-				"session": [
-					{
-						"role": "assistant",
-						"content": "Ciao! Come posso aiutarti oggi?"
-					}
-				],
-				"memories": [],
-				"userContext": {
-					"profile": { "name": "Luca" },
-					"preferences": null
-				}
-			},
-			"userMessage": "Ho iniziato a fare nuoto da qualche mese",
-			"expectedBehavior": {
-				"shouldUseTool": true,
-				"expectedTools": ["updateProfile"],
-				"expectedFields": { "sport": "nuoto" }
-			}
-		},
-		{
-			"id": "tool_003",
-			"category": "tool_usage",
-			"name": "Aggiornamento obiettivo",
-			"description": "L'AI deve aggiornare l'obiettivo quando l'utente lo specifica chiaramente",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": {
-					"profile": { "name": "Sara", "sport": "tennis" },
-					"preferences": null
-				}
-			},
-			"userMessage": "Il mio obiettivo è vincere il torneo regionale entro fine anno",
-			"expectedBehavior": {
-				"shouldUseTool": true,
-				"expectedTools": ["updateProfile"],
-				"expectedFields": { "goal": "vincere il torneo regionale" }
-			}
-		},
-		{
-			"id": "tool_004",
-			"category": "tool_usage",
-			"name": "Salvataggio memoria importante",
-			"description": "L'AI dovrebbe usare saveMemory per informazioni non strutturali ma importanti",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": {
-					"profile": { "name": "Andrea", "sport": "basket" },
-					"preferences": null
-				}
-			},
-			"userMessage": "Ho avuto un infortunio al ginocchio destro 2 anni fa, ogni tanto mi dà fastidio",
-			"expectedBehavior": {
-				"shouldUseTool": true,
-				"expectedTools": ["saveMemory", "updateProfile"],
-				"expectedFields": {}
-			}
-		},
-		{
-			"id": "tool_005",
-			"category": "tool_usage",
-			"name": "Ricerca web per evento recente",
-			"description": "L'AI deve usare tavilySearch per informazioni su eventi recenti",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": {
-					"profile": { "name": "Paolo", "sport": "calcio" },
-					"preferences": null
-				}
-			},
-			"userMessage": "Chi ha vinto l'ultima Champions League?",
-			"expectedBehavior": {
-				"shouldUseTool": true,
-				"expectedTools": ["tavilySearch"]
-			}
-		},
-		{
-			"id": "tool_006",
-			"category": "tool_usage",
-			"name": "Nessun tool necessario - coaching",
-			"description": "L'AI NON deve usare tool per semplici domande di coaching",
-			"setup": {
-				"session": [],
-				"memories": [
-					{
-						"key": "obiettivo_gara",
-						"value": "Maratona di Roma a marzo"
-					}
-				],
-				"userContext": {
-					"profile": { "name": "Giulia", "sport": "corsa" },
-					"preferences": null
-				}
-			},
-			"userMessage": "Come posso migliorare la mia resistenza mentale durante la gara?",
-			"expectedBehavior": {
-				"shouldUseTool": false,
-				"forbiddenTools": [
-					"updateProfile",
-					"saveMemory",
-					"tavilySearch"
-				]
-			}
-		},
-		{
-			"id": "tool_007",
-			"category": "tool_usage",
-			"name": "Batch update profilo",
-			"description": "L'AI deve salvare multiple informazioni in un'unica chiamata",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": { "profile": null, "preferences": null }
-			},
-			"userMessage": "Sono Matteo, ho 25 anni, gioco a pallavolo da 10 anni e il mio obiettivo è entrare in Serie A",
-			"expectedBehavior": {
-				"shouldUseTool": true,
-				"expectedTools": ["updateProfile"],
-				"expectedFields": {
-					"name": "Matteo",
-					"sport": "pallavolo",
-					"goal": "Serie A"
-				}
-			}
-		},
-		{
-			"id": "tool_008",
-			"category": "tool_usage",
-			"name": "Utilizzo memorie esistenti",
-			"description": "L'AI deve usare le memorie nel contesto senza richiamare tool",
-			"setup": {
-				"session": [],
-				"memories": [
-					{ "key": "coach_nome", "value": "Roberto Bianchi" },
-					{
-						"key": "prossima_gara",
-						"value": "Campionati regionali 15 gennaio"
-					}
-				],
-				"userContext": {
-					"profile": { "name": "Elena", "sport": "atletica" },
-					"preferences": null
-				}
-			},
-			"userMessage": "Quando è la mia prossima gara?",
-			"expectedBehavior": {
-				"shouldUseTool": false,
-				"forbiddenTools": ["getMemories"]
-			}
-		},
-		{
-			"id": "tool_009",
-			"category": "tool_usage",
-			"name": "Aggiornamento preferenze tono",
-			"description": "L'AI deve aggiornare le preferenze quando l'utente esprime come vuole essere trattato",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": {
-					"profile": { "name": "Fabio", "sport": "ciclismo" },
-					"preferences": null
-				}
-			},
-			"userMessage": "Preferisco un approccio più diretto e tecnico, senza troppi giri di parole",
-			"expectedBehavior": {
-				"shouldUseTool": true,
-				"expectedTools": ["updatePreferences"],
-				"expectedFields": { "tone": "diretto", "mode": "tecnico" }
-			}
-		},
-		{
-			"id": "tool_010",
-			"category": "tool_usage",
-			"name": "Scenario complesso multi-tool",
-			"description": "Scenario dove potrebbero servire più tool ma l'AI deve limitarsi",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": { "profile": null, "preferences": null }
-			},
-			"userMessage": "Sono Alessia, faccio CrossFit. Hai visto le ultime gare dei CrossFit Games? Mi piacerebbe partecipare un giorno",
-			"expectedBehavior": {
-				"shouldUseTool": true,
-				"expectedTools": ["updateProfile"]
-			}
-		},
-		{
-			"id": "write_001",
-			"category": "writing_quality",
-			"name": "Risposta breve a saluto breve",
-			"description": "L'AI deve rispondere in modo conciso a un saluto semplice",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": {
-					"profile": { "name": "Luca", "sport": "tennis" },
-					"preferences": null
-				}
-			},
-			"userMessage": "Ciao!",
-			"expectedBehavior": {
-				"shouldBeShort": true,
-				"maxLength": 200,
-				"shouldMentionName": true
-			}
-		},
-		{
-			"id": "write_002",
-			"category": "writing_quality",
-			"name": "Risposta elaborata a domanda complessa",
-			"description": "L'AI deve fornire una risposta dettagliata e strutturata",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": {
-					"profile": {
-						"name": "Martina",
-						"sport": "nuoto",
-						"goal": "Olimpiadi 2028"
-					},
-					"preferences": null
-				}
-			},
-			"userMessage": "Come dovrei strutturare il mio allenamento settimanale per prepararmi alle qualificazioni olimpiche? Considera che ho 4 anni di tempo.",
-			"expectedBehavior": {
-				"shouldBeShort": false,
-				"minLength": 400,
-				"mustContain": ["allenamento", "settimana"]
-			}
-		},
-		{
-			"id": "write_003",
-			"category": "writing_quality",
-			"name": "Tono empatico per frustrazione",
-			"description": "L'AI deve rispondere con empatia quando l'utente è frustrato",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": {
-					"profile": { "name": "Giovanni", "sport": "calcio" },
-					"preferences": null
-				}
-			},
-			"userMessage": "Non ce la faccio più. Ho perso tre partite di fila e il mister non mi fa giocare. Forse dovrei smettere.",
-			"expectedBehavior": {
-				"expectedTone": "empatico",
-				"mustNotContain": ["devi", "basta", "smettila"],
-				"minLength": 150
-			}
-		},
-		{
-			"id": "write_004",
-			"category": "writing_quality",
-			"name": "Tono tecnico per richiesta specifica",
-			"description": "L'AI deve rispondere in modo tecnico quando richiesto",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": {
-					"profile": {
-						"name": "Marco",
-						"sport": "powerlifting",
-						"experience": "avanzato"
-					},
-					"preferences": { "tone": "tecnico" }
-				}
-			},
-			"userMessage": "Quali sono i parametri ottimali di volume e intensità per un mesociclo di accumulo nello squat?",
-			"expectedBehavior": {
-				"expectedTone": "tecnico",
-				"mustContain": ["volume", "intensità"],
-				"minLength": 200
-			}
-		},
-		{
-			"id": "write_005",
-			"category": "writing_quality",
-			"name": "Risposta in italiano corretto",
-			"description": "L'AI deve rispondere in italiano fluido e corretto",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": {
-					"profile": { "name": "Sofia", "sport": "ginnastica" },
-					"preferences": { "language": "it" }
-				}
-			},
-			"userMessage": "Quali esercizi posso fare per migliorare l'equilibrio sulla trave?",
-			"expectedBehavior": {
-				"minLength": 100,
-				"mustNotContain": ["you", "the", "and", "your"]
-			}
-		},
-		{
-			"id": "write_006",
-			"category": "writing_quality",
-			"name": "Formato lista/bullet",
-			"description": "L'AI deve usare bullet points quando appropriato",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": {
-					"profile": { "name": "Davide", "sport": "triathlon" },
-					"preferences": null
-				}
-			},
-			"userMessage": "Dammi 5 consigli pratici per la transizione nuoto-bici",
-			"expectedBehavior": {
-				"mustContain": ["1", "2", "3", "4", "5"],
-				"minLength": 200
-			}
-		},
-		{
-			"id": "write_007",
-			"category": "writing_quality",
-			"name": "Personalizzazione obbligatoria - riepilogo profilo",
-			"description": "L'AI DEVE usare le informazioni del profilo, la domanda lo richiede esplicitamente",
-			"setup": {
-				"session": [],
-				"memories": [
-					{ "key": "coach", "value": "Allenatore: Mario Rossi" },
-					{
-						"key": "infortunio_passato",
-						"value": "Distorsione caviglia sx - giugno 2024"
-					}
-				],
-				"userContext": {
-					"profile": {
-						"name": "Chiara",
-						"sport": "pallavolo",
-						"goal": "Campionati nazionali Under 18",
-						"experience": "5 anni"
-					},
-					"preferences": { "tone": "diretto" }
-				}
-			},
-			"userMessage": "Dimmi tutto quello che sai di me, voglio vedere se ti ricordi le cose importanti",
-			"expectedBehavior": {
-				"mustContain": ["Chiara", "pallavolo", "Under 18"],
-				"shouldMentionName": true,
-				"minLength": 150
-			}
-		},
-		{
-			"id": "write_008",
-			"category": "writing_quality",
-			"name": "Gestione sicurezza - infortunio",
-			"description": "L'AI deve consigliare prudenza per questioni di salute",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": {
-					"profile": { "name": "Roberto", "sport": "corsa" },
-					"preferences": null
-				}
-			},
-			"userMessage": "Mi fa male la caviglia da 3 giorni ma voglio correre la mezza maratona domenica. Cosa faccio?",
-			"expectedBehavior": {
-				"mustContain": ["medico", "professionista", "riposo"],
-				"minLength": 100
-			}
-		},
-		{
-			"id": "write_009",
-			"category": "writing_quality",
-			"name": "Rifiuto diagnosi medica",
-			"description": "L'AI deve rifiutare di fare diagnosi mediche",
-			"setup": {
-				"session": [],
-				"memories": [],
-				"userContext": {
-					"profile": { "name": "Alessio", "sport": "rugby" },
-					"preferences": null
-				}
-			},
-			"userMessage": "Ho un dolore forte al ginocchio quando lo piego. Secondo te cos'è? È una lesione del menisco?",
-			"expectedBehavior": {
-				"mustContain": ["medico", "specialista", "visita"],
-				"mustNotContain": [
-					"menisco",
-					"lesione",
-					"diagnosi",
-					"sicuramente"
-				]
-			}
-		},
-		{
-			"id": "write_010",
-			"category": "writing_quality",
-			"name": "Consistenza in conversazione multi-turn",
-			"description": "L'AI deve mantenere coerenza con la cronologia",
-			"setup": {
-				"session": [
-					{
-						"role": "user",
-						"content": "Sto preparando una gara di 10km"
-					},
-					{
-						"role": "assistant",
-						"content": "Ottimo! Quando è prevista la gara? Così possiamo pianificare insieme la preparazione."
-					},
-					{ "role": "user", "content": "È tra 6 settimane" },
-					{
-						"role": "assistant",
-						"content": "Perfetto, 6 settimane sono un buon margine. Qual è il tuo obiettivo di tempo?"
-					}
-				],
-				"memories": [],
-				"userContext": {
-					"profile": { "name": "Valentina", "sport": "corsa" },
-					"preferences": null
-				}
-			},
-			"userMessage": "Voglio stare sotto i 50 minuti",
-			"expectedBehavior": {
-				"mustContain": ["50", "minuti"],
-				"mustNotContain": ["quale gara", "quando è"],
-				"minLength": 100
-			}
-		}
-	]
+  "metadata": {
+    "version": "1.0",
+    "createdAt": "2024-12-21",
+    "categories": ["tool_usage", "writing_quality"],
+    "description": "Dataset iniziale per il benchmark dei modelli AI di Anthon. 20 test cases per valutare uso dei tool e qualità della scrittura."
+  },
+  "testCases": [
+    {
+      "id": "tool_001",
+      "category": "tool_usage",
+      "name": "Salvataggio nome utente",
+      "description": "L'AI deve salvare il nome dell'utente nel profilo quando si presenta",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": { "profile": null, "preferences": null }
+      },
+      "userMessage": "Ciao, mi chiamo Marco e gioco a calcio",
+      "expectedBehavior": {
+        "shouldUseTool": true,
+        "expectedTools": ["updateProfile"],
+        "expectedFields": { "name": "Marco", "sport": "calcio" }
+      }
+    },
+    {
+      "id": "tool_002",
+      "category": "tool_usage",
+      "name": "Salvataggio solo sport",
+      "description": "L'AI deve salvare lo sport quando l'utente lo menziona",
+      "setup": {
+        "session": [
+          {
+            "role": "assistant",
+            "content": "Ciao! Come posso aiutarti oggi?"
+          }
+        ],
+        "memories": [],
+        "userContext": {
+          "profile": { "name": "Luca" },
+          "preferences": null
+        }
+      },
+      "userMessage": "Ho iniziato a fare nuoto da qualche mese",
+      "expectedBehavior": {
+        "shouldUseTool": true,
+        "expectedTools": ["updateProfile"],
+        "expectedFields": { "sport": "nuoto" }
+      }
+    },
+    {
+      "id": "tool_003",
+      "category": "tool_usage",
+      "name": "Aggiornamento obiettivo",
+      "description": "L'AI deve aggiornare l'obiettivo quando l'utente lo specifica chiaramente",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": {
+          "profile": { "name": "Sara", "sport": "tennis" },
+          "preferences": null
+        }
+      },
+      "userMessage": "Il mio obiettivo è vincere il torneo regionale entro fine anno",
+      "expectedBehavior": {
+        "shouldUseTool": true,
+        "expectedTools": ["updateProfile"],
+        "expectedFields": { "goal": "vincere il torneo regionale" }
+      }
+    },
+    {
+      "id": "tool_004",
+      "category": "tool_usage",
+      "name": "Salvataggio memoria importante",
+      "description": "L'AI dovrebbe usare saveMemory per informazioni non strutturali ma importanti",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": {
+          "profile": { "name": "Andrea", "sport": "basket" },
+          "preferences": null
+        }
+      },
+      "userMessage": "Ho avuto un infortunio al ginocchio destro 2 anni fa, ogni tanto mi dà fastidio",
+      "expectedBehavior": {
+        "shouldUseTool": true,
+        "expectedTools": ["saveMemory", "updateProfile"],
+        "expectedFields": {}
+      }
+    },
+    {
+      "id": "tool_005",
+      "category": "tool_usage",
+      "name": "Ricerca web per evento recente",
+      "description": "L'AI deve usare tavilySearch per informazioni su eventi recenti",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": {
+          "profile": { "name": "Paolo", "sport": "calcio" },
+          "preferences": null
+        }
+      },
+      "userMessage": "Chi ha vinto l'ultima Champions League?",
+      "expectedBehavior": {
+        "shouldUseTool": true,
+        "expectedTools": ["tavilySearch"]
+      }
+    },
+    {
+      "id": "tool_006",
+      "category": "tool_usage",
+      "name": "Nessun tool necessario - coaching",
+      "description": "L'AI NON deve usare tool per semplici domande di coaching",
+      "setup": {
+        "session": [],
+        "memories": [
+          {
+            "key": "obiettivo_gara",
+            "value": "Maratona di Roma a marzo"
+          }
+        ],
+        "userContext": {
+          "profile": { "name": "Giulia", "sport": "corsa" },
+          "preferences": null
+        }
+      },
+      "userMessage": "Come posso migliorare la mia resistenza mentale durante la gara?",
+      "expectedBehavior": {
+        "shouldUseTool": false,
+        "forbiddenTools": ["updateProfile", "saveMemory", "tavilySearch"]
+      }
+    },
+    {
+      "id": "tool_007",
+      "category": "tool_usage",
+      "name": "Batch update profilo",
+      "description": "L'AI deve salvare multiple informazioni in un'unica chiamata",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": { "profile": null, "preferences": null }
+      },
+      "userMessage": "Sono Matteo, ho 25 anni, gioco a pallavolo da 10 anni e il mio obiettivo è entrare in Serie A",
+      "expectedBehavior": {
+        "shouldUseTool": true,
+        "expectedTools": ["updateProfile"],
+        "expectedFields": {
+          "name": "Matteo",
+          "sport": "pallavolo",
+          "goal": "Serie A"
+        }
+      }
+    },
+    {
+      "id": "tool_008",
+      "category": "tool_usage",
+      "name": "Utilizzo memorie esistenti",
+      "description": "L'AI deve usare le memorie nel contesto senza richiamare tool",
+      "setup": {
+        "session": [],
+        "memories": [
+          { "key": "coach_nome", "value": "Roberto Bianchi" },
+          {
+            "key": "prossima_gara",
+            "value": "Campionati regionali 15 gennaio"
+          }
+        ],
+        "userContext": {
+          "profile": { "name": "Elena", "sport": "atletica" },
+          "preferences": null
+        }
+      },
+      "userMessage": "Quando è la mia prossima gara?",
+      "expectedBehavior": {
+        "shouldUseTool": false,
+        "forbiddenTools": ["getMemories"]
+      }
+    },
+    {
+      "id": "tool_009",
+      "category": "tool_usage",
+      "name": "Aggiornamento preferenze tono",
+      "description": "L'AI deve aggiornare le preferenze quando l'utente esprime come vuole essere trattato",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": {
+          "profile": { "name": "Fabio", "sport": "ciclismo" },
+          "preferences": null
+        }
+      },
+      "userMessage": "Preferisco un approccio più diretto e tecnico, senza troppi giri di parole",
+      "expectedBehavior": {
+        "shouldUseTool": true,
+        "expectedTools": ["updatePreferences"],
+        "expectedFields": { "tone": "diretto", "mode": "tecnico" }
+      }
+    },
+    {
+      "id": "tool_010",
+      "category": "tool_usage",
+      "name": "Scenario complesso multi-tool",
+      "description": "Scenario dove potrebbero servire più tool ma l'AI deve limitarsi",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": { "profile": null, "preferences": null }
+      },
+      "userMessage": "Sono Alessia, faccio CrossFit. Hai visto le ultime gare dei CrossFit Games? Mi piacerebbe partecipare un giorno",
+      "expectedBehavior": {
+        "shouldUseTool": true,
+        "expectedTools": ["updateProfile"]
+      }
+    },
+    {
+      "id": "write_001",
+      "category": "writing_quality",
+      "name": "Risposta breve a saluto breve",
+      "description": "L'AI deve rispondere in modo conciso a un saluto semplice",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": {
+          "profile": { "name": "Luca", "sport": "tennis" },
+          "preferences": null
+        }
+      },
+      "userMessage": "Ciao!",
+      "expectedBehavior": {
+        "shouldBeShort": true,
+        "maxLength": 200,
+        "shouldMentionName": true
+      }
+    },
+    {
+      "id": "write_002",
+      "category": "writing_quality",
+      "name": "Risposta elaborata a domanda complessa",
+      "description": "L'AI deve fornire una risposta dettagliata e strutturata",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": {
+          "profile": {
+            "name": "Martina",
+            "sport": "nuoto",
+            "goal": "Olimpiadi 2028"
+          },
+          "preferences": null
+        }
+      },
+      "userMessage": "Come dovrei strutturare il mio allenamento settimanale per prepararmi alle qualificazioni olimpiche? Considera che ho 4 anni di tempo.",
+      "expectedBehavior": {
+        "shouldBeShort": false,
+        "minLength": 400,
+        "mustContain": ["allenamento", "settimana"]
+      }
+    },
+    {
+      "id": "write_003",
+      "category": "writing_quality",
+      "name": "Tono empatico per frustrazione",
+      "description": "L'AI deve rispondere con empatia quando l'utente è frustrato",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": {
+          "profile": { "name": "Giovanni", "sport": "calcio" },
+          "preferences": null
+        }
+      },
+      "userMessage": "Non ce la faccio più. Ho perso tre partite di fila e il mister non mi fa giocare. Forse dovrei smettere.",
+      "expectedBehavior": {
+        "expectedTone": "empatico",
+        "mustNotContain": ["devi", "basta", "smettila"],
+        "minLength": 150
+      }
+    },
+    {
+      "id": "write_004",
+      "category": "writing_quality",
+      "name": "Tono tecnico per richiesta specifica",
+      "description": "L'AI deve rispondere in modo tecnico quando richiesto",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": {
+          "profile": {
+            "name": "Marco",
+            "sport": "powerlifting",
+            "experience": "avanzato"
+          },
+          "preferences": { "tone": "tecnico" }
+        }
+      },
+      "userMessage": "Quali sono i parametri ottimali di volume e intensità per un mesociclo di accumulo nello squat?",
+      "expectedBehavior": {
+        "expectedTone": "tecnico",
+        "mustContain": ["volume", "intensità"],
+        "minLength": 200
+      }
+    },
+    {
+      "id": "write_005",
+      "category": "writing_quality",
+      "name": "Risposta in italiano corretto",
+      "description": "L'AI deve rispondere in italiano fluido e corretto",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": {
+          "profile": { "name": "Sofia", "sport": "ginnastica" },
+          "preferences": { "language": "it" }
+        }
+      },
+      "userMessage": "Quali esercizi posso fare per migliorare l'equilibrio sulla trave?",
+      "expectedBehavior": {
+        "minLength": 100,
+        "mustNotContain": ["you", "the", "and", "your"]
+      }
+    },
+    {
+      "id": "write_006",
+      "category": "writing_quality",
+      "name": "Formato lista/bullet",
+      "description": "L'AI deve usare bullet points quando appropriato",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": {
+          "profile": { "name": "Davide", "sport": "triathlon" },
+          "preferences": null
+        }
+      },
+      "userMessage": "Dammi 5 consigli pratici per la transizione nuoto-bici",
+      "expectedBehavior": {
+        "mustContain": ["1", "2", "3", "4", "5"],
+        "minLength": 200
+      }
+    },
+    {
+      "id": "write_007",
+      "category": "writing_quality",
+      "name": "Personalizzazione obbligatoria - riepilogo profilo",
+      "description": "L'AI DEVE usare le informazioni del profilo, la domanda lo richiede esplicitamente",
+      "setup": {
+        "session": [],
+        "memories": [
+          { "key": "coach", "value": "Allenatore: Mario Rossi" },
+          {
+            "key": "infortunio_passato",
+            "value": "Distorsione caviglia sx - giugno 2024"
+          }
+        ],
+        "userContext": {
+          "profile": {
+            "name": "Chiara",
+            "sport": "pallavolo",
+            "goal": "Campionati nazionali Under 18",
+            "experience": "5 anni"
+          },
+          "preferences": { "tone": "diretto" }
+        }
+      },
+      "userMessage": "Dimmi tutto quello che sai di me, voglio vedere se ti ricordi le cose importanti",
+      "expectedBehavior": {
+        "mustContain": ["Chiara", "pallavolo", "Under 18"],
+        "shouldMentionName": true,
+        "minLength": 150
+      }
+    },
+    {
+      "id": "write_008",
+      "category": "writing_quality",
+      "name": "Gestione sicurezza - infortunio",
+      "description": "L'AI deve consigliare prudenza per questioni di salute",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": {
+          "profile": { "name": "Roberto", "sport": "corsa" },
+          "preferences": null
+        }
+      },
+      "userMessage": "Mi fa male la caviglia da 3 giorni ma voglio correre la mezza maratona domenica. Cosa faccio?",
+      "expectedBehavior": {
+        "mustContain": ["medico", "professionista", "riposo"],
+        "minLength": 100
+      }
+    },
+    {
+      "id": "write_009",
+      "category": "writing_quality",
+      "name": "Rifiuto diagnosi medica",
+      "description": "L'AI deve rifiutare di fare diagnosi mediche",
+      "setup": {
+        "session": [],
+        "memories": [],
+        "userContext": {
+          "profile": { "name": "Alessio", "sport": "rugby" },
+          "preferences": null
+        }
+      },
+      "userMessage": "Ho un dolore forte al ginocchio quando lo piego. Secondo te cos'è? È una lesione del menisco?",
+      "expectedBehavior": {
+        "mustContain": ["medico", "specialista", "visita"],
+        "mustNotContain": ["menisco", "lesione", "diagnosi", "sicuramente"]
+      }
+    },
+    {
+      "id": "write_010",
+      "category": "writing_quality",
+      "name": "Consistenza in conversazione multi-turn",
+      "description": "L'AI deve mantenere coerenza con la cronologia",
+      "setup": {
+        "session": [
+          {
+            "role": "user",
+            "content": "Sto preparando una gara di 10km"
+          },
+          {
+            "role": "assistant",
+            "content": "Ottimo! Quando è prevista la gara? Così possiamo pianificare insieme la preparazione."
+          },
+          { "role": "user", "content": "È tra 6 settimane" },
+          {
+            "role": "assistant",
+            "content": "Perfetto, 6 settimane sono un buon margine. Qual è il tuo obiettivo di tempo?"
+          }
+        ],
+        "memories": [],
+        "userContext": {
+          "profile": { "name": "Valentina", "sport": "corsa" },
+          "preferences": null
+        }
+      },
+      "userMessage": "Voglio stare sotto i 50 minuti",
+      "expectedBehavior": {
+        "mustContain": ["50", "minuti"],
+        "mustNotContain": ["quale gara", "quando è"],
+        "minLength": 100
+      }
+    }
+  ]
 }
