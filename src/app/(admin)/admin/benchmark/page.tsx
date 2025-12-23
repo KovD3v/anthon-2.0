@@ -107,7 +107,7 @@ export default function BenchmarkPage() {
   const [selectedIterations, setSelectedIterations] = useState(1);
 
   // Result filtering state
-  const [filterCategory, setFilterCategory] = useState<string>("ALL");
+  const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
   const [sortBy, setSortBy] = useState<"SCORE" | "LATENCY" | "COST">("SCORE");
   const [leaderboardMetric, setLeaderboardMetric] = useState<
     "SCORE" | "SPEED" | "COST"
@@ -450,8 +450,8 @@ export default function BenchmarkPage() {
 
     let filtered = results.filter((r) => r.testCaseId === selectedTestCaseId);
 
-    if (filterCategory !== "ALL") {
-      filtered = filtered.filter((r) => r.category === filterCategory);
+    if (showFlaggedOnly) {
+      filtered = filtered.filter((r) => r.flaggedForReview);
     }
 
     return [...filtered].sort((a, b) => {
@@ -463,7 +463,7 @@ export default function BenchmarkPage() {
       if (sortBy === "COST") return (b.costUsd || 0) - (a.costUsd || 0);
       return 0;
     });
-  }, [results, selectedTestCaseId, filterCategory, sortBy]);
+  }, [results, selectedTestCaseId, showFlaggedOnly, sortBy]);
 
   // Navigate between test cases
   const currentTestIndex = testCaseIds.indexOf(selectedTestCaseId || "");
@@ -1244,24 +1244,21 @@ export default function BenchmarkPage() {
                     <div className="flex flex-wrap items-center gap-4 mb-4">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] uppercase font-bold text-muted-foreground">
-                          Filter:
+                          Showing:
                         </span>
                         <Select
-                          value={filterCategory}
-                          onValueChange={(val) => setFilterCategory(val)}
+                          value={showFlaggedOnly ? "FLAGGED" : "ALL"}
+                          onValueChange={(val) =>
+                            setShowFlaggedOnly(val === "FLAGGED")
+                          }
                         >
                           <SelectTrigger className="w-[180px] h-8 text-xs bg-white/5 border-white/10">
-                            <SelectValue placeholder="Category" />
+                            <SelectValue placeholder="All Results" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="ALL">All Categories</SelectItem>
-                            <SelectItem value={BenchmarkCategory.TOOL_USAGE}>
-                              Tool Usage
-                            </SelectItem>
-                            <SelectItem
-                              value={BenchmarkCategory.WRITING_QUALITY}
-                            >
-                              Writing Quality
+                            <SelectItem value="ALL">All Results</SelectItem>
+                            <SelectItem value="FLAGGED">
+                              ⚠️ Flagged Only
                             </SelectItem>
                           </SelectContent>
                         </Select>
