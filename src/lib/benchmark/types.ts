@@ -4,22 +4,21 @@
  * TypeScript types for the AI model benchmark system.
  */
 
+import type {
+  Prisma,
+  BenchmarkCategory as PrismaCategory,
+} from "@/generated/prisma";
+
 // Local type for BenchmarkCategory (matches Prisma enum)
-export type BenchmarkCategory = "TOOL_USAGE" | "WRITING_QUALITY";
+export type BenchmarkCategory = PrismaCategory;
 
 // -----------------------------------------------------
 // TEST CASE TYPES
 // -----------------------------------------------------
 
-export interface TestCase {
-  id: string;
-  category: "tool_usage" | "writing_quality";
-  name: string;
-  description: string;
-  setup: TestCaseSetup;
-  userMessage: string;
-  expectedBehavior: ToolUsageExpected | WritingQualityExpected;
-}
+export type TestCase = Prisma.BenchmarkTestCaseGetPayload<
+  Record<string, never>
+>;
 
 export interface TestCaseSetup {
   session: Array<{ role: "user" | "assistant"; content: string }>;

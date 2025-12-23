@@ -7,10 +7,12 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import { openrouter } from "@/lib/ai/providers/openrouter";
+import { prisma } from "@/lib/db";
 import type {
   BenchmarkResultInput,
   JudgeScores,
   TestCase,
+  TestCaseSetup,
   ToolUsageCritique,
   ToolUsageExpected,
   WritingQualityCritique,
@@ -140,11 +142,11 @@ export async function evaluateResult(
   const scores: JudgeScores = { overall: 0 };
 
   try {
-    if (testCase.category === "tool_usage") {
+    if (testCase.category === "TOOL_USAGE") {
       const toolScore = await evaluateToolUsage(testCase, result);
       scores.toolUsage = toolScore;
       scores.overall = toolScore.score;
-    } else if (testCase.category === "writing_quality") {
+    } else if (testCase.category === "WRITING_QUALITY") {
       const writingScore = await evaluateWritingQuality(testCase, result);
       scores.writingQuality = writingScore;
       scores.overall = writingScore.score;
@@ -187,7 +189,9 @@ export async function evaluateResultWithConsensus(
   if (flaggedForReview) {
     console.log(
       `⚠️ [Judge] Significant disagreement for ${result.testCaseId}: ` +
-        `Judge1=${judge1Scores.overall.toFixed(1)}, Judge2=${judge2Scores.overall.toFixed(1)} ` +
+        `Judge1=${judge1Scores.overall.toFixed(
+          1,
+        )}, Judge2=${judge2Scores.overall.toFixed(1)} ` +
         `(diff=${judgeDisagreement.toFixed(1)})`,
     );
   }
@@ -212,7 +216,7 @@ async function evaluateWithModel(
   const scores: JudgeScores = { overall: 0 };
 
   try {
-    if (testCase.category === "tool_usage") {
+    if (testCase.category === "TOOL_USAGE") {
       const toolScore = await evaluateToolUsageWithModel(
         testCase,
         result,
@@ -220,7 +224,7 @@ async function evaluateWithModel(
       );
       scores.toolUsage = toolScore;
       scores.overall = toolScore.score;
-    } else if (testCase.category === "writing_quality") {
+    } else if (testCase.category === "WRITING_QUALITY") {
       const writingScore = await evaluateWritingQualityWithModel(
         testCase,
         result,
@@ -244,7 +248,7 @@ async function evaluateToolUsage(
   testCase: TestCase,
   result: BenchmarkResultInput,
 ): Promise<{ score: number; reasoning: string; critique?: ToolUsageCritique }> {
-  const expected = testCase.expectedBehavior as ToolUsageExpected;
+  const expected = testCase.expectedBehavior as unknown as ToolUsageExpected;
   const toolsUsed = result.toolCalls?.map((t) => t.name) || [];
 
   const { object } = await generateObject({
@@ -317,7 +321,8 @@ async function evaluateWritingQuality(
   reasoning: string;
   critique?: WritingQualityCritique;
 }> {
-  const expected = testCase.expectedBehavior as WritingQualityExpected;
+  const expected =
+    testCase.expectedBehavior as unknown as WritingQualityExpected;
   const responseLength = result.responseText.length;
 
   // Pre-check some conditions
@@ -371,17 +376,25 @@ RICORDA: La critica deve venire PRIMA del punteggio. Non anticipare il punteggio
 Descrizione: ${testCase.description}
 
 ## Contesto Utente
-- Profilo: ${JSON.stringify(testCase.setup.userContext.profile || {})}
-- Preferenze: ${JSON.stringify(testCase.setup.userContext.preferences || {})}
+- Profilo: ${JSON.stringify(
+      (testCase.setup as unknown as TestCaseSetup).userContext?.profile || {},
+    )}
+- Preferenze: ${JSON.stringify(
+      (testCase.setup as unknown as TestCaseSetup).userContext?.preferences ||
+        {},
+    )}
 - Memorie: ${
-      testCase.setup.memories.map((m) => `${m.key}: ${m.value}`).join(", ") ||
-      "Nessuna"
+      (testCase.setup as unknown as TestCaseSetup).memories
+        ?.map((m) => `${m.key}: ${m.value}`)
+        .join(", ") || "Nessuna"
     }
 
 ## Cronologia
 ${
-  testCase.setup.session.length > 0
-    ? testCase.setup.session.map((m) => `${m.role}: ${m.content}`).join("\n")
+  (testCase.setup as unknown as TestCaseSetup).session?.length > 0
+    ? (testCase.setup as unknown as TestCaseSetup).session
+        .map((m) => `${m.role}: ${m.content}`)
+        .join("\n")
     : "Prima interazione"
 }
 
@@ -427,7 +440,7 @@ async function evaluateToolUsageWithModel(
   result: BenchmarkResultInput,
   modelId: string,
 ): Promise<{ score: number; reasoning: string; critique?: ToolUsageCritique }> {
-  const expected = testCase.expectedBehavior as ToolUsageExpected;
+  const expected = testCase.expectedBehavior as unknown as ToolUsageExpected;
   const toolsUsed = result.toolCalls?.map((t) => t.name) || [];
 
   const { object } = await generateObject({
@@ -501,7 +514,8 @@ async function evaluateWritingQualityWithModel(
   reasoning: string;
   critique?: WritingQualityCritique;
 }> {
-  const expected = testCase.expectedBehavior as WritingQualityExpected;
+  const expected =
+    testCase.expectedBehavior as unknown as WritingQualityExpected;
   const responseLength = result.responseText.length;
 
   const lengthCheck = {
@@ -554,17 +568,25 @@ RICORDA: La critica deve venire PRIMA del punteggio. Non anticipare il punteggio
 Descrizione: ${testCase.description}
 
 ## Contesto Utente
-- Profilo: ${JSON.stringify(testCase.setup.userContext.profile || {})}
-- Preferenze: ${JSON.stringify(testCase.setup.userContext.preferences || {})}
+- Profilo: ${JSON.stringify(
+      (testCase.setup as unknown as TestCaseSetup).userContext?.profile || {},
+    )}
+- Preferenze: ${JSON.stringify(
+      (testCase.setup as unknown as TestCaseSetup).userContext?.preferences ||
+        {},
+    )}
 - Memorie: ${
-      testCase.setup.memories.map((m) => `${m.key}: ${m.value}`).join(", ") ||
-      "Nessuna"
+      (testCase.setup as unknown as TestCaseSetup).memories
+        ?.map((m) => `${m.key}: ${m.value}`)
+        .join(", ") || "Nessuna"
     }
 
 ## Cronologia
 ${
-  testCase.setup.session.length > 0
-    ? testCase.setup.session.map((m) => `${m.role}: ${m.content}`).join("\n")
+  (testCase.setup as unknown as TestCaseSetup).session?.length > 0
+    ? (testCase.setup as unknown as TestCaseSetup).session
+        .map((m) => `${m.role}: ${m.content}`)
+        .join("\n")
     : "Prima interazione"
 }
 
@@ -606,23 +628,18 @@ ISTRUZIONI:
  * Re-evaluate all results in a run (useful after fixing issues).
  */
 export async function reEvaluateRun(runId: string): Promise<void> {
-  const { prisma } = await import("@/lib/db");
-  const { readFileSync } = await import("node:fs");
-  const { join } = await import("node:path");
-
-  const datasetPath = join(process.cwd(), "src/lib/benchmark/dataset.json");
-  const datasetData = readFileSync(datasetPath, "utf-8");
-  const dataset = JSON.parse(datasetData) as {
-    testCases: Array<{ id: string; category: string }>;
-  };
-
   const results = await prisma.benchmarkResult.findMany({
     where: { runId },
   });
 
+  const testCases = await prisma.benchmarkTestCase.findMany({
+    where: { isActive: true },
+  });
+
   for (const result of results) {
-    const testCase = dataset.testCases.find(
-      (tc) => tc.id === result.testCaseId,
+    const testCase = testCases.find(
+      (tc) =>
+        tc.id === result.testCaseId || tc.externalId === result.testCaseId,
     );
     if (!testCase) continue;
 

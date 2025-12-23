@@ -18,8 +18,6 @@ import type {
   BenchmarkRunnerOptions,
   TestCase,
   TestCaseSetup,
-  ToolUsageExpected,
-  WritingQualityExpected,
 } from "./types";
 
 // Fetches test cases from database
@@ -41,27 +39,10 @@ async function fetchTestCases(options: {
     };
   }
 
-  const dbTestCases = await prisma.benchmarkTestCase.findMany({ where });
-
-  return dbTestCases.map((tc) => ({
-    id: tc.externalId || tc.id,
-    category: tc.category.toLowerCase() as "tool_usage" | "writing_quality",
-    name: tc.name,
-    description: tc.description || "",
-    setup: tc.setup as unknown as TestCaseSetup,
-    userMessage: tc.userMessage,
-    expectedBehavior: tc.expectedBehavior as unknown as
-      | ToolUsageExpected
-      | WritingQualityExpected,
-  }));
+  return await prisma.benchmarkTestCase.findMany({ where });
 }
 
-// Models to benchmark (current production models)
-const DEFAULT_MODELS = [
-  "google/gemini-2.0-flash-lite-001",
-  "google/gemini-2.0-flash-001",
-  "google/gemini-2.5-flash-lite-preview-09-2025",
-] as const;
+import { DEFAULT_MODELS } from "./constants";
 
 // Mock user ID for benchmark runs
 const _BENCHMARK_USER_ID = "benchmark-user-000";
@@ -135,7 +116,9 @@ export async function runBenchmark(
     const runWorker = async (runIndex: number) => {
       const { testCase, modelId, iteration } = testRuns[runIndex];
       console.log(
-        `🧪 Running [${runIndex + 1}/${testRuns.length}]: ${testCase.id} with ${modelId.split("/")[1]} (Iter ${iteration}/${iterations})`,
+        `🧪 Running [${runIndex + 1}/${testRuns.length}]: ${testCase.id} with ${
+          modelId.split("/")[1]
+        } (Iter ${iteration}/${iterations})`,
       );
 
       // Check for cancellation signal
@@ -228,7 +211,9 @@ export async function runBenchmark(
         console.log(
           `   ✅ [${completed}/${testRuns.length}] ${testCase.id}@${
             modelId.split("/")[1]
-          }: ${consensusScore.toFixed(1)}/10 ${flaggedForReview ? "⚠️ FLAGGED" : ""}`,
+          }: ${consensusScore.toFixed(1)}/10 ${
+            flaggedForReview ? "⚠️ FLAGGED" : ""
+          }`,
         );
       } catch (error) {
         console.error(`   ❌ ${testCase.id}@${modelId}: ${error}`);
@@ -239,7 +224,7 @@ export async function runBenchmark(
             runId: run.id,
             testCaseId: testCase.id,
             category:
-              testCase.category === "tool_usage"
+              testCase.category === BenchmarkCategory.TOOL_USAGE
                 ? BenchmarkCategory.TOOL_USAGE
                 : BenchmarkCategory.WRITING_QUALITY,
             modelId,
@@ -376,7 +361,9 @@ export async function runBenchmarkForExistingRun(
     const runWorker = async (runIndex: number) => {
       const { testCase, modelId, iteration } = testRuns[runIndex];
       console.log(
-        `🧪 Running [${runIndex + 1}/${testRuns.length}]: ${testCase.id} with ${modelId.split("/")[1]} (Iter ${iteration}/${iterations})`,
+        `🧪 Running [${runIndex + 1}/${testRuns.length}]: ${testCase.id} with ${
+          modelId.split("/")[1]
+        } (Iter ${iteration}/${iterations})`,
       );
 
       // Check for cancellation signal
@@ -469,7 +456,9 @@ export async function runBenchmarkForExistingRun(
         console.log(
           `   ✅ [${completed}/${testRuns.length}] ${testCase.id}@${
             modelId.split("/")[1]
-          }: ${consensusScore.toFixed(1)}/10 ${flaggedForReview ? "⚠️ FLAGGED" : ""}`,
+          }: ${consensusScore.toFixed(1)}/10 ${
+            flaggedForReview ? "⚠️ FLAGGED" : ""
+          }`,
         );
       } catch (error) {
         console.error(`   ❌ ${testCase.id}@${modelId}: ${error}`);
@@ -480,7 +469,7 @@ export async function runBenchmarkForExistingRun(
             runId,
             testCaseId: testCase.id,
             category:
-              testCase.category === "tool_usage"
+              testCase.category === BenchmarkCategory.TOOL_USAGE
                 ? BenchmarkCategory.TOOL_USAGE
                 : BenchmarkCategory.WRITING_QUALITY,
             modelId,
@@ -561,8 +550,9 @@ async function runSingleTest(
   }> = [];
 
   // Build conversation history from setup
-  const messages: ModelMessage[] = testCase.setup.session.map((m) => ({
-    role: m.role,
+  const setup = testCase.setup as unknown as TestCaseSetup;
+  const messages: ModelMessage[] = (setup?.session || []).map((m) => ({
+    role: m.role as "user" | "assistant",
     content: m.content,
   }));
   messages.push({ role: "user", content: testCase.userMessage });
@@ -650,7 +640,7 @@ async function runSingleTest(
     return {
       testCaseId: testCase.id,
       category:
-        testCase.category === "tool_usage"
+        testCase.category === BenchmarkCategory.TOOL_USAGE
           ? BenchmarkCategory.TOOL_USAGE
           : BenchmarkCategory.WRITING_QUALITY,
       modelId,
@@ -663,17 +653,17 @@ async function runSingleTest(
       responseText,
       toolCalls: collectedToolCalls.length > 0 ? collectedToolCalls : null,
       sessionUsed: {
-        messageCount: testCase.setup.session.length,
-        sessions: testCase.setup.session.length > 0 ? 1 : 0,
+        messageCount: setup?.session?.length || 0,
+        sessions: (setup?.session?.length || 0) > 0 ? 1 : 0,
       },
-      memoriesUsed: testCase.setup.memories.map((m) => m.key),
+      memoriesUsed: (setup?.memories || []).map((m: { key: string }) => m.key),
     };
   } catch (error) {
     console.error(`[Benchmark] Inference error for ${modelId}:`, error);
     return {
       testCaseId: testCase.id,
       category:
-        testCase.category === "tool_usage"
+        testCase.category === BenchmarkCategory.TOOL_USAGE
           ? BenchmarkCategory.TOOL_USAGE
           : BenchmarkCategory.WRITING_QUALITY,
       modelId,
@@ -695,9 +685,10 @@ async function runSingleTest(
  * Build a simplified system prompt for benchmark testing.
  */
 function buildBenchmarkSystemPrompt(testCase: TestCase): string {
-  const profile = testCase.setup.userContext.profile;
-  const preferences = testCase.setup.userContext.preferences;
-  const memories = testCase.setup.memories;
+  const setup = testCase.setup as unknown as TestCaseSetup;
+  const profile = setup?.userContext?.profile;
+  const preferences = setup?.userContext?.preferences;
+  const memories = setup?.memories || [];
 
   const profileStr = profile
     ? `Nome: ${profile.name || "N/A"}, Sport: ${
@@ -886,6 +877,72 @@ function createMockTools() {
   };
 }
 
+// Cache for OpenRouter model pricing (refreshed every 15 minutes)
+let openRouterPricingCache: Map<
+  string,
+  { prompt: number; completion: number }
+> | null = null;
+let openRouterPricingCacheExpiry: number = 0;
+
+/**
+ * Fetch all model pricing from OpenRouter API with caching.
+ */
+async function fetchOpenRouterPricing(): Promise<
+  Map<string, { prompt: number; completion: number }>
+> {
+  const now = Date.now();
+
+  // Return cached data if still valid
+  if (openRouterPricingCache && now < openRouterPricingCacheExpiry) {
+    return openRouterPricingCache;
+  }
+
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/models", {
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      },
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        data: Array<{
+          id: string;
+          pricing?: { prompt?: string; completion?: string };
+        }>;
+      };
+
+      const pricingMap = new Map<
+        string,
+        { prompt: number; completion: number }
+      >();
+
+      for (const model of data.data) {
+        if (model.pricing?.prompt && model.pricing?.completion) {
+          pricingMap.set(model.id, {
+            prompt: parseFloat(model.pricing.prompt),
+            completion: parseFloat(model.pricing.completion),
+          });
+        }
+      }
+
+      // Cache for 15 minutes
+      openRouterPricingCache = pricingMap;
+      openRouterPricingCacheExpiry = now + 15 * 60 * 1000;
+
+      console.log(
+        `[Benchmark] Cached OpenRouter pricing for ${pricingMap.size} models`,
+      );
+      return pricingMap;
+    }
+  } catch (error) {
+    console.error("[Benchmark] Failed to fetch OpenRouter pricing:", error);
+  }
+
+  // Return empty map on failure
+  return new Map();
+}
+
 /**
  * Fetch model cost from OpenRouter API or fallback to TokenLens.
  */
@@ -895,29 +952,15 @@ async function fetchModelCost(
   outputTokens: number,
 ): Promise<number> {
   try {
-    // Try OpenRouter API first
-    const res = await fetch(
-      `https://openrouter.ai/api/v1/models/${encodeURIComponent(modelId)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        },
-      },
-    );
+    // Get pricing from cache (fetches if needed)
+    const pricingMap = await fetchOpenRouterPricing();
+    const pricing = pricingMap.get(modelId);
 
-    if (res.ok) {
-      const data = (await res.json()) as {
-        data?: { pricing?: { prompt?: string; completion?: string } };
-      };
-      const pricing = data.data?.pricing;
-
-      if (pricing?.prompt && pricing?.completion) {
-        const inputCost =
-          (inputTokens / 1_000_000) * parseFloat(pricing.prompt);
-        const outputCost =
-          (outputTokens / 1_000_000) * parseFloat(pricing.completion);
-        return inputCost + outputCost;
-      }
+    if (pricing) {
+      // Pricing is per token (USD)
+      const inputCost = inputTokens * pricing.prompt;
+      const outputCost = outputTokens * pricing.completion;
+      return inputCost + outputCost;
     }
   } catch {
     // Ignore and fallback

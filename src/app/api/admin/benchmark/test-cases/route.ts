@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 
 /**
  * GET /api/admin/benchmark/test-cases
- * List all test cases
+ * List all test cases, or get a single one by ID
  */
 export async function GET(request: NextRequest) {
   try {
@@ -24,9 +24,25 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
     const category = searchParams.get("category");
     const activeOnly = searchParams.get("activeOnly") !== "false";
 
+    // If an ID is provided, return a single test case
+    if (id) {
+      const testCase = await prisma.benchmarkTestCase.findUnique({
+        where: { id },
+      });
+      if (!testCase) {
+        return NextResponse.json(
+          { error: "Test case not found" },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json({ testCase });
+    }
+
+    // Otherwise, return a list
     const where: Prisma.BenchmarkTestCaseWhereInput = {};
     if (category)
       where.category =

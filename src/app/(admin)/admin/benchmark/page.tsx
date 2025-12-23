@@ -25,6 +25,7 @@ import {
   User,
   Wrench,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,118 +58,22 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import type { Prisma } from "@/generated/prisma";
-// Static dataset for user prompts (loaded at build time)
-import datasetJson from "@/lib/benchmark/dataset.json";
-import type {
-  TestCaseSetup,
-  ToolUsageCritique,
-  WritingQualityCritique,
-} from "@/lib/benchmark/types";
+import type { TestCaseSetup } from "@/lib/benchmark/types";
 import { cn } from "@/lib/utils";
 
-const dataset = datasetJson as unknown as Dataset;
+// Import types and constants from shared file
+import {
+  AVAILABLE_MODELS,
+  BenchmarkCategory,
+  type BenchmarkResult,
+  type BenchmarkRun,
+  type BenchmarkTestCase,
+  type ModelScore,
+  ScoreBadge,
+  StatusBadge,
+} from "./types";
 
-interface Dataset {
-  testCases: Array<{
-    id: string;
-    name: string;
-    userMessage: string;
-    category: string;
-    setup?: {
-      session?: Array<{ role: string; content: string }>;
-      memories?: Array<{ key: string; value: string }>;
-      userContext?: {
-        profile?: Record<string, string | null>;
-        preferences?: Record<string, string | null>;
-      };
-    };
-  }>;
-}
-
-interface BenchmarkRun {
-  id: string;
-  name: string;
-  description?: string;
-  models: string[];
-  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
-  startedAt?: string;
-  endedAt?: string;
-  approved?: boolean;
-  createdAt: string;
-  _count?: { results: number };
-}
-
-interface ModelScore {
-  modelId: string;
-  testCount: number;
-  avgOverallScore: number;
-  avgJudge1Score: number;
-  avgJudge2Score: number | null;
-  avgConsensusScore: number | null;
-  flaggedForReviewCount: number;
-  avgInferenceTimeMs: number;
-  avgTtftMs: number | null;
-  avgCostUsd: number;
-  avgToolUsageScore: number | null;
-  avgWritingQualityScore: number | null;
-  reliability: number;
-  variance: number;
-  reasoningEfficiency: number | null;
-  tokenEfficiencyIndex: number | null;
-  totalCostUsd: number;
-}
-
-interface BenchmarkResult {
-  id: string;
-  testCaseId: string;
-  category: string;
-  modelId: string;
-  inferenceTimeMs: number;
-  inputTokens: number;
-  outputTokens: number;
-  costUsd: number;
-  responseText: string;
-  toolCalls?: Array<{ name: string; args: unknown; result?: unknown }>;
-  toolUsageScore?: number;
-  toolUsageReasoning?: string;
-  writingQualityScore?: number;
-  writingQualityReasoning?: string;
-  overallScore: number;
-  ttftMs: number | null;
-  reasoningTokens: number | null;
-  adminScore?: number;
-  adminReasoning?: string;
-  finalScore?: number;
-  // Session and memories context
-  memoriesUsed?: string[];
-  sessionUsed?: { messageCount: number; sessions: number };
-  // Multi-judge consensus fields
-  judge2OverallScore?: number;
-  judge2ToolUsageScore?: number;
-  judge2ToolUsageReasoning?: string;
-  judge2WritingQualityScore?: number;
-  judge2WritingQualityReasoning?: string;
-  consensusScore?: number;
-  judgeDisagreement?: number;
-  flaggedForReview?: boolean;
-  toolUsageCritique?: ToolUsageCritique;
-  writingQualityCritique?: WritingQualityCritique;
-  judge2ToolUsageCritique?: ToolUsageCritique;
-  judge2WritingQualityCritique?: WritingQualityCritique;
-}
-
-// Available models for benchmarking
-const AVAILABLE_MODELS = [
-  "google/gemini-3-flash-preview",
-  "google/gemini-2.5-flash",
-  "google/gemini-2.5-flash-lite-preview-09-2025",
-  "google/gemini-2.0-flash-001",
-  // "google/gemini-2.0-flash-lite-001",
-  // "xiaomi/mimo-v2-flash:free",
-  // "x-ai/grok-4-fast",
-  // "x-ai/grok-4.1-fast",
-  "openai/gpt-oss-120b",
-];
+// [REMOVED] Static dataset import
 
 export default function BenchmarkPage() {
   const [runs, setRuns] = useState<BenchmarkRun[]>([]);
@@ -185,7 +90,7 @@ export default function BenchmarkPage() {
   );
   const [_selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
-  const [selectedResult, setSelectedResult] = useState<BenchmarkResult | null>(
+  const [selectedResult, _setSelectedResult] = useState<BenchmarkResult | null>(
     null,
   );
 
@@ -199,6 +104,7 @@ export default function BenchmarkPage() {
   const [selectedModels, setSelectedModels] = useState<Set<string>>(
     new Set(AVAILABLE_MODELS),
   );
+  const [selectedIterations, setSelectedIterations] = useState(1);
 
   // Result filtering state
   const [filterCategory, setFilterCategory] = useState<string>("ALL");
@@ -239,7 +145,7 @@ export default function BenchmarkPage() {
   const [generatingAdversarial, setGeneratingAdversarial] = useState(false);
 
   // Blind A/B Testing state
-  const [blindModeEnabled, setBlindModeEnabled] = useState(false);
+  const [blindModeEnabled, _setBlindModeEnabled] = useState(false);
   const [blindComparisonOpen, setBlindComparisonOpen] = useState(false);
   const [blindPair, setBlindPair] = useState<{
     resultA: BenchmarkResult;
@@ -264,6 +170,15 @@ export default function BenchmarkPage() {
 
   const testCaseIds = [...new Set(results.map((r) => r.testCaseId))];
   const _modelIds = [...new Set(results.map((r) => r.modelId))];
+
+  // Map test case IDs to names from database
+  const _getTestCaseName = useCallback(
+    (id: string) => {
+      const tc = dbTestCases.find((t) => t.externalId === id || t.id === id);
+      return tc?.name || id;
+    },
+    [dbTestCases],
+  );
 
   // Filtering and grouping logic
   const filteredRuns = useMemo(() => {
@@ -486,7 +401,7 @@ export default function BenchmarkPage() {
   };
 
   const selectAllTests = () => {
-    setSelectedTests(new Set(dataset.testCases.map((tc) => tc.id)));
+    setSelectedTests(new Set(dbTestCases.map((tc) => tc.externalId || tc.id)));
   };
 
   const clearAllTests = () => {
@@ -564,7 +479,7 @@ export default function BenchmarkPage() {
   };
 
   // Start a blind A/B comparison for the current test case
-  const startBlindComparison = useCallback(() => {
+  const _startBlindComparison = useCallback(() => {
     if (!selectedTestCaseId || currentTestResults.length < 2) return;
 
     // Pick two random results from different models
@@ -652,12 +567,16 @@ export default function BenchmarkPage() {
         submitAdminScore(
           blindPair.resultA.id,
           scoreA,
-          `Blind A/B comparison: ${preferenceLabel}${modifiersA ? ` (${modifiersA})` : ""}`,
+          `Blind A/B comparison: ${preferenceLabel}${
+            modifiersA ? ` (${modifiersA})` : ""
+          }`,
         ),
         submitAdminScore(
           blindPair.resultB.id,
           scoreB,
-          `Blind A/B comparison: ${preferenceLabel}${modifiersB ? ` (${modifiersB})` : ""}`,
+          `Blind A/B comparison: ${preferenceLabel}${
+            modifiersB ? ` (${modifiersB})` : ""
+          }`,
         ),
       ]);
 
@@ -747,44 +666,24 @@ export default function BenchmarkPage() {
           >
             ⚙️ Config ({selectedTests.size || "all"} tests)
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setManageDatasetsOpen(true)}
-            className="bg-white/5 hover:bg-white/10"
-          >
-            📂 Datasets
-          </Button>
-          <Button
-            variant={blindModeEnabled ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setBlindModeEnabled(!blindModeEnabled)}
-            className={cn(
-              "transition-colors",
-              blindModeEnabled
-                ? "bg-purple-500/20 text-purple-400 hover:bg-purple-500/30"
-                : "bg-white/5 hover:bg-white/10",
-            )}
-          >
-            👁️ Blind Mode {blindModeEnabled ? "ON" : "OFF"}
-          </Button>
-          {blindModeEnabled && (
+          <Link href="/admin/benchmark/datasets">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              onClick={() => setModelsRevealed(!modelsRevealed)}
-              className={cn(
-                "transition-all",
-                modelsRevealed
-                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                  : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10",
-              )}
+              className="bg-white/5 hover:bg-white/10"
             >
-              {modelsRevealed
-                ? "🔓 Identities Revealed"
-                : "🔒 Identities Masked"}
+              📂 Datasets
             </Button>
-          )}
+          </Link>
+          <Link href="/admin/benchmark/compare">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="bg-purple-500/20 text-purple-400 hover:bg-purple-500/30"
+            >
+              👁️ Compare
+            </Button>
+          </Link>
           <Button
             onClick={() => startBenchmark()}
             disabled={starting}
@@ -962,7 +861,10 @@ export default function BenchmarkPage() {
                                 <span>
                                   {new Date(run.createdAt).toLocaleTimeString(
                                     [],
-                                    { hour: "2-digit", minute: "2-digit" },
+                                    {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    },
                                   )}
                                 </span>
                                 {run._count?.results && (
@@ -1091,7 +993,9 @@ export default function BenchmarkPage() {
                                   </div>
                                   <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
                                     <motion.div
-                                      initial={{ width: 0 }}
+                                      initial={{
+                                        width: 0,
+                                      }}
                                       animate={{
                                         width: `${score.avgOverallScore * 10}%`,
                                       }}
@@ -1124,9 +1028,15 @@ export default function BenchmarkPage() {
                                   <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
                                     {/* Inverse bar for speed: shorter is cleaner/better, but bar length usually implies quantity. Let's do relative to a safe max of 5000ms? */}
                                     <motion.div
-                                      initial={{ width: 0 }}
+                                      initial={{
+                                        width: 0,
+                                      }}
                                       animate={{
-                                        width: `${Math.min(100, (score.avgInferenceTimeMs / 5000) * 100)}%`,
+                                        width: `${Math.min(
+                                          100,
+                                          (score.avgInferenceTimeMs / 5000) *
+                                            100,
+                                        )}%`,
                                       }}
                                       className={cn(
                                         "h-full",
@@ -1153,9 +1063,14 @@ export default function BenchmarkPage() {
                                   </div>
                                   <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
                                     <motion.div
-                                      initial={{ width: 0 }}
+                                      initial={{
+                                        width: 0,
+                                      }}
                                       animate={{
-                                        width: `${Math.min(100, (score.avgCostUsd / 0.01) * 100)}%`,
+                                        width: `${Math.min(
+                                          100,
+                                          (score.avgCostUsd / 0.01) * 100,
+                                        )}%`,
                                       }} // normalized to 1 cent
                                       className="h-full bg-blue-500"
                                     />
@@ -1253,14 +1168,17 @@ export default function BenchmarkPage() {
                           Export JSONL
                         </Button>
                         {blindModeEnabled && currentTestResults.length >= 2 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={startBlindComparison}
-                            className="h-6 text-[10px] text-purple-400 hover:text-purple-300 hover:bg-purple-500/20"
+                          <Link
+                            href={`/admin/benchmark/compare?runId=${selectedRun.id}`}
                           >
-                            👁️ Blind Compare
-                          </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-[10px] text-purple-400 hover:text-purple-300 hover:bg-purple-500/20"
+                            >
+                              👁️ Blind Compare
+                            </Button>
+                          </Link>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
@@ -1310,7 +1228,10 @@ export default function BenchmarkPage() {
                             return (
                               <SelectItem key={id} value={id}>
                                 {id} (
-                                {sample?.category === "TOOL_USAGE" ? "🔧" : "✍️"}
+                                {sample?.category ===
+                                BenchmarkCategory.TOOL_USAGE
+                                  ? "🔧"
+                                  : "✍️"}
                                 )
                               </SelectItem>
                             );
@@ -1334,10 +1255,12 @@ export default function BenchmarkPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="ALL">All Categories</SelectItem>
-                            <SelectItem value="TOOL_USAGE">
+                            <SelectItem value={BenchmarkCategory.TOOL_USAGE}>
                               Tool Usage
                             </SelectItem>
-                            <SelectItem value="WRITING_QUALITY">
+                            <SelectItem
+                              value={BenchmarkCategory.WRITING_QUALITY}
+                            >
                               Writing Quality
                             </SelectItem>
                           </SelectContent>
@@ -1409,7 +1332,9 @@ export default function BenchmarkPage() {
                             >
                               <TableCell className="p-2 font-medium text-xs">
                                 {blindModeEnabled && !modelsRevealed
-                                  ? `Model ${String.fromCharCode(65 + currentTestResults.indexOf(result))}`
+                                  ? `Model ${String.fromCharCode(
+                                      65 + currentTestResults.indexOf(result),
+                                    )}`
                                   : result.modelId.split("/")[1]}
                               </TableCell>
                               <TableCell className="p-2 text-center">
@@ -1433,17 +1358,17 @@ export default function BenchmarkPage() {
                                 {result.inputTokens + result.outputTokens}
                               </TableCell>
                               <TableCell className="p-2 text-center">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedResult(result);
-                                    setDetailModalOpen(true);
-                                  }}
-                                  className="h-6 w-6 p-0 text-primary hover:text-primary hover:bg-primary/20"
+                                <Link
+                                  href={`/admin/benchmark/${selectedRun.id}/result/${result.id}`}
                                 >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-primary hover:text-primary hover:bg-primary/20"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </Link>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -1471,7 +1396,7 @@ export default function BenchmarkPage() {
           open={true}
           onOpenChange={(open) => !open && closeBlindComparison()}
         >
-          <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <DialogContent className="max-w-6xl h-[85vh] flex flex-col p-0 gap-0 overflow-hidden">
             <DialogHeader className="p-4 border-b border-white/10 flex flex-row items-center justify-between space-y-0">
               <div>
                 <DialogTitle className="text-base font-semibold flex items-center gap-2">
@@ -1489,7 +1414,7 @@ export default function BenchmarkPage() {
               </div>
             </DialogHeader>
 
-            <ScrollArea className="flex-1 p-4">
+            <ScrollArea className="flex-1 p-4 min-h-0">
               <div className="grid grid-cols-2 gap-4">
                 {/* Response A */}
                 <div className="space-y-3">
@@ -1656,9 +1581,18 @@ export default function BenchmarkPage() {
                             value: "both_good" as const,
                             label: "👍 Both Good",
                           },
-                          { value: "A" as const, label: "✨ A is Better" },
-                          { value: "B" as const, label: "✨ B is Better" },
-                          { value: "both_bad" as const, label: "👎 Both Bad" },
+                          {
+                            value: "A" as const,
+                            label: "✨ A is Better",
+                          },
+                          {
+                            value: "B" as const,
+                            label: "✨ B is Better",
+                          },
+                          {
+                            value: "both_bad" as const,
+                            label: "👎 Both Bad",
+                          },
                         ].map(({ value, label }) => (
                           <Button
                             key={value}
@@ -1707,172 +1641,341 @@ export default function BenchmarkPage() {
       )}
 
       {/* Config Modal - Test/Model Selection */}
+
+      {/* Config Modal - Test/Model Selection */}
+
+      {/* Config Modal - Test/Model Selection */}
+
+      {/* Config Modal - Test/Model Selection */}
       <Dialog open={configModalOpen} onOpenChange={setConfigModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
-          <DialogHeader className="p-4 border-b border-white/10 space-y-0">
-            <DialogTitle className="font-semibold">
-              Configure Benchmark
-            </DialogTitle>
+        <DialogContent className="sm:max-w-5xl p-0 flex flex-col gap-0 bg-zinc-950/95 border-zinc-800 backdrop-blur-xl supports-backdrop-filter:bg-zinc-950/80 shadow-2xl overflow-hidden max-h-[90vh]">
+          <DialogHeader className="px-6 py-4 border-b border-white/5 bg-zinc-900/50 shrink-0 flex flex-row items-center justify-between space-y-0">
+            <div className="flex flex-col gap-1">
+              <DialogTitle className="text-xl font-bold flex items-center gap-2 tracking-tight">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5"
+                    role="img"
+                    aria-labelledby="config-icon-title"
+                  >
+                    <title id="config-icon-title">Configuration Icon</title>
+                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </span>
+                <span>Configure Benchmark</span>
+              </DialogTitle>
+              <DialogDescription className="text-zinc-400 font-normal">
+                Select target models and test cases for this run
+              </DialogDescription>
+            </div>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 p-4">
-            <div className="grid grid-cols-2 gap-6">
-              {/* Models */}
-              <div>
-                <h3 className="text-sm font-medium mb-3">
-                  Models ({selectedModels.size})
-                </h3>
-                <div className="space-y-2">
-                  {AVAILABLE_MODELS.map((modelId) => (
-                    <label
-                      key={modelId}
-                      className="flex items-center gap-2 p-2 rounded hover:bg-white/5 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedModels.has(modelId)}
-                        onChange={() => toggleModel(modelId)}
-                        className="rounded bg-white/5 border-white/10"
-                      />
-                      <span className="text-sm">{modelId.split("/")[1]}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              {/* Tests */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium">
-                    Tests ({selectedTests.size || "all"})
+          {/* Flex container to enforce side-by-side columns */}
+          <div className="h-[50vh] flex flex-row divide-x divide-white/5 overflow-hidden">
+            {/* Models Column (40% width) */}
+            <div className="w-full flex flex-col bg-zinc-900/20 overflow-hidden">
+              <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between bg-zinc-900/50 shrink-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                    Models
                   </h3>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={selectAllTests}
-                      className="h-6 text-[10px]"
-                    >
-                      Select All
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearAllTests}
-                      className="h-6 text-[10px]"
-                    >
-                      Clear All
-                    </Button>
-                  </div>
+                  <Badge
+                    variant="secondary"
+                    className="bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-[10px] px-1.5 h-4.5"
+                  >
+                    {selectedModels.size}
+                  </Badge>
                 </div>
-                <div className="space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar">
-                  {dataset.testCases.map((tc) => (
-                    <label
-                      key={tc.id}
-                      className={cn(
-                        "flex items-center gap-2 p-2 rounded cursor-pointer",
-                        selectedTests.has(tc.id)
-                          ? "bg-primary/20"
-                          : "hover:bg-white/5",
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedTests.has(tc.id)}
-                        onChange={() => toggleTest(tc.id)}
-                        className="rounded bg-white/5 border-white/10"
-                      />
-                      <span className="text-xs font-mono">{tc.id}</span>
-                      <span
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedModels(new Set(AVAILABLE_MODELS))}
+                  className="h-6 text-[10px] text-zinc-500 hover:text-primary hover:bg-primary/5"
+                >
+                  Select All
+                </Button>
+              </div>
+              <ScrollArea className="flex-1 w-full min-h-0">
+                <div className="p-2 space-y-1">
+                  {AVAILABLE_MODELS.map((modelId) => {
+                    const isSelected = selectedModels.has(modelId);
+                    return (
+                      <button
+                        type="button"
+                        key={modelId}
+                        onClick={() => toggleModel(modelId)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            toggleModel(modelId);
+                          }
+                        }}
                         className={cn(
-                          "text-[10px] px-1 rounded",
-                          tc.category === "tool_usage"
-                            ? "bg-purple-500/20 text-purple-400"
-                            : "bg-blue-500/20 text-blue-400",
+                          "group relative flex items-center gap-3 px-3 py-2 rounded-lg border transition-all duration-200 cursor-pointer select-none text-left w-full",
+                          isSelected
+                            ? "bg-primary/5 border-primary/40 shadow-[0_0_15px_-3px_rgba(var(--primary),0.3)]"
+                            : "bg-zinc-900/40 border-white/5 hover:border-white/10 hover:bg-zinc-900/60",
                         )}
                       >
-                        {tc.category === "tool_usage" ? "🔧" : "✍️"}
-                      </span>
-                    </label>
-                  ))}
+                        <div
+                          className={cn(
+                            "h-4 w-4 rounded border flex items-center justify-center transition-all duration-200 shrink-0",
+                            isSelected
+                              ? "border-primary bg-primary text-primary-foreground scale-110"
+                              : "border-zinc-700 bg-zinc-950 text-transparent group-hover:border-zinc-500",
+                          )}
+                        >
+                          <svg
+                            viewBox="0 0 14 14"
+                            className="h-3 w-3"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            role="img"
+                            aria-labelledby={`model-selected-${modelId}`}
+                          >
+                            <title id={`model-selected-${modelId}`}>
+                              Selected
+                            </title>
+                            <polyline points="3.5 7.5 5.5 10 10.5 3.5" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div
+                            className={cn(
+                              "text-sm font-medium leading-none mb-1 truncate transition-colors",
+                              isSelected
+                                ? "text-primary"
+                                : "text-zinc-300 group-hover:text-zinc-200",
+                            )}
+                          >
+                            {modelId.split("/")[1]}
+                          </div>
+                          <div className="text-[10px] text-zinc-500 font-mono tracking-tight group-hover:text-zinc-400 truncate">
+                            {modelId.split("/")[0]}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
+
+            {/* Tests Column (60% width) */}
+            <div className="w-full flex flex-col bg-zinc-950/30 overflow-hidden">
+              <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between bg-zinc-900/50 shrink-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                    Test Cases
+                  </h3>
+                  <Badge
+                    variant="secondary"
+                    className="bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-[10px] px-1.5 h-4.5"
+                  >
+                    {selectedTests.size || dbTestCases.length || "Loading..."}
+                  </Badge>
+                </div>
+                <div className="flex gap-1 bg-zinc-900 rounded-md p-0.5 border border-white/5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={selectAllTests}
+                    className="h-5 px-2 text-[10px] rounded-sm text-zinc-400 hover:text-white hover:bg-zinc-800"
+                  >
+                    All
+                  </Button>
+                  <div className="w-px bg-white/10 my-1" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearAllTests}
+                    className="h-5 px-2 text-[10px] rounded-sm text-zinc-400 hover:text-white hover:bg-zinc-800"
+                  >
+                    None
+                  </Button>
                 </div>
               </div>
+              <ScrollArea className="flex-1 w-full min-h-0">
+                <div className="p-2 space-y-1">
+                  {dbTestCases.map((tc) => {
+                    const id = tc.externalId || tc.id;
+                    const isSelected = selectedTests.has(id);
+                    return (
+                      <button
+                        type="button"
+                        key={tc.id}
+                        onClick={() => toggleTest(id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            toggleTest(id);
+                          }
+                        }}
+                        className={cn(
+                          "group flex items-center gap-3 px-3 py-2 rounded-md border transition-all duration-200 cursor-pointer select-none text-left w-full",
+                          isSelected
+                            ? "bg-blue-500/10 border-blue-500/30 shadow-[0_2px_10px_-2px_rgba(59,130,246,0.1)]"
+                            : "bg-transparent border-transparent hover:bg-white/5 hover:border-white/5",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "h-3.5 w-3.5 rounded-sm border flex items-center justify-center transition-all duration-200 shrink-0",
+                            isSelected
+                              ? "border-blue-500 bg-blue-500 text-white"
+                              : "border-zinc-700 bg-zinc-950/50 text-transparent group-hover:border-zinc-600",
+                          )}
+                        >
+                          <svg
+                            viewBox="0 0 14 14"
+                            className="h-2.5 w-2.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            role="img"
+                            aria-labelledby={`test-selected-${tc.id}`}
+                          >
+                            <title id={`test-selected-${tc.id}`}>
+                              Selected
+                            </title>
+                            <polyline points="3.5 7.5 5.5 10 10.5 3.5" />
+                          </svg>
+                        </div>
+                        <div
+                          className={cn(
+                            "flex-1 font-mono text-xs transition-colors truncate",
+                            isSelected
+                              ? "text-blue-400 font-medium"
+                              : "text-zinc-400 group-hover:text-zinc-300",
+                          )}
+                        >
+                          {tc.id}
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] px-1.5 h-4.5 font-normal border shadow-none shrink-0",
+                            tc.category === BenchmarkCategory.TOOL_USAGE
+                              ? "border-purple-500/20 bg-purple-500/5 text-purple-400"
+                              : "border-emerald-500/20 bg-emerald-500/5 text-emerald-400",
+                          )}
+                        >
+                          {tc.category === BenchmarkCategory.TOOL_USAGE
+                            ? "Tool"
+                            : "Chat"}
+                        </Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
             </div>
-          </ScrollArea>
+          </div>
 
-          <div className="p-4 border-t border-white/10 flex justify-between bg-black/20">
-            <p className="text-xs text-muted-foreground self-center">
-              {selectedTests.size === 0
-                ? "All tests"
-                : `${selectedTests.size} tests`}{" "}
-              × {selectedModels.size} models ={" "}
-              {(selectedTests.size || dataset.testCases.length) *
-                selectedModels.size}{" "}
-              runs
-            </p>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <label
-                  htmlFor="concurrency-input-v2"
-                  className="text-xs text-muted-foreground"
-                >
-                  Parallel:
-                </label>
-                <Input
-                  type="number"
-                  id="concurrency-input-v2"
-                  min="1"
-                  max="20"
-                  defaultValue="10"
-                  className="w-16 h-8 text-xs bg-black/20 border-white/10"
-                />
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-white/5 bg-zinc-900/50 backdrop-blur-md shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                <div className="flex flex-col">
+                  <span className="text-2xl font-bold text-white tracking-tight">
+                    {(selectedTests.size || dbTestCases.length) *
+                      selectedModels.size *
+                      selectedIterations}
+                  </span>
+                  <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+                    Total Requests
+                  </span>
+                </div>
+
+                <div className="h-8 w-px bg-white/10" />
+
+                <div className="flex items-center gap-4">
+                  <div className="flex flex-col gap-1">
+                    <Label
+                      htmlFor="config-parallel-premium"
+                      className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold"
+                    >
+                      Concurrency
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="config-parallel-premium"
+                        type="number"
+                        defaultValue="10"
+                        min="1"
+                        max="20"
+                        className="h-7 w-20 text-xs bg-zinc-950 border-white/10 focus:border-primary/50 text-center pl-1 pr-6"
+                      />
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[10px] text-zinc-600">
+                        x
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label
+                      htmlFor="config-iterations-premium"
+                      className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold"
+                    >
+                      Iterations
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="config-iterations-premium"
+                        type="number"
+                        value={selectedIterations}
+                        onChange={(e) =>
+                          setSelectedIterations(
+                            parseInt(e.target.value, 10) || 1,
+                          )
+                        }
+                        min="1"
+                        max="10"
+                        className="h-7 w-20 text-xs bg-zinc-950 border-white/10 focus:border-primary/50 text-center pl-1 pr-6"
+                      />
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[10px] text-zinc-600">
+                        x
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <label
-                  htmlFor="iterations-input-v2"
-                  className="text-xs text-muted-foreground"
-                >
-                  Iterations:
-                </label>
-                <Input
-                  type="number"
-                  id="iterations-input-v2"
-                  min="1"
-                  max="10"
-                  defaultValue="1"
-                  className="w-16 h-8 text-xs bg-black/20 border-white/10"
-                />
-              </div>
+
               <Button
                 onClick={() => {
-                  const iterationsInput = document.getElementById(
-                    "iterations-input-v2",
-                  ) as HTMLInputElement;
                   const concurrencyInput = document.getElementById(
-                    "concurrency-input-v2",
+                    "config-parallel-premium",
                   ) as HTMLInputElement;
-                  const iterations = iterationsInput?.value;
-                  const concurrency = concurrencyInput?.value;
-                  const testsToRun =
-                    selectedTests.size > 0 ? [...selectedTests] : undefined;
-                  const modelsToRun =
-                    selectedModels.size > 0 ? [...selectedModels] : undefined;
                   startBenchmark({
-                    testCaseIds: testsToRun,
-                    models: modelsToRun,
-                    iterations: parseInt(iterations, 10) || 1,
-                    concurrency: parseInt(concurrency, 10) || 10,
+                    testCaseIds:
+                      selectedTests.size > 0 ? [...selectedTests] : undefined,
+                    models:
+                      selectedModels.size > 0 ? [...selectedModels] : undefined,
+                    iterations: selectedIterations,
+                    concurrency: parseInt(concurrencyInput?.value, 10) || 10,
                   });
                   setConfigModalOpen(false);
                 }}
                 disabled={starting || selectedModels.size === 0}
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                size="lg"
+                className="h-10 px-6 font-semibold shadow-lg shadow-primary/20 bg-linear-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground border-0 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
               >
                 {starting ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 ) : (
-                  <Play className="h-4 w-4 mr-2" />
+                  <Play className="h-4 w-4 mr-2 fill-current" />
                 )}
-                Start Selected
+                Start Benchmark
               </Button>
             </div>
           </div>
@@ -1885,13 +1988,13 @@ export default function BenchmarkPage() {
           result={selectedResult}
           onClose={() => setDetailModalOpen(false)}
           onSubmitScore={submitAdminScore}
-          dataset={dataset}
+          testCases={dbTestCases}
         />
       )}
 
       {/* Manage Datasets Modal */}
       <Dialog open={manageDatasetsOpen} onOpenChange={setManageDatasetsOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden shadow-2xl">
+        <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 gap-0 overflow-hidden shadow-2xl">
           <DialogHeader className="p-4 border-b border-white/10 bg-white/5 flex flex-row items-center justify-between space-y-0">
             <div className="flex items-center gap-2">
               <FlaskConical className="h-5 w-5 text-primary" />
@@ -1942,7 +2045,7 @@ export default function BenchmarkPage() {
             </Button>
           </div>
 
-          <ScrollArea className="flex-1 p-4 bg-black/20">
+          <ScrollArea className="flex-1 p-4 bg-black/20 min-h-0">
             {activeDatasetTab === "ADVERSARIAL" && (
               <div className="mb-6 p-4 bg-purple-500/5 border border-purple-500/20 rounded-xl">
                 <div className="flex items-center justify-between">
@@ -2093,7 +2196,11 @@ export default function BenchmarkPage() {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
 
-              let setupData = { session: [], memories: [], userContext: {} };
+              let setupData = {
+                session: [],
+                memories: [],
+                userContext: {},
+              };
               let expectedBehaviorData = {};
 
               try {
@@ -2124,7 +2231,9 @@ export default function BenchmarkPage() {
               try {
                 const res = await fetch("/api/admin/benchmark/test-cases", {
                   method: "POST",
-                  headers: { "Content-Type": "application/json" },
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
                   body: JSON.stringify(data),
                 });
                 if (res.ok) {
@@ -2359,12 +2468,12 @@ function ResultDetailModal({
   result,
   onClose,
   onSubmitScore,
-  dataset,
+  testCases,
 }: {
   result: BenchmarkResult;
   onClose: () => void;
   onSubmitScore: (id: string, score: number, reasoning: string) => void;
-  dataset: Dataset;
+  testCases: BenchmarkTestCase[];
 }) {
   const [score, setScore] = useState<number>(result.adminScore ?? 5);
   const [reasoning, setReasoning] = useState(result.adminReasoning ?? "");
@@ -2377,8 +2486,8 @@ function ResultDetailModal({
     setSubmitting(false);
   };
 
-  const testCase = dataset.testCases.find(
-    (tc: Dataset["testCases"][number]) => tc.id === result.testCaseId,
+  const testCase = testCases.find(
+    (tc) => tc.externalId === result.testCaseId || tc.id === result.testCaseId,
   );
 
   return (
@@ -2603,7 +2712,10 @@ function ResultDetailModal({
                                 testCase.setup as unknown as TestCaseSetup
                               ).session?.map(
                                 (
-                                  msg: { role: string; content: string },
+                                  msg: {
+                                    role: string;
+                                    content: string;
+                                  },
                                   i: number,
                                 ) => (
                                   <li
@@ -2860,74 +2972,5 @@ function ResultDetailModal({
         </ScrollArea>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function StatusBadge({ status, small }: { status: string; small?: boolean }) {
-  const config = {
-    PENDING: {
-      color: "text-amber-500",
-      bg: "bg-amber-500/10",
-      border: "border-amber-500/20",
-    },
-    RUNNING: {
-      color: "text-blue-500",
-      bg: "bg-blue-500/10",
-      border: "border-blue-500/20",
-      animate: true,
-    },
-    COMPLETED: {
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/10",
-      border: "border-emerald-500/20",
-    },
-    FAILED: {
-      color: "text-rose-500",
-      bg: "bg-rose-500/10",
-      border: "border-rose-500/20",
-    },
-  }[status] || {
-    color: "text-muted-foreground",
-    bg: "bg-muted",
-    border: "border-transparent",
-  };
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full font-medium border",
-        config.color,
-        config.bg,
-        config.border,
-        small ? "text-[10px] px-1.5 py-0.5" : "text-xs px-2.5 py-0.5",
-        config.animate && "animate-pulse",
-      )}
-    >
-      {status === "RUNNING" && (
-        <Loader2 className="h-2 w-2 animate-spin mr-1.5" />
-      )}
-      {small ? status[0] : status}
-    </span>
-  );
-}
-
-function ScoreBadge({ score, large }: { score: number; large?: boolean }) {
-  const color =
-    score >= 8
-      ? "text-emerald-500 bg-emerald-500/10"
-      : score >= 6
-        ? "text-amber-500 bg-amber-500/10"
-        : "text-rose-500 bg-rose-500/10";
-
-  return (
-    <span
-      className={cn(
-        "font-bold rounded",
-        color,
-        large ? "text-sm px-2 py-1" : "text-xs px-1.5 py-0.5",
-      )}
-    >
-      {(score || 0).toFixed(1)}
-    </span>
   );
 }
