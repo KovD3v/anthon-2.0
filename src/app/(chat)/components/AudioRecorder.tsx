@@ -222,6 +222,9 @@ export function AudioRecorder({
         }`}
         onClick={handleClick}
         disabled={disabled || isProcessing}
+        aria-label={
+          isRecording ? "Ferma registrazione" : "Registra messaggio vocale"
+        }
         title={
           isRecording ? "Ferma registrazione" : "Registra messaggio vocale"
         }
