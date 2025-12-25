@@ -5,7 +5,7 @@
  * designed to challenge the best-performing models.
  */
 
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma";
 import { openrouter } from "@/lib/ai/providers/openrouter";
@@ -196,9 +196,11 @@ export async function generateAdversarialCases(
   for (let i = 0; i < count; i++) {
     const targetCategory = categories[i % categories.length];
 
-    const { object } = await generateObject({
+    const { output } = await generateText({
       model: openrouter(ADVERSARIAL_MODEL),
-      schema: AdversarialTestCaseSchema,
+      output: Output.object({
+        schema: AdversarialTestCaseSchema,
+      }),
       system: `Sei un esperto di qualità AI e testing adversarial. Il tuo compito è generare test cases "edge case" che possono mettere in difficoltà un modello AI coach sportivo.
 
 Il sistema che stai testando è "Anthon", un coach digitale per atleti che:
@@ -233,20 +235,24 @@ Il test case deve:
 Genera un test case sfidante ma realistico.`,
     });
 
+    if (!output) {
+      continue; // Skip if no output generated
+    }
+
     generatedCases.push({
       testCase: {
         category:
-          object.category === "tool_usage" ? "TOOL_USAGE" : "WRITING_QUALITY",
-        name: object.name,
-        description: object.description,
-        setup: object.setup as unknown as TestCaseSetup,
-        userMessage: object.userMessage,
-        expectedBehavior: object.expectedBehavior as unknown as
+          output.category === "tool_usage" ? "TOOL_USAGE" : "WRITING_QUALITY",
+        name: output.name,
+        description: output.description,
+        setup: output.setup as unknown as TestCaseSetup,
+        userMessage: output.userMessage,
+        expectedBehavior: output.expectedBehavior as unknown as
           | ToolUsageExpected
           | WritingQualityExpected,
       },
-      adversarialRationale: object.adversarialRationale,
-      targetWeakness: object.targetWeakness,
+      adversarialRationale: output.adversarialRationale,
+      targetWeakness: output.targetWeakness,
     });
   }
 

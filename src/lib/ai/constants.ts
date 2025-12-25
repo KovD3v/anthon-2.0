@@ -28,7 +28,7 @@ export const SESSION = {
 // -----------------------------------------------------
 export const RAG = {
   /** Min cosine similarity to include in results (0.3 = 70% different is still ok) */
-  SIMILARITY_THRESHOLD: 0.5,
+  SIMILARITY_THRESHOLD: 0.6,
   /** Number of chunks to process per batch for embeddings */
   BATCH_SIZE: 10,
   /** Maximum chunks to return from search */

@@ -4,7 +4,7 @@
  * Uses OpenAI text-embedding-3-small via OpenRouter for embeddings.
  */
 
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 import { RAG, RAG_KEYWORDS } from "@/lib/ai/constants";
 import { openrouter } from "@/lib/ai/providers/openrouter";
@@ -666,18 +666,20 @@ export async function shouldUseRag(userMessage: string): Promise<boolean> {
       return cached.needsRag;
     }
 
-    const { object } = await LatencyLogger.measure(
+    const { output } = await LatencyLogger.measure(
       "RAG: Classify query (LLM)",
       () =>
-        generateObject({
+        generateText({
           model: ragClassifierModel, // ⚡ Faster model!
           temperature: 0,
           maxOutputTokens: 120,
-          schema: z.object({
-            needsRag: z
-              .boolean()
-              .describe("Whether the query needs RAG context"),
-            reason: z.string().describe("Brief reason for the decision"),
+          output: Output.object({
+            schema: z.object({
+              needsRag: z
+                .boolean()
+                .describe("Whether the query needs RAG context"),
+              reason: z.string().describe("Brief reason for the decision"),
+            }),
           }),
           system: `You are a query classifier. Determine if a user's question requires information from methodological documents about sports coaching.
 
@@ -703,11 +705,11 @@ Answer needsRag: false if the question is:
       ragClassificationCache.clear();
     }
     ragClassificationCache.set(cacheKey, {
-      needsRag: object.needsRag,
+      needsRag: output?.needsRag ?? false,
       expiresAt: Date.now() + RAG_CLASSIFICATION_CACHE_TTL_MS,
     });
 
-    return object.needsRag;
+    return output?.needsRag ?? false;
   } catch (error) {
     console.error("[RAG] Error classifying query:", error);
     return false;

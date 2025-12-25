@@ -1,4 +1,4 @@
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 import { MEMORY } from "@/lib/ai/constants";
 import { subAgentModel } from "@/lib/ai/providers/openrouter";
@@ -25,6 +25,7 @@ const ExtractedFactsSchema = z.object({
           "preference",
           "health",
           "schedule",
+          "conversation_topic",
           "other",
         ])
         .describe("Category of the fact"),
@@ -47,11 +48,22 @@ export async function extractAndSaveMemories(
   userMessage: string,
   assistantResponse: string,
 ): Promise<void> {
+  // Skip extraction for very short messages (unlikely to contain useful info)
+  const MIN_MESSAGE_LENGTH = 20;
+  const MIN_WORD_COUNT = 5;
+
+  const wordCount = userMessage.trim().split(/\s+/).length;
+  if (userMessage.length < MIN_MESSAGE_LENGTH || wordCount < MIN_WORD_COUNT) {
+    return;
+  }
+
   try {
-    // Use generateObject for structured extraction
-    const { object } = await generateObject({
+    // Use generateText with Output.object() for structured extraction
+    const { output } = await generateText({
       model: subAgentModel,
-      schema: ExtractedFactsSchema,
+      output: Output.object({
+        schema: ExtractedFactsSchema,
+      }),
       system: `Sei un assistente che estrae informazioni importanti dalle conversazioni.
 Analizza lo scambio tra utente e assistente e estrai fatti persistenti sull'utente.
 
@@ -72,7 +84,7 @@ Restituisci i fatti estratti o un array vuoto se non ce ne sono.`,
     });
 
     // Filter facts with high enough confidence and save them
-    const highConfidenceFacts = object.facts.filter(
+    const highConfidenceFacts = (output?.facts ?? []).filter(
       (f) => f.confidence >= MEMORY.MIN_CONFIDENCE,
     );
 
@@ -135,9 +147,11 @@ async function _extractMemoriesFromHistory(
     .join("\n\n");
 
   try {
-    const { object } = await generateObject({
+    const { output } = await generateText({
       model: subAgentModel,
-      schema: ExtractedFactsSchema,
+      output: Output.object({
+        schema: ExtractedFactsSchema,
+      }),
       system: `Sei un assistente che estrae informazioni importanti da una cronologia di conversazioni.
 Analizza l'intera conversazione e estrai tutti i fatti persistenti sull'utente.
 
@@ -151,7 +165,7 @@ Regole:
     });
 
     // Save all high-confidence facts
-    const validFacts = object.facts.filter(
+    const validFacts = (output?.facts ?? []).filter(
       (f) => f.confidence >= MEMORY.HISTORY_MIN_CONFIDENCE,
     );
 

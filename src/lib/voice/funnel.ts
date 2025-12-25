@@ -8,7 +8,7 @@
  * L4: Business Logic (caps, system load, probability)
  */
 
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
@@ -213,9 +213,11 @@ async function checkLevel3Semantic(
             .map((m) => `${m.role}: ${m.content.slice(0, 100)}`)
             .join("\n") || "";
 
-        const result = await generateObject({
+        const result = await generateText({
           model: openrouter("openai/gpt-oss-20b"),
-          schema: semanticSchema,
+          output: Output.object({
+            schema: semanticSchema,
+          }),
           prompt: `Decidi se questa risposta dovrebbe essere inviata come AUDIO vocale o come TESTO scritto.
 
 ## Regole di priorità:
@@ -235,7 +237,11 @@ ${contextStr}
 "${assistantText.slice(0, 500)}"`,
         });
 
-        const { decision, reason, confidence } = result.object;
+        const { decision, reason, confidence } = result.output ?? {
+          decision: "TEXT" as const,
+          reason: "code_or_data" as const,
+          confidence: 0,
+        };
 
         // TEXT decision blocks voice
         if (decision === "TEXT") {

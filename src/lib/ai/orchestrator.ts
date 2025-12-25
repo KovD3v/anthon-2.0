@@ -1,19 +1,19 @@
 import { type ModelMessage, stepCountIs, streamText } from "ai";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
 import {
-  getModelForUser,
-  getModelIdForPlan,
+	getModelForUser,
+	getModelIdForPlan,
 } from "@/lib/ai/providers/openrouter";
 import { getRagContext, shouldUseRag } from "@/lib/ai/rag";
 import { buildConversationContext } from "@/lib/ai/session-manager";
 import {
-  createMemoryTools,
-  formatMemoriesForPrompt,
+	createMemoryTools,
+	formatMemoriesForPrompt,
 } from "@/lib/ai/tools/memory";
 import { createTavilyTools } from "@/lib/ai/tools/tavily";
 import {
-  createUserContextTools,
-  formatUserContextForPrompt,
+	createUserContextTools,
+	formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { getRateLimitsForUser } from "@/lib/rate-limit";
@@ -92,100 +92,106 @@ MEMORIE UTENTE
 {{USER_MEMORIES}}`;
 
 interface StreamChatOptions {
-  userId: string;
-  userMessage: string;
-  planId?: string | null;
-  userRole?: string;
-  subscriptionStatus?: string;
-  isGuest?: boolean;
-  hasImages?: boolean;
-  hasAudio?: boolean;
-  messageParts?: Array<{
-    type: string;
-    text?: string;
-    data?: string;
-    mimeType?: string;
-    [key: string]: unknown;
-  }>;
-  onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
-  onStepFinish?: (step: {
-    text?: string;
-    toolCalls?: unknown[];
-    toolResults?: unknown[];
-  }) => void;
-  voiceEnabled?: boolean;
+	userId: string;
+	userMessage: string;
+	planId?: string | null;
+	userRole?: string;
+	subscriptionStatus?: string;
+	isGuest?: boolean;
+	hasImages?: boolean;
+	hasAudio?: boolean;
+	messageParts?: Array<{
+		type: string;
+		text?: string;
+		data?: string;
+		mimeType?: string;
+		[key: string]: unknown;
+	}>;
+	onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
+	onStepFinish?: (step: {
+		text?: string;
+		toolCalls?: unknown[];
+		toolResults?: unknown[];
+	}) => void;
+	voiceEnabled?: boolean;
 }
 
 /**
  * Builds the complete system prompt with user context and memories injected.
  */
 async function buildSystemPrompt(
-  userId: string,
-  ragContext?: string,
-  prefetched?: {
-    userContext?: string;
-    userMemories?: string;
-    currentDate?: string;
-    voiceEnabled?: boolean;
-  },
+	userId: string,
+	ragContext?: string,
+	prefetched?: {
+		userContext?: string;
+		userMemories?: string;
+		currentDate?: string;
+		voiceEnabled?: boolean;
+		userStyle?: string;
+	}
 ): Promise<string> {
-  const currentDate =
-    prefetched?.currentDate ??
-    new Date().toLocaleDateString("it-IT", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+	const currentDate =
+		prefetched?.currentDate ??
+		new Date().toLocaleDateString("it-IT", {
+			weekday: "long",
+			year: "numeric",
+			month: "long",
+			day: "numeric",
+		});
 
-  // Fetch user context and memories in parallel (unless prefetched)
-  const [userContext, userMemories] = await Promise.all([
-    prefetched?.userContext !== undefined
-      ? Promise.resolve(prefetched.userContext)
-      : formatUserContextForPrompt(userId).catch(
-          () => "Errore caricamento contesto.",
-        ),
-    prefetched?.userMemories !== undefined
-      ? Promise.resolve(prefetched.userMemories)
-      : formatMemoriesForPrompt(userId).catch(
-          () => "Errore caricamento memorie.",
-        ),
-  ]);
+	// Fetch user context and memories in parallel (unless prefetched)
+	const [userContext, userMemories] = await Promise.all([
+		prefetched?.userContext !== undefined
+			? Promise.resolve(prefetched.userContext)
+			: formatUserContextForPrompt(userId).catch(
+					() => "Errore caricamento contesto."
+			  ),
+		prefetched?.userMemories !== undefined
+			? Promise.resolve(prefetched.userMemories)
+			: formatMemoriesForPrompt(userId).catch(
+					() => "Errore caricamento memorie."
+			  ),
+	]);
 
-  // Build system prompt
-  let systemPrompt = SYSTEM_PROMPT_TEMPLATE;
+	// Build system prompt
+	let systemPrompt = SYSTEM_PROMPT_TEMPLATE;
 
-  // Inject current date
-  systemPrompt = systemPrompt.replaceAll("{{CURRENT_DATE}}", currentDate);
+	// Inject current date
+	systemPrompt = systemPrompt.replaceAll("{{CURRENT_DATE}}", currentDate);
 
-  // Inject RAG context
-  systemPrompt = systemPrompt.replaceAll(
-    "{{RAG_CONTEXT}}",
-    ragContext || "Nessun documento RAG disponibile al momento.",
-  );
+	// Inject RAG context
+	systemPrompt = systemPrompt.replaceAll(
+		"{{RAG_CONTEXT}}",
+		ragContext || "Nessun documento RAG disponibile al momento."
+	);
 
-  // Inject user context
-  systemPrompt = systemPrompt.replaceAll(
-    "{{USER_CONTEXT}}",
-    userContext || "Nessun profilo utente disponibile.",
-  );
+	// Inject user context
+	systemPrompt = systemPrompt.replaceAll(
+		"{{USER_CONTEXT}}",
+		userContext || "Nessun profilo utente disponibile."
+	);
 
-  // Inject memories
-  systemPrompt = systemPrompt.replaceAll(
-    "{{USER_MEMORIES}}",
-    userMemories || "Nessuna memoria salvata per questo utente.",
-  );
+	// Inject memories
+	systemPrompt = systemPrompt.replaceAll(
+		"{{USER_MEMORIES}}",
+		userMemories || "Nessuna memoria salvata per questo utente."
+	);
 
-  // Dynamic voice instructions
-  const voiceEnabled = prefetched?.voiceEnabled ?? true;
-  if (!voiceEnabled) {
-    systemPrompt = systemPrompt.replace(
-      /- VOCE: Se l'utente chiede un vocale\/audio, rispondi come se potessi parlare\. Il sistema convertirà il tuo testo in audio\. Non dire "non posso mandare audio"\./,
-      "- VOCE: La generazione vocale è disabilitata per questo utente. Se chiede un vocale, spiega gentilmente che al momento puoi solo scrivere o che deve fare l'upgrade del piano.",
-    );
-  }
+	// Dynamic voice instructions
+	const voiceEnabled = prefetched?.voiceEnabled ?? true;
+	if (!voiceEnabled) {
+		systemPrompt = systemPrompt.replace(
+			/- VOCE: Se l'utente chiede un vocale\/audio, rispondi come se potessi parlare\. Il sistema convertirà il tuo testo in audio\. Non dire "non posso mandare audio"\./,
+			"- VOCE: La generazione vocale è disabilitata per questo utente. Se chiede un vocale, spiega gentilmente che al momento puoi solo scrivere o che deve fare l'upgrade del piano."
+		);
+	}
 
-  return systemPrompt;
+	// Inject user style information if available (Phase 2: Naturalness)
+	if (prefetched?.userStyle) {
+		systemPrompt += `\n\nSTILE UTENTE RILEVATO (Mirroring):\n${prefetched.userStyle}`;
+	}
+
+	return systemPrompt;
 }
 
 /**
@@ -193,51 +199,51 @@ async function buildSystemPrompt(
  * Supported formats: wav, mp3, aiff, aac, ogg, flac, m4a, pcm16
  */
 function _getAudioFormat(mimeType: string): string {
-  const formatMap: Record<string, string> = {
-    "audio/wav": "wav",
-    "audio/wave": "wav",
-    "audio/x-wav": "wav",
-    "audio/mpeg": "mp3",
-    "audio/mp3": "mp3",
-    "audio/aiff": "aiff",
-    "audio/x-aiff": "aiff",
-    "audio/aac": "aac",
-    "audio/ogg": "ogg",
-    "audio/flac": "flac",
-    "audio/x-flac": "flac",
-    "audio/mp4": "m4a",
-    "audio/x-m4a": "m4a",
-    "audio/m4a": "m4a",
-    "audio/webm": "ogg", // WebM audio typically uses Opus/Vorbis, map to ogg
-  };
-  return formatMap[mimeType] || "wav"; // Default to wav if unknown
+	const formatMap: Record<string, string> = {
+		"audio/wav": "wav",
+		"audio/wave": "wav",
+		"audio/x-wav": "wav",
+		"audio/mpeg": "mp3",
+		"audio/mp3": "mp3",
+		"audio/aiff": "aiff",
+		"audio/x-aiff": "aiff",
+		"audio/aac": "aac",
+		"audio/ogg": "ogg",
+		"audio/flac": "flac",
+		"audio/x-flac": "flac",
+		"audio/mp4": "m4a",
+		"audio/x-m4a": "m4a",
+		"audio/m4a": "m4a",
+		"audio/webm": "ogg", // WebM audio typically uses Opus/Vorbis, map to ogg
+	};
+	return formatMap[mimeType] || "wav"; // Default to wav if unknown
 }
 
 /**
  * Converts a base64 string to Uint8Array for the AI SDK file type.
  */
 function base64ToUint8Array(base64: string): Uint8Array {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
+	const binaryString = atob(base64);
+	const bytes = new Uint8Array(binaryString.length);
+	for (let i = 0; i < binaryString.length; i++) {
+		bytes[i] = binaryString.charCodeAt(i);
+	}
+	return bytes;
 }
 
 /**
  * Creates all tools with the userId context injected via factory pattern.
  */
 function createToolsWithContext(userId: string) {
-  const memoryTools = createMemoryTools(userId);
-  const userContextTools = createUserContextTools(userId);
-  const tavilyTools = createTavilyTools();
+	const memoryTools = createMemoryTools(userId);
+	const userContextTools = createUserContextTools(userId);
+	const tavilyTools = createTavilyTools();
 
-  return {
-    ...memoryTools,
-    ...userContextTools,
-    ...tavilyTools,
-  };
+	return {
+		...memoryTools,
+		...userContextTools,
+		...tavilyTools,
+	};
 }
 
 /**
@@ -245,272 +251,350 @@ function createToolsWithContext(userId: string) {
  * Uses GPT-4.1-mini via OpenRouter with tool calling.
  */
 export async function streamChat({
-  userId,
-  userMessage,
-  planId,
-  userRole,
-  subscriptionStatus,
-  isGuest = false,
-  hasImages = false,
-  hasAudio = false,
-  messageParts,
-  onFinish,
-  onStepFinish,
-  voiceEnabled,
+	userId,
+	userMessage,
+	planId,
+	userRole,
+	subscriptionStatus,
+	isGuest = false,
+	hasImages = false,
+	hasAudio = false,
+	messageParts,
+	onFinish,
+	onStepFinish,
+	voiceEnabled,
 }: StreamChatOptions) {
-  // Record start time for performance tracking
-  const startTime = Date.now();
+	// Record start time for performance tracking
+	const startTime = Date.now();
 
-  // Get the appropriate model based on user's subscription plan
-  // All Gemini models support vision, so we just use the orchestrator model
-  const model = getModelForUser(planId, userRole, "orchestrator");
-  const modelId = getModelIdForPlan(planId, userRole, "orchestrator");
+	// Get the appropriate model based on user's subscription plan
+	// All Gemini models support vision, so we just use the orchestrator model
+	const model = getModelForUser(planId, userRole, "orchestrator");
+	const modelId = getModelIdForPlan(planId, userRole, "orchestrator");
 
-  // Get plan-based session cap
-  const limits = getRateLimitsForUser(
-    subscriptionStatus,
-    userRole,
-    planId,
-    isGuest,
-  );
-  const maxContextMessages = limits.maxContextMessages;
+	// Get plan-based session cap
+	const limits = getRateLimitsForUser(
+		subscriptionStatus,
+		userRole,
+		planId,
+		isGuest
+	);
+	const maxContextMessages = limits.maxContextMessages;
 
-  // Kick off independent work ASAP to reduce end-to-end latency
-  const conversationHistoryPromise = LatencyLogger.measure(
-    "📋 Orchestrator: Get conversation history",
-    () => buildConversationContext(userId, maxContextMessages),
-  );
+	// Kick off independent work ASAP to reduce end-to-end latency
+	const conversationHistoryPromise = LatencyLogger.measure(
+		"📋 Orchestrator: Get conversation history",
+		() => buildConversationContext(userId, maxContextMessages)
+	);
 
-  const userContextPromise = formatUserContextForPrompt(userId);
-  const userMemoriesPromise = formatMemoriesForPrompt(userId);
-  const currentDate = new Date().toLocaleDateString("it-IT", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+	const userContextPromise = formatUserContextForPrompt(userId);
+	const userMemoriesPromise = formatMemoriesForPrompt(userId);
+	const currentDate = new Date().toLocaleDateString("it-IT", {
+		weekday: "long",
+		year: "numeric",
+		month: "long",
+		day: "numeric",
+	});
 
-  const ragPromise = (async () => {
-    let ragContext: string | undefined;
-    let ragUsed = false;
-    let ragChunksCount = 0;
-    try {
-      const needsRag = await LatencyLogger.measure(
-        "📚 RAG: Check if needed",
-        () => shouldUseRag(userMessage),
-      );
-      if (needsRag) {
-        ragContext = await LatencyLogger.measure("📚 RAG: Get context", () =>
-          getRagContext(userMessage),
-        );
-        ragUsed = true;
-        // Count chunks by counting "**" which marks each document title
-        ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || []).length;
-      }
-    } catch (error) {
-      console.error("[Orchestrator] RAG error:", error);
-    }
+	const ragPromise = (async () => {
+		let ragContext: string | undefined;
+		let ragUsed = false;
+		let ragChunksCount = 0;
+		try {
+			const needsRag = await LatencyLogger.measure(
+				"📚 RAG: Check if needed",
+				() => shouldUseRag(userMessage)
+			);
+			if (needsRag) {
+				ragContext = await LatencyLogger.measure(
+					"📚 RAG: Get context",
+					() => getRagContext(userMessage)
+				);
+				ragUsed = true;
+				// Count chunks by counting "**" which marks each document title
+				ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || [])
+					.length;
+			}
+		} catch (error) {
+			console.error("[Orchestrator] RAG error:", error);
+		}
 
-    return { ragContext, ragUsed, ragChunksCount };
-  })();
+		return { ragContext, ragUsed, ragChunksCount };
+	})();
 
-  const [{ ragContext, ragUsed, ragChunksCount }, conversationHistory] =
-    await Promise.all([ragPromise, conversationHistoryPromise]);
+	const [{ ragContext, ragUsed, ragChunksCount }, conversationHistory] =
+		await Promise.all([ragPromise, conversationHistoryPromise]);
 
-  // Calculate if voice is enabled for this user/plan
-  const { getVoicePlanConfig } = await import("@/lib/voice");
-  const planConfig = getVoicePlanConfig(
-    subscriptionStatus,
-    userRole,
-    planId,
-    isGuest,
-  );
-  const voiceEnabledResult = planConfig.enabled && (voiceEnabled ?? true);
+	// Calculate if voice is enabled for this user/plan
+	const { getVoicePlanConfig } = await import("@/lib/voice");
+	const planConfig = getVoicePlanConfig(
+		subscriptionStatus,
+		userRole,
+		planId,
+		isGuest
+	);
+	const voiceEnabledResult = planConfig.enabled && (voiceEnabled ?? true);
 
-  // Build system prompt with user context and optional RAG
-  const systemPrompt = await LatencyLogger.measure(
-    "🛠️ Orchestrator: Build system prompt",
-    async () => {
-      const [userContext, userMemories] = await Promise.all([
-        userContextPromise,
-        userMemoriesPromise,
-      ]);
-      return buildSystemPrompt(userId, ragContext, {
-        userContext,
-        userMemories,
-        currentDate,
-        voiceEnabled: voiceEnabledResult,
-      });
-    },
-  );
+	// Analyze user style from history (heuristic)
+	const userStyleInstruction = analyzeUserStyle(conversationHistory);
 
-  // Build the last message with proper image/audio support
-  let lastMessage: ModelMessage;
+	// Build system prompt with user context and optional RAG
+	const systemPrompt = await LatencyLogger.measure(
+		"🛠️ Orchestrator: Build system prompt",
+		async () => {
+			const [userContext, userMemories] = await Promise.all([
+				userContextPromise,
+				userMemoriesPromise,
+			]);
+			return buildSystemPrompt(userId, ragContext, {
+				userContext,
+				userMemories,
+				currentDate,
+				voiceEnabled: voiceEnabledResult,
+				userStyle: userStyleInstruction,
+			});
+		}
+	);
 
-  // Check for any file parts to ensure we handle PDFs and other documents
-  const hasFileParts = messageParts?.some((p) => p.type === "file");
+	// Build the last message with proper image/audio support
+	let lastMessage: ModelMessage;
 
-  if (
-    (hasImages || hasAudio || hasFileParts) &&
-    messageParts &&
-    messageParts.length > 0
-  ) {
-    // Convert parts to AI SDK format with images and audio
-    type ContentPart =
-      | { type: "text"; text: string }
-      | { type: "image"; image: string }
-      | { type: "file"; data: Uint8Array; mediaType: string };
-    const contentParts: ContentPart[] = [];
+	// Check for any file parts to ensure we handle PDFs and other documents
+	const hasFileParts = messageParts?.some((p) => p.type === "file");
 
-    // Track if we have any text
-    let hasText = false;
+	if (
+		(hasImages || hasAudio || hasFileParts) &&
+		messageParts &&
+		messageParts.length > 0
+	) {
+		// Convert parts to AI SDK format with images and audio
+		type ContentPart =
+			| { type: "text"; text: string }
+			| { type: "image"; image: string }
+			| { type: "file"; data: Uint8Array; mediaType: string };
+		const contentParts: ContentPart[] = [];
 
-    for (const part of messageParts) {
-      if (part.type === "text" && part.text) {
-        contentParts.push({ type: "text", text: part.text });
-        hasText = true;
-      } else if (
-        part.type === "file" &&
-        part.mimeType?.startsWith("image/") &&
-        part.data
-      ) {
-        contentParts.push({
-          type: "image",
-          image: part.data, // The blob URL or base64
-        });
-      } else if (
-        part.type === "file" &&
-        part.mimeType?.startsWith("audio/") &&
-        part.data
-      ) {
-        // Convert base64 to Uint8Array for the AI SDK file type
-        const binaryData = base64ToUint8Array(part.data);
-        // Strip codec parameters from mimeType (e.g., "audio/webm;codecs=opus" -> "audio/webm")
-        const cleanMimeType = part.mimeType.split(";")[0];
-        contentParts.push({
-          type: "file",
-          data: binaryData,
-          mediaType: cleanMimeType,
-        });
-      } else if (part.type === "file" && part.data) {
-        // Handle other file types (PDF, text, etc.)
-        const binaryData = base64ToUint8Array(part.data);
-        contentParts.push({
-          type: "file",
-          data: binaryData,
-          mediaType: part.mimeType || "application/octet-stream",
-        });
-      }
-    }
+		// Track if we have any text
+		let hasText = false;
 
-    // Add a default prompt for audio-only messages
-    if (!hasText && hasAudio) {
-      contentParts.unshift({
-        type: "text",
-        text: "Ascolta questo messaggio vocale e rispondi.",
-      });
-    }
+		for (const part of messageParts) {
+			if (part.type === "text" && part.text) {
+				contentParts.push({ type: "text", text: part.text });
+				hasText = true;
+			} else if (
+				part.type === "file" &&
+				part.mimeType?.startsWith("image/") &&
+				part.data
+			) {
+				contentParts.push({
+					type: "image",
+					image: part.data, // The blob URL or base64
+				});
+			} else if (
+				part.type === "file" &&
+				part.mimeType?.startsWith("audio/") &&
+				part.data
+			) {
+				// Convert base64 to Uint8Array for the AI SDK file type
+				const binaryData = base64ToUint8Array(part.data);
+				// Strip codec parameters from mimeType (e.g., "audio/webm;codecs=opus" -> "audio/webm")
+				const cleanMimeType = part.mimeType.split(";")[0];
+				contentParts.push({
+					type: "file",
+					data: binaryData,
+					mediaType: cleanMimeType,
+				});
+			} else if (part.type === "file" && part.data) {
+				// Handle other file types (PDF, text, etc.)
+				const binaryData = base64ToUint8Array(part.data);
+				contentParts.push({
+					type: "file",
+					data: binaryData,
+					mediaType: part.mimeType || "application/octet-stream",
+				});
+			}
+		}
 
-    lastMessage = {
-      role: "user",
-      content: contentParts,
-    };
-  } else {
-    lastMessage = { role: "user", content: userMessage };
-  }
+		// Add a default prompt for audio-only messages
+		if (!hasText && hasAudio) {
+			contentParts.unshift({
+				type: "text",
+				text: "Ascolta questo messaggio vocale e rispondi.",
+			});
+		}
 
-  // Add the new user message
-  const messages: ModelMessage[] = [...conversationHistory, lastMessage];
+		lastMessage = {
+			role: "user",
+			content: contentParts,
+		};
+	} else {
+		lastMessage = { role: "user", content: userMessage };
+	}
 
-  // Create tools with userId context
-  const tools = createToolsWithContext(userId);
+	// Add the new user message
+	const messages: ModelMessage[] = [...conversationHistory, lastMessage];
 
-  // Collect tool calls during execution
-  const collectedToolCalls: Array<{
-    name: string;
-    args: unknown;
-    result?: unknown;
-  }> = [];
+	// Create tools with userId context
+	const tools = createToolsWithContext(userId);
 
-  // Stream the response
-  const result = streamText({
-    model,
-    system: systemPrompt,
-    messages,
-    tools,
-    stopWhen: stepCountIs(5), // Allow multi-step tool execution
-    onFinish: onFinish
-      ? async ({ text, usage, providerMetadata }) => {
-          // Extract AI metrics including cost calculation
-          const metrics = await extractAIMetrics(modelId, startTime, {
-            text,
-            usage: {
-              promptTokens: (usage as { promptTokens?: number })?.promptTokens,
-              completionTokens: (usage as { completionTokens?: number })
-                ?.completionTokens,
-              totalTokens: (usage as { totalTokens?: number })?.totalTokens,
-            },
-            providerMetadata: providerMetadata as Record<string, unknown>,
-            // Pass collected tool calls
-            collectedToolCalls:
-              collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
-            // RAG tracking
-            ragUsed,
-            ragChunksCount,
-          });
+	// Collect tool calls during execution
+	const collectedToolCalls: Array<{
+		name: string;
+		args: unknown;
+		result?: unknown;
+	}> = [];
 
-          onFinish({ text, metrics });
-        }
-      : undefined,
-    onStepFinish: (step) => {
-      // Collect tool calls from each step
-      if (step.toolCalls && Array.isArray(step.toolCalls)) {
-        for (let i = 0; i < step.toolCalls.length; i++) {
-          const tc = step.toolCalls[i] as {
-            toolName: string;
-            args?: unknown;
-          };
-          const tr = step.toolResults?.[i] as { result?: unknown } | undefined;
-          collectedToolCalls.push({
-            name: tc.toolName,
-            args: tc.args,
-            result: tr?.result,
-          });
-        }
-      }
+	// Stream the response
+	const result = streamText({
+		model,
+		system: systemPrompt,
+		messages,
+		tools,
+		experimental_providerMetadata: {
+			openrouter: { promptCaching: true },
+		},
+		stopWhen: stepCountIs(5), // Allow multi-step tool execution
+		onFinish: onFinish
+			? async ({ text, usage, providerMetadata }: any) => {
+					// Extract AI metrics including cost calculation
+					const metrics = await extractAIMetrics(modelId, startTime, {
+						text,
+						usage: {
+							promptTokens: usage?.inputTokens,
+							completionTokens: usage?.outputTokens,
+							totalTokens: usage?.totalTokens,
+						},
+						providerMetadata: providerMetadata as Record<
+							string,
+							unknown
+						>,
+						// Pass collected tool calls
+						collectedToolCalls:
+							collectedToolCalls.length > 0
+								? collectedToolCalls
+								: undefined,
+						// RAG tracking
+						ragUsed,
+						ragChunksCount,
+					});
 
-      // Call user's onStepFinish if provided
-      if (onStepFinish) {
-        onStepFinish({
-          text: step.text,
-          toolCalls: step.toolCalls,
-          toolResults: step.toolResults,
-        });
-      }
-    },
-  });
+					onFinish({ text, metrics });
+			  }
+			: undefined,
+		onStepFinish: (step: any) => {
+			// Collect tool calls from each step
+			if (step.toolCalls && Array.isArray(step.toolCalls)) {
+				for (let i = 0; i < step.toolCalls.length; i++) {
+					const tc = step.toolCalls[i] as {
+						toolName: string;
+						args?: unknown;
+					};
+					const tr = step.toolResults?.[i] as
+						| { result?: unknown }
+						| undefined;
+					collectedToolCalls.push({
+						name: tc.toolName,
+						args: tc.args,
+						result: tr?.result,
+					});
+				}
+			}
 
-  console.log("🤖 AI: Streaming started");
-  return result;
+			// Call user's onStepFinish if provided
+			if (onStepFinish) {
+				onStepFinish({
+					text: step.text,
+					toolCalls: step.toolCalls,
+					toolResults: step.toolResults,
+				});
+			}
+		},
+	} as any);
+
+	console.log("🤖 AI: Streaming started");
+	return result;
 }
 
 /**
  * Non-streaming version for testing or simple use cases.
  */
 async function _generateChatResponse(
-  userId: string,
-  userMessage: string,
+	userId: string,
+	userMessage: string
 ): Promise<string> {
-  const result = await streamChat({ userId, userMessage });
+	const result = await streamChat({ userId, userMessage });
 
-  // Collect the full response
-  let fullText = "";
-  for await (const chunk of result.textStream) {
-    fullText += chunk;
-  }
+	// Collect the full response
+	let fullText = "";
+	for await (const chunk of result.textStream) {
+		fullText += chunk;
+	}
 
-  return fullText;
+	return fullText;
 }
 
 // Export types for external use
 export type { StreamChatOptions, AIMetrics };
+
+/**
+ * Heuristically analyzes user's recent messages to determine preferred style.
+ * No LLM calls - purely statistical.
+ */
+function analyzeUserStyle(history: ModelMessage[]): string {
+	try {
+		// Get last 5 user messages
+		const userMessages = history
+			.filter((m) => m.role === "user")
+			.slice(-5)
+			.map((m) => (typeof m.content === "string" ? m.content : ""))
+			.filter((c) => c.length > 0);
+
+		if (userMessages.length === 0) return "";
+
+		// 1. Calculate average length
+		const totalChars = userMessages.reduce((acc, m) => acc + m.length, 0);
+		const avgLength = totalChars / userMessages.length;
+
+		// 2. Check for emoji usage
+		const emojiRegex =
+			/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+		const hasEmojis = userMessages.some((m) => emojiRegex.test(m));
+
+		// 3. Check for formality (very basic)
+		const informalMarkers = [
+			"plz",
+			"thx",
+			"cmq",
+			"nn",
+			"ke",
+			"ciao",
+			"ehi",
+		];
+		const isInformal = userMessages.some((m) =>
+			informalMarkers.some((marker) => m.toLowerCase().includes(marker))
+		);
+
+		let instruction = "- ";
+
+		// Length adaptation
+		if (avgLength < 30) {
+			instruction += "Sii molto conciso e diretto (l'utente è breve). ";
+		} else if (avgLength > 200) {
+			instruction +=
+				"Puoi argomentare in dettaglio (l'utente è discorsivo). ";
+		}
+
+		// Tone adaptation
+		if (hasEmojis) {
+			instruction +=
+				"Usa qualche emoji per mirrorare lo stile informale. ";
+		}
+		if (isInformal) {
+			instruction += "Usa un tono amichevole e rilassato. ";
+		}
+
+		return instruction === "- " ? "" : instruction;
+	} catch (_error) {
+		return "";
+	}
+}
