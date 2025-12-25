@@ -16,6 +16,7 @@
     "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@ai-sdk/devtools": "^0.0.1",
     "@ai-sdk/react": "^3.0.3",
     "@clerk/nextjs": "^6.36.5",
     "@openrouter/ai-sdk-provider": "^1.2.8",
