@@ -124,14 +124,15 @@ function toModelMessage(message: Message): ModelMessage {
 export async function buildConversationContext(
   userId: string,
   maxContextMessages: number = SESSION.MAX_CONTEXT_MESSAGES,
+  chatId?: string,
 ): Promise<ModelMessage[]> {
   // Fetch recent messages for the user (limited for scalability)
   // Ordered desc, then reversed to get chronological order
   const recentMessages = await prisma.message
     .findMany({
-      where: { userId },
+      where: chatId ? { chatId, userId } : { userId },
       orderBy: { createdAt: "desc" },
-      take: SESSION.RECENT_MESSAGES_LIMIT,
+      take: chatId ? maxContextMessages : SESSION.RECENT_MESSAGES_LIMIT,
     })
     .then((msgs) => msgs.reverse());
 
@@ -139,7 +140,13 @@ export async function buildConversationContext(
     return [];
   }
 
-  // Group into sessions
+  // If we have a chatId, we don't group into sessions or summarize.
+  // We just return the messages for that specific chat up to the cap.
+  if (chatId) {
+    return recentMessages.map(toModelMessage);
+  }
+
+  // Group into sessions (for global history mode)
   const sessions = groupMessagesIntoSessions(recentMessages);
 
   if (sessions.length === 0) {

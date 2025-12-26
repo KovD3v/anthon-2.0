@@ -252,6 +252,7 @@ export async function POST(request: Request) {
     // Use onFinish callback to save the response after streaming completes
     const result = await streamChat({
       userId: currentUserId,
+      chatId,
       userMessage: userMessageText,
       planId: userPlanId,
       userRole,

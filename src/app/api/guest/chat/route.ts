@@ -175,6 +175,7 @@ export async function POST(request: Request) {
     // Stream the response
     const result = await streamChat({
       userId: currentUserId,
+      chatId,
       userMessage: userMessageText,
       planId: null,
       userRole: "USER",
