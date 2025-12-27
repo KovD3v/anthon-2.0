@@ -42,10 +42,17 @@ export const softDeleteExtension = Prisma.defineExtension({
         }
         return query(args);
       },
-      async findUnique({ model: _model, args, query }) {
-        // findUnique doesn't support arbitrary where clauses,
-        // so we can't add deletedAt filter here.
-        // Consider using findFirst for soft-deleted models if needed.
+      async findUnique({ model, args, query }) {
+        if (hasSoftDelete(model)) {
+          // Prisma limitation: findUnique only accepts unique field constraints in where clause,
+          // so we cannot add deletedAt: null filter. We must fetch then filter post-query.
+          // For better performance on soft-delete models, prefer findFirst with explicit deletedAt filter.
+          const result = await query(args);
+          if (result && (result as { deletedAt?: Date | null }).deletedAt) {
+            return null;
+          }
+          return result;
+        }
         return query(args);
       },
       async count({ model, args, query }) {

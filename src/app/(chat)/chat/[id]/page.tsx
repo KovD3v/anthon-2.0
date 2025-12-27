@@ -5,20 +5,9 @@ import { prisma } from "@/lib/db";
 import { getGuestTokenFromCookies, hashGuestToken } from "@/lib/guest-auth";
 import { ChatConversationClient } from "./chat-conversation-client";
 
-// Force dynamic rendering - this page uses cookies for guest auth
+// This page is dynamic because it depends on the current user's authentication state
+// and guest status (via cookies).
 export const dynamic = "force-dynamic";
-
-export async function generateStaticParams() {
-  const publicChats = await prisma.chat.findMany({
-    where: { visibility: "PUBLIC" },
-    select: { id: true },
-    take: 100, // Pre-render top 100 public chats
-  });
-
-  return publicChats.map((chat) => ({
-    id: chat.id,
-  }));
-}
 
 export default async function ChatConversationPage({
   params,

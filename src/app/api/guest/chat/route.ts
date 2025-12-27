@@ -87,6 +87,7 @@ export async function POST(request: Request) {
       () =>
         prisma.chat.findFirst({
           where: { id: chatId, userId: user.id },
+          select: { id: true, title: true, customTitle: true },
         }),
       "🌐 Guest Chat API Request",
     );
@@ -149,24 +150,46 @@ export async function POST(request: Request) {
       "🌐 Guest Chat API Request",
     );
 
-    // Auto-generate chat title if this is the first message
-    const messageCount = await LatencyLogger.measure(
-      "DB: Count messages",
-      () => prisma.message.count({ where: { chatId } }),
-      "🌐 Guest Chat API Request",
-    );
-
-    if (messageCount === 1 && !chat.title) {
-      waitUntil(
-        generateChatTitle(userMessageText).then((title) => {
-          prisma.chat
-            .update({
-              where: { id: chatId },
-              data: { title },
-            })
-            .catch(console.error);
-        }),
+    // Auto-generate or refresh chat title if not manually set by user
+    if (!chat.customTitle) {
+      const messageCount = await LatencyLogger.measure(
+        "DB: Count messages",
+        () => prisma.message.count({ where: { chatId } }),
+        "🌐 Guest Chat API Request",
       );
+
+      const shouldRefresh =
+        messageCount === 1 ||
+        messageCount === 2 ||
+        messageCount === 4 ||
+        (messageCount > 0 && messageCount % 5 === 0);
+
+      if (shouldRefresh) {
+        // Use the last few messages for better context on refresh
+        const context = messages
+          .slice(-3)
+          .map((m) => {
+            const content =
+              m.parts
+                ?.map((p) =>
+                  p.type === "text" ? (p as { text: string }).text : "",
+                )
+                .join("") || "";
+            return `${m.role.toUpperCase()}: ${content}`;
+          })
+          .join("\n");
+
+        waitUntil(
+          generateChatTitle(context || userMessageText).then((title) => {
+            prisma.chat
+              .update({
+                where: { id: chatId },
+                data: { title },
+              })
+              .catch(console.error);
+          }),
+        );
+      }
     }
 
     // Capture for callback closure

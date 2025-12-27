@@ -59,24 +59,40 @@ export async function POST(request: Request) {
       return Response.json({ error: "messageId is required" }, { status: 400 });
     }
 
-    // Get user with subscription info
-    const user = await LatencyLogger.measure(
-      "DB: Fetch User",
+    // Fetch all necessary data in parallel
+    const [user, message] = await LatencyLogger.measure(
+      "DB: Fetch User & Message",
       async () =>
-        prisma.user.findUnique({
-          where: { clerkId },
-          select: {
-            id: true,
-            role: true,
-            isGuest: true,
-            subscription: {
-              select: {
-                status: true,
-                planId: true,
+        Promise.all([
+          prisma.user.findUnique({
+            where: { clerkId },
+            select: {
+              id: true,
+              role: true,
+              isGuest: true,
+              subscription: {
+                select: {
+                  status: true,
+                  planId: true,
+                },
+              },
+              preferences: {
+                select: { voiceEnabled: true },
               },
             },
-          },
-        }),
+          }),
+          prisma.message.findFirst({
+            where: {
+              id: body.messageId,
+              role: "ASSISTANT",
+            },
+            select: {
+              id: true,
+              content: true,
+              userId: true,
+            },
+          }),
+        ]),
       "🌐 Voice API Request",
     );
 
@@ -85,39 +101,12 @@ export async function POST(request: Request) {
       return Response.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get the message
-    const message = await LatencyLogger.measure(
-      "DB: Fetch Message",
-      async () =>
-        prisma.message.findFirst({
-          where: {
-            id: body.messageId,
-            userId: user.id,
-            role: "ASSISTANT",
-          },
-          select: {
-            id: true,
-            content: true,
-          },
-        }),
-      "🌐 Voice API Request",
-    );
-
-    if (!message || !message.content) {
+    if (!message || message.userId !== user.id || !message.content) {
       requestTimer.end();
       return Response.json({ error: "Message not found" }, { status: 404 });
     }
 
-    // Get user preferences
-    const preferences = await LatencyLogger.measure(
-      "DB: Fetch Preferences",
-      async () =>
-        prisma.preferences.findUnique({
-          where: { userId: user.id },
-          select: { voiceEnabled: true },
-        }),
-      "🌐 Voice API Request",
-    );
+    const preferences = user.preferences;
 
     // Run voice funnel (already instrumented internally)
     const result = await shouldGenerateVoice({

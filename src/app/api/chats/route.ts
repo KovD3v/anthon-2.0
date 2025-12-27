@@ -44,23 +44,33 @@ export async function GET() {
         select: { id: true },
       });
 
-      if (guestUser && guestUser.id !== user.id) {
-        // Migrate guest data to authenticated user
-        console.log(
-          `[Chats API] Migrating guest ${guestUser.id} to user ${user.id}`,
-        );
-        const migrationResult = await migrateGuestToUser(guestUser.id, user.id);
-
-        if (migrationResult.success) {
+      if (guestUser) {
+        if (guestUser.id !== user.id) {
+          // Migrate guest data to authenticated user
           console.log(
-            `[Chats API] Migration successful:`,
-            migrationResult.migratedCounts,
+            `[Chats API] Migrating guest ${guestUser.id} to user ${user.id}`,
           );
-        } else {
-          console.error(`[Chats API] Migration failed:`, migrationResult.error);
-        }
+          const migrationResult = await migrateGuestToUser(
+            guestUser.id,
+            user.id,
+          );
 
-        // Clear guest cookie after migration attempt
+          if (migrationResult.success) {
+            console.log(
+              `[Chats API] Migration successful:`,
+              migrationResult.migratedCounts,
+            );
+          } else {
+            console.error(
+              `[Chats API] Migration failed:`,
+              migrationResult.error,
+            );
+          }
+        }
+        // Always clear guest cookie after migration attempt (success or already migrated)
+        await clearGuestCookie();
+      } else {
+        // No guest user found for this token, clear the stale cookie anyway
         await clearGuestCookie();
       }
     }
@@ -126,6 +136,7 @@ export async function POST(request: Request) {
       data: {
         userId: user.id,
         title,
+        customTitle: !!title,
         visibility,
       },
       select: {

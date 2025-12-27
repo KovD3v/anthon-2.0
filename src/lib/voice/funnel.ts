@@ -10,7 +10,7 @@
 
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { openrouter } from "@/lib/ai/providers/openrouter";
+import { maintenanceModel } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import type { VoicePlanConfig } from "./config";
@@ -92,12 +92,21 @@ export async function shouldGenerateVoice(
       };
     }
 
-    // L3: Semantic Classification + User Intent
-    const l3Result = await checkLevel3Semantic(
-      userMessage,
-      assistantText,
-      conversationContext,
-    );
+    // Start level 3 semantic check and level 4 business check in parallel
+    const [l3Result, l4Result] = await Promise.all([
+      checkLevel3Semantic(userMessage, assistantText, conversationContext),
+      (async () => {
+        const loadValue =
+          typeof systemLoad === "function"
+            ? await systemLoad()
+            : typeof systemLoad === "number"
+              ? systemLoad
+              : await systemLoad;
+
+        return checkLevel4Business(userId, planConfig, loadValue, planId);
+      })(),
+    ]);
+
     if (!l3Result.pass) {
       console.log(`[VoiceFunnel] Blocked at L3: ${l3Result.reason}`);
       return {
@@ -107,20 +116,6 @@ export async function shouldGenerateVoice(
       };
     }
 
-    // L4: Business Logic (always runs, even with voice requests)
-    const loadValue =
-      typeof systemLoad === "function"
-        ? await systemLoad()
-        : typeof systemLoad === "number"
-          ? systemLoad
-          : await systemLoad;
-
-    const l4Result = await checkLevel4Business(
-      userId,
-      planConfig,
-      loadValue,
-      planId,
-    );
     if (!l4Result.pass) {
       console.log(`[VoiceFunnel] Blocked at L4: ${l4Result.reason}`);
       return {
@@ -214,7 +209,7 @@ async function checkLevel3Semantic(
             .join("\n") || "";
 
         const result = await generateText({
-          model: openrouter("openai/gpt-oss-20b"),
+          model: maintenanceModel,
           output: Output.object({
             schema: semanticSchema,
           }),

@@ -136,8 +136,9 @@ model Chat {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  title      String? // Auto-generated or user-provided
-  visibility ChatVisibility @default(PRIVATE)
+  title       String? // Auto-generated or user-provided
+  customTitle Boolean        @default(false)
+  visibility  ChatVisibility @default(PRIVATE)
 
   messages  Message[]
   artifacts Artifact[]

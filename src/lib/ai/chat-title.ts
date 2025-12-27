@@ -6,17 +6,15 @@ const SUMMARIZATION_MODEL = openrouter("google/gemini-2.0-flash-001");
 /**
  * Generate a title for a conversation based on the first few messages.
  */
-export async function generateChatTitle(
-  firstUserMessage: string,
-): Promise<string> {
+export async function generateChatTitle(context: string): Promise<string> {
   try {
     const result = await generateText({
       model: SUMMARIZATION_MODEL,
-      prompt: `Generate a short, descriptive title (3-6 words) for a conversation that starts with this message:
-
-"${firstUserMessage.slice(0, 500)}"
-
-Title (no quotes, no punctuation at end):`,
+      prompt: `Generate a short, descriptive title (3-6 words) for a conversation based on these messages:
+  
+  "${context.slice(0, 1000)}"
+  
+  Title (no quotes, no punctuation at end):`,
       maxOutputTokens: 20,
       temperature: 0.7,
     });
@@ -29,6 +27,6 @@ Title (no quotes, no punctuation at end):`,
   } catch (error) {
     console.error("[ChatTitle] Title generation failed:", error);
     // Fallback: use first few words
-    return `${firstUserMessage.slice(0, 40).trim()}...`;
+    return `${context.slice(0, 40).trim()}...`;
   }
 }

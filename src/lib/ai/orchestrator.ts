@@ -1,4 +1,10 @@
-import { type ModelMessage, stepCountIs, streamText } from "ai";
+import {
+  type ModelMessage,
+  type StepResult,
+  stepCountIs,
+  streamText,
+  type ToolSet,
+} from "ai";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
 import {
   getModelForUser,
@@ -467,7 +473,7 @@ export async function streamChat({
     },
     stopWhen: stepCountIs(5), // Allow multi-step tool execution
     onFinish: onFinish
-      ? async ({ text, usage, providerMetadata }: any) => {
+      ? async ({ text, usage, providerMetadata }: StepResult<ToolSet>) => {
           // Extract AI metrics including cost calculation
           const metrics = await extractAIMetrics(modelId, startTime, {
             text,
@@ -488,7 +494,7 @@ export async function streamChat({
           onFinish({ text, metrics });
         }
       : undefined,
-    onStepFinish: (step: any) => {
+    onStepFinish: (step: StepResult<ToolSet>) => {
       // Collect tool calls from each step
       if (step.toolCalls && Array.isArray(step.toolCalls)) {
         for (let i = 0; i < step.toolCalls.length; i++) {
@@ -514,6 +520,7 @@ export async function streamChat({
         });
       }
     },
+    // biome-ignore lint/suspicious/noExplicitAny: complex tool types and providerMetadata require any cast
   } as any);
 
   console.log("🤖 AI: Streaming started");

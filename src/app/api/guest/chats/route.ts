@@ -72,6 +72,7 @@ export async function POST(request: Request) {
       data: {
         userId: user.id,
         title,
+        customTitle: !!title,
         visibility: "PRIVATE", // Guests always have private chats
       },
       select: {

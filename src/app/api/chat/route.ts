@@ -32,9 +32,27 @@ export async function POST(request: Request) {
 
     // Get or create internal user with subscription info
     const user = await LatencyLogger.measure(
-      "DB: Find/create user",
-      () =>
-        prisma.user.upsert({
+      "DB: Find user",
+      async () => {
+        const existing = await prisma.user.findUnique({
+          where: { clerkId },
+          select: {
+            id: true,
+            role: true,
+            isGuest: true,
+            subscription: {
+              select: {
+                status: true,
+                planId: true,
+              },
+            },
+          },
+        });
+
+        if (existing) return existing;
+
+        // Fallback to upsert only if not found (rare case after initial signup)
+        return prisma.user.upsert({
           where: { clerkId },
           update: {},
           create: { clerkId },
@@ -49,7 +67,8 @@ export async function POST(request: Request) {
               },
             },
           },
-        }),
+        });
+      },
       "🌐 Chat API Request",
     );
 
@@ -105,6 +124,7 @@ export async function POST(request: Request) {
       () =>
         prisma.chat.findFirst({
           where: { id: chatId, userId: user.id },
+          select: { id: true, title: true, customTitle: true },
         }),
       "🌐 Chat API Request",
     );
@@ -126,7 +146,9 @@ export async function POST(request: Request) {
     // Extract text content from the message parts
     const userMessageText =
       lastUserMessage.parts
-        ?.map((part) => (part.type === "text" ? part.text : ""))
+        ?.map((part) =>
+          part.type === "text" ? (part as { text: string }).text : "",
+        )
         .join("") || "";
 
     // Check if message has images
@@ -197,24 +219,46 @@ export async function POST(request: Request) {
       }
     }
 
-    // Auto-generate chat title if this is the first message
-    const messageCount = await LatencyLogger.measure(
-      "DB: Count messages",
-      () => prisma.message.count({ where: { chatId } }),
-      "🌐 Chat API Request",
-    );
-    if (messageCount === 1 && !chat.title) {
-      // Generate title in background (wrapped with waitUntil for serverless)
-      waitUntil(
-        generateChatTitle(userMessageText).then((title) => {
-          prisma.chat
-            .update({
-              where: { id: chatId },
-              data: { title },
-            })
-            .catch(console.error);
-        }),
+    // Auto-generate or refresh chat title if not manually set by user
+    if (!chat.customTitle) {
+      const messageCount = await LatencyLogger.measure(
+        "DB: Count messages",
+        () => prisma.message.count({ where: { chatId } }),
+        "🌐 Chat API Request",
       );
+
+      const shouldRefresh =
+        messageCount === 1 ||
+        messageCount === 2 ||
+        messageCount === 4 ||
+        (messageCount > 0 && messageCount % 5 === 0);
+
+      if (shouldRefresh) {
+        // Use the last few messages for better context on refresh
+        const context = messages
+          .slice(-3)
+          .map((m) => {
+            const content =
+              m.parts
+                ?.map((p) =>
+                  p.type === "text" ? (p as { text: string }).text : "",
+                )
+                .join("") || "";
+            return `${m.role.toUpperCase()}: ${content}`;
+          })
+          .join("\n");
+
+        waitUntil(
+          generateChatTitle(context || userMessageText).then((title) => {
+            prisma.chat
+              .update({
+                where: { id: chatId },
+                data: { title },
+              })
+              .catch(console.error);
+          }),
+        );
+      }
     }
 
     // Capture userId for the callback (user might be reassigned)
@@ -227,8 +271,9 @@ export async function POST(request: Request) {
     // Convert UI message parts to simplified format for orchestrator
     const messageParts = lastUserMessage.parts?.map((part) => {
       if (part.type === "text") {
-        return { type: "text", text: part.text || "" };
-      } else if (part.type === "file") {
+        return { type: "text", text: (part as { text: string }).text || "" };
+      }
+      if (part.type === "file") {
         const filePart = part as unknown as {
           data?: string;
           mimeType?: string;
@@ -249,7 +294,6 @@ export async function POST(request: Request) {
     });
 
     // Stream the response from the orchestrator
-    // Use onFinish callback to save the response after streaming completes
     const result = await streamChat({
       userId: currentUserId,
       chatId,
@@ -279,7 +323,6 @@ export async function POST(request: Request) {
                     type: "TEXT",
                     content: text,
                     parts: [{ type: "text", text }] as Prisma.InputJsonValue,
-                    // AI tracking fields
                     model: metrics.model,
                     inputTokens: metrics.inputTokens,
                     outputTokens: metrics.outputTokens,
@@ -322,11 +365,9 @@ export async function POST(request: Request) {
               "✏️ onFinish: Save response",
             );
 
-            // Revalidate cache (Next.js 16 requires 2 arguments)
             revalidateTag(`chats-${currentUserId}`, "page");
             revalidateTag(`chat-${chatId}`, "page");
 
-            // Extract and save memories in background (wrapped with waitUntil for serverless)
             waitUntil(
               extractAndSaveMemories(
                 currentUserId,
@@ -345,7 +386,6 @@ export async function POST(request: Request) {
     });
 
     requestTimer.split("Setup complete");
-    // Return the stream response directly
     return result.toUIMessageStreamResponse();
   } catch (error) {
     console.error("[Chat API] Error:", error);

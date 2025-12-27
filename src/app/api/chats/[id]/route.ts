@@ -200,6 +200,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       data: {
         ...(newTitle !== undefined && { title: newTitle }),
         ...(visibility && { visibility }),
+        ...(title !== undefined && !generateTitle && { customTitle: true }),
       },
       select: {
         id: true,
