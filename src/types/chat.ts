@@ -106,6 +106,10 @@ export interface ChatData {
     hasMore: boolean;
     nextCursor: string | null;
   };
+  /** User preference for voice messages (false = Quiet Mode) */
+  voiceEnabled?: boolean;
+  /** Whether user's plan includes voice feature */
+  voicePlanEnabled?: boolean;
 }
 
 // -----------------------------------------------------

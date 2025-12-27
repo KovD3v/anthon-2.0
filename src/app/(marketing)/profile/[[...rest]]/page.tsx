@@ -4,6 +4,7 @@ import { UserProfile } from "@clerk/nextjs";
 import { ArrowLeft, Home } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { PreferencesSection } from "../components/PreferencesSection";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -49,15 +50,21 @@ export default function ProfilePage() {
       </div>
 
       {/* Profile Content */}
-      <div className="flex items-center justify-center py-12">
-        <UserProfile
-          appearance={{
-            elements: {
-              rootBox: "mx-auto",
-              card: "shadow-none",
-            },
-          }}
-        />
+      <div className="mx-auto max-w-4xl px-4 py-12 space-y-8">
+        {/* Clerk UserProfile */}
+        <div className="flex justify-center">
+          <UserProfile
+            appearance={{
+              elements: {
+                rootBox: "mx-auto",
+                card: "shadow-none",
+              },
+            }}
+          />
+        </div>
+
+        {/* Preferences Section */}
+        <PreferencesSection />
       </div>
     </div>
   );

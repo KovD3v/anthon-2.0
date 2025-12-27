@@ -125,6 +125,8 @@ export function ChatConversationClient({
     setMessages,
     stop,
   } = useChat({
+    id: chatId,
+    messages: initialMessages,
     transport,
     onFinish: async () => {
       const newMessages = await refreshChatData();
@@ -140,6 +142,14 @@ export function ChatConversationClient({
         if (isGuest) return;
 
         if (lastMessage && lastMessage.role === "assistant") {
+          // Skip voice API if quiet mode is enabled (L1) or plan doesn't include voice (L2)
+          if (
+            chatData.voiceEnabled === false ||
+            chatData.voicePlanEnabled === false
+          ) {
+            return;
+          }
+
           setVoiceGeneratingMessageId(lastMessage.id);
           try {
             const userText = extractTextFromParts(lastUserMessage?.parts);
@@ -175,20 +185,18 @@ export function ChatConversationClient({
     },
   });
 
-  // Initialize messages from cache or server data
+  // Sync cached data to local state if available
   useEffect(() => {
     if (hasInitialized) return;
 
     const cached = getCachedChat(chatId);
     if (cached) {
+      // If we have cached data, update local chatData state
       setChatData(cached);
-      setMessages(convertToUIMessages(cached.messages));
-      setHasInitialized(true);
-    } else if (initialMessages.length > 0) {
-      setMessages(initialMessages);
-      setHasInitialized(true);
     }
-  }, [chatId, initialMessages, hasInitialized, setMessages, getCachedChat]);
+    // Mark as initialized regardless - useChat handles the initial messages
+    setHasInitialized(true);
+  }, [chatId, hasInitialized, getCachedChat]);
 
   // Sync local changes back to layout cache
   useEffect(() => {
