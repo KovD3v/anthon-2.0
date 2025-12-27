@@ -58,6 +58,13 @@ NEXT_PUBLIC_APP_URL="https://your-domain.com"
 TELEGRAM_SYNC_WEBHOOK="false"
 TELEGRAM_DISABLE_AI="false"
 TELEGRAM_DISABLE_SEND="false"
+
+# QStash (System Maintenance)
+QSTASH_URL="https://qstash.upstash.io/v2/publish/"
+QSTASH_TOKEN="..."
+QSTASH_CURRENT_SIGNING_KEY="..."
+QSTASH_NEXT_SIGNING_KEY="..."
+CRON_SECRET="..."
 ```
 
 ### 4. Database Setup

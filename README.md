@@ -5,9 +5,10 @@ An AI-powered coaching chat application built with Next.js 16, featuring intelli
 ## ✨ Features
 
 -   **AI Coaching Chat** - Streaming conversations with GPT-4.1 and Gemini via OpenRouter
--   **RAG System** - Knowledge retrieval using pgvector embeddings
+-   **RAG System** - Knowledge retrieval using pgvector embeddings (Gemini 2.0 Flash classification)
 -   **Session Management** - Intelligent context building with automatic summarization
 -   **Persistent Memory** - AI remembers user preferences and important information
+-   **Automated Maintenance** - Background jobs for memory consolidation and profile analysis via QStash
 -   **Multi-Channel** - Web and WhatsApp support with unified user identity
 -   **Rate Limiting** - Usage tracking with subscription tiers
 -   **Authentication** - Secure auth with Clerk
@@ -33,22 +34,24 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## 📚 Documentation
 
-| Document                                     | Description                                  |
-| -------------------------------------------- | -------------------------------------------- |
-| [Getting Started](./docs/getting-started.md) | Setup + user/admin runbook (non-technical)   |
-| [Architecture](./docs/architecture.md)       | System architecture and project structure    |
-| [Database](./docs/database.md)               | Prisma schema and data models                |
-| [AI System](./docs/ai-system.md)             | Orchestrator, RAG, sessions, and memory      |
-| [API Reference](./docs/api.md)               | REST API endpoints documentation             |
-| [Authentication](./docs/authentication.md)   | Clerk integration and user roles             |
-| [Rate Limiting](./docs/rate-limiting.md)     | Usage limits and subscription tiers          |
+| Document                                     | Description                                |
+| -------------------------------------------- | ------------------------------------------ |
+| [Getting Started](./docs/getting-started.md) | Setup + user/admin runbook (non-technical) |
+| [Architecture](./docs/architecture.md)       | System architecture and project structure  |
+| [Database](./docs/database.md)               | Prisma schema and data models              |
+| [AI System](./docs/ai-system.md)             | Orchestrator, RAG, sessions, and memory    |
+| [Maintenance](./docs/maintenance.md)         | Automated jobs and QStash integration      |
+| [API Reference](./docs/api.md)               | REST API endpoints documentation           |
+| [Authentication](./docs/authentication.md)   | Clerk integration and user roles           |
+| [Rate Limiting](./docs/rate-limiting.md)     | Usage limits and subscription tiers        |
 
 ## 🛠 Tech Stack
 
 -   **Framework:** Next.js 16 (App Router)
 -   **Language:** TypeScript
 -   **Database:** PostgreSQL + Prisma + pgvector
--   **AI:** Vercel AI SDK v5 + OpenRouter
+-   **AI:** Vercel AI SDK v6 + OpenRouter
+-   **Job Queue:** Upstash QStash
 -   **Auth:** Clerk
 -   **Styling:** Tailwind CSS + Radix UI + Framer Motion
 

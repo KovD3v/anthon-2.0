@@ -31,7 +31,7 @@ The orchestrator is the main entry point for chat streaming. It coordinates all 
 
 ### `streamChat(options)`
 
-Streams a chat response with tool support.
+Streams a chat response with tool support using Vercel AI SDK `streamText`.
 
 ```typescript
 interface StreamChatOptions {
@@ -50,11 +50,11 @@ interface StreamChatOptions {
 
 1. **Build System Prompt** - Injects user profile, preferences, memories
 2. **Get Conversation Context** - Via Session Manager
-3. **Check RAG Needed** - Via `shouldUseRag()`
+3. **Check RAG Needed** - Via `shouldUseRag()` with latency optimization
 4. **Query RAG** - Gets relevant document chunks
-5. **Stream Response** - With Vercel AI SDK
-6. **Execute Tools** - If AI invokes any
-7. **Track Metrics** - Tokens, cost, timing
+5. **Stream Response** - With Vercel AI SDK v6
+6. **Execute Tools** - If AI invokes any (e.g. `saveMemory`)
+7. **Track Metrics** - Tokens, cost, timing via `LatencyLogger`
 
 ### Tools
 
@@ -110,23 +110,21 @@ Retrieval Augmented Generation for knowledge-based responses.
 
 ### Embeddings
 
--   **Model:** Qwen3-embedding-8b via OpenRouter
--   **Dimensions:** 4096
+-   **Model:** `openai/text-embedding-3-small` via OpenRouter
+-   **Dimensions:** 1536
 -   **Storage:** pgvector in PostgreSQL
 
 ### Key Functions
 
 #### `shouldUseRag(userMessage)`
 
-Determines if a query needs RAG context using:
+Determines if a query needs RAG context using a **5-layer optimization strategy** to minimize costs and latency:
 
-1. Keyword pre-filter (fast path)
-2. LLM classification (uncertain cases)
-
-Keywords that trigger RAG:
-
--   "metodo", "tecnica", "sincro", "coaching"
--   "esercizio", "allenamento", "periodizzazione"
+1.  **Document Existence Check:** Fail fast if no documents exist (cached).
+2.  **Positive Keywords:** Instant match for technical terms (e.g., "metodo", "sincro", "coaching").
+3.  **Negative Keywords:** Instant skip for short social messages (e.g., "ciao", "grazie").
+4.  **Pattern Matching:** Skip personal/emotional queries not related to methodology.
+5.  **Fast LLM Classification:** Use **Gemini 2.0 Flash** (~200ms) as a fallback classifier for uncertain cases.
 
 #### `searchDocuments(query, limit)`
 
@@ -141,9 +139,9 @@ const results = await searchDocuments("visualizzazione mentale", 5);
 
 Adds a document to the knowledge base:
 
-1. Split into chunks (800 chars with overlap)
-2. Generate embeddings for each chunk
-3. Store in RagChunk table
+1.  Split into chunks (800 chars with overlap)
+2.  Generate embeddings for each chunk
+3.  Store in RagChunk table
 
 ### Document Processing
 
@@ -182,6 +180,30 @@ const memories = await getMemories(userId);
 | `favorite_*` | `favorite_sport: "tennis"`     |
 | `goal_*`     | `goal_main: "improve focus"`   |
 | `pattern_*`  | `pattern_anxiety: "pre-match"` |
+
+## Automated Maintenance System
+
+**Directory:** `src/lib/maintenance/`
+
+Background system powered by **Upstash QStash** to keep data clean and efficient.
+
+### Jobs
+
+1.  **Memory Consolidation** (`memory-consolidation.ts`)
+    -   Runs daily via cron.
+    -   Merges duplicate/obsolete memories using Gemini 2.0 Flash.
+    -   Groups memories by category (sport, goals, personal).
+
+2.  **Profile Analyzer** (`profile-analyzer.ts`)
+    -   Runs weekly.
+    -   Analyzes conversation history to build psychometric profile (writing style, communication patterns).
+    -   Updates `UserPreferences` for better mirroring.
+
+3.  **Session Archiver** (`session-archiver.ts`)
+    -   Runs daily.
+    -   Summarizes old sessions (>24h).
+    -   Moves messages to `SessionSummary` and deletes raw messages (depending on retention policy).
+    -   Significantly reduces context window costs.
 
 ## Cost Calculator
 
@@ -228,10 +250,10 @@ const model = getModelForUser(planId, hasImages);
 
 ### Sub-Agent Model
 
-For internal tasks (summarization, RAG classification):
+For internal tasks (summarization, RAG classification, maintenance):
 
--   Model: `gemini/gemini-2.5-flash`
--   Used by Session Manager and RAG system
+-   Model: `gemini/gemini-2.0-flash-001`
+-   Used by Session Manager, RAG system, and Maintenance jobs.
 
 ## Constants
 
@@ -260,3 +282,4 @@ export const RAG = {
 -   [Architecture](./architecture.md) - System overview
 -   [API Reference](./api.md) - Chat API endpoints
 -   [Database](./database.md) - Message and memory storage
+-   [Maintenance](./maintenance.md) - Automated jobs and QStash configuration

@@ -54,6 +54,7 @@ model User {
   consumedLinkTokens ChannelLinkToken[] @relation("ChannelLinkTokenConsumedBy")
   subscription       Subscription?
   sessionSummaries   SessionSummary[]
+  archivedSessions   ArchivedSession[]
   voiceUsage         VoiceUsage[]
 
   lastActivityAt DateTime  @default(now())
@@ -314,6 +315,27 @@ model SessionSummary {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+// -----------------------------------------------------
+// ARCHIVED SESSION (long-term storage of summarized sessions)
+// -----------------------------------------------------
+
+model ArchivedSession {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  startDate DateTime
+  endDate   DateTime
+  summary   String   @db.Text
+
+  // Metrics preserved from the session
+  messageCount Int
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, startDate])
 }
 
 // -----------------------------------------------------
