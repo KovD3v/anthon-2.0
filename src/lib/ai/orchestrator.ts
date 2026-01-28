@@ -1,3 +1,4 @@
+import { withTracing } from "@posthog/ai";
 import {
   type ModelMessage,
   type StepResult,
@@ -22,6 +23,7 @@ import {
   formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
 import { LatencyLogger } from "@/lib/latency-logger";
+import { getPostHogClient } from "@/lib/posthog";
 import { getRateLimitsForUser } from "@/lib/rate-limit";
 
 // System prompt template
@@ -293,8 +295,21 @@ export async function streamChat({
 
   // Get the appropriate model based on user's subscription plan
   // All Gemini models support vision, so we just use the orchestrator model
-  const model = getModelForUser(planId, userRole, "orchestrator");
+  const baseModel = getModelForUser(planId, userRole, "orchestrator");
   const modelId = getModelIdForPlan(planId, userRole, "orchestrator");
+
+  // Wrap model with PostHog tracing for LLM analytics
+  const model = withTracing(baseModel, getPostHogClient(), {
+    posthogDistinctId: userId,
+    posthogTraceId: chatId,
+    posthogProperties: {
+      conversationId: chatId,
+      planId: planId || "free",
+      userRole: userRole || "USER",
+      isGuest: isGuest || false,
+      modelId,
+    },
+  });
 
   // Get plan-based session cap
   const limits = getRateLimitsForUser(
