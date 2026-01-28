@@ -179,7 +179,15 @@ export function UsageBanner({
 
   const getTierName = () => {
     if (subscriptionStatus === "ACTIVE") return "Pro";
-    return "Free";
+    if (subscriptionStatus === "TRIAL") return "Prova";
+    return "Ospite";
+  };
+
+  const getUpgradeButtonText = () => {
+    if (isAtLimit) {
+      return subscriptionStatus === "ACTIVE" ? "Gestisci piano" : "Passa a Basic";
+    }
+    return subscriptionStatus === "ACTIVE" ? "Gestisci piano" : "Passa a Pro";
   };
 
   return (
@@ -225,7 +233,7 @@ export function UsageBanner({
               }}
             >
               <Zap className="mr-1 h-3 w-3" />
-              Upgrade
+              {getUpgradeButtonText()}
             </Button>
           )}
           <Button
@@ -262,10 +270,10 @@ function _UsageStats({
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <div className="flex items-center gap-1">
           <Clock className="h-3 w-3" />
-          <span>Today&apos;s usage</span>
+          <span>Utilizzo di oggi</span>
         </div>
         <span>
-          {usage.requestCount}/{limits.maxRequests} requests
+          {usage.requestCount}/{limits.maxRequests} richieste
         </span>
       </div>
 
@@ -287,7 +295,7 @@ function _UsageStats({
       {/* Token and cost info */}
       <div className="flex justify-between text-[10px] text-muted-foreground">
         <span>
-          {((usage.inputTokens + usage.outputTokens) / 1000).toFixed(1)}k tokens
+          {((usage.inputTokens + usage.outputTokens) / 1000).toFixed(1)}k token
         </span>
         <span>${usage.totalCostUsd.toFixed(4)}</span>
       </div>

@@ -401,7 +401,13 @@ export default function BenchmarkPage() {
   };
 
   const selectAllTests = () => {
-    setSelectedTests(new Set(dbTestCases.map((tc) => tc.externalId || tc.id)));
+    setSelectedTests(
+      new Set(
+        dbTestCases
+          .filter((tc) => tc.isActive)
+          .map((tc) => tc.externalId || tc.id),
+      ),
+    );
   };
 
   const clearAllTests = () => {
@@ -1811,17 +1817,26 @@ export default function BenchmarkPage() {
                       <button
                         type="button"
                         key={tc.id}
-                        onClick={() => toggleTest(id)}
+                        disabled={!tc.isActive}
+                        onClick={() => tc.isActive && toggleTest(id)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
+                          if (
+                            tc.isActive &&
+                            (e.key === "Enter" || e.key === " ")
+                          ) {
                             toggleTest(id);
                           }
                         }}
                         className={cn(
-                          "group flex items-center gap-3 px-3 py-2 rounded-md border transition-all duration-200 cursor-pointer select-none text-left w-full",
+                          "group flex items-center gap-3 px-3 py-2 rounded-md border transition-all duration-200 select-none text-left w-full",
+                          !tc.isActive
+                            ? "opacity-50 cursor-not-allowed bg-transparent border-transparent"
+                            : "cursor-pointer",
                           isSelected
                             ? "bg-blue-500/10 border-blue-500/30 shadow-[0_2px_10px_-2px_rgba(59,130,246,0.1)]"
-                            : "bg-transparent border-transparent hover:bg-white/5 hover:border-white/5",
+                            : !tc.isActive
+                              ? ""
+                              : "bg-transparent border-transparent hover:bg-white/5 hover:border-white/5",
                         )}
                       >
                         <div
@@ -1849,15 +1864,20 @@ export default function BenchmarkPage() {
                             <polyline points="3.5 7.5 5.5 10 10.5 3.5" />
                           </svg>
                         </div>
-                        <div
-                          className={cn(
-                            "flex-1 font-mono text-xs transition-colors truncate",
-                            isSelected
-                              ? "text-blue-400 font-medium"
-                              : "text-zinc-400 group-hover:text-zinc-300",
-                          )}
-                        >
-                          {tc.id}
+                        <div className="flex-1 min-w-0 flex flex-col">
+                          <span
+                            className={cn(
+                              "text-xs font-medium truncate",
+                              isSelected
+                                ? "text-blue-400"
+                                : "text-zinc-300 group-hover:text-zinc-200",
+                            )}
+                          >
+                            {tc.name}
+                          </span>
+                          <span className="text-[10px] text-zinc-500 font-mono truncate">
+                            {id}
+                          </span>
                         </div>
                         <Badge
                           variant="outline"

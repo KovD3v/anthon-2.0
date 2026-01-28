@@ -93,6 +93,7 @@ export async function POST(request: Request) {
           reason: rateLimitResult.reason,
           usage: rateLimitResult.usage,
           limits: rateLimitResult.limits,
+          upgradeInfo: rateLimitResult.upgradeInfo,
         },
         { status: 429 },
       );

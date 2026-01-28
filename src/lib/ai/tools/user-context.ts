@@ -145,8 +145,8 @@ sport, obiettivi, livello di esperienza o altri dettagli del profilo.`,
 
     updatePreferences: tool({
       description: `Aggiorna le preferenze di comunicazione dell'utente.
-Usa questo tool quando rilevi lo stile comunicativo dell'utente o quando esprime
-esplicitamente come vuole essere comunicato - tono, modalità o lingua.`,
+USE THIS TOOL immediately when the user specifies a preferred tone, length, or mode.
+CRITICAL: You MUST provide at least one parameter. Do not call with empty arguments.`,
       inputSchema: z.object({
         tone: z
           .string()
@@ -171,6 +171,13 @@ esplicitamente come vuole essere comunicato - tono, modalità o lingua.`,
       }),
       execute: async (params) => {
         try {
+          if (Object.keys(params).length === 0) {
+            return {
+              success: false,
+              message: "Errore: Nessun parametro fornito. Specifica almeno una preferenza da aggiornare.",
+            };
+          }
+
           const preferences = await prisma.preferences.upsert({
             where: { userId },
             update: {

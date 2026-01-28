@@ -91,14 +91,14 @@ come nome, sport praticato, obiettivi, preferenze e altre informazioni personali
     }),
 
     saveMemory: tool({
-      description: `Salva un'informazione importante sull'utente nella memoria persistente.
-Usa questo tool quando l'utente condivide esplicitamente informazioni che dovrebbero essere ricordate
-per le conversazioni future, come preferenze, obiettivi o dettagli personali.`,
+      description: `Salva un'informazione importante (FATTO non strutturale) sulla vita dell'utente.
+USE THIS TOOL for specific facts like "I have a knee injury", "I play on Sundays", "My favorite exercise is squat".
+DO NOT use this for updating profile fields like 'name', 'sport', 'goal' - use updateProfile for those.`,
       inputSchema: z.object({
         key: z
           .string()
           .describe(
-            "Chiave univoca per questa informazione in snake_case (es: user_name, primary_goal)",
+            "Chiave univoca in snake_case (es: knee_injury, training_schedule)",
           ),
         value: z.string().describe("Il valore dell'informazione da salvare"),
         category: z

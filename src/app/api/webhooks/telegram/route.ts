@@ -275,10 +275,20 @@ async function handleUpdate(update: TelegramUpdate) {
   );
 
   if (!rateLimit.allowed) {
-    await sendTelegramMessage(
-      chatId,
-      "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti.",
-    );
+    // Use upgradeInfo for contextual CTA if available
+    const upgradeInfo = rateLimit.upgradeInfo;
+    let message: string;
+
+    if (upgradeInfo) {
+      const isGuest = upgradeInfo.currentPlan === "Ospite";
+      message = isGuest
+        ? `${upgradeInfo.ctaMessage}\n\nRegistrati qui: https://anthon.ai/sign-up`
+        : `${upgradeInfo.ctaMessage}\n\nVedi i piani: https://anthon.ai/pricing`;
+    } else {
+      message = "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti.\n\nhttps://anthon.ai/sign-up";
+    }
+
+    await sendTelegramMessage(chatId, message);
     return;
   }
 

@@ -32,7 +32,7 @@ const RATE_LIMITS: Record<string, RateLimits> = {
   },
   // Trial users (no active subscription)
   TRIAL: {
-    maxRequestsPerDay: 50,
+    maxRequestsPerDay: 3,
     maxInputTokensPerDay: 100_000,
     maxOutputTokensPerDay: 50_000,
     maxCostPerDay: 0.5,
@@ -40,7 +40,7 @@ const RATE_LIMITS: Record<string, RateLimits> = {
   },
   // Basic plan ($7/month) - 3 day trial
   basic: {
-    maxRequestsPerDay: 200,
+    maxRequestsPerDay: 50,
     maxInputTokensPerDay: 500_000,
     maxOutputTokensPerDay: 250_000,
     maxCostPerDay: 3,
@@ -48,7 +48,7 @@ const RATE_LIMITS: Record<string, RateLimits> = {
   },
   // Basic Plus plan ($12/month)
   basic_plus: {
-    maxRequestsPerDay: 400,
+    maxRequestsPerDay: 50,
     maxInputTokensPerDay: 800_000,
     maxOutputTokensPerDay: 400_000,
     maxCostPerDay: 5,
@@ -56,7 +56,7 @@ const RATE_LIMITS: Record<string, RateLimits> = {
   },
   // Pro plan ($25/month)
   pro: {
-    maxRequestsPerDay: 1000,
+    maxRequestsPerDay: 100,
     maxInputTokensPerDay: 2_000_000,
     maxOutputTokensPerDay: 1_000_000,
     maxCostPerDay: 15,
@@ -64,7 +64,7 @@ const RATE_LIMITS: Record<string, RateLimits> = {
   },
   // Active subscription (fallback for ACTIVE status without plan)
   ACTIVE: {
-    maxRequestsPerDay: 200,
+    maxRequestsPerDay: 50,
     maxInputTokensPerDay: 500_000,
     maxOutputTokensPerDay: 250_000,
     maxCostPerDay: 3,
@@ -230,6 +230,102 @@ export async function incrementUsage(
 // RATE LIMIT CHECKING
 // -----------------------------------------------------
 
+// -----------------------------------------------------
+// UPGRADE CTA CONFIGURATION
+// -----------------------------------------------------
+
+export interface UpgradeInfo {
+  currentPlan: string;
+  suggestedPlan: string;
+  upgradeUrl: string;
+  ctaMessage: string;
+}
+
+// Plan hierarchy for upgrades
+const PLAN_HIERARCHY = [
+  "GUEST",
+  "TRIAL",
+  "basic",
+  "basic_plus",
+  "pro",
+] as const;
+type PlanTier = (typeof PLAN_HIERARCHY)[number];
+
+/**
+ * Get upgrade information based on current plan and which limit was hit.
+ * Returns null for pro/ADMIN plans (no upgrade available).
+ */
+export function getUpgradeInfo(
+  currentPlan: string,
+  limitType: "requests" | "tokens" | "cost" | "general",
+): UpgradeInfo | null {
+  // Normalize plan name
+  const normalizedPlan = currentPlan.toUpperCase();
+
+  // No upgrade available for pro or admin plans
+  if (
+    normalizedPlan === "PRO" ||
+    normalizedPlan === "ADMIN" ||
+    normalizedPlan === "SUPER_ADMIN"
+  ) {
+    return null;
+  }
+
+  // Determine current tier and next tier
+  let currentTier: PlanTier;
+  let nextTier: PlanTier;
+
+  if (normalizedPlan === "GUEST") {
+    currentTier = "GUEST";
+    nextTier = "basic";
+  } else if (normalizedPlan === "TRIAL") {
+    currentTier = "TRIAL";
+    nextTier = "basic";
+  } else if (normalizedPlan.includes("BASIC_PLUS")) {
+    currentTier = "basic_plus";
+    nextTier = "pro";
+  } else if (normalizedPlan.includes("BASIC")) {
+    currentTier = "basic";
+    nextTier = "basic_plus";
+  } else {
+    // Default fallback - treat as trial
+    currentTier = "TRIAL";
+    nextTier = "basic";
+  }
+
+  // Get plan display names
+  const planDisplayNames: Record<string, string> = {
+    GUEST: "Ospite",
+    TRIAL: "Prova",
+    basic: "Basic",
+    basic_plus: "Basic Plus",
+    pro: "Pro",
+  };
+
+  // Generate contextual CTA message based on limit type
+  let ctaMessage = "";
+  switch (limitType) {
+    case "requests":
+      ctaMessage = `Hai raggiunto il limite giornaliero di richieste per il piano ${planDisplayNames[currentTier]}. Passa a ${planDisplayNames[nextTier]} per continuare a utilizzare Anthon senza interruzioni.`;
+      break;
+    case "tokens":
+      ctaMessage = `Hai esaurito i token disponibili per oggi con il piano ${planDisplayNames[currentTier]}. Aggiorna a ${planDisplayNames[nextTier]} per ottenere più token giornalieri.`;
+      break;
+    case "cost":
+      ctaMessage = `Hai raggiunto il limite di spesa giornaliero del piano ${planDisplayNames[currentTier]}. Passa a ${planDisplayNames[nextTier]} per aumentare il tuo budget giornaliero.`;
+      break;
+    default:
+      ctaMessage = `Hai raggiunto un limite del tuo piano ${planDisplayNames[currentTier]}. Aggiorna a ${planDisplayNames[nextTier]} per sbloccare funzionalità aggiuntive e limiti più elevati.`;
+  }
+
+  return {
+    currentPlan: planDisplayNames[currentTier],
+    suggestedPlan: planDisplayNames[nextTier],
+    upgradeUrl: "/pricing",
+    ctaMessage,
+  };
+}
+
 export interface RateLimitResult {
   allowed: boolean;
   usage: DailyUsageData;
@@ -241,6 +337,7 @@ export interface RateLimitResult {
     outputTokens: number;
     cost: number;
   };
+  upgradeInfo?: UpgradeInfo | null;
 }
 
 /**
@@ -255,6 +352,14 @@ export async function checkRateLimit(
 ): Promise<RateLimitResult> {
   const usage = await getDailyUsage(userId);
   const limits = getRateLimitsForUser(
+    subscriptionStatus,
+    userRole,
+    planId,
+    isGuest,
+  );
+
+  // Determine effective plan ID for upgrade suggestions
+  const effectivePlanId = getEffectivePlanId(
     subscriptionStatus,
     userRole,
     planId,
@@ -276,6 +381,7 @@ export async function checkRateLimit(
       limits,
       reason: "Daily request limit reached",
       percentUsed,
+      upgradeInfo: getUpgradeInfo(effectivePlanId, "requests"),
     };
   }
 
@@ -286,6 +392,7 @@ export async function checkRateLimit(
       limits,
       reason: "Daily input token limit reached",
       percentUsed,
+      upgradeInfo: getUpgradeInfo(effectivePlanId, "tokens"),
     };
   }
 
@@ -296,6 +403,7 @@ export async function checkRateLimit(
       limits,
       reason: "Daily output token limit reached",
       percentUsed,
+      upgradeInfo: getUpgradeInfo(effectivePlanId, "tokens"),
     };
   }
 
@@ -306,6 +414,7 @@ export async function checkRateLimit(
       limits,
       reason: "Daily spending limit reached",
       percentUsed,
+      upgradeInfo: getUpgradeInfo(effectivePlanId, "cost"),
     };
   }
 
@@ -315,6 +424,48 @@ export async function checkRateLimit(
     limits,
     percentUsed,
   };
+}
+
+/**
+ * Get the effective plan ID for upgrade suggestions.
+ */
+function getEffectivePlanId(
+  subscriptionStatus?: string,
+  userRole?: string,
+  planId?: string | null,
+  isGuest?: boolean,
+): string {
+  // Admin users
+  if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
+    return "ADMIN";
+  }
+
+  // Guest users
+  if (isGuest) {
+    return "GUEST";
+  }
+
+  // Check specific plan ID first
+  if (planId && subscriptionStatus === "ACTIVE") {
+    const normalizedPlanId = planId.toLowerCase();
+    if (normalizedPlanId.includes("pro")) {
+      return "pro";
+    }
+    if (normalizedPlanId.includes("basic_plus")) {
+      return "basic_plus";
+    }
+    if (normalizedPlanId.includes("basic")) {
+      return "basic";
+    }
+  }
+
+  // Fallback to ACTIVE
+  if (subscriptionStatus === "ACTIVE") {
+    return "ACTIVE";
+  }
+
+  // Default to trial
+  return "TRIAL";
 }
 
 /**

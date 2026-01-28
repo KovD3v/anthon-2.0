@@ -112,6 +112,7 @@ export async function POST(request: Request) {
           error: rateLimitResult.reason || "Rate limit exceeded",
           usage: rateLimitResult.usage,
           limits: rateLimitResult.limits,
+          upgradeInfo: rateLimitResult.upgradeInfo,
         },
         { status: 429 },
       );

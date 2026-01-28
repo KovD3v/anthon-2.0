@@ -19,6 +19,10 @@ export const AVAILABLE_MODELS = [
   "openai/gpt-oss-120b",
   "minimax/minimax-m2.1",
   "z-ai/glm-4.7",
+  "xiaomi/mimo-v2-flash:free",
+  "nvidia/nemotron-3-nano-30b-a3b:free",
+  "moonshotai/kimi-k2-thinking",
+  "deepseek/deepseek-v3.2"
 ] as const;
 
 export type BenchmarkModelId = (typeof AVAILABLE_MODELS)[number];

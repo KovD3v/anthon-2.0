@@ -26,6 +26,7 @@
         "@radix-ui/react-tooltip": "^1.2.8",
         "@tanstack/react-virtual": "^3.13.12",
         "@tavily/ai-sdk": "^0.1.1",
+        "@tavily/core": "^0.6.3",
         "@upstash/qstash": "^2.8.4",
         "@vercel/blob": "^2.0.0",
         "@vercel/functions": "^3.3.4",

@@ -226,6 +226,37 @@ export function ChatConversationClient({
       if (chatError.message.trim().startsWith("{")) {
         const parsed = JSON.parse(chatError.message);
         if (parsed.error === "Rate limit exceeded") {
+          const upgradeInfo = parsed.upgradeInfo;
+
+          // If upgradeInfo is available, use it for contextual CTA
+          if (upgradeInfo) {
+            const isGuest = upgradeInfo.currentPlan === "Ospite";
+            const ctaMessage = upgradeInfo.ctaMessage ||
+              (isGuest
+                ? "Hai raggiunto il limite di messaggi giornalieri per gli ospiti."
+                : `Hai raggiunto il limite del piano ${upgradeInfo.currentPlan}.`);
+
+            return {
+              title: "Limite Raggiunto",
+              message: ctaMessage,
+              action: (
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 w-full border-red-200 bg-white hover:bg-red-50 text-red-700 dark:bg-transparent dark:hover:bg-red-900/20"
+                >
+                  <Link href={isGuest ? "/sign-up" : upgradeInfo.upgradeUrl || "/pricing"}>
+                    {isGuest
+                      ? "Registrati per continuare"
+                      : `Passa a ${upgradeInfo.suggestedPlan}`}
+                  </Link>
+                </Button>
+              ),
+            };
+          }
+
+          // Fallback for when upgradeInfo is not available
           return {
             title: "Limite Raggiunto",
             message:
@@ -463,7 +494,7 @@ export function ChatConversationClient({
       )}
 
       {formattedError && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 min-w-[300px] max-w-md rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400 shadow-xl backdrop-blur-sm">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 min-w-75 max-w-md rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400 shadow-xl backdrop-blur-sm">
           {formattedError.title && (
             <div className="mb-1 font-semibold">{formattedError.title}</div>
           )}
