@@ -99,6 +99,7 @@ export function ChatHeader({ chatId, title, onRename }: ChatHeaderProps) {
           className="gap-1.5 text-muted-foreground hover:text-foreground"
           onClick={handleExport}
           disabled={isExporting}
+          aria-label="Export chat"
         >
           <Download className="h-4 w-4" />
           <span className="hidden sm:inline">Export</span>
