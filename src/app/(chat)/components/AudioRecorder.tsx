@@ -225,6 +225,7 @@ export function AudioRecorder({
         title={
           isRecording ? "Ferma registrazione" : "Registra messaggio vocale"
         }
+        aria-label={isRecording ? "Stop recording" : "Start voice recording"}
       >
         {isProcessing ? (
           <Loader2 className="h-4 w-4 animate-spin" />
