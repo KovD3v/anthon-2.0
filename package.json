@@ -20,7 +20,7 @@
     "@ai-sdk/google": "^3.0.1",
     "@ai-sdk/openai": "^3.0.1",
     "@ai-sdk/react": "^3.0.3",
-    "@clerk/nextjs": "^6.36.5",
+    "@clerk/nextjs": "6.36.5",
     "@openrouter/ai-sdk-provider": "^1.2.8",
     "@posthog/ai": "^7.3.0",
     "@prisma/adapter-pg": "^7.0.1",

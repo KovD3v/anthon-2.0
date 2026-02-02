@@ -45,23 +45,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="it" suppressHydrationWarning>
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        >
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="dark"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <IdentifyUser />
-            {children}
-            <ToastProvider />
-          </ThemeProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+		<ClerkProvider clerkJSVersion="6.36.5">
+			<html lang="it" suppressHydrationWarning>
+				<body
+					className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+					<ThemeProvider
+						attribute="class"
+						defaultTheme="dark"
+						enableSystem
+						disableTransitionOnChange>
+						<IdentifyUser />
+						{children}
+						<ToastProvider />
+					</ThemeProvider>
+				</body>
+			</html>
+		</ClerkProvider>
   );
 }
