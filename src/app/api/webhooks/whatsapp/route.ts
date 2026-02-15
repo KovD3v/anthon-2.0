@@ -261,7 +261,8 @@ async function handleMessage(
         ? `${upgradeInfo.ctaMessage}\n\nRegistrati qui: https://anthon.ai/sign-up`
         : `${upgradeInfo.ctaMessage}\n\nVedi i piani: https://anthon.ai/pricing`;
     } else {
-      message = "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti.\n\nhttps://anthon.ai/sign-up";
+      message =
+        "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti.\n\nhttps://anthon.ai/sign-up";
     }
 
     await sendWhatsAppMessage(from, message);
@@ -417,9 +418,12 @@ async function handleMessage(
       userMessage: userMessageText || (hasImage ? "Immagine" : "Documento"),
       planId: user.subscription?.planId,
       userRole: user.role,
+      subscriptionStatus: user.subscription?.status,
+      isGuest: user.isGuest,
       hasAudio: false, // Input treated as text after transcription
       hasImages: downloadedPhoto,
       messageParts,
+      effectiveEntitlements: rateLimit.effectiveEntitlements,
       onFinish: async ({ text: finalText, metrics }) => {
         if (!finalText || finalText.trim().length === 0) return;
 

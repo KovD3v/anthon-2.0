@@ -207,6 +207,7 @@ export async function POST(request: Request) {
       isGuest: true,
       hasImages: false,
       hasAudio: false,
+      effectiveEntitlements: rateLimitResult.effectiveEntitlements,
       messageParts: lastUserMessage.parts?.map((part) => {
         if (part.type === "text") {
           return { type: "text", text: part.text || "" };

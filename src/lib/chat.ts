@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { cache } from "react";
 import { prisma } from "@/lib/db";
+import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import { getVoicePlanConfig } from "@/lib/voice";
 import type { Chat, ChatData } from "@/types/chat";
 
@@ -88,12 +89,23 @@ export const getSharedChat = cache(
 
     if (!chat) return null;
 
+    const entitlements = userData
+      ? await resolveEffectiveEntitlements({
+          userId,
+          subscriptionStatus: userData.subscription?.status,
+          userRole: userData.role,
+          planId: userData.subscription?.planId,
+          isGuest: userData.isGuest,
+        })
+      : null;
+
     // Compute voice plan config
     const voicePlanConfig = getVoicePlanConfig(
       userData?.subscription?.status ?? undefined,
       userData?.role,
       userData?.subscription?.planId,
       userData?.isGuest,
+      entitlements?.modelTier,
     );
 
     const messages = await prisma.message.findMany({

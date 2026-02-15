@@ -23,8 +23,9 @@ import {
   formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
 import { LatencyLogger } from "@/lib/latency-logger";
+import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
+import type { EffectiveEntitlements } from "@/lib/organizations/types";
 import { getPostHogClient } from "@/lib/posthog";
-import { getRateLimitsForUser } from "@/lib/rate-limit";
 
 // System prompt template
 const SYSTEM_PROMPT_TEMPLATE = `You are Anthon, a digital sports performance coach.
@@ -139,6 +140,7 @@ interface StreamChatOptions {
     toolResults?: unknown[];
   }) => void;
   voiceEnabled?: boolean;
+  effectiveEntitlements?: EffectiveEntitlements;
 }
 
 /**
@@ -289,14 +291,35 @@ export async function streamChat({
   onFinish,
   onStepFinish,
   voiceEnabled,
+  effectiveEntitlements: prefetchedEntitlements,
 }: StreamChatOptions) {
   // Record start time for performance tracking
   const startTime = Date.now();
 
+  const effectiveEntitlements =
+    prefetchedEntitlements ??
+    (await resolveEffectiveEntitlements({
+      userId,
+      subscriptionStatus,
+      userRole,
+      planId,
+      isGuest,
+    }));
+
   // Get the appropriate model based on user's subscription plan
   // All Gemini models support vision, so we just use the orchestrator model
-  const baseModel = getModelForUser(planId, userRole, "orchestrator");
-  const modelId = getModelIdForPlan(planId, userRole, "orchestrator");
+  const baseModel = getModelForUser(
+    planId,
+    userRole,
+    "orchestrator",
+    effectiveEntitlements.modelTier,
+  );
+  const modelId = getModelIdForPlan(
+    planId,
+    userRole,
+    "orchestrator",
+    effectiveEntitlements.modelTier,
+  );
 
   // Wrap model with PostHog tracing for LLM analytics
   const model = withTracing(baseModel, getPostHogClient(), {
@@ -305,6 +328,7 @@ export async function streamChat({
     posthogProperties: {
       conversationId: chatId,
       planId: planId || "free",
+      effectiveModelTier: effectiveEntitlements.modelTier,
       userRole: userRole || "USER",
       isGuest: isGuest || false,
       modelId,
@@ -312,13 +336,7 @@ export async function streamChat({
   });
 
   // Get plan-based session cap
-  const limits = getRateLimitsForUser(
-    subscriptionStatus,
-    userRole,
-    planId,
-    isGuest,
-  );
-  const maxContextMessages = limits.maxContextMessages;
+  const maxContextMessages = effectiveEntitlements.limits.maxContextMessages;
 
   // Kick off independent work ASAP to reduce end-to-end latency
   const conversationHistoryPromise = LatencyLogger.measure(
@@ -369,6 +387,7 @@ export async function streamChat({
     userRole,
     planId,
     isGuest,
+    effectiveEntitlements.modelTier,
   );
   const voiceEnabledResult = planConfig.enabled && (voiceEnabled ?? true);
 

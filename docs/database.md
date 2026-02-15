@@ -178,6 +178,68 @@ User subscription and trial tracking.
 | `planId`         | String?            | Clerk plan ID                 |
 | `planName`       | String?            | Plan display name             |
 
+## Organizations (B2B)
+
+### Organization
+
+Contract-bound tenant linked to Clerk Organization identity.
+
+| Field                 | Type               | Description |
+| --------------------- | ------------------ | ----------- |
+| `clerkOrganizationId` | String             | Clerk org ID (unique) |
+| `name`                | String             | Organization display name |
+| `slug`                | String             | Unique organization slug |
+| `status`              | OrganizationStatus | ACTIVE, SUSPENDED, ARCHIVED |
+| `ownerUserId`         | String?            | Internal owner user (exactly one when active) |
+| `pendingOwnerEmail`   | String?            | Pending owner invite email |
+
+### OrganizationContract
+
+Authoritative contract limits for an organization.
+
+| Field                 | Type                  | Description |
+| --------------------- | --------------------- | ----------- |
+| `basePlan`            | OrganizationBasePlan  | Organization base entitlement plan: BASIC, BASIC_PLUS, PRO |
+| `seatLimit`           | Int                   | Maximum active members |
+| `planLabel`           | String                | Human-readable plan name |
+| `modelTier`           | OrganizationModelTier | Optional enterprise override for model access tier (default comes from `basePlan`) |
+| `maxRequestsPerDay`   | Int                   | Daily request entitlement |
+| `maxInputTokensPerDay`| Int                   | Daily input token entitlement |
+| `maxOutputTokensPerDay`| Int                  | Daily output token entitlement |
+| `maxCostPerDay`       | Float                 | Daily cost entitlement |
+| `maxContextMessages`  | Int                   | Context window cap |
+| `version`             | Int                   | Contract version counter |
+
+Entitlement behavior:
+
+- `basePlan` defines the default limits and model tier.
+- Contract fields (`seatLimit`, numeric limits, `modelTier`) are enterprise overrides on top of that base.
+- For active organization members, organization entitlements are used; personal subscription is fallback only when organization contract data is missing/invalid.
+
+### OrganizationMembership
+
+Local mirror of Clerk memberships.
+
+| Field               | Type                       | Description |
+| ------------------- | -------------------------- | ----------- |
+| `clerkMembershipId` | String                     | Clerk membership ID (unique) |
+| `role`              | OrganizationMemberRole     | OWNER or MEMBER |
+| `status`            | OrganizationMembershipStatus | ACTIVE, REMOVED, BLOCKED |
+| `joinedAt`          | DateTime?                  | Membership activation time |
+| `leftAt`            | DateTime?                  | Membership deactivation time |
+
+### OrganizationAuditLog
+
+Immutable append-only history for contract-sensitive actions.
+
+| Field        | Type                      | Description |
+| ------------ | ------------------------- | ----------- |
+| `actorType`  | OrganizationAuditActorType| ADMIN, SYSTEM, WEBHOOK |
+| `action`     | OrganizationAuditAction   | Created/updated/owner/membership events |
+| `before`     | Json?                     | Prior snapshot |
+| `after`      | Json?                     | Updated snapshot |
+| `metadata`   | Json?                     | Additional context |
+
 ## Multi-Channel
 
 ### ChannelIdentity

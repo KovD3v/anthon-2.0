@@ -56,6 +56,10 @@ model User {
   sessionSummaries   SessionSummary[]
   archivedSessions   ArchivedSession[]
   voiceUsage         VoiceUsage[]
+  organizationMemberships OrganizationMembership[]
+  ownedOrganizations      Organization[]           @relation("OrganizationOwner")
+  createdOrganizations    Organization[]           @relation("OrganizationCreator")
+  organizationAuditLogs   OrganizationAuditLog[]   @relation("OrganizationAuditActor")
 
   lastActivityAt DateTime  @default(now())
   createdAt      DateTime  @default(now())
@@ -67,6 +71,158 @@ model User {
   @@index([isGuest])
   @@index([deletedAt])
   @@index([lastActivityAt])
+}
+
+// -----------------------------------------------------
+// ORGANIZATIONS (B2B tenancy via Clerk Organizations)
+// -----------------------------------------------------
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum OrganizationModelTier {
+  TRIAL
+  BASIC
+  BASIC_PLUS
+  PRO
+  ENTERPRISE
+  ADMIN
+}
+
+enum OrganizationBasePlan {
+  BASIC
+  BASIC_PLUS
+  PRO
+}
+
+enum OrganizationMemberRole {
+  OWNER
+  MEMBER
+}
+
+enum OrganizationMembershipStatus {
+  ACTIVE
+  REMOVED
+  BLOCKED
+}
+
+enum OrganizationAuditActorType {
+  ADMIN
+  SYSTEM
+  WEBHOOK
+}
+
+enum OrganizationAuditAction {
+  ORGANIZATION_CREATED
+  CONTRACT_UPDATED
+  OWNER_ASSIGNED
+  OWNER_TRANSFERRED
+  MEMBERSHIP_SYNCED
+  MEMBERSHIP_BLOCKED_SEAT_LIMIT
+}
+
+model Organization {
+  id String @id @default(cuid())
+
+  clerkOrganizationId String @unique
+  name                String
+  slug                String @unique
+  status              OrganizationStatus @default(ACTIVE)
+
+  ownerUserId String?
+  ownerUser   User?   @relation("OrganizationOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  pendingOwnerEmail String?
+
+  createdByUserId String
+  createdByUser   User   @relation("OrganizationCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  contract    OrganizationContract?
+  memberships OrganizationMembership[]
+  auditLogs   OrganizationAuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([ownerUserId])
+  @@index([createdByUserId])
+}
+
+model OrganizationContract {
+  id String @id @default(cuid())
+
+  organizationId String @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  basePlan OrganizationBasePlan @default(BASIC)
+  seatLimit Int
+  planLabel String
+  modelTier OrganizationModelTier @default(BASIC)
+
+  maxRequestsPerDay  Int
+  maxInputTokensPerDay  Int
+  maxOutputTokensPerDay Int
+  maxCostPerDay      Float
+  maxContextMessages Int
+
+  version Int @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([basePlan])
+  @@index([modelTier])
+}
+
+model OrganizationMembership {
+  id String @id @default(cuid())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  clerkMembershipId String @unique
+  role              OrganizationMemberRole @default(MEMBER)
+  status            OrganizationMembershipStatus @default(ACTIVE)
+
+  joinedAt DateTime?
+  leftAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, status])
+  @@index([userId, status])
+  @@index([role])
+}
+
+model OrganizationAuditLog {
+  id String @id @default(cuid())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  actorUserId String?
+  actorUser   User?   @relation("OrganizationAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  actorType OrganizationAuditActorType
+  action    OrganizationAuditAction
+  before    Json?
+  after     Json?
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@index([actorUserId])
 }
 
 // -----------------------------------------------------

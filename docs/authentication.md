@@ -41,7 +41,7 @@ export default clerkMiddleware();
 In Clerk Dashboard, configure webhook for:
 
 -   URL: `https://your-domain.com/api/webhooks/clerk`
--   Events: `user.created`, `user.updated`, `user.deleted`, `subscription.*`
+-   Events: `user.created`, `user.updated`, `user.deleted`, `subscription.*`, `organization.*`, `organizationMembership.*`, `organizationInvitation.accepted`
 
 ## User Roles
 
@@ -104,6 +104,7 @@ For admin-only routes, prefer `requireAdmin()` / `requireSuperAdmin()`.
 | `(marketing)` | Public        | Landing, pricing pages |
 | `(chat)`      | Authenticated | Chat interface         |
 | `(admin)`     | ADMIN role    | Admin dashboard        |
+| `/organization` | Authenticated | Clerk Organization management |
 
 ### Layout Protection
 
@@ -121,7 +122,8 @@ export default async function ChatLayout({ children }) {
 
 ## User Sync
 
-When a user signs up via Clerk, a webhook creates/updates the database record and subscription tracking:
+When a user signs up via Clerk, a webhook creates/updates the database record and subscription tracking.
+Organization and membership webhooks are also mirrored locally for contract seat enforcement and audit logging:
 
 See the handler implementation in `/api/webhooks/clerk` for the exact event mapping.
 

@@ -306,6 +306,7 @@ export async function POST(request: Request) {
       hasImages,
       hasAudio,
       messageParts,
+      effectiveEntitlements: rateLimitResult.effectiveEntitlements,
       onFinish: async ({ text, metrics }) => {
         const finishTimer = LatencyLogger.start("✏️ onFinish: Save response");
         if (text && text.trim().length > 0) {

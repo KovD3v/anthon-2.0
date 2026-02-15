@@ -13,6 +13,10 @@ import { headers } from "next/headers";
 import { Webhook } from "svix";
 import type { SubscriptionStatus } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
+import {
+  syncMembershipFromClerkEvent,
+  syncOrganizationFromClerkEvent,
+} from "@/lib/organizations/service";
 
 // Clerk webhook event types
 interface WebhookEvent {
@@ -36,6 +40,34 @@ interface SubscriptionData {
   trial_period_days?: number;
   current_period_start?: number;
   current_period_end?: number;
+}
+
+interface ClerkOrganizationData {
+  id?: string;
+  name?: string;
+  slug?: string;
+  status?: string;
+}
+
+interface ClerkOrganizationMembershipData {
+  id?: string;
+  role?: string;
+  status?: string;
+  organization?: { id?: string };
+  organization_id?: string;
+  public_user_data?: { user_id?: string };
+  publicUserData?: { userId?: string };
+  user?: { id?: string };
+  user_id?: string;
+}
+
+interface ClerkOrganizationInvitationAcceptedData {
+  id?: string;
+  role?: string;
+  organization_id?: string;
+  user_id?: string;
+  organization?: { id?: string };
+  user?: { id?: string };
 }
 
 export async function POST(req: Request) {
@@ -103,6 +135,42 @@ export async function POST(req: Request) {
       case "subscription.deleted":
         await handleSubscriptionDeleted(
           evt.data as unknown as SubscriptionData,
+        );
+        break;
+
+      case "organization.created":
+      case "organization.updated":
+        await handleOrganizationUpsert(
+          evt.data as unknown as ClerkOrganizationData,
+        );
+        break;
+
+      case "organization.deleted":
+        await handleOrganizationDeleted(
+          evt.data as unknown as ClerkOrganizationData,
+        );
+        break;
+
+      case "organizationMembership.created":
+      case "organizationMembership.updated":
+      case "organization_membership.created":
+      case "organization_membership.updated":
+        await handleOrganizationMembershipUpsert(
+          evt.data as unknown as ClerkOrganizationMembershipData,
+        );
+        break;
+
+      case "organizationInvitation.accepted":
+      case "organization_invitation.accepted":
+        await handleOrganizationInvitationAccepted(
+          evt.data as unknown as ClerkOrganizationInvitationAcceptedData,
+        );
+        break;
+
+      case "organizationMembership.deleted":
+      case "organization_membership.deleted":
+        await handleOrganizationMembershipDeleted(
+          evt.data as unknown as ClerkOrganizationMembershipData,
         );
         break;
 
@@ -363,6 +431,191 @@ async function handleSubscriptionDeleted(data: SubscriptionData) {
   console.log(
     `[Webhook] Subscription marked as expired: ${subscription.userId}`,
   );
+}
+
+function readString(
+  value: Record<string, unknown>,
+  key: string,
+): string | null {
+  const candidate = value[key];
+  return typeof candidate === "string" && candidate.length > 0
+    ? candidate
+    : null;
+}
+
+function mapMembershipStatus(
+  status?: string,
+): "ACTIVE" | "REMOVED" | "BLOCKED" {
+  const normalized = (status || "active").toLowerCase();
+  if (normalized.includes("block")) {
+    return "BLOCKED";
+  }
+  if (normalized.includes("delete") || normalized.includes("remove")) {
+    return "REMOVED";
+  }
+  return "ACTIVE";
+}
+
+async function handleOrganizationUpsert(data: ClerkOrganizationData) {
+  const payload = data as Record<string, unknown>;
+  const clerkOrganizationId = readString(payload, "id");
+
+  if (!clerkOrganizationId) {
+    console.error("[Webhook] Missing organization id in upsert event");
+    return;
+  }
+
+  await syncOrganizationFromClerkEvent({
+    clerkOrganizationId,
+    name: readString(payload, "name"),
+    slug: readString(payload, "slug"),
+  });
+}
+
+async function handleOrganizationDeleted(data: ClerkOrganizationData) {
+  const payload = data as Record<string, unknown>;
+  const clerkOrganizationId = readString(payload, "id");
+
+  if (!clerkOrganizationId) {
+    console.error("[Webhook] Missing organization id in delete event");
+    return;
+  }
+
+  await syncOrganizationFromClerkEvent({
+    clerkOrganizationId,
+    status: "ARCHIVED",
+  });
+}
+
+async function handleOrganizationMembershipUpsert(
+  data: ClerkOrganizationMembershipData,
+) {
+  const payload = data as Record<string, unknown>;
+  const id = readString(payload, "id");
+
+  const organizationId =
+    readString(payload, "organization_id") ||
+    readString((payload.organization as Record<string, unknown>) || {}, "id");
+
+  const userId =
+    readString(payload, "user_id") ||
+    readString((payload.user as Record<string, unknown>) || {}, "id") ||
+    readString(
+      (payload.public_user_data as Record<string, unknown>) || {},
+      "user_id",
+    ) ||
+    readString(
+      (payload.publicUserData as Record<string, unknown>) || {},
+      "userId",
+    );
+
+  if (!id || !organizationId || !userId) {
+    console.error("[Webhook] Missing fields for membership upsert", {
+      id,
+      organizationId,
+      userId,
+    });
+    return;
+  }
+
+  await syncMembershipFromClerkEvent({
+    clerkMembershipId: id,
+    clerkOrganizationId: organizationId,
+    clerkUserId: userId,
+    role: readString(payload, "role"),
+    status: mapMembershipStatus(readString(payload, "status") || "active"),
+  });
+}
+
+async function handleOrganizationMembershipDeleted(
+  data: ClerkOrganizationMembershipData,
+) {
+  const payload = data as Record<string, unknown>;
+  const id = readString(payload, "id");
+
+  const organizationId =
+    readString(payload, "organization_id") ||
+    readString((payload.organization as Record<string, unknown>) || {}, "id");
+
+  const userId =
+    readString(payload, "user_id") ||
+    readString((payload.user as Record<string, unknown>) || {}, "id") ||
+    readString(
+      (payload.public_user_data as Record<string, unknown>) || {},
+      "user_id",
+    ) ||
+    readString(
+      (payload.publicUserData as Record<string, unknown>) || {},
+      "userId",
+    );
+
+  if (!id || !organizationId || !userId) {
+    console.error("[Webhook] Missing fields for membership delete", {
+      id,
+      organizationId,
+      userId,
+    });
+    return;
+  }
+
+  await syncMembershipFromClerkEvent({
+    clerkMembershipId: id,
+    clerkOrganizationId: organizationId,
+    clerkUserId: userId,
+    role: readString(payload, "role"),
+    status: "REMOVED",
+  });
+}
+
+async function handleOrganizationInvitationAccepted(
+  data: ClerkOrganizationInvitationAcceptedData,
+) {
+  const payload = data as Record<string, unknown>;
+  const invitationId = readString(payload, "id");
+  const organizationId =
+    readString(payload, "organization_id") ||
+    readString((payload.organization as Record<string, unknown>) || {}, "id");
+  const userId =
+    readString(payload, "user_id") ||
+    readString((payload.user as Record<string, unknown>) || {}, "id");
+  const membershipId =
+    readString(payload, "organization_membership_id") ||
+    readString(payload, "organizationMembershipId") ||
+    readString(
+      (payload.organization_membership as Record<string, unknown>) || {},
+      "id",
+    );
+
+  if (!organizationId || !userId) {
+    console.error("[Webhook] Missing fields for invitation accepted", {
+      invitationId,
+      organizationId,
+      userId,
+    });
+    return;
+  }
+
+  // Invitation payload id is the invitation id, not membership id.
+  // Wait for organizationMembership.created unless a concrete membership id is present.
+  if (!membershipId) {
+    console.log(
+      "[Webhook] Invitation accepted; waiting for membership.created",
+      {
+        invitationId,
+        organizationId,
+        userId,
+      },
+    );
+    return;
+  }
+
+  await syncMembershipFromClerkEvent({
+    clerkMembershipId: membershipId,
+    clerkOrganizationId: organizationId,
+    clerkUserId: userId,
+    role: readString(payload, "role"),
+    status: "ACTIVE",
+  });
 }
 
 /**

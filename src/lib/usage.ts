@@ -1,7 +1,8 @@
 import { cache } from "react";
 import type { UserRole } from "@/generated/prisma";
 import { getFullUser } from "@/lib/auth";
-import { getDailyUsage, getRateLimitsForUser } from "@/lib/rate-limit";
+import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
+import { getDailyUsage } from "@/lib/rate-limit";
 
 export const getSharedUsageData = cache(
   async (userId: string, userRole: UserRole) => {
@@ -10,11 +11,21 @@ export const getSharedUsageData = cache(
     const planId = fullUser?.subscription?.planId;
 
     const usage = await getDailyUsage(userId);
-    const limits = getRateLimitsForUser(
-      subscriptionStatus ?? undefined,
+    const effectiveEntitlements = await resolveEffectiveEntitlements({
+      userId,
+      subscriptionStatus,
       userRole,
       planId,
-    );
+      isGuest: fullUser?.isGuest,
+    });
+
+    const limits = {
+      maxRequestsPerDay: effectiveEntitlements.limits.maxRequestsPerDay,
+      maxInputTokensPerDay: effectiveEntitlements.limits.maxInputTokensPerDay,
+      maxOutputTokensPerDay: effectiveEntitlements.limits.maxOutputTokensPerDay,
+      maxCostPerDay: effectiveEntitlements.limits.maxCostPerDay,
+      maxContextMessages: effectiveEntitlements.limits.maxContextMessages,
+    };
 
     let tier: "TRIAL" | "ACTIVE" | "ADMIN" = "TRIAL";
     if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
@@ -38,6 +49,14 @@ export const getSharedUsageData = cache(
       },
       tier,
       subscriptionStatus: subscriptionStatus ?? null,
+      entitlements: {
+        modelTier: effectiveEntitlements.modelTier,
+        sources: effectiveEntitlements.sources.map((source) => ({
+          type: source.type,
+          sourceId: source.sourceId,
+          sourceLabel: source.sourceLabel,
+        })),
+      },
     };
   },
 );

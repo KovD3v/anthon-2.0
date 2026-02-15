@@ -1,6 +1,7 @@
 import { devToolsMiddleware } from "@ai-sdk/devtools";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { wrapLanguageModel } from "ai";
+import type { OrganizationModelTier } from "@/lib/organizations/types";
 
 // Create OpenRouter provider instance with API key from environment
 export const openrouter = createOpenRouter({
@@ -64,10 +65,27 @@ export const subAgentModel = withDevTools(
 function resolvePlanKey(
   planId: string | null | undefined,
   userRole?: string,
+  modelTier?: OrganizationModelTier,
 ): keyof typeof MODEL_CONFIG {
   // Admin/Super Admin always get best models
   if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
     return "admin";
+  }
+
+  if (modelTier) {
+    switch (modelTier) {
+      case "ADMIN":
+        return "admin";
+      case "ENTERPRISE":
+      case "PRO":
+        return "pro";
+      case "BASIC_PLUS":
+        return "basic_plus";
+      case "BASIC":
+        return "basic";
+      default:
+        return "trial";
+    }
   }
 
   if (!planId) {
@@ -96,8 +114,9 @@ export function getModelForUser(
   planId: string | null | undefined,
   userRole?: string,
   modelType: "orchestrator" | "subAgent" = "orchestrator",
+  modelTier?: OrganizationModelTier,
 ) {
-  const planKey = resolvePlanKey(planId, userRole);
+  const planKey = resolvePlanKey(planId, userRole, modelTier);
   return withDevTools(openrouter(MODEL_CONFIG[planKey][modelType]));
 }
 
@@ -108,8 +127,9 @@ export function getModelIdForPlan(
   planId: string | null | undefined,
   userRole?: string,
   modelType: "orchestrator" | "subAgent" = "orchestrator",
+  modelTier?: OrganizationModelTier,
 ): string {
-  const planKey = resolvePlanKey(planId, userRole);
+  const planKey = resolvePlanKey(planId, userRole, modelTier);
   return MODEL_CONFIG[planKey][modelType];
 }
 

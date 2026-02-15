@@ -226,6 +226,12 @@ Admin UI is protected by role.
 - `/admin/users` lists users and basic stats.
 - User roles can be updated by super admins.
 
+### Organizations
+
+- `/admin/organizations` lets admins create organizations, assign/invite owners, and configure contract limits.
+- Seat limits are enforced on membership activation (accepted invites that would exceed seats are blocked).
+- Owners manage memberships/roles/invitations in Clerk UI at `/organization`.
+
 ### RAG documents
 
 - `/admin/rag` lets admins upload documents to the knowledge base.

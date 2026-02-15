@@ -3,6 +3,7 @@
 import {
   BarChart3,
   Brain,
+  Building2,
   FileText,
   FlaskConical,
   LayoutDashboard,
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/admin/costs", label: "Costs", icon: Brain },
   { href: "/admin/benchmark", label: "Benchmark", icon: FlaskConical },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/organizations", label: "Organizations", icon: Building2 },
   { href: "/admin/rag", label: "RAG Documents", icon: FileText },
   { href: "/admin/voice", label: "Voice", icon: Mic },
 ];

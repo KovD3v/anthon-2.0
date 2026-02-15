@@ -8,6 +8,7 @@ const isProtectedRoute = createRouteMatcher([
   "/settings(.*)",
   "/admin(.*)",
   "/channels(.*)",
+  "/organization(.*)",
 ]);
 
 // Routes that require admin role

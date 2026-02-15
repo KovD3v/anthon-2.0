@@ -59,6 +59,14 @@ export interface UsageData {
     | "EXPIRED"
     | "PAST_DUE"
     | null;
+  entitlements?: {
+    modelTier: string;
+    sources: Array<{
+      type: "personal" | "organization";
+      sourceId: string;
+      sourceLabel: string;
+    }>;
+  };
 }
 
 // -----------------------------------------------------

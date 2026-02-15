@@ -5,7 +5,8 @@
  */
 
 import { getAuthUser, getFullUser } from "@/lib/auth";
-import { getDailyUsage, getRateLimitsForUser } from "@/lib/rate-limit";
+import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
+import { getDailyUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -26,12 +27,13 @@ export async function GET() {
     // Get daily usage
     const usage = await getDailyUsage(user.id);
 
-    // Determine rate limits based on subscription and role
-    const limits = getRateLimitsForUser(
-      subscriptionStatus ?? undefined,
+    const effectiveEntitlements = await resolveEffectiveEntitlements({
+      userId: user.id,
+      subscriptionStatus,
       userRole,
       planId,
-    );
+      isGuest: fullUser?.isGuest,
+    });
 
     // Determine tier name for display
     let tier: "TRIAL" | "ACTIVE" | "ADMIN" = "TRIAL";
@@ -49,13 +51,21 @@ export async function GET() {
         totalCostUsd: usage.totalCostUsd,
       },
       limits: {
-        maxRequests: limits.maxRequestsPerDay,
-        maxInputTokens: limits.maxInputTokensPerDay,
-        maxOutputTokens: limits.maxOutputTokensPerDay,
-        maxCostUsd: limits.maxCostPerDay,
+        maxRequests: effectiveEntitlements.limits.maxRequestsPerDay,
+        maxInputTokens: effectiveEntitlements.limits.maxInputTokensPerDay,
+        maxOutputTokens: effectiveEntitlements.limits.maxOutputTokensPerDay,
+        maxCostUsd: effectiveEntitlements.limits.maxCostPerDay,
       },
       tier,
       subscriptionStatus: subscriptionStatus ?? null,
+      entitlements: {
+        modelTier: effectiveEntitlements.modelTier,
+        sources: effectiveEntitlements.sources.map((source) => ({
+          type: source.type,
+          sourceId: source.sourceId,
+          sourceLabel: source.sourceLabel,
+        })),
+      },
     });
   } catch (err) {
     console.error("[Usage API] Error:", err);

@@ -5,6 +5,8 @@
  * Controls probabilities, decay factors, and caps per subscription tier.
  */
 
+import type { OrganizationModelTier } from "@/lib/organizations/types";
+
 export interface VoicePlanConfig {
   enabled: boolean;
   baseProbability: number; // 0.0 - 1.0
@@ -77,6 +79,7 @@ export function getVoicePlanConfig(
   userRole?: string,
   planId?: string | null,
   isGuest?: boolean,
+  modelTier?: OrganizationModelTier,
 ): VoicePlanConfig {
   // Admin users have unlimited access
   if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
@@ -86,6 +89,22 @@ export function getVoicePlanConfig(
   // Guest users have voice disabled
   if (isGuest) {
     return VOICE_PLAN_CONFIG.GUEST;
+  }
+
+  if (modelTier) {
+    switch (modelTier) {
+      case "ADMIN":
+        return VOICE_PLAN_CONFIG.ADMIN;
+      case "ENTERPRISE":
+      case "PRO":
+        return VOICE_PLAN_CONFIG.pro;
+      case "BASIC_PLUS":
+        return VOICE_PLAN_CONFIG.basic_plus;
+      case "BASIC":
+        return VOICE_PLAN_CONFIG.basic;
+      default:
+        return VOICE_PLAN_CONFIG.TRIAL;
+    }
   }
 
   // Check specific plan ID first (from Clerk)

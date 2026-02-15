@@ -250,17 +250,21 @@ Get current user's daily usage and limits.
     totalCostUsd: number;
   }
   limits: {
-    maxRequestsPerDay: number;
-    maxInputTokensPerDay: number;
-    maxOutputTokensPerDay: number;
-    maxCostPerDay: number;
+    maxRequests: number;
+    maxInputTokens: number;
+    maxOutputTokens: number;
+    maxCostUsd: number;
   }
-  percentUsed: {
-    requests: number;
-    inputTokens: number;
-    outputTokens: number;
-    cost: number;
-  }
+  tier: "TRIAL" | "ACTIVE" | "ADMIN";
+  subscriptionStatus: "TRIAL" | "ACTIVE" | "CANCELED" | "EXPIRED" | "PAST_DUE" | null;
+  entitlements?: {
+    modelTier: "TRIAL" | "BASIC" | "BASIC_PLUS" | "PRO" | "ENTERPRISE" | "ADMIN";
+    sources: Array<{
+      type: "personal" | "organization";
+      sourceId: string;
+      sourceLabel: string;
+    }>;
+  };
 }
 ```
 
@@ -336,6 +340,37 @@ Uploads and processes one or more documents (multipart form field: `files`).
 
 Deletes a RAG document and its chunks.
 
+### `GET /api/admin/organizations`
+
+Lists organizations with contract summary and active seat usage.
+
+### `POST /api/admin/organizations`
+
+Creates a Clerk organization, stores local contract limits, and assigns/invites the owner.
+
+Contract payload notes:
+
+- `basePlan` is required (`BASIC`, `BASIC_PLUS`, `PRO`).
+- `modelTier` is an advanced override; if unchanged, it should match the base plan tier.
+- Numeric contract fields are treated as enterprise overrides.
+
+### `GET /api/admin/organizations/[organizationId]`
+
+Returns organization details, contract, owner, and membership state.
+
+### `PATCH /api/admin/organizations/[organizationId]`
+
+Updates contract limits and/or initiates owner transfer.
+
+Response notes (list/detail/create/update):
+
+- Organization responses include `effective` when a contract is present.
+- `effective` is computed from `basePlan` defaults plus explicit enterprise overrides.
+
+### `GET /api/admin/organizations/[organizationId]/audit`
+
+Returns immutable audit log entries for contract-sensitive actions.
+
 ---
 
 ## Health
@@ -356,6 +391,9 @@ Handles Clerk webhook events:
 - `user.updated` - Update user data
 - `user.deleted` - Soft delete user
 - `subscription.*` - Update subscription status
+- `organization.*` - Sync organization lifecycle
+- `organizationMembership.*` - Sync memberships, enforce seat limit on join
+- `organizationInvitation.accepted` - Sync accepted owner/member invite flow
 
 **Headers Required:**
 

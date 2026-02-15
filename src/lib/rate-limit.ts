@@ -6,6 +6,12 @@
  */
 
 import { prisma } from "@/lib/db";
+import {
+  PERSONAL_PLAN_LIMITS,
+  type PersonalPlanKey,
+} from "@/lib/limits/personal-limits";
+import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
+import type { EffectiveEntitlements } from "@/lib/organizations/types";
 
 // -----------------------------------------------------
 // RATE LIMITS CONFIGURATION
@@ -19,66 +25,8 @@ export interface RateLimits {
   maxContextMessages: number; // Session message cap
 }
 
-// Default limits for different subscription tiers
-const RATE_LIMITS: Record<string, RateLimits> = {
-  // Guest users (anonymous / pre-registration)
-  // Intentionally stricter than TRIAL to mitigate abuse before identity verification.
-  GUEST: {
-    maxRequestsPerDay: 10,
-    maxInputTokensPerDay: 20_000,
-    maxOutputTokensPerDay: 10_000,
-    maxCostPerDay: 0.05,
-    maxContextMessages: 5,
-  },
-  // Trial users (no active subscription)
-  TRIAL: {
-    maxRequestsPerDay: 3,
-    maxInputTokensPerDay: 100_000,
-    maxOutputTokensPerDay: 50_000,
-    maxCostPerDay: 0.5,
-    maxContextMessages: 10,
-  },
-  // Basic plan ($7/month) - 3 day trial
-  basic: {
-    maxRequestsPerDay: 50,
-    maxInputTokensPerDay: 500_000,
-    maxOutputTokensPerDay: 250_000,
-    maxCostPerDay: 3,
-    maxContextMessages: 15,
-  },
-  // Basic Plus plan ($12/month)
-  basic_plus: {
-    maxRequestsPerDay: 50,
-    maxInputTokensPerDay: 800_000,
-    maxOutputTokensPerDay: 400_000,
-    maxCostPerDay: 5,
-    maxContextMessages: 30,
-  },
-  // Pro plan ($25/month)
-  pro: {
-    maxRequestsPerDay: 100,
-    maxInputTokensPerDay: 2_000_000,
-    maxOutputTokensPerDay: 1_000_000,
-    maxCostPerDay: 15,
-    maxContextMessages: 100,
-  },
-  // Active subscription (fallback for ACTIVE status without plan)
-  ACTIVE: {
-    maxRequestsPerDay: 50,
-    maxInputTokensPerDay: 500_000,
-    maxOutputTokensPerDay: 250_000,
-    maxCostPerDay: 3,
-    maxContextMessages: 15,
-  },
-  // Admin / Unlimited
-  ADMIN: {
-    maxRequestsPerDay: Number.POSITIVE_INFINITY,
-    maxInputTokensPerDay: Number.POSITIVE_INFINITY,
-    maxOutputTokensPerDay: Number.POSITIVE_INFINITY,
-    maxCostPerDay: Number.POSITIVE_INFINITY,
-    maxContextMessages: 100,
-  },
-};
+// Keep a local alias for backward compatibility with existing rate-limit helpers.
+const RATE_LIMITS: Record<PersonalPlanKey, RateLimits> = PERSONAL_PLAN_LIMITS;
 
 // -----------------------------------------------------
 // ATTACHMENT RETENTION CONFIGURATION
@@ -338,6 +286,33 @@ export interface RateLimitResult {
     cost: number;
   };
   upgradeInfo?: UpgradeInfo | null;
+  entitlements?: {
+    modelTier: string;
+    sources: Array<{
+      type: "personal" | "organization";
+      sourceId: string;
+      sourceLabel: string;
+    }>;
+  };
+  effectiveEntitlements?: EffectiveEntitlements;
+}
+
+function buildEntitlementsPayload(entitlements: EffectiveEntitlements): {
+  modelTier: string;
+  sources: Array<{
+    type: "personal" | "organization";
+    sourceId: string;
+    sourceLabel: string;
+  }>;
+} {
+  return {
+    modelTier: entitlements.modelTier,
+    sources: entitlements.sources.map((source) => ({
+      type: source.type,
+      sourceId: source.sourceId,
+      sourceLabel: source.sourceLabel,
+    })),
+  };
 }
 
 /**
@@ -351,12 +326,21 @@ export async function checkRateLimit(
   isGuest?: boolean,
 ): Promise<RateLimitResult> {
   const usage = await getDailyUsage(userId);
-  const limits = getRateLimitsForUser(
+  const entitlements = await resolveEffectiveEntitlements({
+    userId,
     subscriptionStatus,
     userRole,
     planId,
     isGuest,
-  );
+  });
+
+  const limits: RateLimits = {
+    maxRequestsPerDay: entitlements.limits.maxRequestsPerDay,
+    maxInputTokensPerDay: entitlements.limits.maxInputTokensPerDay,
+    maxOutputTokensPerDay: entitlements.limits.maxOutputTokensPerDay,
+    maxCostPerDay: entitlements.limits.maxCostPerDay,
+    maxContextMessages: entitlements.limits.maxContextMessages,
+  };
 
   // Determine effective plan ID for upgrade suggestions
   const effectivePlanId = getEffectivePlanId(
@@ -382,6 +366,8 @@ export async function checkRateLimit(
       reason: "Daily request limit reached",
       percentUsed,
       upgradeInfo: getUpgradeInfo(effectivePlanId, "requests"),
+      entitlements: buildEntitlementsPayload(entitlements),
+      effectiveEntitlements: entitlements,
     };
   }
 
@@ -393,6 +379,8 @@ export async function checkRateLimit(
       reason: "Daily input token limit reached",
       percentUsed,
       upgradeInfo: getUpgradeInfo(effectivePlanId, "tokens"),
+      entitlements: buildEntitlementsPayload(entitlements),
+      effectiveEntitlements: entitlements,
     };
   }
 
@@ -404,6 +392,8 @@ export async function checkRateLimit(
       reason: "Daily output token limit reached",
       percentUsed,
       upgradeInfo: getUpgradeInfo(effectivePlanId, "tokens"),
+      entitlements: buildEntitlementsPayload(entitlements),
+      effectiveEntitlements: entitlements,
     };
   }
 
@@ -415,6 +405,8 @@ export async function checkRateLimit(
       reason: "Daily spending limit reached",
       percentUsed,
       upgradeInfo: getUpgradeInfo(effectivePlanId, "cost"),
+      entitlements: buildEntitlementsPayload(entitlements),
+      effectiveEntitlements: entitlements,
     };
   }
 
@@ -423,6 +415,8 @@ export async function checkRateLimit(
     usage,
     limits,
     percentUsed,
+    entitlements: buildEntitlementsPayload(entitlements),
+    effectiveEntitlements: entitlements,
   };
 }
 
