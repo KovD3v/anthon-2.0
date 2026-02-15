@@ -44,6 +44,19 @@ export interface RateLimits {
   maxCostUsd: number;
 }
 
+export interface EntitlementSource {
+  type: "personal" | "organization";
+  sourceId: string;
+  sourceLabel: string;
+}
+
+export interface UsageEntitlements {
+  modelTier: string;
+  sources: EntitlementSource[];
+}
+
+export type UsageTier = "GUEST" | "TRIAL" | "ACTIVE" | "ADMIN";
+
 // -----------------------------------------------------
 // Full Usage and Limits (for layout/sidebar)
 // -----------------------------------------------------
@@ -51,7 +64,7 @@ export interface RateLimits {
 export interface UsageData {
   usage: DailyUsage;
   limits: RateLimits;
-  tier: "TRIAL" | "ACTIVE" | "ADMIN";
+  tier: UsageTier;
   subscriptionStatus:
     | "TRIAL"
     | "ACTIVE"
@@ -59,14 +72,7 @@ export interface UsageData {
     | "EXPIRED"
     | "PAST_DUE"
     | null;
-  entitlements?: {
-    modelTier: string;
-    sources: Array<{
-      type: "personal" | "organization";
-      sourceId: string;
-      sourceLabel: string;
-    }>;
-  };
+  entitlements?: UsageEntitlements;
 }
 
 // -----------------------------------------------------

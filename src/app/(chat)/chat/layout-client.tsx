@@ -154,6 +154,47 @@ export function LayoutClient({
     setUsageData(initialUsageData);
   }, [initialUsageData]);
 
+  // Keep usage monitor fresh while user is active in chat.
+  useEffect(() => {
+    const endpoint = isGuest ? "/api/guest/usage" : "/api/usage";
+    let cancelled = false;
+
+    const refreshUsageData = async () => {
+      try {
+        const res = await fetch(`${endpoint}?t=${Date.now()}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          return;
+        }
+        const data = (await res.json()) as UsageData;
+        if (!cancelled) {
+          setUsageData(data);
+        }
+      } catch (error) {
+        console.error("Failed to refresh usage data:", error);
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshUsageData();
+      }
+    };
+
+    refreshUsageData();
+    const intervalId = window.setInterval(refreshUsageData, 30_000);
+    window.addEventListener("focus", refreshUsageData);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshUsageData);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [isGuest]);
+
   // Keyboard shortcuts
   useKeyboardShortcut({
     key: "n",
@@ -469,7 +510,9 @@ export function LayoutClient({
               onToggleSidebar={() => setIsSidebarOpen(true)}
               usage={usageData.usage}
               limits={usageData.limits}
+              tier={usageData.tier}
               subscriptionStatus={usageData.subscriptionStatus}
+              entitlements={usageData.entitlements}
             />
           ) : (
             !isSidebarOpen && (

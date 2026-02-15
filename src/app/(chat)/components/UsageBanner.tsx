@@ -12,7 +12,12 @@ import {
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { DailyUsage, RateLimits } from "@/types/chat";
+import type {
+  DailyUsage,
+  RateLimits,
+  UsageEntitlements,
+  UsageTier,
+} from "@/types/chat";
 
 interface UsageBannerProps {
   /**
@@ -24,6 +29,10 @@ interface UsageBannerProps {
    */
   limits?: RateLimits | null;
   /**
+   * Effective tier classification
+   */
+  tier?: UsageTier;
+  /**
    * User's subscription status
    */
   subscriptionStatus?:
@@ -33,6 +42,10 @@ interface UsageBannerProps {
     | "EXPIRED"
     | "PAST_DUE"
     | null;
+  /**
+   * Effective entitlement sources (personal or organization)
+   */
+  entitlements?: UsageEntitlements;
   /**
    * Optional class name
    */
@@ -53,7 +66,9 @@ interface UsageBannerProps {
 export function UsageBanner({
   usage,
   limits,
+  tier,
   subscriptionStatus,
+  entitlements,
   className,
   showToggle,
   onToggleSidebar,
@@ -121,9 +136,8 @@ export function UsageBanner({
 
   const maxPercent = Math.max(requestPercent, tokenPercent, costPercent);
 
-  // Calculate visibility
-  const isApproachingLimit = maxPercent >= 70;
-  const shouldShowFullBanner = !isDismissed && isApproachingLimit;
+  // Always show usage when available (unless manually dismissed).
+  const shouldShowFullBanner = !isDismissed;
 
   // If we shouldn't show the full banner, check if we need to show the toggle
   if (!shouldShowFullBanner) {
@@ -148,6 +162,8 @@ export function UsageBanner({
 
   const isAtLimit = maxPercent >= 100;
   const isNearLimit = maxPercent >= 90;
+  const primaryEntitlement = entitlements?.sources?.[0];
+  const isOrganizationEntitlement = primaryEntitlement?.type === "organization";
 
   const getBannerStyle = () => {
     if (isAtLimit) {
@@ -177,7 +193,28 @@ export function UsageBanner({
     return `Hai usato il ${Math.round(maxPercent)}% del limite giornaliero.`;
   };
 
+  const getOrganizationName = () => {
+    if (!primaryEntitlement?.sourceLabel) {
+      return null;
+    }
+    if (!primaryEntitlement.sourceLabel.startsWith("organization:")) {
+      return null;
+    }
+    const parts = primaryEntitlement.sourceLabel.split(":");
+    if (parts.length < 3) {
+      return parts[1] || null;
+    }
+    return parts.slice(1, -1).join(":") || null;
+  };
+
   const getTierName = () => {
+    if (isOrganizationEntitlement) {
+      const organizationName = getOrganizationName();
+      return organizationName
+        ? `Organizzazione ${organizationName}`
+        : "Organizzazione";
+    }
+    if (tier === "ADMIN") return "Admin";
     if (subscriptionStatus === "ACTIVE") return "Pro";
     if (subscriptionStatus === "TRIAL") return "Prova";
     return "Ospite";
@@ -185,9 +222,24 @@ export function UsageBanner({
 
   const getUpgradeButtonText = () => {
     if (isAtLimit) {
-      return subscriptionStatus === "ACTIVE" ? "Gestisci piano" : "Passa a Basic";
+      return subscriptionStatus === "ACTIVE"
+        ? "Gestisci piano"
+        : "Passa a Basic";
     }
     return subscriptionStatus === "ACTIVE" ? "Gestisci piano" : "Passa a Pro";
+  };
+
+  const getEntitlementSourceLabel = () => {
+    if (!primaryEntitlement) {
+      return null;
+    }
+    if (primaryEntitlement.type === "organization") {
+      const organizationName = getOrganizationName();
+      return organizationName
+        ? `Fonte limiti: contratto org (${organizationName})`
+        : "Fonte limiti: contratto org";
+    }
+    return "Fonte limiti: piano personale";
   };
 
   return (
@@ -218,12 +270,20 @@ export function UsageBanner({
                 {getTierName()}: {usage.requestCount}/{limits.maxRequests}{" "}
                 messaggi scritti oggi
               </p>
+              {(entitlements?.modelTier || primaryEntitlement) && (
+                <p className="text-[11px] opacity-70">
+                  {getEntitlementSourceLabel()}
+                  {entitlements?.modelTier
+                    ? ` • Tier modello ${entitlements.modelTier}`
+                    : ""}
+                </p>
+              )}
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {subscriptionStatus !== "ACTIVE" && (
+          {subscriptionStatus !== "ACTIVE" && !isOrganizationEntitlement && (
             <Button
               variant="ghost"
               size="sm"
