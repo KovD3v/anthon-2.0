@@ -45,7 +45,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-		<ClerkProvider clerkJSVersion="6.36.5">
+		<ClerkProvider>
 			<html lang="it" suppressHydrationWarning>
 				<body
 					className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
