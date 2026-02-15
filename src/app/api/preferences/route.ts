@@ -1,5 +1,10 @@
-import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import {
+  jsonOk,
+  notFound,
+  serverError,
+  unauthorized,
+} from "@/lib/api/responses";
+import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 /**
@@ -8,27 +13,24 @@ import { prisma } from "@/lib/db";
  */
 export async function GET() {
   try {
-    const { userId: clerkId } = await auth();
+    const { user, error } = await getAuthUser();
 
-    if (!clerkId) {
-      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
+    if (error || !user) {
+      return unauthorized(error || "Non autorizzato");
     }
 
-    // Find the user by clerkId
-    const user = await prisma.user.findUnique({
-      where: { clerkId },
+    // Find the user by id
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
       include: { preferences: true },
     });
 
-    if (!user) {
-      return NextResponse.json(
-        { error: "Utente non trovato" },
-        { status: 404 },
-      );
+    if (!dbUser) {
+      return notFound("Utente non trovato");
     }
 
     // Return preferences or defaults
-    const preferences = user.preferences || {
+    const preferences = dbUser.preferences || {
       voiceEnabled: true,
       tone: null,
       mode: null,
@@ -36,13 +38,10 @@ export async function GET() {
       push: true,
     };
 
-    return NextResponse.json(preferences);
+    return jsonOk(preferences);
   } catch (error) {
     console.error("[GET /api/preferences] Error:", error);
-    return NextResponse.json(
-      { error: "Errore interno del server" },
-      { status: 500 },
-    );
+    return serverError("Errore interno del server");
   }
 }
 
@@ -52,31 +51,28 @@ export async function GET() {
  */
 export async function PATCH(request: Request) {
   try {
-    const { userId: clerkId } = await auth();
+    const { user, error } = await getAuthUser();
 
-    if (!clerkId) {
-      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
+    if (error || !user) {
+      return unauthorized(error || "Non autorizzato");
     }
 
     const body = await request.json();
     const { voiceEnabled, tone, mode, language, push } = body;
 
-    // Find the user by clerkId
-    const user = await prisma.user.findUnique({
-      where: { clerkId },
+    // Find the user by id
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
       include: { preferences: true },
     });
 
-    if (!user) {
-      return NextResponse.json(
-        { error: "Utente non trovato" },
-        { status: 404 },
-      );
+    if (!dbUser) {
+      return notFound("Utente non trovato");
     }
 
     // Upsert preferences
     const preferences = await prisma.preferences.upsert({
-      where: { userId: user.id },
+      where: { userId: dbUser.id },
       update: {
         ...(voiceEnabled !== undefined && { voiceEnabled }),
         ...(tone !== undefined && { tone }),
@@ -85,7 +81,7 @@ export async function PATCH(request: Request) {
         ...(push !== undefined && { push }),
       },
       create: {
-        userId: user.id,
+        userId: dbUser.id,
         voiceEnabled: voiceEnabled ?? true,
         tone: tone ?? null,
         mode: mode ?? null,
@@ -94,12 +90,9 @@ export async function PATCH(request: Request) {
       },
     });
 
-    return NextResponse.json(preferences);
+    return jsonOk(preferences);
   } catch (error) {
     console.error("[PATCH /api/preferences] Error:", error);
-    return NextResponse.json(
-      { error: "Errore interno del server" },
-      { status: 500 },
-    );
+    return serverError("Errore interno del server");
   }
 }

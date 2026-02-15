@@ -4,21 +4,29 @@ Anthon 2.0 exposes REST API endpoints for chat, data management, and administrat
 
 ## Authentication
 
-All API routes (except webhooks) require Clerk authentication. The authenticated user is available via:
-
-```typescript
-import { auth } from "@clerk/nextjs/server";
-
-const { userId } = await auth();
-```
-
-Many routes also use the internal helper:
+All API routes (except webhooks) require Clerk authentication. The preferred pattern uses the internal helper:
 
 ```ts
 import { getAuthUser } from "@/lib/auth";
 
 const { user, error } = await getAuthUser();
 ```
+
+Performance-critical routes (e.g. `/api/chat`) may use `auth()` from `@clerk/nextjs/server` directly.
+
+## Response Helpers
+
+API routes use shared response helpers from `@/lib/api/responses`:
+
+```ts
+import { jsonOk, unauthorized, serverError } from "@/lib/api/responses";
+
+return jsonOk(data);
+return unauthorized();
+return serverError("Something went wrong");
+```
+
+Available helpers: `jsonOk`, `jsonCreated`, `badRequest`, `unauthorized`, `forbidden`, `notFound`, `rateLimited`, `serverError`.
 
 ## Chat API
 

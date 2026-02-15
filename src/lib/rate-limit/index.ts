@@ -1,0 +1,23 @@
+/**
+ * Rate Limit Module — barrel re-export.
+ *
+ * All existing `import { ... } from "@/lib/rate-limit"` imports continue
+ * to work unchanged because Next.js resolves this directory index file.
+ */
+
+// Limit checking
+export { checkRateLimit } from "./check";
+
+// Config & plan resolution
+export { ATTACHMENT_RETENTION_DAYS, getRateLimitsForUser } from "./config";
+// Types
+export type {
+  DailyUsageData,
+  RateLimitResult,
+  RateLimits,
+  UpgradeInfo,
+} from "./types";
+// Upgrade CTA
+export { getUpgradeInfo } from "./upgrade";
+// Usage tracking
+export { getDailyUsage, incrementUsage } from "./usage";

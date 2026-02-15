@@ -1,38 +1,50 @@
+/**
+ * Organization Module — core business logic.
+ *
+ * This file imports from sibling submodules:
+ * - `./clerk-api`  — Clerk SDK wrappers
+ * - `./audit-log`  — audit logging helpers
+ * - `./helpers`    — pure utility functions
+ */
+
 import { clerkClient } from "@clerk/nextjs/server";
 import { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
+import type { OrganizationContractInput } from "@/lib/organizations/types";
+
 import {
-  isOrganizationBasePlan,
-  normalizeOrganizationBasePlan,
-} from "@/lib/organizations/plan-defaults";
+  addClerkMembership,
+  CLERK_MEMBER_ROLE,
+  CLERK_OWNER_ROLE,
+  callClerkMethod,
+  createClerkOrganization,
+  deleteClerkOrganization,
+  getString,
+  inviteClerkOwner,
+  removeClerkMembership,
+  updateClerkMembershipRole,
+  updateClerkOrganization,
+} from "./clerk-api";
 import {
-  ORGANIZATION_MODEL_TIERS,
-  type OrganizationContractInput,
-  type OrganizationMemberRole,
-} from "@/lib/organizations/types";
+  ensureUniqueSlug,
+  getRoleFromClerkMembership,
+  isSerializationFailure,
+  jsonValue,
+  resolveOwnerByEmail,
+  sanitizeContractInput,
+  slugify,
+} from "./helpers";
 
-const CLERK_OWNER_ROLE = "org:admin";
-const CLERK_MEMBER_ROLE = "org:member";
+// Re-export these so existing consumers of "@/lib/organizations/service" keep working.
+export {
+  listOrganizationAuditLogs,
+  writeOrganizationAuditLog,
+} from "./audit-log";
+export { demoteMembershipToMember } from "./clerk-api-extras";
 
-type JsonObject = Record<string, unknown>;
-
-interface CreateOrganizationInput {
-  name: string;
-  slug?: string;
-  ownerEmail: string;
-  contract: OrganizationContractInput;
-  createdByUserId: string;
-}
-
-interface UpdateOrganizationInput {
-  organizationId: string;
-  actorUserId: string;
-  name?: string;
-  slug?: string;
-  contract?: Partial<OrganizationContractInput>;
-  ownerEmail?: string;
-  status?: "ACTIVE" | "SUSPENDED" | "ARCHIVED";
-}
+// ---------------------------------------------------------------------------
+// Error type
+// ---------------------------------------------------------------------------
 
 export class OrganizationServiceError extends Error {
   code:
@@ -55,352 +67,31 @@ export class OrganizationServiceError extends Error {
   }
 }
 
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-}
+// ---------------------------------------------------------------------------
+// Input types
+// ---------------------------------------------------------------------------
 
-function jsonValue(value: unknown): Prisma.InputJsonValue {
-  return value as Prisma.InputJsonValue;
-}
-
-function sanitizeContractInput(
-  input: OrganizationContractInput,
-): OrganizationContractInput {
-  if (!isOrganizationBasePlan(input.basePlan)) {
-    throw new Error("Invalid basePlan");
-  }
-
-  if (!ORGANIZATION_MODEL_TIERS.includes(input.modelTier)) {
-    throw new Error("Invalid modelTier");
-  }
-
-  const planLabel = input.planLabel.trim();
-  if (!planLabel) {
-    throw new Error("planLabel is required");
-  }
-
-  const seatLimit = Number(input.seatLimit);
-  const maxRequestsPerDay = Number(input.maxRequestsPerDay);
-  const maxInputTokensPerDay = Number(input.maxInputTokensPerDay);
-  const maxOutputTokensPerDay = Number(input.maxOutputTokensPerDay);
-  const maxCostPerDay = Number(input.maxCostPerDay);
-  const maxContextMessages = Number(input.maxContextMessages);
-
-  if (!Number.isFinite(seatLimit) || seatLimit < 1) {
-    throw new Error("seatLimit must be >= 1");
-  }
-  if (!Number.isFinite(maxRequestsPerDay) || maxRequestsPerDay < 1) {
-    throw new Error("maxRequestsPerDay must be >= 1");
-  }
-  if (!Number.isFinite(maxInputTokensPerDay) || maxInputTokensPerDay < 1) {
-    throw new Error("maxInputTokensPerDay must be >= 1");
-  }
-  if (!Number.isFinite(maxOutputTokensPerDay) || maxOutputTokensPerDay < 1) {
-    throw new Error("maxOutputTokensPerDay must be >= 1");
-  }
-  if (!Number.isFinite(maxCostPerDay) || maxCostPerDay < 0) {
-    throw new Error("maxCostPerDay must be >= 0");
-  }
-  if (!Number.isFinite(maxContextMessages) || maxContextMessages < 1) {
-    throw new Error("maxContextMessages must be >= 1");
-  }
-
-  return {
-    basePlan: normalizeOrganizationBasePlan(input.basePlan),
-    planLabel,
-    modelTier: input.modelTier,
-    seatLimit: Math.floor(seatLimit),
-    maxRequestsPerDay: Math.floor(maxRequestsPerDay),
-    maxInputTokensPerDay: Math.floor(maxInputTokensPerDay),
-    maxOutputTokensPerDay: Math.floor(maxOutputTokensPerDay),
-    maxCostPerDay,
-    maxContextMessages: Math.floor(maxContextMessages),
-  };
-}
-
-function isSerializationFailure(error: unknown): boolean {
-  return (
-    !!error &&
-    typeof error === "object" &&
-    "code" in error &&
-    (error as { code?: string }).code === "P2034"
-  );
-}
-
-async function getClerkOrgsApi(): Promise<Record<string, unknown>> {
-  const client = (await clerkClient()) as unknown as {
-    organizations?: Record<string, unknown>;
-  };
-
-  if (!client.organizations) {
-    throw new Error("Clerk organizations API is not available");
-  }
-
-  return client.organizations;
-}
-
-async function callClerkMethod<T = unknown>(
-  methods: string[],
-  args: Record<string, unknown>,
-): Promise<T> {
-  const organizationsApi = await getClerkOrgsApi();
-
-  for (const methodName of methods) {
-    const candidate = organizationsApi[methodName];
-    if (typeof candidate === "function") {
-      return (
-        candidate as (
-          this: Record<string, unknown>,
-          payload: Record<string, unknown>,
-        ) => Promise<T>
-      ).call(organizationsApi, args);
-    }
-  }
-
-  throw new Error(`No compatible Clerk method found (${methods.join(", ")})`);
-}
-
-function getId(value: unknown): string | null {
-  if (!value || typeof value !== "object") return null;
-  const id = (value as { id?: unknown }).id;
-  return typeof id === "string" && id.length > 0 ? id : null;
-}
-
-function getString(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function getRoleFromClerkMembership(
-  role: string | null,
-): OrganizationMemberRole {
-  if (!role) return "MEMBER";
-  const normalized = role.toLowerCase();
-  if (normalized.includes("admin") || normalized.includes("owner")) {
-    return "OWNER";
-  }
-  return "MEMBER";
-}
-
-export async function writeOrganizationAuditLog(input: {
-  organizationId: string;
-  actorUserId?: string | null;
-  actorType: "ADMIN" | "SYSTEM" | "WEBHOOK";
-  action:
-    | "ORGANIZATION_CREATED"
-    | "CONTRACT_UPDATED"
-    | "OWNER_ASSIGNED"
-    | "OWNER_TRANSFERRED"
-    | "MEMBERSHIP_SYNCED"
-    | "MEMBERSHIP_BLOCKED_SEAT_LIMIT";
-  before?: JsonObject | null;
-  after?: JsonObject | null;
-  metadata?: JsonObject | null;
-}): Promise<void> {
-  await prisma.organizationAuditLog.create({
-    data: {
-      organizationId: input.organizationId,
-      actorUserId: input.actorUserId ?? null,
-      actorType: input.actorType,
-      action: input.action,
-      before: input.before ? jsonValue(input.before) : undefined,
-      after: input.after ? jsonValue(input.after) : undefined,
-      metadata: input.metadata ? jsonValue(input.metadata) : undefined,
-    },
-  });
-}
-
-async function ensureUniqueSlug(
-  baseSlug: string,
-  options?: { excludeOrganizationId?: string },
-): Promise<string> {
-  const rootSlug = baseSlug || `org-${Date.now()}`;
-  let nextSlug = rootSlug;
-  let suffix = 1;
-  const maxAttempts = 100;
-
-  while (suffix <= maxAttempts) {
-    const exists = await prisma.organization.findUnique({
-      where: { slug: nextSlug },
-      select: { id: true },
-    });
-    if (!exists || exists.id === options?.excludeOrganizationId) {
-      return nextSlug;
-    }
-    suffix += 1;
-    nextSlug = `${rootSlug}-${suffix}`;
-  }
-
-  throw new Error("Unable to generate unique organization slug");
-}
-
-async function createClerkOrganization(input: {
+interface CreateOrganizationInput {
   name: string;
-  slug: string;
-}): Promise<{ id: string }> {
-  const organization = await callClerkMethod<{ id?: string }>(
-    ["createOrganization", "create"],
-    {
-      name: input.name,
-      slug: input.slug,
-    },
-  );
-
-  const clerkOrganizationId = getId(organization);
-  if (!clerkOrganizationId) {
-    throw new Error("Clerk organization creation did not return an id");
-  }
-
-  return { id: clerkOrganizationId };
+  slug?: string;
+  ownerEmail: string;
+  contract: OrganizationContractInput;
+  createdByUserId: string;
 }
 
-async function deleteClerkOrganization(input: {
-  clerkOrganizationId: string;
-}): Promise<void> {
-  await callClerkMethod(["deleteOrganization", "delete"], {
-    organizationId: input.clerkOrganizationId,
-    id: input.clerkOrganizationId,
-  });
-}
-
-async function updateClerkOrganization(input: {
-  clerkOrganizationId: string;
+interface UpdateOrganizationInput {
+  organizationId: string;
+  actorUserId: string;
   name?: string;
   slug?: string;
-}): Promise<void> {
-  const organizationsApi = await getClerkOrgsApi();
-  const patch = {
-    ...(input.name ? { name: input.name } : {}),
-    ...(input.slug ? { slug: input.slug } : {}),
-  };
-
-  const methods = ["updateOrganization", "update"];
-  let lastError: unknown = null;
-
-  for (const methodName of methods) {
-    const candidate = organizationsApi[methodName];
-    if (typeof candidate !== "function") {
-      continue;
-    }
-
-    // Clerk SDK signatures vary across versions:
-    // - updateOrganization(organizationId, params)
-    // - update({ organizationId, ...params })
-    const attempts: Array<() => Promise<unknown>> = [
-      () =>
-        (
-          candidate as (
-            this: Record<string, unknown>,
-            organizationId: string,
-            payload: Record<string, unknown>,
-          ) => Promise<unknown>
-        ).call(organizationsApi, input.clerkOrganizationId, patch),
-      () =>
-        (
-          candidate as (
-            this: Record<string, unknown>,
-            payload: Record<string, unknown>,
-          ) => Promise<unknown>
-        ).call(organizationsApi, {
-          organizationId: input.clerkOrganizationId,
-          ...patch,
-        }),
-      () =>
-        (
-          candidate as (
-            this: Record<string, unknown>,
-            payload: Record<string, unknown>,
-          ) => Promise<unknown>
-        ).call(organizationsApi, {
-          id: input.clerkOrganizationId,
-          ...patch,
-        }),
-    ];
-
-    for (const attempt of attempts) {
-      try {
-        await attempt();
-        return;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-  }
-
-  if (lastError) {
-    throw lastError;
-  }
-  throw new Error("No compatible Clerk update method found");
+  contract?: Partial<OrganizationContractInput>;
+  ownerEmail?: string;
+  status?: "ACTIVE" | "SUSPENDED" | "ARCHIVED";
 }
 
-async function addClerkMembership(input: {
-  clerkOrganizationId: string;
-  clerkUserId: string;
-  role: string;
-}): Promise<{ id: string | null }> {
-  const membership = await callClerkMethod<{ id?: string }>(
-    ["createOrganizationMembership", "createMembership"],
-    {
-      organizationId: input.clerkOrganizationId,
-      userId: input.clerkUserId,
-      role: input.role,
-    },
-  );
-
-  return { id: getId(membership) };
-}
-
-async function inviteClerkOwner(input: {
-  clerkOrganizationId: string;
-  ownerEmail: string;
-}): Promise<void> {
-  await callClerkMethod(["createOrganizationInvitation", "createInvitation"], {
-    organizationId: input.clerkOrganizationId,
-    emailAddress: input.ownerEmail,
-    role: CLERK_OWNER_ROLE,
-  });
-}
-
-async function updateClerkMembershipRole(input: {
-  clerkOrganizationId: string;
-  clerkUserId: string;
-  clerkMembershipId: string;
-  role: string;
-}): Promise<void> {
-  await callClerkMethod(["updateOrganizationMembership", "updateMembership"], {
-    organizationId: input.clerkOrganizationId,
-    userId: input.clerkUserId,
-    membershipId: input.clerkMembershipId,
-    role: input.role,
-  });
-}
-
-async function removeClerkMembership(input: {
-  clerkOrganizationId: string;
-  clerkUserId: string;
-  clerkMembershipId: string;
-}): Promise<void> {
-  await callClerkMethod(["deleteOrganizationMembership", "deleteMembership"], {
-    organizationId: input.clerkOrganizationId,
-    userId: input.clerkUserId,
-    membershipId: input.clerkMembershipId,
-  });
-}
-
-async function resolveOwnerByEmail(email: string) {
-  return prisma.user.findUnique({
-    where: { email },
-    select: {
-      id: true,
-      clerkId: true,
-      email: true,
-    },
-  });
-}
+// ---------------------------------------------------------------------------
+// Queries
+// ---------------------------------------------------------------------------
 
 export async function listOrganizations() {
   let organizations: Array<{
@@ -458,6 +149,33 @@ export async function listOrganizations() {
     updatedAt: organization.updatedAt,
   }));
 }
+
+export async function getOrganizationById(organizationId: string) {
+  return prisma.organization.findUnique({
+    where: { id: organizationId },
+    include: {
+      contract: true,
+      ownerUser: {
+        select: { id: true, email: true },
+      },
+      createdByUser: {
+        select: { id: true, email: true },
+      },
+      memberships: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          user: {
+            select: { id: true, email: true, clerkId: true },
+          },
+        },
+      },
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Backfill from Clerk
+// ---------------------------------------------------------------------------
 
 export async function backfillOrganizationsFromClerk(
   actorUserId: string,
@@ -521,6 +239,10 @@ export async function backfillOrganizationsFromClerk(
 
   return upserted;
 }
+
+// ---------------------------------------------------------------------------
+// Create
+// ---------------------------------------------------------------------------
 
 export async function createOrganizationWithContract(
   input: CreateOrganizationInput,
@@ -691,28 +413,9 @@ export async function createOrganizationWithContract(
   }
 }
 
-export async function getOrganizationById(organizationId: string) {
-  return prisma.organization.findUnique({
-    where: { id: organizationId },
-    include: {
-      contract: true,
-      ownerUser: {
-        select: { id: true, email: true },
-      },
-      createdByUser: {
-        select: { id: true, email: true },
-      },
-      memberships: {
-        orderBy: { createdAt: "desc" },
-        include: {
-          user: {
-            select: { id: true, email: true, clerkId: true },
-          },
-        },
-      },
-    },
-  });
-}
+// ---------------------------------------------------------------------------
+// Update
+// ---------------------------------------------------------------------------
 
 export async function updateOrganization(input: UpdateOrganizationInput) {
   const existing = await prisma.organization.findUnique({
@@ -1017,22 +720,9 @@ export async function updateOrganization(input: UpdateOrganizationInput) {
   }
 }
 
-export async function listOrganizationAuditLogs(
-  organizationId: string,
-  options?: { take?: number; skip?: number },
-) {
-  return prisma.organizationAuditLog.findMany({
-    where: { organizationId },
-    orderBy: { createdAt: "desc" },
-    take: options?.take,
-    skip: options?.skip,
-    include: {
-      actorUser: {
-        select: { id: true, email: true },
-      },
-    },
-  });
-}
+// ---------------------------------------------------------------------------
+// Webhook sync helpers
+// ---------------------------------------------------------------------------
 
 async function resolveMembershipUserByClerkId(clerkUserId: string) {
   const existing = await prisma.user.findUnique({
@@ -1294,17 +984,4 @@ export async function syncMembershipFromClerkEvent(input: {
   }
 
   return { synced: false, reason: "serialization_retries_exhausted" as const };
-}
-
-export async function demoteMembershipToMember(input: {
-  clerkOrganizationId: string;
-  clerkUserId: string;
-  clerkMembershipId: string;
-}) {
-  await updateClerkMembershipRole({
-    clerkOrganizationId: input.clerkOrganizationId,
-    clerkUserId: input.clerkUserId,
-    clerkMembershipId: input.clerkMembershipId,
-    role: CLERK_MEMBER_ROLE,
-  });
 }

@@ -72,7 +72,9 @@ app/
 | `ai/cost-calculator.ts`  | Tracks AI usage costs              |
 | `ai/providers/`          | OpenRouter model configuration     |
 | `auth.ts`                | Clerk authentication utilities     |
-| `rate-limit.ts`          | Usage limits per subscription tier |
+| `api/responses.ts`       | Shared API response helpers        |
+| `rate-limit/`            | Usage limits per subscription tier (types, config, usage tracking, checking, upgrade CTA) |
+| `organizations/`         | B2B organization management (Clerk API wrappers, audit logging, helpers, service logic) |
 | `db.ts`                  | Prisma client instance             |
 
 ### `/src/components` - Shared Components

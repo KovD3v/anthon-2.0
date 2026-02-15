@@ -4,6 +4,7 @@
  * GET /api/usage - Get current user's daily usage and limits
  */
 
+import { jsonOk, serverError, unauthorized } from "@/lib/api/responses";
 import { getAuthUser, getFullUser } from "@/lib/auth";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import { getDailyUsage } from "@/lib/rate-limit";
@@ -14,7 +15,7 @@ export async function GET() {
   const { user, error } = await getAuthUser();
 
   if (error || !user) {
-    return Response.json({ error: error || "Unauthorized" }, { status: 401 });
+    return unauthorized(error || "Unauthorized");
   }
 
   try {
@@ -43,7 +44,7 @@ export async function GET() {
       tier = "ACTIVE";
     }
 
-    return Response.json({
+    return jsonOk({
       usage: {
         requestCount: usage.requestCount,
         inputTokens: usage.inputTokens,
@@ -69,6 +70,6 @@ export async function GET() {
     });
   } catch (err) {
     console.error("[Usage API] Error:", err);
-    return Response.json({ error: "Failed to fetch usage" }, { status: 500 });
+    return serverError("Failed to fetch usage");
   }
 }
