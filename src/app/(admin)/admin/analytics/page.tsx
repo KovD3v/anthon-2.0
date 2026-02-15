@@ -134,7 +134,7 @@ export default function AnalyticsPage() {
 
       {/* Messages Over Time */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
+        <Card variant="glass">
           <CardHeader>
             <CardTitle>Messages Over Time</CardTitle>
           </CardHeader>
@@ -175,7 +175,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
+        <Card variant="glass">
           <CardHeader>
             <CardTitle>New Users Over Time</CardTitle>
           </CardHeader>
@@ -213,7 +213,7 @@ export default function AnalyticsPage() {
 
       {/* Cost Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
+        <Card variant="glass">
           <CardHeader>
             <CardTitle>AI Costs by Model</CardTitle>
           </CardHeader>
@@ -258,7 +258,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
+        <Card variant="glass">
           <CardHeader>
             <CardTitle>Daily AI Costs</CardTitle>
           </CardHeader>
@@ -305,7 +305,7 @@ export default function AnalyticsPage() {
 
       {/* User Distribution & Funnel */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
+        <Card variant="glass">
           <CardHeader>
             <CardTitle>User Message Distribution</CardTitle>
           </CardHeader>
@@ -332,7 +332,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
+        <Card variant="glass">
           <CardHeader>
             <CardTitle>Conversion Funnel</CardTitle>
           </CardHeader>
@@ -397,7 +397,7 @@ export default function AnalyticsPage() {
       {/* Cost Summary Cards */}
       {costStats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
+          <Card variant="glass">
             <CardContent className="pt-6">
               <div className="text-sm text-muted-foreground">Total Cost</div>
               <div className="text-2xl font-bold">
@@ -405,7 +405,7 @@ export default function AnalyticsPage() {
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
+          <Card variant="glass">
             <CardContent className="pt-6">
               <div className="text-sm text-muted-foreground">
                 Total Output Tokens
@@ -415,7 +415,7 @@ export default function AnalyticsPage() {
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
+          <Card variant="glass">
             <CardContent className="pt-6">
               <div className="text-sm text-muted-foreground">
                 Avg Cost/Message
@@ -425,7 +425,7 @@ export default function AnalyticsPage() {
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
+          <Card variant="glass">
             <CardContent className="pt-6">
               <div className="text-sm text-muted-foreground">
                 Avg Generation Time

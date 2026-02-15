@@ -24,7 +24,7 @@ export default function AdminDashboard() {
       </Suspense>
 
       <div className="grid gap-8 lg:grid-cols-2">
-        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
+        <Card variant="glass">
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>

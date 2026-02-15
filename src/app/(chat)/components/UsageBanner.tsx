@@ -136,8 +136,8 @@ export function UsageBanner({
 
   const maxPercent = Math.max(requestPercent, tokenPercent, costPercent);
 
-  // Always show usage when available (unless manually dismissed).
-  const shouldShowFullBanner = !isDismissed;
+  // Only show the full banner when usage exceeds 70% (unless manually dismissed).
+  const shouldShowFullBanner = maxPercent >= 70 && !isDismissed;
 
   // If we shouldn't show the full banner, check if we need to show the toggle
   if (!shouldShowFullBanner) {
@@ -165,14 +165,14 @@ export function UsageBanner({
   const primaryEntitlement = entitlements?.sources?.[0];
   const isOrganizationEntitlement = primaryEntitlement?.type === "organization";
 
-  const getBannerStyle = () => {
+  const getAccentStyle = () => {
     if (isAtLimit) {
-      return "bg-red-50 border-red-200 text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-200";
+      return "text-red-500";
     }
     if (isNearLimit) {
-      return "bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-950 dark:border-yellow-800 dark:text-yellow-200";
+      return "text-amber-500";
     }
-    return "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-200";
+    return "text-muted-foreground";
   };
 
   const getIcon = () => {
@@ -242,12 +242,13 @@ export function UsageBanner({
     return "Fonte limiti: piano personale";
   };
 
+  const accentStyle = getAccentStyle();
+
   return (
     <div className="mx-2 mt-2 md:mx-4 md:mt-4">
       <div
         className={cn(
-          "flex items-center justify-between rounded-2xl border px-4 py-3 backdrop-blur-xl shadow-sm",
-          getBannerStyle(),
+          "flex items-center justify-between rounded-2xl border border-white/10 bg-background/60 backdrop-blur-xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-sm",
           className,
         )}
       >
@@ -256,22 +257,24 @@ export function UsageBanner({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 -ml-2 shrink-0"
+              className="h-8 w-8 -ml-1 shrink-0"
               onClick={onToggleSidebar}
             >
               <PanelLeft className="h-4 w-4" />
             </Button>
           )}
-          <div className="flex items-center gap-3">
-            {getIcon()}
+          <div className="flex items-center gap-2.5">
+            <span className={accentStyle}>{getIcon()}</span>
             <div className="flex flex-col gap-0.5">
-              <p className="text-sm font-medium">{getMessage()}</p>
-              <p className="text-xs opacity-75">
+              <p className={cn("text-sm font-medium", isAtLimit || isNearLimit ? accentStyle : "text-foreground")}>
+                {getMessage()}
+              </p>
+              <p className="text-xs text-muted-foreground">
                 {getTierName()}: {usage.requestCount}/{limits.maxRequests}{" "}
                 messaggi scritti oggi
               </p>
               {(entitlements?.modelTier || primaryEntitlement) && (
-                <p className="text-[11px] opacity-70">
+                <p className="text-[11px] text-muted-foreground/70">
                   {getEntitlementSourceLabel()}
                   {entitlements?.modelTier
                     ? ` • Tier modello ${entitlements.modelTier}`

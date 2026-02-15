@@ -1,4 +1,5 @@
 import { Activity, Database, FileText, Key } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { getSystemHealth } from "@/lib/admin";
 
 export async function SystemStatus() {
@@ -39,15 +40,9 @@ export async function SystemStatus() {
               {service.name}
             </span>
             <div className="flex items-center gap-2">
-              <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  isConnected
-                    ? "bg-green-500/10 text-green-500"
-                    : "bg-red-500/10 text-red-500"
-                }`}
-              >
+              <Badge variant={isConnected ? "success" : "error"}>
                 {isConnected ? "● Connected" : "● Error"}
-              </span>
+              </Badge>
               {!isConnected && serviceHealth.message && (
                 <span
                   className="text-xs text-muted-foreground max-w-48 truncate"

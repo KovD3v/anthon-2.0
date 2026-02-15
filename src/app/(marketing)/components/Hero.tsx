@@ -4,6 +4,7 @@ import { SignedIn, SignedOut, SignUpButton } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { ArrowRight, Brain, Trophy } from "lucide-react";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 export function Hero() {
@@ -15,12 +16,11 @@ export function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-primary/10 text-primary hover:bg-primary/20"
           >
-            <span className="flex items-center gap-1">
+            <Badge variant="info" className="gap-1">
               <Trophy className="h-3 w-3" />
               <span>Sblocca il tuo pieno potenziale</span>
-            </span>
+            </Badge>
           </motion.div>
 
           <motion.h1
@@ -91,3 +91,4 @@ export function Hero() {
     </section>
   );
 }
+

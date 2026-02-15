@@ -12,7 +12,7 @@ export default function AdminLoading() {
         {["s1", "s2", "s3", "s4", "s5"].map((id) => (
           <Card
             key={id}
-            className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl"
+            variant="glass"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="h-4 w-20 animate-pulse rounded bg-muted" />
@@ -27,8 +27,8 @@ export default function AdminLoading() {
       </div>
 
       <div className="grid gap-8 lg:grid-cols-2">
-        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl h-64 animate-pulse" />
-        <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl h-64 animate-pulse" />
+        <Card variant="glass" className="h-64 animate-pulse" />
+        <Card variant="glass" className="h-64 animate-pulse" />
       </div>
     </div>
   );

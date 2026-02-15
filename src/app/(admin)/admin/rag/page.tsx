@@ -249,7 +249,7 @@ export default function RagPage() {
       </div>
 
       {/* Upload Zone */}
-      <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl mb-8">
+      <Card variant="glass" className="mb-8">
         <CardHeader>
           <CardTitle>Upload Documents</CardTitle>
         </CardHeader>
@@ -319,7 +319,7 @@ export default function RagPage() {
       </Card>
 
       {/* Documents List */}
-      <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
+      <Card variant="glass">
         <CardHeader>
           <CardTitle>Documents ({documents.length})</CardTitle>
         </CardHeader>

@@ -1,5 +1,7 @@
 "use client";
 
+import { Card } from "@/components/ui/card";
+
 export function SidebarSkeleton() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden animate-pulse">
@@ -39,16 +41,17 @@ export function KPIStatsSkeleton() {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 animate-pulse">
       {["k1", "k2", "k3", "k4", "k5"].map((key) => (
-        <div
+        <Card
           key={key}
-          className="h-32 rounded-xl bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl"
+          variant="glass"
+          className="h-32"
         >
           <div className="p-6 space-y-3">
             <div className="h-4 w-24 rounded bg-muted/40" />
             <div className="h-8 w-16 rounded bg-muted/30" />
             <div className="h-3 w-32 rounded bg-muted/20" />
           </div>
-        </div>
+        </Card>
       ))}
     </div>
   );

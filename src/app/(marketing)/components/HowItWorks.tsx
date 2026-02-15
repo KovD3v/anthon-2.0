@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { MessageSquare, Sparkles, TrendingUp } from "lucide-react";
+import { Card } from "@/components/ui/card";
 
 const steps = [
   {
@@ -81,19 +82,20 @@ export function HowItWorks() {
           <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-0.5 bg-border -z-10" />
 
           {steps.map((step) => (
-            <motion.div
-              key={step.id}
-              variants={item}
-              className="flex flex-col items-center text-center bg-background/60 backdrop-blur-xl border border-white/10 rounded-xl p-6 shadow-xl"
-            >
-              <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center mb-6 border-4 border-background relative z-10">
-                <step.icon className="h-10 w-10 text-primary" />
-                <div className="absolute -top-2 -right-2 h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
-                  {step.number}
+            <motion.div key={step.id} variants={item}>
+              <Card
+                variant="glass"
+                className="flex flex-col items-center text-center p-6 h-full"
+              >
+                <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center mb-6 border-4 border-background relative z-10">
+                  <step.icon className="h-10 w-10 text-primary" />
+                  <div className="absolute -top-2 -right-2 h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                    {step.number}
+                  </div>
                 </div>
-              </div>
-              <h3 className="text-xl font-bold mb-3">{step.title}</h3>
-              <p className="text-muted-foreground">{step.description}</p>
+                <h3 className="text-xl font-bold mb-3">{step.title}</h3>
+                <p className="text-muted-foreground">{step.description}</p>
+              </Card>
             </motion.div>
           ))}
         </motion.div>
