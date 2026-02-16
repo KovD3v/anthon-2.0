@@ -256,8 +256,13 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
       where: { id },
     });
 
-    revalidateTag(`chats-${user.id}`, "page");
-    revalidateTag(`chat-${id}`, "page");
+    try {
+      revalidateTag(`chats-${user.id}`, "page");
+      revalidateTag(`chat-${id}`, "page");
+    } catch (revalidateErr) {
+      // Non-fatal: cache invalidation failure shouldn't block the response
+      console.warn("[Chat API] revalidateTag failed after DELETE:", revalidateErr);
+    }
 
     return Response.json({ success: true });
   } catch (err) {

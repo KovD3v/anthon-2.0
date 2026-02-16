@@ -1,3 +1,4 @@
+import { clerkClient } from "@clerk/nextjs/server";
 import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
@@ -126,6 +127,32 @@ sport, obiettivi, livello di esperienza o altri dettagli del profilo.`,
             },
           });
 
+          // Sync name with Clerk
+          if (params.name) {
+            try {
+              const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { clerkId: true },
+              });
+
+              if (user?.clerkId) {
+                const [firstName, ...lastNameParts] = params.name.split(" ");
+                const lastName = lastNameParts.join(" ") || undefined;
+                const client = await clerkClient();
+                await client.users.updateUser(user.clerkId, {
+                  firstName,
+                  lastName,
+                });
+              }
+            } catch (clerkError) {
+              console.error(
+                "[updateProfile] Error syncing with Clerk:",
+                clerkError,
+              );
+              // Don't fail the request if Clerk sync fails
+            }
+          }
+
           invalidateUserContextPromptCache(userId);
 
           return {
@@ -174,7 +201,8 @@ CRITICAL: You MUST provide at least one parameter. Do not call with empty argume
           if (Object.keys(params).length === 0) {
             return {
               success: false,
-              message: "Errore: Nessun parametro fornito. Specifica almeno una preferenza da aggiornare.",
+              message:
+                "Errore: Nessun parametro fornito. Specifica almeno una preferenza da aggiornare.",
             };
           }
 

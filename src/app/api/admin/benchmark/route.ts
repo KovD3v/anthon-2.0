@@ -104,7 +104,6 @@ export async function POST(request: NextRequest) {
     const models = body.models || [
       "google/gemini-2.0-flash-lite-001",
       "google/gemini-2.0-flash-001",
-      "google/gemini-2.5-flash-lite-preview-09-2025",
     ];
     const runName =
       body.name ||

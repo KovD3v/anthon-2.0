@@ -28,13 +28,13 @@ const MODEL_CONFIG = {
   },
   // Pro plan ($25/month)
   pro: {
-    orchestrator: "google/gemini-2.5-flash-lite-preview-09-2025",
-    subAgent: "google/gemini-2.5-flash-lite-preview-09-2025",
+    orchestrator: "google/gemini-2.0-flash-lite-001",
+    subAgent: "google/gemini-2.0-flash-lite-001",
   },
   // Admin (unlimited)
   admin: {
-    orchestrator: "google/gemini-2.5-flash-lite-preview-09-2025",
-    subAgent: "google/gemini-2.5-flash-lite-preview-09-2025",
+    orchestrator: "google/gemini-2.0-flash-lite-001",
+    subAgent: "google/gemini-2.0-flash-lite-001",
   },
 } as const;
 

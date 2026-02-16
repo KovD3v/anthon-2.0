@@ -407,11 +407,20 @@ export function LayoutClient({
       });
 
       if (response.ok) {
-        await refreshChats();
+        // Optimistically remove the chat from local state immediately
+        setChats((prev) => prev.filter((c) => c.id !== id));
+        chatCacheRef.current.delete(id);
+
+        // Navigate away if we just deleted the current chat
         if (currentChatId === id) {
           router.push("/chat");
         }
+
         toast.success("Conversazione eliminata");
+
+        // Refresh chat list in the background (non-blocking)
+        refreshChats().catch(() => {});
+
         return true;
       } else {
         toast.error("Eliminazione conversazione fallita");
