@@ -49,12 +49,14 @@ export { demoteMembershipToMember } from "./clerk-api-extras";
 export class OrganizationServiceError extends Error {
   code:
     | "ORGANIZATION_DB_CREATE_FAILED"
-    | "ORGANIZATION_CREATE_CLEANUP_INCOMPLETE";
+    | "ORGANIZATION_CREATE_CLEANUP_INCOMPLETE"
+    | "ORGANIZATION_DB_DELETE_FAILED_AFTER_CLERK";
 
   constructor(
     code:
       | "ORGANIZATION_DB_CREATE_FAILED"
-      | "ORGANIZATION_CREATE_CLEANUP_INCOMPLETE",
+      | "ORGANIZATION_CREATE_CLEANUP_INCOMPLETE"
+      | "ORGANIZATION_DB_DELETE_FAILED_AFTER_CLERK",
     message: string,
     options?: { cause?: unknown },
   ) {
@@ -87,6 +89,11 @@ interface UpdateOrganizationInput {
   contract?: Partial<OrganizationContractInput>;
   ownerEmail?: string;
   status?: "ACTIVE" | "SUSPENDED" | "ARCHIVED";
+}
+
+interface DeleteOrganizationInput {
+  organizationId: string;
+  actorUserId: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -718,6 +725,52 @@ export async function updateOrganization(input: UpdateOrganizationInput) {
     }
     throw error;
   }
+}
+
+export async function deleteOrganization(input: DeleteOrganizationInput) {
+  const existing = await prisma.organization.findUnique({
+    where: { id: input.organizationId },
+    select: {
+      id: true,
+      name: true,
+      clerkOrganizationId: true,
+    },
+  });
+
+  if (!existing) {
+    throw new Error("Organization not found");
+  }
+
+  await deleteClerkOrganization({
+    clerkOrganizationId: existing.clerkOrganizationId,
+  });
+
+  try {
+    await prisma.organization.delete({
+      where: { id: existing.id },
+    });
+  } catch (error) {
+    console.error(
+      "[Organizations] Clerk organization deleted but failed to delete local record",
+      {
+        organizationId: existing.id,
+        clerkOrganizationId: existing.clerkOrganizationId,
+        actorUserId: input.actorUserId,
+        error,
+      },
+    );
+
+    throw new OrganizationServiceError(
+      "ORGANIZATION_DB_DELETE_FAILED_AFTER_CLERK",
+      "Organization was deleted in Clerk but local cleanup failed",
+      { cause: error },
+    );
+  }
+
+  return {
+    id: existing.id,
+    name: existing.name,
+  };
 }
 
 // ---------------------------------------------------------------------------

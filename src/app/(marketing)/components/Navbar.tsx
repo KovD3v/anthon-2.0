@@ -10,6 +10,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Brain,
+  Building2,
   ChevronRight,
   LayoutDashboard,
   LogIn,
@@ -74,6 +75,12 @@ export function Navbar() {
                 className="text-muted-foreground hover:text-primary transition-colors"
               >
                 Canali
+              </Link>
+              <Link
+                href="/organization"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                Organizzazione
               </Link>
             </SignedIn>
             <Link
@@ -180,6 +187,12 @@ export function Navbar() {
                       href="/channels"
                       icon={<LayoutDashboard className="h-4 w-4" />}
                       label="Canali"
+                      onClick={() => setIsMenuOpen(false)}
+                    />
+                    <MobileNavLink
+                      href="/organization"
+                      icon={<Building2 className="h-4 w-4" />}
+                      label="Organizzazione"
                       onClick={() => setIsMenuOpen(false)}
                     />
                   </SignedIn>

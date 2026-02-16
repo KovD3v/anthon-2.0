@@ -4,6 +4,7 @@ import { useClerk, useUser } from "@clerk/nextjs";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3,
+  Building2,
   ChevronUp,
   HelpCircle,
   Home,
@@ -47,6 +48,11 @@ export function SidebarBottom() {
       icon: User,
       label: "Profile",
       onClick: () => router.push("/profile"),
+    },
+    {
+      icon: Building2,
+      label: "Organization",
+      onClick: () => router.push("/organization"),
     },
     {
       icon: BarChart3,

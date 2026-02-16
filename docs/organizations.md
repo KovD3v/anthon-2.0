@@ -79,6 +79,7 @@ Admin routes are protected with `requireAdmin()`.
 | `POST /api/admin/organizations` | Create organization, contract, and owner assignment/invite. |
 | `GET /api/admin/organizations/[organizationId]` | Get organization detail, memberships, and effective contract. |
 | `PATCH /api/admin/organizations/[organizationId]` | Update metadata, contract, status, and/or owner transfer. |
+| `DELETE /api/admin/organizations/[organizationId]` | Delete organization from Clerk and local storage. |
 | `GET /api/admin/organizations/[organizationId]/audit` | Paginated audit log (`page`, `limit`). |
 
 ## Admin UI Flow (`/admin/organizations`)

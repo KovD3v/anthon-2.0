@@ -5,6 +5,7 @@ import {
   isOrganizationBasePlan,
 } from "@/lib/organizations/plan-defaults";
 import {
+  deleteOrganization,
   getOrganizationById,
   updateOrganization,
 } from "@/lib/organizations/service";
@@ -223,6 +224,45 @@ export async function PATCH(
     console.error("[Organization Detail API] PATCH error:", error);
     return NextResponse.json(
       { error: "Failed to update organization" },
+      { status: 500 },
+    );
+  }
+}
+
+// DELETE /api/admin/organizations/[organizationId] - delete organization in Clerk + local DB
+export async function DELETE(
+  _req: NextRequest,
+  context: { params: Promise<{ organizationId: string }> },
+) {
+  const { user, errorResponse } = await requireAdmin();
+  if (errorResponse) return errorResponse;
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { organizationId } = await context.params;
+    const deleted = await deleteOrganization({
+      organizationId,
+      actorUserId: user.id,
+    });
+
+    return NextResponse.json({
+      deleted: true,
+      organizationId: deleted.id,
+      name: deleted.name,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "Organization not found") {
+      return NextResponse.json(
+        { error: "Organization not found" },
+        { status: 404 },
+      );
+    }
+
+    console.error("[Organization Detail API] DELETE error:", error);
+    return NextResponse.json(
+      { error: "Failed to delete organization" },
       { status: 500 },
     );
   }

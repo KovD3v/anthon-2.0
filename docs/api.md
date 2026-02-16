@@ -370,6 +370,10 @@ Returns organization details, contract, owner, and membership state.
 
 Updates contract limits and/or initiates owner transfer.
 
+### `DELETE /api/admin/organizations/[organizationId]`
+
+Deletes the organization in Clerk and removes the local organization record.
+
 Response notes (list/detail/create/update):
 
 - Organization responses include `effective` when a contract is present.

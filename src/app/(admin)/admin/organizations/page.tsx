@@ -1,10 +1,11 @@
 "use client";
 
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   applyOrgOverrides,
   resolveOrgPlanDefaults,
@@ -94,6 +95,8 @@ export default function OrganizationsPage() {
   const [syncingFromClerk, setSyncingFromClerk] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
 
   const selectedId = selectedOrganization?.id ?? null;
@@ -368,6 +371,46 @@ export default function OrganizationsPage() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  function handleDeleteRequest() {
+    if (!selectedId) {
+      toast.error("Select an organization first");
+      return;
+    }
+    setIsDeleteDialogOpen(true);
+  }
+
+  async function handleDeleteConfirm() {
+    if (!selectedId) {
+      setIsDeleteDialogOpen(false);
+      return;
+    }
+
+    setIsDeleteDialogOpen(false);
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/organizations/${selectedId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to delete organization");
+      }
+
+      toast.success("Organization deleted");
+      resetForm();
+      await fetchOrganizations();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete organization",
+      );
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -796,14 +839,55 @@ export default function OrganizationsPage() {
                   </div>
                 </div>
 
-                <Button
-                  onClick={selectedId ? handleUpdate : handleCreate}
-                  disabled={saving}
-                  className="w-full"
-                >
-                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {selectedId ? "Update Organization" : "Create Organization"}
-                </Button>
+                {selectedId ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      onClick={handleUpdate}
+                      disabled={saving || deleting}
+                      className="w-full"
+                    >
+                      {saving && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Update Organization
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDeleteRequest}
+                      disabled={saving || deleting}
+                      className="w-full"
+                    >
+                      {deleting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                      )}
+                      Delete Organization
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={handleCreate}
+                    disabled={saving}
+                    className="w-full"
+                  >
+                    {saving && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    Create Organization
+                  </Button>
+                )}
+
+                <ConfirmDialog
+                  open={isDeleteDialogOpen}
+                  onOpenChange={setIsDeleteDialogOpen}
+                  onConfirm={handleDeleteConfirm}
+                  title="Delete organization?"
+                  description={`This will permanently remove "${selectedOrganization?.name || "this organization"}" from Anthon and Clerk.`}
+                  confirmText="Delete"
+                  cancelText="Cancel"
+                  variant="destructive"
+                />
               </>
             )}
           </CardContent>
