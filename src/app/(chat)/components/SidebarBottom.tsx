@@ -45,6 +45,11 @@ export function SidebarBottom() {
 
   const menuItems = [
     {
+      icon: Settings,
+      label: "Settings",
+      onClick: () => router.push("/profile"),
+    },
+    {
       icon: User,
       label: "Profile",
       onClick: () => router.push("/profile"),
@@ -60,9 +65,9 @@ export function SidebarBottom() {
       onClick: () => router.push("/chat/usage"),
     },
     {
-      icon: Settings,
-      label: "Settings",
-      onClick: () => router.push("/settings"),
+      icon: HelpCircle,
+      label: "Help & Support",
+      onClick: () => router.push("/help"),
     },
     {
       icon: Home,
@@ -73,11 +78,6 @@ export function SidebarBottom() {
       icon: theme === "dark" ? Sun : Moon,
       label: theme === "dark" ? "Light Mode" : "Dark Mode",
       onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
-    },
-    {
-      icon: HelpCircle,
-      label: "Help & Support",
-      onClick: () => router.push("/help"),
     },
   ];
 
