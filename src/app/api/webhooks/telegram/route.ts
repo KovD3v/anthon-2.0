@@ -1057,3 +1057,16 @@ async function transcribeWithOpenRouterResponses(audio: {
 
   return text;
 }
+
+export const __testables = {
+  safeErrorSummary,
+  isTelegramConnectCommand,
+  getPublicAppUrl,
+  hashLinkToken,
+  getTelegramFilePath,
+  downloadTelegramFileAsBase64,
+  downloadTelegramAudio,
+  downloadTelegramPhoto,
+  downloadTelegramDocument,
+  transcribeWithOpenRouterResponses,
+};

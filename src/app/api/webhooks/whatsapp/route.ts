@@ -818,3 +818,13 @@ async function transcribeWithOpenRouterResponses(audio: {
   };
   return data.choices?.[0]?.message?.content?.trim() || "";
 }
+
+export const __testables = {
+  verifySignature,
+  isConnectCommand,
+  getPublicAppUrl,
+  sendWhatsAppMessage,
+  sendWhatsAppVoice,
+  downloadWhatsAppMedia,
+  transcribeWithOpenRouterResponses,
+};
