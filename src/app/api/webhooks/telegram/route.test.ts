@@ -88,7 +88,16 @@ vi.mock("@/lib/voice", () => ({
   trackVoiceUsage: mocks.trackVoiceUsage,
 }));
 
-import { __testables, GET, POST } from "./route";
+import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
+import {
+  downloadTelegramAudio,
+  getPublicAppUrl,
+  getTelegramFilePath,
+  hashLinkToken,
+  isTelegramConnectCommand,
+  safeErrorSummary,
+} from "@/lib/channels/telegram/utils";
+import { GET, POST } from "./route";
 
 const originalEnv = { ...process.env };
 
@@ -438,31 +447,31 @@ describe("/api/webhooks/telegram", () => {
     delete process.env.VERCEL_URL;
     delete process.env.TELEGRAM_WEBHOOK_SECRET;
 
-    expect(__testables.safeErrorSummary(undefined)).toBe("Unknown error");
-    expect(__testables.safeErrorSummary("x".repeat(400)).length).toBe(300);
-    expect(__testables.safeErrorSummary(new Error("boom"))).toContain("Error: boom");
-    expect(__testables.safeErrorSummary({ a: 1 })).toBe('{"a":1}');
+    expect(safeErrorSummary(undefined)).toBe("Unknown error");
+    expect(safeErrorSummary("x".repeat(400)).length).toBe(300);
+    expect(safeErrorSummary(new Error("boom"))).toContain("Error: boom");
+    expect(safeErrorSummary({ a: 1 })).toBe('{"a":1}');
 
     const circular: { self?: unknown } = {};
     circular.self = circular;
-    expect(__testables.safeErrorSummary(circular)).toBe("Unserializable error");
+    expect(safeErrorSummary(circular)).toBe("Unserializable error");
 
-    expect(__testables.isTelegramConnectCommand("/connect")).toBe(true);
-    expect(__testables.isTelegramConnectCommand("collega account")).toBe(true);
-    expect(__testables.isTelegramConnectCommand("hello")).toBe(false);
-    expect(__testables.getPublicAppUrl()).toBe("http://localhost:3000");
+    expect(isTelegramConnectCommand("/connect")).toBe(true);
+    expect(isTelegramConnectCommand("collega account")).toBe(true);
+    expect(isTelegramConnectCommand("hello")).toBe(false);
+    expect(getPublicAppUrl()).toBe("http://localhost:3000");
 
     process.env.NEXT_PUBLIC_APP_URL = "https://anthon.ai";
-    expect(__testables.getPublicAppUrl()).toBe("https://anthon.ai");
+    expect(getPublicAppUrl()).toBe("https://anthon.ai");
     process.env.TELEGRAM_WEBHOOK_SECRET = "hash-secret";
-    expect(typeof __testables.hashLinkToken("abc")).toBe("string");
+    expect(typeof hashLinkToken("abc")).toBe("string");
     delete process.env.TELEGRAM_WEBHOOK_SECRET;
-    expect(__testables.hashLinkToken("abc")).toBeNull();
+    expect(hashLinkToken("abc")).toBeNull();
   });
 
   it("getTelegramFilePath handles missing token and malformed API responses", async () => {
     delete process.env.TELEGRAM_BOT_TOKEN;
-    await expect(__testables.getTelegramFilePath("file_1")).resolves.toBeNull();
+    await expect(getTelegramFilePath("file_1")).resolves.toBeNull();
 
     process.env.TELEGRAM_BOT_TOKEN = "bot-token";
     const fetchMock = vi
@@ -471,13 +480,13 @@ describe("/api/webhooks/telegram", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: {} })));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(__testables.getTelegramFilePath("file_2")).resolves.toBeNull();
-    await expect(__testables.getTelegramFilePath("file_3")).resolves.toBeNull();
+    await expect(getTelegramFilePath("file_2")).resolves.toBeNull();
+    await expect(getTelegramFilePath("file_3")).resolves.toBeNull();
   });
 
   it("downloadTelegramAudio returns null when file ids are missing", async () => {
     await expect(
-      __testables.downloadTelegramAudio(undefined, undefined),
+      downloadTelegramAudio(undefined, undefined),
     ).resolves.toBeNull();
   });
 
@@ -493,7 +502,7 @@ describe("/api/webhooks/telegram", () => {
       .mockResolvedValueOnce(new Response("audio-data"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await __testables.downloadTelegramAudio(
+    const result = await downloadTelegramAudio(
       {
         file_id: "voice_1",
         file_unique_id: "u1",
@@ -511,7 +520,7 @@ describe("/api/webhooks/telegram", () => {
   it("transcribeWithOpenRouterResponses handles API errors and success", async () => {
     delete process.env.OPENROUTER_API_KEY;
     await expect(
-      __testables.transcribeWithOpenRouterResponses({
+      transcribeAudioWithOpenRouter({
         base64: "YQ==",
         mimeType: "audio/ogg",
       }),
@@ -532,19 +541,19 @@ describe("/api/webhooks/telegram", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      __testables.transcribeWithOpenRouterResponses({
+      transcribeAudioWithOpenRouter({
         base64: "YQ==",
         mimeType: "audio/ogg",
       }),
     ).rejects.toThrow("OpenRouter API failed");
     await expect(
-      __testables.transcribeWithOpenRouterResponses({
+      transcribeAudioWithOpenRouter({
         base64: "YQ==",
         mimeType: "audio/ogg",
       }),
     ).rejects.toThrow("OpenRouter returned no text output");
     await expect(
-      __testables.transcribeWithOpenRouterResponses({
+      transcribeAudioWithOpenRouter({
         base64: "YQ==",
         mimeType: "audio/ogg",
       }),

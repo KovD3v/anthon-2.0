@@ -85,7 +85,15 @@ vi.mock("@/lib/voice", () => ({
   trackVoiceUsage: mocks.trackVoiceUsage,
 }));
 
-import { __testables, GET, POST } from "./route";
+import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
+import {
+  downloadWhatsAppMedia,
+  getPublicAppUrl,
+  isConnectCommand,
+  sendWhatsAppVoice,
+  verifySignature,
+} from "@/lib/channels/whatsapp/utils";
+import { GET, POST } from "./route";
 
 const originalEnv = { ...process.env };
 
@@ -443,10 +451,10 @@ describe("/api/webhooks/whatsapp", () => {
       method: "POST",
       body: "hello",
     });
-    expect(__testables.verifySignature(request, "hello")).toBe(true);
+    expect(verifySignature(request, "hello")).toBe(true);
 
     process.env.WHATSAPP_APP_SECRET = "app-secret";
-    expect(__testables.verifySignature(request, "hello")).toBe(false);
+    expect(verifySignature(request, "hello")).toBe(false);
 
     const sig = createHmac("sha256", "app-secret").update("hello").digest("hex");
     const signedRequest = new Request("http://localhost/api/webhooks/whatsapp", {
@@ -454,21 +462,21 @@ describe("/api/webhooks/whatsapp", () => {
       body: "hello",
       headers: { "x-hub-signature-256": `sha256=${sig}` },
     });
-    expect(__testables.verifySignature(signedRequest, "hello")).toBe(true);
+    expect(verifySignature(signedRequest, "hello")).toBe(true);
 
-    expect(__testables.isConnectCommand("/connect")).toBe(true);
-    expect(__testables.isConnectCommand("collega")).toBe(true);
-    expect(__testables.isConnectCommand("hello")).toBe(false);
-    expect(__testables.getPublicAppUrl()).toBe("http://localhost:3000");
+    expect(isConnectCommand("/connect")).toBe(true);
+    expect(isConnectCommand("collega")).toBe(true);
+    expect(isConnectCommand("hello")).toBe(false);
+    expect(getPublicAppUrl()).toBe("http://localhost:3000");
     process.env.VERCEL_URL = "preview.vercel.app";
-    expect(__testables.getPublicAppUrl()).toBe("https://preview.vercel.app");
+    expect(getPublicAppUrl()).toBe("https://preview.vercel.app");
   });
 
   it("sendWhatsAppVoice handles missing creds, failed upload, and success", async () => {
     delete process.env.WHATSAPP_ACCESS_TOKEN;
     delete process.env.WHATSAPP_PHONE_NUMBER_ID;
     await expect(
-      __testables.sendWhatsAppVoice("39333111222", Buffer.from("audio")),
+      sendWhatsAppVoice("39333111222", Buffer.from("audio")),
     ).resolves.toBe(false);
 
     process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
@@ -479,7 +487,7 @@ describe("/api/webhooks/whatsapp", () => {
       .mockResolvedValueOnce(new Response("upload-failed", { status: 500 }));
     vi.stubGlobal("fetch", fetchFailUpload);
     await expect(
-      __testables.sendWhatsAppVoice("39333111222", Buffer.from("audio")),
+      sendWhatsAppVoice("39333111222", Buffer.from("audio")),
     ).resolves.toBe(false);
 
     const fetchSuccess = vi
@@ -488,13 +496,13 @@ describe("/api/webhooks/whatsapp", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ messages: [{ id: "m1" }] })));
     vi.stubGlobal("fetch", fetchSuccess);
     await expect(
-      __testables.sendWhatsAppVoice("39333111222", Buffer.from("audio")),
+      sendWhatsAppVoice("39333111222", Buffer.from("audio")),
     ).resolves.toBe(true);
   });
 
   it("downloadWhatsAppMedia handles missing token and successful fetches", async () => {
     delete process.env.WHATSAPP_ACCESS_TOKEN;
-    await expect(__testables.downloadWhatsAppMedia("media_1")).resolves.toBeNull();
+    await expect(downloadWhatsAppMedia("media_1")).resolves.toBeNull();
 
     process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
     const fetchMock = vi
@@ -510,7 +518,7 @@ describe("/api/webhooks/whatsapp", () => {
       .mockResolvedValueOnce(new Response("bin-data"));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(__testables.downloadWhatsAppMedia("media_1")).resolves.toEqual({
+    await expect(downloadWhatsAppMedia("media_1")).resolves.toEqual({
       base64: Buffer.from("bin-data").toString("base64"),
       mimeType: "audio/ogg",
     });
@@ -519,7 +527,7 @@ describe("/api/webhooks/whatsapp", () => {
   it("transcribeWithOpenRouterResponses handles key/config error branches", async () => {
     delete process.env.OPENROUTER_API_KEY;
     await expect(
-      __testables.transcribeWithOpenRouterResponses({
+      transcribeAudioWithOpenRouter({
         base64: "YQ==",
         mimeType: "audio/ogg",
       }),
@@ -539,14 +547,14 @@ describe("/api/webhooks/whatsapp", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      __testables.transcribeWithOpenRouterResponses({
+      transcribeAudioWithOpenRouter({
         base64: "YQ==",
         mimeType: "audio/ogg",
       }),
     ).rejects.toThrow("OpenRouter API failed");
 
     await expect(
-      __testables.transcribeWithOpenRouterResponses({
+      transcribeAudioWithOpenRouter({
         base64: "YQ==",
         mimeType: "audio/ogg",
       }),

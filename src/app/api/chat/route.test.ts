@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   chatUpdate: vi.fn(),
   messageCreate: vi.fn(),
   messageCount: vi.fn(),
+  attachmentFindFirst: vi.fn(),
   attachmentUpdate: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
@@ -54,6 +55,7 @@ vi.mock("@/lib/db", () => ({
       count: mocks.messageCount,
     },
     attachment: {
+      findFirst: mocks.attachmentFindFirst,
       update: mocks.attachmentUpdate,
     },
   },
@@ -147,6 +149,7 @@ describe("POST /api/chat", () => {
     mocks.chatUpdate.mockReset();
     mocks.messageCreate.mockReset();
     mocks.messageCount.mockReset();
+    mocks.attachmentFindFirst.mockReset();
     mocks.attachmentUpdate.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
@@ -190,6 +193,14 @@ describe("POST /api/chat", () => {
     mocks.messageCreate.mockResolvedValue({ id: "msg-user-1" });
     mocks.messageCount.mockResolvedValue(1);
     mocks.chatUpdate.mockResolvedValue({});
+    mocks.attachmentFindFirst.mockImplementation(
+      async (input: { where?: { id?: string } }) => ({
+        id: input.where?.id || "att-1",
+        messageId: null,
+        blobUrl: "https://blob.example/attachments/user-1/chat-1/file.png",
+        message: null,
+      }),
+    );
     mocks.attachmentUpdate.mockResolvedValue({});
     mocks.incrementUsage.mockResolvedValue({});
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
@@ -363,6 +374,32 @@ describe("POST /api/chat", () => {
       where: { id: "att-2" },
       data: { messageId: "msg-user-123" },
     });
+    expect(mocks.attachmentFindFirst).toHaveBeenNthCalledWith(1, {
+      where: { id: "att-1" },
+      select: {
+        id: true,
+        messageId: true,
+        blobUrl: true,
+        message: {
+          select: {
+            userId: true,
+          },
+        },
+      },
+    });
+    expect(mocks.attachmentFindFirst).toHaveBeenNthCalledWith(2, {
+      where: { id: "att-2" },
+      select: {
+        id: true,
+        messageId: true,
+        blobUrl: true,
+        message: {
+          select: {
+            userId: true,
+          },
+        },
+      },
+    });
 
     expect(streamArgs).toMatchObject({
       userId: "user-1",
@@ -384,6 +421,46 @@ describe("POST /api/chat", () => {
           mimeType: "audio/mpeg",
         }),
       ],
+    });
+  });
+
+  it("skips linking attachments that are not owned by the current user", async () => {
+    mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
+    mocks.attachmentFindFirst
+      .mockResolvedValueOnce({
+        id: "att-1",
+        messageId: null,
+        blobUrl: "https://blob.example/uploads/user-1/file-a.png",
+        message: null,
+      })
+      .mockResolvedValueOnce({
+        id: "att-2",
+        messageId: "msg-other",
+        blobUrl: "https://blob.example/attachments/user-2/chat-9/file-b.png",
+        message: { userId: "user-2" },
+      });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [
+              { type: "text", text: "hello" },
+              { type: "file", attachmentId: "att-1" },
+              { type: "file", attachmentId: "att-2" },
+            ],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.attachmentUpdate).toHaveBeenCalledTimes(1);
+    expect(mocks.attachmentUpdate).toHaveBeenCalledWith({
+      where: { id: "att-1" },
+      data: { messageId: "msg-user-123" },
     });
   });
 
