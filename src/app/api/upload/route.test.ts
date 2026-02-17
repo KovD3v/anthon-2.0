@@ -7,8 +7,8 @@ const mocks = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
   chatFindFirst: vi.fn(),
   attachmentCreate: vi.fn(),
-  messageFindFirst: vi.fn(),
-  messageDelete: vi.fn(),
+  attachmentFindFirst: vi.fn(),
+  attachmentDelete: vi.fn(),
   checkRateLimit: vi.fn(),
 }));
 
@@ -31,10 +31,8 @@ vi.mock("@/lib/db", () => ({
     },
     attachment: {
       create: mocks.attachmentCreate,
-    },
-    message: {
-      findFirst: mocks.messageFindFirst,
-      delete: mocks.messageDelete,
+      findFirst: mocks.attachmentFindFirst,
+      delete: mocks.attachmentDelete,
     },
   },
 }));
@@ -60,8 +58,8 @@ describe("/api/upload POST", () => {
     mocks.userFindUnique.mockReset();
     mocks.chatFindFirst.mockReset();
     mocks.attachmentCreate.mockReset();
-    mocks.messageFindFirst.mockReset();
-    mocks.messageDelete.mockReset();
+    mocks.attachmentFindFirst.mockReset();
+    mocks.attachmentDelete.mockReset();
     mocks.checkRateLimit.mockReset();
 
     mocks.getAuthUser.mockResolvedValue({
@@ -320,16 +318,19 @@ describe("/api/upload DELETE", () => {
     mocks.userFindUnique.mockReset();
     mocks.chatFindFirst.mockReset();
     mocks.attachmentCreate.mockReset();
-    mocks.messageFindFirst.mockReset();
-    mocks.messageDelete.mockReset();
+    mocks.attachmentFindFirst.mockReset();
+    mocks.attachmentDelete.mockReset();
     mocks.checkRateLimit.mockReset();
 
     mocks.getAuthUser.mockResolvedValue({
       user: { id: "user-1", role: "USER" },
       error: null,
     });
-    mocks.messageFindFirst.mockResolvedValue({ id: "msg-1" });
-    mocks.messageDelete.mockResolvedValue({});
+    mocks.attachmentFindFirst.mockResolvedValue({
+      id: "att-1",
+      blobUrl: "https://blob.example/file",
+    });
+    mocks.attachmentDelete.mockResolvedValue({});
     mocks.del.mockResolvedValue({});
   });
 
@@ -354,7 +355,7 @@ describe("/api/upload DELETE", () => {
   });
 
   it("returns 404 when upload ownership check fails", async () => {
-    mocks.messageFindFirst.mockResolvedValue(null);
+    mocks.attachmentFindFirst.mockResolvedValue(null);
 
     const response = await DELETE(
       new Request("http://localhost/api/upload?url=https://blob.example/file"),
@@ -383,9 +384,29 @@ describe("/api/upload DELETE", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(mocks.attachmentFindFirst).toHaveBeenCalledWith({
+      where: {
+        blobUrl: "https://blob.example/file",
+        OR: [
+          { message: { userId: "user-1" } },
+          {
+            messageId: null,
+            blobUrl: { contains: "/uploads/user-1/" },
+          },
+          {
+            messageId: null,
+            blobUrl: { contains: "/attachments/user-1/" },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        blobUrl: true,
+      },
+    });
     expect(mocks.del).toHaveBeenCalledWith("https://blob.example/file");
-    expect(mocks.messageDelete).toHaveBeenCalledWith({
-      where: { id: "msg-1" },
+    expect(mocks.attachmentDelete).toHaveBeenCalledWith({
+      where: { id: "att-1" },
     });
     await expect(response.json()).resolves.toEqual({
       success: true,

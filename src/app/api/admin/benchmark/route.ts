@@ -6,8 +6,8 @@
  * PATCH - Update admin review
  */
 
-import { auth } from "@clerk/nextjs/server";
 import { type NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 // Dynamically import benchmark functions to avoid issues before migration
@@ -22,25 +22,24 @@ async function getBenchmarkModule() {
  *   - limit: Number of runs to list (default 20)
  */
 export async function GET(request: NextRequest) {
+  const { errorResponse } = await requireAdmin();
+  if (errorResponse) return errorResponse;
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check admin role
-    const user = await prisma.user.findFirst({
-      where: { clerkId: userId },
-      select: { role: true },
-    });
-
-    if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const { searchParams } = new URL(request.url);
     const runId = searchParams.get("runId");
-    const limit = parseInt(searchParams.get("limit") || "20", 10);
+    const rawLimit = searchParams.get("limit");
+    let limit = 20;
+    if (rawLimit !== null) {
+      const parsedLimit = Number(rawLimit);
+      if (!Number.isInteger(parsedLimit) || parsedLimit < 1) {
+        return NextResponse.json(
+          { error: "limit must be a positive integer" },
+          { status: 400 },
+        );
+      }
+      limit = Math.min(parsedLimit, 100);
+    }
 
     const { getBenchmarkRun, listBenchmarkRuns, getModelScores } =
       await getBenchmarkModule();
@@ -82,22 +81,10 @@ export async function GET(request: NextRequest) {
  *   - categories?: ('tool_usage' | 'writing_quality')[]
  */
 export async function POST(request: NextRequest) {
+  const { errorResponse } = await requireAdmin();
+  if (errorResponse) return errorResponse;
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check admin role
-    const user = await prisma.user.findFirst({
-      where: { clerkId: userId },
-      select: { role: true },
-    });
-
-    if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const body = await request.json();
 
     // Create the run record FIRST so we can return immediately
@@ -165,22 +152,13 @@ export async function POST(request: NextRequest) {
  *   - adminReasoning?: string
  */
 export async function PATCH(request: NextRequest) {
+  const { user, errorResponse } = await requireAdmin();
+  if (errorResponse) return errorResponse;
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check admin role
-    const user = await prisma.user.findFirst({
-      where: { clerkId: userId },
-      select: { id: true, role: true },
-    });
-
-    if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const body = await request.json();
 
     // Handle result admin scoring
@@ -274,22 +252,10 @@ export async function PATCH(request: NextRequest) {
  *   - runId: string - Delete entire benchmark run
  */
 export async function DELETE(request: NextRequest) {
+  const { errorResponse } = await requireAdmin();
+  if (errorResponse) return errorResponse;
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check admin role
-    const user = await prisma.user.findFirst({
-      where: { clerkId: userId },
-      select: { role: true },
-    });
-
-    if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const { searchParams } = new URL(request.url);
     const runId = searchParams.get("runId");
 

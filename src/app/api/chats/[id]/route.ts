@@ -33,10 +33,19 @@ export async function GET(request: Request, { params }: RouteParams) {
   // Parse pagination parameters
   const url = new URL(request.url);
   const cursor = url.searchParams.get("cursor"); // Message ID to fetch before
-  const limit = Math.min(
-    Math.max(parseInt(url.searchParams.get("limit") || "50", 10), 1),
-    100,
-  ); // Clamp between 1-100
+  const rawLimit = url.searchParams.get("limit");
+  let limit = 50;
+
+  if (rawLimit !== null) {
+    const parsedLimit = Number(rawLimit);
+    if (!Number.isInteger(parsedLimit) || parsedLimit < 1) {
+      return Response.json(
+        { error: "limit must be a positive integer" },
+        { status: 400 },
+      );
+    }
+    limit = Math.min(parsedLimit, 100); // Clamp between 1-100
+  }
 
   try {
     // First fetch the chat to verify access

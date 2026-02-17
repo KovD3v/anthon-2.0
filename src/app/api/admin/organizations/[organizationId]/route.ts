@@ -9,7 +9,10 @@ import {
   getOrganizationById,
   updateOrganization,
 } from "@/lib/organizations/service";
-import type { OrganizationContractInput } from "@/lib/organizations/types";
+import {
+  ORGANIZATION_MODEL_TIERS,
+  type OrganizationContractInput,
+} from "@/lib/organizations/types";
 
 const PATCHABLE_CONTRACT_FIELDS = new Set<keyof OrganizationContractInput>([
   "basePlan",
@@ -53,6 +56,18 @@ function validateContractPatch(
         valid: false,
         error: "basePlan must be BASIC, BASIC_PLUS, or PRO",
       };
+    }
+
+    if (key === "modelTier") {
+      const tier = String(raw || "");
+      if (!ORGANIZATION_MODEL_TIERS.includes(tier as never)) {
+        return {
+          valid: false,
+          error: "modelTier must be a valid model tier",
+        };
+      }
+      patch.modelTier = tier as OrganizationContractInput["modelTier"];
+      continue;
     }
 
     if (

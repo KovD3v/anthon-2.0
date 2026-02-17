@@ -73,12 +73,28 @@ export async function POST(request: Request) {
       // Find expired attachments for this user via their messages
       const expiredAttachments = await prisma.attachment.findMany({
         where: {
-          message: {
-            userId: user.id,
-          },
           createdAt: {
             lt: cutoffDate,
           },
+          OR: [
+            {
+              message: {
+                userId: user.id,
+              },
+            },
+            {
+              messageId: null,
+              blobUrl: {
+                contains: `/uploads/${user.id}/`,
+              },
+            },
+            {
+              messageId: null,
+              blobUrl: {
+                contains: `/attachments/${user.id}/`,
+              },
+            },
+          ],
         },
         select: {
           id: true,

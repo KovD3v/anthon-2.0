@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  auth: vi.fn(),
-  userFindFirst: vi.fn(),
+  requireAdmin: vi.fn(),
   benchmarkRunCreate: vi.fn(),
   benchmarkRunUpdate: vi.fn(),
   benchmarkRunDelete: vi.fn(),
@@ -14,15 +13,12 @@ const mocks = vi.hoisted(() => ({
   runBenchmarkForExistingRun: vi.fn(),
 }));
 
-vi.mock("@clerk/nextjs/server", () => ({
-  auth: mocks.auth,
+vi.mock("@/lib/auth", () => ({
+  requireAdmin: mocks.requireAdmin,
 }));
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    user: {
-      findFirst: mocks.userFindFirst,
-    },
     benchmarkRun: {
       create: mocks.benchmarkRunCreate,
       update: mocks.benchmarkRunUpdate,
@@ -54,8 +50,7 @@ function buildJsonRequest(url: string, method: string, body: unknown): Request {
 
 describe("/api/admin/benchmark", () => {
   beforeEach(() => {
-    mocks.auth.mockReset();
-    mocks.userFindFirst.mockReset();
+    mocks.requireAdmin.mockReset();
     mocks.benchmarkRunCreate.mockReset();
     mocks.benchmarkRunUpdate.mockReset();
     mocks.benchmarkRunDelete.mockReset();
@@ -66,8 +61,10 @@ describe("/api/admin/benchmark", () => {
     mocks.getModelScores.mockReset();
     mocks.runBenchmarkForExistingRun.mockReset();
 
-    mocks.auth.mockResolvedValue({ userId: "clerk-1" });
-    mocks.userFindFirst.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
+    mocks.requireAdmin.mockResolvedValue({
+      user: { id: "admin-1", role: "ADMIN" },
+      errorResponse: null,
+    });
 
     mocks.getBenchmarkRun.mockResolvedValue({ id: "run-1", status: "DONE" });
     mocks.listBenchmarkRuns.mockResolvedValue([{ id: "run-1" }]);
@@ -84,8 +81,11 @@ describe("/api/admin/benchmark", () => {
     mocks.runBenchmarkForExistingRun.mockResolvedValue(undefined);
   });
 
-  it("GET returns 401 when unauthenticated", async () => {
-    mocks.auth.mockResolvedValue({ userId: null });
+  it("GET returns error when requireAdmin fails", async () => {
+    mocks.requireAdmin.mockResolvedValue({
+      user: null,
+      errorResponse: Response.json({ error: "Unauthorized" }, { status: 401 }),
+    });
 
     const response = await GET(
       new Request("http://localhost/api/admin/benchmark") as never,
@@ -96,7 +96,10 @@ describe("/api/admin/benchmark", () => {
   });
 
   it("GET returns 403 for non-admin", async () => {
-    mocks.userFindFirst.mockResolvedValue({ role: "USER" });
+    mocks.requireAdmin.mockResolvedValue({
+      user: null,
+      errorResponse: Response.json({ error: "Forbidden" }, { status: 403 }),
+    });
 
     const response = await GET(
       new Request("http://localhost/api/admin/benchmark") as never,
@@ -141,6 +144,18 @@ describe("/api/admin/benchmark", () => {
     expect(mocks.listBenchmarkRuns).toHaveBeenCalledWith(5);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ runs: [{ id: "run-1" }] });
+  });
+
+  it("GET returns 400 for invalid limit", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/admin/benchmark?limit=oops") as never,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "limit must be a positive integer",
+    });
+    expect(mocks.listBenchmarkRuns).not.toHaveBeenCalled();
   });
 
   it("POST creates run and starts background job", async () => {

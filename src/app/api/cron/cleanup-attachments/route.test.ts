@@ -103,12 +103,28 @@ describe("/api/cron/cleanup-attachments", () => {
 
     expect(mocks.attachmentFindMany).toHaveBeenNthCalledWith(1, {
       where: {
-        message: {
-          userId: "user-1",
-        },
         createdAt: {
           lt: expect.any(Date),
         },
+        OR: [
+          {
+            message: {
+              userId: "user-1",
+            },
+          },
+          {
+            messageId: null,
+            blobUrl: {
+              contains: "/uploads/user-1/",
+            },
+          },
+          {
+            messageId: null,
+            blobUrl: {
+              contains: "/attachments/user-1/",
+            },
+          },
+        ],
       },
       select: {
         id: true,
@@ -117,12 +133,28 @@ describe("/api/cron/cleanup-attachments", () => {
     });
     expect(mocks.attachmentFindMany).toHaveBeenNthCalledWith(2, {
       where: {
-        message: {
-          userId: "user-2",
-        },
         createdAt: {
           lt: expect.any(Date),
         },
+        OR: [
+          {
+            message: {
+              userId: "user-2",
+            },
+          },
+          {
+            messageId: null,
+            blobUrl: {
+              contains: "/uploads/user-2/",
+            },
+          },
+          {
+            messageId: null,
+            blobUrl: {
+              contains: "/attachments/user-2/",
+            },
+          },
+        ],
       },
       select: {
         id: true,

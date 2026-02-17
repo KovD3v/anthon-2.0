@@ -8,16 +8,65 @@ import type { UserRole } from "@/generated/prisma";
 import { requireAdmin, requireSuperAdmin, updateUserRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
+function parsePositiveIntegerParam(
+  value: string | null,
+  fieldName: string,
+  fallback: number,
+): { value: number } | { errorResponse: Response } {
+  if (value === null) {
+    return { value: fallback };
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: `${fieldName} must be a positive integer` },
+        { status: 400 },
+      ),
+    };
+  }
+
+  return { value: parsed };
+}
+
 // GET /api/admin/users - List users with pagination and search
 export async function GET(req: NextRequest) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
   const { searchParams } = new URL(req.url);
-  const page = Number.parseInt(searchParams.get("page") || "1", 10);
-  const limit = Number.parseInt(searchParams.get("limit") || "20", 10);
+  const parsedPage = parsePositiveIntegerParam(
+    searchParams.get("page"),
+    "page",
+    1,
+  );
+  if ("errorResponse" in parsedPage) {
+    return parsedPage.errorResponse;
+  }
+
+  const parsedLimit = parsePositiveIntegerParam(
+    searchParams.get("limit"),
+    "limit",
+    20,
+  );
+  if ("errorResponse" in parsedLimit) {
+    return parsedLimit.errorResponse;
+  }
+
+  const page = parsedPage.value;
+  const limit = Math.min(parsedLimit.value, 100);
   const search = searchParams.get("search") || "";
-  const role = searchParams.get("role") as UserRole | null;
+  const roleFilter = searchParams.get("role");
+
+  if (
+    roleFilter &&
+    !["USER", "ADMIN", "SUPER_ADMIN"].includes(roleFilter as UserRole)
+  ) {
+    return NextResponse.json({ error: "Invalid role filter" }, { status: 400 });
+  }
+
+  const role = roleFilter as UserRole | null;
 
   const skip = (page - 1) * limit;
 

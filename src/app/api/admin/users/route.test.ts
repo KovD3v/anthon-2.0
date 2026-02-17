@@ -174,6 +174,42 @@ describe("/api/admin/users route", () => {
     });
   });
 
+  it("GET returns 400 when page is invalid", async () => {
+    const response = await GET(
+      getRequest("http://localhost/api/admin/users?page=NaN&limit=10"),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "page must be a positive integer",
+    });
+    expect(mocks.userFindMany).not.toHaveBeenCalled();
+  });
+
+  it("GET returns 400 when limit is invalid", async () => {
+    const response = await GET(
+      getRequest("http://localhost/api/admin/users?page=1&limit=zero"),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "limit must be a positive integer",
+    });
+    expect(mocks.userFindMany).not.toHaveBeenCalled();
+  });
+
+  it("GET returns 400 when role filter is invalid", async () => {
+    const response = await GET(
+      getRequest("http://localhost/api/admin/users?role=ROOT"),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid role filter",
+    });
+    expect(mocks.userFindMany).not.toHaveBeenCalled();
+  });
+
   it("GET returns 500 when user query fails", async () => {
     mocks.userFindMany.mockRejectedValue(new Error("db failed"));
 

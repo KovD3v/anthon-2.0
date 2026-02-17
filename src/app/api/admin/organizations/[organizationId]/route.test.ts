@@ -297,6 +297,22 @@ describe("/api/admin/organizations/[organizationId] route", () => {
     });
   });
 
+  it("PATCH validates modelTier values", async () => {
+    const response = await PATCH(
+      patchRequest({
+        contract: {
+          modelTier: "ULTRA_MAX",
+        },
+      }),
+      { params: params() },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "modelTier must be a valid model tier",
+    });
+  });
+
   it("PATCH updates organization with normalized fields", async () => {
     const response = await PATCH(
       patchRequest({

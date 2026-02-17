@@ -168,6 +168,19 @@ describe("/api/chats/[id] route", () => {
     await expect(response.json()).resolves.toEqual({ error: "Chat not found" });
   });
 
+  it("GET returns 400 when limit is not a positive integer", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/chats/chat-1?limit=not-a-number"),
+      { params: params() },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "limit must be a positive integer",
+    });
+    expect(mocks.chatFindFirst).not.toHaveBeenCalled();
+  });
+
   it("GET returns mapped chat payload with pagination and usage", async () => {
     const response = await GET(
       new Request("http://localhost/api/chats/chat-1?limit=2&cursor=m-cursor"),

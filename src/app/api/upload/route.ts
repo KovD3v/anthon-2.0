@@ -236,12 +236,33 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    // 3. Find the upload record and verify ownership
-    const upload = await prisma.message.findFirst({
+    // 3. Find the attachment record and verify ownership
+    const upload = await prisma.attachment.findFirst({
       where: {
-        mediaUrl: blobUrl,
-        userId: user.id,
-        type: "DOCUMENT",
+        blobUrl,
+        OR: [
+          {
+            message: {
+              userId: user.id,
+            },
+          },
+          {
+            messageId: null,
+            blobUrl: {
+              contains: `/uploads/${user.id}/`,
+            },
+          },
+          {
+            messageId: null,
+            blobUrl: {
+              contains: `/attachments/${user.id}/`,
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        blobUrl: true,
       },
     });
 
@@ -253,10 +274,10 @@ export async function DELETE(request: Request) {
     }
 
     // 4. Delete from Vercel Blob
-    await del(blobUrl);
+    await del(upload.blobUrl);
 
-    // 5. Delete from database (or mark as deleted)
-    await prisma.message.delete({
+    // 5. Delete from database
+    await prisma.attachment.delete({
       where: { id: upload.id },
     });
 
