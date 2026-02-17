@@ -13,7 +13,25 @@ export default defineConfig({
     fileParallelism: false,
     hookTimeout: 120_000,
     testTimeout: 30_000,
-    globalSetup: ["src/test/integration/global-setup.ts"],
-    setupFiles: ["src/test/integration/setup.ts"],
+    setupFiles: [
+      "src/test/integration/setup-env.ts",
+      "src/test/integration/setup.ts",
+    ],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary", "html"],
+      all: true,
+      include: [
+        "src/app/api/admin/organizations/route.ts",
+        "src/app/api/admin/organizations/[organizationId]/route.ts",
+        "src/app/api/admin/organizations/[organizationId]/audit/route.ts",
+      ],
+      thresholds: {
+        statements: 35,
+        branches: 25,
+        functions: 35,
+        lines: 35,
+      },
+    },
   },
 });

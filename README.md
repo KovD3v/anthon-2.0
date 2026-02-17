@@ -85,7 +85,9 @@ anthon-2.0/
 | `npm run format` | Format code with Biome   |
 | `npm run test`   | Run unit tests (Vitest)  |
 | `npm run test:integration` | Run integration tests (real DB) |
-| `npm run test:coverage` | Run tests with coverage + thresholds |
+| `npm run test:coverage:unit` | Run unit coverage + thresholds |
+| `npm run test:coverage:integration` | Run integration coverage for `organizations` routes |
+| `npm run test:coverage` | Run unit + integration coverage |
 | `npm run test:all` | Run unit + integration + coverage |
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run test:ui` | Run tests with Vitest UI |
@@ -95,6 +97,8 @@ Test command equivalents:
 - `npm run test` (canonical)
 - `bun run test`
 - `bun run test:integration`
+- `bun run test:coverage:unit`
+- `bun run test:coverage:integration`
 - `bun run test:coverage`
 - `bun run test:all`
 
