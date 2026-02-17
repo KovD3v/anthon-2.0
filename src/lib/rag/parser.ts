@@ -142,7 +142,7 @@ function parsePlainText(buffer: Buffer): ParsedDocument {
   };
 }
 
-function _chunkText(
+export function chunkText(
   text: string,
   options: {
     chunkSize?: number;
