@@ -3,33 +3,53 @@
 import { Card } from "@/components/ui/card";
 
 export function SidebarSkeleton() {
+  const chatRows = [
+    { id: "c1", width: "w-32", active: true },
+    { id: "c2", width: "w-24", active: false },
+    { id: "c3", width: "w-36", active: false },
+    { id: "c4", width: "w-28", active: false },
+    { id: "c5", width: "w-20", active: false },
+    { id: "c6", width: "w-32", active: false },
+  ] as const;
+
   return (
-    <div className="flex flex-1 flex-col overflow-hidden animate-pulse">
-      {/* New Chat Button Skeleton */}
-      <div className="p-3">
-        <div className="h-10 w-full rounded-lg bg-muted/50 border border-border/50" />
+    <div className="flex h-full w-full flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
+      <div className="flex h-14 items-center justify-between border-b border-border/50 bg-background/80 px-4 backdrop-blur-md dark:border-white/10 dark:bg-background/40">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 animate-pulse rounded-lg bg-muted/45 ring-1 ring-border/70" />
+          <div className="h-4 w-14 animate-pulse rounded bg-muted/35" />
+        </div>
+        <div className="h-8 w-8 animate-pulse rounded-md bg-muted/30" />
       </div>
 
-      {/* Chat List Skeletons */}
-      <div className="flex-1 space-y-2 p-2 pt-0">
-        {["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"].map((key) => (
+      <div className="p-3">
+        <div className="h-10 w-full animate-pulse rounded-lg border border-border/50 bg-muted/30 dark:border-white/10" />
+      </div>
+
+      <div className="flex-1 space-y-1 overflow-hidden p-2 pt-0">
+        {chatRows.map((row) => (
           <div
-            key={key}
-            className="flex items-center gap-3 rounded-xl px-3 py-3"
+            key={row.id}
+            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
+              row.active
+                ? "bg-accent ring-1 ring-border/60 dark:bg-white/10 dark:ring-white/10"
+                : ""
+            }`}
           >
-            <div className="h-4 w-4 shrink-0 rounded-full bg-muted/40" />
-            <div className="h-4 w-full rounded bg-muted/30" />
+            <div className="h-4 w-4 shrink-0 animate-pulse rounded bg-muted/40" />
+            <div
+              className={`h-3 animate-pulse rounded bg-muted/35 ${row.width}`}
+            />
           </div>
         ))}
       </div>
 
-      {/* Sidebar Bottom Skeleton */}
-      <div className="p-3 mt-auto border-t border-border/50">
+      <div className="mt-auto border-t border-border/50 p-3 dark:border-white/10">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-muted/50" />
-          <div className="space-y-1.5 flex-1">
-            <div className="h-3 w-2/3 rounded bg-muted/40" />
-            <div className="h-2 w-1/2 rounded bg-muted/30" />
+          <div className="h-8 w-8 animate-pulse rounded-full bg-muted/45" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-3 w-2/3 animate-pulse rounded bg-muted/35" />
+            <div className="h-2 w-1/2 animate-pulse rounded bg-muted/30" />
           </div>
         </div>
       </div>
