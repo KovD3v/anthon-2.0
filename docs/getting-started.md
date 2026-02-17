@@ -28,46 +28,32 @@ bun install
 
 ### 3. Environment Variables
 
-Create a `.env` file in the project root:
+Create `.env` from the template:
+
+```bash
+cp .env.example .env
+```
+
+Minimum variables to run the web app:
 
 ```env
-# Database
 DATABASE_URL="postgresql://user:password@localhost:5432/anthon?schema=public"
 DIRECT_DATABASE_URL="postgresql://user:password@localhost:5432/anthon?schema=public"
-TEST_DATABASE_URL="postgresql://user:password@localhost:5432/anthon_test?schema=public"
-
-# Clerk Authentication
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
 CLERK_SECRET_KEY="sk_test_..."
 CLERK_WEBHOOK_SECRET="whsec_..."
-
-# OpenRouter AI
 OPENROUTER_API_KEY="sk-or-..."
-
-# Optional: Vercel Blob (for file uploads)
-BLOB_READ_WRITE_TOKEN="..."
-
-# Telegram (optional: for bot + linking flow)
-TELEGRAM_BOT_TOKEN="..."
-TELEGRAM_WEBHOOK_SECRET="..."
-# Optional: used to redirect users back to the bot after linking
-TELEGRAM_BOT_USERNAME="your_bot_username"
-
-# Public URL used to generate link tokens (optional; falls back to VERCEL_URL / localhost)
-NEXT_PUBLIC_APP_URL="https://your-domain.com"
-
-# Optional: dev/testing flags
-TELEGRAM_SYNC_WEBHOOK="false"
-TELEGRAM_DISABLE_AI="false"
-TELEGRAM_DISABLE_SEND="false"
-
-# QStash (System Maintenance)
-QSTASH_URL="https://qstash.upstash.io/v2/publish/"
-QSTASH_TOKEN="..."
-QSTASH_CURRENT_SIGNING_KEY="..."
-QSTASH_NEXT_SIGNING_KEY="..."
-CRON_SECRET="..."
 ```
+
+Feature-specific variables:
+
+- Uploads: `BLOB_READ_WRITE_TOKEN`
+- Maintenance jobs: `QSTASH_URL`, `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `CRON_SECRET`, `APP_URL`
+- Telegram channel: `TELEGRAM_*`
+- WhatsApp channel: `WHATSAPP_*`
+- Voice generation: `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`
+
+`NEXT_PUBLIC_APP_URL` is used for link generation (channel linking, embedding headers, callbacks).
 
 `TEST_DATABASE_URL` is required for `npm run test:integration` and should point to a non-production database/branch.
 
@@ -186,7 +172,8 @@ This section is for users/admins who are using the app UI (not for developers). 
 
 ### Sign in / Sign up
 
-- If you're signed out and open a protected page (like `/chat` or `/channels`), you will be redirected to `/sign-in`.
+- If you're signed out and open admin pages (`/admin`), you will be redirected away from restricted content.
+- Chat supports guest mode: signed-out users can still use `/chat` with guest limits.
 - After signing in, you should land back on the page you tried to open.
 
 ### Chats

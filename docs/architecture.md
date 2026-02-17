@@ -21,7 +21,8 @@ Anthon 2.0 is built on Next.js 16 with the App Router, following a modular archi
                                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                        API Routes                                │
-│  /api/chat  │  /api/chats  │  /api/rag  │  /api/usage          │
+│  /api/chat  │  /api/chats  │  /api/rag/* │ /api/usage          │
+│  /api/preferences │ /api/guest/* │ /api/webhooks/*            │
 └─────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
@@ -130,11 +131,11 @@ Messages are grouped into sessions (15-minute gaps = new session). Long sessions
 
 ### RAG with pgvector
 
-Documents are chunked and embedded using Qwen3-embedding-8b (4096 dimensions). Semantic search finds relevant coaching knowledge for responses.
+Documents are chunked and embedded using `openai/text-embedding-3-small` (1536 dimensions) via OpenRouter. Semantic search finds relevant coaching knowledge for responses.
 
 ### Multi-Channel Architecture
 
-The `ChannelIdentity` model allows users to interact via Web or WhatsApp with a unified profile and memory.
+The `ChannelIdentity` model allows users to interact via Web, Telegram, or WhatsApp with a unified profile and memory.
 
 ### Tool-Based Memory
 

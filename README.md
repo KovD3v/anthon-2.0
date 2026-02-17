@@ -4,12 +4,12 @@ An AI-powered coaching chat application built with Next.js 16, featuring intelli
 
 ## ✨ Features
 
--   **AI Coaching Chat** - Streaming conversations with GPT-4.1 and Gemini via OpenRouter
+-   **AI Coaching Chat** - Streaming conversations via OpenRouter (Gemini 2.0 Flash family)
 -   **RAG System** - Knowledge retrieval using pgvector embeddings (Gemini 2.0 Flash classification)
 -   **Session Management** - Intelligent context building with automatic summarization
 -   **Persistent Memory** - AI remembers user preferences and important information
 -   **Automated Maintenance** - Background jobs for memory consolidation and profile analysis via QStash
--   **Multi-Channel** - Web and WhatsApp support with unified user identity
+-   **Multi-Channel** - Web, Telegram, and WhatsApp support with unified user identity
 -   **Rate Limiting** - Usage tracking with subscription tiers
 -   **Authentication** - Secure auth with Clerk
 
@@ -44,6 +44,10 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | [API Reference](./docs/api.md)               | REST API endpoints documentation           |
 | [Authentication](./docs/authentication.md)   | Clerk integration and user roles           |
 | [Rate Limiting](./docs/rate-limiting.md)     | Usage limits and subscription tiers        |
+| [Organizations](./docs/organizations.md)     | B2B contracts, seats, and Clerk org sync   |
+| [Guest Migration](./docs/guest-migration.md) | Guest-to-registered migration flow          |
+| [Telegram Webhook](./docs/telegram-webhook.md) | Telegram bot webhook processing          |
+| [WhatsApp Webhook](./docs/whatsapp-webhook.md) | WhatsApp Cloud API webhook processing    |
 | [QA Test Plan](./docs/qa-test-plan.md)       | Test scope, execution flow, and bug reporting |
 
 ## 🛠 Tech Stack

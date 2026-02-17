@@ -58,7 +58,7 @@ Contract payload fields:
 
 - Guests and admins use personal/admin limits only.
 - If the user has no active org memberships, personal limits are used.
-- If active org memberships with contracts exist, organization contract entitlements are used.
+- If active org memberships with contracts exist, the best available organization entitlement source is used.
 - If memberships exist but no valid org contract is found, personal fallback is used.
 
 The response carries source metadata:

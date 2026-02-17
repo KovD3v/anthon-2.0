@@ -22,17 +22,17 @@ These are the personal limits used by the entitlement resolver.
 
 ## Organization Entitlements
 
-For non-guest, non-admin users, effective entitlements are resolved by combining:
+For non-guest, non-admin users, effective entitlements are resolved with this priority:
 
-1. Personal source (subscription/role)
-2. All active organization memberships with active organization contracts
+1. If no active organization memberships exist: use personal limits.
+2. If active memberships exist and at least one valid organization contract exists: use the single best organization entitlement source.
+3. If memberships exist but no valid organization contract is available: use personal fallback limits.
 
-Merge strategy:
+Notes:
 
-1. Numeric limits (`requests`, `tokens`, `cost`, `context`) use per-dimension `max` across all sources.
-2. `modelTier` uses the highest available tier across sources.
-
-This means organization contracts can upgrade users, but not downgrade below personal entitlements.
+1. Guests skip organization resolution entirely.
+2. `ADMIN` and `SUPER_ADMIN` always resolve to admin limits.
+3. The `sources` payload returned by `checkRateLimit` reports which source was actually applied (`personal` or `organization`).
 
 ## Seat Limits and Memberships
 
@@ -57,7 +57,7 @@ Returned payload includes:
 2. Effective `limits`
 3. Block reason (if blocked)
 4. Upgrade info (if applicable)
-5. Entitlement source metadata (`modelTier` + sources)
+5. Entitlement source metadata (`modelTier` + applied `sources`)
 
 ## Guest and Admin Behavior
 

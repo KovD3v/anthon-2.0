@@ -1,470 +1,223 @@
 # API Reference
 
-Anthon 2.0 exposes REST API endpoints for chat, data management, and administration.
+Anthon 2.0 exposes REST API endpoints for chat, channels, administration, and operations.
 
-## Authentication
+## Authentication and Security
 
-All API routes (except webhooks) require Clerk authentication. The preferred pattern uses the internal helper:
+### Clerk-authenticated routes
+
+Most `/api/*` routes require an authenticated Clerk session and use `getAuthUser()`.
+
+### Guest routes
+
+Guest-only endpoints are under `/api/guest/*` and use cookie-based guest auth.
+
+### Admin routes
+
+`/api/admin/*` requires `ADMIN` or `SUPER_ADMIN` via `requireAdmin()`.
+Role management (`PATCH /api/admin/users`) is restricted to `SUPER_ADMIN`.
+
+### Secret/signed routes
+
+- `GET /api/cron/trigger` and `GET|POST /api/cron/cleanup-attachments` require `Authorization: Bearer $CRON_SECRET`.
+- `POST /api/queues/*` requires a valid `Upstash-Signature` header (QStash verification).
+
+### Webhook verification
+
+- Clerk webhook: `svix-id`, `svix-timestamp`, `svix-signature`
+- Telegram webhook: `x-telegram-bot-api-secret-token`
+- WhatsApp webhook POST: `x-hub-signature-256`
+- WhatsApp webhook GET: `hub.verify_token` validation
+
+## Shared Response Helpers
+
+Routes commonly use helpers from `@/lib/api/responses`:
+
+- `jsonOk`, `jsonCreated`
+- `badRequest`, `unauthorized`, `forbidden`, `notFound`, `rateLimited`, `serverError`
+
+## User API (Authenticated)
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `POST` | `/api/chat` | Stream assistant response for a chat message. |
+| `GET` | `/api/chats` | List chats for current user. |
+| `POST` | `/api/chats` | Create new chat. |
+| `GET` | `/api/chats/[id]` | Get chat details and paginated messages. |
+| `PATCH` | `/api/chats/[id]` | Update chat title/visibility, optionally generate title. |
+| `DELETE` | `/api/chats/[id]` | Delete chat and related entities. |
+| `GET` | `/api/chats/[id]/export` | Export chat as Markdown download. |
+| `GET` | `/api/chats/search?q=...` | Search inside user messages. |
+| `GET` | `/api/chat/messages?chatId=...` | Load messages for one chat. |
+| `PATCH` | `/api/chat/messages` | Edit one user message and truncate following messages in that chat. |
+| `DELETE` | `/api/chat/messages?id=...` | Delete one user message and truncate following messages in that chat. |
+| `POST` | `/api/chat/feedback` | Save thumbs feedback on assistant message (`-1`, `0`, `1`). |
+| `GET` | `/api/usage` | Get usage, limits, and effective entitlement source for current user. |
+| `GET` | `/api/preferences` | Read user preferences. |
+| `PATCH` | `/api/preferences` | Update user preferences (`voiceEnabled`, `tone`, `mode`, `language`, `push`). |
+| `POST` | `/api/upload` | Upload attachment to Vercel Blob and register `Attachment`. |
+| `DELETE` | `/api/upload?url=...` | Delete uploaded blob for current user. |
+| `DELETE` | `/api/channels/[id]` | Disconnect a linked channel identity. |
+
+### Key request payloads
+
+`POST /api/chat`
 
 ```ts
-import { getAuthUser } from "@/lib/auth";
-
-const { user, error } = await getAuthUser();
-```
-
-Performance-critical routes (e.g. `/api/chat`) may use `auth()` from `@clerk/nextjs/server` directly.
-
-## Response Helpers
-
-API routes use shared response helpers from `@/lib/api/responses`:
-
-```ts
-import { jsonOk, unauthorized, serverError } from "@/lib/api/responses";
-
-return jsonOk(data);
-return unauthorized();
-return serverError("Something went wrong");
-```
-
-Available helpers: `jsonOk`, `jsonCreated`, `badRequest`, `unauthorized`, `forbidden`, `notFound`, `rateLimited`, `serverError`.
-
-## Chat API
-
-### `POST /api/chat`
-
-Streams an AI chat response.
-
-**Request:**
-
-```typescript
 {
   chatId: string;
   messages: Array<{
     role: "user" | "assistant";
     parts?: Array<
       | { type: "text"; text: string }
-      | {
-          type: "file";
-          mimeType?: string;
-          name?: string;
-          size?: number;
-          attachmentId?: string;
-          data?: string;
-        }
+      | { type: "file"; mimeType?: string; name?: string; size?: number; attachmentId?: string; data?: string }
     >;
   }>;
 }
 ```
 
-**Response:** Server-Sent Events stream with:
-
-- Text chunks
-- Tool calls/results
-- Final message metadata
-
-**Rate Limiting:** Enforced per subscription tier.
-
----
-
-## Chats API
-
-### `GET /api/chats`
-
-List user's chats.
-
-**Response:**
-
-```typescript
-{
-  chats: Array<{
-    id: string;
-    title: string | null;
-    visibility: "PRIVATE" | "PUBLIC";
-    createdAt: string;
-    updatedAt: string;
-    messageCount: number;
-  }>;
-}
-```
-
-### `POST /api/chats`
-
-Create a new chat.
-
-**Request:**
-
-```typescript
-{
-  title?: string;
-}
-```
-
-### `GET /api/chats/[chatId]`
-
-Get a single chat with messages.
-
-**Query Params:**
-| Param | Type | Default | Description |
-|-------|------|---------|-------------|
-| `limit` | number | 50 | Max messages |
-| `cursor` | string | - | For pagination |
-
-### `PATCH /api/chats/[chatId]`
-
-Update chat title.
-
-```typescript
-{
-  title?: string;
-  visibility?: "PRIVATE" | "PUBLIC";
-  generateTitle?: boolean;
-}
-```
-
-### `DELETE /api/chats/[chatId]`
-
-Delete a chat (hard delete; cascades to related messages/artifacts).
-
----
-
-## Chat Export
-
-### `GET /api/chats/[id]/export`
-
-Downloads the chat as Markdown.
-
----
-
-## Chat Search
-
-### `GET /api/chats/search?q=...`
-
-Searches within the user's messages (case-insensitive contains).
-
-Notes:
-
-- `q` must be at least 2 characters.
-- Results are limited.
-
----
-
-## Chat Messages API
-
-This is used by the UI to load/edit/delete messages.
-
-### `GET /api/chat/messages?chatId=<chatId>`
-
-Returns message history for a chat.
-
-### `PATCH /api/chat/messages`
-
-Edits a user message by deleting that message and all subsequent messages in the same chat.
-
-Body:
+`PATCH /api/chat/messages`
 
 ```ts
 { messageId: string; content?: string }
 ```
 
-### `DELETE /api/chat/messages?id=<messageId>`
-
-Deletes a user message and all subsequent messages in the same chat.
-
----
-
-## Feedback API
-
-### `POST /api/chat/feedback`
-
-Stores thumbs up/down feedback for an assistant message.
-
-Body:
+`POST /api/chat/feedback`
 
 ```ts
 { messageId: string; feedback: -1 | 0 | 1 }
 ```
 
----
+## Guest API
 
-## RAG API
-
-### `GET /api/rag/documents`
-
-List all RAG documents.
-
-**Response:**
-
-```ts
-{ documents: Array<{ id: string; title: string; source: string | null; url: string | null }> }
-```
-
-### `POST /api/rag/documents`
-
-Add a new document.
-
-**Request:**
-
-```typescript
-{
-  title: string;
-  content: string;
-  source?: string;
-  url?: string;
-}
-```
-
-### `DELETE /api/rag/documents/[id]`
-
-Delete a document and its chunks.
-
-Note: the current implementation deletes via query param (`DELETE /api/rag/documents?id=...`).
-
-### `PATCH /api/rag/documents`
-
-Backfills missing embeddings (admin/dev utility).
-
-### `POST /api/rag/search`
-
-Search documents semantically.
-
-**Request:**
-
-```typescript
-{
-  query: string;
-  limit?: number;  // Default: 5
-  checkNeedsRag?: boolean;
-}
-```
-
-**Response:** includes results and, optionally, a prebuilt context string.
-
----
-
-## Usage API
-
-### `GET /api/usage`
-
-Get current user's daily usage and limits.
-
-**Response:**
-
-```typescript
-{
-  usage: {
-    requestCount: number;
-    inputTokens: number;
-    outputTokens: number;
-    totalCostUsd: number;
-  }
-  limits: {
-    maxRequests: number;
-    maxInputTokens: number;
-    maxOutputTokens: number;
-    maxCostUsd: number;
-  }
-  tier: "TRIAL" | "ACTIVE" | "ADMIN";
-  subscriptionStatus: "TRIAL" | "ACTIVE" | "CANCELED" | "EXPIRED" | "PAST_DUE" | null;
-  entitlements?: {
-    modelTier: "TRIAL" | "BASIC" | "BASIC_PLUS" | "PRO" | "ENTERPRISE" | "ADMIN";
-    sources: Array<{
-      type: "personal" | "organization";
-      sourceId: string;
-      sourceLabel: string;
-    }>;
-  };
-}
-```
-
----
-
-## Upload API
-
-### `POST /api/upload`
-
-Upload a file to Vercel Blob.
-
-**Request:** `multipart/form-data` with `file` field.
-
-**Response:**
-
-```typescript
-{
-  id: string;
-  url: string; // Blob URL
-  downloadUrl?: string;
-  name: string;
-  contentType: string;
-  size: number;
-}
-```
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `POST` | `/api/guest/chat` | Stream chat response for guest user. |
+| `GET` | `/api/guest/chats` | List guest chats. |
+| `POST` | `/api/guest/chats` | Create guest chat. |
+| `GET` | `/api/guest/chats/[id]` | Get guest chat detail. |
+| `PATCH` | `/api/guest/chats/[id]` | Update guest chat title/visibility. |
+| `DELETE` | `/api/guest/chats/[id]` | Delete guest chat. |
+| `GET` | `/api/guest/usage` | Guest usage and limits. |
 
 Notes:
 
-- If `chatId` is provided in the multipart form, the API verifies chat ownership and stores the file under a chat-specific path.
+- Guests cannot upload files in guest chat endpoint.
+- Guest limits differ from authenticated trial limits.
 
----
+## RAG API
 
-## Channels API
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `GET` | `/api/rag/documents` | List RAG documents. |
+| `POST` | `/api/rag/documents` | Add one RAG document. |
+| `DELETE` | `/api/rag/documents?id=...` | Delete one RAG document and chunks. |
+| `PATCH` | `/api/rag/documents` | Backfill missing embeddings. |
+| `POST` | `/api/rag/search` | Semantic search over RAG chunks. |
 
-### `DELETE /api/channels/[id]`
+`POST /api/rag/search` body:
 
-Disconnects a channel identity (e.g. Telegram/WhatsApp) from the authenticated user.
+```ts
+{ query: string; limit?: number; checkNeedsRag?: boolean }
+```
 
----
+## Voice API
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `POST` | `/api/voice/generate` | Generate audio for an assistant message (plan + funnel checks apply). |
+
+`POST /api/voice/generate` body:
+
+```ts
+{ messageId: string; userMessage?: string }
+```
 
 ## Admin API
 
-Admin routes require `ADMIN` or `SUPER_ADMIN` role.
+### Core admin endpoints
 
-### `GET /api/admin/analytics?type=...&range=...`
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `GET` | `/api/admin/analytics?type=...&range=...` | Dashboard analytics (`overview`, `usage`, `costs`, `funnel`). |
+| `GET` | `/api/admin/costs` | Aggregated model cost metrics. |
+| `GET` | `/api/admin/users` | User list with pagination/search. |
+| `PATCH` | `/api/admin/users` | Update user role (`SUPER_ADMIN` only). |
+| `GET` | `/api/admin/users/[userId]` | User detail with stats and recent messages. |
+| `GET` | `/api/admin/rag` | List all RAG documents. |
+| `POST` | `/api/admin/rag` | Upload/process RAG files (multipart `files`). |
+| `DELETE` | `/api/admin/rag?id=...` | Delete RAG document. |
+| `GET` | `/api/admin/organizations` | List organizations and seat usage (`?sync=1` supported). |
+| `POST` | `/api/admin/organizations` | Create organization, contract, owner assignment/invite. |
+| `GET` | `/api/admin/organizations/[organizationId]` | Organization detail. |
+| `PATCH` | `/api/admin/organizations/[organizationId]` | Update metadata, contract, owner transfer. |
+| `DELETE` | `/api/admin/organizations/[organizationId]` | Delete organization (Clerk + local). |
+| `GET` | `/api/admin/organizations/[organizationId]/audit` | Paginated organization audit events. |
+| `GET` | `/api/admin/elevenlabs/stats` | Voice generation statistics. |
 
-Aggregated metrics for the admin dashboard.
+### Benchmark endpoints
 
-- `type`: `overview` | `usage` | `costs` | `funnel`
-- `range`: `7d` | `30d` | `90d` | `all`
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `GET` | `/api/admin/benchmark` | List benchmark runs. |
+| `POST` | `/api/admin/benchmark` | Create/start benchmark run. |
+| `PATCH` | `/api/admin/benchmark` | Update benchmark run state. |
+| `DELETE` | `/api/admin/benchmark` | Delete benchmark run. |
+| `GET` | `/api/admin/benchmark/progress` | Current run progress. |
+| `GET` | `/api/admin/benchmark/export` | Export benchmark results. |
+| `GET` | `/api/admin/benchmark/test-cases` | List test cases. |
+| `POST` | `/api/admin/benchmark/test-cases` | Create test case. |
+| `DELETE` | `/api/admin/benchmark/test-cases` | Delete test case. |
+| `GET` | `/api/admin/benchmark/adversarial` | List adversarial benchmark items. |
+| `POST` | `/api/admin/benchmark/adversarial` | Create/run adversarial benchmark job. |
+| `PATCH` | `/api/admin/benchmark/adversarial` | Update adversarial benchmark state. |
 
-### `GET /api/admin/users`
+## Operations and Maintenance API
 
-Lists users with pagination/search.
-
-### `PATCH /api/admin/users`
-
-Updates a user's role (SUPER_ADMIN only).
-
-### `GET /api/admin/users/[userId]`
-
-User detail + stats + recent messages.
-
-### `GET /api/admin/rag`
-
-Lists all RAG documents.
-
-### `POST /api/admin/rag`
-
-Uploads and processes one or more documents (multipart form field: `files`).
-
-### `DELETE /api/admin/rag?id=<documentId>`
-
-Deletes a RAG document and its chunks.
-
-### `GET /api/admin/organizations`
-
-Lists organizations with contract summary and active seat usage.
-
-### `POST /api/admin/organizations`
-
-Creates a Clerk organization, stores local contract limits, and assigns/invites the owner.
-
-Contract payload notes:
-
-- `basePlan` is required (`BASIC`, `BASIC_PLUS`, `PRO`).
-- `modelTier` is an advanced override; if unchanged, it should match the base plan tier.
-- Numeric contract fields are treated as enterprise overrides.
-
-### `GET /api/admin/organizations/[organizationId]`
-
-Returns organization details, contract, owner, and membership state.
-
-### `PATCH /api/admin/organizations/[organizationId]`
-
-Updates contract limits and/or initiates owner transfer.
-
-### `DELETE /api/admin/organizations/[organizationId]`
-
-Deletes the organization in Clerk and removes the local organization record.
-
-Response notes (list/detail/create/update):
-
-- Organization responses include `effective` when a contract is present.
-- `effective` is computed from `basePlan` defaults plus explicit enterprise overrides.
-
-### `GET /api/admin/organizations/[organizationId]/audit`
-
-Returns immutable audit log entries for contract-sensitive actions.
-
----
-
-## Health
-
-### `GET /api/health`
-
-Returns connectivity status for DB, OpenRouter, Clerk, and Vercel Blob.
-
----
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `GET` | `/api/health` | Health checks for DB, OpenRouter, Clerk, Blob. |
+| `GET` | `/api/cron/trigger?job=all|consolidate|archive|analyze` | Publish maintenance jobs to QStash (`CRON_SECRET` required). |
+| `GET` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |
+| `POST` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |
+| `POST` | `/api/queues/consolidate` | Internal QStash consumer for memory consolidation. |
+| `POST` | `/api/queues/archive` | Internal QStash consumer for session archive. |
+| `POST` | `/api/queues/analyze` | Internal QStash consumer for profile analysis. |
 
 ## Webhooks
 
-### `POST /api/webhooks/clerk`
-
-Handles Clerk webhook events:
-
-- `user.created` - Create user in database
-- `user.updated` - Update user data
-- `user.deleted` - Soft delete user
-- `subscription.*` - Update subscription status
-- `organization.*` - Sync organization lifecycle
-- `organizationMembership.*` - Sync memberships, enforce seat limit on join
-- `organizationInvitation.accepted` - Sync accepted owner/member invite flow
-
-**Headers Required:**
-
-- `svix-id`
-- `svix-timestamp`
-- `svix-signature`
-
-### `POST /api/webhooks/telegram`
-
-Receives Telegram Bot API updates and responds via `sendMessage`.
-
-**Headers Required:**
-
-- `x-telegram-bot-api-secret-token` (must match `TELEGRAM_WEBHOOK_SECRET`)
-
-Clerk webhook secret:
-
-- `CLERK_WEBHOOK_SECRET`
-
-Optional:
-
-- `NEXT_PUBLIC_APP_URL` (used to generate link URLs)
-- `TELEGRAM_SYNC_WEBHOOK` (dev mode: process synchronously)
-- `TELEGRAM_DISABLE_AI` / `TELEGRAM_DISABLE_SEND`
-
-**Telegram Setup (example):**
-
-```bash
-curl -sS "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
-	-d "url=https://YOUR_DOMAIN/api/webhooks/telegram" \
-	-d "secret_token=$TELEGRAM_WEBHOOK_SECRET"
-```
-
----
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `POST` | `/api/webhooks/clerk` | Sync users, subscriptions, organizations, memberships. |
+| `GET` | `/api/webhooks/telegram` | Telegram webhook health check. |
+| `POST` | `/api/webhooks/telegram` | Telegram bot updates. |
+| `GET` | `/api/webhooks/whatsapp` | WhatsApp verification challenge. |
+| `POST` | `/api/webhooks/whatsapp` | WhatsApp Cloud API updates. |
 
 ## Error Responses
 
-All endpoints return consistent error format:
+Common shape:
 
-```typescript
+```ts
 {
-  error: string;      // Error message
-  code?: string;      // Error code (e.g., "RATE_LIMIT_EXCEEDED")
-  details?: object;   // Additional context
+  error: string;
+  code?: string;
+  details?: object;
 }
 ```
 
-**Status Codes:**
-| Code | Meaning |
-|------|---------|
-| 400 | Bad Request - Invalid input |
-| 401 | Unauthorized - Not authenticated |
-| 403 | Forbidden - Insufficient permissions |
-| 404 | Not Found - Resource doesn't exist |
-| 429 | Too Many Requests - Rate limit exceeded |
-| 500 | Internal Server Error |
+Typical status codes:
+
+- `400` bad request
+- `401` unauthorized
+- `403` forbidden
+- `404` not found
+- `429` rate-limited
+- `500` internal server error
 
 ## Related Documentation
 
-- [Authentication](./authentication.md) - Clerk setup
-- [Rate Limiting](./rate-limiting.md) - Usage limits
-- [AI System](./ai-system.md) - Chat processing
+- [Authentication](./authentication.md)
+- [Rate Limiting](./rate-limiting.md)
+- [Organizations](./organizations.md)
+- [Maintenance](./maintenance.md)

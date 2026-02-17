@@ -26,15 +26,14 @@ CLERK_SECRET_KEY="sk_test_..."
 CLERK_WEBHOOK_SECRET="whsec_..."
 ```
 
-### 2. Middleware
+### 2. Route-Level Protection
 
-The middleware protects routes and passes auth to the app:
+This project does not rely on a global `middleware.ts` auth gate.
+Access control is enforced at layout/API level with helpers in `src/lib/auth.ts`:
 
-```typescript
-// middleware.ts (auto-configured by Clerk)
-import { clerkMiddleware } from "@clerk/nextjs/server";
-export default clerkMiddleware();
-```
+- `getAuthUser()` for authenticated user resolution
+- `requireAdmin()` for admin-only access
+- `requireSuperAdmin()` for super-admin-only operations
 
 ### 3. Webhook Configuration
 
@@ -76,24 +75,19 @@ const { user, error } = await getAuthUser();
 // error: string when not authenticated or on failure
 ```
 
-### `requireAuth()`
+### `requireAdmin()` / `requireSuperAdmin()`
 
-This codebase primarily uses `getAuthUser()` and role-gated helpers like `requireAdmin()`.
+Use these helpers for role-gated routes:
 
 ```typescript
-import { requireAuth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 
 export async function GET() {
-	const { dbUser } = await requireAuth();
-	// Guaranteed to have authenticated user
+  const { user, errorResponse } = await requireAdmin();
+  if (errorResponse) return errorResponse;
+  return Response.json({ ok: true, userId: user!.id });
 }
 ```
-
-### `requireRole(roles)`
-
-Checks user has required role:
-
-For admin-only routes, prefer `requireAdmin()` / `requireSuperAdmin()`.
 
 ## Protected Routes
 
@@ -102,21 +96,21 @@ For admin-only routes, prefer `requireAdmin()` / `requireSuperAdmin()`.
 | Group         | Protection    | Purpose                |
 | ------------- | ------------- | ---------------------- |
 | `(marketing)` | Public        | Landing, pricing pages |
-| `(chat)`      | Authenticated | Chat interface         |
+| `(chat)`      | Mixed (guest + authenticated) | Chat interface |
 | `(admin)`     | ADMIN role    | Admin dashboard        |
 | `/organization` | Authenticated | Clerk Organization management |
 
 ### Layout Protection
 
 ```typescript
-// src/app/(chat)/layout.tsx
-import { auth } from "@clerk/nextjs/server";
+// src/app/(admin)/admin/layout.tsx
 import { redirect } from "next/navigation";
+import { requireAdmin } from "@/lib/auth";
 
-export default async function ChatLayout({ children }) {
-	const { userId } = await auth();
-	if (!userId) redirect("/sign-in");
-	return <>{children}</>;
+export default async function AdminLayout({ children }) {
+  const { errorResponse } = await requireAdmin();
+  if (errorResponse) redirect("/");
+  return <>{children}</>;
 }
 ```
 

@@ -286,6 +286,6 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
 
 ## Related Files
 
--   [route.ts](file:///Users/kovd3v/Documents/Projects/anthon-2.0/src/app/api/webhooks/telegram/route.ts) - Webhook handler
--   [orchestrator.ts](file:///Users/kovd3v/Documents/Projects/anthon-2.0/src/lib/ai/orchestrator.ts) - AI response generation
+-   `src/app/api/webhooks/telegram/route.ts` - Webhook handler
+-   `src/lib/ai/orchestrator.ts` - AI response generation
 -   [api.md](./api.md) - API documentation

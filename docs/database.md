@@ -77,12 +77,12 @@ Individual messages supporting text, media, and AI metadata.
 | `direction`    | MessageDirection | INBOUND or OUTBOUND                  |
 | `type`         | MessageType      | TEXT, IMAGE, AUDIO, etc.             |
 | `content`      | String?          | Text content                         |
-| `parts`        | Json?            | AI SDK v5 message parts              |
+| `parts`        | Json?            | AI SDK message parts (UI message format) |
 | `mediaUrl`     | String?          | Media URL (for non-web channels)     |
 | `mediaType`    | String?          | Media MIME type                      |
 | `externalMessageId` | String?     | External message id (unique per channel) |
 | `metadata`     | Json?            | Channel-specific payload (e.g. Telegram) |
-| `model`        | String?          | AI model used (e.g., "gpt-4.1-mini") |
+| `model`        | String?          | AI model used (e.g., "google/gemini-2.0-flash-001") |
 | `inputTokens`  | Int?             | Prompt tokens                        |
 | `outputTokens` | Int?             | Generated tokens                     |
 | `costUsd`      | Float?           | Response cost                        |

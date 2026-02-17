@@ -1,104 +1,102 @@
 # Automated Maintenance System
 
-The Automated Maintenance System keeps the Anthon platform efficient, cost-effective, and personalized by running background jobs to consolidate data and analyze user behavior.
+The maintenance subsystem runs background jobs to keep user data compact, useful, and cost-efficient.
 
-It is powered by **Upstash QStash** for reliable serverless scheduling and execution.
+It uses **Upstash QStash** for signed asynchronous execution.
 
 ## Architecture
 
 ```
-┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│  QStash      │ ───► │  /api/cron/* │ ───► │  Maintenance │
-│  (Scheduler) │      │  (Next.js)   │      │  Modules     │
-└──────────────┘      └──────────────┘      └──────────────┘
-                                                   │
-                                                   ▼
-                                            ┌──────────────┐
-                                            │ Gemini 2.0   │
-                                            │ Flash Lite   │
-                                            └──────────────┘
+┌─────────────────────┐      ┌──────────────────────────┐      ┌───────────────────┐
+│ Scheduler / Manual  │ ───► │ GET /api/cron/trigger    │ ───► │ QStash publish    │
+│ trigger (admin/curl)│      │ (CRON_SECRET protected)  │      │ per user/job      │
+└─────────────────────┘      └──────────────────────────┘      └─────────┬─────────┘
+                                                                          │
+                                                                          ▼
+                                                       ┌─────────────────────────────┐
+                                                       │ POST /api/queues/*          │
+                                                       │ (QStash signature verified) │
+                                                       └──────────────┬──────────────┘
+                                                                      │
+                                                                      ▼
+                                                       ┌─────────────────────────────┐
+                                                       │ src/lib/maintenance/*       │
+                                                       │ + Gemini 2.0 Flash Lite     │
+                                                       └─────────────────────────────┘
 ```
 
 ## Jobs
 
-All jobs are located in `src/lib/maintenance/` and exposed via API routes in `src/app/api/cron/`.
-
 ### 1. Memory Consolidation
 
-**Schedule:** Daily (e.g., 04:00 AM)
-**File:** `src/lib/maintenance/memory-consolidation.ts`
-**Route:** `/api/cron/consolidate-memories`
-
-**Purpose:**
-Prevents "memory bloat" by merging redundant or obsolete memories.
-
-**Process:**
-
-1.  Fetches users who have >10 new memories since last run.
-2.  Retrieves all active memories for the user.
-3.  Uses **Gemini 2.0 Flash** to:
-    -   Merge duplicates (e.g., "likes red" + "likes color red" -> "likes red").
-    -   Resolve conflicts (newer value wins).
-    -   Group into valid categories (sport, goals, personal).
-    -   Remove obsolete info.
-4.  Updates the database transactionally.
+- File: `src/lib/maintenance/memory-consolidation.ts`
+- Queue endpoint: `POST /api/queues/consolidate`
+- Behavior:
+  1. Loads all user memories.
+  2. Skips consolidation when memories are fewer than 5.
+  3. Uses the maintenance model to propose merges/conflict resolutions.
+  4. Applies updates transactionally and invalidates memory prompt cache.
 
 ### 2. Profile Analyzer
 
-**Schedule:** Weekly (e.g., Sunday 03:00 AM)
-**File:** `src/lib/maintenance/profile-analyzer.ts`
-**Route:** `/api/cron/analyze-profile`
-
-**Purpose:**
-Builds a psychometric profile of the user to improve AI mirroring and empathy.
-
-**Process:**
-
-1.  Fetches last 50 user messages.
-2.  Analyzes them with **Gemini 2.0 Flash** to identify:
-    -   **Communication Style:** Formal/Informal, Concise/Verbose.
-    -   **Tone:** Direct, Emotional, Analytical.
-    -   **Values:** Performance, Health, Enjoyment.
-3.  Updates `UserPreferences.style` which is injected into the Orchestrator system prompt.
+- File: `src/lib/maintenance/profile-analyzer.ts`
+- Queue endpoint: `POST /api/queues/analyze`
+- Behavior:
+  1. Reads the last 50 user messages (`role=USER`).
+  2. Requires at least 10 messages.
+  3. Infers `tone`, `mode`, and profile updates (`sport`, `goal`, `experience`, notes).
+  4. Persists updates with upsert logic.
 
 ### 3. Session Archiver
 
-**Schedule:** Daily
-**File:** `src/lib/maintenance/session-archiver.ts`
-**Route:** `/api/cron/archive-sessions`
+- File: `src/lib/maintenance/session-archiver.ts`
+- Queue endpoint: `POST /api/queues/archive`
+- Behavior:
+  1. Computes retention days from role/plan.
+  2. Uses a 24h safety buffer (never touches very recent messages).
+  3. Groups messages into sessions (15-minute gap rule).
+  4. Archives sessions fully outside retention window to `ArchivedSession`.
+  5. Hard-deletes archived raw messages from `Message`.
 
-**Purpose:**
-Keeps the active context window small to save tokens and costs, while preserving long-term knowledge.
+## Trigger and Security Model
 
-**Process:**
+- `GET /api/cron/trigger?job=all|consolidate|archive|analyze`
+  - Requires `Authorization: Bearer $CRON_SECRET`.
+  - Selects non-guest active users and publishes queue tasks.
+- `POST /api/queues/consolidate|archive|analyze`
+  - Verifies `Upstash-Signature` via `verifyQStashAuth()`.
 
-1.  Identifies "inactive" sessions (last message > 24 hours ago).
-2.  Generates a high-level summary of the session.
-3.  Stores summary in `SessionSummary` table.
-4.  **Deletes** the raw messages from the `Message` table (subject to retention policy).
+## Attachment Cleanup Cron
 
-## Configuration
+Attachment cleanup is a separate cron flow:
 
-### Environment Variables
+- Route: `GET|POST /api/cron/cleanup-attachments`
+- Security: `Authorization: Bearer $CRON_SECRET`
+- Purpose: deletes expired `Attachment` records and corresponding blob objects based on retention policy.
 
-Required keys in `.env`:
+## Environment Variables
+
+Required for maintenance execution:
 
 ```env
-QSTASH_URL="https://qstash.upstash.io/v2/publish/"
+QSTASH_URL="https://qstash.upstash.io/v2"
 QSTASH_TOKEN="..."
-CRON_SECRET="..." # Protection for API routes
+QSTASH_CURRENT_SIGNING_KEY="..."
+QSTASH_NEXT_SIGNING_KEY="..."
+APP_URL="https://your-domain.com"
+CRON_SECRET="..."
 ```
 
-### Manual Triggers
+## Manual Triggers
 
-You can manually trigger jobs from the Admin Dashboard (`/admin/jobs`) or via curl:
+From Admin UI: `/admin/jobs`
+
+From CLI:
 
 ```bash
-curl -X POST https://your-app.com/api/cron/consolidate-memories \
+curl -sS "https://your-app.com/api/cron/trigger?job=all" \
+  -H "Authorization: Bearer $CRON_SECRET"
+
+curl -sS "https://your-app.com/api/cron/trigger?job=consolidate" \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
-
-## Cost Implications
-
--   **QStash:** Free tier allows 500 requests/day, sufficient for most deployments.
--   **Gemini 2.0 Flash:** Extremely low cost ($0.10 / 1M input tokens), making daily maintenance feasible even for many users.
