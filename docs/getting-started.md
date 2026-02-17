@@ -33,6 +33,8 @@ Create a `.env` file in the project root:
 ```env
 # Database
 DATABASE_URL="postgresql://user:password@localhost:5432/anthon?schema=public"
+DIRECT_DATABASE_URL="postgresql://user:password@localhost:5432/anthon?schema=public"
+TEST_DATABASE_URL="postgresql://user:password@localhost:5432/anthon_test?schema=public"
 
 # Clerk Authentication
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
@@ -65,6 +67,23 @@ QSTASH_TOKEN="..."
 QSTASH_CURRENT_SIGNING_KEY="..."
 QSTASH_NEXT_SIGNING_KEY="..."
 CRON_SECRET="..."
+```
+
+`TEST_DATABASE_URL` is required for `npm run test:integration` and should point to a non-production database/branch.
+
+Neon branch mapping (recommended):
+
+- `TEST_DATABASE_URL` -> `development` branch (direct connection string)
+- Production deployment `DATABASE_URL` -> `production` branch (pooled connection string)
+- Production deployment `DIRECT_DATABASE_URL` -> `production` branch (direct connection string)
+
+Useful Neon CLI commands:
+
+```bash
+neon cs development --project-id <project_id> --database-name neondb --role-name neondb_owner
+neon cs development --project-id <project_id> --database-name neondb --role-name neondb_owner --pooled
+neon cs production --project-id <project_id> --database-name neondb --role-name neondb_owner
+neon cs production --project-id <project_id> --database-name neondb --role-name neondb_owner --pooled
 ```
 
 ### 4. Database Setup
@@ -119,6 +138,20 @@ npm start
 | `npm start`      | Start production server  |
 | `npm run lint`   | Run Biome linter         |
 | `npm run format` | Format code with Biome   |
+| `npm run test`   | Run unit tests (Vitest)  |
+| `npm run test:integration` | Run integration tests (real DB) |
+| `npm run test:coverage` | Run tests with coverage + thresholds |
+| `npm run test:all` | Run unit + integration + coverage |
+| `npm run test:watch` | Run tests in watch mode |
+| `npm run test:ui` | Run tests with Vitest UI |
+
+Test command equivalents:
+
+- `npm run test` (canonical)
+- `bun run test`
+- `bun run test:integration`
+- `bun run test:coverage`
+- `bun run test:all`
 
 ## Project Structure
 
