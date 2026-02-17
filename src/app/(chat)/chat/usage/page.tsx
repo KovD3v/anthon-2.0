@@ -65,7 +65,12 @@ export default function UsagePage() {
       <div className="mx-auto w-full max-w-md px-4 py-8 sm:px-6 sm:py-12">
         {/* Header */}
         <div className="mb-8">
-          <Button variant="ghost" size="sm" className="mb-4 -ml-2 gap-1.5" asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mb-4 -ml-2 gap-1.5"
+            asChild
+          >
             <Link href="/chat">
               <ArrowLeft className="h-4 w-4" />
               Torna alla chat

@@ -48,10 +48,7 @@ export async function KPIStats() {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {kpiCards.map((card) => (
-        <Card
-          key={card.title}
-          variant="glass"
-        >
+        <Card key={card.title} variant="glass">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               {card.title}

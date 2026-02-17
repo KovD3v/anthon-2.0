@@ -266,7 +266,12 @@ export function UsageBanner({
           <div className="flex items-center gap-2.5">
             <span className={accentStyle}>{getIcon()}</span>
             <div className="flex flex-col gap-0.5">
-              <p className={cn("text-sm font-medium", isAtLimit || isNearLimit ? accentStyle : "text-foreground")}>
+              <p
+                className={cn(
+                  "text-sm font-medium",
+                  isAtLimit || isNearLimit ? accentStyle : "text-foreground",
+                )}
+              >
                 {getMessage()}
               </p>
               <p className="text-xs text-muted-foreground">

@@ -24,16 +24,6 @@ export type {
   LibWritingQualityCritique,
 };
 
-export interface Dataset {
-  testCases: Array<{
-    id: string;
-    name: string;
-    userMessage: string;
-    category: string;
-    setup?: TestCaseSetup;
-  }>;
-}
-
 export interface BenchmarkRun {
   id: string;
   name: string;

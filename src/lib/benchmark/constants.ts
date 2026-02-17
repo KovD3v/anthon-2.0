@@ -25,7 +25,5 @@ export const AVAILABLE_MODELS = [
   "nvidia/nemotron-3-nano-30b-a3b:free",
   "moonshotai/kimi-k2-thinking",
   "moonshotai/kimi-k2.5",
-  "deepseek/deepseek-v3.2"
+  "deepseek/deepseek-v3.2",
 ] as const;
-
-export type BenchmarkModelId = (typeof AVAILABLE_MODELS)[number];

@@ -213,7 +213,7 @@ export async function removeClerkMembership(input: {
 // Tiny helpers shared with service.ts
 // ---------------------------------------------------------------------------
 
-export function getId(value: unknown): string | null {
+function getId(value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
   const id = (value as { id?: unknown }).id;
   return typeof id === "string" && id.length > 0 ? id : null;

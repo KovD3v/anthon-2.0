@@ -105,7 +105,10 @@ export function Features() {
         >
           {features.map((feature) => (
             <motion.div key={feature.id} variants={item}>
-              <Card variant="glass" className="h-full transition-all hover:bg-background/80">
+              <Card
+                variant="glass"
+                className="h-full transition-all hover:bg-background/80"
+              >
                 <CardHeader>
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
                     <feature.icon className="h-6 w-6 text-primary" />

@@ -10,10 +10,7 @@ export default function AdminLoading() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {["s1", "s2", "s3", "s4", "s5"].map((id) => (
-          <Card
-            key={id}
-            variant="glass"
-          >
+          <Card key={id} variant="glass">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="h-4 w-20 animate-pulse rounded bg-muted" />
               <div className="h-4 w-4 animate-pulse rounded bg-muted" />

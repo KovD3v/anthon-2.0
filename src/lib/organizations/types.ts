@@ -12,20 +12,8 @@ export type OrganizationModelTier = (typeof ORGANIZATION_MODEL_TIERS)[number];
 export const ORGANIZATION_BASE_PLANS = ["BASIC", "BASIC_PLUS", "PRO"] as const;
 export type OrganizationBasePlan = (typeof ORGANIZATION_BASE_PLANS)[number];
 
-export const ORGANIZATION_MEMBER_ROLES = ["OWNER", "MEMBER"] as const;
+const ORGANIZATION_MEMBER_ROLES = ["OWNER", "MEMBER"] as const;
 export type OrganizationMemberRole = (typeof ORGANIZATION_MEMBER_ROLES)[number];
-
-export const ORGANIZATION_AUDIT_ACTIONS = [
-  "ORGANIZATION_CREATED",
-  "CONTRACT_UPDATED",
-  "OWNER_ASSIGNED",
-  "OWNER_TRANSFERRED",
-  "MEMBERSHIP_SYNCED",
-  "MEMBERSHIP_BLOCKED_SEAT_LIMIT",
-] as const;
-
-export type OrganizationAuditAction =
-  (typeof ORGANIZATION_AUDIT_ACTIONS)[number];
 
 export interface EntitlementLimits {
   maxRequestsPerDay: number;

@@ -41,11 +41,7 @@ export function KPIStatsSkeleton() {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 animate-pulse">
       {["k1", "k2", "k3", "k4", "k5"].map((key) => (
-        <Card
-          key={key}
-          variant="glass"
-          className="h-32"
-        >
+        <Card key={key} variant="glass" className="h-32">
           <div className="p-6 space-y-3">
             <div className="h-4 w-24 rounded bg-muted/40" />
             <div className="h-8 w-16 rounded bg-muted/30" />

@@ -35,18 +35,14 @@ import {
   slugify,
 } from "./helpers";
 
-// Re-export these so existing consumers of "@/lib/organizations/service" keep working.
-export {
-  listOrganizationAuditLogs,
-  writeOrganizationAuditLog,
-} from "./audit-log";
-export { demoteMembershipToMember } from "./clerk-api-extras";
+// Re-export for existing consumers of "@/lib/organizations/service".
+export { listOrganizationAuditLogs } from "./audit-log";
 
 // ---------------------------------------------------------------------------
 // Error type
 // ---------------------------------------------------------------------------
 
-export class OrganizationServiceError extends Error {
+class OrganizationServiceError extends Error {
   code:
     | "ORGANIZATION_DB_CREATE_FAILED"
     | "ORGANIZATION_CREATE_CLEANUP_INCOMPLETE"

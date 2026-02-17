@@ -17,7 +17,5 @@ export type {
   RateLimits,
   UpgradeInfo,
 } from "./types";
-// Upgrade CTA
-export { getUpgradeInfo } from "./upgrade";
 // Usage tracking
 export { getDailyUsage, incrementUsage } from "./usage";

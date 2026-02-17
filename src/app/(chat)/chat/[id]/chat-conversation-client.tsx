@@ -231,7 +231,8 @@ export function ChatConversationClient({
           // If upgradeInfo is available, use it for contextual CTA
           if (upgradeInfo) {
             const isGuest = upgradeInfo.currentPlan === "Ospite";
-            const ctaMessage = upgradeInfo.ctaMessage ||
+            const ctaMessage =
+              upgradeInfo.ctaMessage ||
               (isGuest
                 ? "Hai raggiunto il limite di messaggi giornalieri per gli ospiti."
                 : `Hai raggiunto il limite del piano ${upgradeInfo.currentPlan}.`);
@@ -246,7 +247,13 @@ export function ChatConversationClient({
                   variant="outline"
                   className="mt-2 w-full border-red-200 bg-white hover:bg-red-50 text-red-700 dark:bg-transparent dark:hover:bg-red-900/20"
                 >
-                  <Link href={isGuest ? "/sign-up" : upgradeInfo.upgradeUrl || "/pricing"}>
+                  <Link
+                    href={
+                      isGuest
+                        ? "/sign-up"
+                        : upgradeInfo.upgradeUrl || "/pricing"
+                    }
+                  >
                     {isGuest
                       ? "Registrati per continuare"
                       : `Passa a ${upgradeInfo.suggestedPlan}`}

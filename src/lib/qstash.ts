@@ -5,7 +5,7 @@ if (!process.env.QSTASH_URL || !process.env.QSTASH_TOKEN) {
   throw new Error("QStash environment variables missing");
 }
 
-export const qstash = new Client({
+const qstash = new Client({
   token: process.env.QSTASH_TOKEN,
   baseUrl: process.env.QSTASH_URL,
 });

@@ -228,7 +228,10 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
       revalidateTag(`chats-${user.id}`, "page");
       revalidateTag(`chat-${id}`, "page");
     } catch (revalidateErr) {
-      console.warn("[Guest Chat API] revalidateTag failed after DELETE:", revalidateErr);
+      console.warn(
+        "[Guest Chat API] revalidateTag failed after DELETE:",
+        revalidateErr,
+      );
     }
 
     return Response.json({ success: true });
