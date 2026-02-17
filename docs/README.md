@@ -14,6 +14,7 @@ Welcome to the Anthon 2.0 documentation. Anthon is an AI-powered coaching chat a
 | [Authentication](./authentication.md)   | Clerk integration and user roles             |
 | [Rate Limiting](./rate-limiting.md)     | Usage limits and subscription tiers          |
 | [Guest Migration](./guest-migration.md) | Guest to registered user data migration      |
+| [QA Test Plan](./qa-test-plan.md)       | Test checklist, execution process, and GitHub issue workflow |
 
 ## 🛠 Technology Stack
 

@@ -44,6 +44,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | [API Reference](./docs/api.md)               | REST API endpoints documentation           |
 | [Authentication](./docs/authentication.md)   | Clerk integration and user roles           |
 | [Rate Limiting](./docs/rate-limiting.md)     | Usage limits and subscription tiers        |
+| [QA Test Plan](./docs/qa-test-plan.md)       | Test scope, execution flow, and bug reporting |
 
 ## 🛠 Tech Stack
 
