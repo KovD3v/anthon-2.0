@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, RefreshCw, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,67 +101,66 @@ export default function OrganizationsPage() {
 
   const selectedId = selectedOrganization?.id ?? null;
 
-  const fetchOrganizations = useCallback(
-    async (options?: { syncFromClerk?: boolean }): Promise<boolean> => {
-      setLoadingList(true);
-      setListError(null);
-      try {
-        const params = new URLSearchParams({
-          t: String(Date.now()),
-        });
-        if (options?.syncFromClerk) {
-          params.set("sync", "1");
-        }
-
-        const res = await fetch(
-          `/api/admin/organizations?${params.toString()}`,
-          {
-            cache: "no-store",
-          },
-        );
-        if (!res.ok) {
-          const error = (await res.json().catch(() => null)) as {
-            error?: string;
-            details?: { message?: string };
-          } | null;
-          if (res.status === 401 || res.status === 403) {
-            throw new Error(error?.error || "Admin access required");
-          }
-          throw new Error(
-            error?.details?.message ||
-              error?.error ||
-              "Failed to fetch organizations",
-          );
-        }
-        const data = (await res.json()) as {
-          organizations: OrganizationSummary[];
-        };
-        const nextOrganizations = data.organizations || [];
-        setOrganizations(nextOrganizations);
-        if (
-          selectedId &&
-          !nextOrganizations.some(
-            (organization) => organization.id === selectedId,
-          )
-        ) {
-          setSelectedOrganization(null);
-          setAuditLogs([]);
-        }
-        return true;
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to load organizations";
-        setListError(message);
-        toast.error(message);
-        return false;
-      } finally {
-        setLoadingList(false);
+  async function fetchOrganizations(options?: {
+    syncFromClerk?: boolean;
+  }): Promise<boolean> {
+    setLoadingList(true);
+    setListError(null);
+    try {
+      const params = new URLSearchParams({
+        t: String(Date.now()),
+      });
+      if (options?.syncFromClerk) {
+        params.set("sync", "1");
       }
-    },
-    [selectedId],
-  );
+
+      const res = await fetch(
+        `/api/admin/organizations?${params.toString()}`,
+        {
+          cache: "no-store",
+        },
+      );
+      if (!res.ok) {
+        const error = (await res.json().catch(() => null)) as {
+          error?: string;
+          details?: { message?: string };
+        } | null;
+        if (res.status === 401 || res.status === 403) {
+          throw new Error(error?.error || "Admin access required");
+        }
+        throw new Error(
+          error?.details?.message ||
+            error?.error ||
+            "Failed to fetch organizations",
+        );
+      }
+      const data = (await res.json()) as {
+        organizations: OrganizationSummary[];
+      };
+      const nextOrganizations = data.organizations || [];
+      setOrganizations(nextOrganizations);
+      if (
+        selectedId &&
+        !nextOrganizations.some(
+          (organization) => organization.id === selectedId,
+        )
+      ) {
+        setSelectedOrganization(null);
+        setAuditLogs([]);
+      }
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to load organizations";
+      setListError(message);
+      toast.error(message);
+      return false;
+    } finally {
+      setLoadingList(false);
+    }
+  }
 
   async function handleSyncFromClerk() {
     setSyncingFromClerk(true);
@@ -175,102 +174,90 @@ export default function OrganizationsPage() {
     }
   }
 
-  const fetchOrganizationDetail = useCallback(
-    async (organizationId: string) => {
-      setLoadingDetail(true);
-      try {
-        const ts = Date.now();
-        const [detailRes, auditRes] = await Promise.all([
-          fetch(`/api/admin/organizations/${organizationId}?t=${ts}`, {
-            cache: "no-store",
-          }),
-          fetch(`/api/admin/organizations/${organizationId}/audit?t=${ts}`, {
-            cache: "no-store",
-          }),
-        ]);
+  async function fetchOrganizationDetail(organizationId: string) {
+    setLoadingDetail(true);
+    try {
+      const ts = Date.now();
+      const [detailRes, auditRes] = await Promise.all([
+        fetch(`/api/admin/organizations/${organizationId}?t=${ts}`, {
+          cache: "no-store",
+        }),
+        fetch(`/api/admin/organizations/${organizationId}/audit?t=${ts}`, {
+          cache: "no-store",
+        }),
+      ]);
 
-        if (!detailRes.ok) {
-          const error = await detailRes.json();
-          throw new Error(error.error || "Failed to fetch organization detail");
-        }
-
-        if (!auditRes.ok) {
-          const error = await auditRes.json();
-          throw new Error(error.error || "Failed to fetch audit logs");
-        }
-
-        const detailPayload = (await detailRes.json()) as {
-          organization: OrganizationDetail;
-        };
-        const auditPayload = (await auditRes.json()) as {
-          logs: OrganizationAuditLog[];
-        };
-
-        setSelectedOrganization(detailPayload.organization);
-        setAuditLogs(auditPayload.logs || []);
-
-        const contract = detailPayload.organization.contract;
-        setForm({
-          name: detailPayload.organization.name,
-          slug: detailPayload.organization.slug,
-          ownerEmail:
-            detailPayload.organization.owner?.email ||
-            detailPayload.organization.pendingOwnerEmail ||
-            "",
-          basePlan: contract?.basePlan ?? DEFAULT_FORM.basePlan,
-          seatLimit: contract?.seatLimit ?? DEFAULT_FORM.seatLimit,
-          planLabel: contract?.planLabel ?? DEFAULT_FORM.planLabel,
-          modelTier: contract?.modelTier ?? DEFAULT_FORM.modelTier,
-          maxRequestsPerDay:
-            contract?.maxRequestsPerDay ?? DEFAULT_FORM.maxRequestsPerDay,
-          maxInputTokensPerDay:
-            contract?.maxInputTokensPerDay ?? DEFAULT_FORM.maxInputTokensPerDay,
-          maxOutputTokensPerDay:
-            contract?.maxOutputTokensPerDay ??
-            DEFAULT_FORM.maxOutputTokensPerDay,
-          maxCostPerDay: contract?.maxCostPerDay ?? DEFAULT_FORM.maxCostPerDay,
-          maxContextMessages:
-            contract?.maxContextMessages ?? DEFAULT_FORM.maxContextMessages,
-        });
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to load detail",
-        );
-      } finally {
-        setLoadingDetail(false);
+      if (!detailRes.ok) {
+        const error = await detailRes.json();
+        throw new Error(error.error || "Failed to fetch organization detail");
       }
-    },
-    [],
-  );
+
+      if (!auditRes.ok) {
+        const error = await auditRes.json();
+        throw new Error(error.error || "Failed to fetch audit logs");
+      }
+
+      const detailPayload = (await detailRes.json()) as {
+        organization: OrganizationDetail;
+      };
+      const auditPayload = (await auditRes.json()) as {
+        logs: OrganizationAuditLog[];
+      };
+
+      setSelectedOrganization(detailPayload.organization);
+      setAuditLogs(auditPayload.logs || []);
+
+      const contract = detailPayload.organization.contract;
+      setForm({
+        name: detailPayload.organization.name,
+        slug: detailPayload.organization.slug,
+        ownerEmail:
+          detailPayload.organization.owner?.email ||
+          detailPayload.organization.pendingOwnerEmail ||
+          "",
+        basePlan: contract?.basePlan ?? DEFAULT_FORM.basePlan,
+        seatLimit: contract?.seatLimit ?? DEFAULT_FORM.seatLimit,
+        planLabel: contract?.planLabel ?? DEFAULT_FORM.planLabel,
+        modelTier: contract?.modelTier ?? DEFAULT_FORM.modelTier,
+        maxRequestsPerDay:
+          contract?.maxRequestsPerDay ?? DEFAULT_FORM.maxRequestsPerDay,
+        maxInputTokensPerDay:
+          contract?.maxInputTokensPerDay ?? DEFAULT_FORM.maxInputTokensPerDay,
+        maxOutputTokensPerDay:
+          contract?.maxOutputTokensPerDay ??
+          DEFAULT_FORM.maxOutputTokensPerDay,
+        maxCostPerDay: contract?.maxCostPerDay ?? DEFAULT_FORM.maxCostPerDay,
+        maxContextMessages:
+          contract?.maxContextMessages ?? DEFAULT_FORM.maxContextMessages,
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to load detail",
+      );
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
 
   useEffect(() => {
     fetchOrganizations();
-  }, [fetchOrganizations]);
+  }, []);
 
-  const contractPayload = useMemo<OrganizationContractInput>(
-    () => ({
-      basePlan: form.basePlan,
-      seatLimit: toNumber(String(form.seatLimit), 1),
-      planLabel: form.planLabel,
-      modelTier: form.modelTier,
-      maxRequestsPerDay: toNumber(String(form.maxRequestsPerDay), 1),
-      maxInputTokensPerDay: toNumber(String(form.maxInputTokensPerDay), 1),
-      maxOutputTokensPerDay: toNumber(String(form.maxOutputTokensPerDay), 1),
-      maxCostPerDay: toNumber(String(form.maxCostPerDay), 0),
-      maxContextMessages: toNumber(String(form.maxContextMessages), 1),
-    }),
-    [form],
-  );
+  const contractPayload: OrganizationContractInput = {
+    basePlan: form.basePlan,
+    seatLimit: toNumber(String(form.seatLimit), 1),
+    planLabel: form.planLabel,
+    modelTier: form.modelTier,
+    maxRequestsPerDay: toNumber(String(form.maxRequestsPerDay), 1),
+    maxInputTokensPerDay: toNumber(String(form.maxInputTokensPerDay), 1),
+    maxOutputTokensPerDay: toNumber(String(form.maxOutputTokensPerDay), 1),
+    maxCostPerDay: toNumber(String(form.maxCostPerDay), 0),
+    maxContextMessages: toNumber(String(form.maxContextMessages), 1),
+  };
 
-  const planDefaults = useMemo(
-    () => resolveOrgPlanDefaults(form.basePlan),
-    [form.basePlan],
-  );
+  const planDefaults = resolveOrgPlanDefaults(form.basePlan);
 
-  const effectivePreview = useMemo(
-    () => applyOrgOverrides(contractPayload).effective,
-    [contractPayload],
-  );
+  const effectivePreview = applyOrgOverrides(contractPayload).effective;
 
   function applyBasePlanDefaults() {
     const defaults = resolveOrgPlanDefaults(form.basePlan);

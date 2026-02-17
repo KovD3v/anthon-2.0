@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,7 +70,7 @@ export default function UsersPage() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [updatingRole, setUpdatingRole] = useState<string | null>(null);
 
-  const fetchUsers = useCallback(async () => {
+  async function fetchUsers() {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -91,11 +91,11 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, roleFilter]);
+  }
 
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
+  }, [page, search, roleFilter]);
 
   // Check if current user is super admin
   useEffect(() => {

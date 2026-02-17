@@ -4,7 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -58,12 +58,9 @@ export function ChatConversationClient({
   );
 
   // Initial messages from server data
-  const initialMessages = useMemo(() => {
-    return convertToUIMessages(chatData.messages);
-  }, [chatData.messages]);
+  const initialMessages = convertToUIMessages(chatData.messages);
 
-  // Refresh chat data to get real database IDs
-  const refreshChatData = useCallback(async () => {
+  async function refreshChatData() {
     try {
       const response = await fetch(`${apiBase}/chats/${chatId}`);
       if (response.ok) {
@@ -75,10 +72,9 @@ export function ChatConversationClient({
       console.error("Failed to refresh chat data:", err);
     }
     return null;
-  }, [chatId, apiBase]);
+  }
 
-  // Load more messages
-  const loadMoreMessages = useCallback(async () => {
+  async function loadMoreMessages() {
     if (
       isLoadingMore ||
       !chatData.pagination?.hasMore ||
@@ -106,16 +102,12 @@ export function ChatConversationClient({
     } finally {
       setIsLoadingMore(false);
     }
-  }, [chatId, chatData.pagination, isLoadingMore, apiBase]);
+  }
 
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: isGuest ? "/api/guest/chat" : "/api/chat",
-        body: { chatId },
-      }),
-    [chatId, isGuest],
-  );
+  const transport = new DefaultChatTransport({
+    api: isGuest ? "/api/guest/chat" : "/api/chat",
+    body: { chatId },
+  });
 
   const {
     messages: streamingMessages,
@@ -220,7 +212,7 @@ export function ChatConversationClient({
     }
   }, [chatId, streamingMessages, status, updateCachedChat]);
 
-  const formattedError = useMemo(() => {
+  const formattedError = (() => {
     if (!chatError) return null;
     try {
       if (chatError.message.trim().startsWith("{")) {
@@ -228,7 +220,6 @@ export function ChatConversationClient({
         if (parsed.error === "Rate limit exceeded") {
           const upgradeInfo = parsed.upgradeInfo;
 
-          // If upgradeInfo is available, use it for contextual CTA
           if (upgradeInfo) {
             const isGuest = upgradeInfo.currentPlan === "Ospite";
             const ctaMessage =
@@ -263,7 +254,6 @@ export function ChatConversationClient({
             };
           }
 
-          // Fallback for when upgradeInfo is not available
           return {
             title: "Limite Raggiunto",
             message:
@@ -286,7 +276,7 @@ export function ChatConversationClient({
       /* ignore */
     }
     return { message: chatError.message };
-  }, [chatError]);
+  })();
 
   const handleSubmit = (e: React.FormEvent, attachments?: AttachmentData[]) => {
     e.preventDefault();

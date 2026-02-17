@@ -7,7 +7,6 @@ import {
   FileCode,
   FileText,
   Image as ImageIcon,
-  Loader2,
   Mic,
   X,
 } from "lucide-react";
@@ -140,110 +139,6 @@ export function AttachmentPreview({
         </button>
       </div>
     </div>
-  );
-}
-
-interface AttachmentUploaderProps {
-  chatId: string;
-  onUpload: (attachment: AttachmentData) => void;
-  onError?: (error: string) => void;
-  className?: string;
-}
-
-/**
- * File upload dropzone
- */
-function _AttachmentUploader({
-  chatId,
-  onUpload,
-  onError,
-  className,
-}: AttachmentUploaderProps) {
-  const [isUploading, setIsUploading] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-
-  const handleUpload = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-
-    const file = files[0];
-    setIsUploading(true);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("chatId", chatId);
-
-      const response = await fetch("/api/chat/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Upload failed");
-      }
-
-      const attachment = await response.json();
-      onUpload(attachment);
-    } catch (err) {
-      console.error("Upload error:", err);
-      onError?.(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    handleUpload(e.dataTransfer.files);
-  };
-
-  return (
-    <label
-      className={cn(
-        "relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors",
-        isDragging
-          ? "border-primary bg-primary/5"
-          : "border-muted-foreground/25 hover:border-muted-foreground/50",
-        isUploading && "pointer-events-none opacity-50",
-        className,
-      )}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      <input
-        type="file"
-        className="sr-only"
-        onChange={(e) => handleUpload(e.target.files)}
-        disabled={isUploading}
-      />
-
-      {isUploading ? (
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      ) : (
-        <>
-          <File className="h-8 w-8 text-muted-foreground" />
-          <p className="mt-2 text-sm text-muted-foreground">
-            Trascina un file qui o clicca per caricare{" "}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Max 10MB • Immagini, PDF e documenti
-          </p>
-        </>
-      )}
-    </label>
   );
 }
 

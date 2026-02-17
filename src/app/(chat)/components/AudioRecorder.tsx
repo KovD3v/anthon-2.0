@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Mic, Square } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { AttachmentData } from "@/types/chat";
@@ -26,7 +26,7 @@ export function AudioRecorder({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Cleanup function
-  const cleanup = useCallback(() => {
+  function cleanup() {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -40,14 +40,14 @@ export function AudioRecorder({
     mediaRecorderRef.current = null;
     chunksRef.current = [];
     setRecordingDuration(0);
-  }, []);
+  }
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       cleanup();
     };
-  }, [cleanup]);
+  }, []);
 
   const startRecording = async () => {
     try {

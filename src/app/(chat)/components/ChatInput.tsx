@@ -1,7 +1,7 @@
 "use client";
 
 import { Send, Square } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useDebouncedCallback } from "@/hooks/useDebounce";
@@ -38,10 +38,6 @@ export function ChatInput({
       textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
     }
   }, 16); // ~60fps debounce
-
-  useEffect(() => {
-    adjustHeight();
-  }, [adjustHeight]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -173,7 +169,10 @@ export function ChatInput({
         <textarea
           ref={textareaRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            adjustHeight();
+          }}
           onKeyDown={handleKeyDown}
           placeholder="Send a message..."
           rows={1}

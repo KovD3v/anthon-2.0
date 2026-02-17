@@ -2,7 +2,7 @@
 
 import { Loader2, MessageSquare, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
@@ -64,13 +64,10 @@ export function SearchDialog({ isOpen, onClose }: SearchDialogProps) {
     search();
   }, [debouncedQuery]);
 
-  const handleResultClick = useCallback(
-    (result: SearchResult) => {
-      router.push(`/chat/${result.chatId}`);
-      onClose();
-    },
-    [router, onClose],
-  );
+  function handleResultClick(result: SearchResult) {
+    router.push(`/chat/${result.chatId}`);
+    onClose();
+  }
 
   if (!isOpen) return null;
 

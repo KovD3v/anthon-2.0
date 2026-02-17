@@ -155,6 +155,9 @@ export default async function WhatsAppLinkTokenPage({
     );
   }
 
+  // biome-ignore lint/complexity/useDateNow: Date.now() is flagged as impure by React Doctor in this page.
+  const nowMs = Number(new Date());
+
   const outcome = await prisma.$transaction(async (tx) => {
     const linkToken = await tx.channelLinkToken.findUnique({
       where: { tokenHash },
@@ -168,7 +171,7 @@ export default async function WhatsAppLinkTokenPage({
       return { status: "used" as const };
     }
 
-    if (linkToken.expiresAt.getTime() < Date.now()) {
+    if (linkToken.expiresAt.getTime() < nowMs) {
       return { status: "expired" as const };
     }
 

@@ -79,8 +79,7 @@ export function MessageList({
     {},
   );
 
-  // Handle feedback
-  const handleFeedback = async (messageId: string, feedback: number) => {
+  async function handleFeedback(messageId: string, feedback: number) {
     const currentFeedback = feedbackState[messageId];
     // Toggle off if same feedback
     const newFeedback = currentFeedback === feedback ? 0 : feedback;
@@ -97,7 +96,7 @@ export function MessageList({
       console.error("Feedback error:", error);
       toast.error("Failed to save feedback");
     }
-  };
+  }
 
   // Virtualize the message list for better performance with many messages
   const rowVirtualizer = useVirtualizer({
@@ -121,14 +120,12 @@ export function MessageList({
     }
   }, [messages.length]);
 
-  // Track scroll position for scroll-to-bottom button and lazy loading
   const handleScroll = useCallback(() => {
     if (!parentRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = parentRef.current;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     setShowScrollButton(distanceFromBottom > 200);
 
-    // Trigger load more when scrolling near the top
     if (scrollTop < 100 && hasMoreMessages && !isLoadingMore && onLoadMore) {
       onLoadMore();
     }
@@ -141,12 +138,12 @@ export function MessageList({
     return () => container.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
 
-  const scrollToBottom = useCallback(() => {
+  function scrollToBottom() {
     parentRef.current?.scrollTo({
       top: parentRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, []);
+  }
 
   const getMessageText = (message: UIMessage) => {
     return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,7 +46,7 @@ export default function RagPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
 
-  const fetchDocuments = useCallback(async () => {
+  async function fetchDocuments() {
     try {
       const res = await fetch("/api/admin/rag");
       if (res.ok) {
@@ -58,11 +58,11 @@ export default function RagPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
   useEffect(() => {
     fetchDocuments();
-  }, [fetchDocuments]);
+  }, []);
 
   async function handleUpload(files: FileList | null) {
     if (!files || files.length === 0) return;

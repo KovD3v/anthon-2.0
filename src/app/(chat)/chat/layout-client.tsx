@@ -7,7 +7,6 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
   startTransition,
-  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -226,7 +225,7 @@ export function LayoutClient({
   const currentChatId = pathname?.split("/chat/")?.[1] || null;
 
   // Fetch chats (for refresh)
-  const refreshChats = useCallback(async () => {
+  async function refreshChats() {
     try {
       const response = await fetch(`${apiBase}/chats`);
       if (response.ok) {
@@ -236,7 +235,7 @@ export function LayoutClient({
     } catch (error) {
       console.error("Failed to fetch chats:", error);
     }
-  }, [apiBase]);
+  }
 
   // Handle mobile scroll locking
   useEffect(() => {
@@ -249,72 +248,57 @@ export function LayoutClient({
   }, [isSidebarOpen]);
 
   // Pre-fetch chat data on hover
-  const preFetchChat = useCallback(
-    async (id: string) => {
-      console.log(`[Prefetch] Triggered for chat ${id}`);
-      // 1. Prefetch the Next.js page (RSC payload)
-      router.prefetch(`/chat/${id}`);
+  async function preFetchChat(id: string) {
+    console.log(`[Prefetch] Triggered for chat ${id}`);
+    router.prefetch(`/chat/${id}`);
 
-      // 2. Prefetch the API data for instant client use
-      if (chatCacheRef.current.has(id) || preFetchingIdsRef.current.has(id)) {
-        console.log(`[Prefetch] Already cached or fetching for ${id}`);
-        return;
-      }
+    if (chatCacheRef.current.has(id) || preFetchingIdsRef.current.has(id)) {
+      console.log(`[Prefetch] Already cached or fetching for ${id}`);
+      return;
+    }
 
-      preFetchingIdsRef.current.add(id);
+    preFetchingIdsRef.current.add(id);
 
-      try {
-        const response = await fetch(`${apiBase}/chats/${id}`);
-        if (response.ok) {
-          const data = await response.json();
+    try {
+      const response = await fetch(`${apiBase}/chats/${id}`);
+      if (response.ok) {
+        const data = await response.json();
 
-          if (chatCacheRef.current.size >= MAX_CACHE_SIZE) {
-            const firstKey = chatCacheRef.current.keys().next().value;
-            if (firstKey) {
-              chatCacheRef.current.delete(firstKey);
-            }
+        if (chatCacheRef.current.size >= MAX_CACHE_SIZE) {
+          const firstKey = chatCacheRef.current.keys().next().value;
+          if (firstKey) {
+            chatCacheRef.current.delete(firstKey);
           }
-
-          chatCacheRef.current.set(id, data);
-          console.log(`[Prefetch] Successfully cached data for ${id}`);
         }
-      } catch (error) {
-        console.error("[Prefetch] Failed:", error);
-      } finally {
-        preFetchingIdsRef.current.delete(id);
-      }
-    },
-    [apiBase, router],
-  );
 
-  // Get cached chat data
-  const getCachedChat = useCallback((id: string): ChatData | null => {
+        chatCacheRef.current.set(id, data);
+        console.log(`[Prefetch] Successfully cached data for ${id}`);
+      }
+    } catch (error) {
+      console.error("[Prefetch] Failed:", error);
+    } finally {
+      preFetchingIdsRef.current.delete(id);
+    }
+  }
+
+  function getCachedChat(id: string): ChatData | null {
     return chatCacheRef.current.get(id) || null;
-  }, []);
+  }
 
-  // Update cached chat data
-  const updateCachedChat = useCallback(
-    (id: string, data: Partial<ChatData>) => {
-      const existing = chatCacheRef.current.get(id);
-      if (existing) {
-        chatCacheRef.current.set(id, { ...existing, ...data });
-      } else if (data.messages) {
-        // If we don't have it but we have messages, we can create a skeleton entry
-        chatCacheRef.current.set(id, data as ChatData);
-      }
-    },
-    [],
-  );
+  function updateCachedChat(id: string, data: Partial<ChatData>) {
+    const existing = chatCacheRef.current.get(id);
+    if (existing) {
+      chatCacheRef.current.set(id, { ...existing, ...data });
+    } else if (data.messages) {
+      chatCacheRef.current.set(id, data as ChatData);
+    }
+  }
 
-  // Navigate to chat
-  const navigateToChat = useCallback(
-    (id: string) => {
-      startTransition(() => {
-        router.push(`/chat/${id}`, { scroll: false });
-      });
-    },
-    [router],
-  );
+  function navigateToChat(id: string) {
+    startTransition(() => {
+      router.push(`/chat/${id}`, { scroll: false });
+    });
+  }
 
   // Create chat
   const createChat = async (): Promise<string | null> => {

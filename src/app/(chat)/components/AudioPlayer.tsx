@@ -1,7 +1,7 @@
 "use client";
 
 import { Pause, Play, VolumeX } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -27,10 +27,9 @@ export function AudioPlayer({
 
   // Convert source to playable URL
   // Handles: blob URLs, data URLs, and raw base64 strings
-  const audioSrc = useMemo(() => {
+  const audioSrc = (() => {
     if (!src) return "";
 
-    // Already a valid URL (blob or data URL)
     if (
       src.startsWith("http") ||
       src.startsWith("blob:") ||
@@ -39,11 +38,9 @@ export function AudioPlayer({
       return src;
     }
 
-    // Raw base64 string - convert to data URL
-    // Default to audio/wav if no mimeType provided
     const type = mimeType?.split(";")[0] || "audio/wav";
     return `data:${type};base64,${src}`;
-  }, [src, mimeType]);
+  })();
 
   useEffect(() => {
     const audio = audioRef.current;

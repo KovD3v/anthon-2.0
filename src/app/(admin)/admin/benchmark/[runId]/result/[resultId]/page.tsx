@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -42,7 +42,7 @@ export default function ResultDetailPage() {
   const [reasoning, setReasoning] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchResult = useCallback(async () => {
+  async function fetchResult() {
     try {
       setLoading(true);
       const res = await fetch(`/api/admin/benchmark?runId=${runId}`);
@@ -65,9 +65,9 @@ export default function ResultDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [runId, resultId]);
+  }
 
-  const fetchTestCases = useCallback(async () => {
+  async function fetchTestCases() {
     try {
       const res = await fetch("/api/admin/benchmark/test-cases");
       if (!res.ok) throw new Error("Failed to fetch test cases");
@@ -76,12 +76,12 @@ export default function ResultDetailPage() {
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }
 
   useEffect(() => {
     fetchResult();
     fetchTestCases();
-  }, [fetchResult, fetchTestCases]);
+  }, [runId, resultId]);
 
   const submitScore = async () => {
     if (!result) return;

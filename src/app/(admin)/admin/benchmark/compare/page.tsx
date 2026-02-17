@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { TestCaseSetup } from "@/lib/benchmark/types";
@@ -55,7 +55,7 @@ export default function BlindComparisonPage() {
   const [expandedContextB, setExpandedContextB] = useState(false);
 
   // Get test case from database
-  const testCase = useMemo(() => {
+  const testCase = (() => {
     if (!blindPair?.testCaseId) return null;
     return (
       dbTestCases.find(
@@ -64,9 +64,9 @@ export default function BlindComparisonPage() {
           tc.id === blindPair.testCaseId,
       ) || null
     );
-  }, [blindPair, dbTestCases]);
+  })();
 
-  const fetchTestCases = useCallback(async () => {
+  async function fetchTestCases() {
     try {
       const res = await fetch("/api/admin/benchmark/test-cases");
       if (!res.ok) throw new Error("Failed to fetch test cases");
@@ -75,9 +75,9 @@ export default function BlindComparisonPage() {
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }
 
-  const fetchRuns = useCallback(async () => {
+  async function fetchRuns() {
     try {
       const res = await fetch("/api/admin/benchmark");
       if (!res.ok) throw new Error("Failed to fetch runs");
@@ -88,9 +88,9 @@ export default function BlindComparisonPage() {
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }
 
-  const fetchResults = useCallback(async (runId: string) => {
+  async function fetchResults(runId: string) {
     try {
       setLoading(true);
       const res = await fetch(`/api/admin/benchmark?runId=${runId}`);
@@ -102,9 +102,9 @@ export default function BlindComparisonPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
-  const pickRandomPair = useCallback(() => {
+  function pickRandomPair() {
     if (results.length < 2) return;
 
     // Group results by testCaseId
@@ -145,7 +145,7 @@ export default function BlindComparisonPage() {
     setModelsRevealed(false);
     setExpandedContextA(false);
     setExpandedContextB(false);
-  }, [results]);
+  }
 
   const submitScores = async () => {
     if (!blindPair || !preference) return;
@@ -232,19 +232,19 @@ export default function BlindComparisonPage() {
   useEffect(() => {
     fetchRuns();
     fetchTestCases();
-  }, [fetchRuns, fetchTestCases]);
+  }, []);
 
   useEffect(() => {
     if (selectedRunId) {
       fetchResults(selectedRunId);
     }
-  }, [selectedRunId, fetchResults]);
+  }, [selectedRunId]);
 
   useEffect(() => {
     if (results.length >= 2 && !blindPair) {
       pickRandomPair();
     }
-  }, [results, blindPair, pickRandomPair]);
+  }, [results, blindPair]);
 
   return (
     <div className="min-h-screen">
