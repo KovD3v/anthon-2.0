@@ -1,6 +1,5 @@
 "use client";
 
-import { SignedIn, SignedOut, SignUpButton } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { ArrowRight, Brain, Trophy } from "lucide-react";
 import Link from "next/link";
@@ -19,7 +18,7 @@ export function Hero() {
           >
             <Badge variant="info" className="gap-1">
               <Trophy className="h-3 w-3" />
-              <span>Sblocca il tuo pieno potenziale</span>
+              <span>Mental coaching per sportivi</span>
             </Badge>
           </motion.div>
 
@@ -29,8 +28,9 @@ export function Hero() {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="text-4xl font-extrabold tracking-tight lg:text-6xl max-w-4xl"
           >
-            Domina la tua mente, <br className="hidden sm:inline" />
-            <span className="text-primary">Eleva il tuo gioco</span>
+            Più fiducia nei momenti decisivi,{" "}
+            <br className="hidden sm:inline" />
+            <span className="text-primary">più focus quando conta</span>
           </motion.h1>
 
           <motion.p
@@ -39,9 +39,8 @@ export function Hero() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="text-xl text-muted-foreground max-w-2xl mx-auto"
           >
-            Anthon è il tuo mental coach personale basato sull'IA. Costruisci
-            resilienza, concentrazione e fiducia per dare il massimo quando
-            conta di più.
+            Anthon ti aiuta a gestire pressione, distrazioni e cali mentali con
+            routine pratiche prima, durante e dopo gara.
           </motion.p>
 
           <motion.div
@@ -50,22 +49,13 @@ export function Hero() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto"
           >
-            <SignedOut>
-              <SignUpButton mode="modal">
-                <Button size="lg" className="gap-2">
-                  Inizia gratis <ArrowRight className="h-4 w-4" />
-                </Button>
-              </SignUpButton>
-            </SignedOut>
-            <SignedIn>
-              <Button size="lg" className="gap-2" asChild>
-                <Link href="/chat">
-                  Vai alla chat <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            </SignedIn>
+            <Button size="lg" className="gap-2" asChild>
+              <Link href="/chat">
+                Inizia in chat <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link href="#how-it-works">Come funziona</Link>
+              <Link href="/pricing">Vedi i piani</Link>
             </Button>
           </motion.div>
 

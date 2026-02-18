@@ -13,44 +13,44 @@ import {
 const features = [
   {
     id: "feature-training",
-    title: "Allenamento Mentale Personalizzato",
+    title: "Più fiducia in gara",
     description:
-      "Esercizi quotidiani su misura per il tuo sport, i tuoi obiettivi e il tuo stato mentale attuale.",
+      "Costruisci una routine mentale stabile per arrivare alle gare con sicurezza, non con dubbi.",
     icon: Brain,
   },
   {
     id: "feature-visualization",
-    title: "Visualizzazione Pre-Gara",
+    title: "Focus immediato prima della performance",
     description:
-      "Sessioni di visualizzazione guidata per preparare la tua mente alla massima performance.",
+      "Preparati in pochi minuti con esercizi guidati che ti aiutano a entrare nella zona giusta.",
     icon: Target,
   },
   {
     id: "feature-flow",
-    title: "Focus e Stato di Flow",
+    title: "Continuita sotto pressione",
     description:
-      "Tecniche per entrare e mantenere lo stato di flow durante la competizione.",
+      "Riduci cali di concentrazione e rientra velocemente nel tuo ritmo durante allenamento e gara.",
     icon: Zap,
   },
   {
     id: "feature-stress",
-    title: "Gestione dello Stress",
+    title: "Pressione gestita, non subita",
     description:
-      "Impara a gestire la pressione e a trasformare l'ansia in eccitazione.",
+      "Trasforma ansia e tensione in energia utile nei momenti in cui serve lucidita.",
     icon: Shield,
   },
   {
     id: "feature-tracking",
-    title: "Monitoraggio delle Performance",
+    title: "Progressi visibili settimana dopo settimana",
     description:
-      "Monitora la tua resilienza mentale e i tuoi progressi nel tempo.",
+      "Monitora i tuoi risultati mentali per capire cosa funziona davvero nel tuo percorso.",
     icon: Activity,
   },
   {
     id: "feature-insights",
-    title: "Analisi Basata sui Dati",
+    title: "Decisioni migliori per il tuo percorso",
     description:
-      "Comprendi i pattern delle tue prestazioni e del tuo benessere mentale.",
+      "Leggi i tuoi pattern di performance e adatta il lavoro mentale in base ai tuoi obiettivi sportivi.",
     icon: BarChart3,
   },
 ];
@@ -82,7 +82,7 @@ export function Features() {
             transition={{ duration: 0.5 }}
             className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"
           >
-            Allena il tuo cervello come un muscolo
+            Risultati mentali concreti, in campo e in gara
           </motion.h2>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
@@ -91,8 +91,8 @@ export function Features() {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto"
           >
-            Strumenti completi progettati da psicologi dello sport per aiutarti
-            a raggiungere la padronanza mentale.
+            Ogni area e pensata per migliorare tre leve chiave: fiducia, focus e
+            gestione della pressione.
           </motion.p>
         </div>
 

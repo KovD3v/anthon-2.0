@@ -1,4 +1,6 @@
 import { PricingTable } from "@clerk/nextjs";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function PricingPage() {
   return (
@@ -6,15 +8,48 @@ export default function PricingPage() {
       <div className="container mx-auto px-4 md:px-6">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl">
-            Scegli il piano giusto per te
+            Scegli il piano in base al tuo obiettivo sportivo
           </h1>
           <p className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto">
-            Inizia gratis e scala quando sei pronto. Nessun impegno richiesto.
+            Inizia in chat, valida la routine mentale e fai upgrade quando hai
+            bisogno di piu continuita o lavoro di squadra.
           </p>
+        </div>
+
+        <div className="mx-auto mb-10 grid max-w-5xl gap-4 rounded-xl border border-border/50 bg-muted/30 p-6 md:grid-cols-3">
+          <div>
+            <h2 className="font-semibold">Free</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Per iniziare: primi allenamenti mentali e abitudine quotidiana.
+            </p>
+          </div>
+          <div>
+            <h2 className="font-semibold">Pro</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Per atleti con calendario intenso che vogliono continuita e
+              risultati misurabili.
+            </p>
+          </div>
+          <div>
+            <h2 className="font-semibold">Team</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Per coach, staff e gruppi: onboarding condiviso e supporto
+              dedicato.
+            </p>
+          </div>
         </div>
 
         <div className="max-w-5xl mx-auto">
           <PricingTable />
+        </div>
+
+        <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <Button asChild>
+            <Link href="/chat">Inizia in chat</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <a href="mailto:anthon.chat@gmail.com">Parla con il team</a>
+          </Button>
         </div>
       </div>
     </div>
