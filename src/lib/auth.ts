@@ -8,8 +8,27 @@ import { waitUntil } from "@vercel/functions";
 import { unstable_cache } from "next/cache";
 import type { UserRole } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
+import { createLogger, getLogContext } from "@/lib/logger";
 
 export type { UserRole };
+const authLogger = createLogger("auth");
+
+function logAuthState(event: string, message: string, data?: unknown) {
+  if (event === "auth.authenticated") {
+    // Frequent and repetitive; keep available at debug level.
+    authLogger.debug(event, message, data);
+    return;
+  }
+
+  const context = getLogContext();
+  if (context.requestId) {
+    authLogger.info(event, message, data);
+    return;
+  }
+
+  // Avoid noisy auth state logs during server component renders.
+  authLogger.debug(event, message, data);
+}
 
 export interface AuthUser {
   id: string;
@@ -61,6 +80,7 @@ export async function getAuthUser(): Promise<AuthResult> {
     const { userId: clerkId } = await auth();
 
     if (!clerkId) {
+      logAuthState("auth.unauthenticated", "No authenticated Clerk session");
       return { user: null, error: "Not authenticated" };
     }
 
@@ -96,11 +116,21 @@ export async function getAuthUser(): Promise<AuthResult> {
         // Sync profile asynchronously (wrapped with waitUntil for serverless)
         waitUntil(
           syncUserProfileFromClerk(clerkId, user.id).catch((error) => {
-            console.error("[Auth] Background profile sync error:", error);
+            authLogger.error(
+              "auth.profile_sync.background_failed",
+              "Background profile sync failed",
+              { error, clerkId, userId: user.id },
+            );
           }),
         );
       }
     }
+
+    logAuthState("auth.authenticated", "Authenticated user resolved", {
+      userId: user.id,
+      clerkId: user.clerkId,
+      role: user.role,
+    });
 
     return {
       user: {
@@ -119,9 +149,16 @@ export async function getAuthUser(): Promise<AuthResult> {
       ((error as { digest?: string }).digest === "DYNAMIC_SERVER_USAGE" ||
         error.message.includes("Dynamic server usage"))
     ) {
+      authLogger.warn(
+        "auth.dynamic_server_usage",
+        "Dynamic server usage while resolving auth",
+        { message: error.message },
+      );
       return { user: null, error: null };
     }
-    console.error("[Auth] Error getting user:", error);
+    authLogger.error("auth.resolve_failed", "Error resolving auth user", {
+      error,
+    });
     return { user: null, error: "Authentication error" };
   }
 }
@@ -162,10 +199,26 @@ async function syncUserProfileFromClerk(
           name: fullName,
         },
       });
-      console.log(`[Auth] Synced profile name from Clerk: ${fullName}`);
+      authLogger.info(
+        "auth.profile_sync.completed",
+        "Synced profile name from Clerk",
+        {
+          userId,
+          clerkId,
+          fullName,
+        },
+      );
     }
   } catch (error) {
-    console.error("[Auth] Error syncing user profile from Clerk:", error);
+    authLogger.error(
+      "auth.profile_sync.failed",
+      "Error syncing user profile from Clerk",
+      {
+        error,
+        userId,
+        clerkId,
+      },
+    );
   }
 }
 
@@ -208,6 +261,13 @@ export async function requireAdmin(): Promise<{
   const { user, error } = await getAuthUser();
 
   if (error || !user) {
+    authLogger.warn(
+      "auth.require_admin.unauthorized",
+      "Admin access unauthorized",
+      {
+        error,
+      },
+    );
     return {
       user: null,
       errorResponse: new Response(
@@ -221,6 +281,10 @@ export async function requireAdmin(): Promise<{
   }
 
   if (!isAdmin(user.role)) {
+    authLogger.warn("auth.require_admin.forbidden", "Admin role required", {
+      userId: user.id,
+      role: user.role,
+    });
     return {
       user: null,
       errorResponse: new Response(
@@ -247,6 +311,11 @@ export async function requireSuperAdmin(): Promise<{
   const { user, error } = await getAuthUser();
 
   if (error || !user) {
+    authLogger.warn(
+      "auth.require_super_admin.unauthorized",
+      "Super admin access unauthorized",
+      { error },
+    );
     return {
       user: null,
       errorResponse: new Response(
@@ -260,6 +329,14 @@ export async function requireSuperAdmin(): Promise<{
   }
 
   if (!isSuperAdmin(user.role)) {
+    authLogger.warn(
+      "auth.require_super_admin.forbidden",
+      "Super admin role required",
+      {
+        userId: user.id,
+        role: user.role,
+      },
+    );
     return {
       user: null,
       errorResponse: new Response(
@@ -309,7 +386,12 @@ export async function updateUserRole(
 
     return { success: true };
   } catch (error) {
-    console.error("[Auth] Error updating user role:", error);
+    authLogger.error("auth.update_role.failed", "Error updating user role", {
+      error,
+      userId,
+      actingUserId: actingUser.id,
+      newRole,
+    });
     return { success: false, error: "Failed to update role" };
   }
 }

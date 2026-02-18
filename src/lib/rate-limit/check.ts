@@ -2,12 +2,15 @@
  * Rate Limit Module — limit checking logic.
  */
 
+import { createLogger } from "@/lib/logger";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
 import { getEffectivePlanId, getRateLimitsForUser } from "./config";
 import type { RateLimitResult, RateLimits } from "./types";
 import { getUpgradeInfo } from "./upgrade";
 import { getDailyUsage } from "./usage";
+
+const usageLogger = createLogger("usage");
 
 function buildEntitlementsPayload(entitlements: EffectiveEntitlements): {
   modelTier: string;
@@ -25,6 +28,14 @@ function buildEntitlementsPayload(entitlements: EffectiveEntitlements): {
       sourceLabel: source.sourceLabel,
     })),
   };
+}
+
+function formatRatio(current: number, max: number): string {
+  return `${current}/${max}`;
+}
+
+function formatPercent(value: number): string {
+  return `${Math.round(value * 10) / 10}%`;
 }
 
 /**
@@ -69,8 +80,36 @@ export async function checkRateLimit(
     cost: (usage.totalCostUsd / limits.maxCostPerDay) * 100,
   };
 
+  const usageSnapshot = {
+    userId,
+    effectivePlanId,
+    subscriptionStatus: subscriptionStatus ?? null,
+    userRole: userRole ?? null,
+    isGuest: Boolean(isGuest),
+    requests: formatRatio(usage.requestCount, limits.maxRequestsPerDay),
+    inputTokens: formatRatio(usage.inputTokens, limits.maxInputTokensPerDay),
+    outputTokens: formatRatio(usage.outputTokens, limits.maxOutputTokensPerDay),
+    costUsd: `${usage.totalCostUsd.toFixed(6)}/${limits.maxCostPerDay}`,
+    percentUsed: {
+      requests: formatPercent(percentUsed.requests),
+      inputTokens: formatPercent(percentUsed.inputTokens),
+      outputTokens: formatPercent(percentUsed.outputTokens),
+      cost: formatPercent(percentUsed.cost),
+    },
+    modelTier: entitlements.modelTier,
+    sourceTypes: entitlements.sources.map((source) => source.type),
+  };
+
   // Check all limits
   if (usage.requestCount >= limits.maxRequestsPerDay) {
+    usageLogger.warn(
+      "usage.limit.blocked",
+      "Rate limit blocked by request cap",
+      {
+        ...usageSnapshot,
+        reason: "Daily request limit reached",
+      },
+    );
     return {
       allowed: false,
       usage,
@@ -84,6 +123,14 @@ export async function checkRateLimit(
   }
 
   if (usage.inputTokens >= limits.maxInputTokensPerDay) {
+    usageLogger.warn(
+      "usage.limit.blocked",
+      "Rate limit blocked by input token cap",
+      {
+        ...usageSnapshot,
+        reason: "Daily input token limit reached",
+      },
+    );
     return {
       allowed: false,
       usage,
@@ -97,6 +144,14 @@ export async function checkRateLimit(
   }
 
   if (usage.outputTokens >= limits.maxOutputTokensPerDay) {
+    usageLogger.warn(
+      "usage.limit.blocked",
+      "Rate limit blocked by output token cap",
+      {
+        ...usageSnapshot,
+        reason: "Daily output token limit reached",
+      },
+    );
     return {
       allowed: false,
       usage,
@@ -110,6 +165,14 @@ export async function checkRateLimit(
   }
 
   if (usage.totalCostUsd >= limits.maxCostPerDay) {
+    usageLogger.warn(
+      "usage.limit.blocked",
+      "Rate limit blocked by daily cost",
+      {
+        ...usageSnapshot,
+        reason: "Daily spending limit reached",
+      },
+    );
     return {
       allowed: false,
       usage,
@@ -121,6 +184,12 @@ export async function checkRateLimit(
       effectiveEntitlements: entitlements,
     };
   }
+
+  usageLogger.info(
+    "usage.limit.allowed",
+    "Rate limit check allowed",
+    usageSnapshot,
+  );
 
   return {
     allowed: true,
