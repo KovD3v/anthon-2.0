@@ -1,3 +1,5 @@
+import { createLogger } from "@/lib/logger";
+
 /**
  * Latency Logger - Track performance bottlenecks across the application
  *
@@ -24,6 +26,7 @@ interface TimingEntry {
 class LatencyLoggerClass {
   private timings: Map<string, TimingEntry> = new Map();
   private enabled: boolean;
+  private logger = createLogger("latency");
 
   constructor() {
     // Enable by default in development, or when ENABLE_LATENCY_LOGS is true
@@ -112,8 +115,12 @@ class LatencyLoggerClass {
     const _color = this.getColorForDuration(duration);
     const formattedDuration = this.formatDuration(duration);
 
-    // Use console.log for better visibility in production logs
-    console.log(`${indent}⏱️  ${emoji} [${name}] ${formattedDuration}`);
+    this.logger.info("latency.measure", "Latency measurement", {
+      line: `${indent}⏱️  ${emoji} [${name}] ${formattedDuration}`,
+      name,
+      parent,
+      durationMs: duration,
+    });
   }
 
   /**
@@ -165,8 +172,14 @@ class LatencyLoggerClass {
 
     const total = timings.reduce((sum, t) => sum + (t.duration || 0), 0);
 
-    console.log(`\n📊 ${label} Summary - Total: ${this.formatDuration(total)}`);
-    console.log("─".repeat(60));
+    this.logger.info("latency.summary.start", "Latency summary started", {
+      line: `\n📊 ${label} Summary - Total: ${this.formatDuration(total)}`,
+      label,
+      totalDurationMs: total,
+    });
+    this.logger.info("latency.summary.separator", "Latency summary separator", {
+      line: "─".repeat(60),
+    });
 
     // Sort by duration descending
     const sorted = [...timings].sort(
@@ -178,16 +191,23 @@ class LatencyLoggerClass {
       const bar = "█".repeat(
         Math.min(20, Math.floor(((t.duration || 0) / total) * 20)),
       );
-      console.log(
-        `${this.getEmojiForDuration(t.duration || 0)} ${t.name.padEnd(
+      this.logger.info("latency.summary.row", "Latency summary row", {
+        line: `${this.getEmojiForDuration(t.duration || 0)} ${t.name.padEnd(
           30,
         )} ${this.formatDuration(t.duration || 0).padStart(
           8,
         )} (${percentage}%) ${bar}`,
-      );
+        operation: t.name,
+        durationMs: t.duration || 0,
+        percentage,
+      });
     });
 
-    console.log(`${"─".repeat(60)}\n`);
+    this.logger.info("latency.summary.end", "Latency summary completed", {
+      line: `${"─".repeat(60)}\n`,
+      label,
+      totalDurationMs: total,
+    });
   }
 
   /**

@@ -23,9 +23,12 @@ import {
   formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
 import { LatencyLogger } from "@/lib/latency-logger";
+import { createLogger } from "@/lib/logger";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
 import { getPostHogClient } from "@/lib/posthog";
+
+const aiLogger = createLogger("ai");
 
 // System prompt template
 const SYSTEM_PROMPT_TEMPLATE = `You are Anthon, a digital sports performance coach.
@@ -373,7 +376,10 @@ export async function streamChat({
         ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || []).length;
       }
     } catch (error) {
-      console.error("[Orchestrator] RAG error:", error);
+      aiLogger.error("ai.rag.error", "RAG enrichment failed", {
+        error,
+        userId,
+      });
     }
 
     return { ragContext, ragUsed, ragChunksCount };
@@ -575,7 +581,15 @@ export async function streamChat({
     // biome-ignore lint/suspicious/noExplicitAny: complex tool types and providerMetadata require any cast
   } as any);
 
-  console.log("🤖 AI: Streaming started");
+  aiLogger.info("ai.stream.started", "AI streaming started", {
+    userId,
+    chatId,
+    modelId,
+    ragUsed,
+    ragChunksCount,
+    hasImages: Boolean(hasImages),
+    hasAudio: Boolean(hasAudio),
+  });
   return result;
 }
 

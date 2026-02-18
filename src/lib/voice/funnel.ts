@@ -13,8 +13,11 @@ import { z } from "zod";
 import { maintenanceModel } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
+import { createLogger } from "@/lib/logger";
 import { parseCanonicalPlanFromPlanId } from "@/lib/plans";
 import type { VoicePlanConfig } from "./config";
+
+const voiceLogger = createLogger("voice");
 
 export type FunnelBlockedAt =
   | "L1_PREFERENCE"
@@ -74,7 +77,11 @@ export async function shouldGenerateVoice(
     // L1: User Preference (Quiet Mode)
     const l1Result = checkLevel1Preference(userPreferences);
     if (!l1Result.pass) {
-      console.log(`[VoiceFunnel] Blocked at L1: ${l1Result.reason}`);
+      voiceLogger.info("voice.funnel.blocked", "Voice funnel blocked at L1", {
+        blockedAt: "L1_PREFERENCE",
+        reason: l1Result.reason,
+        userId,
+      });
       return {
         shouldGenerateVoice: false,
         blockedAt: "L1_PREFERENCE",
@@ -85,7 +92,11 @@ export async function shouldGenerateVoice(
     // L2: Structural Analysis
     const l2Result = checkLevel2Structure(assistantText);
     if (!l2Result.pass) {
-      console.log(`[VoiceFunnel] Blocked at L2: ${l2Result.reason}`);
+      voiceLogger.info("voice.funnel.blocked", "Voice funnel blocked at L2", {
+        blockedAt: "L2_STRUCTURE",
+        reason: l2Result.reason,
+        userId,
+      });
       return {
         shouldGenerateVoice: false,
         blockedAt: "L2_STRUCTURE",
@@ -109,7 +120,11 @@ export async function shouldGenerateVoice(
     ]);
 
     if (!l3Result.pass) {
-      console.log(`[VoiceFunnel] Blocked at L3: ${l3Result.reason}`);
+      voiceLogger.info("voice.funnel.blocked", "Voice funnel blocked at L3", {
+        blockedAt: "L3_SEMANTIC",
+        reason: l3Result.reason,
+        userId,
+      });
       return {
         shouldGenerateVoice: false,
         blockedAt: "L3_SEMANTIC",
@@ -118,7 +133,11 @@ export async function shouldGenerateVoice(
     }
 
     if (!l4Result.pass) {
-      console.log(`[VoiceFunnel] Blocked at L4: ${l4Result.reason}`);
+      voiceLogger.info("voice.funnel.blocked", "Voice funnel blocked at L4", {
+        blockedAt: "L4_BUSINESS",
+        reason: l4Result.reason,
+        userId,
+      });
       return {
         shouldGenerateVoice: false,
         blockedAt: "L4_BUSINESS",
@@ -126,7 +145,9 @@ export async function shouldGenerateVoice(
       };
     }
 
-    console.log("[VoiceFunnel] Passed all checks!");
+    voiceLogger.info("voice.funnel.allowed", "Voice funnel passed all checks", {
+      userId,
+    });
     return { shouldGenerateVoice: true };
   });
 }
@@ -254,9 +275,12 @@ ${contextStr}
 
         return { pass: true };
       } catch (error) {
-        console.error(
-          "[VoiceFunnel] L3 semantic classification failed:",
-          error,
+        voiceLogger.error(
+          "voice.funnel.semantic_failed",
+          "Voice semantic classification failed",
+          {
+            error,
+          },
         );
         // On error, default to text (conservative)
         return { pass: false, reason: "Semantic classification error" };
@@ -303,7 +327,7 @@ async function checkLevel4Business(
   // Entropy check for natural distribution
   const random = Math.random();
 
-  console.log("[VoiceFunnel] L4 Probabilities:", {
+  voiceLogger.info("voice.funnel.probability", "Voice L4 probability check", {
     base: config.baseProbability,
     decay: config.decayFactor,
     count: voiceCount,
