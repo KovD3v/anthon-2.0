@@ -10,6 +10,7 @@
 import { clerkClient } from "@clerk/nextjs/server";
 import { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
 import type { OrganizationContractInput } from "@/lib/organizations/types";
 
 import {
@@ -37,6 +38,8 @@ import {
 
 // Re-export for existing consumers of "@/lib/organizations/service".
 export { listOrganizationAuditLogs } from "./audit-log";
+
+const organizationsLogger = createLogger("organizations");
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -240,6 +243,16 @@ export async function backfillOrganizationsFromClerk(
     upserted += 1;
   }
 
+  organizationsLogger.info(
+    "organizations.sync.backfill.completed",
+    "Completed organizations backfill from Clerk",
+    {
+      actorUserId,
+      received: organizations.length,
+      upserted,
+    },
+  );
+
   return upserted;
 }
 
@@ -282,7 +295,7 @@ export async function createOrganizationWithContract(
       });
     }
 
-    return await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
       const created = await tx.organization.create({
         data: {
           clerkOrganizationId: clerkOrganization.id,
@@ -362,6 +375,20 @@ export async function createOrganizationWithContract(
 
       return created;
     });
+
+    organizationsLogger.info(
+      "organizations.create.succeeded",
+      "Organization created successfully",
+      {
+        organizationId: created.id,
+        clerkOrganizationId: created.clerkOrganizationId,
+        actorUserId: input.createdByUserId,
+        ownerEmail,
+        hasDirectOwner: Boolean(created.ownerUser?.id),
+      },
+    );
+
+    return created;
   } catch (error) {
     let cleanupFailed = false;
 
@@ -372,9 +399,14 @@ export async function createOrganizationWithContract(
         clerkMembershipId: createdMembershipId,
       }).catch((cleanupError) => {
         cleanupFailed = true;
-        console.error(
-          "[Organizations] Failed cleaning owner membership after create failure:",
-          cleanupError,
+        organizationsLogger.error(
+          "organizations.create.cleanup_membership_failed",
+          "Failed cleaning owner membership after create failure",
+          {
+            cleanupError,
+            clerkOrganizationId: clerkOrganization.id,
+            ownerEmail,
+          },
         );
       });
     }
@@ -383,14 +415,20 @@ export async function createOrganizationWithContract(
       clerkOrganizationId: clerkOrganization.id,
     }).catch((cleanupError) => {
       cleanupFailed = true;
-      console.error(
-        "[Organizations] Failed deleting Clerk organization after create failure:",
-        cleanupError,
+      organizationsLogger.error(
+        "organizations.create.cleanup_clerk_org_failed",
+        "Failed deleting Clerk organization after create failure",
+        {
+          cleanupError,
+          clerkOrganizationId: clerkOrganization.id,
+          ownerEmail,
+        },
       );
     });
 
-    console.error(
-      "[Organizations] Create flow failed after Clerk provisioning",
+    organizationsLogger.error(
+      "organizations.create.failed",
+      "Organization create flow failed after Clerk provisioning",
       {
         clerkOrganizationId: clerkOrganization.id,
         ownerEmail,
@@ -683,12 +721,31 @@ export async function updateOrganization(input: UpdateOrganizationInput) {
         clerkMembershipId: ownerTransfer.oldOwnerMembershipId,
         role: CLERK_MEMBER_ROLE,
       }).catch((error) => {
-        console.error(
-          "[Organizations] Failed to demote previous owner:",
-          error,
+        organizationsLogger.error(
+          "organizations.update.demote_previous_owner_failed",
+          "Failed to demote previous owner",
+          {
+            error,
+            organizationId: existing.id,
+          },
         );
       });
     }
+
+    organizationsLogger.info(
+      "organizations.update.succeeded",
+      "Organization updated successfully",
+      {
+        organizationId: existing.id,
+        actorUserId: input.actorUserId,
+        clerkOrganizationId: existing.clerkOrganizationId,
+        nameChanged: before.name !== updated.name,
+        slugChanged: before.slug !== updated.slug,
+        statusChanged: before.status !== updated.status,
+        ownerChanged,
+        contractUpdated: Boolean(contractPatch),
+      },
+    );
 
     return updated;
   } catch (error) {
@@ -698,9 +755,13 @@ export async function updateOrganization(input: UpdateOrganizationInput) {
         name: before.name,
         slug: before.slug,
       }).catch((cleanupError) => {
-        console.error(
-          "[Organizations] Failed to revert Clerk organization profile after DB failure:",
-          cleanupError,
+        organizationsLogger.error(
+          "organizations.update.revert_clerk_profile_failed",
+          "Failed to revert Clerk organization profile after DB failure",
+          {
+            cleanupError,
+            organizationId: existing.id,
+          },
         );
       });
     }
@@ -713,9 +774,13 @@ export async function updateOrganization(input: UpdateOrganizationInput) {
         clerkUserId: ownerTransfer.newOwnerClerkId,
         clerkMembershipId: newOwnerClerkMembershipId,
       }).catch((cleanupError) => {
-        console.error(
-          "[Organizations] Failed to compensate Clerk owner membership after DB failure:",
-          cleanupError,
+        organizationsLogger.error(
+          "organizations.update.compensate_owner_membership_failed",
+          "Failed to compensate Clerk owner membership after DB failure",
+          {
+            cleanupError,
+            organizationId: existing.id,
+          },
         );
       });
     }
@@ -746,8 +811,9 @@ export async function deleteOrganization(input: DeleteOrganizationInput) {
       where: { id: existing.id },
     });
   } catch (error) {
-    console.error(
-      "[Organizations] Clerk organization deleted but failed to delete local record",
+    organizationsLogger.error(
+      "organizations.delete.local_cleanup_failed",
+      "Clerk organization deleted but failed to delete local record",
       {
         organizationId: existing.id,
         clerkOrganizationId: existing.clerkOrganizationId,
@@ -762,6 +828,16 @@ export async function deleteOrganization(input: DeleteOrganizationInput) {
       { cause: error },
     );
   }
+
+  organizationsLogger.info(
+    "organizations.delete.succeeded",
+    "Organization deleted successfully",
+    {
+      organizationId: existing.id,
+      clerkOrganizationId: existing.clerkOrganizationId,
+      actorUserId: input.actorUserId,
+    },
+  );
 
   return {
     id: existing.id,
@@ -793,9 +869,13 @@ async function resolveMembershipUserByClerkId(clerkUserId: string) {
       clerkUser.emailAddresses[0]?.emailAddress ??
       null;
   } catch (error) {
-    console.error(
-      "[Organizations] Failed fetching Clerk user for membership sync:",
-      error,
+    organizationsLogger.error(
+      "organizations.membership_sync.fetch_clerk_user_failed",
+      "Failed fetching Clerk user for membership sync",
+      {
+        error,
+        clerkUserId,
+      },
     );
   }
 
@@ -837,10 +917,18 @@ export async function syncOrganizationFromClerkEvent(input: {
   });
 
   if (!existing) {
+    organizationsLogger.warn(
+      "organizations.sync.organization.skipped_missing",
+      "Skipping organization sync: local organization not found",
+      {
+        clerkOrganizationId: input.clerkOrganizationId,
+        status: input.status ?? null,
+      },
+    );
     return null;
   }
 
-  return prisma.organization.update({
+  const updated = await prisma.organization.update({
     where: { id: existing.id },
     data: {
       ...(input.name ? { name: input.name } : {}),
@@ -848,6 +936,18 @@ export async function syncOrganizationFromClerkEvent(input: {
       ...(input.status ? { status: input.status } : {}),
     },
   });
+
+  organizationsLogger.info(
+    "organizations.sync.organization.updated",
+    "Synchronized organization from Clerk event",
+    {
+      organizationId: existing.id,
+      clerkOrganizationId: input.clerkOrganizationId,
+      status: input.status ?? null,
+    },
+  );
+
+  return updated;
 }
 
 export async function syncMembershipFromClerkEvent(input: {
@@ -866,6 +966,15 @@ export async function syncMembershipFromClerkEvent(input: {
   ]);
 
   if (!organization || !organization.contract) {
+    organizationsLogger.warn(
+      "organizations.sync.membership.skipped_missing_org",
+      "Skipping membership sync: organization not found or contract missing",
+      {
+        clerkOrganizationId: input.clerkOrganizationId,
+        clerkMembershipId: input.clerkMembershipId,
+        clerkUserId: input.clerkUserId,
+      },
+    );
     return { synced: false, reason: "organization_not_found" as const };
   }
   const seatLimit = organization.contract.seatLimit;
@@ -1011,17 +1120,48 @@ export async function syncMembershipFromClerkEvent(input: {
             clerkMembershipId: input.clerkMembershipId,
           });
         } catch (error) {
-          console.error(
-            "[Organizations] Failed removing over-seat membership:",
-            error,
+          organizationsLogger.error(
+            "organizations.membership_sync.over_seat_cleanup_failed",
+            "Failed removing over-seat membership in Clerk",
+            {
+              error,
+              organizationId: organization.id,
+              clerkMembershipId: input.clerkMembershipId,
+              clerkUserId: input.clerkUserId,
+            },
           );
           throw new Error(
             "Seat limit block applied locally but failed to remove membership in Clerk",
           );
         }
 
+        organizationsLogger.warn(
+          "organizations.sync.membership.blocked_seat_limit",
+          "Membership sync blocked by seat limit",
+          {
+            organizationId: organization.id,
+            clerkOrganizationId: input.clerkOrganizationId,
+            clerkMembershipId: input.clerkMembershipId,
+            clerkUserId: input.clerkUserId,
+            seatLimit,
+          },
+        );
+
         return { synced: false, reason: "seat_limit_blocked" as const };
       }
+
+      organizationsLogger.info(
+        "organizations.sync.membership.completed",
+        "Synchronized membership from Clerk event",
+        {
+          organizationId: organization.id,
+          clerkOrganizationId: input.clerkOrganizationId,
+          clerkMembershipId: input.clerkMembershipId,
+          clerkUserId: input.clerkUserId,
+          status: input.status,
+          role: memberRole,
+        },
+      );
 
       return { synced: true, reason: "ok" as const };
     } catch (error) {
@@ -1031,6 +1171,18 @@ export async function syncMembershipFromClerkEvent(input: {
       throw error;
     }
   }
+
+  organizationsLogger.warn(
+    "organizations.sync.membership.retries_exhausted",
+    "Membership sync exhausted serialization retries",
+    {
+      organizationId: organization.id,
+      clerkOrganizationId: input.clerkOrganizationId,
+      clerkMembershipId: input.clerkMembershipId,
+      clerkUserId: input.clerkUserId,
+      status: input.status,
+    },
+  );
 
   return { synced: false, reason: "serialization_retries_exhausted" as const };
 }

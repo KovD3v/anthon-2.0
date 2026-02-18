@@ -3,7 +3,10 @@
  */
 
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
 import type { UserCreatedData } from "./types";
+
+const webhookLogger = createLogger("webhook");
 
 /**
  * Handle user.created event.
@@ -15,7 +18,13 @@ export async function handleUserCreated(data: UserCreatedData) {
   const firstName = data.first_name;
   const lastName = data.last_name;
 
-  console.log(`[Webhook] User created: ${clerkId}`);
+  webhookLogger.info(
+    "webhook.user.created.received",
+    "User created event received",
+    {
+      clerkId,
+    },
+  );
 
   // Check if user already exists
   const existingUser = await prisma.user.findUnique({
@@ -30,7 +39,14 @@ export async function handleUserCreated(data: UserCreatedData) {
         email,
       },
     });
-    console.log(`[Webhook] Created user in database: ${clerkId}`);
+    webhookLogger.info(
+      "webhook.user.created.persisted",
+      "User created in database",
+      {
+        clerkId,
+        userId: user.id,
+      },
+    );
 
     // Create profile with name if available
     if (firstName || lastName) {
@@ -41,7 +57,15 @@ export async function handleUserCreated(data: UserCreatedData) {
           name: fullName,
         },
       });
-      console.log(`[Webhook] Created profile with name: ${fullName}`);
+      webhookLogger.info(
+        "webhook.user.profile.created",
+        "Profile created from webhook",
+        {
+          clerkId,
+          userId: user.id,
+          fullName,
+        },
+      );
     }
   } else {
     // Update existing user with email if missing or changed
@@ -50,7 +74,11 @@ export async function handleUserCreated(data: UserCreatedData) {
         where: { id: existingUser.id },
         data: { email },
       });
-      console.log(`[Webhook] Updated existing user email: ${clerkId}`);
+      webhookLogger.info(
+        "webhook.user.email.updated",
+        "Updated existing user email from user.created event",
+        { clerkId, userId: existingUser.id },
+      );
     }
   }
 }
@@ -65,7 +93,13 @@ export async function handleUserUpdated(data: UserCreatedData) {
   const firstName = data.first_name;
   const lastName = data.last_name;
 
-  console.log(`[Webhook] User updated: ${clerkId}`);
+  webhookLogger.info(
+    "webhook.user.updated.received",
+    "User updated event received",
+    {
+      clerkId,
+    },
+  );
 
   // Find user
   const user = await prisma.user.findUnique({
@@ -74,7 +108,13 @@ export async function handleUserUpdated(data: UserCreatedData) {
   });
 
   if (!user) {
-    console.error(`[Webhook] User not found: ${clerkId}`);
+    webhookLogger.error(
+      "webhook.user.updated.missing",
+      "User not found for update",
+      {
+        clerkId,
+      },
+    );
     return;
   }
 
@@ -95,7 +135,11 @@ export async function handleUserUpdated(data: UserCreatedData) {
         },
       });
     }
-    console.log(`[Webhook] Updated profile name: ${fullName}`);
+    webhookLogger.info("webhook.user.profile.updated", "Profile name updated", {
+      clerkId,
+      userId: user.id,
+      fullName,
+    });
   }
 
   // Update email if provided
@@ -104,6 +148,9 @@ export async function handleUserUpdated(data: UserCreatedData) {
       where: { id: user.id },
       data: { email },
     });
-    console.log(`[Webhook] Updated user email: ${clerkId}`);
+    webhookLogger.info("webhook.user.email.updated", "User email updated", {
+      clerkId,
+      userId: user.id,
+    });
   }
 }

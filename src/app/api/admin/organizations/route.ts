@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma";
 import { requireAdmin } from "@/lib/auth";
+import { createLogger, withRequestLogContext } from "@/lib/logger";
 import {
   applyOrgOverrides,
   isOrganizationBasePlan,
@@ -17,6 +18,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+const organizationsLogger = createLogger("organizations");
 
 function getErrorDetails(error: unknown): {
   name?: string;
@@ -113,114 +115,138 @@ function validateContractInput(
 
 // GET /api/admin/organizations - list organizations with seat usage
 export async function GET(req: NextRequest) {
-  const { user, errorResponse } = await requireAdmin();
-  if (errorResponse) return errorResponse;
+  return withRequestLogContext(
+    req,
+    { route: "/api/admin/organizations", channel: "WEB" },
+    async () => {
+      const { user, errorResponse } = await requireAdmin();
+      if (errorResponse) return errorResponse;
 
-  try {
-    const shouldSyncFromClerk = req.nextUrl.searchParams.get("sync") === "1";
-    if (user && shouldSyncFromClerk) {
-      // Local/dev fallback when webhook sync is not configured:
-      // mirror Clerk organizations into local storage on explicit request.
-      await backfillOrganizationsFromClerk(user.id);
-    }
+      try {
+        const shouldSyncFromClerk =
+          req.nextUrl.searchParams.get("sync") === "1";
+        if (user && shouldSyncFromClerk) {
+          // Local/dev fallback when webhook sync is not configured:
+          // mirror Clerk organizations into local storage on explicit request.
+          await backfillOrganizationsFromClerk(user.id);
+        }
 
-    const organizations = await listOrganizations();
-    return NextResponse.json({
-      organizations: organizations.map((organization) => ({
-        ...organization,
-        effective: organization.contract
-          ? applyOrgOverrides(organization.contract).effective
-          : null,
-      })),
-    });
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      (error.code === "P2021" ||
-        error.code === "P2022" ||
-        error.code === "P2010")
-    ) {
-      return NextResponse.json({ organizations: [] });
-    }
+        const organizations = await listOrganizations();
+        return NextResponse.json({
+          organizations: organizations.map((organization) => ({
+            ...organization,
+            effective: organization.contract
+              ? applyOrgOverrides(organization.contract).effective
+              : null,
+          })),
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          (error.code === "P2021" ||
+            error.code === "P2022" ||
+            error.code === "P2010")
+        ) {
+          return NextResponse.json({ organizations: [] });
+        }
 
-    const details = getErrorDetails(error);
-    console.error("[Organizations API] GET error:", details);
-    return NextResponse.json(
-      {
-        error: "Failed to fetch organizations",
-        details:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : {
-                ...details,
-              },
-      },
-      {
-        status: 500,
-      },
-    );
-  }
+        const details = getErrorDetails(error);
+        organizationsLogger.error(
+          "organizations.api.list.failed",
+          "Organizations API GET failed",
+          details,
+        );
+        return NextResponse.json(
+          {
+            error: "Failed to fetch organizations",
+            details:
+              process.env.NODE_ENV === "production"
+                ? undefined
+                : {
+                    ...details,
+                  },
+          },
+          {
+            status: 500,
+          },
+        );
+      }
+    },
+  );
 }
 
 // POST /api/admin/organizations - create organization + contract + owner assignment/invite
 export async function POST(req: NextRequest) {
-  const { user, errorResponse } = await requireAdmin();
-  if (errorResponse) return errorResponse;
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  return withRequestLogContext(
+    req,
+    { route: "/api/admin/organizations", channel: "WEB" },
+    async () => {
+      const { user, errorResponse } = await requireAdmin();
+      if (errorResponse) return errorResponse;
+      if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
 
-  try {
-    const body = (await req.json()) as Record<string, unknown>;
-    const name = String(body.name || "").trim();
-    const ownerEmail = String(body.ownerEmail || "")
-      .trim()
-      .toLowerCase();
-    const slug = body.slug ? String(body.slug) : undefined;
-    const contractValidation = validateContractInput(body.contract);
+      try {
+        const body = (await req.json()) as Record<string, unknown>;
+        const name = String(body.name || "").trim();
+        const ownerEmail = String(body.ownerEmail || "")
+          .trim()
+          .toLowerCase();
+        const slug = body.slug ? String(body.slug) : undefined;
+        const contractValidation = validateContractInput(body.contract);
 
-    if (!name) {
-      return NextResponse.json({ error: "name is required" }, { status: 400 });
-    }
+        if (!name) {
+          return NextResponse.json(
+            { error: "name is required" },
+            { status: 400 },
+          );
+        }
 
-    if (!ownerEmail || !ownerEmail.includes("@")) {
-      return NextResponse.json(
-        { error: "ownerEmail must be a valid email" },
-        { status: 400 },
-      );
-    }
+        if (!ownerEmail || !ownerEmail.includes("@")) {
+          return NextResponse.json(
+            { error: "ownerEmail must be a valid email" },
+            { status: 400 },
+          );
+        }
 
-    if (!contractValidation.valid) {
-      return NextResponse.json(
-        { error: contractValidation.error },
-        { status: 400 },
-      );
-    }
+        if (!contractValidation.valid) {
+          return NextResponse.json(
+            { error: contractValidation.error },
+            { status: 400 },
+          );
+        }
 
-    const organization = await createOrganizationWithContract({
-      name,
-      slug,
-      ownerEmail,
-      contract: contractValidation.data,
-      createdByUserId: user.id,
-    });
+        const organization = await createOrganizationWithContract({
+          name,
+          slug,
+          ownerEmail,
+          contract: contractValidation.data,
+          createdByUserId: user.id,
+        });
 
-    return NextResponse.json(
-      {
-        organization: {
-          ...organization,
-          effective: organization.contract
-            ? applyOrgOverrides(organization.contract).effective
-            : null,
-        },
-      },
-      { status: 201 },
-    );
-  } catch (error) {
-    console.error("[Organizations API] POST error:", error);
-    return NextResponse.json(
-      { error: "Failed to create organization" },
-      { status: 500 },
-    );
-  }
+        return NextResponse.json(
+          {
+            organization: {
+              ...organization,
+              effective: organization.contract
+                ? applyOrgOverrides(organization.contract).effective
+                : null,
+            },
+          },
+          { status: 201 },
+        );
+      } catch (error) {
+        organizationsLogger.error(
+          "organizations.api.create.failed",
+          "Organizations API POST failed",
+          { error },
+        );
+        return NextResponse.json(
+          { error: "Failed to create organization" },
+          { status: 500 },
+        );
+      }
+    },
+  );
 }

@@ -4,7 +4,10 @@
 
 import type { SubscriptionStatus } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
 import type { SubscriptionData } from "./types";
+
+const webhookLogger = createLogger("webhook");
 
 /**
  * Map Clerk subscription status to our SubscriptionStatus enum.
@@ -25,8 +28,12 @@ function mapClerkStatus(clerkStatus: string): SubscriptionStatus {
     case "unpaid":
       return "EXPIRED";
     default:
-      console.warn(
-        `[Webhook] Unknown Clerk status: ${clerkStatus}, defaulting to TRIAL`,
+      webhookLogger.warn(
+        "webhook.subscription.status_unknown",
+        "Unknown Clerk subscription status, defaulting to TRIAL",
+        {
+          clerkStatus,
+        },
       );
       return "TRIAL";
   }
@@ -40,7 +47,11 @@ export async function handleSubscriptionCreated(data: SubscriptionData) {
   const clerkUserId = data.user_id;
   const clerkSubscriptionId = data.id;
 
-  console.log(`[Webhook] Subscription created for user: ${clerkUserId}`);
+  webhookLogger.info(
+    "webhook.subscription.created.received",
+    "Subscription created event received",
+    { clerkUserId, clerkSubscriptionId },
+  );
 
   // Find our internal user
   const user = await prisma.user.findUnique({
@@ -48,7 +59,11 @@ export async function handleSubscriptionCreated(data: SubscriptionData) {
   });
 
   if (!user) {
-    console.error(`[Webhook] User not found for clerkId: ${clerkUserId}`);
+    webhookLogger.error(
+      "webhook.subscription.created.user_missing",
+      "User not found for subscription.created event",
+      { clerkUserId, clerkSubscriptionId },
+    );
     return;
   }
 
@@ -88,8 +103,16 @@ export async function handleSubscriptionCreated(data: SubscriptionData) {
     },
   });
 
-  console.log(
-    `[Webhook] Subscription record created/updated for user: ${user.id}`,
+  webhookLogger.info(
+    "auth.subscription_transition",
+    "Subscription transition applied from subscription.created",
+    {
+      userId: user.id,
+      previousStatus: null,
+      newStatus: status,
+      clerkSubscriptionId,
+      planId: data.plan_id,
+    },
   );
 }
 
@@ -100,7 +123,11 @@ export async function handleSubscriptionCreated(data: SubscriptionData) {
 export async function handleSubscriptionUpdated(data: SubscriptionData) {
   const clerkSubscriptionId = data.id;
 
-  console.log(`[Webhook] Subscription updated: ${clerkSubscriptionId}`);
+  webhookLogger.info(
+    "webhook.subscription.updated.received",
+    "Subscription updated event received",
+    { clerkSubscriptionId },
+  );
 
   // Find subscription by Clerk ID
   const subscription = await prisma.subscription.findUnique({
@@ -108,7 +135,11 @@ export async function handleSubscriptionUpdated(data: SubscriptionData) {
   });
 
   if (!subscription) {
-    console.error(`[Webhook] Subscription not found: ${clerkSubscriptionId}`);
+    webhookLogger.error(
+      "webhook.subscription.updated.missing",
+      "Subscription not found for update event",
+      { clerkSubscriptionId },
+    );
     return;
   }
 
@@ -131,19 +162,49 @@ export async function handleSubscriptionUpdated(data: SubscriptionData) {
   // Trial → Active = Conversion
   if (subscription.status === "TRIAL" && newStatus === "ACTIVE") {
     updateData.convertedAt = now;
-    console.log(`[Webhook] User converted from trial: ${subscription.userId}`);
+    webhookLogger.info(
+      "auth.subscription_transition",
+      "User converted from trial",
+      {
+        userId: subscription.userId,
+        previousStatus: subscription.status,
+        newStatus,
+        clerkSubscriptionId,
+      },
+    );
   }
 
   // Any → Canceled = Cancellation
   if (newStatus === "CANCELED" && subscription.status !== "CANCELED") {
     updateData.canceledAt = now;
-    console.log(`[Webhook] User canceled subscription: ${subscription.userId}`);
+    webhookLogger.info(
+      "auth.subscription_transition",
+      "User canceled subscription",
+      {
+        userId: subscription.userId,
+        previousStatus: subscription.status,
+        newStatus,
+        clerkSubscriptionId,
+      },
+    );
   }
 
   await prisma.subscription.update({
     where: { id: subscription.id },
     data: updateData,
   });
+
+  webhookLogger.info(
+    "auth.subscription_transition",
+    "Subscription status updated",
+    {
+      userId: subscription.userId,
+      previousStatus: subscription.status,
+      newStatus,
+      clerkSubscriptionId,
+      planId: data.plan_id,
+    },
+  );
 }
 
 /**
@@ -153,14 +214,22 @@ export async function handleSubscriptionUpdated(data: SubscriptionData) {
 export async function handleSubscriptionDeleted(data: SubscriptionData) {
   const clerkSubscriptionId = data.id;
 
-  console.log(`[Webhook] Subscription deleted: ${clerkSubscriptionId}`);
+  webhookLogger.info(
+    "webhook.subscription.deleted.received",
+    "Subscription deleted event received",
+    { clerkSubscriptionId },
+  );
 
   const subscription = await prisma.subscription.findUnique({
     where: { clerkSubscriptionId },
   });
 
   if (!subscription) {
-    console.error(`[Webhook] Subscription not found: ${clerkSubscriptionId}`);
+    webhookLogger.error(
+      "webhook.subscription.deleted.missing",
+      "Subscription not found for delete event",
+      { clerkSubscriptionId },
+    );
     return;
   }
 
@@ -172,7 +241,14 @@ export async function handleSubscriptionDeleted(data: SubscriptionData) {
     },
   });
 
-  console.log(
-    `[Webhook] Subscription marked as expired: ${subscription.userId}`,
+  webhookLogger.info(
+    "auth.subscription_transition",
+    "Subscription marked as expired",
+    {
+      userId: subscription.userId,
+      previousStatus: subscription.status,
+      newStatus: "EXPIRED",
+      clerkSubscriptionId,
+    },
   );
 }
