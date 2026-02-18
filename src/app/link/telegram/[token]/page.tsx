@@ -148,13 +148,6 @@ export default async function TelegramLinkTokenPage({
 
   const tokenHash = hashLinkToken(token);
 
-  // Debug logging for token validation
-  console.log("[Telegram Link] Token validation:", {
-    tokenProvided: `${token.slice(0, 8)}...`,
-    tokenHashGenerated: tokenHash ? `${tokenHash.slice(0, 16)}...` : null,
-    secretConfigured: !!process.env.TELEGRAM_WEBHOOK_SECRET,
-  });
-
   if (!tokenHash) {
     return (
       <main className="mx-auto max-w-lg p-6 text-center">
@@ -183,15 +176,6 @@ export default async function TelegramLinkTokenPage({
         expiresAt: true,
         consumedAt: true,
       },
-    });
-
-    // Debug logging for DB lookup
-    console.log("[Telegram Link] DB lookup:", {
-      tokenHashQueried: `${tokenHash.slice(0, 16)}...`,
-      tokenFound: !!linkToken,
-      channel: linkToken?.channel,
-      expired: linkToken ? linkToken.expiresAt.getTime() < nowMs : null,
-      consumed: !!linkToken?.consumedAt,
     });
 
     if (!linkToken || linkToken.channel !== "TELEGRAM") {
