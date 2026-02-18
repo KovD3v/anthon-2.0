@@ -2,6 +2,7 @@
  * Clerk webhook handlers for user events.
  */
 
+import { trackFunnelSignup } from "@/lib/analytics/funnel";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import type { UserCreatedData } from "./types";
@@ -47,6 +48,13 @@ export async function handleUserCreated(data: UserCreatedData) {
         userId: user.id,
       },
     );
+
+    trackFunnelSignup({
+      userId: user.id,
+      isGuest: user.isGuest,
+      userRole: user.role,
+      channel: "WEB",
+    });
 
     // Create profile with name if available
     if (firstName || lastName) {

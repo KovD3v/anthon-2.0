@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   subscriptionUpsert: vi.fn(),
   subscriptionFindUnique: vi.fn(),
   subscriptionUpdate: vi.fn(),
+  trackFunnelUpgrade: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -20,6 +21,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/analytics/funnel", () => ({
+  trackFunnelUpgrade: mocks.trackFunnelUpgrade,
+}));
+
 import {
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
@@ -32,8 +37,13 @@ describe("clerk webhook subscription handlers", () => {
     mocks.subscriptionUpsert.mockReset();
     mocks.subscriptionFindUnique.mockReset();
     mocks.subscriptionUpdate.mockReset();
+    mocks.trackFunnelUpgrade.mockReset();
 
-    mocks.userFindUnique.mockResolvedValue({ id: "user-1" });
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      isGuest: false,
+    });
     mocks.subscriptionFindUnique.mockResolvedValue({
       id: "sub-1",
       userId: "user-1",
@@ -100,6 +110,15 @@ describe("clerk webhook subscription handlers", () => {
         }),
       }),
     );
+    expect(mocks.trackFunnelUpgrade).toHaveBeenCalledWith({
+      userId: "user-1",
+      isGuest: false,
+      userRole: "USER",
+      channel: "WEB",
+      planId: "pro",
+      planName: "Pro",
+      subscriptionStatus: "ACTIVE",
+    });
   });
 
   it("handleSubscriptionCreated defaults unknown status to TRIAL", async () => {
@@ -154,6 +173,15 @@ describe("clerk webhook subscription handlers", () => {
         }),
       }),
     );
+    expect(mocks.trackFunnelUpgrade).toHaveBeenCalledWith({
+      userId: "user-1",
+      isGuest: false,
+      userRole: "USER",
+      channel: "WEB",
+      planId: "pro",
+      planName: "Pro",
+      subscriptionStatus: "ACTIVE",
+    });
   });
 
   it("handleSubscriptionUpdated tracks cancellation transitions", async () => {

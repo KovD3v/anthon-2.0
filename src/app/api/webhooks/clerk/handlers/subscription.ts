@@ -3,6 +3,7 @@
  */
 
 import type { SubscriptionStatus } from "@/generated/prisma";
+import { trackFunnelUpgrade } from "@/lib/analytics/funnel";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import type { SubscriptionData } from "./types";
@@ -114,6 +115,18 @@ export async function handleSubscriptionCreated(data: SubscriptionData) {
       planId: data.plan_id,
     },
   );
+
+  if (status === "ACTIVE") {
+    trackFunnelUpgrade({
+      userId: user.id,
+      isGuest: user.isGuest,
+      userRole: user.role,
+      channel: "WEB",
+      planId: data.plan_id,
+      planName: data.plan_name,
+      subscriptionStatus: status,
+    });
+  }
 }
 
 /**
@@ -172,6 +185,23 @@ export async function handleSubscriptionUpdated(data: SubscriptionData) {
         clerkSubscriptionId,
       },
     );
+
+    const user = await prisma.user.findUnique({
+      where: { id: subscription.userId },
+      select: { id: true, role: true, isGuest: true },
+    });
+
+    if (user) {
+      trackFunnelUpgrade({
+        userId: user.id,
+        isGuest: user.isGuest,
+        userRole: user.role,
+        channel: "WEB",
+        planId: data.plan_id,
+        planName: data.plan_name,
+        subscriptionStatus: newStatus,
+      });
+    }
   }
 
   // Any → Canceled = Cancellation

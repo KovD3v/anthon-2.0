@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { waitUntil } from "@vercel/functions";
 import type { Prisma } from "@/generated/prisma";
+import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import { runChannelFlow } from "@/lib/channel-flow";
 import {
   downloadTelegramAudio,
@@ -318,6 +319,19 @@ async function handleUpdate(update: TelegramUpdate) {
   if (!inbound) {
     return;
   }
+
+  safeWaitUntil(
+    trackInboundUserMessageFunnelProgress({
+      userId: user.id,
+      isGuest: user.isGuest,
+      userRole: user.role,
+      channel: "TELEGRAM",
+      planId: user.subscription?.planId,
+      subscriptionStatus: user.subscription?.status,
+    }).catch((error) => {
+      console.error("[Telegram Webhook] Funnel tracking failed:", error);
+    }),
+  );
 
   if (process.env.TELEGRAM_DISABLE_AI === "true") {
     return;
