@@ -107,6 +107,25 @@ Test command equivalents:
 - `bun run test:coverage`
 - `bun run test:all`
 
+## 🪵 Logging
+
+Server logging is centralized in `src/lib/logger` and emits structured events.
+
+- `development` / local default level: `info`
+- `test` default level: `silent`
+- `production` default level: `error` (critical errors only)
+- `development` / local default format: `pretty`
+- `test` and `production` default format: `json`
+
+Optional env overrides:
+
+- `APP_LOG_LEVEL` = `silent|error|warn|info|debug`
+- `APP_LOG_FORMAT` = `pretty|json`
+- `APP_LOG_COLORS` = `true|false` (TTY pretty output)
+- `APP_LOG_DOMAIN_LEVELS` = `domain:level,domain:level` (example: `auth:warn,latency:error`)
+- `APP_LOG_EXCLUDE_EVENTS` = comma separated event filters, supports `*` suffix (example: `auth.authenticated,latency.*`)
+- `ENABLE_LATENCY_LOGS=true` to keep latency timing logs enabled (including prod troubleshooting)
+
 ## Neon Branch Mapping
 
 For safe environment separation:
