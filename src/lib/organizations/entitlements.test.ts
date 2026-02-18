@@ -125,10 +125,10 @@ describe("organizations/entitlements", () => {
     expect(result.sources[0]).toMatchObject({
       type: "personal",
       sourceId: "personal-subscription",
-      sourceLabel: "Personal basic_plus",
+      sourceLabel: "Personal BASIC_PLUS",
       modelTier: "BASIC_PLUS",
     });
-    expect(result.limits).toEqual(PERSONAL_PLAN_LIMITS.basic_plus);
+    expect(result.limits).toEqual(PERSONAL_PLAN_LIMITS.BASIC_PLUS);
   });
 
   it("selects the strongest organization source when contracts are present", async () => {
@@ -236,14 +236,14 @@ describe("organizations/entitlements", () => {
     });
 
     expect(result).toEqual({
-      limits: PERSONAL_PLAN_LIMITS.basic,
+      limits: PERSONAL_PLAN_LIMITS.BASIC,
       modelTier: "BASIC",
       sources: [
         {
           type: "personal",
           sourceId: "personal-fallback",
           sourceLabel: "Personal fallback (missing organization contract)",
-          limits: PERSONAL_PLAN_LIMITS.basic,
+          limits: PERSONAL_PLAN_LIMITS.BASIC,
           modelTier: "BASIC",
         },
       ],

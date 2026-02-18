@@ -1,18 +1,18 @@
 import { prisma } from "@/lib/db";
 import {
-  PERSONAL_PLAN_LIMITS,
-  type PersonalPlanKey,
-  planKeyToModelTier,
-} from "@/lib/limits/personal-limits";
-import {
-  applyOrgOverrides,
   compareEntitlementVectors,
-} from "@/lib/organizations/plan-defaults";
+  type OrganizationEntitlementSource as PlanOrganizationEntitlementSource,
+  type PlanResolutionInput,
+  type ResolvedEntitlements as PlanResolvedEntitlements,
+  resolvePersonalPlan,
+  resolveEffectiveEntitlements as resolvePlanEffectiveEntitlements,
+} from "@/lib/plans";
+import { applyOrgOverrides } from "./plan-defaults";
 import type {
   EffectiveEntitlementSource,
   EffectiveEntitlements,
   OrganizationModelTier,
-} from "@/lib/organizations/types";
+} from "./types";
 
 interface ResolveEffectiveEntitlementsInput {
   userId: string;
@@ -22,64 +22,34 @@ interface ResolveEffectiveEntitlementsInput {
   isGuest?: boolean;
 }
 
-function isAdminRole(role?: string | null): boolean {
-  return role === "ADMIN" || role === "SUPER_ADMIN";
-}
-
-function resolvePersonalPlanKey(
-  subscriptionStatus?: string | null,
-  planId?: string | null,
-  isGuest?: boolean,
-): PersonalPlanKey {
-  if (isGuest) {
-    return "GUEST";
-  }
-
-  if (planId && subscriptionStatus === "ACTIVE") {
-    const normalizedPlanId = planId.toLowerCase();
-    if (normalizedPlanId.includes("pro")) {
-      return "pro";
-    }
-    if (normalizedPlanId.includes("basic_plus")) {
-      return "basic_plus";
-    }
-    if (normalizedPlanId.includes("basic")) {
-      return "basic";
-    }
-  }
-
-  if (subscriptionStatus === "ACTIVE") {
-    return "ACTIVE";
-  }
-
-  return "TRIAL";
-}
-
-function buildPersonalSource(
-  subscriptionStatus?: string | null,
-  userRole?: string | null,
-  planId?: string | null,
-  isGuest?: boolean,
+function toLegacySource(
+  source: PlanResolvedEntitlements,
 ): EffectiveEntitlementSource {
-  if (isAdminRole(userRole)) {
-    return {
-      type: "personal",
-      sourceId: "personal-admin",
-      sourceLabel: "Admin role",
-      limits: PERSONAL_PLAN_LIMITS.ADMIN,
-      modelTier: "ADMIN",
-    };
-  }
+  return {
+    type: source.sourceType,
+    sourceId: source.sourceId,
+    sourceLabel: source.sourceLabel,
+    limits: source.limits,
+    modelTier: source.modelTier,
+  };
+}
 
-  const planKey = resolvePersonalPlanKey(subscriptionStatus, planId, isGuest);
-  const tier = planKeyToModelTier(planKey);
+function toLegacyOutput(
+  source: PlanResolvedEntitlements,
+  usePersonalFallback = false,
+): EffectiveEntitlements {
+  const legacySource = toLegacySource(source);
+
+  if (usePersonalFallback && legacySource.type === "personal") {
+    legacySource.sourceId = "personal-fallback";
+    legacySource.sourceLabel =
+      "Personal fallback (missing organization contract)";
+  }
 
   return {
-    type: "personal",
-    sourceId: "personal-subscription",
-    sourceLabel: isGuest ? "Guest" : `Personal ${planKey}`,
-    limits: PERSONAL_PLAN_LIMITS[planKey],
-    modelTier: tier,
+    limits: source.limits,
+    modelTier: source.modelTier,
+    sources: [legacySource],
   };
 }
 
@@ -114,20 +84,19 @@ export function compareModelTiers(
 export async function resolveEffectiveEntitlements(
   input: ResolveEffectiveEntitlementsInput,
 ): Promise<EffectiveEntitlements> {
-  const personal = buildPersonalSource(
-    input.subscriptionStatus,
-    input.userRole,
-    input.planId,
-    input.isGuest,
-  );
+  const baseInput: PlanResolutionInput = {
+    subscriptionStatus: input.subscriptionStatus,
+    userRole: input.userRole,
+    planId: input.planId,
+    isGuest: input.isGuest,
+  };
+
+  const personalPlan = resolvePersonalPlan(baseInput);
 
   // Guest and admin users do not need organization-level merging.
-  if (input.isGuest || isAdminRole(input.userRole)) {
-    return {
-      limits: personal.limits,
-      modelTier: personal.modelTier,
-      sources: [personal],
-    };
+  if (input.isGuest || personalPlan === "ADMIN") {
+    const source = resolvePlanEffectiveEntitlements(baseInput);
+    return toLegacyOutput(source);
   }
 
   const memberships = await prisma.organizationMembership.findMany({
@@ -166,62 +135,36 @@ export async function resolveEffectiveEntitlements(
     },
   });
 
-  if (memberships.length === 0) {
-    return {
-      limits: personal.limits,
-      modelTier: personal.modelTier,
-      sources: [personal],
-    };
-  }
-
-  const organizationSources: EffectiveEntitlementSource[] = memberships.flatMap(
-    (membership) => {
+  const organizationSources: PlanOrganizationEntitlementSource[] =
+    memberships.flatMap((membership) => {
       const contract = membership.organization.contract;
+
       if (!contract) {
         return [];
       }
 
       const { basePlan, effective } = applyOrgOverrides(contract);
+
       return [
         {
-          type: "organization" as const,
           sourceId: membership.organizationId,
           sourceLabel: `organization:${membership.organization.name}:${basePlan}`,
-          limits: effective.limits,
+          plan: basePlan,
           modelTier: effective.modelTier,
+          limits: effective.limits,
         },
       ];
-    },
-  );
+    });
 
   if (organizationSources.length === 0) {
-    const personalFallback: EffectiveEntitlementSource = {
-      ...personal,
-      sourceId: "personal-fallback",
-      sourceLabel: "Personal fallback (missing organization contract)",
-    };
-
-    return {
-      limits: personalFallback.limits,
-      modelTier: personalFallback.modelTier,
-      sources: [personalFallback],
-    };
+    const source = resolvePlanEffectiveEntitlements(baseInput);
+    return toLegacyOutput(source, memberships.length > 0);
   }
 
-  const bestOrganizationSource = organizationSources.slice().sort((a, b) => {
-    const vectorDiff = compareEntitlementVectors(
-      { modelTier: b.modelTier, limits: b.limits },
-      { modelTier: a.modelTier, limits: a.limits },
-    );
-    if (vectorDiff !== 0) {
-      return vectorDiff;
-    }
-    return a.sourceId.localeCompare(b.sourceId);
-  })[0];
+  const source = resolvePlanEffectiveEntitlements({
+    ...baseInput,
+    organizationSources,
+  });
 
-  return {
-    limits: bestOrganizationSource.limits,
-    modelTier: bestOrganizationSource.modelTier,
-    sources: [bestOrganizationSource],
-  };
+  return toLegacyOutput(source);
 }

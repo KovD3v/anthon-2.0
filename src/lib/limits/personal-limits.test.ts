@@ -10,10 +10,9 @@ describe("limits/personal-limits", () => {
     expect(PERSONAL_PLAN_KEYS).toEqual([
       "GUEST",
       "TRIAL",
-      "basic",
-      "basic_plus",
-      "pro",
-      "ACTIVE",
+      "BASIC",
+      "BASIC_PLUS",
+      "PRO",
       "ADMIN",
     ]);
   });
@@ -21,10 +20,9 @@ describe("limits/personal-limits", () => {
   it("maps personal plan keys to model tiers", () => {
     expect(planKeyToModelTier("GUEST")).toBe("TRIAL");
     expect(planKeyToModelTier("TRIAL")).toBe("TRIAL");
-    expect(planKeyToModelTier("basic")).toBe("BASIC");
-    expect(planKeyToModelTier("basic_plus")).toBe("BASIC_PLUS");
-    expect(planKeyToModelTier("pro")).toBe("PRO");
-    expect(planKeyToModelTier("ACTIVE")).toBe("BASIC");
+    expect(planKeyToModelTier("BASIC")).toBe("BASIC");
+    expect(planKeyToModelTier("BASIC_PLUS")).toBe("BASIC_PLUS");
+    expect(planKeyToModelTier("PRO")).toBe("PRO");
     expect(planKeyToModelTier("ADMIN")).toBe("ADMIN");
   });
 
