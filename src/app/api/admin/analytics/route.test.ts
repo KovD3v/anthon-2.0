@@ -84,7 +84,10 @@ describe("GET /api/admin/analytics", () => {
       },
     ]);
     mocks.userFindMany.mockResolvedValue([
-      { createdAt: new Date("2026-02-15T00:00:00.000Z") },
+      {
+        id: "u1",
+        createdAt: new Date("2026-02-15T00:00:00.000Z"),
+      },
     ]);
     mocks.messageGroupBy
       .mockResolvedValueOnce([
@@ -92,11 +95,7 @@ describe("GET /api/admin/analytics", () => {
         { userId: "u2", _count: 1 },
       ])
       .mockResolvedValueOnce([{ userId: "u1" }]);
-    mocks.subscriptionCount
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(2)
-      .mockResolvedValueOnce(1)
-      .mockResolvedValueOnce(0);
+    mocks.subscriptionCount.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
   });
 
   it("returns requireAdmin error response when unauthorized", async () => {
@@ -114,7 +113,9 @@ describe("GET /api/admin/analytics", () => {
 
   it("returns overview analytics", async () => {
     const response = await GET(
-      new Request("http://localhost/api/admin/analytics?type=overview") as never,
+      new Request(
+        "http://localhost/api/admin/analytics?type=overview",
+      ) as never,
     );
 
     expect(response.status).toBe(200);
@@ -185,8 +186,6 @@ describe("GET /api/admin/analytics", () => {
   });
 
   it("returns funnel analytics", async () => {
-    mocks.messageGroupBy.mockResolvedValue([{ userId: "u1" }, { userId: "u2" }]);
-
     const response = await GET(
       new Request("http://localhost/api/admin/analytics?type=funnel") as never,
     );
@@ -194,18 +193,24 @@ describe("GET /api/admin/analytics", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       funnel: {
-        registered: 10,
-        engaged: 2,
-        trialStarted: 3,
-        converted: 2,
-        active: 1,
-        churned: 0,
+        signup: 1,
+        firstChat: 1,
+        session3: 0,
+        upgrade: 1,
+        signupAll: 1,
+        firstChatAll: 1,
+        session3All: 0,
+        upgradeAll: 1,
       },
       conversionRates: {
-        registeredToEngaged: 20,
-        engagedToTrial: 150,
-        trialToConverted: 66.7,
-        overallConversion: 20,
+        signupToFirstChat: 100,
+        firstChatToSession3: 0,
+        session3ToUpgrade: 0,
+        overall: 100,
+        signupToFirstChatAll: 100,
+        firstChatToSession3All: 0,
+        session3ToUpgradeAll: 0,
+        overallAll: 100,
       },
     });
   });
@@ -223,7 +228,9 @@ describe("GET /api/admin/analytics", () => {
     mocks.userCount.mockRejectedValue(new Error("db down"));
 
     const response = await GET(
-      new Request("http://localhost/api/admin/analytics?type=overview") as never,
+      new Request(
+        "http://localhost/api/admin/analytics?type=overview",
+      ) as never,
     );
 
     expect(response.status).toBe(500);

@@ -35,18 +35,24 @@ interface CostStats {
 
 interface FunnelStats {
   funnel: {
-    registered: number;
-    engaged: number;
-    trialStarted: number;
-    converted: number;
-    active: number;
-    churned: number;
+    signup: number;
+    firstChat: number;
+    session3: number;
+    upgrade: number;
+    signupAll: number;
+    firstChatAll: number;
+    session3All: number;
+    upgradeAll: number;
   };
   conversionRates: {
-    registeredToEngaged: number;
-    engagedToTrial: number;
-    trialToConverted: number;
-    overallConversion: number;
+    signupToFirstChat: number;
+    firstChatToSession3: number;
+    session3ToUpgrade: number;
+    overall: number;
+    signupToFirstChatAll: number;
+    firstChatToSession3All: number;
+    session3ToUpgradeAll: number;
+    overallAll: number;
   };
 }
 
@@ -334,53 +340,48 @@ export default function AnalyticsPage() {
 
         <Card variant="glass">
           <CardHeader>
-            <CardTitle>Conversion Funnel</CardTitle>
+            <CardTitle>Conversion Funnel (Registered)</CardTitle>
           </CardHeader>
           <CardContent>
             {funnelStats ? (
               <div className="space-y-4">
                 <FunnelRow
-                  label="Registered"
-                  count={funnelStats.funnel.registered}
+                  label="Signup"
+                  count={funnelStats.funnel.signup}
                   percentage={100}
                 />
                 <FunnelRow
-                  label="Engaged (1+ messages)"
-                  count={funnelStats.funnel.engaged}
-                  percentage={funnelStats.conversionRates.registeredToEngaged}
+                  label="First Chat"
+                  count={funnelStats.funnel.firstChat}
+                  percentage={funnelStats.conversionRates.signupToFirstChat}
                 />
                 <FunnelRow
-                  label="Trial Started"
-                  count={funnelStats.funnel.trialStarted}
-                  percentage={funnelStats.conversionRates.engagedToTrial}
+                  label="Session 3"
+                  count={funnelStats.funnel.session3}
+                  percentage={funnelStats.conversionRates.firstChatToSession3}
                 />
                 <FunnelRow
-                  label="Converted (Paid)"
-                  count={funnelStats.funnel.converted}
-                  percentage={funnelStats.conversionRates.trialToConverted}
+                  label="Upgrade"
+                  count={funnelStats.funnel.upgrade}
+                  percentage={funnelStats.conversionRates.session3ToUpgrade}
                 />
                 <div className="pt-4 border-t border-border">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      Overall Conversion Rate
-                    </span>
+                    <span className="text-muted-foreground">Overall</span>
                     <span className="font-bold text-green-600">
-                      {funnelStats.conversionRates.overallConversion.toFixed(1)}
-                      %
+                      {funnelStats.conversionRates.overall.toFixed(1)}%
                     </span>
                   </div>
                   <div className="flex justify-between text-sm mt-2">
-                    <span className="text-muted-foreground">
-                      Active Subscribers
-                    </span>
+                    <span className="text-muted-foreground">All users</span>
                     <span className="font-bold text-blue-600">
-                      {funnelStats.funnel.active}
+                      {funnelStats.funnel.signupAll}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm mt-2">
-                    <span className="text-muted-foreground">Churned</span>
-                    <span className="font-bold text-red-600">
-                      {funnelStats.funnel.churned}
+                    <span className="text-muted-foreground">All overall</span>
+                    <span className="font-bold text-indigo-600">
+                      {funnelStats.conversionRates.overallAll.toFixed(1)}%
                     </span>
                   </div>
                 </div>

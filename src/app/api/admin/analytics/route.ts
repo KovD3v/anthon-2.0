@@ -4,6 +4,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
+import { analyzeSessionProgress } from "@/lib/analytics/funnel";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
@@ -250,66 +251,104 @@ async function getCostStats(startDate: Date | null) {
   };
 }
 
+function toPercentage(numerator: number, denominator: number) {
+  if (denominator <= 0) return 0;
+  return Math.round((numerator / denominator) * 1000) / 10;
+}
+
+function countUsersWithSession3(
+  userIds: Set<string>,
+  messagesByUser: Map<string, Date[]>,
+) {
+  let count = 0;
+  for (const userId of userIds) {
+    const timestamps = messagesByUser.get(userId);
+    if (!timestamps || timestamps.length < 6) continue;
+    const progress = analyzeSessionProgress(timestamps);
+    if (progress.validSessions >= 3) {
+      count++;
+    }
+  }
+  return count;
+}
+
 /**
- * Funnel statistics - registration to conversion
+ * Funnel statistics - signup to upgrade with registered/all comparison
  */
 async function getFunnelStats() {
-  // Total registered users
-  const totalUsers = await prisma.user.count();
+  const [allUsers, registeredUsers, userMessages, upgradeAll, upgrade] =
+    await Promise.all([
+      prisma.user.findMany({
+        select: { id: true },
+      }),
+      prisma.user.findMany({
+        where: { clerkId: { not: null } },
+        select: { id: true },
+      }),
+      prisma.message.findMany({
+        where: { role: "USER" },
+        select: { userId: true, createdAt: true },
+        orderBy: [{ userId: "asc" }, { createdAt: "asc" }],
+      }),
+      prisma.subscription.count({
+        where: { convertedAt: { not: null } },
+      }),
+      prisma.subscription.count({
+        where: {
+          convertedAt: { not: null },
+          user: { clerkId: { not: null } },
+        },
+      }),
+    ]);
 
-  // Users who started a trial
-  const trialStarted = await prisma.subscription.count({
-    where: { trialStartedAt: { not: null } },
-  });
+  const signupAll = allUsers.length;
+  const signup = registeredUsers.length;
 
-  // Users who converted (paid)
-  const converted = await prisma.subscription.count({
-    where: { convertedAt: { not: null } },
-  });
+  const registeredUserIds = new Set(registeredUsers.map((user) => user.id));
+  const allUserIds = new Set(allUsers.map((user) => user.id));
 
-  // Active subscribers
-  const activeSubscribers = await prisma.subscription.count({
-    where: { status: "ACTIVE" },
-  });
+  const usersWithFirstChat = new Set<string>();
+  const messagesByUser = new Map<string, Date[]>();
 
-  // Churned (canceled)
-  const churned = await prisma.subscription.count({
-    where: { status: "CANCELED" },
-  });
+  for (const message of userMessages) {
+    usersWithFirstChat.add(message.userId);
 
-  // Users who sent at least one message (engaged)
-  const engagedUsers = await prisma.message.groupBy({
-    by: ["userId"],
-    where: { role: "USER" },
-  });
+    const current = messagesByUser.get(message.userId);
+    if (current) {
+      current.push(message.createdAt);
+    } else {
+      messagesByUser.set(message.userId, [message.createdAt]);
+    }
+  }
 
-  // Calculate rates
-  const registeredToEngagedRate =
-    totalUsers > 0 ? (engagedUsers.length / totalUsers) * 100 : 0;
+  const firstChatAll = usersWithFirstChat.size;
+  const firstChat = Array.from(registeredUserIds).filter((userId) =>
+    usersWithFirstChat.has(userId),
+  ).length;
 
-  const engagedToTrialRate =
-    engagedUsers.length > 0 ? (trialStarted / engagedUsers.length) * 100 : 0;
-
-  const trialToConvertedRate =
-    trialStarted > 0 ? (converted / trialStarted) * 100 : 0;
-
-  const overallConversionRate =
-    totalUsers > 0 ? (converted / totalUsers) * 100 : 0;
+  const session3All = countUsersWithSession3(allUserIds, messagesByUser);
+  const session3 = countUsersWithSession3(registeredUserIds, messagesByUser);
 
   return {
     funnel: {
-      registered: totalUsers,
-      engaged: engagedUsers.length,
-      trialStarted,
-      converted,
-      active: activeSubscribers,
-      churned,
+      signup,
+      firstChat,
+      session3,
+      upgrade,
+      signupAll,
+      firstChatAll,
+      session3All,
+      upgradeAll,
     },
     conversionRates: {
-      registeredToEngaged: Math.round(registeredToEngagedRate * 10) / 10,
-      engagedToTrial: Math.round(engagedToTrialRate * 10) / 10,
-      trialToConverted: Math.round(trialToConvertedRate * 10) / 10,
-      overallConversion: Math.round(overallConversionRate * 10) / 10,
+      signupToFirstChat: toPercentage(firstChat, signup),
+      firstChatToSession3: toPercentage(session3, firstChat),
+      session3ToUpgrade: toPercentage(upgrade, session3),
+      overall: toPercentage(upgrade, signup),
+      signupToFirstChatAll: toPercentage(firstChatAll, signupAll),
+      firstChatToSession3All: toPercentage(session3All, firstChatAll),
+      session3ToUpgradeAll: toPercentage(upgradeAll, session3All),
+      overallAll: toPercentage(upgradeAll, signupAll),
     },
   };
 }
