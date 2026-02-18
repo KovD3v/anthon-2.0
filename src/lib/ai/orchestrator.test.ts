@@ -194,6 +194,7 @@ describe("ai/orchestrator", () => {
       undefined,
       "orchestrator",
       "PRO",
+      undefined,
     );
     expect(mocks.withTracing).toHaveBeenCalledWith(
       "base-model",
@@ -250,9 +251,12 @@ describe("ai/orchestrator", () => {
       messages: Array<{ role: string; content: unknown }>;
       system: string;
     };
-    const content = streamInput.messages[0].content as Array<
-      { type: string; text?: string; mediaType?: string; data?: Uint8Array }
-    >;
+    const content = streamInput.messages[0].content as Array<{
+      type: string;
+      text?: string;
+      mediaType?: string;
+      data?: Uint8Array;
+    }>;
 
     expect(content[0]).toEqual({
       type: "text",
@@ -290,7 +294,11 @@ describe("ai/orchestrator", () => {
       }) => void;
       onFinish: (step: {
         text: string;
-        usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+        usage?: {
+          inputTokens?: number;
+          outputTokens?: number;
+          totalTokens?: number;
+        };
         providerMetadata?: Record<string, unknown>;
       }) => Promise<void>;
     };

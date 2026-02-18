@@ -63,24 +63,74 @@ describe("ai/providers/openrouter", () => {
     expect(getModelIdForPlan(null, undefined, "orchestrator")).toBe(
       "google/gemini-2.0-flash-lite-001",
     );
-    expect(getModelIdForPlan("my-basic-plan", undefined, "orchestrator")).toBe(
-      "google/gemini-2.0-flash-001",
-    );
-    expect(getModelIdForPlan("my-basic_plus-plan", undefined, "subAgent")).toBe(
-      "google/gemini-2.0-flash-001",
-    );
-    expect(getModelIdForPlan("my-pro-plan", undefined, "orchestrator")).toBe(
-      "google/gemini-2.0-flash-lite-001",
-    );
-    expect(getModelIdForPlan("my-pro-plan", "ADMIN", "orchestrator")).toBe(
-      "google/gemini-2.0-flash-lite-001",
-    );
     expect(
-      getModelIdForPlan("my-pro-plan", "USER", "orchestrator", "BASIC"),
+      getModelIdForPlan(
+        "my-basic-plan",
+        undefined,
+        "orchestrator",
+        undefined,
+        "ACTIVE",
+      ),
     ).toBe("google/gemini-2.0-flash-001");
     expect(
-      getModelIdForPlan("my-basic-plan", "USER", "orchestrator", "PRO"),
+      getModelIdForPlan(
+        "my-basic_plus-plan",
+        undefined,
+        "subAgent",
+        undefined,
+        "ACTIVE",
+      ),
+    ).toBe("google/gemini-2.0-flash-001");
+    expect(
+      getModelIdForPlan(
+        "my-pro-plan",
+        undefined,
+        "orchestrator",
+        undefined,
+        "ACTIVE",
+      ),
     ).toBe("google/gemini-2.0-flash-lite-001");
+    expect(
+      getModelIdForPlan(
+        "my-pro-plan",
+        "ADMIN",
+        "orchestrator",
+        undefined,
+        "ACTIVE",
+      ),
+    ).toBe("google/gemini-2.0-flash-lite-001");
+    expect(
+      getModelIdForPlan(
+        "my-pro-plan",
+        "USER",
+        "orchestrator",
+        "BASIC",
+        "ACTIVE",
+      ),
+    ).toBe("google/gemini-2.0-flash-001");
+    expect(
+      getModelIdForPlan(
+        "my-basic-plan",
+        "USER",
+        "orchestrator",
+        "PRO",
+        "ACTIVE",
+      ),
+    ).toBe("google/gemini-2.0-flash-lite-001");
+  });
+
+  it("throws when active subscription has invalid planId", async () => {
+    const { getModelIdForPlan } = await import("./openrouter");
+
+    expect(() =>
+      getModelIdForPlan(
+        "invalid-plan",
+        "USER",
+        "orchestrator",
+        undefined,
+        "ACTIVE",
+      ),
+    ).toThrow("Active subscription requires a recognized planId");
   });
 
   it("wraps models with devtools in development", async () => {
@@ -91,7 +141,13 @@ describe("ai/providers/openrouter", () => {
     mocks.wrapLanguageModel.mockClear();
     mocks.devToolsMiddleware.mockClear();
 
-    const model = getModelForUser("my-basic_plus-plan", undefined, "subAgent");
+    const model = getModelForUser(
+      "my-basic_plus-plan",
+      undefined,
+      "subAgent",
+      undefined,
+      "ACTIVE",
+    );
 
     expect(mocks.provider).toHaveBeenCalledWith("google/gemini-2.0-flash-001");
     expect(mocks.devToolsMiddleware).toHaveBeenCalledTimes(1);
@@ -110,7 +166,13 @@ describe("ai/providers/openrouter", () => {
     mocks.provider.mockClear();
     mocks.wrapLanguageModel.mockClear();
 
-    const model = getModelForUser("my-basic-plan", undefined, "orchestrator");
+    const model = getModelForUser(
+      "my-basic-plan",
+      undefined,
+      "orchestrator",
+      undefined,
+      "ACTIVE",
+    );
 
     expect(mocks.provider).toHaveBeenCalledWith("google/gemini-2.0-flash-001");
     expect(mocks.wrapLanguageModel).not.toHaveBeenCalled();

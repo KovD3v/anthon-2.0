@@ -313,12 +313,14 @@ export async function streamChat({
     userRole,
     "orchestrator",
     effectiveEntitlements.modelTier,
+    subscriptionStatus,
   );
   const modelId = getModelIdForPlan(
     planId,
     userRole,
     "orchestrator",
     effectiveEntitlements.modelTier,
+    subscriptionStatus,
   );
 
   // Wrap model with PostHog tracing for LLM analytics

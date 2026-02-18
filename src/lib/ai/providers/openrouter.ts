@@ -2,41 +2,14 @@ import { devToolsMiddleware } from "@ai-sdk/devtools";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { wrapLanguageModel } from "ai";
 import type { OrganizationModelTier } from "@/lib/organizations/types";
+import { resolvePlanSnapshot } from "@/lib/plans";
 
 // Create OpenRouter provider instance with API key from environment
 export const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
 });
 
-// Model configuration based on Clerk subscription plan
-// Note: All Gemini models support vision, so we just use the orchestrator models
-const MODEL_CONFIG = {
-  // No subscription / trial users
-  trial: {
-    orchestrator: "google/gemini-2.0-flash-lite-001",
-    subAgent: "google/gemini-2.0-flash-lite-001",
-  },
-  // Basic plan ($7/month)
-  basic: {
-    orchestrator: "google/gemini-2.0-flash-001",
-    subAgent: "google/gemini-2.0-flash-lite-001",
-  },
-  // Basic Plus plan ($12/month)
-  basic_plus: {
-    orchestrator: "google/gemini-2.0-flash-001",
-    subAgent: "google/gemini-2.0-flash-001",
-  },
-  // Pro plan ($25/month)
-  pro: {
-    orchestrator: "google/gemini-2.0-flash-lite-001",
-    subAgent: "google/gemini-2.0-flash-lite-001",
-  },
-  // Admin (unlimited)
-  admin: {
-    orchestrator: "google/gemini-2.0-flash-lite-001",
-    subAgent: "google/gemini-2.0-flash-lite-001",
-  },
-} as const;
+type ModelType = "orchestrator" | "subAgent";
 
 // Helper to wrap model with devtools in development
 // biome-ignore lint/suspicious/noExplicitAny: model type is internal to AI SDK wrapLanguageModel
@@ -50,94 +23,71 @@ function withDevTools(model: any) {
   return model;
 }
 
-// Default models (for backward compatibility - uses trial tier)
-const _orchestratorModel = withDevTools(
-  openrouter(MODEL_CONFIG.trial.orchestrator),
-);
-export const subAgentModel = withDevTools(
-  openrouter(MODEL_CONFIG.trial.subAgent),
-);
-
-/**
- * Resolves the plan key based on user's subscription plan and role.
- * Centralizes the logic to avoid duplication.
- */
-function resolvePlanKey(
-  planId: string | null | undefined,
+function resolveModelRouting(
+  subscriptionStatus?: string,
+  planId?: string | null,
   userRole?: string,
   modelTier?: OrganizationModelTier,
-): keyof typeof MODEL_CONFIG {
-  // Admin/Super Admin always get best models
-  if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
-    return "admin";
-  }
-
-  if (modelTier) {
-    switch (modelTier) {
-      case "ADMIN":
-        return "admin";
-      case "ENTERPRISE":
-      case "PRO":
-        return "pro";
-      case "BASIC_PLUS":
-        return "basic_plus";
-      case "BASIC":
-        return "basic";
-      default:
-        return "trial";
-    }
-  }
-
-  if (!planId) {
-    return "trial";
-  }
-
-  // Match plan IDs from Clerk (basic, basic_plus, pro)
-  const normalizedPlanId = planId.toLowerCase();
-  if (normalizedPlanId.includes("pro")) {
-    return "pro";
-  }
-  if (normalizedPlanId.includes("basic_plus")) {
-    return "basic_plus";
-  }
-  if (normalizedPlanId.includes("basic")) {
-    return "basic";
-  }
-
-  return "trial";
+) {
+  return resolvePlanSnapshot({
+    subscriptionStatus,
+    planId,
+    userRole,
+    modelTier,
+  }).policies.modelRouting;
 }
 
+const trialRouting = resolveModelRouting("TRIAL");
+
+// Default models (for backward compatibility - uses trial tier)
+const _orchestratorModel = withDevTools(openrouter(trialRouting.orchestrator));
+export const subAgentModel = withDevTools(openrouter(trialRouting.subAgent));
+
 /**
- * Get the appropriate model based on user's subscription plan from Clerk
+ * Get the appropriate model based on the resolved plan snapshot.
  */
 export function getModelForUser(
   planId: string | null | undefined,
   userRole?: string,
-  modelType: "orchestrator" | "subAgent" = "orchestrator",
+  modelType: ModelType = "orchestrator",
   modelTier?: OrganizationModelTier,
+  subscriptionStatus?: string,
 ) {
-  const planKey = resolvePlanKey(planId, userRole, modelTier);
-  return withDevTools(openrouter(MODEL_CONFIG[planKey][modelType]));
+  const routing = resolveModelRouting(
+    subscriptionStatus,
+    planId,
+    userRole,
+    modelTier,
+  );
+
+  return withDevTools(openrouter(routing[modelType]));
 }
 
 /**
- * Get model ID string for a given plan (useful for logging/tracking)
+ * Get model ID string for a given user context (useful for logging/tracking)
  */
 export function getModelIdForPlan(
   planId: string | null | undefined,
   userRole?: string,
-  modelType: "orchestrator" | "subAgent" = "orchestrator",
+  modelType: ModelType = "orchestrator",
   modelTier?: OrganizationModelTier,
+  subscriptionStatus?: string,
 ): string {
-  const planKey = resolvePlanKey(planId, userRole, modelTier);
-  return MODEL_CONFIG[planKey][modelType];
+  const routing = resolveModelRouting(
+    subscriptionStatus,
+    planId,
+    userRole,
+    modelTier,
+  );
+
+  return routing[modelType];
 }
 
 // Model IDs for reference
-const _ORCHESTRATOR_MODEL_ID = MODEL_CONFIG.trial.orchestrator;
-const _SUB_AGENT_MODEL_ID = MODEL_CONFIG.trial.subAgent;
+const _ORCHESTRATOR_MODEL_ID = trialRouting.orchestrator;
+const _SUB_AGENT_MODEL_ID = trialRouting.subAgent;
 
 // Dedicated low-cost model for background maintenance tasks
 export const maintenanceModel = withDevTools(
-  openrouter("google/gemini-2.0-flash-lite-001"),
+  openrouter(trialRouting.maintenance),
 );
