@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { PERSONAL_PLAN_LIMITS } from "@/lib/limits/personal-limits";
-import { getEffectivePlanId, getRateLimitsForUser } from "./config";
+import { PlanResolutionError } from "@/lib/plans";
+import {
+  getAttachmentRetentionDays,
+  getEffectivePlanId,
+  getRateLimitsForUser,
+} from "./config";
 
 describe("rate-limit/config", () => {
   it("maps admin roles to admin plan and limits", () => {
@@ -19,28 +24,33 @@ describe("rate-limit/config", () => {
   });
 
   it("resolves active pro/basic_plus/basic plan IDs", () => {
-    expect(getEffectivePlanId("ACTIVE", "USER", "my-pro-plan")).toBe("pro");
+    expect(getEffectivePlanId("ACTIVE", "USER", "my-pro-plan")).toBe("PRO");
     expect(getEffectivePlanId("ACTIVE", "USER", "my-basic_plus-plan")).toBe(
-      "basic_plus",
+      "BASIC_PLUS",
     );
-    expect(getEffectivePlanId("ACTIVE", "USER", "my-basic-plan")).toBe("basic");
+    expect(getEffectivePlanId("ACTIVE", "USER", "my-basic-plan")).toBe("BASIC");
 
     expect(getRateLimitsForUser("ACTIVE", "USER", "my-pro-plan")).toEqual(
-      PERSONAL_PLAN_LIMITS.pro,
+      PERSONAL_PLAN_LIMITS.PRO,
     );
     expect(
       getRateLimitsForUser("ACTIVE", "USER", "my-basic_plus-plan"),
-    ).toEqual(PERSONAL_PLAN_LIMITS.basic_plus);
+    ).toEqual(PERSONAL_PLAN_LIMITS.BASIC_PLUS);
     expect(getRateLimitsForUser("ACTIVE", "USER", "my-basic-plan")).toEqual(
-      PERSONAL_PLAN_LIMITS.basic,
+      PERSONAL_PLAN_LIMITS.BASIC,
     );
   });
 
-  it("falls back to ACTIVE when subscription is active without recognized plan ID", () => {
-    expect(getEffectivePlanId("ACTIVE", "USER", null)).toBe("ACTIVE");
-    expect(getRateLimitsForUser("ACTIVE", "USER", null)).toEqual(
-      PERSONAL_PLAN_LIMITS.ACTIVE,
+  it("throws on active subscriptions with unknown plan IDs", () => {
+    expect(() => getEffectivePlanId("ACTIVE", "USER", null)).toThrow(
+      PlanResolutionError,
     );
+    expect(() =>
+      getRateLimitsForUser("ACTIVE", "USER", "unknown-plan-id"),
+    ).toThrow(PlanResolutionError);
+    expect(() =>
+      getAttachmentRetentionDays("ACTIVE", "USER", "unknown-plan-id"),
+    ).toThrow(PlanResolutionError);
   });
 
   it("falls back to TRIAL when subscription is not active", () => {

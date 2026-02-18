@@ -5,7 +5,6 @@ describe("rate-limit/upgrade", () => {
   it("returns null for PRO and admin plans", () => {
     expect(getUpgradeInfo("PRO", "general")).toBeNull();
     expect(getUpgradeInfo("ADMIN", "general")).toBeNull();
-    expect(getUpgradeInfo("SUPER_ADMIN", "general")).toBeNull();
   });
 
   it("suggests Basic for guest and trial", () => {

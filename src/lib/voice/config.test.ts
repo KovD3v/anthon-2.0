@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PlanResolutionError } from "@/lib/plans";
 import { getVoicePlanConfig } from "./config";
 
 describe("voice/config", () => {
@@ -99,13 +100,10 @@ describe("voice/config", () => {
     );
   });
 
-  it("falls back to ACTIVE basic config when active without known plan", () => {
-    expect(getVoicePlanConfig("ACTIVE", "USER", null)).toMatchObject({
-      enabled: true,
-      baseProbability: 0.5,
-      decayFactor: 0.8,
-      maxPerWindow: 10,
-    });
+  it("throws when active subscriptions have unknown plan IDs", () => {
+    expect(() => getVoicePlanConfig("ACTIVE", "USER", null)).toThrow(
+      PlanResolutionError,
+    );
   });
 
   it("falls back to trial config for non-active users", () => {

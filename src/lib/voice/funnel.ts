@@ -13,6 +13,7 @@ import { z } from "zod";
 import { maintenanceModel } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
+import { parseCanonicalPlanFromPlanId } from "@/lib/plans";
 import type { VoicePlanConfig } from "./config";
 
 export type FunnelBlockedAt =
@@ -276,7 +277,7 @@ async function checkLevel4Business(
   planId?: string | null,
 ): Promise<{ pass: boolean; reason?: string }> {
   // Circuit breaker: if system load is critical, only pro users can use voice
-  const isPro = planId?.toLowerCase().includes("pro") || false;
+  const isPro = parseCanonicalPlanFromPlanId(planId) === "PRO";
   if (systemLoad < 0.3 && !isPro) {
     return { pass: false, reason: "System load critical, pro users only" };
   }
