@@ -111,6 +111,7 @@ describe("checkRateLimit", () => {
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe("Daily request limit reached");
     expect(result.upgradeInfo?.suggestedPlan).toBe("Basic Plus");
+    expect(result.upgradeInfo?.limitType).toBe("requests");
   });
 
   it("blocks when input token limit is reached", async () => {
@@ -132,6 +133,7 @@ describe("checkRateLimit", () => {
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe("Daily input token limit reached");
     expect(result.upgradeInfo?.suggestedPlan).toBe("Basic Plus");
+    expect(result.upgradeInfo?.limitType).toBe("tokens");
   });
 
   it("blocks when output token limit is reached", async () => {
@@ -153,6 +155,7 @@ describe("checkRateLimit", () => {
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe("Daily output token limit reached");
     expect(result.upgradeInfo?.suggestedPlan).toBe("Basic Plus");
+    expect(result.upgradeInfo?.limitType).toBe("tokens");
   });
 
   it("blocks when daily cost limit is reached", async () => {
@@ -174,5 +177,6 @@ describe("checkRateLimit", () => {
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe("Daily spending limit reached");
     expect(result.upgradeInfo?.suggestedPlan).toBe("Basic Plus");
+    expect(result.upgradeInfo?.limitType).toBe("cost");
   });
 });

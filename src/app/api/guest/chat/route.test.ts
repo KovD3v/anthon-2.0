@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   incrementUsage: vi.fn(),
   streamChat: vi.fn(),
   generateChatTitle: vi.fn(),
+  trackInboundUserMessageFunnelProgress: vi.fn(),
 }));
 
 vi.mock("@vercel/functions", () => ({
@@ -54,6 +55,11 @@ vi.mock("@/lib/ai/orchestrator", () => ({
 
 vi.mock("@/lib/ai/chat-title", () => ({
   generateChatTitle: mocks.generateChatTitle,
+}));
+
+vi.mock("@/lib/analytics/funnel", () => ({
+  trackInboundUserMessageFunnelProgress:
+    mocks.trackInboundUserMessageFunnelProgress,
 }));
 
 import { POST } from "./route";
@@ -135,6 +141,7 @@ describe("POST /api/guest/chat", () => {
     mocks.incrementUsage.mockReset();
     mocks.streamChat.mockReset();
     mocks.generateChatTitle.mockReset();
+    mocks.trackInboundUserMessageFunnelProgress.mockReset();
 
     mocks.start.mockReturnValue({
       end: vi.fn(),
@@ -160,6 +167,7 @@ describe("POST /api/guest/chat", () => {
     mocks.chatUpdate.mockResolvedValue({});
     mocks.incrementUsage.mockResolvedValue({});
     mocks.generateChatTitle.mockResolvedValue("Guest title");
+    mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.streamChat.mockResolvedValue({
       toUIMessageStreamResponse: () =>
         Response.json({ ok: true, stream: true }, { status: 200 }),
@@ -183,7 +191,19 @@ describe("POST /api/guest/chat", () => {
         maxCostPerDay: 10,
         maxContextMessages: 20,
       },
-      upgradeInfo: null,
+      upgradeInfo: {
+        currentPlan: "Ospite",
+        suggestedPlan: "Basic",
+        upgradeUrl: "/pricing",
+        ctaMessage: "Registrati per continuare",
+        limitType: "requests",
+        headline: "Limite richieste raggiunto",
+        primaryCta: {
+          label: "Registrati ora",
+          url: "/sign-up",
+          intent: "signup",
+        },
+      },
     });
 
     const response = await POST(
@@ -197,6 +217,13 @@ describe("POST /api/guest/chat", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: "Rate limit exceeded",
       reason: "Daily request limit reached",
+      upgradeInfo: {
+        primaryCta: {
+          label: "Registrati ora",
+          url: "/sign-up",
+          intent: "signup",
+        },
+      },
     });
   });
 
@@ -314,6 +341,12 @@ describe("POST /api/guest/chat", () => {
       hasAudio: false,
       effectiveEntitlements: allowedRateLimit.effectiveEntitlements,
     });
+    expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "guest-1",
+        channel: "WEB_GUEST",
+      }),
+    );
   });
 
   it("runs onFinish side effects and does not schedule memory extraction", async () => {
@@ -391,7 +424,7 @@ describe("POST /api/guest/chat", () => {
       data: { updatedAt: expect.any(Date) },
     });
     expect(mocks.incrementUsage).toHaveBeenCalledWith("guest-1", 12, 34, 0.01);
-    expect(mocks.waitUntil).not.toHaveBeenCalled();
+    expect(mocks.waitUntil).toHaveBeenCalledTimes(1);
   });
 
   it("returns 500 when guest authentication throws", async () => {

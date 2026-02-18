@@ -57,25 +57,50 @@ export function getUpgradeInfo(
   const nextLabel = PLAN_DISPLAY_NAMES[nextPlan];
 
   let ctaMessage = "";
+  let headline = "Limite raggiunto";
 
   switch (limitType) {
     case "requests":
+      headline = "Limite richieste raggiunto";
       ctaMessage = `Hai raggiunto il limite giornaliero di richieste per il piano ${currentLabel}. Passa a ${nextLabel} per continuare a utilizzare Anthon senza interruzioni.`;
       break;
     case "tokens":
+      headline = "Limite token raggiunto";
       ctaMessage = `Hai esaurito i token disponibili per oggi con il piano ${currentLabel}. Aggiorna a ${nextLabel} per ottenere più token giornalieri.`;
       break;
     case "cost":
+      headline = "Limite budget giornaliero raggiunto";
       ctaMessage = `Hai raggiunto il limite di spesa giornaliero del piano ${currentLabel}. Passa a ${nextLabel} per aumentare il tuo budget giornaliero.`;
       break;
     default:
+      headline = "Limite del piano raggiunto";
       ctaMessage = `Hai raggiunto un limite del tuo piano ${currentLabel}. Aggiorna a ${nextLabel} per sbloccare funzionalità aggiuntive e limiti più elevati.`;
   }
+
+  const isGuest = currentPlan === "GUEST";
+  const primaryCta = isGuest
+    ? {
+        label: "Registrati ora",
+        url: "/sign-up",
+        intent: "signup" as const,
+      }
+    : {
+        label: `Passa a ${nextLabel}`,
+        url: "/pricing",
+        intent: "upgrade" as const,
+      };
 
   return {
     currentPlan: currentLabel,
     suggestedPlan: nextLabel,
     upgradeUrl: "/pricing",
     ctaMessage,
+    limitType,
+    headline,
+    primaryCta,
+    secondaryCta: {
+      label: "Controlla utilizzo",
+      url: "/chat/usage",
+    },
   };
 }

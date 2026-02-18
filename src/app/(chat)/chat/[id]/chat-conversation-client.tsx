@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
 import { convertToUIMessages, extractTextFromParts } from "@/lib/chat-client";
+import { getPaywallCardContent } from "@/lib/rate-limit/paywall";
 import type { AttachmentData, ChatData } from "@/types/chat";
 import { ChatHeader } from "../../../(chat)/components/ChatHeader";
 import { ChatInput } from "../../../(chat)/components/ChatInput";
@@ -217,58 +218,9 @@ export function ChatConversationClient({
     try {
       if (chatError.message.trim().startsWith("{")) {
         const parsed = JSON.parse(chatError.message);
-        if (parsed.error === "Rate limit exceeded") {
-          const upgradeInfo = parsed.upgradeInfo;
-
-          if (upgradeInfo) {
-            const isGuest = upgradeInfo.currentPlan === "Ospite";
-            const ctaMessage =
-              upgradeInfo.ctaMessage ||
-              (isGuest
-                ? "Hai raggiunto il limite di messaggi giornalieri per gli ospiti."
-                : `Hai raggiunto il limite del piano ${upgradeInfo.currentPlan}.`);
-
-            return {
-              title: "Limite Raggiunto",
-              message: ctaMessage,
-              action: (
-                <Button
-                  asChild
-                  size="sm"
-                  variant="outline"
-                  className="mt-2 w-full border-red-200 bg-white hover:bg-red-50 text-red-700 dark:bg-transparent dark:hover:bg-red-900/20"
-                >
-                  <Link
-                    href={
-                      isGuest
-                        ? "/sign-up"
-                        : upgradeInfo.upgradeUrl || "/pricing"
-                    }
-                  >
-                    {isGuest
-                      ? "Registrati per continuare"
-                      : `Passa a ${upgradeInfo.suggestedPlan}`}
-                  </Link>
-                </Button>
-              ),
-            };
-          }
-
-          return {
-            title: "Limite Raggiunto",
-            message:
-              "Hai raggiunto il limite di messaggi giornalieri per gli ospiti.",
-            action: (
-              <Button
-                asChild
-                size="sm"
-                variant="outline"
-                className="mt-2 w-full border-red-200 bg-white hover:bg-red-50 text-red-700 dark:bg-transparent dark:hover:bg-red-900/20"
-              >
-                <Link href="/sign-up">Registrati per continuare</Link>
-              </Button>
-            ),
-          };
+        const paywallCard = getPaywallCardContent(parsed, isGuest);
+        if (paywallCard) {
+          return paywallCard;
         }
         return { message: parsed.error || chatError.message };
       }
@@ -499,7 +451,28 @@ export function ChatConversationClient({
             {formattedError.title ? "" : "Un errore si è verificato: "}
             {formattedError.message}
           </div>
-          {formattedError.action}
+          {"primaryCta" in formattedError && (
+            <div className="mt-3 flex items-center gap-3">
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="w-full border-red-200 bg-white hover:bg-red-50 text-red-700 dark:bg-transparent dark:hover:bg-red-900/20"
+              >
+                <Link href={formattedError.primaryCta.href}>
+                  {formattedError.primaryCta.label}
+                </Link>
+              </Button>
+              {formattedError.secondaryCta && (
+                <Link
+                  href={formattedError.secondaryCta.href}
+                  className="text-xs underline underline-offset-2 text-red-700 dark:text-red-300 whitespace-nowrap"
+                >
+                  {formattedError.secondaryCta.label}
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       )}
 

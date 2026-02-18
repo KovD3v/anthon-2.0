@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   streamChat: vi.fn(),
   generateChatTitle: vi.fn(),
   extractAndSaveMemories: vi.fn(),
+  trackInboundUserMessageFunnelProgress: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -76,6 +77,11 @@ vi.mock("@/lib/ai/chat-title", () => ({
 
 vi.mock("@/lib/ai/memory-extractor", () => ({
   extractAndSaveMemories: mocks.extractAndSaveMemories,
+}));
+
+vi.mock("@/lib/analytics/funnel", () => ({
+  trackInboundUserMessageFunnelProgress:
+    mocks.trackInboundUserMessageFunnelProgress,
 }));
 
 import { POST } from "./route";
@@ -156,6 +162,7 @@ describe("POST /api/chat", () => {
     mocks.streamChat.mockReset();
     mocks.generateChatTitle.mockReset();
     mocks.extractAndSaveMemories.mockReset();
+    mocks.trackInboundUserMessageFunnelProgress.mockReset();
 
     mocks.start.mockReturnValue({
       end: vi.fn(),
@@ -204,6 +211,7 @@ describe("POST /api/chat", () => {
     mocks.attachmentUpdate.mockResolvedValue({});
     mocks.incrementUsage.mockResolvedValue({});
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.generateChatTitle.mockResolvedValue("Generated title");
     mocks.waitUntil.mockImplementation(() => {});
     mocks.streamChat.mockResolvedValue({
@@ -243,7 +251,19 @@ describe("POST /api/chat", () => {
         maxCostPerDay: 10,
         maxContextMessages: 20,
       },
-      upgradeInfo: null,
+      upgradeInfo: {
+        currentPlan: "Basic",
+        suggestedPlan: "Basic Plus",
+        upgradeUrl: "/pricing",
+        ctaMessage: "Passa a Basic Plus",
+        limitType: "requests",
+        headline: "Limite richieste raggiunto",
+        primaryCta: {
+          label: "Passa a Basic Plus",
+          url: "/pricing",
+          intent: "upgrade",
+        },
+      },
     });
 
     const response = await POST(
@@ -257,6 +277,13 @@ describe("POST /api/chat", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: "Rate limit exceeded",
       reason: "Daily request limit reached",
+      upgradeInfo: {
+        primaryCta: {
+          label: "Passa a Basic Plus",
+          url: "/pricing",
+          intent: "upgrade",
+        },
+      },
     });
   });
 
@@ -422,6 +449,12 @@ describe("POST /api/chat", () => {
         }),
       ],
     });
+    expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        channel: "WEB",
+      }),
+    );
   });
 
   it("skips linking attachments that are not owned by the current user", async () => {
@@ -551,7 +584,7 @@ describe("POST /api/chat", () => {
       "hello world",
       "Assistant reply",
     );
-    expect(mocks.waitUntil).toHaveBeenCalledTimes(1);
+    expect(mocks.waitUntil).toHaveBeenCalledTimes(2);
   });
 
   it("returns 500 when downstream streaming fails", async () => {

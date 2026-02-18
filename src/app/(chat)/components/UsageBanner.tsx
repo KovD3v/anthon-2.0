@@ -162,6 +162,7 @@ export function UsageBanner({
 
   const isAtLimit = maxPercent >= 100;
   const isNearLimit = maxPercent >= 90;
+  const isGuestTier = tier === "GUEST";
   const primaryEntitlement = entitlements?.sources?.[0];
   const isOrganizationEntitlement = primaryEntitlement?.type === "organization";
 
@@ -220,14 +221,8 @@ export function UsageBanner({
     return "Ospite";
   };
 
-  const getUpgradeButtonText = () => {
-    if (isAtLimit) {
-      return subscriptionStatus === "ACTIVE"
-        ? "Gestisci piano"
-        : "Passa a Basic";
-    }
-    return subscriptionStatus === "ACTIVE" ? "Gestisci piano" : "Passa a Pro";
-  };
+  const getUpgradeButtonText = () =>
+    isGuestTier ? "Registrati per continuare" : "Vedi piani";
 
   const getEntitlementSourceLabel = () => {
     if (!primaryEntitlement) {
@@ -291,13 +286,13 @@ export function UsageBanner({
         </div>
 
         <div className="flex items-center gap-2">
-          {subscriptionStatus !== "ACTIVE" && !isOrganizationEntitlement && (
+          {isAtLimit && !isOrganizationEntitlement && (
             <Button
               variant="ghost"
               size="sm"
               className="h-7 text-xs font-medium"
               onClick={() => {
-                window.location.href = "/pricing";
+                window.location.href = isGuestTier ? "/sign-up" : "/pricing";
               }}
             >
               <Zap className="mr-1 h-3 w-3" />

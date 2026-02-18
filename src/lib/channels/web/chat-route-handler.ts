@@ -3,6 +3,7 @@ import { waitUntil } from "@vercel/functions";
 import type { UIMessage } from "ai";
 import type { Prisma } from "@/generated/prisma";
 import { generateChatTitle } from "@/lib/ai/chat-title";
+import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import { runChannelFlow } from "@/lib/channel-flow";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
@@ -211,6 +212,27 @@ export async function handleWebChatPost(request: Request) {
               },
             }),
           "🌐 Chat API Request",
+        );
+
+        waitUntil(
+          trackInboundUserMessageFunnelProgress({
+            userId: user.id,
+            isGuest: user.isGuest,
+            userRole: user.role,
+            channel: "WEB",
+            planId: user.subscription?.planId,
+            subscriptionStatus: user.subscription?.status,
+          }).catch((error) =>
+            logger.error(
+              "chat.funnel_tracking_failed",
+              "Failed tracking funnel progress",
+              {
+                error,
+                userId: user.id,
+                messageId: message.id,
+              },
+            ),
+          ),
         );
 
         // Link attachments to the message

@@ -13,6 +13,7 @@ import { waitUntil } from "@vercel/functions";
 import type { UIMessage } from "ai";
 import type { Prisma } from "@/generated/prisma";
 import { generateChatTitle } from "@/lib/ai/chat-title";
+import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import { runChannelFlow } from "@/lib/channel-flow";
 import { prisma } from "@/lib/db";
 import { authenticateGuest } from "@/lib/guest-auth";
@@ -142,7 +143,7 @@ export async function handleGuestChatPost(request: Request) {
         }
 
         // Save the user message to the database
-        await LatencyLogger.measure(
+        const message = await LatencyLogger.measure(
           "DB: Save user message",
           () =>
             prisma.message.create({
@@ -158,6 +159,27 @@ export async function handleGuestChatPost(request: Request) {
               },
             }),
           "🌐 Guest Chat API Request",
+        );
+
+        waitUntil(
+          trackInboundUserMessageFunnelProgress({
+            userId: user.id,
+            isGuest: true,
+            userRole: user.role,
+            channel: "WEB_GUEST",
+            planId: user.subscription?.planId,
+            subscriptionStatus: user.subscription?.status,
+          }).catch((error) =>
+            logger.error(
+              "guest_chat.funnel_tracking_failed",
+              "Failed tracking guest funnel progress",
+              {
+                error,
+                userId: user.id,
+                messageId: message.id,
+              },
+            ),
+          ),
         );
 
         // Auto-generate or refresh chat title if not manually set by user
