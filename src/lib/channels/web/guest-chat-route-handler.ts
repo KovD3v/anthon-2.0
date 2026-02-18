@@ -12,6 +12,7 @@
 import { waitUntil } from "@vercel/functions";
 import type { UIMessage } from "ai";
 import type { Prisma } from "@/generated/prisma";
+import type { SubscriptionStatus } from "@/generated/prisma";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import { runChannelFlow } from "@/lib/channel-flow";
@@ -168,7 +169,9 @@ export async function handleGuestChatPost(request: Request) {
             userRole: user.role,
             channel: "WEB_GUEST",
             planId: user.subscription?.planId,
-            subscriptionStatus: user.subscription?.status,
+            subscriptionStatus:
+              (user.subscription?.status as SubscriptionStatus | undefined) ??
+              null,
           }).catch((error) =>
             logger.error(
               "guest_chat.funnel_tracking_failed",

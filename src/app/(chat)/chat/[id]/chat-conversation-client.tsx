@@ -10,7 +10,10 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
 import { convertToUIMessages, extractTextFromParts } from "@/lib/chat-client";
-import { getPaywallCardContent } from "@/lib/rate-limit/paywall";
+import {
+  getPaywallCardContent,
+  type PaywallCardContent,
+} from "@/lib/rate-limit/paywall";
 import type { AttachmentData, ChatData } from "@/types/chat";
 import { ChatHeader } from "../../../(chat)/components/ChatHeader";
 import { ChatInput } from "../../../(chat)/components/ChatInput";
@@ -213,7 +216,8 @@ export function ChatConversationClient({
     }
   }, [chatId, streamingMessages, status, updateCachedChat]);
 
-  const formattedError = (() => {
+  const formattedError: { message: string; title?: string } | PaywallCardContent | null =
+    (() => {
     if (!chatError) return null;
     try {
       if (chatError.message.trim().startsWith("{")) {

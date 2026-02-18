@@ -4,6 +4,7 @@ import type { UIMessage } from "ai";
 import type { Prisma } from "@/generated/prisma";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
+import type { ChannelMessagePart } from "@/lib/channel-flow";
 import { runChannelFlow } from "@/lib/channel-flow";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
@@ -337,37 +338,33 @@ export async function handleWebChatPost(request: Request) {
           }
         }
 
-        const messageParts =
-          lastUserMessage.parts?.flatMap((part) => {
-            if (part.type === "text") {
-              return [
-                {
-                  type: "text" as const,
-                  text: (part as { text: string }).text || "",
-                },
-              ];
-            }
-            if (part.type === "file") {
-              const filePart = part as unknown as {
-                data?: string;
-                mimeType?: string;
-                name?: string;
-                size?: number;
-                attachmentId?: string;
-              };
-              return [
-                {
-                  type: "file" as const,
-                  data: filePart.data,
-                  mimeType: filePart.mimeType,
-                  name: filePart.name,
-                  size: filePart.size,
-                  attachmentId: filePart.attachmentId,
-                },
-              ];
-            }
-            return [];
-          }) || [];
+        const messageParts: ChannelMessagePart[] = [];
+        for (const part of lastUserMessage.parts ?? []) {
+          if (part.type === "text") {
+            messageParts.push({
+              type: "text",
+              text: (part as { text: string }).text || "",
+            });
+            continue;
+          }
+          if (part.type === "file") {
+            const filePart = part as unknown as {
+              data?: string;
+              mimeType?: string;
+              name?: string;
+              size?: number;
+              attachmentId?: string;
+            };
+            messageParts.push({
+              type: "file",
+              data: filePart.data,
+              mimeType: filePart.mimeType,
+              name: filePart.name,
+              size: filePart.size,
+              attachmentId: filePart.attachmentId,
+            });
+          }
+        }
 
         const flowResult = await runChannelFlow({
           channel: "WEB",

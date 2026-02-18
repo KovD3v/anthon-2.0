@@ -112,14 +112,15 @@ export async function getAuthUser(): Promise<AuthResult> {
             createdAt: true,
           },
         });
+        const createdUserId = user.id;
 
         // Sync profile asynchronously (wrapped with waitUntil for serverless)
         waitUntil(
-          syncUserProfileFromClerk(clerkId, user.id).catch((error) => {
+          syncUserProfileFromClerk(clerkId, createdUserId).catch((error) => {
             authLogger.error(
               "auth.profile_sync.background_failed",
               "Background profile sync failed",
-              { error, clerkId, userId: user.id },
+              { error, clerkId, userId: createdUserId },
             );
           }),
         );
