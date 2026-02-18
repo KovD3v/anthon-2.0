@@ -84,7 +84,7 @@ describe("lib/usage", () => {
     });
   });
 
-  it("returns ACTIVE tier when user has active subscription", async () => {
+  it("returns BASIC_PLUS tier when user has active subscription", async () => {
     mocks.getFullUser.mockResolvedValue({
       id: "user-2",
       isGuest: false,
@@ -103,7 +103,7 @@ describe("lib/usage", () => {
       planId: "basic_plus",
       isGuest: false,
     });
-    expect(result.tier).toBe("ACTIVE");
+    expect(result.tier).toBe("BASIC_PLUS");
     expect(result.entitlements).toEqual({
       modelTier: "BASIC",
       sources: [
@@ -116,7 +116,7 @@ describe("lib/usage", () => {
     });
   });
 
-  it("falls back to TRIAL tier when no active subscription", async () => {
+  it("returns GUEST tier for guest users", async () => {
     mocks.getFullUser.mockResolvedValue({
       id: "guest-1",
       isGuest: true,
@@ -132,7 +132,7 @@ describe("lib/usage", () => {
       planId: undefined,
       isGuest: true,
     });
-    expect(result.tier).toBe("TRIAL");
+    expect(result.tier).toBe("GUEST");
     expect(result.subscriptionStatus).toBeNull();
   });
 });

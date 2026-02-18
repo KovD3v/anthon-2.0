@@ -8,6 +8,7 @@ import { jsonOk, serverError, unauthorized } from "@/lib/api/responses";
 import { getAuthUser, getFullUser } from "@/lib/auth";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import { getDailyUsage } from "@/lib/rate-limit";
+import { getEffectivePlanId } from "@/lib/rate-limit/config";
 
 export const runtime = "nodejs";
 
@@ -36,13 +37,12 @@ export async function GET() {
       isGuest: fullUser?.isGuest,
     });
 
-    // Determine tier name for display
-    let tier: "TRIAL" | "ACTIVE" | "ADMIN" = "TRIAL";
-    if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
-      tier = "ADMIN";
-    } else if (subscriptionStatus === "ACTIVE") {
-      tier = "ACTIVE";
-    }
+    const tier = getEffectivePlanId(
+      subscriptionStatus ?? undefined,
+      userRole,
+      planId,
+      fullUser?.isGuest,
+    );
 
     return jsonOk({
       usage: {

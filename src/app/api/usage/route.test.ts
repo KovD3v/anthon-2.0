@@ -100,7 +100,7 @@ describe("GET /api/usage", () => {
         maxOutputTokens: 500,
         maxCostUsd: 5,
       },
-      tier: "ACTIVE",
+      tier: "BASIC",
       subscriptionStatus: "ACTIVE",
       entitlements: {
         modelTier: "BASIC",

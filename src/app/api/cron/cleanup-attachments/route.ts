@@ -12,7 +12,7 @@
 import { del } from "@vercel/blob";
 
 import { prisma } from "@/lib/db";
-import { ATTACHMENT_RETENTION_DAYS } from "@/lib/rate-limit";
+import { getAttachmentRetentionDays } from "@/lib/rate-limit/config";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // Allow up to 60 seconds
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
     for (const user of users) {
       // Determine retention days for this user
-      const retentionDays = getRetentionDaysForUser(
+      const retentionDays = getAttachmentRetentionDays(
         user.subscription?.status ?? undefined,
         user.role ?? undefined,
         user.subscription?.planId ?? null,
@@ -146,49 +146,6 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
-}
-
-/**
- * Get retention days based on user attributes.
- * Simplified version for this cron job.
- */
-function getRetentionDaysForUser(
-  subscriptionStatus?: string,
-  userRole?: string,
-  planId?: string | null,
-  isGuest?: boolean,
-): number {
-  // Admin users keep files for a long time
-  if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
-    return ATTACHMENT_RETENTION_DAYS.ADMIN;
-  }
-
-  // Guest users
-  if (isGuest) {
-    return ATTACHMENT_RETENTION_DAYS.GUEST;
-  }
-
-  // Check specific plan ID first
-  if (planId && subscriptionStatus === "ACTIVE") {
-    const normalizedPlanId = planId.toLowerCase();
-    if (normalizedPlanId.includes("pro")) {
-      return ATTACHMENT_RETENTION_DAYS.pro;
-    }
-    if (normalizedPlanId.includes("basic_plus")) {
-      return ATTACHMENT_RETENTION_DAYS.basic_plus;
-    }
-    if (normalizedPlanId.includes("basic")) {
-      return ATTACHMENT_RETENTION_DAYS.basic;
-    }
-  }
-
-  // Fallback to ACTIVE if subscription is active
-  if (subscriptionStatus === "ACTIVE") {
-    return ATTACHMENT_RETENTION_DAYS.ACTIVE;
-  }
-
-  // Default to trial retention
-  return ATTACHMENT_RETENTION_DAYS.TRIAL;
 }
 
 // Also handle GET for easier testing
