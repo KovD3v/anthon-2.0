@@ -106,12 +106,12 @@ describe("voice/config", () => {
     );
   });
 
-  it("falls back to trial config for non-active users", () => {
+  it("uses plan config for paid trial and falls back to trial otherwise", () => {
     expect(getVoicePlanConfig("TRIAL", "USER", "basic")).toMatchObject({
-      enabled: false,
-      baseProbability: 0.3,
-      decayFactor: 0.7,
-      maxPerWindow: 3,
+      enabled: true,
+      baseProbability: 0.5,
+      decayFactor: 0.8,
+      maxPerWindow: 10,
     });
     expect(getVoicePlanConfig(undefined, "USER", undefined)).toMatchObject({
       enabled: false,

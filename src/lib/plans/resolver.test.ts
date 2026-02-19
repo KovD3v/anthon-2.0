@@ -51,6 +51,14 @@ describe("plans/resolver", () => {
         userRole: "USER",
         planId: "my-pro-plan",
       }),
+    ).toBe("PRO");
+
+    expect(
+      resolvePersonalPlan({
+        subscriptionStatus: "TRIAL",
+        userRole: "USER",
+        planId: "unknown-plan",
+      }),
     ).toBe("TRIAL");
 
     expect(() =>

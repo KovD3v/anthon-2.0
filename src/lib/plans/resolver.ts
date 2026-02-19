@@ -49,16 +49,21 @@ export function resolvePersonalPlan(input: PlanResolutionInput): CanonicalPlan {
     return "GUEST";
   }
 
-  if (input.subscriptionStatus === "ACTIVE") {
+  if (
+    input.subscriptionStatus === "ACTIVE" ||
+    input.subscriptionStatus === "TRIAL"
+  ) {
     const parsed = parseCanonicalPlanFromPlanId(input.planId);
-    if (!parsed) {
+    if (parsed) {
+      return parsed;
+    }
+
+    if (input.subscriptionStatus === "ACTIVE") {
       throw new PlanResolutionError(
         "ACTIVE_WITH_INVALID_PLAN_ID",
         "Active subscription requires a recognized planId",
       );
     }
-
-    return parsed;
   }
 
   return "TRIAL";

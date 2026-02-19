@@ -53,10 +53,11 @@ describe("rate-limit/config", () => {
     ).toThrow(PlanResolutionError);
   });
 
-  it("falls back to TRIAL when subscription is not active", () => {
-    expect(getEffectivePlanId("TRIAL", "USER", "basic")).toBe("TRIAL");
+  it("uses paid plan entitlements when trial has a recognized planId", () => {
+    expect(getEffectivePlanId("TRIAL", "USER", "basic")).toBe("BASIC");
     expect(getRateLimitsForUser("TRIAL", "USER", "basic")).toEqual(
-      PERSONAL_PLAN_LIMITS.TRIAL,
+      PERSONAL_PLAN_LIMITS.BASIC,
     );
+    expect(getEffectivePlanId("TRIAL", "USER", "unknown")).toBe("TRIAL");
   });
 });
