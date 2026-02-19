@@ -526,7 +526,7 @@ export async function streamChat({
     system: systemPrompt,
     messages,
     tools,
-    experimental_providerMetadata: {
+    providerOptions: {
       openrouter: { promptCaching: true },
     },
     stopWhen: stepCountIs(5), // Allow multi-step tool execution
