@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   generateChatTitle: vi.fn(),
   extractAndSaveMemories: vi.fn(),
   trackInboundUserMessageFunnelProgress: vi.fn(),
+  isBillingSyncStale: vi.fn(),
+  syncPersonalSubscriptionFromClerk: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -82,6 +84,11 @@ vi.mock("@/lib/ai/memory-extractor", () => ({
 vi.mock("@/lib/analytics/funnel", () => ({
   trackInboundUserMessageFunnelProgress:
     mocks.trackInboundUserMessageFunnelProgress,
+}));
+
+vi.mock("@/lib/billing/personal-subscription", () => ({
+  isBillingSyncStale: mocks.isBillingSyncStale,
+  syncPersonalSubscriptionFromClerk: mocks.syncPersonalSubscriptionFromClerk,
 }));
 
 import { POST } from "./route";
@@ -163,6 +170,8 @@ describe("POST /api/chat", () => {
     mocks.generateChatTitle.mockReset();
     mocks.extractAndSaveMemories.mockReset();
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
+    mocks.isBillingSyncStale.mockReset();
+    mocks.syncPersonalSubscriptionFromClerk.mockReset();
 
     mocks.start.mockReturnValue({
       end: vi.fn(),
@@ -177,6 +186,7 @@ describe("POST /api/chat", () => {
       id: "user-1",
       role: "USER",
       isGuest: false,
+      billingSyncedAt: new Date("2026-02-18T10:00:00.000Z"),
       subscription: {
         status: "ACTIVE",
         planId: "my-basic-plan",
@@ -186,6 +196,7 @@ describe("POST /api/chat", () => {
       id: "user-1",
       role: "USER",
       isGuest: false,
+      billingSyncedAt: new Date("2026-02-18T10:00:00.000Z"),
       subscription: {
         status: "ACTIVE",
         planId: "my-basic-plan",
@@ -212,6 +223,12 @@ describe("POST /api/chat", () => {
     mocks.incrementUsage.mockResolvedValue({});
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
+    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
+    mocks.isBillingSyncStale.mockImplementation(
+      (billingSyncedAt?: Date | null) =>
+        !billingSyncedAt ||
+        Date.now() - billingSyncedAt.getTime() > 5 * 60 * 1000,
+    );
     mocks.generateChatTitle.mockResolvedValue("Generated title");
     mocks.waitUntil.mockImplementation(() => {});
     mocks.streamChat.mockResolvedValue({
@@ -335,6 +352,101 @@ describe("POST /api/chat", () => {
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Empty message");
+  });
+
+  it("skips Clerk sync when trial subscription was synced recently", async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      isGuest: false,
+      billingSyncedAt: new Date(),
+      subscription: {
+        status: "TRIAL",
+        planId: "my-basic-plan",
+      },
+    });
+
+    const response = await POST(
+      buildRequest({
+        messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.syncPersonalSubscriptionFromClerk).not.toHaveBeenCalled();
+  });
+
+  it("syncs stale trial subscription before rate-limit check", async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      isGuest: false,
+      billingSyncedAt: new Date(Date.now() - 6 * 60 * 1000),
+      subscription: {
+        status: "TRIAL",
+        planId: "my-basic-plan",
+      },
+    });
+    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue({
+      status: "ACTIVE",
+      planId: "my-pro-plan",
+    });
+
+    const response = await POST(
+      buildRequest({
+        messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.syncPersonalSubscriptionFromClerk).toHaveBeenCalledWith({
+      userId: "user-1",
+      clerkUserId: "clerk_1",
+      current: {
+        status: "TRIAL",
+        planId: "my-basic-plan",
+      },
+    });
+    expect(mocks.checkRateLimit).toHaveBeenCalledWith(
+      "user-1",
+      "ACTIVE",
+      "USER",
+      "my-pro-plan",
+      false,
+    );
+  });
+
+  it("keeps chat flow working when stale sync returns null", async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      isGuest: false,
+      billingSyncedAt: new Date(Date.now() - 6 * 60 * 1000),
+      subscription: {
+        status: "TRIAL",
+        planId: null,
+      },
+    });
+    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
+
+    const response = await POST(
+      buildRequest({
+        messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.syncPersonalSubscriptionFromClerk).toHaveBeenCalledTimes(1);
+    expect(mocks.checkRateLimit).toHaveBeenCalledWith(
+      "user-1",
+      "TRIAL",
+      "USER",
+      null,
+      false,
+    );
   });
 
   it("persists user message, links attachments, and streams response on success", async () => {

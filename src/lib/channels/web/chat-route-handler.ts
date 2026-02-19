@@ -4,6 +4,10 @@ import type { UIMessage } from "ai";
 import type { Prisma } from "@/generated/prisma";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
+import {
+  isBillingSyncStale,
+  syncPersonalSubscriptionFromClerk,
+} from "@/lib/billing/personal-subscription";
 import type { ChannelMessagePart } from "@/lib/channel-flow";
 import { runChannelFlow } from "@/lib/channel-flow";
 import { prisma } from "@/lib/db";
@@ -53,6 +57,7 @@ export async function handleWebChatPost(request: Request) {
                 id: true,
                 role: true,
                 isGuest: true,
+                billingSyncedAt: true,
                 subscription: {
                   select: {
                     status: true,
@@ -73,6 +78,7 @@ export async function handleWebChatPost(request: Request) {
                 id: true,
                 role: true,
                 isGuest: true,
+                billingSyncedAt: true,
                 subscription: {
                   select: {
                     status: true,
@@ -85,15 +91,41 @@ export async function handleWebChatPost(request: Request) {
           "🌐 Chat API Request",
         );
 
+        let subscriptionStatus = user.subscription?.status;
+        let planId = user.subscription?.planId;
+        const shouldSyncSubscription =
+          !user.isGuest &&
+          isBillingSyncStale(user.billingSyncedAt) &&
+          (!subscriptionStatus || !planId || subscriptionStatus === "TRIAL");
+
+        if (shouldSyncSubscription) {
+          const syncedSubscription = await LatencyLogger.measure(
+            "Billing: Sync personal subscription",
+            () =>
+              syncPersonalSubscriptionFromClerk({
+                userId: user.id,
+                clerkUserId: clerkId,
+                current: {
+                  status: subscriptionStatus,
+                  planId,
+                },
+              }),
+            "🌐 Chat API Request",
+          );
+
+          subscriptionStatus = syncedSubscription?.status ?? subscriptionStatus;
+          planId = syncedSubscription?.planId ?? planId;
+        }
+
         // Check rate limit
         const rateLimitResult = await LatencyLogger.measure(
           "Rate Limit: Check limits",
           () =>
             checkRateLimit(
               user.id,
-              user.subscription?.status,
+              subscriptionStatus,
               user.role,
-              user.subscription?.planId,
+              planId,
               user.isGuest,
             ),
           "🌐 Chat API Request",
@@ -221,8 +253,8 @@ export async function handleWebChatPost(request: Request) {
             isGuest: user.isGuest,
             userRole: user.role,
             channel: "WEB",
-            planId: user.subscription?.planId,
-            subscriptionStatus: user.subscription?.status,
+            planId,
+            subscriptionStatus,
           }).catch((error) =>
             logger.error(
               "chat.funnel_tracking_failed",
@@ -383,9 +415,9 @@ export async function handleWebChatPost(request: Request) {
             allowVoiceOutput: true,
           },
           ai: {
-            planId: user.subscription?.planId,
+            planId,
             userRole: user.role,
-            subscriptionStatus: user.subscription?.status,
+            subscriptionStatus,
             isGuest: user.isGuest,
             hasImages,
             hasAudio,

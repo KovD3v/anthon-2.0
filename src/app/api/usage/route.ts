@@ -6,6 +6,10 @@
 
 import { jsonOk, serverError, unauthorized } from "@/lib/api/responses";
 import { getAuthUser, getFullUser } from "@/lib/auth";
+import {
+  isBillingSyncStale,
+  syncPersonalSubscriptionFromClerk,
+} from "@/lib/billing/personal-subscription";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import { getDailyUsage } from "@/lib/rate-limit";
@@ -31,9 +35,28 @@ export async function GET(request?: Request) {
       try {
         // Get full user with subscription
         const fullUser = await getFullUser(user.id);
-        const subscriptionStatus = fullUser?.subscription?.status;
-        const planId = fullUser?.subscription?.planId;
+        let subscriptionStatus = fullUser?.subscription?.status;
+        let planId = fullUser?.subscription?.planId;
         const userRole = user.role;
+        const shouldSyncSubscription =
+          Boolean(fullUser?.clerkId) &&
+          !fullUser?.isGuest &&
+          isBillingSyncStale(fullUser?.billingSyncedAt) &&
+          (!subscriptionStatus || !planId || subscriptionStatus === "TRIAL");
+
+        if (shouldSyncSubscription && fullUser?.clerkId) {
+          const syncedSubscription = await syncPersonalSubscriptionFromClerk({
+            userId: user.id,
+            clerkUserId: fullUser.clerkId,
+            current: {
+              status: subscriptionStatus,
+              planId,
+            },
+          });
+
+          subscriptionStatus = syncedSubscription?.status ?? subscriptionStatus;
+          planId = syncedSubscription?.planId ?? planId;
+        }
 
         // Get daily usage
         const usage = await getDailyUsage(user.id);

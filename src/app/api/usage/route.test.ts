@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   getFullUser: vi.fn(),
   getDailyUsage: vi.fn(),
   resolveEffectiveEntitlements: vi.fn(),
+  isBillingSyncStale: vi.fn(),
+  syncPersonalSubscriptionFromClerk: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -20,6 +22,11 @@ vi.mock("@/lib/organizations/entitlements", () => ({
   resolveEffectiveEntitlements: mocks.resolveEffectiveEntitlements,
 }));
 
+vi.mock("@/lib/billing/personal-subscription", () => ({
+  isBillingSyncStale: mocks.isBillingSyncStale,
+  syncPersonalSubscriptionFromClerk: mocks.syncPersonalSubscriptionFromClerk,
+}));
+
 import { GET } from "./route";
 
 describe("GET /api/usage", () => {
@@ -28,6 +35,8 @@ describe("GET /api/usage", () => {
     mocks.getFullUser.mockReset();
     mocks.getDailyUsage.mockReset();
     mocks.resolveEffectiveEntitlements.mockReset();
+    mocks.isBillingSyncStale.mockReset();
+    mocks.syncPersonalSubscriptionFromClerk.mockReset();
 
     mocks.getAuthUser.mockResolvedValue({
       user: { id: "user-1", role: "USER" },
@@ -35,7 +44,9 @@ describe("GET /api/usage", () => {
     });
     mocks.getFullUser.mockResolvedValue({
       id: "user-1",
+      clerkId: "clerk_1",
       isGuest: false,
+      billingSyncedAt: new Date("2026-02-18T10:00:00.000Z"),
       subscription: {
         status: "ACTIVE",
         planId: "my-basic-plan",
@@ -72,6 +83,12 @@ describe("GET /api/usage", () => {
         },
       ],
     });
+    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
+    mocks.isBillingSyncStale.mockImplementation(
+      (billingSyncedAt?: Date | null) =>
+        !billingSyncedAt ||
+        Date.now() - billingSyncedAt.getTime() > 5 * 60 * 1000,
+    );
   });
 
   it("returns 401 when user is not authenticated", async () => {
@@ -140,7 +157,9 @@ describe("GET /api/usage", () => {
   it("returns TRIAL tier and null subscriptionStatus when subscription is missing", async () => {
     mocks.getFullUser.mockResolvedValue({
       id: "user-1",
+      clerkId: "clerk_1",
       isGuest: false,
+      billingSyncedAt: new Date("2026-02-18T10:00:00.000Z"),
       subscription: null,
     });
 
@@ -151,6 +170,79 @@ describe("GET /api/usage", () => {
       tier: "TRIAL",
       subscriptionStatus: null,
     });
+  });
+
+  it("skips Clerk sync when trial subscription was synced recently", async () => {
+    mocks.getFullUser.mockResolvedValue({
+      id: "user-1",
+      clerkId: "clerk_1",
+      isGuest: false,
+      billingSyncedAt: new Date(),
+      subscription: {
+        status: "TRIAL",
+        planId: "my-basic-plan",
+      },
+    });
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    expect(mocks.syncPersonalSubscriptionFromClerk).not.toHaveBeenCalled();
+  });
+
+  it("syncs when trial subscription is stale", async () => {
+    mocks.getFullUser.mockResolvedValue({
+      id: "user-1",
+      clerkId: "clerk_1",
+      isGuest: false,
+      billingSyncedAt: new Date(Date.now() - 6 * 60 * 1000),
+      subscription: {
+        status: "TRIAL",
+        planId: "my-basic-plan",
+      },
+    });
+    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue({
+      status: "ACTIVE",
+      planId: "my-pro-plan",
+    });
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    expect(mocks.syncPersonalSubscriptionFromClerk).toHaveBeenCalledWith({
+      userId: "user-1",
+      clerkUserId: "clerk_1",
+      current: {
+        status: "TRIAL",
+        planId: "my-basic-plan",
+      },
+    });
+    expect(mocks.resolveEffectiveEntitlements).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscriptionStatus: "ACTIVE",
+        planId: "my-pro-plan",
+      }),
+    );
+  });
+
+  it("keeps response stable when stale sync returns null", async () => {
+    mocks.getFullUser.mockResolvedValue({
+      id: "user-1",
+      clerkId: "clerk_1",
+      isGuest: false,
+      billingSyncedAt: new Date(Date.now() - 6 * 60 * 1000),
+      subscription: null,
+    });
+    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      tier: "TRIAL",
+      subscriptionStatus: null,
+    });
+    expect(mocks.syncPersonalSubscriptionFromClerk).toHaveBeenCalledTimes(1);
   });
 
   it("returns 500 when downstream dependency throws", async () => {
