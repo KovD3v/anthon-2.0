@@ -99,23 +99,16 @@ describe("organizations/entitlements", () => {
         organizationId: true,
         organization: {
           select: {
-            id: true,
             name: true,
             contract: {
               select: {
-                id: true,
-                organizationId: true,
-                seatLimit: true,
-                planLabel: true,
+                basePlan: true,
                 modelTier: true,
                 maxRequestsPerDay: true,
                 maxInputTokensPerDay: true,
                 maxOutputTokensPerDay: true,
                 maxCostPerDay: true,
                 maxContextMessages: true,
-                version: true,
-                createdAt: true,
-                updatedAt: true,
               },
             },
           },

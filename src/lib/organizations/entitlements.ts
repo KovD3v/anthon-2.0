@@ -22,34 +22,28 @@ interface ResolveEffectiveEntitlementsInput {
   isGuest?: boolean;
 }
 
-function toLegacySource(
+function toEffectiveEntitlements(
   source: PlanResolvedEntitlements,
-): EffectiveEntitlementSource {
-  return {
+  usePersonalFallback = false,
+): EffectiveEntitlements {
+  const mappedSource: EffectiveEntitlementSource = {
     type: source.sourceType,
     sourceId: source.sourceId,
     sourceLabel: source.sourceLabel,
     limits: source.limits,
     modelTier: source.modelTier,
   };
-}
 
-function toLegacyOutput(
-  source: PlanResolvedEntitlements,
-  usePersonalFallback = false,
-): EffectiveEntitlements {
-  const legacySource = toLegacySource(source);
-
-  if (usePersonalFallback && legacySource.type === "personal") {
-    legacySource.sourceId = "personal-fallback";
-    legacySource.sourceLabel =
+  if (usePersonalFallback && mappedSource.type === "personal") {
+    mappedSource.sourceId = "personal-fallback";
+    mappedSource.sourceLabel =
       "Personal fallback (missing organization contract)";
   }
 
   return {
     limits: source.limits,
     modelTier: source.modelTier,
-    sources: [legacySource],
+    sources: [mappedSource],
   };
 }
 
@@ -96,7 +90,7 @@ export async function resolveEffectiveEntitlements(
   // Guest and admin users do not need organization-level merging.
   if (input.isGuest || personalPlan === "ADMIN") {
     const source = resolvePlanEffectiveEntitlements(baseInput);
-    return toLegacyOutput(source);
+    return toEffectiveEntitlements(source);
   }
 
   const memberships = await prisma.organizationMembership.findMany({
@@ -111,23 +105,16 @@ export async function resolveEffectiveEntitlements(
       organizationId: true,
       organization: {
         select: {
-          id: true,
           name: true,
           contract: {
             select: {
-              id: true,
-              organizationId: true,
-              seatLimit: true,
-              planLabel: true,
+              basePlan: true,
               modelTier: true,
               maxRequestsPerDay: true,
               maxInputTokensPerDay: true,
               maxOutputTokensPerDay: true,
               maxCostPerDay: true,
               maxContextMessages: true,
-              version: true,
-              createdAt: true,
-              updatedAt: true,
             },
           },
         },
@@ -158,7 +145,7 @@ export async function resolveEffectiveEntitlements(
 
   if (organizationSources.length === 0) {
     const source = resolvePlanEffectiveEntitlements(baseInput);
-    return toLegacyOutput(source, memberships.length > 0);
+    return toEffectiveEntitlements(source, memberships.length > 0);
   }
 
   const source = resolvePlanEffectiveEntitlements({
@@ -166,5 +153,5 @@ export async function resolveEffectiveEntitlements(
     organizationSources,
   });
 
-  return toLegacyOutput(source);
+  return toEffectiveEntitlements(source);
 }
