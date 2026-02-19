@@ -61,16 +61,17 @@ model User {
   createdOrganizations    Organization[]           @relation("OrganizationCreator")
   organizationAuditLogs   OrganizationAuditLog[]   @relation("OrganizationAuditActor")
 
+  billingSyncedAt DateTime?
   lastActivityAt DateTime  @default(now())
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime? // Soft delete
 
   @@index([role])
-  @@index([email])
   @@index([isGuest])
   @@index([deletedAt])
   @@index([lastActivityAt])
+  @@index([billingSyncedAt])
 }
 
 // -----------------------------------------------------
@@ -452,7 +453,6 @@ model Memory {
   updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([userId, key]) // Ensure unique keys per user
-  @@index([userId, key])
 }
 
 // -----------------------------------------------------
@@ -621,7 +621,6 @@ model DailyUsage {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, date])
-  @@index([userId, date(sort: Desc)])
 }
 
 // -----------------------------------------------------
