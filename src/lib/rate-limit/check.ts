@@ -5,7 +5,7 @@
 import { createLogger } from "@/lib/logger";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
-import { getEffectivePlanId, getRateLimitsForUser } from "./config";
+import { getEffectivePlanId } from "./config";
 import type { RateLimitResult, RateLimits } from "./types";
 import { getUpgradeInfo } from "./upgrade";
 import { getDailyUsage } from "./usage";
@@ -198,70 +198,5 @@ export async function checkRateLimit(
     percentUsed,
     entitlements: buildEntitlementsPayload(entitlements),
     effectiveEntitlements: entitlements,
-  };
-}
-
-/**
- * Get remaining allowance for the day.
- */
-async function _getRemainingAllowance(
-  userId: string,
-  subscriptionStatus?: string,
-  userRole?: string,
-): Promise<{
-  requests: number;
-  inputTokens: number;
-  outputTokens: number;
-  costUsd: number;
-}> {
-  const usage = await getDailyUsage(userId);
-  const limits = getRateLimitsForUser(subscriptionStatus, userRole);
-
-  return {
-    requests: Math.max(0, limits.maxRequestsPerDay - usage.requestCount),
-    inputTokens: Math.max(0, limits.maxInputTokensPerDay - usage.inputTokens),
-    outputTokens: Math.max(
-      0,
-      limits.maxOutputTokensPerDay - usage.outputTokens,
-    ),
-    costUsd: Math.max(0, limits.maxCostPerDay - usage.totalCostUsd),
-  };
-}
-
-/**
- * Format rate limit info for display in UI.
- */
-function _formatRateLimitStatus(result: RateLimitResult): {
-  status: "ok" | "warning" | "limit-reached";
-  message: string;
-  percentUsed: number;
-} {
-  const maxPercent = Math.max(
-    result.percentUsed.requests,
-    result.percentUsed.inputTokens,
-    result.percentUsed.outputTokens,
-    result.percentUsed.cost,
-  );
-
-  if (!result.allowed) {
-    return {
-      status: "limit-reached",
-      message: result.reason ?? "Daily limit reached",
-      percentUsed: 100,
-    };
-  }
-
-  if (maxPercent >= 80) {
-    return {
-      status: "warning",
-      message: `${Math.round(100 - maxPercent)}% of daily limit remaining`,
-      percentUsed: maxPercent,
-    };
-  }
-
-  return {
-    status: "ok",
-    message: `${Math.round(100 - maxPercent)}% of daily limit remaining`,
-    percentUsed: maxPercent,
   };
 }
