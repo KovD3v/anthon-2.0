@@ -16,29 +16,6 @@ export default function PricingPage() {
           </p>
         </div>
 
-        <div className="mx-auto mb-10 grid max-w-5xl gap-4 rounded-xl border border-border/50 bg-muted/30 p-6 md:grid-cols-3">
-          <div>
-            <h2 className="font-semibold">Free</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Per iniziare: primi allenamenti mentali e abitudine quotidiana.
-            </p>
-          </div>
-          <div>
-            <h2 className="font-semibold">Pro</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Per atleti con calendario intenso che vogliono continuita e
-              risultati misurabili.
-            </p>
-          </div>
-          <div>
-            <h2 className="font-semibold">Team</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Per coach, staff e gruppi: onboarding condiviso e supporto
-              dedicato.
-            </p>
-          </div>
-        </div>
-
         <div className="max-w-5xl mx-auto">
           <PricingTable />
         </div>
