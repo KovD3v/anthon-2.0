@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   ArrowRight,
   Brain,
@@ -71,7 +71,7 @@ export default function HelpPage() {
       <div className="container relative mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-20">
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
@@ -83,13 +83,13 @@ export default function HelpPage() {
               Discover hidden features and master your workflow with keyboard
               shortcuts. Anthon is designed to be fast, intuitive, and powerful.
             </p>
-          </motion.div>
+          </m.div>
         </div>
 
         {/* Features Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-24">
           {features.map((feature, index) => (
-            <motion.div
+            <m.div
               key={feature.title}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -109,12 +109,12 @@ export default function HelpPage() {
                   </p>
                 </div>
               </div>
-            </motion.div>
+            </m.div>
           ))}
         </div>
 
         {/* Shortcuts Section */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
@@ -155,7 +155,7 @@ export default function HelpPage() {
               </div>
             ))}
           </div>
-        </motion.div>
+        </m.div>
 
         {/* CTA */}
         <div className="text-center">

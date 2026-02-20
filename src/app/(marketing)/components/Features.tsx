@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Activity, BarChart3, Brain, Shield, Target, Zap } from "lucide-react";
 import {
   Card,
@@ -75,7 +75,7 @@ export function Features() {
     <section id="features" className="py-16 md:py-24 bg-muted/50">
       <div className="container mx-auto px-4 md:px-6">
         <div className="text-center mb-12">
-          <motion.h2
+          <m.h2
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -83,8 +83,8 @@ export function Features() {
             className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"
           >
             Risultati mentali concreti, in campo e in gara
-          </motion.h2>
-          <motion.p
+          </m.h2>
+          <m.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -93,10 +93,10 @@ export function Features() {
           >
             Ogni area e pensata per migliorare tre leve chiave: fiducia, focus e
             gestione della pressione.
-          </motion.p>
+          </m.p>
         </div>
 
-        <motion.div
+        <m.div
           variants={container}
           initial="hidden"
           whileInView="show"
@@ -104,7 +104,7 @@ export function Features() {
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
         >
           {features.map((feature) => (
-            <motion.div key={feature.id} variants={item}>
+            <m.div key={feature.id} variants={item}>
               <Card
                 variant="glass"
                 className="h-full transition-all hover:bg-background/80"
@@ -121,9 +121,9 @@ export function Features() {
                   </CardDescription>
                 </CardContent>
               </Card>
-            </motion.div>
+            </m.div>
           ))}
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

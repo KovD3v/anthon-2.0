@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import {
   Check,
   Loader2,
@@ -64,13 +64,13 @@ export function ChatList({
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : chats.length === 0 ? (
-          <motion.p
+          <m.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="px-2 py-8 text-center text-sm text-muted-foreground"
           >
             Nessuna conversazione ancora. Clicca su "Nuova Chat" per iniziare!
-          </motion.p>
+          </m.p>
         ) : (
           <ul className="space-y-1">
             <AnimatePresence mode="popLayout">
@@ -156,7 +156,7 @@ function ChatItem({
   };
 
   return (
-    <motion.li
+    <m.li
       layout
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
@@ -208,7 +208,7 @@ function ChatItem({
       {/* Actions - visible on hover/touch */}
       <AnimatePresence>
         {showActions && !isDeleting && !isRenaming && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 10 }}
@@ -240,14 +240,14 @@ function ChatItem({
             >
               <Trash2 className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
             </Button>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
       {/* Rename Actions */}
       <AnimatePresence>
         {isRenaming && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
@@ -286,7 +286,7 @@ function ChatItem({
             >
               <X className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
             </Button>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
@@ -295,6 +295,6 @@ function ChatItem({
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       )}
-    </motion.li>
+    </m.li>
   );
 }

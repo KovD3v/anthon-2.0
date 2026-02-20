@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { MessageSquare, Sparkles, TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
@@ -51,7 +51,7 @@ export function HowItWorks() {
     <section id="how-it-works" className="py-16 md:py-24 bg-background">
       <div className="container mx-auto px-4 md:px-6">
         <div className="text-center mb-16">
-          <motion.h2
+          <m.h2
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -59,8 +59,8 @@ export function HowItWorks() {
             className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"
           >
             Come funziona Anthon
-          </motion.h2>
-          <motion.p
+          </m.h2>
+          <m.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -68,10 +68,10 @@ export function HowItWorks() {
             className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto"
           >
             Il tuo viaggio verso la forza mentale in tre semplici passi.
-          </motion.p>
+          </m.p>
         </div>
 
-        <motion.div
+        <m.div
           variants={container}
           initial="hidden"
           whileInView="show"
@@ -82,7 +82,7 @@ export function HowItWorks() {
           <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-0.5 bg-border -z-10" />
 
           {steps.map((step) => (
-            <motion.div key={step.id} variants={item}>
+            <m.div key={step.id} variants={item}>
               <Card
                 variant="glass"
                 className="flex flex-col items-center text-center p-6 h-full"
@@ -96,9 +96,9 @@ export function HowItWorks() {
                 <h3 className="text-xl font-bold mb-3">{step.title}</h3>
                 <p className="text-muted-foreground">{step.description}</p>
               </Card>
-            </motion.div>
+            </m.div>
           ))}
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

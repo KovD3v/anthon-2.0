@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Star } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 
@@ -51,7 +51,7 @@ export function Testimonials() {
     <section className="py-16 md:py-24 bg-muted/30" id="testimonials">
       <div className="container mx-auto px-4 md:px-6">
         <div className="text-center mb-12">
-          <motion.h2
+          <m.h2
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -59,8 +59,8 @@ export function Testimonials() {
             className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"
           >
             Scelto dagli Atleti
-          </motion.h2>
-          <motion.p
+          </m.h2>
+          <m.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -69,10 +69,10 @@ export function Testimonials() {
           >
             Scopri come Anthon sta aiutando atleti di diversi sport a
             raggiungere il loro potenziale.
-          </motion.p>
+          </m.p>
         </div>
 
-        <motion.div
+        <m.div
           variants={container}
           initial="hidden"
           whileInView="show"
@@ -80,16 +80,18 @@ export function Testimonials() {
           className="grid grid-cols-1 md:grid-cols-3 gap-6"
         >
           {testimonials.map((testimonial) => (
-            <motion.div key={testimonial.id} variants={item}>
+            <m.div key={testimonial.id} variants={item}>
               <Card variant="glass" className="h-full">
                 <CardContent className="pt-6">
                   <div className="flex mb-4">
-                    {[...Array(testimonial.rating)].map((_, i) => (
-                      <Star
-                        key={`${testimonial.id}-star-${i}`}
-                        className="h-4 w-4 fill-primary text-primary"
-                      />
-                    ))}
+                    {(["★1", "★2", "★3", "★4", "★5"] as const)
+                      .slice(0, testimonial.rating)
+                      .map((starKey) => (
+                        <Star
+                          key={`${testimonial.id}-${starKey}`}
+                          className="h-4 w-4 fill-primary text-primary"
+                        />
+                      ))}
                   </div>
                   <p className="text-muted-foreground mb-6 italic">
                     "{testimonial.quote}"
@@ -111,9 +113,9 @@ export function Testimonials() {
                   </div>
                 </CardFooter>
               </Card>
-            </motion.div>
+            </m.div>
           ))}
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

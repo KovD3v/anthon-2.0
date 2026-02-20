@@ -7,7 +7,7 @@ import {
   SignUpButton,
   UserButton,
 } from "@clerk/nextjs";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import {
   Brain,
   Building2,
@@ -140,7 +140,7 @@ export function Navbar() {
           <button type="button" className="md:hidden p-2" onClick={toggleMenu}>
             <AnimatePresence mode="wait">
               {isMenuOpen ? (
-                <motion.div
+                <m.div
                   key="close"
                   initial={{ opacity: 0, rotate: -90 }}
                   animate={{ opacity: 1, rotate: 0 }}
@@ -148,9 +148,9 @@ export function Navbar() {
                   transition={{ duration: 0.2 }}
                 >
                   <X className="h-6 w-6" />
-                </motion.div>
+                </m.div>
               ) : (
-                <motion.div
+                <m.div
                   key="menu"
                   initial={{ opacity: 0, rotate: 90 }}
                   animate={{ opacity: 1, rotate: 0 }}
@@ -158,7 +158,7 @@ export function Navbar() {
                   transition={{ duration: 0.2 }}
                 >
                   <Menu className="h-6 w-6" />
-                </motion.div>
+                </m.div>
               )}
             </AnimatePresence>
           </button>
@@ -167,7 +167,7 @@ export function Navbar() {
         {/* Mobile Menu */}
         <AnimatePresence>
           {isMenuOpen && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, height: 0, marginTop: 0 }}
               animate={{
                 opacity: 1,
@@ -280,7 +280,7 @@ export function Navbar() {
                   </SignedIn>
                 </div>
               </div>
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       </div>
