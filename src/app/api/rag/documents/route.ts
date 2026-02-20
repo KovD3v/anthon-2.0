@@ -4,7 +4,7 @@
  */
 
 import { auth } from "@clerk/nextjs/server";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import {
   addDocument,
   deleteDocument,
@@ -33,7 +33,7 @@ export async function GET() {
 }
 
 // POST /api/rag/documents - Add a new document
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const { userId } = await auth();
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 }
 
 // DELETE /api/rag/documents - Delete a document
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: Request) {
   try {
     const { userId } = await auth();
 

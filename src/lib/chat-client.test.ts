@@ -31,18 +31,20 @@ describe("chat-client", () => {
 
     const result = convertToUIMessages(messages);
 
+    type ExtMsg = UIMessage & { createdAt?: Date; annotations?: unknown[]; attachments?: unknown[] };
+    const msg0 = result[0] as ExtMsg | undefined;
     expect(result).toHaveLength(1);
-    expect(result[0]?.id).toBe("m1");
-    expect(result[0]?.parts).toEqual([{ type: "text", text: "Hello" }]);
-    expect(result[0]?.createdAt).toEqual(new Date("2026-02-16T10:00:00.000Z"));
-    expect(result[0]?.annotations).toEqual([
+    expect(msg0?.id).toBe("m1");
+    expect(msg0?.parts).toEqual([{ type: "text", text: "Hello" }]);
+    expect(msg0?.createdAt).toEqual(new Date("2026-02-16T10:00:00.000Z"));
+    expect(msg0?.annotations).toEqual([
       {
         inputTokens: 10,
         outputTokens: 20,
         cost: 0.01,
       },
     ]);
-    expect(result[0]?.attachments).toEqual(messages[0]?.attachments);
+    expect(msg0?.attachments).toEqual(messages[0]?.attachments);
   });
 
   it("falls back to content text part when parts are missing", () => {
@@ -65,9 +67,10 @@ describe("chat-client", () => {
 
     const result = convertToUIMessages(messages);
 
+    type ExtMsg = UIMessage & { annotations?: unknown[] };
     expect(result[0]?.parts).toEqual([{ type: "text", text: "Fallback text" }]);
     expect(result[1]?.parts).toEqual([{ type: "text", text: "" }]);
-    expect(result[0]?.annotations).toBeUndefined();
+    expect((result[0] as ExtMsg | undefined)?.annotations).toBeUndefined();
   });
 
   it("extracts only text from parts", () => {

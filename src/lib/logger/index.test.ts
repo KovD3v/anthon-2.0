@@ -50,6 +50,7 @@ describe("logger/index", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     process.env = { ...ORIGINAL_ENV };
   });
 
@@ -75,7 +76,7 @@ describe("logger/index", () => {
   });
 
   it("only emits error logs in production by default", () => {
-    process.env.NODE_ENV = "production";
+    vi.stubEnv("NODE_ENV", "production");
     const logger = createLogger("usage");
     logger.info("usage.fetched", "Fetched usage");
     logger.error("usage.failed", "Failed to fetch usage");

@@ -19,7 +19,6 @@ vi.mock("@ai-sdk/devtools", () => ({
   devToolsMiddleware: mocks.devToolsMiddleware,
 }));
 
-const originalNodeEnv = process.env.NODE_ENV;
 const originalApiKey = process.env.OPENROUTER_API_KEY;
 
 describe("ai/providers/openrouter", () => {
@@ -41,11 +40,11 @@ describe("ai/providers/openrouter", () => {
     );
 
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
-    process.env.NODE_ENV = "test";
+    vi.stubEnv("NODE_ENV", "test");
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = originalNodeEnv;
+    vi.unstubAllEnvs();
     process.env.OPENROUTER_API_KEY = originalApiKey;
   });
 
@@ -134,7 +133,7 @@ describe("ai/providers/openrouter", () => {
   });
 
   it("wraps models with devtools in development", async () => {
-    process.env.NODE_ENV = "development";
+    vi.stubEnv("NODE_ENV", "development");
     const { getModelForUser } = await import("./openrouter");
 
     mocks.provider.mockClear();
@@ -160,7 +159,7 @@ describe("ai/providers/openrouter", () => {
   });
 
   it("returns raw model in non-development environments", async () => {
-    process.env.NODE_ENV = "production";
+    vi.stubEnv("NODE_ENV", "production");
     const { getModelForUser } = await import("./openrouter");
 
     mocks.provider.mockClear();

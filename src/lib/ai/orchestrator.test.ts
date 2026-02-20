@@ -168,7 +168,7 @@ describe("ai/orchestrator", () => {
   it("builds stream payload for text messages and skips entitlement lookup when prefetched", async () => {
     const prefetchedEntitlements = {
       ...baseEntitlements,
-      modelTier: "PRO",
+      modelTier: "PRO" as const,
       limits: {
         ...baseEntitlements.limits,
         maxContextMessages: 12,

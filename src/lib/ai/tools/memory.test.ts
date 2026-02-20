@@ -47,7 +47,9 @@ describe("ai/tools/memory", () => {
     mocks.memoryCreate.mockResolvedValue({ id: "m1" });
 
     const tools = createMemoryTools("user-1");
-    const result = await tools.saveMemory.execute({
+    type SaveResult = { success: boolean; message: string };
+    const saveExec = tools.saveMemory.execute as unknown as (args: object) => Promise<SaveResult>;
+    const result = await saveExec({
       key: "knee_injury",
       value: "left knee pain",
       category: "health",
@@ -69,7 +71,9 @@ describe("ai/tools/memory", () => {
     mocks.memoryUpdate.mockResolvedValue({ id: "existing-1" });
 
     const tools = createMemoryTools("user-1");
-    const result = await tools.saveMemory.execute({
+    type SaveResult = { success: boolean; message: string };
+    const saveExec = tools.saveMemory.execute as unknown as (args: object) => Promise<SaveResult>;
+    const result = await saveExec({
       key: "training_schedule",
       value: "Tuesday/Thursday",
       category: "schedule",
@@ -87,7 +91,9 @@ describe("ai/tools/memory", () => {
     mocks.memoryFindFirst.mockResolvedValue(null);
 
     const tools = createMemoryTools("user-1");
-    const result = await tools.deleteMemory.execute({ key: "unknown" });
+    type DeleteResult = { success: boolean; message: string };
+    const deleteExec = tools.deleteMemory.execute as unknown as (args: object) => Promise<DeleteResult>;
+    const result = await deleteExec({ key: "unknown" });
 
     expect(result.success).toBe(false);
     expect(result.message).toContain("non trovata");

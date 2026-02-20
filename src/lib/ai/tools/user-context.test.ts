@@ -68,7 +68,9 @@ describe("ai/tools/user-context", () => {
     });
 
     const tools = createUserContextTools(userId);
-    const result = await tools.getUserContext.execute({});
+    type GetCtxResult = { success: boolean; data: unknown };
+    const getCtxExec = tools.getUserContext.execute as unknown as (args: object) => Promise<GetCtxResult>;
+    const result = await getCtxExec({});
 
     expect(result.success).toBe(true);
     expect(result.data).toMatchObject({
@@ -87,7 +89,9 @@ describe("ai/tools/user-context", () => {
 
   it("updatePreferences rejects empty arguments", async () => {
     const tools = createUserContextTools("user-ctx-2");
-    const result = await tools.updatePreferences.execute({});
+    type PrefResult = { success: boolean; message: string };
+    const prefExec = tools.updatePreferences.execute as unknown as (args: object) => Promise<PrefResult>;
+    const result = await prefExec({});
 
     expect(result.success).toBe(false);
     expect(result.message).toContain("Nessun parametro");
@@ -107,7 +111,9 @@ describe("ai/tools/user-context", () => {
     });
 
     const tools = createUserContextTools("user-ctx-3");
-    const result = await tools.updateProfile.execute({
+    type ProfileResult = { success: boolean; message: string };
+    const profileExec = tools.updateProfile.execute as unknown as (args: object) => Promise<ProfileResult>;
+    const result = await profileExec({
       name: "Jane Doe",
       sport: "Tennis",
     });
@@ -150,7 +156,8 @@ describe("ai/tools/user-context", () => {
     expect(mocks.userFindUnique).toHaveBeenCalledTimes(1);
 
     const tools = createUserContextTools(userId);
-    await tools.updatePreferences.execute({ tone: "direct" });
+    const prefExec2 = tools.updatePreferences.execute as unknown as (args: object) => Promise<unknown>;
+    await prefExec2({ tone: "direct" });
     await formatUserContextForPrompt(userId);
 
     expect(mocks.userFindUnique).toHaveBeenCalledTimes(2);

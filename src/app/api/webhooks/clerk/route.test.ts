@@ -57,7 +57,7 @@ function setSvixHeaders(values?: Partial<Record<string, string>>) {
   };
 
   mocks.headers.mockResolvedValue({
-    get: (key: string) => resolved[key] ?? null,
+    get: (key: string) => resolved[key as keyof typeof resolved] ?? null,
   });
 }
 

@@ -62,7 +62,7 @@ describe("channel-flow/persistence", () => {
         outputTokens: 8,
         reasoningTokens: 1,
         reasoningContent: "reasoning",
-        toolCalls: [{ name: "tool" }],
+        toolCalls: [{ name: "tool", args: {} }],
         ragUsed: true,
         ragChunksCount: 2,
         costUsd: 0.02,

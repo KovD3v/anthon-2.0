@@ -1,12 +1,12 @@
 import { auth } from "@clerk/nextjs/server";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 /**
  * GET /api/chat/messages?chatId=<chatId>
  * Returns the chat history for a specific chat.
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
     // Authenticate user with Clerk
     const { userId: clerkId } = await auth();
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
  * Only the message owner can delete their messages.
  * Only USER messages can be deleted directly.
  */
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: Request) {
   try {
     // Authenticate user with Clerk
     const { userId: clerkId } = await auth();
@@ -179,7 +179,7 @@ export async function DELETE(request: NextRequest) {
  *
  * Body: { messageId: string, content: string }
  */
-export async function PATCH(request: NextRequest) {
+export async function PATCH(request: Request) {
   try {
     // Authenticate user with Clerk
     const { userId: clerkId } = await auth();
