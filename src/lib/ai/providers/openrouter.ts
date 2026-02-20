@@ -1,13 +1,15 @@
 import { devToolsMiddleware } from "@ai-sdk/devtools";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { wrapLanguageModel } from "ai";
+import type { LanguageModel } from "ai";
 import type { OrganizationModelTier } from "@/lib/organizations/types";
 import { resolvePlanSnapshot } from "@/lib/plans";
 
 // Create OpenRouter provider instance with API key from environment
+// biome-ignore lint/suspicious/noExplicitAny: @openrouter/ai-sdk-provider uses a nested @ai-sdk/provider with different LanguageModelV2 types
 export const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
-});
+}) as unknown as (modelId: string, settings?: Record<string, unknown>) => LanguageModel;
 
 type ModelType = "orchestrator" | "subAgent";
 
