@@ -1,8 +1,7 @@
 "use client";
 
-import { useVirtualizer } from "@tanstack/react-virtual";
 import type { UIMessage } from "ai";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import {
   ArrowDown,
   Brain,
@@ -24,6 +23,7 @@ import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { formatRelativeTime } from "@/lib/format-time";
 import { AttachmentPreview } from "./Attachments";
 import { AudioPlayer } from "./AudioPlayer";
+import { useMessageVirtualizer } from "./hooks/useMessageVirtualizer";
 import { MemoizedMarkdown } from "./MemoizedMarkdown";
 
 // Extended UIMessage type that includes database fields
@@ -71,7 +71,7 @@ export function MessageList({
   voiceMessages,
   voiceGeneratingMessageId,
 }: MessageListProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
+  const { parentRef, rowVirtualizer } = useMessageVirtualizer(messages.length);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const { copy, copied } = useCopyToClipboard();
@@ -99,12 +99,7 @@ export function MessageList({
   }
 
   // Virtualize the message list for better performance with many messages
-  const rowVirtualizer = useVirtualizer({
-    count: messages.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 150, // Estimated message height
-    overscan: 5, // Number of items to render outside of viewport
-  });
+  // (useVirtualizer is encapsulated in useMessageVirtualizer hook)
 
   // Auto-scroll to bottom when messages load or new message arrives
   useEffect(() => {
@@ -129,12 +124,12 @@ export function MessageList({
     if (scrollTop < 100 && hasMoreMessages && !isLoadingMore && onLoadMore) {
       onLoadMore();
     }
-  }, [hasMoreMessages, isLoadingMore, onLoadMore]);
+  }, [parentRef, hasMoreMessages, isLoadingMore, onLoadMore]);
 
   useEffect(() => {
     const container = parentRef.current;
     if (!container) return;
-    container.addEventListener("scroll", handleScroll);
+    container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
 
@@ -156,22 +151,22 @@ export function MessageList({
   if (messages.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
           className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-linear-to-br from-primary/10 to-transparent ring-1 ring-white/10"
         >
           <Brain className="h-12 w-12 text-primary/80" />
-        </motion.div>
-        <motion.h2
+        </m.div>
+        <m.h2
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.5 }}
           className="mt-6 text-2xl font-bold tracking-tight text-foreground"
         >
           How can I help you today?
-        </motion.h2>
+        </m.h2>
       </div>
     );
   }
@@ -260,7 +255,7 @@ export function MessageList({
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  <motion.div
+                  <m.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3 }}
@@ -580,14 +575,14 @@ export function MessageList({
                         )}
                       </div>
                     </div>
-                  </motion.div>
+                  </m.div>
                 </div>
               );
             })}
           </div>
 
           {isLoading && messages[messages.length - 1]?.role === "user" && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="flex items-start gap-3 mt-8"
@@ -602,7 +597,7 @@ export function MessageList({
                   <span className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" />
                 </div>
               </div>
-            </motion.div>
+            </m.div>
           )}
           <div ref={messagesEndRef} className="h-4" />
         </div>
@@ -611,7 +606,7 @@ export function MessageList({
       {/* Scroll to bottom button */}
       <AnimatePresence>
         {showScrollButton && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
@@ -626,7 +621,7 @@ export function MessageList({
               <ArrowDown className="h-3 w-3" />
               Scroll to bottom
             </Button>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </>
