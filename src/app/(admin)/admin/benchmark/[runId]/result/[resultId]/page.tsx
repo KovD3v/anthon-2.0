@@ -624,7 +624,7 @@ export default function ResultDetailPage() {
                     value={reasoning}
                     onChange={(e) => setReasoning(e.target.value)}
                     placeholder="Provide justification for this score..."
-                    className="w-full bg-black/20 min-h-[100px]"
+                    className="w-full bg-black/20 min-h-25"
                   />
                 </div>
                 <div className="flex items-center justify-between pt-2">

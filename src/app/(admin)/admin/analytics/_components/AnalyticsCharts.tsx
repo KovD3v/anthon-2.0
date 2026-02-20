@@ -113,7 +113,7 @@ export default function AnalyticsCharts({
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              <div className="h-75 flex items-center justify-center text-muted-foreground">
                 No data available
               </div>
             )}
@@ -148,7 +148,7 @@ export default function AnalyticsCharts({
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              <div className="h-75 flex items-center justify-center text-muted-foreground">
                 No data available
               </div>
             )}
@@ -196,7 +196,7 @@ export default function AnalyticsCharts({
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              <div className="h-75 flex items-center justify-center text-muted-foreground">
                 No cost data available
               </div>
             )}
@@ -240,7 +240,7 @@ export default function AnalyticsCharts({
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              <div className="h-75 flex items-center justify-center text-muted-foreground">
                 No cost data available
               </div>
             )}
@@ -270,7 +270,7 @@ export default function AnalyticsCharts({
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              <div className="h-75 flex items-center justify-center text-muted-foreground">
                 No distribution data
               </div>
             )}
@@ -326,7 +326,7 @@ export default function AnalyticsCharts({
                 </div>
               </div>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              <div className="h-75 flex items-center justify-center text-muted-foreground">
                 No funnel data
               </div>
             )}

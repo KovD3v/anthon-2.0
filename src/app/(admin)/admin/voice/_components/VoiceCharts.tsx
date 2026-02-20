@@ -72,7 +72,7 @@ export default function VoiceCharts({ history }: { history: HistoryItem[] }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="pl-0">
-        <div className="h-[350px] w-full">
+        <div className="h-87.5 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
               data={history}

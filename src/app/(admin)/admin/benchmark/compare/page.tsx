@@ -539,7 +539,7 @@ function BlindComparisonPage() {
                     </div>
                   )}
                 </div>
-                <div className="bg-white/5 rounded-xl p-6 border border-white/10 min-h-[400px]">
+                <div className="bg-white/5 rounded-xl p-6 border border-white/10 h-100">
                   <p className="text-sm whitespace-pre-wrap leading-relaxed">
                     {blindPair.resultA.responseText}
                   </p>
@@ -607,7 +607,7 @@ function BlindComparisonPage() {
                     </div>
                   )}
                 </div>
-                <div className="bg-white/5 rounded-xl p-6 border border-white/10 min-h-[400px]">
+                <div className="bg-white/5 rounded-xl p-6 border border-white/10 h-100">
                   <p className="text-sm whitespace-pre-wrap leading-relaxed">
                     {blindPair.resultB.responseText}
                   </p>

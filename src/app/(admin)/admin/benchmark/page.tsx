@@ -941,7 +941,7 @@ export default function BenchmarkPage() {
                           <div
                             key={score.modelId}
                             className={cn(
-                              "shrink-0 p-3 rounded-lg border text-left min-w-[180px]",
+                              "shrink-0 p-3 rounded-lg border text-left min-w-45",
                               i === 0
                                 ? "border-amber-500/30 bg-amber-500/10"
                                 : "border-white/5 bg-white/5",
@@ -1195,7 +1195,7 @@ export default function BenchmarkPage() {
                         <SelectValue placeholder="Select a test case..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <ScrollArea className="h-[300px]">
+                        <ScrollArea className="h-75">
                           {testCaseIds.map((id) => {
                             const sample = results.find(
                               (r) => r.testCaseId === id,
@@ -1227,7 +1227,7 @@ export default function BenchmarkPage() {
                             setShowFlaggedOnly(val === "FLAGGED")
                           }
                         >
-                          <SelectTrigger className="w-[180px] h-8 text-xs bg-white/5 border-white/10">
+                          <SelectTrigger className="w-45 h-8 text-xs bg-white/5 border-white/10">
                             <SelectValue placeholder="All Results" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1248,7 +1248,7 @@ export default function BenchmarkPage() {
                             setSortBy(val)
                           }
                         >
-                          <SelectTrigger className="w-[150px] h-8 text-xs bg-white/5 border-white/10">
+                          <SelectTrigger className="w-37.5 h-8 text-xs bg-white/5 border-white/10">
                             <SelectValue placeholder="Sort By" />
                           </SelectTrigger>
                           <SelectContent>

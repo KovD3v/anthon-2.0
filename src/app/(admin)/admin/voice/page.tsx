@@ -14,7 +14,7 @@ import {
 const VoiceCharts = dynamic(() => import("./_components/VoiceCharts"), {
   ssr: false,
   loading: () => (
-    <div className="h-[350px] flex items-center justify-center">
+    <div className="h-87.5 flex items-center justify-center">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
     </div>
   ),

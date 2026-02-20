@@ -360,7 +360,7 @@ export default function TestCaseEditPage() {
                     // Keep as string for now
                   }
                 }}
-                className="bg-white/5 border-white/10 font-mono text-xs min-h-[300px] resize-y"
+                className="bg-white/5 border-white/10 font-mono text-xs min-h-75 resize-y"
               />
             </div>
 
@@ -401,7 +401,7 @@ export default function TestCaseEditPage() {
                     // Keep as string for now
                   }
                 }}
-                className="bg-white/5 border-white/10 font-mono text-xs min-h-[300px] resize-y"
+                className="bg-white/5 border-white/10 font-mono text-xs min-h-75 resize-y"
               />
             </div>
           </div>

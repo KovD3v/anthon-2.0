@@ -54,7 +54,7 @@ export default function CostsCharts({
             </CardTitle>
             <CardDescription>Daily AI expenditure over time</CardDescription>
           </CardHeader>
-          <CardContent className="h-[300px] w-full pt-4">
+          <CardContent className="h-75 w-full pt-4">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={aiHistory}>
                 <defs>
@@ -134,7 +134,7 @@ export default function CostsCharts({
             </CardTitle>
             <CardDescription>AI cost by model provider</CardDescription>
           </CardHeader>
-          <CardContent className="h-[300px] flex flex-col items-center justify-center">
+          <CardContent className="h-75 flex flex-col items-center justify-center">
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie
@@ -183,7 +183,7 @@ export default function CostsCharts({
                       backgroundColor: COLORS[i % COLORS.length],
                     }}
                   />
-                  <span className="text-[10px] text-muted-foreground truncate max-w-[80px]">
+                  <span className="text-[10px] text-muted-foreground truncate max-w-20">
                     {entry.model}
                   </span>
                   <span className="text-[10px] font-mono ml-auto">

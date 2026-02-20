@@ -315,7 +315,7 @@ export function MessageList({
                                   : "rounded-2xl rounded-tl-sm bg-background/60 backdrop-blur-sm border border-white/10 text-foreground"
                               }`
                             : "p-0 bg-transparent" /* Transparent for standalone attachments */
-                        } ${isEditing ? "w-full min-w-[300px]" : ""}`}
+                        } ${isEditing ? "w-full min-w-75" : ""}`}
                       >
                         {isEditing ? (
                           <div className="space-y-3">
