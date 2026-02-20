@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import {
   ArrowLeft,
   ChevronDown,
@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { TestCaseSetup } from "@/lib/benchmark/types";
@@ -31,15 +32,12 @@ interface BlindPair {
   testCaseId: string;
 }
 
-export default function BlindComparisonPage() {
+function BlindComparisonPage() {
   const searchParams = useSearchParams();
   const runIdParam = searchParams.get("runId");
+  const queryClient = useQueryClient();
 
-  const [loading, setLoading] = useState(true);
-  const [runs, setRuns] = useState<BenchmarkRun[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(runIdParam);
-  const [results, setResults] = useState<BenchmarkResult[]>([]);
-  const [dbTestCases, setDbTestCases] = useState<BenchmarkTestCase[]>([]);
   const [blindPair, setBlindPair] = useState<BlindPair | null>(null);
   const [modelsRevealed, setModelsRevealed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -54,6 +52,41 @@ export default function BlindComparisonPage() {
   const [expandedContextA, setExpandedContextA] = useState(false);
   const [expandedContextB, setExpandedContextB] = useState(false);
 
+  const { data: runsData } = useQuery({
+    queryKey: ["compare-benchmark-runs"],
+    queryFn: async (): Promise<BenchmarkRun[]> => {
+      const res = await fetch("/api/admin/benchmark");
+      if (!res.ok) throw new Error("Failed to fetch runs");
+      const data = await res.json();
+      return data.runs?.filter((r: BenchmarkRun) => r.status === "COMPLETED") ?? [];
+    },
+  });
+
+  const { data: dbTestCasesData } = useQuery({
+    queryKey: ["compare-test-cases"],
+    queryFn: async (): Promise<BenchmarkTestCase[]> => {
+      const res = await fetch("/api/admin/benchmark/test-cases");
+      if (!res.ok) throw new Error("Failed to fetch test cases");
+      const data = await res.json();
+      return data.testCases ?? [];
+    },
+  });
+
+  const { data: resultsData, isLoading: loading } = useQuery({
+    queryKey: ["compare-results", selectedRunId],
+    queryFn: async (): Promise<BenchmarkResult[]> => {
+      const res = await fetch(`/api/admin/benchmark?runId=${selectedRunId}`);
+      if (!res.ok) throw new Error("Failed to fetch results");
+      const data = await res.json();
+      return data.run?.results ?? [];
+    },
+    enabled: !!selectedRunId,
+  });
+
+  const runs = runsData ?? [];
+  const results = resultsData ?? [];
+  const dbTestCases = dbTestCasesData ?? [];
+
   // Get test case from database
   const testCase = (() => {
     if (!blindPair?.testCaseId) return null;
@@ -65,44 +98,6 @@ export default function BlindComparisonPage() {
       ) || null
     );
   })();
-
-  async function fetchTestCases() {
-    try {
-      const res = await fetch("/api/admin/benchmark/test-cases");
-      if (!res.ok) throw new Error("Failed to fetch test cases");
-      const data = await res.json();
-      setDbTestCases(data.testCases || []);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  async function fetchRuns() {
-    try {
-      const res = await fetch("/api/admin/benchmark");
-      if (!res.ok) throw new Error("Failed to fetch runs");
-      const data = await res.json();
-      setRuns(
-        data.runs?.filter((r: BenchmarkRun) => r.status === "COMPLETED") || [],
-      );
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  async function fetchResults(runId: string) {
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/admin/benchmark?runId=${runId}`);
-      if (!res.ok) throw new Error("Failed to fetch results");
-      const data = await res.json();
-      setResults(data.run?.results || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function pickRandomPair() {
     if (results.length < 2) return;
@@ -151,100 +146,94 @@ export default function BlindComparisonPage() {
     if (!blindPair || !preference) return;
     setSubmitting(true);
 
-    try {
-      const preferenceLabel = {
-        A: "A preferred",
-        B: "B preferred",
-        both_good: "Both good",
-        both_bad: "Both bad",
-      }[preference];
+    const preferenceLabel = {
+      A: "A preferred",
+      B: "B preferred",
+      both_good: "Both good",
+      both_bad: "Both bad",
+    }[preference];
 
-      let scoreA: number;
-      let scoreB: number;
-      switch (preference) {
-        case "A":
-          scoreA = 8;
-          scoreB = 4;
-          break;
-        case "B":
-          scoreA = 4;
-          scoreB = 8;
-          break;
-        case "both_good":
-          scoreA = 8;
-          scoreB = 8;
-          break;
-        case "both_bad":
-          scoreA = 3;
-          scoreB = 3;
-          break;
-      }
+    let scoreA = 5;
+    let scoreB = 5;
+    switch (preference) {
+      case "A":
+        scoreA = 8;
+        scoreB = 4;
+        break;
+      case "B":
+        scoreA = 4;
+        scoreB = 8;
+        break;
+      case "both_good":
+        scoreA = 8;
+        scoreB = 8;
+        break;
+      case "both_bad":
+        scoreA = 3;
+        scoreB = 3;
+        break;
+    }
 
-      // Apply modifiers
-      if (starA) scoreA = Math.min(10, scoreA + 2);
-      if (tomatoA) scoreA = Math.max(1, scoreA - 2);
-      if (starB) scoreB = Math.min(10, scoreB + 2);
-      if (tomatoB) scoreB = Math.max(1, scoreB - 2);
+    // Apply modifiers
+    if (starA) scoreA = Math.min(10, scoreA + 2);
+    if (tomatoA) scoreA = Math.max(1, scoreA - 2);
+    if (starB) scoreB = Math.min(10, scoreB + 2);
+    if (tomatoB) scoreB = Math.max(1, scoreB - 2);
 
-      const modifiersA = [starA && "⭐+2", tomatoA && "🍅-2"]
-        .filter(Boolean)
-        .join(" ");
-      const modifiersB = [starB && "⭐+2", tomatoB && "🍅-2"]
-        .filter(Boolean)
-        .join(" ");
+    const modifiersA = [starA && "⭐+2", tomatoA && "🍅-2"]
+      .filter(Boolean)
+      .join(" ");
+    const modifiersB = [starB && "⭐+2", tomatoB && "🍅-2"]
+      .filter(Boolean)
+      .join(" ");
 
-      await Promise.all([
-        fetch("/api/admin/benchmark", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            resultId: blindPair.resultA.id,
-            adminScore: scoreA,
-            adminReasoning: `Blind A/B comparison: ${preferenceLabel}${
-              modifiersA ? ` (${modifiersA})` : ""
-            }`,
-          }),
+    const ok = await Promise.all([
+      fetch("/api/admin/benchmark", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resultId: blindPair.resultA.id,
+          adminScore: scoreA,
+          adminReasoning: `Blind A/B comparison: ${preferenceLabel}${
+            modifiersA ? ` (${modifiersA})` : ""
+          }`,
         }),
-        fetch("/api/admin/benchmark", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            resultId: blindPair.resultB.id,
-            adminScore: scoreB,
-            adminReasoning: `Blind A/B comparison: ${preferenceLabel}${
-              modifiersB ? ` (${modifiersB})` : ""
-            }`,
-          }),
+      }),
+      fetch("/api/admin/benchmark", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resultId: blindPair.resultB.id,
+          adminScore: scoreB,
+          adminReasoning: `Blind A/B comparison: ${preferenceLabel}${
+            modifiersB ? ` (${modifiersB})` : ""
+          }`,
         }),
-      ]);
-
-      setModelsRevealed(true);
-      // Refresh results to get updated scores
-      if (selectedRunId) fetchResults(selectedRunId);
-    } catch (err) {
+      }),
+    ]).catch((err: unknown) => {
+      setSubmitting(false);
       console.error("Failed to submit:", err);
       alert("Failed to submit scores");
-    } finally {
-      setSubmitting(false);
+      return null;
+    });
+    if (!ok) return;
+
+    setModelsRevealed(true);
+    // Refresh results to get updated scores
+    if (selectedRunId) {
+      queryClient.invalidateQueries({ queryKey: ["compare-results", selectedRunId] });
     }
+    setSubmitting(false);
   };
 
-  useEffect(() => {
-    fetchRuns();
-    fetchTestCases();
-  }, []);
-
-  useEffect(() => {
-    if (selectedRunId) {
-      fetchResults(selectedRunId);
-    }
-  }, [selectedRunId]);
-
+  // Auto-pick a blind pair when results first load
   useEffect(() => {
     if (results.length >= 2 && !blindPair) {
-      pickRandomPair();
+      // Use queueMicrotask to avoid synchronous setState inside effect body
+      queueMicrotask(() => pickRandomPair());
     }
-  }, [results, blindPair]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results]);
 
   return (
     <div className="min-h-screen">
@@ -479,7 +468,7 @@ export default function BlindComparisonPage() {
                               i: number,
                             ) => (
                               <li
-                                key={`${msg.role}-${i}`}
+                                key={`${msg.role}-${msg.content.slice(0, 24)}-${msg.content.length}`}
                                 className="line-clamp-1"
                               >
                                 <span className="font-bold opacity-50 uppercase text-[9px] mr-1.5">
@@ -502,7 +491,7 @@ export default function BlindComparisonPage() {
             {/* Side-by-side Responses */}
             <div className="grid grid-cols-2 gap-6">
               {/* Response A */}
-              <motion.div
+              <m.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 className="space-y-4"
@@ -567,10 +556,10 @@ export default function BlindComparisonPage() {
                     <span>${blindPair.resultA.costUsd?.toFixed(5)}</span>
                   </div>
                 )}
-              </motion.div>
+              </m.div>
 
               {/* Response B */}
-              <motion.div
+              <m.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 className="space-y-4"
@@ -635,7 +624,7 @@ export default function BlindComparisonPage() {
                     <span>${blindPair.resultB.costUsd?.toFixed(5)}</span>
                   </div>
                 )}
-              </motion.div>
+              </m.div>
             </div>
 
             {/* Tool Usage Comparison */}
@@ -671,7 +660,7 @@ export default function BlindComparisonPage() {
                   <AnimatePresence>
                     {expandedContextA &&
                       (blindPair.resultA.toolCalls?.length ?? 0) > 0 && (
-                        <motion.div
+                        <m.div
                           initial={{
                             height: 0,
                             opacity: 0,
@@ -689,7 +678,7 @@ export default function BlindComparisonPage() {
                           <div className="mt-2 space-y-2 max-h-60 overflow-y-auto">
                             {blindPair.resultA.toolCalls?.map((call, i) => (
                               <div
-                                key={`a-${call.name}-${i}`}
+                                key={`a-${call.name}-${JSON.stringify(call.args).slice(0, 20)}`}
                                 className="p-3 bg-black/20 rounded border border-white/10"
                               >
                                 <div className="flex items-center justify-between mb-2">
@@ -706,7 +695,7 @@ export default function BlindComparisonPage() {
                               </div>
                             ))}
                           </div>
-                        </motion.div>
+                        </m.div>
                       )}
                   </AnimatePresence>
                 </div>
@@ -740,7 +729,7 @@ export default function BlindComparisonPage() {
                   <AnimatePresence>
                     {expandedContextB &&
                       (blindPair.resultB.toolCalls?.length ?? 0) > 0 && (
-                        <motion.div
+                        <m.div
                           initial={{
                             height: 0,
                             opacity: 0,
@@ -758,7 +747,7 @@ export default function BlindComparisonPage() {
                           <div className="mt-2 space-y-2 max-h-60 overflow-y-auto">
                             {blindPair.resultB.toolCalls?.map((call, i) => (
                               <div
-                                key={`b-${call.name}-${i}`}
+                                key={`b-${call.name}-${JSON.stringify(call.args).slice(0, 20)}`}
                                 className="p-3 bg-black/20 rounded border border-white/10"
                               >
                                 <div className="flex items-center justify-between mb-2">
@@ -775,7 +764,7 @@ export default function BlindComparisonPage() {
                               </div>
                             ))}
                           </div>
-                        </motion.div>
+                        </m.div>
                       )}
                   </AnimatePresence>
                 </div>
@@ -785,7 +774,7 @@ export default function BlindComparisonPage() {
             {/* Preference Selection */}
             <div className="pt-6 border-t border-white/10">
               {modelsRevealed ? (
-                <motion.div
+                <m.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   className="flex items-center justify-center gap-6"
@@ -814,7 +803,7 @@ export default function BlindComparisonPage() {
                     <Shuffle className="h-4 w-4" />
                     Next Comparison
                   </Button>
-                </motion.div>
+                </m.div>
               ) : (
                 <div className="space-y-6">
                   <div className="flex items-center justify-center gap-4 flex-wrap">
@@ -879,5 +868,13 @@ export default function BlindComparisonPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function BlindComparisonPageWrapper() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
+      <BlindComparisonPage />
+    </Suspense>
   );
 }
