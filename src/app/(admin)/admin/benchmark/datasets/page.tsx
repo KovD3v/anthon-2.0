@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   ArrowLeft,
   FlaskConical,
@@ -13,7 +13,8 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,75 +22,69 @@ import { cn } from "@/lib/utils";
 import type { BenchmarkTestCase } from "../types";
 
 export default function DatasetsPage() {
-  const [loading, setLoading] = useState(true);
-  const [testCases, setTestCases] = useState<BenchmarkTestCase[]>([]);
-  const [pendingAdversarial, setPendingAdversarial] = useState<
-    BenchmarkTestCase[]
-  >([]);
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"ALL" | "ADVERSARIAL">("ALL");
-  const [generatingAdversarial, setGeneratingAdversarial] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  async function fetchTestCases() {
-    try {
-      setLoading(true);
-      const res = await fetch(
-        "/api/admin/benchmark/test-cases?activeOnly=false",
-      );
+  const { data: testCasesData, isLoading: loadingCases, refetch } = useQuery({
+    queryKey: ["benchmark-test-cases-all"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/benchmark/test-cases?activeOnly=false");
       if (!res.ok) throw new Error("Failed to fetch test cases");
-      const data = await res.json();
-      setTestCases(data.testCases || []);
+      return res.json() as Promise<{ testCases: BenchmarkTestCase[] }>;
+    },
+  });
 
-      const advRes = await fetch("/api/admin/benchmark/adversarial");
-      if (advRes.ok) {
-        const advData = await advRes.json();
-        setPendingAdversarial(advData.cases || []);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { data: adversarialData } = useQuery({
+    queryKey: ["benchmark-adversarial"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/benchmark/adversarial");
+      if (!res.ok) return { cases: [] as BenchmarkTestCase[] };
+      return res.json() as Promise<{ cases: BenchmarkTestCase[] }>;
+    },
+  });
 
-  const generateAdversarial = async () => {
-    setGeneratingAdversarial(true);
-    try {
-      const res = await fetch("/api/admin/benchmark/adversarial", {
+  const testCases = testCasesData?.testCases ?? [];
+  const pendingAdversarial = adversarialData?.cases ?? [];
+
+  const generateMutation = useMutation({
+    mutationFn: () =>
+      fetch("/api/admin/benchmark/adversarial", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ count: 3, autoSave: true }),
-      });
-      if (!res.ok) throw new Error("Failed to generate adversarial cases");
+      }).then((res) => {
+        if (!res.ok) throw new Error("Failed to generate adversarial cases");
+        return res.json();
+      }),
+    onSuccess: () => {
       alert("Generated 3 new adversarial cases for review.");
-      fetchTestCases();
-    } catch (err) {
+      queryClient.invalidateQueries({ queryKey: ["benchmark-adversarial"] });
+      queryClient.invalidateQueries({ queryKey: ["benchmark-test-cases-all"] });
+    },
+    onError: (err: unknown) => {
       alert(err instanceof Error ? err.message : "Generation failed");
-    } finally {
-      setGeneratingAdversarial(false);
-    }
-  };
+    },
+  });
 
-  const handleAdversarialAction = async (
-    id: string,
-    action: "approve" | "reject",
-  ) => {
-    try {
-      const res = await fetch("/api/admin/benchmark/adversarial", {
+  const adversarialActionMutation = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: "approve" | "reject" }) =>
+      fetch("/api/admin/benchmark/adversarial", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ testCaseId: id, action }),
-      });
-      if (!res.ok) throw new Error(`Failed to ${action}`);
-      fetchTestCases();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : `Failed to ${action}`);
-    }
-  };
-
-  useEffect(() => {
-    fetchTestCases();
-  }, []);
+      }).then((res) => {
+        if (!res.ok) throw new Error(`Failed to ${action}`);
+        return res.json();
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["benchmark-adversarial"] });
+      queryClient.invalidateQueries({ queryKey: ["benchmark-test-cases-all"] });
+    },
+    onError: (err: unknown, variables) => {
+      alert(err instanceof Error ? err.message : `Failed to ${variables.action}`);
+    },
+  });
 
   const displayedCases = activeTab === "ALL" ? testCases : pendingAdversarial;
   const filteredCases = displayedCases.filter(
@@ -99,7 +94,7 @@ export default function DatasetsPage() {
       tc.category.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  if (loading) {
+  if (loadingCases) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -133,7 +128,7 @@ export default function DatasetsPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={fetchTestCases}
+                onClick={() => refetch()}
                 className="bg-white/5 hover:bg-white/10"
               >
                 <RefreshCw className="h-4 w-4" />
@@ -195,7 +190,7 @@ export default function DatasetsPage() {
 
         {/* Adversarial Generator */}
         {activeTab === "ADVERSARIAL" && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             className="mb-6 p-4 bg-linear-to-r from-purple-500/10 to-blue-500/10 rounded-xl border border-purple-500/20"
@@ -211,11 +206,11 @@ export default function DatasetsPage() {
                 </p>
               </div>
               <Button
-                onClick={generateAdversarial}
-                disabled={generatingAdversarial}
+                onClick={() => generateMutation.mutate()}
+                disabled={generateMutation.isPending}
                 className="bg-purple-500 hover:bg-purple-600 text-white gap-2"
               >
-                {generatingAdversarial ? (
+                {generateMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Star className="h-4 w-4" />
@@ -223,7 +218,7 @@ export default function DatasetsPage() {
                 Generate 3 New Cases
               </Button>
             </div>
-          </motion.div>
+          </m.div>
         )}
 
         {/* Test Cases Grid */}
@@ -239,7 +234,7 @@ export default function DatasetsPage() {
             </div>
           ) : (
             filteredCases.map((tc, index) => (
-              <motion.div
+              <m.div
                 key={tc.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -272,7 +267,7 @@ export default function DatasetsPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() =>
-                                handleAdversarialAction(tc.id, "approve")
+                                adversarialActionMutation.mutate({ id: tc.id, action: "approve" })
                               }
                               className="h-6 w-6 hover:bg-emerald-500/20 text-emerald-400"
                               title="Approve & Add to Dataset"
@@ -283,7 +278,7 @@ export default function DatasetsPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() =>
-                                handleAdversarialAction(tc.id, "reject")
+                                adversarialActionMutation.mutate({ id: tc.id, action: "reject" })
                               }
                               className="h-6 w-6 hover:bg-red-500/20 text-red-400"
                               title="Reject & Delete"
@@ -334,7 +329,7 @@ export default function DatasetsPage() {
                     </div>
                   </CardContent>
                 </Card>
-              </motion.div>
+              </m.div>
             ))
           )}
         </div>
