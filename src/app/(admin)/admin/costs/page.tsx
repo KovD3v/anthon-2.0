@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   Brain,
@@ -13,18 +13,8 @@ import {
   Mic,
   TrendingUp,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import dynamic from "next/dynamic";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -33,6 +23,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+
+const CostsCharts = dynamic(() => import("./_components/CostsCharts"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[350px] flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+    </div>
+  ),
+});
 
 interface CostData {
   summary: {
@@ -66,47 +65,19 @@ interface CostData {
   };
 }
 
-const COLORS = ["#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#3b82f6"];
-
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-};
-
-const item = {
-  hidden: { y: 20, opacity: 0 },
-  show: { y: 0, opacity: 1 },
-};
-
 export default function AdminCostsPage() {
-  const [data, setData] = useState<CostData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState("30d");
 
-  useEffect(() => {
-    async function fetchCosts() {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/admin/costs?range=${range}`);
+  const { data, isLoading, isError } = useQuery<CostData>({
+    queryKey: ["admin-costs", range],
+    queryFn: () =>
+      fetch(`/api/admin/costs?range=${range}`).then((res) => {
         if (!res.ok) throw new Error("Failed to fetch cost data");
-        const json = await res.json();
-        setData(json);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred");
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchCosts();
-  }, [range]);
+        return res.json();
+      }),
+  });
 
-  if (loading && !data) {
+  if (isLoading && !data) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -114,7 +85,7 @@ export default function AdminCostsPage() {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="p-8">
         <Card className="border-destructive/20 bg-destructive/5">
@@ -122,7 +93,7 @@ export default function AdminCostsPage() {
             <CardTitle className="text-destructive">Error</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-destructive/80">{error}</p>
+            <p className="text-destructive/80">Failed to fetch cost data</p>
           </CardContent>
         </Card>
       </div>
@@ -161,14 +132,9 @@ export default function AdminCostsPage() {
         </div>
       </div>
 
-      <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="grid gap-6 md:grid-cols-2 lg:grid-cols-4"
-      >
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* KPI Cards */}
-        <motion.div variants={item}>
+        <div>
           <KPICard
             title="Total Estimated"
             value={`$${totalCost.toFixed(2)}`}
@@ -177,8 +143,8 @@ export default function AdminCostsPage() {
             color="text-rose-500"
             bgColor="bg-rose-500/10"
           />
-        </motion.div>
-        <motion.div variants={item}>
+        </div>
+        <div>
           <KPICard
             title="AI Intelligence"
             value={`$${data.summary.totalAiCost.toFixed(2)}`}
@@ -187,8 +153,8 @@ export default function AdminCostsPage() {
             color="text-emerald-500"
             bgColor="bg-emerald-500/10"
           />
-        </motion.div>
-        <motion.div variants={item}>
+        </div>
+        <div>
           <KPICard
             title="Vocal Synthesis"
             value={`$${data.summary.totalVoiceCost.toFixed(2)}`}
@@ -197,8 +163,8 @@ export default function AdminCostsPage() {
             color="text-indigo-500"
             bgColor="bg-indigo-500/10"
           />
-        </motion.div>
-        <motion.div variants={item}>
+        </div>
+        <div>
           <KPICard
             title="Infrastructure"
             value="Static"
@@ -207,167 +173,10 @@ export default function AdminCostsPage() {
             color="text-amber-500"
             bgColor="bg-amber-500/10"
           />
-        </motion.div>
-      </motion.div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* History Chart */}
-        <motion.div
-          variants={item}
-          initial="hidden"
-          animate="show"
-          className="lg:col-span-2"
-        >
-          <Card className="h-full border-white/5 bg-background/40 backdrop-blur-md">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                Cost History
-              </CardTitle>
-              <CardDescription>Daily AI expenditure over time</CardDescription>
-            </CardHeader>
-            <CardContent className="h-[300px] w-full pt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.history.ai}>
-                  <defs>
-                    <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
-                      <stop
-                        offset="5%"
-                        stopColor="var(--primary)"
-                        stopOpacity={0.3}
-                      />
-                      <stop
-                        offset="95%"
-                        stopColor="var(--primary)"
-                        stopOpacity={0}
-                      />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="date"
-                    stroke="rgba(255,255,255,0.1)"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(val) =>
-                      new Date(val).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      })
-                    }
-                  />
-                  <YAxis
-                    stroke="rgba(255,255,255,0.1)"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(val) => `$${val}`}
-                  />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        return (
-                          <div className="rounded-lg border border-white/10 bg-background/90 p-3 shadow-xl backdrop-blur-md">
-                            <p className="text-xs text-muted-foreground mb-1">
-                              {new Date(
-                                payload[0].payload.date,
-                              ).toLocaleDateString()}
-                            </p>
-                            <p className="text-sm font-bold text-primary">
-                              ${Number(payload[0].value).toFixed(4)}
-                            </p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="cost"
-                    stroke="var(--primary)"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorCost)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Model Breakdown */}
-        <motion.div variants={item} initial="hidden" animate="show">
-          <Card className="h-full border-white/5 bg-background/40 backdrop-blur-md">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <Brain className="h-5 w-5 text-emerald-500" />
-                Model Distribution
-              </CardTitle>
-              <CardDescription>AI cost by model provider</CardDescription>
-            </CardHeader>
-            <CardContent className="h-[300px] flex flex-col items-center justify-center">
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={data.aiBreakdown}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="cost"
-                    nameKey="model"
-                  >
-                    {data.aiBreakdown.map((entry, index) => (
-                      <Cell
-                        key={entry.model}
-                        fill={COLORS[index % COLORS.length]}
-                        stroke="rgba(255,255,255,0.05)"
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        return (
-                          <div className="rounded-lg border border-white/10 bg-background/90 p-2 shadow-xl backdrop-blur-md">
-                            <p className="text-xs font-semibold">
-                              {payload[0].name}
-                            </p>
-                            <p className="text-xs text-primary">
-                              ${Number(payload[0].value).toFixed(4)}
-                            </p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 w-full mt-4 px-2">
-                {data.aiBreakdown.map((m, i) => (
-                  <div key={m.model} className="flex items-center gap-2">
-                    <div
-                      className="h-2 w-2 rounded-full"
-                      style={{
-                        backgroundColor: COLORS[i % COLORS.length],
-                      }}
-                    />
-                    <span className="text-[10px] text-muted-foreground truncate max-w-[80px]">
-                      {m.model}
-                    </span>
-                    <span className="text-[10px] font-mono ml-auto">
-                      ${m.cost.toFixed(3)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+        </div>
       </div>
+
+      <CostsCharts aiHistory={data.history.ai} aiBreakdown={data.aiBreakdown} />
 
       {/* Infrastructure Section */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
