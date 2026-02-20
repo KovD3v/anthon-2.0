@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   Calendar,
   ChevronLeft,
@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,7 +72,8 @@ import {
 } from "./types";
 
 export default function BenchmarkPage() {
-  const [runs, setRuns] = useState<BenchmarkRun[]>([]);
+  const queryClient = useQueryClient();
+  const [runs, setRuns] = useState<BenchmarkRun[]>([]);;
   const [selectedRun, setSelectedRun] = useState<BenchmarkRun | null>(null);
   const [modelScores, setModelScores] = useState<ModelScore[]>([]);
   const [results, setResults] = useState<BenchmarkResult[]>([]);
@@ -115,16 +117,7 @@ export default function BenchmarkPage() {
 
   // Live progress state
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{
-    completed: number;
-    total: number;
-    status: string;
-    currentProgress?: {
-      testCaseId: string;
-      modelId: string;
-      startedAt: string;
-    };
-  } | null>(null);
+  // progress is derived from the polling query – no separate useState needed
 
   // Test Case Management state
   const [manageDatasetsOpen, setManageDatasetsOpen] = useState(false);
@@ -178,42 +171,48 @@ export default function BenchmarkPage() {
   }
 
   async function fetchRuns() {
-    try {
-      const res = await fetch("/api/admin/benchmark");
-      if (!res.ok) throw new Error("Failed to fetch benchmark runs");
-      const data = await res.json();
-      setRuns(data.runs || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
+    const res = await fetch("/api/admin/benchmark").catch((err: unknown) => {
       setLoading(false);
+      setError(err instanceof Error ? err.message : "An error occurred");
+      return null;
+    });
+    if (!res) return;
+    if (!res.ok) {
+      setLoading(false);
+      setError("Failed to fetch benchmark runs");
+      return;
     }
+    const data = await res.json();
+    setRuns(data.runs || []);
+    setLoading(false);
   }
 
   async function fetchRunDetails(runId: string) {
-    try {
-      const res = await fetch(`/api/admin/benchmark?runId=${runId}`);
-      if (!res.ok) throw new Error("Failed to fetch run details");
-      const data = await res.json();
-      setSelectedRun(data.run);
-      setModelScores(data.modelScores || []);
-      setResults(data.run?.results || []);
-      // Auto-select first test case and model
-      if (data.run?.results?.length > 0) {
-        const firstResult = data.run.results[0];
-        setSelectedTestCaseId(firstResult.testCaseId);
-        setSelectedModelId(null); // Show all models for this test
-      }
-
-      // If run is still running or pending, start polling
-      if (data.run?.status === "RUNNING" || data.run?.status === "PENDING") {
-        setActiveRunId(runId);
-      } else {
-        setActiveRunId(null);
-        setProgress(null);
-      }
-    } catch (err) {
+    const res = await fetch(`/api/admin/benchmark?runId=${runId}`).catch((err: unknown) => {
       setError(err instanceof Error ? err.message : "An error occurred");
+      return null;
+    });
+    if (!res) return;
+    if (!res.ok) {
+      setError("Failed to fetch run details");
+      return;
+    }
+    const data = await res.json();
+    setSelectedRun(data.run);
+    setModelScores(data.modelScores || []);
+    setResults(data.run?.results || []);
+    // Auto-select first test case and model
+    if (data.run?.results?.length > 0) {
+      const firstResult = data.run.results[0];
+      setSelectedTestCaseId(firstResult.testCaseId);
+      setSelectedModelId(null); // Show all models for this test
+    }
+
+    // If run is still running or pending, start polling
+    if (data.run?.status === "RUNNING" || data.run?.status === "PENDING") {
+      setActiveRunId(runId);
+    } else {
+      setActiveRunId(null);
     }
   }
 
@@ -224,103 +223,110 @@ export default function BenchmarkPage() {
     concurrency?: number;
   }) => {
     setStarting(true);
-    try {
-      const res = await fetch("/api/admin/benchmark", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          testCaseIds: options?.testCaseIds,
-          models: options?.models,
-          iterations: options?.iterations || 1,
-          concurrency: options?.concurrency || 10,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to start benchmark");
-      const data = await res.json();
-      alert(`Benchmark started! Run ID: ${data.runId}`);
-      fetchRuns();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to start benchmark");
-    } finally {
+    const res = await fetch("/api/admin/benchmark", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        testCaseIds: options?.testCaseIds,
+        models: options?.models,
+        iterations: options?.iterations || 1,
+        concurrency: options?.concurrency || 10,
+      }),
+    }).catch((err: unknown) => {
       setStarting(false);
+      alert(err instanceof Error ? err.message : "Failed to start benchmark");
+      return null;
+    });
+    if (!res) return;
+    if (!res.ok) {
+      setStarting(false);
+      alert("Failed to start benchmark");
+      return;
     }
+    const data = await res.json();
+    alert(`Benchmark started! Run ID: ${data.runId}`);
+    fetchRuns();
+    setStarting(false);
   };
 
   const cancelBenchmark = async (runId: string) => {
     if (!confirm("Stop this benchmark run?")) return;
-    try {
-      const res = await fetch("/api/admin/benchmark", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ runId, action: "cancel" }),
-      });
-      if (!res.ok) throw new Error("Failed to cancel benchmark");
-      alert("Benchmark cancellation requested.");
-      fetchRuns();
-    } catch (err) {
+    const res = await fetch("/api/admin/benchmark", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ runId, action: "cancel" }),
+    }).catch((err: unknown) => {
       alert(err instanceof Error ? err.message : "Failed to cancel benchmark");
-    }
+      return null;
+    });
+    if (!res?.ok) return;
+    alert("Benchmark cancellation requested.");
+    fetchRuns();
   };
 
   async function fetchTestCases() {
-    try {
-      const res = await fetch(
-        "/api/admin/benchmark/test-cases?activeOnly=false",
-      );
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to fetch test cases");
-      }
-      const data = await res.json();
-      setDbTestCases(data.testCases || []);
-
-      const advRes = await fetch("/api/admin/benchmark/adversarial");
-      if (advRes.ok) {
-        const advData = await advRes.json();
-        setPendingAdversarial(advData.cases || []);
-      }
-    } catch (err) {
-      console.error(err);
-      setError(
-        err instanceof Error ? err.message : "Failed to load test cases",
-      );
+    const res = await fetch(
+      "/api/admin/benchmark/test-cases?activeOnly=false",
+    ).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Failed to load test cases";
+      console.error(msg);
+      setError(msg);
+      return null;
+    });
+    if (!res) return;
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      const msg = errorData.error || "Failed to fetch test cases";
+      console.error(msg);
+      setError(msg);
+      return;
+    }
+    const data = await res.json();
+    setDbTestCases(data.testCases || []);
+    const advRes = await fetch("/api/admin/benchmark/adversarial").catch(() => null);
+    if (advRes?.ok) {
+      const advData = await advRes.json();
+      setPendingAdversarial(advData.cases || []);
     }
   }
 
   const generateAdversarial = async () => {
     setGeneratingAdversarial(true);
-    try {
-      const res = await fetch("/api/admin/benchmark/adversarial", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: 3, autoSave: true }),
-      });
-      if (!res.ok) throw new Error("Failed to generate adversarial cases");
-      alert("Generated 3 new adversarial cases for review.");
-      fetchTestCases();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Generation failed");
-    } finally {
+    const res = await fetch("/api/admin/benchmark/adversarial", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ count: 3, autoSave: true }),
+    }).catch((err: unknown) => {
       setGeneratingAdversarial(false);
+      alert(err instanceof Error ? err.message : "Generation failed");
+      return null;
+    });
+    if (!res) return;
+    if (!res.ok) {
+      setGeneratingAdversarial(false);
+      alert("Failed to generate adversarial cases");
+      return;
     }
+    alert("Generated 3 new adversarial cases for review.");
+    fetchTestCases();
+    setGeneratingAdversarial(false);
   };
 
   const handleAdversarialAction = async (
     id: string,
     action: "approve" | "reject",
   ) => {
-    try {
-      const res = await fetch("/api/admin/benchmark/adversarial", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ testCaseId: id, action }),
-      });
-      if (!res.ok) throw new Error(`Failed to ${action}`);
-      fetchTestCases();
-      fetchRuns();
-    } catch (err) {
+    const res = await fetch("/api/admin/benchmark/adversarial", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ testCaseId: id, action }),
+    }).catch((err: unknown) => {
       alert(err instanceof Error ? err.message : `Failed to ${action}`);
-    }
+      return null;
+    });
+    if (!res?.ok) return;
+    fetchTestCases();
+    fetchRuns();
   };
 
   const exportResults = async (runId: string) => {
@@ -368,20 +374,19 @@ export default function BenchmarkPage() {
 
   const deleteRun = async (runId: string) => {
     if (!confirm("Delete this benchmark run?")) return;
-    try {
-      const res = await fetch(`/api/admin/benchmark?runId=${runId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Failed to delete");
-      if (selectedRun?.id === runId) {
-        setSelectedRun(null);
-        setResults([]);
-        setModelScores([]);
-      }
-      fetchRuns();
-    } catch (err) {
+    const res = await fetch(`/api/admin/benchmark?runId=${runId}`, {
+      method: "DELETE",
+    }).catch((err: unknown) => {
       alert(err instanceof Error ? err.message : "Failed to delete");
+      return null;
+    });
+    if (!res?.ok) return;
+    if (selectedRun?.id === runId) {
+      setSelectedRun(null);
+      setResults([]);
+      setModelScores([]);
     }
+    fetchRuns();
   };
 
   const submitAdminScore = async (
@@ -389,17 +394,16 @@ export default function BenchmarkPage() {
     adminScore: number,
     adminReasoning: string,
   ) => {
-    try {
-      const res = await fetch("/api/admin/benchmark", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resultId, adminScore, adminReasoning }),
-      });
-      if (!res.ok) throw new Error("Failed to submit");
-      if (selectedRun) fetchRunDetails(selectedRun.id);
-    } catch (err) {
+    const res = await fetch("/api/admin/benchmark", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resultId, adminScore, adminReasoning }),
+    }).catch((err: unknown) => {
       alert(err instanceof Error ? err.message : "Failed to submit");
-    }
+      return null;
+    });
+    if (!res?.ok) return;
+    if (selectedRun) fetchRunDetails(selectedRun.id);
   };
 
   // Get results for current test case
@@ -468,82 +472,82 @@ export default function BenchmarkPage() {
   const submitBlindScores = async () => {
     if (!blindPair || !blindScores.preference) return;
 
-    try {
-      const preferenceLabel = {
-        A: "A preferred",
-        B: "B preferred",
-        both_good: "Both good",
-        both_bad: "Both bad",
-      }[blindScores.preference];
+    const preferenceLabel = {
+      A: "A preferred",
+      B: "B preferred",
+      both_good: "Both good",
+      both_bad: "Both bad",
+    }[blindScores.preference];
 
-      // Derive scores from preference (no manual scoring)
-      let scoreA: number;
-      let scoreB: number;
-      switch (blindScores.preference) {
-        case "A":
-          scoreA = 8;
-          scoreB = 4;
-          break;
-        case "B":
-          scoreA = 4;
-          scoreB = 8;
-          break;
-        case "both_good":
-          scoreA = 8;
-          scoreB = 8;
-          break;
-        case "both_bad":
-          scoreA = 3;
-          scoreB = 3;
-          break;
-      }
-
-      // Apply star (+2) and tomato (-2) modifiers
-      if (blindScores.starA) scoreA = Math.min(10, scoreA + 2);
-      if (blindScores.tomatoA) scoreA = Math.max(1, scoreA - 2);
-      if (blindScores.starB) scoreB = Math.min(10, scoreB + 2);
-      if (blindScores.tomatoB) scoreB = Math.max(1, scoreB - 2);
-
-      // Build modifier labels
-      const modifiersA = [
-        blindScores.starA && "⭐+2",
-        blindScores.tomatoA && "🍅-2",
-      ]
-        .filter(Boolean)
-        .join(" ");
-      const modifiersB = [
-        blindScores.starB && "⭐+2",
-        blindScores.tomatoB && "🍅-2",
-      ]
-        .filter(Boolean)
-        .join(" ");
-
-      // Submit scores for both results
-      await Promise.all([
-        submitAdminScore(
-          blindPair.resultA.id,
-          scoreA,
-          `Blind A/B comparison: ${preferenceLabel}${
-            modifiersA ? ` (${modifiersA})` : ""
-          }`,
-        ),
-        submitAdminScore(
-          blindPair.resultB.id,
-          scoreB,
-          `Blind A/B comparison: ${preferenceLabel}${
-            modifiersB ? ` (${modifiersB})` : ""
-          }`,
-        ),
-      ]);
-
-      // Reveal the models instead of closing immediately
-      setModelsRevealed(true);
-
-      // Refresh results
-      if (selectedRun) fetchRunDetails(selectedRun.id);
-    } catch (err) {
-      console.error("Failed to submit blind scores:", err);
+    // Derive scores from preference (no manual scoring)
+    let scoreA = 5;
+    let scoreB = 5;
+    switch (blindScores.preference) {
+      case "A":
+        scoreA = 8;
+        scoreB = 4;
+        break;
+      case "B":
+        scoreA = 4;
+        scoreB = 8;
+        break;
+      case "both_good":
+        scoreA = 8;
+        scoreB = 8;
+        break;
+      case "both_bad":
+        scoreA = 3;
+        scoreB = 3;
+        break;
     }
+
+    // Apply star (+2) and tomato (-2) modifiers
+    if (blindScores.starA) scoreA = Math.min(10, scoreA + 2);
+    if (blindScores.tomatoA) scoreA = Math.max(1, scoreA - 2);
+    if (blindScores.starB) scoreB = Math.min(10, scoreB + 2);
+    if (blindScores.tomatoB) scoreB = Math.max(1, scoreB - 2);
+
+    // Build modifier labels
+    const modifiersA = [
+      blindScores.starA && "⭐+2",
+      blindScores.tomatoA && "🍅-2",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const modifiersB = [
+      blindScores.starB && "⭐+2",
+      blindScores.tomatoB && "🍅-2",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    // Submit scores for both results
+    const ok = await Promise.all([
+      submitAdminScore(
+        blindPair.resultA.id,
+        scoreA,
+        `Blind A/B comparison: ${preferenceLabel}${
+          modifiersA ? ` (${modifiersA})` : ""
+        }`,
+      ),
+      submitAdminScore(
+        blindPair.resultB.id,
+        scoreB,
+        `Blind A/B comparison: ${preferenceLabel}${
+          modifiersB ? ` (${modifiersB})` : ""
+        }`,
+      ),
+    ]).catch((err: unknown) => {
+      console.error("Failed to submit blind scores:", err);
+      return null;
+    });
+    if (!ok) return;
+
+    // Reveal the models instead of closing immediately
+    setModelsRevealed(true);
+
+    // Refresh results
+    if (selectedRun) fetchRunDetails(selectedRun.id);
   };
 
   // Close the blind comparison modal
@@ -553,37 +557,52 @@ export default function BenchmarkPage() {
     setModelsRevealed(false);
   };
 
-  useEffect(() => {
-    fetchRuns();
-    fetchTestCases();
-  }, []);
+  // Initial data fetch via react-query (replaces bare useEffect)
+  useQuery({
+    queryKey: ["benchmark-page-init"],
+    queryFn: async () => {
+      await fetchRuns();
+      await fetchTestCases();
+      return null;
+    },
+    staleTime: Infinity,
+    gcTime: 0,
+  });
 
+  // Progress polling via react-query (replaces setInterval inside useEffect)
+  const { data: progressData } = useQuery({
+    queryKey: ["benchmark-progress", activeRunId],
+    queryFn: () =>
+      fetch(`/api/admin/benchmark/progress?runId=${activeRunId}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null),
+    enabled: !!activeRunId,
+    refetchInterval: (query) => {
+      const s = query.state.data?.status as string | undefined;
+      return s === "COMPLETED" || s === "FAILED" ? false : 2000;
+    },
+  });
+
+  // Sync progress query data to handle terminal status
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (activeRunId) {
-      interval = setInterval(async () => {
-        try {
-          const res = await fetch(
-            `/api/admin/benchmark/progress?runId=${activeRunId}`,
-          );
-          if (res.ok) {
-            const data = await res.json();
-            setProgress(data);
-            if (data.status === "COMPLETED" || data.status === "FAILED") {
-              setActiveRunId(null);
-              fetchRuns();
-              if (selectedRun?.id === activeRunId) {
-                fetchRunDetails(activeRunId);
-              }
-            }
-          }
-        } catch (err) {
-          console.error("Progress poll error:", err);
-        }
-      }, 2000);
-    }
-    return () => clearInterval(interval);
-  }, [activeRunId, selectedRun?.id]);
+    if (!progressData) return;
+    const isTerminal = progressData.status === "COMPLETED" || progressData.status === "FAILED";
+    if (!isTerminal) return;
+    // Use a microtask so we're not calling setState synchronously inside the render
+    const runId = activeRunId;
+    queueMicrotask(() => {
+      setActiveRunId(null);
+      queryClient.invalidateQueries({ queryKey: ["benchmark-page-init"] });
+      fetchRuns();
+      if (selectedRun?.id === runId) {
+        fetchRunDetails(runId);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progressData]);
+
+  // Use progressData directly as the live progress (no local state needed)
+  const progress = activeRunId ? progressData : null;
 
   if (loading) {
     return (
@@ -695,7 +714,7 @@ export default function BenchmarkPage() {
               </div>
             </div>
             <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden shadow-inner">
-              <motion.div
+              <m.div
                 className="bg-primary h-full shadow-[0_0_10px_rgba(var(--primary),0.5)]"
                 initial={{ width: 0 }}
                 animate={{
@@ -710,7 +729,7 @@ export default function BenchmarkPage() {
 
       <div className="flex h-[calc(100vh-12rem)] gap-6">
         {/* Sidebar: Runs List */}
-        <motion.div
+        <m.div
           animate={{ width: isSidebarCollapsed ? 48 : 320 }}
           className="relative flex flex-col h-full shrink-0"
         >
@@ -859,7 +878,7 @@ export default function BenchmarkPage() {
               )}
             </CardContent>
           </Card>
-        </motion.div>
+        </m.div>
 
         {/* Main Content */}
         <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar pr-2">
@@ -948,7 +967,7 @@ export default function BenchmarkPage() {
                                     </span>
                                   </div>
                                   <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
-                                    <motion.div
+                                    <m.div
                                       initial={{
                                         width: 0,
                                       }}
@@ -983,7 +1002,7 @@ export default function BenchmarkPage() {
                                   </div>
                                   <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
                                     {/* Inverse bar for speed: shorter is cleaner/better, but bar length usually implies quantity. Let's do relative to a safe max of 5000ms? */}
-                                    <motion.div
+                                    <m.div
                                       initial={{
                                         width: 0,
                                       }}
@@ -1018,7 +1037,7 @@ export default function BenchmarkPage() {
                                     </span>
                                   </div>
                                   <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
-                                    <motion.div
+                                    <m.div
                                       initial={{
                                         width: 0,
                                       }}
