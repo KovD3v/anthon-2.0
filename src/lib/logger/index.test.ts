@@ -51,7 +51,6 @@ describe("logger/index", () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    process.env = { ...ORIGINAL_ENV };
   });
 
   it("emits structured info logs in development", () => {

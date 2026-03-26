@@ -48,7 +48,7 @@ describe("POST /api/queues/archive", () => {
   it("returns 400 when userId is missing", async () => {
     mocks.verifyQStashAuth.mockResolvedValue({});
 
-    const response = await POST({} as import("next/server").NextRequest);
+    const response = await POST({} as Request);
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Missing userId");
@@ -57,14 +57,14 @@ describe("POST /api/queues/archive", () => {
   it("returns 404 when user does not exist", async () => {
     mocks.userFindUnique.mockResolvedValue(null);
 
-    const response = await POST({} as import("next/server").NextRequest);
+    const response = await POST({} as Request);
 
     expect(response.status).toBe(404);
     await expect(response.text()).resolves.toBe("User not found");
   });
 
   it("archives sessions and returns retention metadata", async () => {
-    const response = await POST({} as import("next/server").NextRequest);
+    const response = await POST({} as Request);
 
     expect(response.status).toBe(200);
     expect(mocks.userFindUnique).toHaveBeenCalledWith({
@@ -85,7 +85,7 @@ describe("POST /api/queues/archive", () => {
   it("returns 400 on verification errors", async () => {
     mocks.verifyQStashAuth.mockRejectedValue(new Error("invalid signature"));
 
-    const response = await POST({} as import("next/server").NextRequest);
+    const response = await POST({} as Request);
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Unauthorized or Error");
@@ -94,7 +94,7 @@ describe("POST /api/queues/archive", () => {
   it("returns 400 when archiving fails", async () => {
     mocks.archiveOldSessions.mockRejectedValue(new Error("archive failed"));
 
-    const response = await POST({} as import("next/server").NextRequest);
+    const response = await POST({} as Request);
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Unauthorized or Error");

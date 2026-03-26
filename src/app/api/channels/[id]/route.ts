@@ -7,7 +7,7 @@
  * (e.g., Telegram, WhatsApp) from their Anthon profile.
  */
 
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
@@ -21,7 +21,7 @@ type RouteParams = {
  * DELETE /api/channels/[id]
  * Disconnect a channel identity from the user's account.
  */
-export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+export async function DELETE(_request: Request, { params }: RouteParams) {
   const { user, error } = await getAuthUser();
 
   if (error || !user) {

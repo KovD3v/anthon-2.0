@@ -1,8 +1,8 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { analyzeUserProfile } from "@/lib/maintenance/profile-analyzer";
 import { verifyQStashAuth } from "@/lib/qstash";
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const { userId } = await verifyQStashAuth(request);
 

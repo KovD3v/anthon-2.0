@@ -3,13 +3,13 @@
  * Provides aggregated statistics for the admin dashboard.
  */
 
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { analyzeSessionProgress } from "@/lib/analytics/funnel";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 // GET /api/admin/analytics
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 

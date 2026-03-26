@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { listOrganizationAuditLogs } from "@/lib/organizations/service";
@@ -7,7 +7,7 @@ const organizationsLogger = createLogger("organizations");
 
 // GET /api/admin/organizations/[organizationId]/audit - immutable audit trail
 export async function GET(
-  req: NextRequest,
+  req: Request,
   context: { params: Promise<{ organizationId: string }> },
 ) {
   return withRequestLogContext(
@@ -22,13 +22,14 @@ export async function GET(
 
       try {
         const { organizationId } = await context.params;
+        const { searchParams } = new URL(req.url);
         const page = Math.max(
           1,
-          Number(req.nextUrl.searchParams.get("page")) || 1,
+          Number(searchParams.get("page")) || 1,
         );
         const limit = Math.min(
           100,
-          Math.max(1, Number(req.nextUrl.searchParams.get("limit")) || 50),
+          Math.max(1, Number(searchParams.get("limit")) || 50),
         );
         const skip = (page - 1) * limit;
 

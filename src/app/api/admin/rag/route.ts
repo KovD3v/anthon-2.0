@@ -4,7 +4,7 @@
  */
 
 import { del, put } from "@vercel/blob";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { addDocument, deleteDocument as removeDocument } from "@/lib/ai/rag";
 import { requireAdmin } from "@/lib/auth";
@@ -50,7 +50,7 @@ export async function GET() {
 }
 
 // POST /api/admin/rag - Upload and process document(s)
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
@@ -185,7 +185,7 @@ export async function POST(req: NextRequest) {
 }
 
 // DELETE /api/admin/rag - Delete a document
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 

@@ -1,8 +1,8 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { publishToQueue } from "@/lib/qstash";
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   // 1. Validate Cron Secret (Native Vercel Cron security)
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {

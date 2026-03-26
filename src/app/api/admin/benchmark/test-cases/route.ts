@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 
@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
  * GET /api/admin/benchmark/test-cases
  * List all test cases, or get a single one by ID
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
  * POST /api/admin/benchmark/test-cases
  * Create or update test case
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
 /**
  * DELETE /api/admin/benchmark/test-cases
  */
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {

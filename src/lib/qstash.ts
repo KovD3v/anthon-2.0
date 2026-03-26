@@ -1,5 +1,4 @@
 import { Client, Receiver } from "@upstash/qstash";
-import type { NextRequest } from "next/server";
 
 if (!process.env.QSTASH_URL || !process.env.QSTASH_TOKEN) {
   throw new Error("QStash environment variables missing");
@@ -19,7 +18,7 @@ const receiver = new Receiver({
  * Verifies that the request is coming from QStash.
  * Throws an error if invalid.
  */
-export async function verifyQStashAuth(req: NextRequest) {
+export async function verifyQStashAuth(req: Request) {
   const body = await req.text();
   const signature = req.headers.get("Upstash-Signature") || "";
 

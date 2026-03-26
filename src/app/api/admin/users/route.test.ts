@@ -1,4 +1,3 @@
-import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -26,14 +25,14 @@ vi.mock("@/lib/db", () => ({
 
 import { GET, PATCH } from "./route";
 
-function getRequest(url = "http://localhost/api/admin/users"): NextRequest {
-  return { url } as NextRequest;
+function getRequest(url = "http://localhost/api/admin/users"): Request {
+  return { url } as Request;
 }
 
-function patchRequest(body: unknown): NextRequest {
+function patchRequest(body: unknown): Request {
   return {
     json: async () => body,
-  } as unknown as NextRequest;
+  } as unknown as Request;
 }
 
 describe("/api/admin/users route", () => {

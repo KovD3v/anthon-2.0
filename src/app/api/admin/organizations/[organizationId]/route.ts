@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import {
@@ -114,7 +114,7 @@ function validateContractPatch(
 
 // GET /api/admin/organizations/[organizationId] - organization detail
 export async function GET(
-  req: NextRequest,
+  req: Request,
   context: { params: Promise<{ organizationId: string }> },
 ) {
   return withRequestLogContext(
@@ -168,7 +168,7 @@ export async function GET(
 
 // PATCH /api/admin/organizations/[organizationId] - update organization metadata/contract/owner
 export async function PATCH(
-  req: NextRequest,
+  req: Request,
   context: { params: Promise<{ organizationId: string }> },
 ) {
   return withRequestLogContext(
@@ -283,7 +283,7 @@ export async function PATCH(
 
 // DELETE /api/admin/organizations/[organizationId] - delete organization in Clerk + local DB
 export async function DELETE(
-  req: NextRequest,
+  req: Request,
   context: { params: Promise<{ organizationId: string }> },
 ) {
   return withRequestLogContext(

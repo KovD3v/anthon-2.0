@@ -6,7 +6,7 @@
  * PATCH - Update admin review
  */
 
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
@@ -21,7 +21,7 @@ async function getBenchmarkModule() {
  *   - runId: Get specific run with results
  *   - limit: Number of runs to list (default 20)
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
  *   - testCaseIds?: string[]
  *   - categories?: ('tool_usage' | 'writing_quality')[]
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
  *   - adminScore: number (0-10)
  *   - adminReasoning?: string
  */
-export async function PATCH(request: NextRequest) {
+export async function PATCH(request: Request) {
   const { user, errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
   if (!user) {
@@ -251,7 +251,7 @@ export async function PATCH(request: NextRequest) {
  * Query params:
  *   - runId: string - Delete entire benchmark run
  */
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 

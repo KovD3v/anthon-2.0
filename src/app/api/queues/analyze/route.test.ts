@@ -27,14 +27,14 @@ describe("POST /api/queues/analyze", () => {
   it("returns 400 when userId is missing", async () => {
     mocks.verifyQStashAuth.mockResolvedValue({});
 
-    const response = await POST({} as import("next/server").NextRequest);
+    const response = await POST({} as Request);
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Missing userId");
   });
 
   it("analyzes profile and returns success", async () => {
-    const response = await POST({} as import("next/server").NextRequest);
+    const response = await POST({} as Request);
 
     expect(response.status).toBe(200);
     expect(mocks.analyzeUserProfile).toHaveBeenCalledWith("user-1");
@@ -44,7 +44,7 @@ describe("POST /api/queues/analyze", () => {
   it("returns 400 when auth verification or analysis fails", async () => {
     mocks.analyzeUserProfile.mockRejectedValue(new Error("analysis failed"));
 
-    const response = await POST({} as import("next/server").NextRequest);
+    const response = await POST({} as Request);
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Unauthorized or Error");

@@ -5,8 +5,11 @@ import type { LanguageModel } from "ai";
 import type { OrganizationModelTier } from "@/lib/organizations/types";
 import { resolvePlanSnapshot } from "@/lib/plans";
 
-// Create OpenRouter provider instance with API key from environment
-// biome-ignore lint/suspicious/noExplicitAny: @openrouter/ai-sdk-provider uses a nested @ai-sdk/provider with different LanguageModelV2 types
+// Create OpenRouter provider instance with API key from environment.
+// The double cast is required because @openrouter/ai-sdk-provider bundles its own copy of
+// @ai-sdk/provider, whose LanguageModelV2 type conflicts with the one in the `ai` package.
+// Remove this cast once @openrouter/ai-sdk-provider aligns its peer dependency.
+// biome-ignore lint/suspicious/noExplicitAny: upstream type conflict — see comment above
 export const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
 }) as unknown as (modelId: string, settings?: Record<string, unknown>) => LanguageModel;

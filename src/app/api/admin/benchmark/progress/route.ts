@@ -1,12 +1,12 @@
 import { auth } from "@clerk/nextjs/server";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 /**
  * GET /api/admin/benchmark/progress
  * Get progress of a specific benchmark run
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {

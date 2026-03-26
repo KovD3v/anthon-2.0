@@ -1,4 +1,3 @@
-import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/db";
 import {
@@ -101,7 +100,7 @@ describe("integration /api/admin/organizations/[organizationId]", () => {
       ],
     });
 
-    const response = await GET({} as NextRequest, params(organization.id));
+    const response = await GET({} as Request, params(organization.id));
     const body = (await response.json()) as {
       organization: {
         id: string;
@@ -121,7 +120,7 @@ describe("integration /api/admin/organizations/[organizationId]", () => {
   });
 
   it("GET returns 404 when organization does not exist", async () => {
-    const response = await GET({} as NextRequest, params("missing-org"));
+    const response = await GET({} as Request, params("missing-org"));
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({
@@ -135,7 +134,7 @@ describe("integration /api/admin/organizations/[organizationId]", () => {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
-      }) as unknown as NextRequest,
+      }) as unknown as Request,
       params("org-1"),
     );
 
@@ -151,7 +150,7 @@ describe("integration /api/admin/organizations/[organizationId]", () => {
       errorResponse: null,
     });
 
-    const response = await DELETE({} as NextRequest, params("org-1"));
+    const response = await DELETE({} as Request, params("org-1"));
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });

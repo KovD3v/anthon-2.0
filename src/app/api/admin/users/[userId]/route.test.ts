@@ -1,4 +1,3 @@
-import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -100,7 +99,7 @@ describe("GET /api/admin/users/[userId]", () => {
     const forbidden = Response.json({ error: "Forbidden" }, { status: 403 });
     mocks.requireAdmin.mockResolvedValue({ errorResponse: forbidden });
 
-    const response = await GET({} as NextRequest, { params: params() });
+    const response = await GET({} as Request, { params: params() });
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: "Forbidden" });
@@ -109,14 +108,14 @@ describe("GET /api/admin/users/[userId]", () => {
   it("returns 404 when user is not found", async () => {
     mocks.userFindUnique.mockResolvedValue(null);
 
-    const response = await GET({} as NextRequest, { params: params("missing") });
+    const response = await GET({} as Request, { params: params("missing") });
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: "User not found" });
   });
 
   it("returns user detail, stats, and grouped channels", async () => {
-    const response = await GET({} as NextRequest, { params: params("user-1") });
+    const response = await GET({} as Request, { params: params("user-1") });
 
     expect(response.status).toBe(200);
     expect(mocks.userFindUnique).toHaveBeenCalledWith({
@@ -240,7 +239,7 @@ describe("GET /api/admin/users/[userId]", () => {
     });
     mocks.messageFindMany.mockResolvedValue([]);
 
-    const response = await GET({} as NextRequest, { params: params("user-1") });
+    const response = await GET({} as Request, { params: params("user-1") });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -258,7 +257,7 @@ describe("GET /api/admin/users/[userId]", () => {
   it("returns 500 on unexpected errors", async () => {
     mocks.userFindUnique.mockRejectedValue(new Error("db failed"));
 
-    const response = await GET({} as NextRequest, { params: params("user-1") });
+    const response = await GET({} as Request, { params: params("user-1") });
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({

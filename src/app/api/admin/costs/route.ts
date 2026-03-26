@@ -3,12 +3,12 @@
  * Provides detailed cost analysis data.
  */
 
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 // GET /api/admin/costs
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 

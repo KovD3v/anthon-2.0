@@ -1,10 +1,10 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRetentionParams } from "@/lib/maintenance/retention-policy";
 import { archiveOldSessions } from "@/lib/maintenance/session-archiver";
 import { verifyQStashAuth } from "@/lib/qstash";
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const { userId } = await verifyQStashAuth(request);
 

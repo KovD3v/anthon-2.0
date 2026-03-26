@@ -1,4 +1,3 @@
-import type { NextRequest } from "next/server";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -64,7 +63,7 @@ describe("GET /api/health", () => {
   });
 
   it("returns connected status when all checks pass", async () => {
-    const response = await GET({} as NextRequest);
+    const response = await GET({} as Request);
 
     expect(response.status).toBe(200);
     expect(mocks.fetch).toHaveBeenCalledWith(
@@ -94,7 +93,7 @@ describe("GET /api/health", () => {
   it("reports database error message when query fails", async () => {
     mocks.queryRaw.mockRejectedValue(new Error("db down"));
 
-    const response = await GET({} as NextRequest);
+    const response = await GET({} as Request);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -108,7 +107,7 @@ describe("GET /api/health", () => {
   it("reports missing OPENROUTER key", async () => {
     delete process.env.OPENROUTER_API_KEY;
 
-    const response = await GET({} as NextRequest);
+    const response = await GET({} as Request);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -122,7 +121,7 @@ describe("GET /api/health", () => {
   it("reports OpenRouter API errors when model endpoint fails", async () => {
     mocks.fetch.mockResolvedValue({ ok: false, status: 401 });
 
-    const response = await GET({} as NextRequest);
+    const response = await GET({} as Request);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -136,7 +135,7 @@ describe("GET /api/health", () => {
   it("reports missing Clerk secret", async () => {
     delete process.env.CLERK_SECRET_KEY;
 
-    const response = await GET({} as NextRequest);
+    const response = await GET({} as Request);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -150,7 +149,7 @@ describe("GET /api/health", () => {
   it("reports missing Blob token", async () => {
     delete process.env.BLOB_READ_WRITE_TOKEN;
 
-    const response = await GET({} as NextRequest);
+    const response = await GET({} as Request);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({

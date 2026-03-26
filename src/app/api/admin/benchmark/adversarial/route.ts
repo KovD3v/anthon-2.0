@@ -5,7 +5,7 @@
  */
 
 import { auth } from "@clerk/nextjs/server";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import {
   generateAdversarialCases,
   getPendingAdversarialCases,
@@ -17,7 +17,7 @@ import { prisma } from "@/lib/db";
  * POST /api/admin/benchmark/adversarial
  * Generate new adversarial test cases
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
  * GET /api/admin/benchmark/adversarial
  * List pending adversarial cases
  */
-export async function GET(_request: NextRequest) {
+export async function GET(_request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -114,7 +114,7 @@ export async function GET(_request: NextRequest) {
  * PATCH /api/admin/benchmark/adversarial
  * Approve or reject adversarial cases
  */
-export async function PATCH(request: NextRequest) {
+export async function PATCH(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {

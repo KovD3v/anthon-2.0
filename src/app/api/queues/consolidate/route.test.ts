@@ -27,14 +27,14 @@ describe("POST /api/queues/consolidate", () => {
   it("returns 400 when userId is missing", async () => {
     mocks.verifyQStashAuth.mockResolvedValue({});
 
-    const response = await POST({} as import("next/server").NextRequest);
+    const response = await POST({} as Request);
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Missing userId");
   });
 
   it("consolidates memories and returns success", async () => {
-    const response = await POST({} as import("next/server").NextRequest);
+    const response = await POST({} as Request);
 
     expect(response.status).toBe(200);
     expect(mocks.consolidateMemories).toHaveBeenCalledWith("user-1");
@@ -47,7 +47,7 @@ describe("POST /api/queues/consolidate", () => {
   it("returns 400 when auth verification fails", async () => {
     mocks.verifyQStashAuth.mockRejectedValue(new Error("invalid signature"));
 
-    const response = await POST({} as import("next/server").NextRequest);
+    const response = await POST({} as Request);
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Unauthorized or Error");
@@ -56,7 +56,7 @@ describe("POST /api/queues/consolidate", () => {
   it("returns 400 when consolidation fails", async () => {
     mocks.consolidateMemories.mockRejectedValue(new Error("consolidation failed"));
 
-    const response = await POST({} as import("next/server").NextRequest);
+    const response = await POST({} as Request);
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Unauthorized or Error");

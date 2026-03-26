@@ -3,13 +3,13 @@
  * View detailed user info including messages/chats
  */
 
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 // GET /api/admin/users/[userId] - Get user details with messages
 export async function GET(
-  _req: NextRequest,
+  _req: Request,
   context: { params: Promise<{ userId: string }> },
 ) {
   const { errorResponse } = await requireAdmin();

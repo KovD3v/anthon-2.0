@@ -3,7 +3,7 @@
  * List, view, and manage users.
  */
 
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import type { UserRole } from "@/generated/prisma";
 import { requireAdmin, requireSuperAdmin, updateUserRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -31,7 +31,7 @@ function parsePositiveIntegerParam(
 }
 
 // GET /api/admin/users - List users with pagination and search
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
 }
 
 // PATCH /api/admin/users - Update user role (SUPER_ADMIN only)
-export async function PATCH(req: NextRequest) {
+export async function PATCH(req: Request) {
   const { user, errorResponse } = await requireSuperAdmin();
   if (errorResponse) return errorResponse;
   if (!user)

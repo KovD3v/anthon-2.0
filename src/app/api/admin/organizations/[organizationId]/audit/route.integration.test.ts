@@ -1,4 +1,3 @@
-import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/db";
 import {
@@ -25,10 +24,10 @@ function uniqueId(prefix: string): string {
 
 function request(
   url = "http://localhost/api/admin/organizations/org-1/audit?page=1&limit=2",
-): NextRequest {
+): Request {
   return {
     nextUrl: new URL(url),
-  } as unknown as NextRequest;
+  } as unknown as Request;
 }
 
 function params(organizationId: string) {

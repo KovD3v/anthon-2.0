@@ -1,4 +1,3 @@
-import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/db";
 import {
@@ -25,10 +24,10 @@ function uniqueId(prefix: string): string {
 
 function getRequest(
   url = "http://localhost/api/admin/organizations",
-): NextRequest {
+): Request {
   return {
     nextUrl: new URL(url),
-  } as unknown as NextRequest;
+  } as unknown as Request;
 }
 
 describe("integration /api/admin/organizations", () => {
@@ -134,7 +133,7 @@ describe("integration /api/admin/organizations", () => {
           name: "No Contract Org",
           ownerEmail: "owner@example.com",
         }),
-      }) as unknown as NextRequest,
+      }) as unknown as Request,
     );
 
     expect(response.status).toBe(400);
@@ -163,7 +162,7 @@ describe("integration /api/admin/organizations", () => {
             maxContextMessages: 20,
           },
         }),
-      }) as unknown as NextRequest,
+      }) as unknown as Request,
     );
 
     expect(response.status).toBe(400);

@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
@@ -114,7 +114,7 @@ function validateContractInput(
 }
 
 // GET /api/admin/organizations - list organizations with seat usage
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   return withRequestLogContext(
     req,
     { route: "/api/admin/organizations", channel: "WEB" },
@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
 
       try {
         const shouldSyncFromClerk =
-          req.nextUrl.searchParams.get("sync") === "1";
+          new URL(req.url).searchParams.get("sync") === "1";
         if (user && shouldSyncFromClerk) {
           // Local/dev fallback when webhook sync is not configured:
           // mirror Clerk organizations into local storage on explicit request.
@@ -176,7 +176,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/admin/organizations - create organization + contract + owner assignment/invite
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   return withRequestLogContext(
     req,
     { route: "/api/admin/organizations", channel: "WEB" },
