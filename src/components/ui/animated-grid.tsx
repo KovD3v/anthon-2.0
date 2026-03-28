@@ -16,7 +16,7 @@ export function AnimatedGrid({ children, className, stagger = 0.08 }: AnimatedGr
       variants={staggerContainer(stagger)}
       initial="hidden"
       animate="show"
-      className={className}
+      className={cn(className)}
     >
       {children}
     </m.div>
@@ -28,7 +28,7 @@ export function AnimatedGridItem({ children, className }: { children: React.Reac
     <m.div
       variants={fadeUp}
       transition={defaultTransition}
-      className={className}
+      className={cn(className)}
     >
       {children}
     </m.div>
