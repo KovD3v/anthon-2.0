@@ -10,6 +10,9 @@ import { revalidateTag } from "next/cache";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const chatsLogger = createLogger("ai");
 
 export const runtime = "nodejs";
 
@@ -151,7 +154,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       },
     });
   } catch (err) {
-    console.error("[Chat API] GET error:", err);
+    chatsLogger.error("get.error", "Failed to fetch chat", { error: err });
     return Response.json({ error: "Failed to fetch chat" }, { status: 500 });
   }
 }
@@ -229,7 +232,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       updatedAt: updatedChat.updatedAt.toISOString(),
     });
   } catch (err) {
-    console.error("[Chat API] PATCH error:", err);
+    chatsLogger.error("patch.error", "Failed to update chat", { error: err });
     return Response.json({ error: "Failed to update chat" }, { status: 500 });
   }
 }
@@ -270,15 +273,12 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
       revalidateTag(`chat-${id}`, "page");
     } catch (revalidateErr) {
       // Non-fatal: cache invalidation failure shouldn't block the response
-      console.warn(
-        "[Chat API] revalidateTag failed after DELETE:",
-        revalidateErr,
-      );
+      chatsLogger.warn("delete.revalidate_failed", "revalidateTag failed after DELETE", { error: revalidateErr });
     }
 
     return Response.json({ success: true });
   } catch (err) {
-    console.error("[Chat API] DELETE error:", err);
+    chatsLogger.error("delete.error", "Failed to delete chat", { error: err });
     return Response.json({ error: "Failed to delete chat" }, { status: 500 });
   }
 }

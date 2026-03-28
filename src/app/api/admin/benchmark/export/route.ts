@@ -1,6 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const benchmarkLogger = createLogger("ai");
 
 /**
  * GET /api/admin/benchmark/export
@@ -70,7 +73,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error("[Export API] GET error:", error);
+    benchmarkLogger.error("get.error", "Failed to export benchmark results", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

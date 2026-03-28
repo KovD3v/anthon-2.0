@@ -6,6 +6,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { getRagContext, searchDocuments, shouldUseRag } from "@/lib/ai/rag";
+import { createLogger } from "@/lib/logger";
+
+const ragLogger = createLogger("ai");
 
 // POST /api/rag/search - Search for relevant documents
 export async function POST(req: Request) {
@@ -48,7 +51,7 @@ export async function POST(req: Request) {
       resultCount: results.length,
     });
   } catch (error) {
-    console.error("[RAG API] Error searching:", error);
+    ragLogger.error("post.error", "Failed to search RAG documents", { error });
     return NextResponse.json(
       { error: "Failed to search documents" },
       { status: 500 },

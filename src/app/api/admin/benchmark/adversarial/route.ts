@@ -12,6 +12,9 @@ import {
   saveAdversarialCase,
 } from "@/lib/benchmark";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const benchmarkLogger = createLogger("ai");
 
 /**
  * POST /api/admin/benchmark/adversarial
@@ -37,11 +40,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { count = 3, categories, focusOnLowScores = false } = body;
 
-    console.log("[Adversarial API] Generating cases:", {
-      count,
-      categories,
-      focusOnLowScores,
-    });
+    benchmarkLogger.info("post.generate", "Generating adversarial cases", { count, categories, focusOnLowScores });
 
     const generatedCases = await generateAdversarialCases({
       count: Math.min(count, 10), // Cap at 10
@@ -65,7 +64,7 @@ export async function POST(request: Request) {
       savedIds: savedIds.length > 0 ? savedIds : undefined,
     });
   } catch (error) {
-    console.error("[Adversarial API] Error:", error);
+    benchmarkLogger.error("request.error", "Adversarial API error", { error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 },
@@ -102,7 +101,7 @@ export async function GET(_request: Request) {
       cases: pendingCases,
     });
   } catch (error) {
-    console.error("[Adversarial API] Error:", error);
+    benchmarkLogger.error("request.error", "Adversarial API error", { error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 },
@@ -162,7 +161,7 @@ export async function PATCH(request: Request) {
       testCaseId,
     });
   } catch (error) {
-    console.error("[Adversarial API] Error:", error);
+    benchmarkLogger.error("request.error", "Adversarial API error", { error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 },

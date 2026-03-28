@@ -14,6 +14,9 @@ import {
   hashGuestToken,
 } from "@/lib/guest-auth";
 import { migrateGuestToUser } from "@/lib/guest-migration";
+import { createLogger } from "@/lib/logger";
+
+const chatsLogger = createLogger("ai");
 
 export const runtime = "nodejs";
 
@@ -47,24 +50,16 @@ export async function GET() {
       if (guestUser) {
         if (guestUser.id !== user.id) {
           // Migrate guest data to authenticated user
-          console.log(
-            `[Chats API] Migrating guest ${guestUser.id} to user ${user.id}`,
-          );
+          chatsLogger.info("guest.migration_start", "Migrating guest to user", { guestId: guestUser.id, userId: user.id });
           const migrationResult = await migrateGuestToUser(
             guestUser.id,
             user.id,
           );
 
           if (migrationResult.success) {
-            console.log(
-              `[Chats API] Migration successful:`,
-              migrationResult.migratedCounts,
-            );
+            chatsLogger.info("guest.migration_success", "Guest migration successful", { migratedCounts: migrationResult.migratedCounts });
           } else {
-            console.error(
-              `[Chats API] Migration failed:`,
-              migrationResult.error,
-            );
+            chatsLogger.error("guest.migration_failed", "Guest migration failed", { error: migrationResult.error });
           }
         }
         // Always clear guest cookie after migration attempt (success or already migrated)
@@ -101,7 +96,7 @@ export async function GET() {
       })),
     });
   } catch (err) {
-    console.error("[Chats API] GET error:", err);
+    chatsLogger.error("get.error", "Failed to fetch chats", { error: err });
     return Response.json({ error: "Failed to fetch chats" }, { status: 500 });
   }
 }
@@ -161,7 +156,7 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (err) {
-    console.error("[Chats API] POST error:", err);
+    chatsLogger.error("post.error", "Failed to create chat", { error: err });
     return Response.json({ error: "Failed to create chat" }, { status: 500 });
   }
 }

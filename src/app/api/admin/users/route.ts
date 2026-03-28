@@ -7,6 +7,9 @@ import { NextResponse } from "next/server";
 import type { UserRole } from "@/generated/prisma";
 import { requireAdmin, requireSuperAdmin, updateUserRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const usersLogger = createLogger("auth");
 
 function parsePositiveIntegerParam(
   value: string | null,
@@ -138,7 +141,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error("[Users API] Error:", error);
+    usersLogger.error("get.error", "Failed to fetch users", { error });
     return NextResponse.json(
       { error: "Failed to fetch users" },
       { status: 500 },
@@ -177,7 +180,7 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[Users API] Error updating role:", error);
+    usersLogger.error("patch.error", "Failed to update user role", { error });
     return NextResponse.json(
       { error: "Failed to update role" },
       { status: 500 },

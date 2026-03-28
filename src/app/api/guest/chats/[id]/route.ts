@@ -10,6 +10,9 @@ import { revalidateTag } from "next/cache";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { prisma } from "@/lib/db";
 import { authenticateGuest } from "@/lib/guest-auth";
+import { createLogger } from "@/lib/logger";
+
+const guestLogger = createLogger("auth");
 
 export const runtime = "nodejs";
 
@@ -130,7 +133,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       },
     });
   } catch (err) {
-    console.error("[Guest Chat API] GET error:", err);
+    guestLogger.error("get.error", "Failed to fetch guest chat", { error: err });
     return Response.json({ error: "Failed to fetch chat" }, { status: 500 });
   }
 }
@@ -201,7 +204,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       isGuest: true,
     });
   } catch (err) {
-    console.error("[Guest Chat API] PATCH error:", err);
+    guestLogger.error("patch.error", "Failed to update guest chat", { error: err });
     return Response.json({ error: "Failed to update chat" }, { status: 500 });
   }
 }
@@ -236,15 +239,12 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
       revalidateTag(`chats-${user.id}`, "page");
       revalidateTag(`chat-${id}`, "page");
     } catch (revalidateErr) {
-      console.warn(
-        "[Guest Chat API] revalidateTag failed after DELETE:",
-        revalidateErr,
-      );
+      guestLogger.warn("delete.revalidate_failed", "revalidateTag failed after DELETE", { error: revalidateErr });
     }
 
     return Response.json({ success: true });
   } catch (err) {
-    console.error("[Guest Chat API] DELETE error:", err);
+    guestLogger.error("delete.error", "Failed to delete guest chat", { error: err });
     return Response.json({ error: "Failed to delete chat" }, { status: 500 });
   }
 }

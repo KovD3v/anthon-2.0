@@ -6,6 +6,9 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const usersLogger = createLogger("auth");
 
 // GET /api/admin/users/[userId] - Get user details with messages
 export async function GET(
@@ -106,7 +109,7 @@ export async function GET(
       channels,
     });
   } catch (error) {
-    console.error("[User Detail API] Error:", error);
+    usersLogger.error("get.error", "Failed to fetch user details", { userId, error });
     return NextResponse.json(
       { error: "Failed to fetch user" },
       { status: 500 },

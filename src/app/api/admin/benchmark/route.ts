@@ -9,6 +9,9 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const benchmarkLogger = createLogger("ai");
 
 // Dynamically import benchmark functions to avoid issues before migration
 async function getBenchmarkModule() {
@@ -63,7 +66,7 @@ export async function GET(request: Request) {
     const runs = await listBenchmarkRuns(limit);
     return NextResponse.json({ runs });
   } catch (error) {
-    console.error("[Benchmark API] GET error:", error);
+    benchmarkLogger.error("get.error", "Failed to fetch benchmark data", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -120,10 +123,7 @@ export async function POST(request: Request) {
       iterations: body.iterations,
       concurrency: body.concurrency,
     }).catch((err: Error) => {
-      console.error(
-        `[Benchmark API] Background run failed for ${run.id}:`,
-        err,
-      );
+      benchmarkLogger.error("background_run.failed", "Background benchmark run failed", { runId: run.id, error: err });
     });
 
     return NextResponse.json({
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
       message: "Benchmark started",
     });
   } catch (error) {
-    console.error("[Benchmark API] POST error:", error);
+    benchmarkLogger.error("post.error", "Failed to start benchmark run", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -238,7 +238,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ success: true, run: updated });
   } catch (error) {
-    console.error("[Benchmark API] PATCH error:", error);
+    benchmarkLogger.error("patch.error", "Failed to update benchmark", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -273,7 +273,7 @@ export async function DELETE(request: Request) {
       message: "Benchmark run deleted",
     });
   } catch (error) {
-    console.error("[Benchmark API] DELETE error:", error);
+    benchmarkLogger.error("delete.error", "Failed to delete benchmark run", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

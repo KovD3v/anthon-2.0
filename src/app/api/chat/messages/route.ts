@@ -1,6 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const chatLogger = createLogger("ai");
 
 /**
  * GET /api/chat/messages?chatId=<chatId>
@@ -81,7 +84,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ messages: uiMessages });
   } catch (error) {
-    console.error("[Chat Messages API] Error:", error);
+    chatLogger.error("get.error", "Failed to fetch chat messages", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -164,7 +167,7 @@ export async function DELETE(request: Request) {
       deletedCount: deleteResult.count,
     });
   } catch (error) {
-    console.error("[Chat Messages API] Delete error:", error);
+    chatLogger.error("delete.error", "Failed to delete chat message", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -251,7 +254,7 @@ export async function PATCH(request: Request) {
       newContent: content || message.content,
     });
   } catch (error) {
-    console.error("[Chat Messages API] Edit error:", error);
+    chatLogger.error("patch.error", "Failed to edit chat message", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

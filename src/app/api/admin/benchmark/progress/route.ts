@@ -1,6 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const benchmarkLogger = createLogger("ai");
 
 /**
  * GET /api/admin/benchmark/progress
@@ -47,7 +50,7 @@ export async function GET(request: Request) {
         run.totalTests > 0 ? (run.completedTests / run.totalTests) * 100 : 0,
     });
   } catch (error) {
-    console.error("[Progress API] GET error:", error);
+    benchmarkLogger.error("get.error", "Failed to fetch benchmark progress", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

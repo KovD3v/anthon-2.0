@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
 import { getRetentionParams } from "@/lib/maintenance/retention-policy";
 import { archiveOldSessions } from "@/lib/maintenance/session-archiver";
 import { verifyQStashAuth } from "@/lib/qstash";
+
+const qstashLogger = createLogger("qstash");
 
 export async function POST(request: Request) {
   try {
@@ -29,7 +32,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, retentionDays });
   } catch (error) {
-    console.error("[Queue] Archive Error:", error);
+    qstashLogger.error("archive.error", "Queue archive job failed", { error });
     return new NextResponse("Unauthorized or Error", { status: 400 });
   }
 }

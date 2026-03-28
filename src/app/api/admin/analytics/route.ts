@@ -7,6 +7,9 @@ import { NextResponse } from "next/server";
 import { analyzeSessionProgress } from "@/lib/analytics/funnel";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const analyticsLogger = createLogger("usage");
 
 // GET /api/admin/analytics
 export async function GET(req: Request) {
@@ -33,7 +36,7 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: "Invalid type" }, { status: 400 });
     }
   } catch (error) {
-    console.error("[Analytics API] Error:", error);
+    analyticsLogger.error("get.error", "Failed to fetch analytics", { error });
     return NextResponse.json(
       { error: "Failed to fetch analytics" },
       { status: 500 },

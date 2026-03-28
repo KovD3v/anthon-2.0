@@ -2,6 +2,9 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const benchmarkLogger = createLogger("ai");
 
 /**
  * GET /api/admin/benchmark/test-cases
@@ -56,7 +59,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ testCases });
   } catch (error) {
-    console.error("[TestCases API] GET error:", error);
+    benchmarkLogger.error("get.error", "Failed to fetch benchmark test cases", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -124,7 +127,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, testCase });
   } catch (error) {
-    console.error("[TestCases API] POST error:", error);
+    benchmarkLogger.error("post.error", "Failed to create/update benchmark test case", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -155,7 +158,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[TestCases API] DELETE error:", error);
+    benchmarkLogger.error("delete.error", "Failed to delete benchmark test case", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

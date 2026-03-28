@@ -12,7 +12,10 @@
 import { del } from "@vercel/blob";
 
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
 import { getAttachmentRetentionDays } from "@/lib/rate-limit/config";
+
+const cronLogger = createLogger("maintenance");
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // Allow up to 60 seconds
@@ -27,11 +30,11 @@ export async function POST(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    console.error("[Cleanup Cron] Unauthorized request");
+    cronLogger.error("cleanup.unauthorized", "Unauthorized cleanup cron request");
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  console.log("[Cleanup Cron] Starting attachment cleanup...");
+  cronLogger.info("cleanup.start", "Starting attachment cleanup");
 
   try {
     // Track cleanup stats
@@ -117,10 +120,7 @@ export async function POST(request: Request) {
           });
           stats.deletedAttachments++;
         } catch (error) {
-          console.error(
-            `[Cleanup Cron] Error deleting attachment ${attachment.id}:`,
-            error,
-          );
+          cronLogger.error("cleanup.attachment_failed", "Failed to delete attachment", { attachmentId: attachment.id, error });
           stats.errors++;
         }
       }
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
       }
     }
 
-    console.log("[Cleanup Cron] Cleanup complete:", stats);
+    cronLogger.info("cleanup.complete", "Attachment cleanup complete", { stats });
 
     return Response.json({
       success: true,
@@ -138,7 +138,7 @@ export async function POST(request: Request) {
       stats,
     });
   } catch (error) {
-    console.error("[Cleanup Cron] Fatal error:", error);
+    cronLogger.error("cleanup.fatal", "Fatal error during attachment cleanup", { error });
     return Response.json(
       {
         error: error instanceof Error ? error.message : "Cleanup failed",

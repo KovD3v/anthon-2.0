@@ -6,7 +6,10 @@
 
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
 import { getElevenLabsSubscription, getSystemLoad } from "@/lib/voice";
+
+const voiceLogger = createLogger("voice");
 
 export async function GET() {
   // Require admin access
@@ -118,7 +121,7 @@ export async function GET() {
       })),
     });
   } catch (error) {
-    console.error("[Admin ElevenLabs Stats] Error:", error);
+    voiceLogger.error("get.error", "Failed to fetch ElevenLabs stats", { error });
     return Response.json({ error: "Failed to fetch stats" }, { status: 500 });
   }
 }

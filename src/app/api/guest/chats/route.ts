@@ -7,6 +7,9 @@
 
 import { prisma } from "@/lib/db";
 import { authenticateGuest } from "@/lib/guest-auth";
+import { createLogger } from "@/lib/logger";
+
+const guestLogger = createLogger("auth");
 
 export const runtime = "nodejs";
 
@@ -45,7 +48,7 @@ export async function GET() {
       isGuest: true,
     });
   } catch (err) {
-    console.error("[Guest Chats API] GET error:", err);
+    guestLogger.error("get.error", "Failed to fetch guest chats", { error: err });
     return Response.json({ error: "Failed to fetch chats" }, { status: 500 });
   }
 }
@@ -96,7 +99,7 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (err) {
-    console.error("[Guest Chats API] POST error:", err);
+    guestLogger.error("post.error", "Failed to create guest chat", { error: err });
     return Response.json({ error: "Failed to create chat" }, { status: 500 });
   }
 }

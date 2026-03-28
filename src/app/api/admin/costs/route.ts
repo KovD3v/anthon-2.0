@@ -6,6 +6,9 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const costsLogger = createLogger("usage");
 
 // GET /api/admin/costs
 export async function GET(req: Request) {
@@ -113,7 +116,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error("[Costs API] Error:", error);
+    costsLogger.error("get.error", "Failed to fetch cost analysis", { error });
     return NextResponse.json(
       { error: "Failed to fetch cost analysis" },
       { status: 500 },
