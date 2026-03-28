@@ -38,6 +38,25 @@ function toPoolerConnectionString(connectionString: string): string | null {
   }
 }
 
+function assertNotProductionDatabase(
+  testUrl: string,
+  productionUrl: string | undefined,
+): void {
+  if (!productionUrl) return; // No production URL configured — skip check
+  const testHost = getHostFromConnectionString(testUrl);
+  const prodHost = getHostFromConnectionString(productionUrl);
+  // Strip pooler suffix for comparison: ep-foo-pooler.x.y == ep-foo.x.y
+  const normalize = (h: string) => h.replace(/-pooler\./, ".");
+  if (normalize(testHost) === normalize(prodHost)) {
+    throw new Error(
+      `[integration setup] TEST_DATABASE_URL resolves to the same host as DATABASE_URL.\n` +
+        `Refusing to run integration tests against the production database.\n` +
+        `TEST_DATABASE_URL host: ${testHost}\n` +
+        `DATABASE_URL host: ${prodHost}`,
+    );
+  }
+}
+
 async function assertDbReachable(connectionString: string): Promise<void> {
   const client = new Client({ connectionString });
   try {
@@ -112,6 +131,12 @@ export default async function globalSetup() {
       "TEST_DATABASE_URL is required for integration tests. Refusing to run against DATABASE_URL.",
     );
   }
+
+  // Guard: refuse to run if TEST_DATABASE_URL points at the production DB
+  assertNotProductionDatabase(
+    configuredTestDatabaseUrl,
+    process.env.DATABASE_URL,
+  );
 
   const testDatabaseUrl = await resolveReachableConnectionString(
     configuredTestDatabaseUrl,

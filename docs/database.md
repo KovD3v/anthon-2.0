@@ -2,6 +2,29 @@
 
 Anthon 2.0 uses PostgreSQL with Prisma ORM and pgvector for vector embeddings.
 
+## Neon Branch Setup
+
+The project uses a single Neon project (`AnthonChat`) with two branches:
+
+| Branch | Role | Used by |
+|--------|------|---------|
+| `production` | Live deployed database | Vercel (`DATABASE_URL` / `DIRECT_DATABASE_URL`) |
+| `development` | Dev/test database | Integration tests (`TEST_DATABASE_URL`), local dev |
+
+**Migrations run automatically** via `bun run build` → `prisma migrate deploy`.
+Set `DATABASE_URL` and `DIRECT_DATABASE_URL` in Vercel to the production branch
+connection strings — the next deploy will apply all pending migrations.
+
+For manual production migration:
+
+```bash
+PROD_DATABASE_URL=<pooled> PROD_DIRECT_DATABASE_URL=<direct> ./scripts/migrate-prod.sh
+```
+
+**Safety:** Never point `TEST_DATABASE_URL` at the production branch. The integration
+test setup (`global-setup.ts`) will abort if `TEST_DATABASE_URL` and `DATABASE_URL`
+resolve to the same Neon host.
+
 ## Entity Relationship Overview
 
 ```
@@ -164,6 +187,7 @@ Per-day usage tracking for rate limiting.
 | `requestCount` | Int   | Daily requests      |
 | `inputTokens`  | Int   | Total input tokens  |
 | `outputTokens` | Int   | Total output tokens |
+| `reasoningTokens` | Int   | Total reasoning tokens (models that expose them) |
 | `totalCostUsd` | Float | Total cost          |
 
 ### Subscription

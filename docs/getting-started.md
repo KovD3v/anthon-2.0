@@ -37,8 +37,8 @@ cp .env.example .env
 Minimum variables to run the web app:
 
 ```env
-DATABASE_URL="postgresql://user:password@localhost:5432/anthon?schema=public"
-DIRECT_DATABASE_URL="postgresql://user:password@localhost:5432/anthon?schema=public"
+DATABASE_URL="postgresql://user:password@host/anthon?schema=public"  # Neon production branch (pooled)
+DIRECT_DATABASE_URL="postgresql://user:password@host/anthon?schema=public"  # Neon production branch (direct)
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
 CLERK_SECRET_KEY="sk_test_..."
 CLERK_WEBHOOK_SECRET="whsec_..."
@@ -55,13 +55,13 @@ Feature-specific variables:
 
 `NEXT_PUBLIC_APP_URL` is used for link generation (channel linking, embedding headers, callbacks).
 
-`TEST_DATABASE_URL` is required for `npm run test:integration` and should point to a non-production database/branch.
+`TEST_DATABASE_URL` is required for `bun run test:integration` and should point to a non-production database/branch.
 
-Neon branch mapping (recommended):
+Neon branch mapping (required):
 
 - `TEST_DATABASE_URL` -> `development` branch (direct connection string)
-- Production deployment `DATABASE_URL` -> `production` branch (pooled connection string)
-- Production deployment `DIRECT_DATABASE_URL` -> `production` branch (direct connection string)
+- `DATABASE_URL` -> `production` branch (pooled connection string) — used by Vercel
+- `DIRECT_DATABASE_URL` -> `production` branch (direct connection string) — used by Vercel
 
 Useful Neon CLI commands:
 
@@ -80,16 +80,26 @@ Ensure PostgreSQL is running with pgvector extension:
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-Run Prisma migrations:
+For **local development**, run Prisma migrations:
 
 ```bash
-npx prisma migrate dev
+bunx prisma migrate dev
 ```
 
 Generate Prisma client:
 
 ```bash
-npx prisma generate
+bunx prisma generate
+```
+
+For **production/Vercel**: Migrations run automatically during `bun run build`
+(→ `prisma migrate deploy`). Set `DATABASE_URL` and `DIRECT_DATABASE_URL` in Vercel
+to the production branch connection strings; the next deploy applies all pending migrations.
+
+For **manual production migration**, use:
+
+```bash
+PROD_DATABASE_URL=<pooled> PROD_DIRECT_DATABASE_URL=<direct> ./scripts/migrate-prod.sh
 ```
 
 ### 5. Seed Database (Optional)

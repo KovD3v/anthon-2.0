@@ -51,6 +51,7 @@ describe("checkRateLimit", () => {
       requestCount: 0,
       inputTokens: 0,
       outputTokens: 0,
+      reasoningTokens: 0,
       totalCostUsd: 0,
     });
   });
@@ -60,6 +61,7 @@ describe("checkRateLimit", () => {
       requestCount: 2,
       inputTokens: 20,
       outputTokens: 10,
+      reasoningTokens: 0,
       totalCostUsd: 0.1,
     });
 
@@ -97,6 +99,7 @@ describe("checkRateLimit", () => {
       requestCount: 10,
       inputTokens: 0,
       outputTokens: 0,
+      reasoningTokens: 0,
       totalCostUsd: 0,
     });
 
@@ -119,6 +122,7 @@ describe("checkRateLimit", () => {
       requestCount: 0,
       inputTokens: 100,
       outputTokens: 0,
+      reasoningTokens: 0,
       totalCostUsd: 0,
     });
 
@@ -141,6 +145,7 @@ describe("checkRateLimit", () => {
       requestCount: 0,
       inputTokens: 0,
       outputTokens: 50,
+      reasoningTokens: 0,
       totalCostUsd: 0,
     });
 
@@ -163,6 +168,7 @@ describe("checkRateLimit", () => {
       requestCount: 0,
       inputTokens: 0,
       outputTokens: 0,
+      reasoningTokens: 0,
       totalCostUsd: 1,
     });
 
