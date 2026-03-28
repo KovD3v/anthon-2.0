@@ -1,3 +1,4 @@
+import { PageWrapper } from "@/components/ui/page-wrapper";
 import { notFound } from "next/navigation";
 import { getAuthUser } from "@/lib/auth";
 import { getSharedChat } from "@/lib/chat";
@@ -51,5 +52,9 @@ export default async function ChatConversationPage({
     notFound();
   }
 
-  return <ChatConversationClient chatId={id} initialChatData={chatData} />;
+  return (
+    <PageWrapper>
+      <ChatConversationClient chatId={id} initialChatData={chatData} />
+    </PageWrapper>
+  );
 }
