@@ -6,6 +6,7 @@ import {
   SignInButton,
   SignUpButton,
   UserButton,
+  useUser,
 } from "@clerk/nextjs";
 import { AnimatePresence, m } from "framer-motion";
 import {
@@ -37,6 +38,8 @@ const getServerSnapshot = () => false;
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { theme, setTheme } = useTheme();
+  const { user } = useUser();
+  const isOrgMember = (user?.organizationMemberships?.length ?? 0) > 0;
   const mounted = useSyncExternalStore(
     subscribe,
     getClientSnapshot,
@@ -81,12 +84,14 @@ export function Navbar() {
               >
                 Canali
               </Link>
-              <Link
-                href="/organization"
-                className="text-muted-foreground hover:text-primary transition-colors"
-              >
-                Organizzazione
-              </Link>
+              {isOrgMember && (
+                <Link
+                  href="/organization"
+                  className="text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Organizzazione
+                </Link>
+              )}
             </SignedIn>
             <Link
               href="/pricing"
@@ -194,12 +199,14 @@ export function Navbar() {
                       label="Canali"
                       onClick={() => setIsMenuOpen(false)}
                     />
-                    <MobileNavLink
-                      href="/organization"
-                      icon={<Building2 className="h-4 w-4" />}
-                      label="Organizzazione"
-                      onClick={() => setIsMenuOpen(false)}
-                    />
+                    {isOrgMember && (
+                      <MobileNavLink
+                        href="/organization"
+                        icon={<Building2 className="h-4 w-4" />}
+                        label="Organizzazione"
+                        onClick={() => setIsMenuOpen(false)}
+                      />
+                    )}
                   </SignedIn>
                   <MobileNavLink
                     href="/chat"
