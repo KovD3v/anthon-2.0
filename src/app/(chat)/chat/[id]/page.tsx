@@ -1,5 +1,5 @@
-import { PageWrapper } from "@/components/ui/page-wrapper";
 import { notFound } from "next/navigation";
+import { PageWrapper } from "@/components/ui/page-wrapper";
 import { getAuthUser } from "@/lib/auth";
 import { getSharedChat } from "@/lib/chat";
 import { prisma } from "@/lib/db";

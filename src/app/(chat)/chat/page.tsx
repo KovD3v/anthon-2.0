@@ -2,8 +2,8 @@
 
 import { useUser } from "@clerk/nextjs";
 import { Brain, Sparkles } from "lucide-react";
-import { PageWrapper } from "@/components/ui/page-wrapper";
 import { Button } from "@/components/ui/button";
+import { PageWrapper } from "@/components/ui/page-wrapper";
 import { useChatContext } from "./layout-client";
 
 /**
