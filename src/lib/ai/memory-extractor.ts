@@ -4,6 +4,9 @@ import { MEMORY } from "@/lib/ai/constants";
 import { subAgentModel } from "@/lib/ai/providers/openrouter";
 import { invalidateMemoriesForPromptCache } from "@/lib/ai/tools/memory";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const extractorLogger = createLogger("ai");
 
 // Schema for extracted memory facts
 const ExtractedFactsSchema = z.object({
@@ -126,6 +129,6 @@ Restituisci i fatti estratti o un array vuoto se non ce ne sono.`,
     });
   } catch (error) {
     // Log error but don't throw - memory extraction is non-critical
-    console.error("[MemoryExtractor] Error extracting memories:", error);
+    extractorLogger.error("extraction_failed", "Error extracting memories", { error });
   }
 }

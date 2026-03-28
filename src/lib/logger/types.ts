@@ -7,7 +7,9 @@ export type LogDomain =
   | "usage"
   | "organizations"
   | "webhook"
-  | "latency";
+  | "latency"
+  | "qstash"
+  | "maintenance";
 
 export interface LogContext {
   requestId?: string;

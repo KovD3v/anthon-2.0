@@ -1,5 +1,8 @@
 import { streamChat } from "@/lib/ai/orchestrator";
+import { createLogger } from "@/lib/logger";
 import { persistAssistantOutput } from "./persistence";
+
+const runLogger = createLogger("ai");
 import type {
   ChannelMessagePart,
   InboundContext,
@@ -78,10 +81,7 @@ export async function runChannelFlow(
               waitUntil: ctx.persistence?.waitUntil,
             });
           } catch (error) {
-            console.error(
-              "[ChannelFlow] Failed persisting assistant output:",
-              error,
-            );
+            runLogger.error("persist.failed", "Failed persisting assistant output", { error });
           }
         }
 
@@ -89,7 +89,7 @@ export async function runChannelFlow(
           try {
             await ctx.hooks.onFinish({ text, metrics });
           } catch (error) {
-            console.error("[ChannelFlow] onFinish hook error:", error);
+            runLogger.error("hook.onfinish_failed", "onFinish hook error", { error });
           }
         }
       }

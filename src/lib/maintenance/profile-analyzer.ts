@@ -2,6 +2,9 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { maintenanceModel } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const analyzerLogger = createLogger("maintenance");
 
 const ProfileAnalysisSchema = z.object({
   tone: z
@@ -120,6 +123,6 @@ Se parla di "tennis", aggiorna lo sport.`,
       }
     });
   } catch (error) {
-    console.error("[Analyzer] Error analyzing profile:", error);
+    analyzerLogger.error("analysis_failed", "Error analyzing profile", { error });
   }
 }

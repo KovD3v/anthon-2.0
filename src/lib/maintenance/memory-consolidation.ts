@@ -3,6 +3,9 @@ import { z } from "zod";
 import { maintenanceModel } from "@/lib/ai/providers/openrouter";
 import { invalidateMemoriesForPromptCache } from "@/lib/ai/tools/memory";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const consolidationLogger = createLogger("maintenance");
 
 // Schema for consolidated memories
 const ConsolidatedMemoriesSchema = z.object({
@@ -69,13 +72,11 @@ NON aver paura di unire.`,
     const changes = output?.memories || [];
 
     if (changes.length === 0) {
-      console.log(`[Consolidation] No changes needed for user ${userId}`);
+      consolidationLogger.debug("no_changes", "No changes needed", { userId });
       return;
     }
 
-    console.log(
-      `[Consolidation] Applying ${changes.length} changes for user ${userId}`,
-    );
+    consolidationLogger.info("applying_changes", `Applying ${changes.length} changes`, { userId, count: changes.length });
 
     // 3. Apply changes via transaction
     await prisma.$transaction(async (tx) => {
@@ -121,6 +122,6 @@ NON aver paura di unire.`,
     // Invalidate cache
     invalidateMemoriesForPromptCache(userId);
   } catch (error) {
-    console.error("[Consolidation] Error consolidating memories:", error);
+    consolidationLogger.error("consolidation_failed", "Error consolidating memories", { userId, error });
   }
 }

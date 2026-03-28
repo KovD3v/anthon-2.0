@@ -1,5 +1,8 @@
 import { createHmac } from "node:crypto";
 import { LatencyLogger } from "@/lib/latency-logger";
+import { createLogger } from "@/lib/logger";
+
+const whatsappLogger = createLogger("webhook");
 
 export function verifySignature(request: Request, body: string): boolean {
   const secret = process.env.WHATSAPP_APP_SECRET;
@@ -54,11 +57,7 @@ export async function sendWhatsAppMessage(to: string, text: string) {
   });
 
   if (!res.ok) {
-    console.error(
-      "[WhatsApp] Send message failed:",
-      res.status,
-      await res.text(),
-    );
+    whatsappLogger.error("send.message_failed", "Send message failed", { status: res.status, body: await res.text() });
   }
 }
 
@@ -90,7 +89,7 @@ export async function sendWhatsAppVoice(
       });
 
       if (!uploadRes.ok) {
-        console.error("[WhatsApp] Voice upload failed:", await uploadRes.text());
+        whatsappLogger.error("voice.upload_failed", "Voice upload failed", { status: uploadRes.status });
         return false;
       }
 
@@ -112,13 +111,13 @@ export async function sendWhatsAppVoice(
       });
 
       if (!sendRes.ok) {
-        console.error("[WhatsApp] Voice send failed:", await sendRes.text());
+        whatsappLogger.error("voice.send_failed", "Voice send failed", { status: sendRes.status });
         return false;
       }
 
       return true;
     } catch (err) {
-      console.error("[WhatsApp] sendWhatsAppVoice error:", err);
+      whatsappLogger.error("voice.send_error", "sendWhatsAppVoice error", { err });
       return false;
     }
   });
@@ -151,7 +150,7 @@ export async function downloadWhatsAppMedia(
 
     return { base64, mimeType: mime_type };
   } catch (error) {
-    console.error("[WhatsApp] Media download err:", error);
+    whatsappLogger.error("media.download_failed", "Media download failed", { error });
     return null;
   }
 }

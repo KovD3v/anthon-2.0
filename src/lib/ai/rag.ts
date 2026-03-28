@@ -14,10 +14,6 @@ import { createLogger } from "@/lib/logger";
 
 const ragLogger = createLogger("ai");
 
-// Embedding dimensions for OpenAI text-embedding-3-small
-// The model outputs 1536-dimensional embeddings
-const _EMBEDDING_DIMENSIONS = 1536;
-
 // OpenRouter API endpoint for embeddings
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/embeddings";
 const EMBEDDING_MODEL = "openai/text-embedding-3-small";

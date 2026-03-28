@@ -1,5 +1,8 @@
 import { generateText } from "ai";
 import { openrouter } from "@/lib/ai/providers/openrouter";
+import { createLogger } from "@/lib/logger";
+
+const titleLogger = createLogger("ai");
 
 const SUMMARIZATION_MODEL = openrouter("google/gemini-2.0-flash-001");
 
@@ -25,7 +28,7 @@ export async function generateChatTitle(context: string): Promise<string> {
       .replace(/["'.]+$/, "")
       .slice(0, 50);
   } catch (error) {
-    console.error("[ChatTitle] Title generation failed:", error);
+    titleLogger.error("title.generation_failed", "Title generation failed", { error });
     // Fallback: use first few words
     return `${context.slice(0, 40).trim()}...`;
   }

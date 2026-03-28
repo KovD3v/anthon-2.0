@@ -2,6 +2,9 @@ import type { SubscriptionStatus, UserRole } from "@/generated/prisma";
 import { SESSION } from "@/lib/ai/constants";
 import { prisma } from "@/lib/db";
 import { getPostHogClient } from "@/lib/posthog";
+import { createLogger } from "@/lib/logger";
+
+const funnelLogger = createLogger("usage");
 
 export type FunnelStep = "signup" | "first_chat" | "session_3" | "upgrade";
 export type FunnelChannel = "WEB" | "WHATSAPP" | "TELEGRAM" | "WEB_GUEST";
@@ -62,7 +65,7 @@ function captureFunnelEvent(
       }),
     });
   } catch (error) {
-    console.error("[Funnel Analytics] capture failed:", error);
+    funnelLogger.error("capture_failed", "Funnel capture failed", { error });
   }
 }
 

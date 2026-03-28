@@ -142,10 +142,3 @@ export const MEMORY = {
   CONSOLIDATION_THRESHOLD: 3,
 } as const;
 
-// -----------------------------------------------------
-// COST TRACKING
-// -----------------------------------------------------
-const _COST = {
-  /** Warning threshold for session costs (USD) */
-  WARNING_THRESHOLD_USD: 0.5,
-} as const;

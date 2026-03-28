@@ -3,6 +3,9 @@ import type { Message } from "@/generated/prisma/client";
 import { SESSION } from "@/lib/ai/constants"; // GAP_MS
 import { maintenanceModel } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const archiverLogger = createLogger("maintenance");
 
 // Reusing session grouping logic structure
 interface SessionGroup {
@@ -81,11 +84,11 @@ export async function archiveOldSessions(
       continue; // Session is too recent to archive (part of it might be old, but keep it whole)
     }
 
-    console.log(
-      `[Archiver] Archiving session ${session.startTime.toISOString()} for user ${userId} (${
-        session.messages.length
-      } msgs)`,
-    );
+    archiverLogger.info("archiving_session", "Archiving session", {
+      userId,
+      sessionStart: session.startTime.toISOString(),
+      messageCount: session.messages.length,
+    });
 
     // 4. Summarize for Archive
     const transcript = session.messages

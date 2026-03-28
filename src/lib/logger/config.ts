@@ -25,6 +25,8 @@ const VALID_DOMAINS = new Set<LogDomain>([
   "organizations",
   "webhook",
   "latency",
+  "qstash",
+  "maintenance",
 ]);
 
 let domainLevelsCache: {

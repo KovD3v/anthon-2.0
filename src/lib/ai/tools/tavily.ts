@@ -1,6 +1,9 @@
 import { tavily } from "@tavily/core";
 import { tool } from "ai";
 import { z } from "zod";
+import { createLogger } from "@/lib/logger";
+
+const tavilyLogger = createLogger("ai");
 
 // Validate API key at module load
 const apiKey = process.env.TAVILY_API_KEY;
@@ -47,7 +50,7 @@ CRITICAL: You MUST provide a 'query' argument. NEVER call this tool with empty a
             answer: response.answer,
           };
         } catch (error) {
-          console.error("[tavilySearch] Error:", error);
+          tavilyLogger.error("search.failed", "Tavily search error", { error });
           return {
             results: [],
             answer: null,

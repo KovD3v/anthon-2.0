@@ -12,6 +12,9 @@
  */
 
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const migrationLogger = createLogger("auth");
 
 export interface MigratedCounts {
   messages: number;
@@ -407,11 +410,12 @@ export async function migrateGuestToUser(
       return { migratedCounts, conflicts };
     });
 
-    console.log(
-      `[Guest Migration] Successfully migrated guest ${guestUserId} to user ${targetUserId}:`,
-      result.migratedCounts,
-      `(${result.conflicts.length} conflicts resolved)`,
-    );
+    migrationLogger.info("migration.success", "Successfully migrated guest", {
+      guestUserId,
+      targetUserId,
+      migratedCounts: result.migratedCounts,
+      conflictsResolved: result.conflicts.length,
+    });
 
     return {
       success: true,
@@ -419,10 +423,7 @@ export async function migrateGuestToUser(
       conflicts: result.conflicts,
     };
   } catch (error) {
-    console.error(
-      `[Guest Migration] Failed to migrate guest ${guestUserId} to user ${targetUserId}:`,
-      error,
-    );
+    migrationLogger.error("migration.failed", "Failed to migrate guest", { guestUserId, targetUserId, error });
     return {
       success: false,
       migratedCounts: createEmptyCounts(),

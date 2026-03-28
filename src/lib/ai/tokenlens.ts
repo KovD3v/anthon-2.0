@@ -6,6 +6,9 @@
  */
 
 import { estimateCost } from "tokenlens";
+import { createLogger } from "@/lib/logger";
+
+const tokenlensLogger = createLogger("ai");
 
 // -----------------------------------------------------
 // COST CALCULATION
@@ -47,10 +50,7 @@ export function calculateCost(
       model: modelId,
     };
   } catch (error) {
-    console.error(
-      `[TokenLens] Error calculating cost for model ${modelId}:`,
-      error,
-    );
+    tokenlensLogger.error("cost.calculation_failed", "Error calculating cost", { modelId, error });
     return {
       inputCost: 0,
       outputCost: 0,

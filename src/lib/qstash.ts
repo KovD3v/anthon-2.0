@@ -1,4 +1,7 @@
 import { Client, Receiver } from "@upstash/qstash";
+import { createLogger } from "@/lib/logger";
+
+const qstashLogger = createLogger("qstash");
 
 if (!process.env.QSTASH_URL || !process.env.QSTASH_TOKEN) {
   throw new Error("QStash environment variables missing");
@@ -52,7 +55,7 @@ export async function publishToQueue(
   const appUrl = process.env.APP_URL || "http://localhost:3000"; // Fallback for local dev
   const destinationUrl = `${appUrl}/${endpoint}`;
 
-  console.log(`[QStash] Publishing to ${destinationUrl}`);
+  qstashLogger.info("publish", "Publishing to queue", { destinationUrl });
 
   return qstash.publishJSON({
     url: destinationUrl,
@@ -68,7 +71,7 @@ export async function getQStashEvents(cursor?: string) {
   try {
     return await qstash.events({ cursor });
   } catch (error) {
-    console.error("Failed to fetch QStash events:", error);
+    qstashLogger.error("events.fetch_failed", "Failed to fetch QStash events", { error });
     return { events: [], cursor: undefined };
   }
 }

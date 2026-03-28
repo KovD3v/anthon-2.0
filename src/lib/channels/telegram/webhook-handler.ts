@@ -19,6 +19,9 @@ import {
 import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
+import { createLogger } from "@/lib/logger";
+
+const telegramLogger = createLogger("webhook");
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   generateVoice,
@@ -102,7 +105,7 @@ export async function handleTelegramWebhookPost(request: Request) {
   // Acknowledge ASAP; do the heavy work in background.
   safeWaitUntil(
     handleUpdate(update).catch((err) => {
-      console.error("[Telegram Webhook] Background handler error:", err);
+      telegramLogger.error("handler.background_error", "Background handler error", { err });
     }),
   );
 
@@ -329,7 +332,7 @@ async function handleUpdate(update: TelegramUpdate) {
       planId: user.subscription?.planId,
       subscriptionStatus: user.subscription?.status,
     }).catch((error) => {
-      console.error("[Telegram Webhook] Funnel tracking failed:", error);
+      telegramLogger.error("funnel.tracking_failed", "Funnel tracking failed", { error });
     }),
   );
 
@@ -367,7 +370,7 @@ async function handleUpdate(update: TelegramUpdate) {
         title: "Telegram Bot",
       });
     } catch (err) {
-      console.error("[Telegram Webhook] Transcription failed:", err);
+      telegramLogger.error("transcription.failed", "Transcription failed", { err });
 
       await prisma.message
         .update({
@@ -448,7 +451,7 @@ async function handleUpdate(update: TelegramUpdate) {
         downloadedPhoto = true;
       }
     } catch (err) {
-      console.error("[Telegram Webhook] Failed to download photo:", err);
+      telegramLogger.error("media.photo_download_failed", "Failed to download photo", { err });
     }
   }
 
@@ -471,7 +474,7 @@ async function handleUpdate(update: TelegramUpdate) {
         }
       }
     } catch (err) {
-      console.error("[Telegram Webhook] Failed to download document:", err);
+      telegramLogger.error("media.document_download_failed", "Failed to download document", { err });
     }
   }
 
@@ -527,7 +530,7 @@ async function handleUpdate(update: TelegramUpdate) {
     });
     assistantText = flowResult.assistantText;
   } catch (err) {
-    console.error("[Telegram Webhook] streamChat failed:", err);
+    telegramLogger.error("chat.stream_failed", "streamChat failed", { err });
 
     await prisma.message
       .update({
@@ -620,7 +623,7 @@ async function handleUpdate(update: TelegramUpdate) {
         return;
       }
     } catch (err) {
-      console.error("[Telegram Webhook] Voice generation failed:", err);
+      telegramLogger.error("voice.generation_failed", "Voice generation failed", { err });
       // Fallback to text on any voice error
     }
   }
@@ -698,7 +701,7 @@ async function sendTelegramMessage(chatId: number, text: string) {
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
-    console.error("[Telegram] TELEGRAM_BOT_TOKEN not configured");
+    telegramLogger.error("config.missing_token", "TELEGRAM_BOT_TOKEN not configured");
     return;
   }
 
@@ -716,7 +719,7 @@ async function sendTelegramMessage(chatId: number, text: string) {
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    console.error("[Telegram] sendMessage failed:", res.status, body);
+    telegramLogger.error("send.message_failed", "sendMessage failed", { status: res.status, body });
   }
 }
 
@@ -730,7 +733,7 @@ async function sendTelegramVoice(chatId: number, audioBuffer: Buffer) {
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
-    console.error("[Telegram] TELEGRAM_BOT_TOKEN not configured");
+    telegramLogger.error("config.missing_token", "TELEGRAM_BOT_TOKEN not configured");
     return;
   }
 
@@ -752,6 +755,6 @@ async function sendTelegramVoice(chatId: number, audioBuffer: Buffer) {
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    console.error("[Telegram] sendVoice failed:", res.status, body);
+    telegramLogger.error("send.voice_failed", "sendVoice failed", { status: res.status, body });
   }
 }
