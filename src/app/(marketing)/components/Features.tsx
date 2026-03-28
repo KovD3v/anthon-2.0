@@ -62,8 +62,9 @@ export function Features() {
       <div className="container mx-auto px-4 md:px-6">
         <div className="text-center mb-12">
           <m.h2
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="show"
             viewport={{ once: true }}
             transition={defaultTransition}
             className="text-3xl font-semibold tracking-tight"
@@ -71,8 +72,9 @@ export function Features() {
             Risultati mentali concreti, in campo e in gara
           </m.h2>
           <m.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="show"
             viewport={{ once: true }}
             transition={{ ...defaultTransition, delay: 0.1 }}
             className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto"
