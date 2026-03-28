@@ -3,7 +3,7 @@
 import { m } from "framer-motion";
 import { MessageSquare, Sparkles, TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { staggerContainer, fadeUp, defaultTransition } from "@/lib/motion";
+import { defaultTransition, fadeUp, staggerContainer } from "@/lib/motion";
 
 const steps = [
   {
@@ -70,7 +70,11 @@ export function HowItWorks() {
           <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-0.5 bg-border -z-10" />
 
           {steps.map((step) => (
-            <m.div key={step.id} variants={fadeUp} transition={defaultTransition}>
+            <m.div
+              key={step.id}
+              variants={fadeUp}
+              transition={defaultTransition}
+            >
               <Card
                 variant="glass"
                 className="flex flex-col items-center text-center p-6 h-full"

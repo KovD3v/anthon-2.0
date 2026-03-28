@@ -3,7 +3,12 @@
 import { m } from "framer-motion";
 import { Star } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { staggerContainer, scaleIn, fadeUp, defaultTransition } from "@/lib/motion";
+import {
+  defaultTransition,
+  fadeUp,
+  scaleIn,
+  staggerContainer,
+} from "@/lib/motion";
 
 const testimonials = [
   {
@@ -68,7 +73,11 @@ export function Testimonials() {
           className="grid grid-cols-1 md:grid-cols-3 gap-6"
         >
           {testimonials.map((testimonial) => (
-            <m.div key={testimonial.id} variants={scaleIn} transition={defaultTransition}>
+            <m.div
+              key={testimonial.id}
+              variants={scaleIn}
+              transition={defaultTransition}
+            >
               <Card variant="glass" className="h-full">
                 <CardContent className="pt-6">
                   <div className="flex mb-4">
