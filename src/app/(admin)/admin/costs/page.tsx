@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 import {
   Card,
   CardContent,
@@ -107,12 +108,10 @@ export default function AdminCostsPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Cost Analytics</h1>
-          <p className="text-muted-foreground">
-            Detailed breakdown of AI, Voice, and Infrastructure expenses.
-          </p>
-        </div>
+        <AnimatedPageHeader
+          title="Cost Analytics"
+          description="Detailed breakdown of AI, Voice, and Infrastructure expenses."
+        />
         <div className="flex items-center gap-2 rounded-lg bg-muted/50 p-1 ring-1 ring-white/10 backdrop-blur-sm">
           {["7d", "30d", "90d", "all"].map((r) => (
             <button

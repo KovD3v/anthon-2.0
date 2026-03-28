@@ -1,6 +1,7 @@
 import { BarChart3, FileText, MessageSquare, Users } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
+import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   KPIStatsSkeleton,
@@ -12,12 +13,7 @@ import { SystemStatus } from "../components/SystemStatus";
 export default function AdminDashboard() {
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of your Anthon instance
-        </p>
-      </div>
+      <AnimatedPageHeader title="Dashboard" description="Overview of your Anthon instance" />
 
       <Suspense fallback={<KPIStatsSkeleton />}>
         <KPIStats />

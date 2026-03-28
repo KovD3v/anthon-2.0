@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 
 const AnalyticsCharts = dynamic(
   () => import("./_components/AnalyticsCharts"),
@@ -91,12 +92,7 @@ export default function AnalyticsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
-          <p className="text-muted-foreground">
-            Detailed usage and engagement metrics
-          </p>
-        </div>
+        <AnimatedPageHeader title="Analytics" description="Detailed usage and engagement metrics" />
 
         <div className="flex gap-2">
           {(["7d", "30d", "90d", "all"] as TimeRange[]).map((r) => (

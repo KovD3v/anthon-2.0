@@ -3,6 +3,7 @@
 import { Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { UserRole } from "@/generated/prisma";
@@ -164,12 +165,7 @@ export default function UsersPage() {
     <div className="flex gap-8">
       {/* Users List */}
       <div className="flex-1 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-          <p className="text-muted-foreground">
-            Manage users and view their activity
-          </p>
-        </div>
+        <AnimatedPageHeader title="Users" description="Manage users and view their activity" />
 
         {/* Filters */}
         <Card>

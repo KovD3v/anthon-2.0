@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -241,12 +242,7 @@ export default function RagPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground">RAG Documents</h1>
-        <p className="text-muted-foreground">
-          Upload documents to the knowledge base
-        </p>
-      </div>
+      <AnimatedPageHeader title="RAG Documents" description="Upload documents to the knowledge base" />
 
       {/* Upload Zone */}
       <Card variant="glass" className="mb-8">

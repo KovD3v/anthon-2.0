@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity, DollarSign, Loader2, Mic, TrendingUp } from "lucide-react";
 import dynamic from "next/dynamic";
+import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 import {
   Card,
   CardContent,
@@ -118,14 +119,10 @@ export default function ElevenLabsAdminPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-8 p-8">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            Voice Analytics
-          </h1>
-          <p className="text-muted-foreground">
-            Monitoraggio in tempo reale della pipeline vocale
-          </p>
-        </div>
+        <AnimatedPageHeader
+          title="Voice Analytics"
+          description="Monitoraggio in tempo reale della pipeline vocale"
+        />
         {data.subscription && (
           <div className="flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 text-sm shadow-sm">
             <div

@@ -3,6 +3,7 @@
 import { Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -410,13 +411,10 @@ export default function OrganizationsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Organizations</h1>
-          <p className="text-muted-foreground">
-            Create and manage contracted organizations, seat limits, and owner
-            assignment.
-          </p>
-        </div>
+        <AnimatedPageHeader
+          title="Organizations"
+          description="Create and manage contracted organizations, seat limits, and owner assignment."
+        />
         <div className="flex gap-2">
           <Button variant="outline" onClick={resetForm}>
             New Organization

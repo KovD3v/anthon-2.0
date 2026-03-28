@@ -5,6 +5,7 @@ import {
   MessageSquare,
   Users,
 } from "lucide-react";
+import { AnimatedGrid, AnimatedGridItem } from "@/components/ui/animated-grid";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getOverviewStats, getStartDate } from "@/lib/admin";
 
@@ -46,23 +47,25 @@ export async function KPIStats() {
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+    <AnimatedGrid className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {kpiCards.map((card) => (
-        <Card key={card.title} variant="glass">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              {card.title}
-            </CardTitle>
-            <card.icon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{card.value}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {card.subtitle}
-            </p>
-          </CardContent>
-        </Card>
+        <AnimatedGridItem key={card.title}>
+          <Card variant="glass">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {card.title}
+              </CardTitle>
+              <card.icon className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{card.value}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {card.subtitle}
+              </p>
+            </CardContent>
+          </Card>
+        </AnimatedGridItem>
       ))}
-    </div>
+    </AnimatedGrid>
   );
 }

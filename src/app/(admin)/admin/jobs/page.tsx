@@ -1,4 +1,5 @@
 import { formatDistanceToNow } from "date-fns";
+import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 import { getQStashEvents } from "@/lib/qstash";
 import {
   triggerAllMaintenance,
@@ -15,12 +16,7 @@ export default async function JobsPage() {
 
   return (
     <div className="p-6 space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold mb-2">Background Jobs</h1>
-        <p className="text-muted-foreground">
-          Monitor QStash maintenance jobs and trigger manual runs.
-        </p>
-      </div>
+      <AnimatedPageHeader title="Background Jobs" description="Monitor QStash maintenance jobs and trigger manual runs." />
 
       {/* Manual Triggers Card */}
       <div className="p-6 border rounded-lg bg-card text-card-foreground shadow-sm">
