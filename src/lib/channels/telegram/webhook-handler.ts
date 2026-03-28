@@ -32,6 +32,7 @@ import {
   trackVoiceUsage,
 } from "@/lib/voice";
 
+/** @lintignore */
 export const runtime = "nodejs";
 
 function safeWaitUntil(promise: Promise<unknown>) {

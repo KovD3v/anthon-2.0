@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { BenchmarkRun } from "../types";
 
-export function filterBenchmarkRuns(runs: BenchmarkRun[], query: string) {
+function filterBenchmarkRuns(runs: BenchmarkRun[], query: string) {
   const normalizedQuery = query.toLowerCase();
   return runs.filter(
     (run) =>
@@ -12,7 +12,7 @@ export function filterBenchmarkRuns(runs: BenchmarkRun[], query: string) {
   );
 }
 
-export function groupBenchmarkRunsByDate(filteredRuns: BenchmarkRun[]) {
+function groupBenchmarkRunsByDate(filteredRuns: BenchmarkRun[]) {
   const groups: Record<string, BenchmarkRun[]> = {
     Today: [],
     Yesterday: [],

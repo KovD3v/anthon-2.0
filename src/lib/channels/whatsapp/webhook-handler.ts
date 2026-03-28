@@ -26,6 +26,7 @@ import {
   trackVoiceUsage,
 } from "@/lib/voice";
 
+/** @lintignore */
 export const runtime = "nodejs";
 
 // --- Types ---

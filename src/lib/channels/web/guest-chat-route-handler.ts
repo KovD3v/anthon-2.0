@@ -22,6 +22,7 @@ import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 
+/** @lintignore */
 export const maxDuration = 60; // Allow up to 60 seconds for streaming
 const logger = createLogger("ai");
 

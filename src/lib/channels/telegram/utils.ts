@@ -110,7 +110,7 @@ export async function getTelegramFilePath(fileId: string): Promise<string | null
   }
 }
 
-export async function downloadTelegramFileAsBase64(
+async function downloadTelegramFileAsBase64(
   filePath: string,
 ): Promise<string | null> {
   const token = process.env.TELEGRAM_BOT_TOKEN;

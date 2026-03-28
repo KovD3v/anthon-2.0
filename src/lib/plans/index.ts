@@ -1,10 +1,6 @@
 export { PLAN_CATALOG } from "./catalog";
 export { PlanResolutionError, type PlanResolutionErrorReason } from "./errors";
 export {
-  resolvePoliciesForEntitlements,
-  resolvePoliciesForPlan,
-} from "./policy-engine";
-export {
   compareEntitlementVectors,
   parseCanonicalPlanFromPlanId,
   resolveEffectiveEntitlements,

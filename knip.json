@@ -6,5 +6,7 @@
   },
   "ignore": ["src/components/ui/**/*"],
   "ignoreDependencies": ["@prisma/client"],
-  "tags": ["-lintignore"]
+  "ignoreBinaries": ["sleep"],
+  "tags": ["-lintignore"],
+  "ignoreMembers": ["^runtime$", "^maxDuration$"]
 }

@@ -73,7 +73,7 @@ export function trackFunnelSignup(context: FunnelEventContext) {
   captureFunnelEvent("signup", context);
 }
 
-export function trackFunnelFirstChat(context: FunnelEventContext) {
+function trackFunnelFirstChat(context: FunnelEventContext) {
   captureFunnelEvent("first_chat", context);
 }
 
@@ -121,7 +121,7 @@ export function analyzeSessionProgress(timestamps: Date[]): SessionProgress {
   };
 }
 
-export function shouldTrackSession3(progress: SessionProgress): boolean {
+function shouldTrackSession3(progress: SessionProgress): boolean {
   return progress.validSessions === 3 && progress.lastSessionMessageCount === 2;
 }
 

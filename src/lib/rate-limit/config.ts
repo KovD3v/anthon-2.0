@@ -9,7 +9,7 @@ import {
 } from "@/lib/plans";
 import type { RateLimits } from "./types";
 
-export const ATTACHMENT_RETENTION_DAYS: Record<CanonicalPlan, number> = {
+const ATTACHMENT_RETENTION_DAYS: Record<CanonicalPlan, number> = {
   GUEST: PLAN_CATALOG.GUEST.attachmentRetentionDays,
   TRIAL: PLAN_CATALOG.TRIAL.attachmentRetentionDays,
   BASIC: PLAN_CATALOG.BASIC.attachmentRetentionDays,

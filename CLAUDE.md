@@ -32,7 +32,7 @@ npm run knip             # Check for unused exports
 npm run analyze          # Next.js bundle analysis
 ```
 
-All scripts work with `bun run` as well as `npm run`.
+Prefer `bun run` over `npm run` and `bunx` over `npx`.
 
 ## Architecture Overview
 

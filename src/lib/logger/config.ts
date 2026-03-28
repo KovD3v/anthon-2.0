@@ -120,7 +120,7 @@ function isExcludedByPattern(event: string, pattern: string): boolean {
   return event === pattern;
 }
 
-export function isEventExcluded(event: string): boolean {
+function isEventExcluded(event: string): boolean {
   return getExcludedEvents().some((pattern) =>
     isExcludedByPattern(event, pattern),
   );

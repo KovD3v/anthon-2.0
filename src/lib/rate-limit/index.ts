@@ -10,7 +10,6 @@ export { checkRateLimit } from "./check";
 
 // Config & plan resolution
 export {
-  ATTACHMENT_RETENTION_DAYS,
   getAttachmentRetentionDays,
   getRateLimitsForUser,
 } from "./config";

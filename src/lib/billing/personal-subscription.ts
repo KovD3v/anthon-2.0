@@ -5,7 +5,7 @@ import { createLogger } from "@/lib/logger";
 import { type CanonicalPlan, parseCanonicalPlanFromPlanId } from "@/lib/plans";
 
 const billingLogger = createLogger("usage");
-export const BILLING_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+const BILLING_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 
 interface CurrentSubscriptionState {
   status?: SubscriptionStatus | null;
