@@ -25,7 +25,7 @@ export default function ChatPage() {
     : `Ciao${user?.firstName ? `, ${user.firstName}` : ""}!`;
 
   return (
-    <PageWrapper>
+    <PageWrapper className="flex flex-1 flex-col">
       <div className="flex flex-1 flex-col items-center justify-center p-8">
         <div className="max-w-2xl text-center">
           {/* Welcome */}

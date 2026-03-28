@@ -231,15 +231,15 @@ function SuggestionCard({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-start gap-2 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted hover:border-primary/50"
+      className="group flex w-full items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4 text-left backdrop-blur-sm transition-all duration-200 hover:border-primary/30 hover:bg-white/10 active:scale-[0.98]"
     >
-      <span className="mt-0.5 text-primary">
+      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
         {getIcon(suggestion.icon, "h-4 w-4")}
       </span>
-      <div className="flex-1">
-        <p className="text-sm font-medium">{suggestion.label}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium leading-snug text-foreground/90">{suggestion.label}</p>
         {suggestion.category && (
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             {suggestion.category}
           </p>
         )}

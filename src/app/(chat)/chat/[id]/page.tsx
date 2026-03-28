@@ -53,7 +53,7 @@ export default async function ChatConversationPage({
   }
 
   return (
-    <PageWrapper>
+    <PageWrapper className="flex flex-1 flex-col">
       <ChatConversationClient chatId={id} initialChatData={chatData} />
     </PageWrapper>
   );
