@@ -41,6 +41,7 @@ describe("rate-limit/usage", () => {
       requestCount: 0,
       inputTokens: 0,
       outputTokens: 0,
+      reasoningTokens: 0,
       totalCostUsd: 0,
     });
   });
@@ -50,6 +51,7 @@ describe("rate-limit/usage", () => {
       requestCount: 7,
       inputTokens: 1234,
       outputTokens: 567,
+      reasoningTokens: 42,
       totalCostUsd: 0.42,
     });
 
@@ -59,6 +61,7 @@ describe("rate-limit/usage", () => {
       requestCount: 7,
       inputTokens: 1234,
       outputTokens: 567,
+      reasoningTokens: 42,
       totalCostUsd: 0.42,
     });
   });
@@ -68,6 +71,7 @@ describe("rate-limit/usage", () => {
       requestCount: 4,
       inputTokens: 900,
       outputTokens: 450,
+      reasoningTokens: 0,
       totalCostUsd: 0.9,
     });
 
@@ -86,12 +90,14 @@ describe("rate-limit/usage", () => {
         requestCount: 1,
         inputTokens: 200,
         outputTokens: 100,
+        reasoningTokens: 0,
         totalCostUsd: 0.2,
       },
       update: {
         requestCount: { increment: 1 },
         inputTokens: { increment: 200 },
         outputTokens: { increment: 100 },
+        reasoningTokens: { increment: 0 },
         totalCostUsd: { increment: 0.2 },
       },
     });
@@ -100,6 +106,7 @@ describe("rate-limit/usage", () => {
       requestCount: 4,
       inputTokens: 900,
       outputTokens: 450,
+      reasoningTokens: 0,
       totalCostUsd: 0.9,
     });
   });

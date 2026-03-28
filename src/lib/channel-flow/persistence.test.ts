@@ -81,7 +81,7 @@ describe("channel-flow/persistence", () => {
       where: { id: "chat-1" },
       data: { updatedAt: expect.any(Date) },
     });
-    expect(mocks.incrementUsage).toHaveBeenCalledWith("user-1", 5, 8, 0.02);
+    expect(mocks.incrementUsage).toHaveBeenCalledWith("user-1", 5, 8, 0.02, 1);
     expect(mocks.revalidateTag).toHaveBeenCalledTimes(2);
     expect(mocks.extractAndSaveMemories).toHaveBeenCalledWith(
       "user-1",

@@ -16,6 +16,7 @@ export interface DailyUsageData {
   requestCount: number;
   inputTokens: number;
   outputTokens: number;
+  reasoningTokens: number;
   totalCostUsd: number;
 }
 

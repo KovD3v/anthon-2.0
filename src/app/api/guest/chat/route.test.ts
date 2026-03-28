@@ -423,7 +423,7 @@ describe("POST /api/guest/chat", () => {
       where: { id: "chat-1" },
       data: { updatedAt: expect.any(Date) },
     });
-    expect(mocks.incrementUsage).toHaveBeenCalledWith("guest-1", 12, 34, 0.01);
+    expect(mocks.incrementUsage).toHaveBeenCalledWith("guest-1", 12, 34, 0.01, 0);
     expect(mocks.waitUntil).toHaveBeenCalledTimes(1);
   });
 

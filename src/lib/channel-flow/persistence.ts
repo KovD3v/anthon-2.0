@@ -89,6 +89,7 @@ export async function persistAssistantOutput({
     metrics.inputTokens,
     metrics.outputTokens,
     metrics.costUsd,
+    metrics.reasoningTokens ?? 0,
   );
 
   if (tags.length > 0) {

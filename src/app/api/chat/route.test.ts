@@ -688,6 +688,7 @@ describe("POST /api/chat", () => {
       111,
       222,
       0.123,
+      10,
     );
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "page");
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "page");
