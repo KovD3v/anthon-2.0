@@ -28,6 +28,7 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
+import { duration, ease } from "@/lib/motion";
 
 const subscribe = () => () => {};
 const getClientSnapshot = () => true;
@@ -145,7 +146,7 @@ export function Navbar() {
                   initial={{ opacity: 0, rotate: -90 }}
                   animate={{ opacity: 1, rotate: 0 }}
                   exit={{ opacity: 0, rotate: 90 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: duration.fast, ease: ease.inOut }}
                 >
                   <X className="h-6 w-6" />
                 </m.div>
@@ -155,7 +156,7 @@ export function Navbar() {
                   initial={{ opacity: 0, rotate: 90 }}
                   animate={{ opacity: 1, rotate: 0 }}
                   exit={{ opacity: 0, rotate: -90 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: duration.fast, ease: ease.inOut }}
                 >
                   <Menu className="h-6 w-6" />
                 </m.div>
@@ -175,7 +176,7 @@ export function Navbar() {
                 marginTop: 8,
               }}
               exit={{ opacity: 0, height: 0, marginTop: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
+              transition={{ duration: duration.base, ease: ease.inOut }}
               className="md:hidden overflow-hidden border-t border-white/10"
             >
               <div className="p-4 space-y-6 bg-background/40 backdrop-blur-3xl rounded-b-2xl">

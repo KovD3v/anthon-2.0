@@ -5,6 +5,7 @@ import { ArrowRight, Brain, Trophy } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { fadeUp, defaultTransition, slowTransition } from "@/lib/motion";
 
 export function Hero() {
   return (
@@ -12,9 +13,10 @@ export function Hero() {
       <div className="container mx-auto px-4 md:px-6">
         <div className="flex flex-col items-center text-center space-y-8">
           <m.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            variants={fadeUp}
+            initial="hidden"
+            animate="show"
+            transition={defaultTransition}
           >
             <Badge variant="info" className="gap-1">
               <Trophy className="h-3 w-3" />
@@ -23,10 +25,11 @@ export function Hero() {
           </m.div>
 
           <m.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-4xl font-extrabold tracking-tight lg:text-6xl max-w-4xl"
+            variants={fadeUp}
+            initial="hidden"
+            animate="show"
+            transition={{ ...defaultTransition, delay: 0.1 }}
+            className="text-5xl font-bold tracking-tight lg:text-6xl max-w-4xl"
           >
             Più fiducia nei momenti decisivi,{" "}
             <br className="hidden sm:inline" />
@@ -34,9 +37,10 @@ export function Hero() {
           </m.h1>
 
           <m.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            variants={fadeUp}
+            initial="hidden"
+            animate="show"
+            transition={{ ...defaultTransition, delay: 0.2 }}
             className="text-xl text-muted-foreground max-w-2xl mx-auto"
           >
             Anthon ti aiuta a gestire pressione, distrazioni e cali mentali con
@@ -44,9 +48,10 @@ export function Hero() {
           </m.p>
 
           <m.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+            variants={fadeUp}
+            initial="hidden"
+            animate="show"
+            transition={{ ...defaultTransition, delay: 0.3 }}
             className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto"
           >
             <Button size="lg" className="gap-2" asChild>
@@ -60,9 +65,10 @@ export function Hero() {
           </m.div>
 
           <m.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.4 }}
+            variants={fadeUp}
+            initial="hidden"
+            animate="show"
+            transition={{ ...slowTransition, delay: 0.4 }}
             className="mt-12 relative w-full max-w-5xl mx-auto"
           >
             <div className="absolute inset-0 bg-linear-to-t from-background via-transparent to-transparent z-10" />

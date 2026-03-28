@@ -3,6 +3,7 @@
 import { m } from "framer-motion";
 import { Star } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { staggerContainer, scaleIn, fadeUp, defaultTransition } from "@/lib/motion";
 
 const testimonials = [
   {
@@ -31,21 +32,6 @@ const testimonials = [
   },
 ];
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-};
-
-const item = {
-  hidden: { opacity: 0, scale: 0.9 },
-  show: { opacity: 1, scale: 1 },
-};
-
 export function Testimonials() {
   return (
     <section className="py-16 md:py-24 bg-muted/30" id="testimonials">
@@ -55,7 +41,7 @@ export function Testimonials() {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
+            transition={defaultTransition}
             className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"
           >
             Scelto dagli Atleti
@@ -64,7 +50,7 @@ export function Testimonials() {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+            transition={{ ...defaultTransition, delay: 0.1 }}
             className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto"
           >
             Scopri come Anthon sta aiutando atleti di diversi sport a
@@ -73,14 +59,14 @@ export function Testimonials() {
         </div>
 
         <m.div
-          variants={container}
+          variants={staggerContainer(0.08)}
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
           className="grid grid-cols-1 md:grid-cols-3 gap-6"
         >
           {testimonials.map((testimonial) => (
-            <m.div key={testimonial.id} variants={item}>
+            <m.div key={testimonial.id} variants={scaleIn} transition={defaultTransition}>
               <Card variant="glass" className="h-full">
                 <CardContent className="pt-6">
                   <div className="flex mb-4">

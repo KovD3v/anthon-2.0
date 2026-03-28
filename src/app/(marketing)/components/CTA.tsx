@@ -4,16 +4,18 @@ import { m } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { scaleIn, defaultTransition } from "@/lib/motion";
 
 export function CTA() {
   return (
     <section className="py-16 md:py-24 bg-primary text-primary-foreground">
       <div className="container mx-auto px-4 md:px-6 text-center">
         <m.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          whileInView={{ opacity: 1, scale: 1 }}
+          variants={scaleIn}
+          initial="hidden"
+          whileInView="show"
           viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
+          transition={defaultTransition}
         >
           <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl mb-6">
             Porta fiducia, focus e lucidita nella tua prossima gara
