@@ -5,17 +5,14 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 
-const AnalyticsCharts = dynamic(
-  () => import("./_components/AnalyticsCharts"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex items-center justify-center min-h-100">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    ),
-  },
-);
+const AnalyticsCharts = dynamic(() => import("./_components/AnalyticsCharts"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center min-h-100">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+    </div>
+  ),
+});
 
 interface UsageStats {
   messagesByDay: Array<{ date: string; count: number }>;
@@ -92,7 +89,10 @@ export default function AnalyticsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <AnimatedPageHeader title="Analytics" description="Detailed usage and engagement metrics" />
+        <AnimatedPageHeader
+          title="Analytics"
+          description="Detailed usage and engagement metrics"
+        />
 
         <div className="flex gap-2">
           {(["7d", "30d", "90d", "all"] as TimeRange[]).map((r) => (

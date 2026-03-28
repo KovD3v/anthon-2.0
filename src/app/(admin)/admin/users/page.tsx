@@ -165,7 +165,10 @@ export default function UsersPage() {
     <div className="flex gap-8">
       {/* Users List */}
       <div className="flex-1 space-y-6">
-        <AnimatedPageHeader title="Users" description="Manage users and view their activity" />
+        <AnimatedPageHeader
+          title="Users"
+          description="Manage users and view their activity"
+        />
 
         {/* Filters */}
         <Card>

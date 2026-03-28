@@ -16,13 +16,7 @@ import {
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const CostsCharts = dynamic(() => import("./_components/CostsCharts"), {

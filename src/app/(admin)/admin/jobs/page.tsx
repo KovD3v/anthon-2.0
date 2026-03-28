@@ -16,7 +16,10 @@ export default async function JobsPage() {
 
   return (
     <div className="p-6 space-y-8">
-      <AnimatedPageHeader title="Background Jobs" description="Monitor QStash maintenance jobs and trigger manual runs." />
+      <AnimatedPageHeader
+        title="Background Jobs"
+        description="Monitor QStash maintenance jobs and trigger manual runs."
+      />
 
       {/* Manual Triggers Card */}
       <div className="p-6 border rounded-lg bg-card text-card-foreground shadow-sm">

@@ -242,7 +242,10 @@ export default function RagPage() {
 
   return (
     <div>
-      <AnimatedPageHeader title="RAG Documents" description="Upload documents to the knowledge base" />
+      <AnimatedPageHeader
+        title="RAG Documents"
+        description="Upload documents to the knowledge base"
+      />
 
       {/* Upload Zone */}
       <Card variant="glass" className="mb-8">

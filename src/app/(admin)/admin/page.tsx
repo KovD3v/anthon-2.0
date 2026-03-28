@@ -13,7 +13,10 @@ import { SystemStatus } from "../components/SystemStatus";
 export default function AdminDashboard() {
   return (
     <div className="space-y-8">
-      <AnimatedPageHeader title="Dashboard" description="Overview of your Anthon instance" />
+      <AnimatedPageHeader
+        title="Dashboard"
+        description="Overview of your Anthon instance"
+      />
 
       <Suspense fallback={<KPIStatsSkeleton />}>
         <KPIStats />
