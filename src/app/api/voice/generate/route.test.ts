@@ -96,7 +96,7 @@ describe("POST /api/voice/generate", () => {
     });
     mocks.messageFindFirst.mockResolvedValue({
       id: "msg-1",
-      content: "Hello from assistant",
+      parts: [{ type: "text", text: "Hello from assistant" }],
       userId: "user-1",
     });
     mocks.getVoicePlanConfig.mockReturnValue({

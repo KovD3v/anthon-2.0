@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   outputObject: vi.fn(),
   voiceCount: vi.fn(),
   voiceCreate: vi.fn(),
+  dailyUsageUpsert: vi.fn(),
   measure: vi.fn(),
 }));
 
@@ -25,6 +26,9 @@ vi.mock("@/lib/db", () => ({
     voiceUsage: {
       count: mocks.voiceCount,
       create: mocks.voiceCreate,
+    },
+    dailyUsage: {
+      upsert: mocks.dailyUsageUpsert,
     },
   },
 }));
@@ -235,6 +239,7 @@ describe("voice/funnel", () => {
 
   it("tracks voice usage with the expected payload", async () => {
     mocks.voiceCreate.mockResolvedValue({});
+    mocks.dailyUsageUpsert.mockResolvedValue({});
 
     await trackVoiceUsage("user-9", 123, "WEB", 0.12);
 

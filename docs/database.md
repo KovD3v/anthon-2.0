@@ -92,25 +92,24 @@ Conversation container for grouping messages.
 
 Individual messages supporting text, media, and AI metadata.
 
-| Field          | Type             | Description                          |
-| -------------- | ---------------- | ------------------------------------ |
-| `id`           | String           | CUID primary key                     |
-| `chatId`       | String?          | Parent chat reference                |
-| `role`         | MessageRole      | USER, ASSISTANT, SYSTEM              |
-| `direction`    | MessageDirection | INBOUND or OUTBOUND                  |
-| `type`         | MessageType      | TEXT, IMAGE, AUDIO, etc.             |
-| `content`      | String?          | Text content                         |
-| `parts`        | Json?            | AI SDK message parts (UI message format) |
-| `mediaUrl`     | String?          | Media URL (for non-web channels)     |
-| `mediaType`    | String?          | Media MIME type                      |
-| `externalMessageId` | String?     | External message id (unique per channel) |
-| `metadata`     | Json?            | Channel-specific payload (e.g. Telegram) |
+| Field          | Type             | Description                                       |
+| -------------- | ---------------- | ------------------------------------------------- |
+| `id`           | String           | CUID primary key                                  |
+| `chatId`       | String?          | Parent chat reference                            |
+| `role`         | MessageRole      | USER, ASSISTANT, SYSTEM                          |
+| `direction`    | MessageDirection | INBOUND or OUTBOUND                              |
+| `type`         | MessageType      | TEXT, IMAGE, AUDIO, etc.                         |
+| `parts`        | Json?            | AI SDK v5 message parts — canonical content format |
+| `mediaUrl`     | String?          | Media URL (for non-web channels)                 |
+| `mediaType`    | String?          | Media MIME type                                  |
+| `externalMessageId` | String?     | External message id (unique per channel)         |
+| `metadata`     | Json?            | Channel-specific payload (e.g. Telegram)        |
 | `model`        | String?          | AI model used (e.g., "google/gemini-2.0-flash-001") |
-| `inputTokens`  | Int?             | Prompt tokens                        |
-| `outputTokens` | Int?             | Generated tokens                     |
-| `costUsd`      | Float?           | Response cost                        |
-| `ragUsed`      | Boolean?         | Whether RAG was used                 |
-| `feedback`     | Int?             | -1, 0, 1 user feedback on assistants |
+| `inputTokens`  | Int?             | Prompt tokens                                    |
+| `outputTokens` | Int?             | Generated tokens                                 |
+| `costUsd`      | Float?           | Response cost                                    |
+| `ragUsed`      | Boolean?         | Whether RAG was used                             |
+| `feedback`     | Int?             | -1, 0, 1 user feedback on assistants            |
 
 ### Profile
 
@@ -140,10 +139,11 @@ Communication and behavior preferences.
 
 Persistent key-value storage for user information.
 
-| Field   | Type   | Description       |
-| ------- | ------ | ----------------- |
-| `key`   | String | Memory identifier |
-| `value` | Json   | Stored data       |
+| Field      | Type   | Description                                                                   |
+| ---------- | ------ | ----------------------------------------------------------------------------- |
+| `key`      | String | Memory identifier                                                             |
+| `value`    | Json   | Stored data                                                                   |
+| `category` | String | Memory category: identity, sport, goal, preference, health, schedule, other |
 
 Unique constraint on `(userId, key)` ensures one value per key per user.
 
@@ -181,14 +181,15 @@ Note: embedding dimensions are defined in the Prisma schema and depend on the em
 
 Per-day usage tracking for rate limiting.
 
-| Field          | Type  | Description         |
-| -------------- | ----- | ------------------- |
-| `date`         | Date  | UTC date            |
-| `requestCount` | Int   | Daily requests      |
-| `inputTokens`  | Int   | Total input tokens  |
-| `outputTokens` | Int   | Total output tokens |
-| `reasoningTokens` | Int   | Total reasoning tokens (models that expose them) |
-| `totalCostUsd` | Float | Total cost          |
+| Field           | Type  | Description                               |
+| --------------- | ----- | ----------------------------------------- |
+| `date`          | Date  | UTC date                                  |
+| `requestCount`  | Int   | Daily requests                            |
+| `inputTokens`   | Int   | Total input tokens                        |
+| `outputTokens`  | Int   | Total output tokens                       |
+| `reasoningTokens` | Int | Total reasoning tokens (models that expose them) |
+| `totalCostUsd`  | Float | Total cost                                |
+| `voiceCostUsd`  | Float | Voice generation cost for the day         |
 
 ### Subscription
 

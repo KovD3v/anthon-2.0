@@ -74,7 +74,6 @@ export async function createMessage(
     chatId?: string | null;
     role?: "USER" | "ASSISTANT" | "SYSTEM";
     direction?: "INBOUND" | "OUTBOUND";
-    content?: string;
     createdAt?: Date;
   } & Partial<{
     feedback: number | null;
@@ -92,7 +91,6 @@ export async function createMessage(
       direction,
       channel: "WEB",
       type: "TEXT",
-      content: input.content ?? "message",
       ...(input.createdAt ? { createdAt: input.createdAt } : {}),
       ...(input.feedback !== undefined ? { feedback: input.feedback } : {}),
     },

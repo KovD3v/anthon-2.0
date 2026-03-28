@@ -1,6 +1,7 @@
 import { generateText, type ModelMessage } from "ai";
 import type { Message } from "@/generated/prisma/client";
 import { SESSION } from "@/lib/ai/constants";
+import { getTextFromParts } from "@/lib/utils/message-parts";
 import { subAgentModel } from "@/lib/ai/providers/openrouter";
 import { cacheSummary, getCachedSummary } from "@/lib/ai/session-cache";
 import { prisma } from "@/lib/db";
@@ -75,7 +76,7 @@ async function summarizeSession(
   const conversationText = session.messages
     .map((m) => {
       const role = m.role === "USER" ? "Utente" : "Assistente";
-      return `${role}: ${m.content || "[media]"}`;
+      return `${role}: ${getTextFromParts(m.parts) || "[media]"}`;
     })
     .join("\n");
 
@@ -107,7 +108,7 @@ function toModelMessage(message: Message): ModelMessage {
 
   return {
     role,
-    content: message.content || "",
+    content: getTextFromParts(message.parts),
   } as ModelMessage;
 }
 

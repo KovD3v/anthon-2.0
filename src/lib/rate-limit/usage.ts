@@ -45,6 +45,7 @@ export async function getDailyUsage(userId: string): Promise<DailyUsageData> {
       outputTokens: 0,
       reasoningTokens: 0,
       totalCostUsd: 0,
+      voiceCostUsd: 0,
     };
   }
 
@@ -54,6 +55,7 @@ export async function getDailyUsage(userId: string): Promise<DailyUsageData> {
     outputTokens: usage.outputTokens,
     reasoningTokens: usage.reasoningTokens,
     totalCostUsd: usage.totalCostUsd,
+    voiceCostUsd: usage.voiceCostUsd,
   };
 }
 
@@ -101,5 +103,34 @@ export async function incrementUsage(
     outputTokens: usage.outputTokens,
     reasoningTokens: usage.reasoningTokens,
     totalCostUsd: usage.totalCostUsd,
+    voiceCostUsd: usage.voiceCostUsd,
   };
+}
+
+/**
+ * Increment voice cost for a user (does not increment requestCount).
+ */
+export async function incrementVoiceUsage(
+  userId: string,
+  costUsd: number,
+): Promise<void> {
+  const today = getUTCDateOnly();
+
+  await prisma.dailyUsage.upsert({
+    where: { userId_date: { userId, date: today } },
+    create: {
+      userId,
+      date: today,
+      requestCount: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      totalCostUsd: costUsd,
+      voiceCostUsd: costUsd,
+    },
+    update: {
+      voiceCostUsd: { increment: costUsd },
+      totalCostUsd: { increment: costUsd },
+    },
+  });
 }

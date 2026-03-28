@@ -11,6 +11,7 @@ import { generateChatTitle } from "@/lib/ai/chat-title";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import { getTextFromParts } from "@/lib/utils/message-parts";
 
 const chatsLogger = createLogger("ai");
 
@@ -87,7 +88,6 @@ export async function GET(request: Request, { params }: RouteParams) {
       select: {
         id: true,
         role: true,
-        content: true,
         parts: true,
         createdAt: true,
         model: true,
@@ -130,7 +130,6 @@ export async function GET(request: Request, { params }: RouteParams) {
       messages: messagesToReturn.map((m) => ({
         id: m.id,
         role: m.role.toLowerCase(),
-        content: m.content,
         parts: m.parts,
         createdAt: m.createdAt.toISOString(),
         model: m.model,
@@ -199,11 +198,12 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       const firstUserMessage = await prisma.message.findFirst({
         where: { chatId: id, role: "USER" },
         orderBy: { createdAt: "asc" },
-        select: { content: true },
+        select: { parts: true },
       });
 
-      if (firstUserMessage?.content) {
-        newTitle = await generateChatTitle(firstUserMessage.content);
+      const firstUserText = getTextFromParts(firstUserMessage?.parts);
+      if (firstUserText) {
+        newTitle = await generateChatTitle(firstUserText);
       }
     }
 

@@ -502,7 +502,6 @@ describe("POST /api/chat", () => {
         chatId: "chat-1",
         role: "USER",
         direction: "INBOUND",
-        content: "hello",
       }),
     });
     expect(mocks.attachmentUpdate).toHaveBeenNthCalledWith(1, {
@@ -675,7 +674,6 @@ describe("POST /api/chat", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           role: "ASSISTANT",
-          content: "Assistant reply",
           model: "google/gemini-2.0-flash-001",
           inputTokens: 111,
           outputTokens: 222,

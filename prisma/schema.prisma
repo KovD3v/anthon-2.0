@@ -327,9 +327,8 @@ model Message {
   role      MessageRole
 
   // Message content and media
-  type    MessageType @default(TEXT)
-  content String? // Text content (backward compatible, also stores simple text)
-  parts   Json? // AI SDK v5 message parts format
+  type  MessageType @default(TEXT)
+  parts Json? // AI SDK v5 message parts format
 
   mediaUrl  String? // Media URL: images, audio, video, documents, stickers
   mediaType String? // MIME type e.g.: image/jpeg, audio/ogg
@@ -365,9 +364,6 @@ model Message {
   @@index([userId, channel, createdAt])
   @@index([chatId, createdAt])
   @@index([externalMessageId])
-  @@index([role, createdAt])
-  @@index([direction, createdAt])
-  @@index([type])
   @@index([userId, role, createdAt])
   @@index([model, createdAt])
   @@index([deletedAt])
@@ -446,13 +442,15 @@ model Memory {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  key   String
-  value Json
+  key      String
+  value    Json
+  category String @default("other")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  @@unique([userId, key]) // Ensure unique keys per user
+  @@unique([userId, key])
+  @@index([userId, category])
 }
 
 // -----------------------------------------------------
@@ -618,6 +616,7 @@ model DailyUsage {
   outputTokens    Int      @default(0)
   reasoningTokens Int      @default(0)
   totalCostUsd    Float    @default(0)
+  voiceCostUsd    Float    @default(0)
 
   updatedAt DateTime @updatedAt
 

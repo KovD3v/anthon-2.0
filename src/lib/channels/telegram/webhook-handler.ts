@@ -287,7 +287,6 @@ async function handleUpdate(update: TelegramUpdate) {
         direction: "INBOUND",
         role: "USER",
         type: messageType,
-        content: text || defaultContent,
         externalMessageId,
         metadata: {
           telegram: {

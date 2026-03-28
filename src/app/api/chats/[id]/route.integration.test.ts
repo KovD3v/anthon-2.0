@@ -53,21 +53,18 @@ describe("integration /api/chats/[id]", () => {
       userId: user.id,
       chatId: chat.id,
       role: "USER",
-      content: "first",
       createdAt: t1,
     });
     const m2 = await createMessage({
       userId: user.id,
       chatId: chat.id,
       role: "ASSISTANT",
-      content: "second",
       createdAt: t2,
     });
     const m3 = await createMessage({
       userId: user.id,
       chatId: chat.id,
       role: "USER",
-      content: "third",
       createdAt: t3,
     });
 
@@ -114,7 +111,6 @@ describe("integration /api/chats/[id]", () => {
       userId: user.id,
       chatId: chat.id,
       role: "USER",
-      content: "Find my weekly running plan",
       createdAt: new Date("2026-02-17T10:00:00.000Z"),
     });
 
@@ -153,7 +149,6 @@ describe("integration /api/chats/[id]", () => {
       userId: user.id,
       chatId: chat.id,
       role: "USER",
-      content: "temporary",
     });
 
     mocks.getAuthUser.mockResolvedValue({

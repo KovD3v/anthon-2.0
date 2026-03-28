@@ -105,7 +105,6 @@ describe("/api/chat/messages route", () => {
       select: {
         id: true,
         role: true,
-        content: true,
         parts: true,
         createdAt: true,
         model: true,
@@ -163,7 +162,6 @@ describe("/api/chat/messages route", () => {
       select: {
         id: true,
         role: true,
-        content: true,
         parts: true,
         createdAt: true,
         model: true,
@@ -466,7 +464,7 @@ describe("/api/chat/messages route", () => {
       role: "USER",
       chatId: "chat-1",
       createdAt: new Date("2026-02-16T10:00:00.000Z"),
-      content: "original",
+      parts: [{ type: "text", text: "original" }],
     });
 
     const response = await PATCH(

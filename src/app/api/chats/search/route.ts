@@ -6,6 +6,7 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { getTextFromParts } from "@/lib/utils/message-parts";
 
 export async function GET(request: Request) {
   const { userId: clerkId } = await auth();
@@ -35,43 +36,45 @@ export async function GET(request: Request) {
     );
   }
 
-  // Search messages (case-insensitive contains)
-  const messages = await prisma.message.findMany({
-    where: {
-      userId: user.id,
-      content: {
-        contains: query,
-        mode: "insensitive",
-      },
-    },
-    select: {
-      id: true,
-      content: true,
-      role: true,
-      createdAt: true,
-      chatId: true,
-      chat: {
-        select: {
-          id: true,
-          title: true,
-        },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 20, // Limit results
-  });
+  // Search messages via jsonb extraction (parts-based search)
+  const messages = await prisma.$queryRaw<
+    Array<{
+      id: string;
+      parts: unknown;
+      role: string;
+      createdAt: Date;
+      chatId: string | null;
+      chatTitle: string | null;
+    }>
+  >`
+    SELECT
+      m.id,
+      m.parts,
+      m.role,
+      m."createdAt",
+      m."chatId",
+      c.title AS "chatTitle"
+    FROM "Message" m
+    LEFT JOIN "Chat" c ON m."chatId" = c.id
+    WHERE m."userId" = ${user.id}
+      AND m."deletedAt" IS NULL
+      AND (m.parts::jsonb -> 0 ->> 'text') ILIKE ${'%' + query + '%'}
+    ORDER BY m."createdAt" DESC
+    LIMIT 20
+  `;
 
-  // Format results
-  const results = messages.map((msg) => ({
-    id: msg.id,
-    content: msg.content,
-    role: msg.role,
-    createdAt: msg.createdAt,
-    chatId: msg.chatId,
-    chatTitle: msg.chat?.title || "Untitled",
-    // Highlight snippet
-    snippet: getSnippet(msg.content || "", query, 100),
-  }));
+  const results = messages.map((msg) => {
+    const text = getTextFromParts(msg.parts);
+    return {
+      id: msg.id,
+      content: text,
+      role: msg.role,
+      createdAt: msg.createdAt,
+      chatId: msg.chatId,
+      chatTitle: msg.chatTitle || "Untitled",
+      snippet: getSnippet(text, query, 100),
+    };
+  });
 
   return Response.json({ results, query });
 }

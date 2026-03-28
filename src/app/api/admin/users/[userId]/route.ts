@@ -63,7 +63,6 @@ export async function GET(
         id: true,
         channel: true,
         role: true,
-        content: true,
         model: true,
         costUsd: true,
         toolCalls: true,

@@ -279,7 +279,6 @@ async function handleMessage(
         direction: "INBOUND",
         role: "USER",
         type: messageType,
-        content: text || defaultContent,
         externalMessageId: messageId,
         metadata: {
           whatsapp: {

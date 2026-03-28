@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import type { Message } from "@/generated/prisma/client";
 import { SESSION } from "@/lib/ai/constants"; // GAP_MS
+import { getTextFromParts } from "@/lib/utils/message-parts";
 import { maintenanceModel } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
@@ -92,7 +93,7 @@ export async function archiveOldSessions(
 
     // 4. Summarize for Archive
     const transcript = session.messages
-      .map((m) => `${m.role === "USER" ? "U" : "A"}: ${m.content}`)
+      .map((m) => `${m.role === "USER" ? "U" : "A"}: ${getTextFromParts(m.parts)}`)
       .join("\n");
 
     const { text: summary } = await generateText({

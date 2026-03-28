@@ -10,6 +10,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
+import { getTextFromParts } from "@/lib/utils/message-parts";
 import {
   generateVoice,
   getSystemLoad,
@@ -115,7 +116,7 @@ export async function POST(request: Request) {
                 },
                 select: {
                   id: true,
-                  content: true,
+                  parts: true,
                   userId: true,
                 },
               }),
@@ -128,7 +129,8 @@ export async function POST(request: Request) {
           return Response.json({ error: "User not found" }, { status: 404 });
         }
 
-        if (!message || message.userId !== user.id || !message.content) {
+        const messageText = message ? getTextFromParts(message.parts) : null;
+        if (!message || message.userId !== user.id || !messageText) {
           requestTimer.end();
           return Response.json({ error: "Message not found" }, { status: 404 });
         }
@@ -139,7 +141,7 @@ export async function POST(request: Request) {
         const result = await shouldGenerateVoice({
           userId: user.id,
           userMessage: body.userMessage || "",
-          assistantText: message.content,
+          assistantText: messageText,
           userPreferences: {
             voiceEnabled: preferences?.voiceEnabled ?? true,
           },
@@ -186,7 +188,7 @@ export async function POST(request: Request) {
 
         // Generate voice (already instrumented internally)
         try {
-          const audio = await generateVoice(message.content);
+          const audio = await generateVoice(messageText);
 
           // Upload to Vercel Blob and track usage in parallel
           const { put } = await import("@vercel/blob");

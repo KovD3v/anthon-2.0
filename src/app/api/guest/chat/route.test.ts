@@ -326,7 +326,6 @@ describe("POST /api/guest/chat", () => {
         chatId: "chat-1",
         role: "USER",
         direction: "INBOUND",
-        content: "hello guest",
       }),
     });
     expect(streamArgs).toMatchObject({
@@ -414,7 +413,6 @@ describe("POST /api/guest/chat", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           role: "ASSISTANT",
-          content: "Guest assistant reply",
           userId: "guest-1",
         }),
       }),

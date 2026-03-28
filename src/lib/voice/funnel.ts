@@ -15,6 +15,7 @@ import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 import { parseCanonicalPlanFromPlanId } from "@/lib/plans";
+import { incrementVoiceUsage } from "@/lib/rate-limit/usage";
 import type { VoicePlanConfig } from "./config";
 
 const voiceLogger = createLogger("voice");
@@ -365,4 +366,9 @@ export async function trackVoiceUsage(
       channel,
     },
   });
+
+  // Also roll cost into daily usage for rate-limiting accuracy
+  if (costUsd && costUsd > 0) {
+    await incrementVoiceUsage(userId, costUsd);
+  }
 }

@@ -60,7 +60,6 @@ export async function persistAssistantOutput({
       direction: "OUTBOUND",
       role: "ASSISTANT",
       type: "TEXT",
-      content: text,
       parts: [{ type: "text", text }] as Prisma.InputJsonValue,
       ...(metadata ? { metadata } : {}),
       model: metrics.model,

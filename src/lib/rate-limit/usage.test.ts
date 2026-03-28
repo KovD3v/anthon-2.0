@@ -43,6 +43,7 @@ describe("rate-limit/usage", () => {
       outputTokens: 0,
       reasoningTokens: 0,
       totalCostUsd: 0,
+      voiceCostUsd: 0,
     });
   });
 
@@ -53,6 +54,7 @@ describe("rate-limit/usage", () => {
       outputTokens: 567,
       reasoningTokens: 42,
       totalCostUsd: 0.42,
+      voiceCostUsd: 0,
     });
 
     const result = await getDailyUsage("user-2");
@@ -63,6 +65,7 @@ describe("rate-limit/usage", () => {
       outputTokens: 567,
       reasoningTokens: 42,
       totalCostUsd: 0.42,
+      voiceCostUsd: 0,
     });
   });
 
@@ -73,6 +76,7 @@ describe("rate-limit/usage", () => {
       outputTokens: 450,
       reasoningTokens: 0,
       totalCostUsd: 0.9,
+      voiceCostUsd: 0,
     });
 
     const result = await incrementUsage("user-3", 200, 100, 0.2);
@@ -108,6 +112,7 @@ describe("rate-limit/usage", () => {
       outputTokens: 450,
       reasoningTokens: 0,
       totalCostUsd: 0.9,
+      voiceCostUsd: 0,
     });
   });
 });

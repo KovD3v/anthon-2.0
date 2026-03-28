@@ -156,7 +156,6 @@ export async function handleGuestChatPost(request: Request) {
                 direction: "INBOUND",
                 role: "USER",
                 type: "TEXT",
-                content: userMessageText,
                 parts: lastUserMessage.parts as Prisma.InputJsonValue,
               },
             }),

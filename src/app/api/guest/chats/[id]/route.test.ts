@@ -71,7 +71,6 @@ describe("/api/guest/chats/[id] route", () => {
       {
         id: "m3",
         role: "ASSISTANT",
-        content: "Third",
         parts: [{ type: "text", text: "Third" }],
         createdAt: new Date("2026-02-16T11:00:03.000Z"),
         model: "gpt-4o-mini",
@@ -85,7 +84,6 @@ describe("/api/guest/chats/[id] route", () => {
       {
         id: "m2",
         role: "USER",
-        content: "Second",
         parts: [{ type: "text", text: "Second" }],
         createdAt: new Date("2026-02-16T11:00:02.000Z"),
         model: null,
@@ -99,7 +97,6 @@ describe("/api/guest/chats/[id] route", () => {
       {
         id: "m1",
         role: "USER",
-        content: "First",
         parts: [{ type: "text", text: "First" }],
         createdAt: new Date("2026-02-16T11:00:01.000Z"),
         model: null,
@@ -112,7 +109,7 @@ describe("/api/guest/chats/[id] route", () => {
       },
     ]);
 
-    mocks.messageFindFirst.mockResolvedValue({ content: "First user prompt" });
+    mocks.messageFindFirst.mockResolvedValue({ parts: [{ type: "text", text: "First user prompt" }] });
     mocks.generateChatTitle.mockResolvedValue("Generated Guest Title");
     mocks.chatUpdate.mockResolvedValue({
       id: "chat-1",
@@ -179,7 +176,6 @@ describe("/api/guest/chats/[id] route", () => {
       select: {
         id: true,
         role: true,
-        content: true,
         parts: true,
         createdAt: true,
         model: true,
@@ -284,7 +280,7 @@ describe("/api/guest/chats/[id] route", () => {
     expect(mocks.messageFindFirst).toHaveBeenCalledWith({
       where: { chatId: "chat-1", role: "USER" },
       orderBy: { createdAt: "asc" },
-      select: { content: true },
+      select: { parts: true },
     });
     expect(mocks.generateChatTitle).toHaveBeenCalledWith("First user prompt");
     expect(mocks.chatUpdate).toHaveBeenCalledWith({

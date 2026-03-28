@@ -240,7 +240,6 @@ export async function handleWebChatPost(request: Request) {
                 direction: "INBOUND",
                 role: "USER",
                 type: "TEXT",
-                content: userMessageText,
                 parts: lastUserMessage.parts as Prisma.InputJsonValue,
               },
             }),

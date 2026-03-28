@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   userFindUnique: vi.fn(),
-  messageFindMany: vi.fn(),
+  queryRaw: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -15,9 +15,7 @@ vi.mock("@/lib/db", () => ({
     user: {
       findUnique: mocks.userFindUnique,
     },
-    message: {
-      findMany: mocks.messageFindMany,
-    },
+    $queryRaw: mocks.queryRaw,
   },
 }));
 
@@ -27,33 +25,36 @@ describe("GET /api/chats/search", () => {
   beforeEach(() => {
     mocks.auth.mockReset();
     mocks.userFindUnique.mockReset();
-    mocks.messageFindMany.mockReset();
+    mocks.queryRaw.mockReset();
 
     mocks.auth.mockResolvedValue({ userId: "clerk_1" });
     mocks.userFindUnique.mockResolvedValue({ id: "user-1" });
-    mocks.messageFindMany.mockResolvedValue([
+    mocks.queryRaw.mockResolvedValue([
       {
         id: "msg-1",
-        content:
-          "This is a long test message about deployment workflows and production diagnostics.",
+        parts: [
+          {
+            type: "text",
+            text: "This is a long test message about deployment workflows and production diagnostics.",
+          },
+        ],
         role: "USER",
         createdAt: new Date("2026-02-16T10:00:00.000Z"),
         chatId: "chat-1",
-        chat: {
-          id: "chat-1",
-          title: "Deploy Notes",
-        },
+        chatTitle: "Deploy Notes",
       },
       {
         id: "msg-2",
-        content: "No matching term here, but still return snippet fallback.",
+        parts: [
+          {
+            type: "text",
+            text: "No matching term here, but still return snippet fallback.",
+          },
+        ],
         role: "ASSISTANT",
         createdAt: new Date("2026-02-16T09:00:00.000Z"),
         chatId: "chat-2",
-        chat: {
-          id: "chat-2",
-          title: null,
-        },
+        chatTitle: null,
       },
     ]);
   });
@@ -112,30 +113,7 @@ describe("GET /api/chats/search", () => {
       where: { clerkId: "clerk_1" },
       select: { id: true },
     });
-    expect(mocks.messageFindMany).toHaveBeenCalledWith({
-      where: {
-        userId: "user-1",
-        content: {
-          contains: "deploy",
-          mode: "insensitive",
-        },
-      },
-      select: {
-        id: true,
-        content: true,
-        role: true,
-        createdAt: true,
-        chatId: true,
-        chat: {
-          select: {
-            id: true,
-            title: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    });
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
 
     const json = await response.json();
     expect(json.query).toBe("deploy");
@@ -158,7 +136,7 @@ describe("GET /api/chats/search", () => {
   });
 
   it("propagates dependency errors", async () => {
-    mocks.messageFindMany.mockRejectedValue(new Error("db unavailable"));
+    mocks.queryRaw.mockRejectedValue(new Error("db unavailable"));
 
     await expect(
       GET(new Request("http://localhost/api/chats/search?q=deploy")),

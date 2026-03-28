@@ -53,6 +53,7 @@ describe("checkRateLimit", () => {
       outputTokens: 0,
       reasoningTokens: 0,
       totalCostUsd: 0,
+      voiceCostUsd: 0,
     });
   });
 
@@ -63,6 +64,7 @@ describe("checkRateLimit", () => {
       outputTokens: 10,
       reasoningTokens: 0,
       totalCostUsd: 0.1,
+      voiceCostUsd: 0,
     });
 
     const result = await checkRateLimit(
@@ -101,6 +103,7 @@ describe("checkRateLimit", () => {
       outputTokens: 0,
       reasoningTokens: 0,
       totalCostUsd: 0,
+      voiceCostUsd: 0,
     });
 
     const result = await checkRateLimit(
@@ -124,6 +127,7 @@ describe("checkRateLimit", () => {
       outputTokens: 0,
       reasoningTokens: 0,
       totalCostUsd: 0,
+      voiceCostUsd: 0,
     });
 
     const result = await checkRateLimit(
@@ -147,6 +151,7 @@ describe("checkRateLimit", () => {
       outputTokens: 50,
       reasoningTokens: 0,
       totalCostUsd: 0,
+      voiceCostUsd: 0,
     });
 
     const result = await checkRateLimit(
@@ -170,6 +175,7 @@ describe("checkRateLimit", () => {
       outputTokens: 0,
       reasoningTokens: 0,
       totalCostUsd: 1,
+      voiceCostUsd: 0,
     });
 
     const result = await checkRateLimit(

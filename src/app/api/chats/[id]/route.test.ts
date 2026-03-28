@@ -128,7 +128,7 @@ describe("/api/chats/[id] route", () => {
     ]);
 
     mocks.messageFindFirst.mockResolvedValue({
-      content: "How do I test this route?",
+      parts: [{ type: "text", text: "How do I test this route?" }],
     });
     mocks.generateChatTitle.mockResolvedValue("Generated Title");
     mocks.chatUpdate.mockResolvedValue({
@@ -211,7 +211,6 @@ describe("/api/chats/[id] route", () => {
       select: {
         id: true,
         role: true,
-        content: true,
         parts: true,
         createdAt: true,
         model: true,
@@ -245,7 +244,6 @@ describe("/api/chats/[id] route", () => {
         {
           id: "m2",
           role: "user",
-          content: "second",
           parts: [{ type: "text", text: "second" }],
           createdAt: "2026-02-16T11:00:02.000Z",
           model: null,
@@ -257,7 +255,6 @@ describe("/api/chats/[id] route", () => {
         {
           id: "m3",
           role: "assistant",
-          content: "third",
           parts: [{ type: "text", text: "third" }],
           createdAt: "2026-02-16T11:00:03.000Z",
           model: "gpt-4o-mini",
@@ -349,7 +346,7 @@ describe("/api/chats/[id] route", () => {
     expect(mocks.messageFindFirst).toHaveBeenCalledWith({
       where: { chatId: "chat-1", role: "USER" },
       orderBy: { createdAt: "asc" },
-      select: { content: true },
+      select: { parts: true },
     });
     expect(mocks.generateChatTitle).toHaveBeenCalledWith(
       "How do I test this route?",

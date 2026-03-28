@@ -42,12 +42,12 @@ describe("GET /api/chats/[id]/export", () => {
       messages: [
         {
           role: "USER",
-          content: "First question",
+          parts: [{ type: "text", text: "First question" }],
           createdAt: new Date("2026-02-10T12:01:00.000Z"),
         },
         {
           role: "ASSISTANT",
-          content: "First answer",
+          parts: [{ type: "text", text: "First answer" }],
           createdAt: new Date("2026-02-10T12:02:00.000Z"),
         },
       ],
@@ -102,7 +102,7 @@ describe("GET /api/chats/[id]/export", () => {
           orderBy: { createdAt: "asc" },
           select: {
             role: true,
-            content: true,
+            parts: true,
             createdAt: true,
           },
         },

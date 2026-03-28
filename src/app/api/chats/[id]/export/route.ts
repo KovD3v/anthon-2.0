@@ -6,6 +6,7 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { getTextFromParts } from "@/lib/utils/message-parts";
 
 export async function GET(
   _request: Request,
@@ -36,7 +37,7 @@ export async function GET(
         orderBy: { createdAt: "asc" },
         select: {
           role: true,
-          content: true,
+          parts: true,
           createdAt: true,
         },
       },
@@ -63,7 +64,7 @@ export async function GET(
     });
 
     markdown += `### ${role} (${time})\n\n`;
-    markdown += `${message.content || ""}\n\n`;
+    markdown += `${getTextFromParts(message.parts) || ""}\n\n`;
   }
 
   // Generate filename

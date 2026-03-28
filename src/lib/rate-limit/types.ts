@@ -18,6 +18,7 @@ export interface DailyUsageData {
   outputTokens: number;
   reasoningTokens: number;
   totalCostUsd: number;
+  voiceCostUsd: number;
 }
 
 export interface UpgradeInfo {

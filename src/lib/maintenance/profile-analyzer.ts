@@ -3,6 +3,7 @@ import { z } from "zod";
 import { maintenanceModel } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import { getTextFromParts } from "@/lib/utils/message-parts";
 
 const analyzerLogger = createLogger("maintenance");
 
@@ -46,7 +47,7 @@ export async function analyzeUserProfile(userId: string): Promise<void> {
 
   const textAnalysis = messages
     .reverse() // chronologic
-    .map((m) => m.content)
+    .map((m) => getTextFromParts(m.parts))
     .join("\n---\n");
 
   try {

@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import { getTextFromParts } from "@/lib/utils/message-parts";
 
 const chatLogger = createLogger("ai");
 
@@ -52,7 +53,6 @@ export async function GET(request: Request) {
       select: {
         id: true,
         role: true,
-        content: true,
         parts: true,
         createdAt: true,
         model: true,
@@ -67,7 +67,7 @@ export async function GET(request: Request) {
     const uiMessages = messages.map((msg) => ({
       id: msg.id,
       role: msg.role === "USER" ? "user" : "assistant",
-      content: msg.content || "",
+      content: getTextFromParts(msg.parts) || "",
       parts: msg.parts,
       createdAt: msg.createdAt.toISOString(),
       model: msg.model,
@@ -251,7 +251,7 @@ export async function PATCH(request: Request) {
       success: true,
       deletedCount: deleteResult.count,
       chatId: message.chatId,
-      newContent: content || message.content,
+      newContent: content || getTextFromParts(message.parts),
     });
   } catch (error) {
     chatLogger.error("patch.error", "Failed to edit chat message", { error });
