@@ -18,6 +18,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useRef, useState } from "react";
+import { duration, ease } from "@/lib/motion";
 
 export function SidebarBottom() {
   const { user } = useUser();
@@ -89,7 +90,7 @@ export function SidebarBottom() {
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            transition={{ duration: duration.fast, ease: ease.out }}
             className="absolute bottom-full left-0 mb-2 w-[calc(100%-16px)] mx-2 overflow-hidden rounded-xl border border-border dark:border-white/20 bg-background/95 dark:bg-black/60 backdrop-blur-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10"
           >
             <div className="flex flex-col p-1">

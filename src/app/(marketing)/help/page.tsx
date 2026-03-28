@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PageWrapper } from "@/components/ui/page-wrapper";
+import { defaultTransition, fadeUp } from "@/lib/motion";
 
 export default function HelpPage() {
   const features = [
@@ -74,9 +75,10 @@ export default function HelpPage() {
           {/* Header */}
           <div className="text-center mb-20">
             <m.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
+              variants={fadeUp}
+              initial="hidden"
+              animate="show"
+              transition={defaultTransition}
             >
               <h1 className="text-5xl font-bold tracking-tight text-foreground mb-6">
                 How to use <span className="text-primary">Anthon</span>
@@ -94,9 +96,10 @@ export default function HelpPage() {
             {features.map((feature, index) => (
               <m.div
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
+                variants={fadeUp}
+                initial="hidden"
+                animate="show"
+                transition={{ ...defaultTransition, delay: index * 0.08 }}
                 className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-8 hover:bg-white/10 transition-colors"
               >
                 <div className="flex items-start gap-4">
@@ -118,9 +121,10 @@ export default function HelpPage() {
 
           {/* Shortcuts Section */}
           <m.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
+            variants={fadeUp}
+            initial="hidden"
+            animate="show"
+            transition={{ ...defaultTransition, delay: 0.3 }}
             className="rounded-3xl border border-white/10 bg-background/50 backdrop-blur-xl p-8 sm:p-12 mb-20"
           >
             <div className="flex items-center gap-2 mb-8">
