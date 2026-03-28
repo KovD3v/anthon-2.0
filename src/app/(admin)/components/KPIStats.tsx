@@ -58,7 +58,7 @@ export async function KPIStats() {
               <card.icon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{card.value}</div>
+              <div className="text-lg font-semibold">{card.value}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {card.subtitle}
               </p>

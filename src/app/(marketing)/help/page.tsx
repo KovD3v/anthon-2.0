@@ -78,7 +78,7 @@ export default function HelpPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-6xl mb-6">
+              <h1 className="text-5xl font-bold tracking-tight text-foreground mb-6">
                 How to use <span className="text-primary">Anthon</span>
               </h1>
               <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
@@ -125,7 +125,7 @@ export default function HelpPage() {
           >
             <div className="flex items-center gap-3 mb-8">
               <Keyboard className="h-8 w-8 text-primary" />
-              <h2 className="text-2xl font-bold text-foreground">
+              <h2 className="text-lg font-semibold text-foreground">
                 Keyboard Shortcuts
               </h2>
             </div>

@@ -9,7 +9,7 @@ export default function PricingPage() {
       <div className="min-h-screen bg-background py-16 md:py-24">
         <div className="container mx-auto px-4 md:px-6">
           <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl">
+            <h1 className="text-5xl font-bold tracking-tight">
               Scegli il piano in base al tuo obiettivo sportivo
             </h1>
             <p className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto">

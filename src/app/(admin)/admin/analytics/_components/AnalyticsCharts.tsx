@@ -340,7 +340,7 @@ export default function AnalyticsCharts({
           <Card variant="glass">
             <CardContent className="pt-6">
               <div className="text-sm text-muted-foreground">Total Cost</div>
-              <div className="text-2xl font-bold">
+              <div className="text-lg font-semibold">
                 ${costStats.totalCostUsd.toFixed(2)}
               </div>
             </CardContent>
@@ -350,7 +350,7 @@ export default function AnalyticsCharts({
               <div className="text-sm text-muted-foreground">
                 Total Output Tokens
               </div>
-              <div className="text-2xl font-bold">
+              <div className="text-lg font-semibold">
                 {costStats.totalOutputTokens.toLocaleString()}
               </div>
             </CardContent>
@@ -360,7 +360,7 @@ export default function AnalyticsCharts({
               <div className="text-sm text-muted-foreground">
                 Avg Cost/Message
               </div>
-              <div className="text-2xl font-bold">
+              <div className="text-lg font-semibold">
                 ${costStats.avgCostPerMessage.toFixed(4)}
               </div>
             </CardContent>
@@ -370,7 +370,7 @@ export default function AnalyticsCharts({
               <div className="text-sm text-muted-foreground">
                 Avg Generation Time
               </div>
-              <div className="text-2xl font-bold">
+              <div className="text-lg font-semibold">
                 {costStats.avgGenerationTimeMs.toFixed(0)}ms
               </div>
             </CardContent>

@@ -76,7 +76,7 @@ export default function UsagePage() {
               Torna alla chat
             </Link>
           </Button>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
             Il tuo utilizzo
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -104,7 +104,7 @@ export default function UsagePage() {
 
               {/* Big number */}
               <div className="flex items-baseline gap-2 mb-4">
-                <span className="text-4xl font-bold text-foreground">
+                <span className="text-3xl font-semibold tracking-tight text-foreground">
                   {remaining}
                 </span>
                 <span className="text-sm text-muted-foreground">

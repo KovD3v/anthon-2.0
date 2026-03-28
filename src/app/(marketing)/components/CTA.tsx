@@ -4,7 +4,7 @@ import { m } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { scaleIn, defaultTransition } from "@/lib/motion";
+import { defaultTransition, scaleIn } from "@/lib/motion";
 
 export function CTA() {
   return (
@@ -17,7 +17,7 @@ export function CTA() {
           viewport={{ once: true }}
           transition={defaultTransition}
         >
-          <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl mb-6">
+          <h2 className="text-3xl font-semibold tracking-tight mb-6">
             Porta fiducia, focus e lucidita nella tua prossima gara
           </h2>
           <p className="text-xl text-primary-foreground/80 max-w-2xl mx-auto mb-8">

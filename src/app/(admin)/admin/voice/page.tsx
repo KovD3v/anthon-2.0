@@ -152,7 +152,7 @@ export default function ElevenLabsAdminPage() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-lg font-semibold">
               {data.subscription?.characterCount.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -176,7 +176,7 @@ export default function ElevenLabsAdminPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
-              <div className="text-2xl font-bold">
+              <div className="text-lg font-semibold">
                 {(data.systemLoad * 100).toFixed(1)}%
               </div>
               <div
@@ -197,7 +197,7 @@ export default function ElevenLabsAdminPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-lg font-semibold">
               ${data.stats.today.costUsd.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground">

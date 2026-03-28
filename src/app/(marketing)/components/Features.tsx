@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { staggerContainer, fadeUp, defaultTransition } from "@/lib/motion";
+import { defaultTransition, fadeUp, staggerContainer } from "@/lib/motion";
 
 const features = [
   {
@@ -92,7 +92,11 @@ export function Features() {
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
         >
           {features.map((feature) => (
-            <m.div key={feature.id} variants={fadeUp} transition={defaultTransition}>
+            <m.div
+              key={feature.id}
+              variants={fadeUp}
+              transition={defaultTransition}
+            >
               <Card
                 variant="glass"
                 className="h-full transition-all hover:bg-background/80"
@@ -104,7 +108,7 @@ export function Features() {
                   <CardTitle>{feature.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <CardDescription className="text-base">
+                  <CardDescription className="text-sm">
                     {feature.description}
                   </CardDescription>
                 </CardContent>
