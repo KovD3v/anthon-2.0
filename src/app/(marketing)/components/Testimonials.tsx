@@ -3,7 +3,7 @@
 import { m } from "framer-motion";
 import { Star } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { staggerContainer, scaleIn, fadeUp, defaultTransition } from "@/lib/motion";
+import { staggerContainer, scaleIn, defaultTransition } from "@/lib/motion";
 
 const testimonials = [
   {
