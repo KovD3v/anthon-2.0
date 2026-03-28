@@ -225,31 +225,6 @@ async function buildSystemPrompt(
 }
 
 /**
- * Converts an audio MIME type to the format string expected by OpenRouter.
- * Supported formats: wav, mp3, aiff, aac, ogg, flac, m4a, pcm16
- */
-function _getAudioFormat(mimeType: string): string {
-  const formatMap: Record<string, string> = {
-    "audio/wav": "wav",
-    "audio/wave": "wav",
-    "audio/x-wav": "wav",
-    "audio/mpeg": "mp3",
-    "audio/mp3": "mp3",
-    "audio/aiff": "aiff",
-    "audio/x-aiff": "aiff",
-    "audio/aac": "aac",
-    "audio/ogg": "ogg",
-    "audio/flac": "flac",
-    "audio/x-flac": "flac",
-    "audio/mp4": "m4a",
-    "audio/x-m4a": "m4a",
-    "audio/m4a": "m4a",
-    "audio/webm": "ogg", // WebM audio typically uses Opus/Vorbis, map to ogg
-  };
-  return formatMap[mimeType] || "wav"; // Default to wav if unknown
-}
-
-/**
  * Converts a base64 string to Uint8Array for the AI SDK file type.
  */
 function base64ToUint8Array(base64: string): Uint8Array {
@@ -591,24 +566,6 @@ export async function streamChat({
     hasAudio: Boolean(hasAudio),
   });
   return result;
-}
-
-/**
- * Non-streaming version for testing or simple use cases.
- */
-async function _generateChatResponse(
-  userId: string,
-  userMessage: string,
-): Promise<string> {
-  const result = await streamChat({ userId, userMessage });
-
-  // Collect the full response
-  let fullText = "";
-  for await (const chunk of result.textStream) {
-    fullText += chunk;
-  }
-
-  return fullText;
 }
 
 // Export types for external use

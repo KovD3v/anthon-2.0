@@ -22,17 +22,6 @@ function calculateCost(
 }
 
 /**
- * Calculate cost with full breakdown.
- */
-function _calculateCostDetailed(
-  modelId: string,
-  inputTokens: number,
-  outputTokens: number,
-): CostResult {
-  return tokenlensCost(modelId, inputTokens, outputTokens);
-}
-
-/**
  * Extract AI metrics from the AI SDK response.
  * Works with streamText and generateText responses.
  */
@@ -149,14 +138,6 @@ export function extractAIMetrics(
     generationTimeMs,
     reasoningTimeMs: null, // Not available from OpenRouter currently
   };
-}
-
-/**
- * Pre-warm the TokenLens catalog cache.
- * Note: TokenLens now uses a built-in catalog, no warmup needed.
- */
-function _warmPricingCache(): void {
-  // No-op - tokenlens uses embedded catalog
 }
 
 // Re-export for convenience

@@ -5,12 +5,7 @@
  * Uses the built-in default catalog (tokenlens embeds OpenRouter pricing).
  */
 
-import {
-  contextHealth,
-  estimateCost,
-  getContext,
-  remainingContext,
-} from "tokenlens";
+import { estimateCost } from "tokenlens";
 
 // -----------------------------------------------------
 // COST CALCULATION
@@ -65,98 +60,3 @@ export function calculateCost(
   }
 }
 
-// -----------------------------------------------------
-// CONTEXT BUDGET
-// -----------------------------------------------------
-
-export interface ContextBudgetResult {
-  percentUsed: number;
-  tokensUsed: number;
-  contextLength: number;
-  isNearLimit: boolean; // > 80%
-  isOverLimit: boolean; // > 100%
-}
-
-/**
- * Calculate how much of the model's context window is being used.
- *
- * @param modelId - The model identifier
- * @param tokenCount - Current token count in the conversation
- * @returns Context budget information
- */
-function getContextBudget(
-  modelId: string,
-  tokenCount: number,
-): ContextBudgetResult {
-  const context = getContext({ modelId });
-  const remaining = remainingContext({
-    modelId,
-    usage: { promptTokens: tokenCount, completionTokens: 0 },
-  });
-
-  const contextLength = context.maxTotal ?? context.maxInput ?? 128000;
-  const percentUsed = remaining.percentUsed;
-
-  return {
-    percentUsed,
-    tokensUsed: tokenCount,
-    contextLength,
-    isNearLimit: percentUsed >= 80,
-    isOverLimit: percentUsed >= 100,
-  };
-}
-
-/**
- * Get health status of context usage.
- */
-function _getContextHealthStatus(
-  modelId: string,
-  inputTokens: number,
-  outputTokens: number,
-): {
-  percentUsed: number;
-  remaining?: number;
-  status: "ok" | "warn" | "compact";
-} {
-  return contextHealth({
-    modelId,
-    usage: { promptTokens: inputTokens, completionTokens: outputTokens },
-  });
-}
-
-// -----------------------------------------------------
-// MODEL INFO
-// -----------------------------------------------------
-
-/**
- * Get the context length for a model.
- */
-function _getModelContextLength(modelId: string): number {
-  const context = getContext({ modelId });
-  return context.maxTotal ?? context.maxInput ?? 128000;
-}
-
-// -----------------------------------------------------
-// USAGE DATA FOR STREAMING
-// -----------------------------------------------------
-
-export interface StreamUsageData {
-  cost: CostResult;
-  contextBudget: ContextBudgetResult;
-}
-
-/**
- * Build usage data to stream to the client after a response.
- * This is sent as a data event with useChat.
- */
-function _buildStreamUsageData(
-  modelId: string,
-  inputTokens: number,
-  outputTokens: number,
-  totalConversationTokens: number,
-): StreamUsageData {
-  const cost = calculateCost(modelId, inputTokens, outputTokens);
-  const contextBudget = getContextBudget(modelId, totalConversationTokens);
-
-  return { cost, contextBudget };
-}

@@ -253,16 +253,3 @@ async function getLastMessageTime(userId: string): Promise<Date | null> {
   return lastMessage?.createdAt ?? null;
 }
 
-/**
- * Checks if the user is currently in an active session.
- * Returns true if the last message was within 15 minutes.
- */
-async function _isInActiveSession(userId: string): Promise<boolean> {
-  const lastMessageTime = await getLastMessageTime(userId);
-  if (!lastMessageTime) return false;
-
-  const now = Date.now();
-  const lastTime = new Date(lastMessageTime).getTime();
-
-  return now - lastTime < SESSION.GAP_MS;
-}
