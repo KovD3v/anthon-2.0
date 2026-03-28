@@ -4,6 +4,9 @@ import { SESSION } from "@/lib/ai/constants";
 import { subAgentModel } from "@/lib/ai/providers/openrouter";
 import { cacheSummary, getCachedSummary } from "@/lib/ai/session-cache";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const sessionLogger = createLogger("ai");
 
 interface Session {
   messages: Message[];
@@ -190,7 +193,11 @@ export async function buildConversationContext(
         // Cache miss: trigger background summarization for next time
         // Fire-and-forget - don't await
         summarizeSession(userId, session).catch((err) => {
-          console.error("Background summarization failed:", err);
+          sessionLogger.error(
+            "ai.session.summarize.failed",
+            "Background summarization failed",
+            { error: err, userId },
+          );
         });
 
         // Use quick fallback: include only the last few messages from this session

@@ -25,9 +25,7 @@ function uniqueId(prefix: string): string {
 function getRequest(
   url = "http://localhost/api/admin/organizations",
 ): Request {
-  return {
-    nextUrl: new URL(url),
-  } as unknown as Request;
+  return { url } as unknown as Request;
 }
 
 describe("integration /api/admin/organizations", () => {

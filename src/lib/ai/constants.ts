@@ -49,7 +49,6 @@ export const RAG = {
  */
 export const RAG_KEYWORDS = [
   // Methodology
-  "come",
   "tecnica",
   "esercizio",
   "allenamento",
@@ -78,6 +77,57 @@ export const RAG_KEYWORDS = [
   "quando",
   "quanto",
   "quale",
+] as const;
+
+/**
+ * Keywords that bypass RAG lookup (checked before LLM classification).
+ * If found in the user message, RAG is skipped immediately.
+ */
+export const RAG_NEGATIVE_KEYWORDS = [
+  // Greetings and social
+  "ciao",
+  "salve",
+  "buongiorno",
+  "buonasera",
+  "buonanotte",
+  "hello",
+  "hi ",
+  "hey",
+  // Gratitude
+  "grazie",
+  "thanks",
+  "thank you",
+  // Affirmations
+  "ok",
+  "okay",
+  "va bene",
+  "perfetto",
+  "bene",
+  "ottimo",
+  // Questions about self/profile
+  "chi sei",
+  "cosa fai",
+  "come ti chiami",
+  "who are you",
+  "what do you do",
+  // Temporal/status queries
+  "come va",
+  "come stai",
+  "tutto bene",
+  "how are you",
+  "what's up",
+  // Personal feelings (unless technical)
+  "mi sento",
+  "sono stanco",
+  "sono felice",
+  "sono triste",
+  // Meta questions about the conversation
+  "hai capito",
+  "mi hai capito",
+  "ricordi",
+  "ti ricordi",
+  "did you understand",
+  "do you remember",
 ] as const;
 
 // -----------------------------------------------------

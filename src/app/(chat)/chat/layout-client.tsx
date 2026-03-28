@@ -249,11 +249,9 @@ export function LayoutClient({
 
   // Pre-fetch chat data on hover
   async function preFetchChat(id: string) {
-    console.log(`[Prefetch] Triggered for chat ${id}`);
     router.prefetch(`/chat/${id}`);
 
     if (chatCacheRef.current.has(id) || preFetchingIdsRef.current.has(id)) {
-      console.log(`[Prefetch] Already cached or fetching for ${id}`);
       return;
     }
 
@@ -272,10 +270,9 @@ export function LayoutClient({
         }
 
         chatCacheRef.current.set(id, data);
-        console.log(`[Prefetch] Successfully cached data for ${id}`);
       }
-    } catch (error) {
-      console.error("[Prefetch] Failed:", error);
+    } catch {
+      // prefetch failures are non-critical; suppress noise
     } finally {
       preFetchingIdsRef.current.delete(id);
     }

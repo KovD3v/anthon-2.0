@@ -18,9 +18,7 @@ import { GET } from "./route";
 function request(
   url = "http://localhost/api/admin/organizations/org-1/audit",
 ): Request {
-  return {
-    nextUrl: new URL(url),
-  } as unknown as Request;
+  return { url } as unknown as Request;
 }
 
 function params(organizationId = "org-1") {

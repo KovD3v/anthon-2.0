@@ -25,9 +25,7 @@ function uniqueId(prefix: string): string {
 function request(
   url = "http://localhost/api/admin/organizations/org-1/audit?page=1&limit=2",
 ): Request {
-  return {
-    nextUrl: new URL(url),
-  } as unknown as Request;
+  return { url } as unknown as Request;
 }
 
 function params(organizationId: string) {

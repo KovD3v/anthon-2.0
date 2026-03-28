@@ -49,6 +49,8 @@ CRITICAL: You MUST provide a 'query' argument. NEVER call this tool with empty a
         } catch (error) {
           console.error("[tavilySearch] Error:", error);
           return {
+            results: [],
+            answer: null,
             error: "Failed to perform search.",
           };
         }

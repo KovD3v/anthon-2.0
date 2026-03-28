@@ -6,7 +6,7 @@
 
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { RAG, RAG_KEYWORDS } from "@/lib/ai/constants";
+import { RAG, RAG_KEYWORDS, RAG_NEGATIVE_KEYWORDS } from "@/lib/ai/constants";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
@@ -454,56 +454,6 @@ function splitIntoChunks(
 let documentCountCache: { count: number; timestamp: number } | null = null;
 const DOCUMENT_COUNT_CACHE_TTL = 60000; // 1 minute
 
-/**
- * Negative keywords - if found, immediately skip RAG (no LLM call needed)
- * These indicate personal/conversational queries that don't need methodology documents
- */
-const RAG_NEGATIVE_KEYWORDS = [
-  // Greetings and social
-  "ciao",
-  "salve",
-  "buongiorno",
-  "buonasera",
-  "buonanotte",
-  "hello",
-  "hi ",
-  "hey",
-  // Gratitude
-  "grazie",
-  "thanks",
-  "thank you",
-  // Affirmations
-  "ok",
-  "okay",
-  "va bene",
-  "perfetto",
-  "bene",
-  "ottimo",
-  // Questions about self/profile
-  "chi sei",
-  "cosa fai",
-  "come ti chiami",
-  "who are you",
-  "what do you do",
-  // Temporal/status queries
-  "come va",
-  "come stai",
-  "tutto bene",
-  "how are you",
-  "what's up",
-  // Personal feelings (unless technical)
-  "mi sento",
-  "sono stanco",
-  "sono felice",
-  "sono triste",
-  // Meta questions about the conversation
-  "hai capito",
-  "mi hai capito",
-  "ricordi",
-  "ti ricordi",
-  "did you understand",
-  "do you remember",
-];
 
 /**
  * Patterns that indicate RAG is NOT needed
@@ -701,8 +651,9 @@ Answer needsRag: false if the question is:
         }),
     );
 
-    if (ragClassificationCache.size > RAG_CLASSIFICATION_CACHE_MAX_ENTRIES) {
-      ragClassificationCache.clear();
+    if (ragClassificationCache.size >= RAG_CLASSIFICATION_CACHE_MAX_ENTRIES) {
+      const firstKey = ragClassificationCache.keys().next().value;
+      if (firstKey !== undefined) ragClassificationCache.delete(firstKey);
     }
     ragClassificationCache.set(cacheKey, {
       needsRag: output?.needsRag ?? false,

@@ -48,9 +48,7 @@ import { GET, POST } from "./route";
 function getRequest(
   url = "http://localhost/api/admin/organizations",
 ): Request {
-  return {
-    nextUrl: new URL(url),
-  } as unknown as Request;
+  return { url } as unknown as Request;
 }
 
 function postRequest(body: unknown): Request {

@@ -2,13 +2,6 @@ import type { LogDomain, LogLevel } from "./types";
 
 export type LogOutputFormat = "json" | "pretty";
 
-const ORDERED_LEVELS: readonly Exclude<LogLevel, "silent">[] = [
-  "debug",
-  "info",
-  "warn",
-  "error",
-];
-
 const LEVEL_PRIORITY: Record<Exclude<LogLevel, "silent">, number> = {
   debug: 10,
   info: 20,
@@ -175,4 +168,3 @@ export function shouldLogEvent(
   return shouldLog(level, domain);
 }
 
-export const LOG_LEVEL_ORDER = ORDERED_LEVELS;
