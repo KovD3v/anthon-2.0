@@ -296,7 +296,7 @@ function InfraCard({
 }) {
   return (
     <Card className="border-white/5 bg-background/40 backdrop-blur-md hover:bg-muted/20 transition-all duration-300 group">
-      <CardContent className="p-5">
+      <CardContent className="p-4">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-white/5 ring-1 ring-white/10 group-hover:ring-white/20 transition-all">
             <Icon className={cn("h-5 w-5", color)} />

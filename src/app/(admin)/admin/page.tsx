@@ -31,28 +31,28 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-2 gap-4">
               <Link
                 href="/admin/users"
-                className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-6 text-card-foreground transition-colors hover:bg-muted/50"
+                className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4 text-card-foreground transition-colors hover:bg-muted/50"
               >
                 <Users className="h-8 w-8 text-primary" />
                 <span className="font-medium">Manage Users</span>
               </Link>
               <Link
                 href="/admin/rag"
-                className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-6 text-card-foreground transition-colors hover:bg-muted/50"
+                className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4 text-card-foreground transition-colors hover:bg-muted/50"
               >
                 <FileText className="h-8 w-8 text-primary" />
                 <span className="font-medium">Upload RAG Docs</span>
               </Link>
               <Link
                 href="/admin/analytics"
-                className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-6 text-card-foreground transition-colors hover:bg-muted/50"
+                className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4 text-card-foreground transition-colors hover:bg-muted/50"
               >
                 <BarChart3 className="h-8 w-8 text-primary" />
                 <span className="font-medium">View Analytics</span>
               </Link>
               <Link
                 href="/chat"
-                className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-6 text-card-foreground transition-colors hover:bg-muted/50"
+                className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4 text-card-foreground transition-colors hover:bg-muted/50"
               >
                 <MessageSquare className="h-8 w-8 text-primary" />
                 <span className="font-medium">Open Chat</span>

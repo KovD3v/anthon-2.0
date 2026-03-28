@@ -30,7 +30,7 @@ function ChatLayoutSkeleton() {
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
         <div className="mx-2 mt-2 md:mx-4 md:mt-4">
-          <div className="flex h-12 items-center gap-3 rounded-2xl border border-border/50 bg-background/60 px-3 shadow-sm backdrop-blur-xl sm:h-14 sm:px-4 dark:border-white/10">
+          <div className="flex h-12 items-center gap-2 rounded-2xl border border-border/50 bg-background/60 px-3 shadow-sm backdrop-blur-xl sm:h-14 sm:px-4 dark:border-white/10">
             <div className="h-8 w-8 animate-pulse rounded-md bg-muted/40 md:hidden" />
             <div className="h-3 w-44 animate-pulse rounded bg-muted/35" />
             <div className="ml-auto h-7 w-20 animate-pulse rounded-xl bg-muted/30" />
@@ -42,14 +42,14 @@ function ChatLayoutSkeleton() {
 
           <div className="flex-1 overflow-y-auto px-4 py-6">
             <div className="mx-auto max-w-3xl space-y-6">
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-2">
                 <div className="h-8 w-8 animate-pulse rounded-full bg-muted/45" />
                 <div className="space-y-2 rounded-2xl rounded-tl-sm border border-white/10 bg-background/60 px-5 py-3.5">
                   <div className="h-3 w-52 animate-pulse rounded bg-muted/35" />
                   <div className="h-3 w-40 animate-pulse rounded bg-muted/30" />
                 </div>
               </div>
-              <div className="flex flex-row-reverse items-start gap-3">
+              <div className="flex flex-row-reverse items-start gap-2">
                 <div className="h-8 w-8 animate-pulse rounded-full bg-primary/25" />
                 <div className="space-y-2 rounded-2xl rounded-tr-sm bg-primary/20 px-5 py-3.5">
                   <div className="h-3 w-44 animate-pulse rounded bg-muted/35" />

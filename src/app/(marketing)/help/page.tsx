@@ -123,7 +123,7 @@ export default function HelpPage() {
             transition={{ duration: 0.5, delay: 0.4 }}
             className="rounded-3xl border border-white/10 bg-background/50 backdrop-blur-xl p-8 sm:p-12 mb-20"
           >
-            <div className="flex items-center gap-3 mb-8">
+            <div className="flex items-center gap-2 mb-8">
               <Keyboard className="h-8 w-8 text-primary" />
               <h2 className="text-lg font-semibold text-foreground">
                 Keyboard Shortcuts

@@ -263,7 +263,7 @@ export function MessageList({
                     initial="hidden"
                     animate="show"
                     transition={defaultTransition}
-                    className={`group flex items-start gap-3 mb-8 ${
+                    className={`group flex items-start gap-2 mb-8 ${
                       isUser ? "flex-row-reverse" : "flex-row"
                     }`}
                   >
@@ -591,7 +591,7 @@ export function MessageList({
               initial="hidden"
               animate="show"
               transition={defaultTransition}
-              className="flex items-start gap-3 mt-8"
+              className="flex items-start gap-2 mt-8"
             >
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-white/10 shadow-xs">
                 <Brain className="h-5 w-5 text-primary/50 animate-pulse" />

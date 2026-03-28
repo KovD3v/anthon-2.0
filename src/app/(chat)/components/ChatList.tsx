@@ -177,7 +177,7 @@ function ChatItem({
         href={`/chat/${chat.id}`}
         prefetch={true}
         onClick={onClick}
-        className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 sm:py-2.5 text-sm transition-all active:scale-[0.98] ${
+        className={`flex w-full items-center gap-2 rounded-xl px-3 py-3 sm:py-2.5 text-sm transition-all active:scale-[0.98] ${
           isActive
             ? "bg-accent dark:bg-white/10 font-medium text-foreground shadow-sm ring-1 ring-border dark:ring-white/10"
             : "text-muted-foreground hover:text-foreground hover:bg-accent dark:hover:bg-white/5"

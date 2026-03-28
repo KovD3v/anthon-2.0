@@ -43,7 +43,7 @@ export function AttachmentPreview({
         target="_blank"
         rel="noopener noreferrer"
         className={cn(
-          "group flex items-center gap-3 p-2 pr-3 rounded-xl transition-all duration-200",
+          "group flex items-center gap-2 p-2 pr-3 rounded-xl transition-all duration-200",
           "bg-black/5 border border-black/5 dark:bg-white/5 dark:border-white/10 backdrop-blur-sm",
           "hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/10 dark:hover:border-white/20",
           "max-w-[280px]",

@@ -558,7 +558,7 @@ export default function OrganizationsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <label className="text-sm font-medium" htmlFor="base-plan">
                       Base Plan
@@ -703,7 +703,7 @@ export default function OrganizationsPage() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <label className="text-sm font-medium" htmlFor="req-limit">
                       Max Requests/Day
@@ -749,7 +749,7 @@ export default function OrganizationsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="grid gap-2">
                     <label
                       className="text-sm font-medium"

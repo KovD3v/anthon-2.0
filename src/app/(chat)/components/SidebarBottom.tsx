@@ -124,7 +124,7 @@ export function SidebarBottom() {
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="group flex w-full items-center gap-3 rounded-xl bg-background/50 p-2.5 transition-all hover:bg-background/80 hover:shadow-sm active:scale-[0.98]"
+          className="group flex w-full items-center gap-2 rounded-xl bg-background/50 p-2.5 transition-all hover:bg-background/80 hover:shadow-sm active:scale-[0.98]"
         >
           <div className="relative h-9 w-9 overflow-hidden rounded-full bg-linear-to-br from-primary/20 to-primary/10 ring-2 ring-border dark:ring-white/20 transition-all group-hover:ring-primary/20">
             {user?.imageUrl ? (

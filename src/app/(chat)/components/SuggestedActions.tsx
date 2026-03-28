@@ -231,7 +231,7 @@ function SuggestionCard({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-start gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted hover:border-primary/50"
+      className="flex items-start gap-2 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted hover:border-primary/50"
     >
       <span className="mt-0.5 text-primary">
         {getIcon(suggestion.icon, "h-4 w-4")}
@@ -372,7 +372,7 @@ function _WelcomeSuggestions({
   ];
 
   return (
-    <div className={cn("grid gap-3 sm:grid-cols-2", className)}>
+    <div className={cn("grid gap-4 sm:grid-cols-2", className)}>
       {welcomeSuggestions.map((suggestion) => (
         <SuggestionCard
           key={suggestion.id}

@@ -246,7 +246,7 @@ export function Navbar() {
                   </Button>
 
                   <SignedOut>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2">
                       <SignInButton mode="modal">
                         <Button
                           variant="ghost"
@@ -267,7 +267,7 @@ export function Navbar() {
 
                   <SignedIn>
                     <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         <UserButton />
                         <div className="flex flex-col">
                           <span className="text-sm font-semibold">Profilo</span>
@@ -306,7 +306,7 @@ function MobileNavLink({
       onClick={onClick}
       className="flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 hover:bg-white/5 active:scale-[0.98] group"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
           {icon}
         </div>
