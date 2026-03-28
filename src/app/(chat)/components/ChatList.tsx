@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { duration, ease } from "@/lib/motion";
 
 interface Chat {
   id: string;
@@ -158,9 +159,14 @@ function ChatItem({
   return (
     <m.li
       layout
-      initial={{ opacity: 0, x: -10 }}
+      initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -10, transition: { duration: 0.2 } }}
+      exit={{
+        opacity: 0,
+        x: -8,
+        transition: { duration: duration.fast, ease: ease.in },
+      }}
+      transition={{ duration: duration.base, ease: ease.out }}
       className="group relative list-none"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setShowActions(false)}
@@ -212,7 +218,7 @@ function ChatItem({
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 10 }}
-            transition={{ duration: 0.15 }}
+            transition={{ duration: duration.fast, ease: ease.out }}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10 bg-background/90 dark:bg-muted/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-border/50 dark:border-white/10"
           >
             <Button

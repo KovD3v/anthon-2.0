@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { formatRelativeTime } from "@/lib/format-time";
+import { defaultTransition, fadeUp, scaleIn } from "@/lib/motion";
 import { AttachmentPreview } from "./Attachments";
 import { AudioPlayer } from "./AudioPlayer";
 import { useMessageVirtualizer } from "./hooks/useMessageVirtualizer";
@@ -152,18 +153,20 @@ export function MessageList({
     return (
       <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
         <m.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
+          variants={scaleIn}
+          initial="hidden"
+          animate="show"
+          transition={defaultTransition}
           className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-linear-to-br from-primary/10 to-transparent ring-1 ring-white/10"
         >
           <Brain className="h-12 w-12 text-primary/80" />
         </m.div>
         <m.h2
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-          className="mt-6 text-2xl font-bold tracking-tight text-foreground"
+          variants={fadeUp}
+          initial="hidden"
+          animate="show"
+          transition={{ ...defaultTransition, delay: 0.15 }}
+          className="mt-6 text-3xl font-semibold tracking-tight text-foreground"
         >
           How can I help you today?
         </m.h2>
@@ -256,9 +259,10 @@ export function MessageList({
                   }}
                 >
                   <m.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
+                    variants={fadeUp}
+                    initial="hidden"
+                    animate="show"
+                    transition={defaultTransition}
                     className={`group flex items-start gap-3 mb-8 ${
                       isUser ? "flex-row-reverse" : "flex-row"
                     }`}
@@ -583,8 +587,10 @@ export function MessageList({
 
           {isLoading && messages[messages.length - 1]?.role === "user" && (
             <m.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              variants={fadeUp}
+              initial="hidden"
+              animate="show"
+              transition={defaultTransition}
               className="flex items-start gap-3 mt-8"
             >
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-white/10 shadow-xs">

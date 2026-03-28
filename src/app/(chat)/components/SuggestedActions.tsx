@@ -1,5 +1,6 @@
 "use client";
 
+import { m } from "framer-motion";
 import {
   ChevronDown,
   ChevronUp,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { defaultTransition, fadeUp, staggerContainer } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 interface SuggestedAction {
@@ -136,26 +138,38 @@ export function SuggestedActions({
 
   if (variant === "cards") {
     return (
-      <div className={cn("grid gap-2 sm:grid-cols-2", className)}>
+      <m.div
+        variants={staggerContainer(0.05)}
+        initial="hidden"
+        animate="show"
+        className={cn("grid gap-2 sm:grid-cols-2", className)}
+      >
         {displayedSuggestions.map((suggestion) => (
-          <SuggestionCard
-            key={suggestion.id}
-            suggestion={suggestion}
-            onClick={() => onSelect(suggestion.prompt)}
-          />
+          <m.div key={suggestion.id} variants={fadeUp} transition={defaultTransition}>
+            <SuggestionCard
+              suggestion={suggestion}
+              onClick={() => onSelect(suggestion.prompt)}
+            />
+          </m.div>
         ))}
-      </div>
+      </m.div>
     );
   }
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+    <m.div
+      variants={staggerContainer(0.05)}
+      initial="hidden"
+      animate="show"
+      className={cn("flex flex-wrap items-center gap-2", className)}
+    >
       {displayedSuggestions.map((suggestion) => (
-        <SuggestionPill
-          key={suggestion.id}
-          suggestion={suggestion}
-          onClick={() => onSelect(suggestion.prompt)}
-        />
+        <m.div key={suggestion.id} variants={fadeUp} transition={defaultTransition}>
+          <SuggestionPill
+            suggestion={suggestion}
+            onClick={() => onSelect(suggestion.prompt)}
+          />
+        </m.div>
       ))}
       {hasMore && variant === "pills" && (
         <Button
@@ -177,7 +191,7 @@ export function SuggestedActions({
           )}
         </Button>
       )}
-    </div>
+    </m.div>
   );
 }
 
