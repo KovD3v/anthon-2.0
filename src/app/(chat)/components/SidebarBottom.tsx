@@ -44,6 +44,8 @@ export function SidebarBottom() {
     action();
   };
 
+  const isOrgMember = (user?.organizationMemberships?.length ?? 0) > 0;
+
   const menuItems = [
     {
       icon: Settings,
@@ -55,11 +57,15 @@ export function SidebarBottom() {
       label: "Profile",
       onClick: () => router.push("/profile"),
     },
-    {
-      icon: Building2,
-      label: "Organization",
-      onClick: () => router.push("/organization"),
-    },
+    ...(isOrgMember
+      ? [
+          {
+            icon: Building2,
+            label: "Organization",
+            onClick: () => router.push("/organization"),
+          },
+        ]
+      : []),
     {
       icon: BarChart3,
       label: "Utilizzo",
