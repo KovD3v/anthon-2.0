@@ -1,7 +1,7 @@
-import { PageWrapper } from "@/components/ui/page-wrapper";
 import { PricingTable } from "@clerk/nextjs";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { PageWrapper } from "@/components/ui/page-wrapper";
 
 export default function PricingPage() {
   return (

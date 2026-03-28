@@ -1,7 +1,6 @@
 "use client";
 
 import { m } from "framer-motion";
-import { PageWrapper } from "@/components/ui/page-wrapper";
 import {
   ArrowRight,
   Brain,
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { PageWrapper } from "@/components/ui/page-wrapper";
 
 export default function HelpPage() {
   const features = [

@@ -5,7 +5,7 @@ import { ArrowRight, Brain, Trophy } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { fadeUp, defaultTransition, slowTransition } from "@/lib/motion";
+import { defaultTransition, fadeUp, slowTransition } from "@/lib/motion";
 
 export function Hero() {
   return (
