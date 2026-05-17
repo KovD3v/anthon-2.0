@@ -1,5 +1,13 @@
 import { createHmac } from "node:crypto";
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 const mocks = vi.hoisted(() => ({
   waitUntil: vi.fn(),
@@ -456,12 +464,17 @@ describe("/api/webhooks/whatsapp", () => {
     process.env.WHATSAPP_APP_SECRET = "app-secret";
     expect(verifySignature(request, "hello")).toBe(false);
 
-    const sig = createHmac("sha256", "app-secret").update("hello").digest("hex");
-    const signedRequest = new Request("http://localhost/api/webhooks/whatsapp", {
-      method: "POST",
-      body: "hello",
-      headers: { "x-hub-signature-256": `sha256=${sig}` },
-    });
+    const sig = createHmac("sha256", "app-secret")
+      .update("hello")
+      .digest("hex");
+    const signedRequest = new Request(
+      "http://localhost/api/webhooks/whatsapp",
+      {
+        method: "POST",
+        body: "hello",
+        headers: { "x-hub-signature-256": `sha256=${sig}` },
+      },
+    );
     expect(verifySignature(signedRequest, "hello")).toBe(true);
 
     expect(isConnectCommand("/connect")).toBe(true);
@@ -493,7 +506,9 @@ describe("/api/webhooks/whatsapp", () => {
     const fetchSuccess = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: "media_1" })))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ messages: [{ id: "m1" }] })));
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ messages: [{ id: "m1" }] })),
+      );
     vi.stubGlobal("fetch", fetchSuccess);
     await expect(
       sendWhatsAppVoice("39333111222", Buffer.from("audio")),

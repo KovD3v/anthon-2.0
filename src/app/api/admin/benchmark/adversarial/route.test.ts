@@ -62,14 +62,19 @@ describe("/api/admin/benchmark/adversarial", () => {
       .mockResolvedValueOnce("tc-1")
       .mockResolvedValueOnce("tc-2");
     mocks.getPendingAdversarialCases.mockResolvedValue([{ id: "pending-1" }]);
-    mocks.benchmarkTestCaseUpdate.mockResolvedValue({ id: "tc-1", isActive: true });
+    mocks.benchmarkTestCaseUpdate.mockResolvedValue({
+      id: "tc-1",
+      isActive: true,
+    });
     mocks.benchmarkTestCaseDelete.mockResolvedValue({ id: "tc-1" });
   });
 
   it("returns 401 when unauthenticated", async () => {
     mocks.auth.mockResolvedValue({ userId: null });
 
-    const response = await POST(buildJsonRequest("POST", {} as object) as never);
+    const response = await POST(
+      buildJsonRequest("POST", {} as object) as never,
+    );
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });

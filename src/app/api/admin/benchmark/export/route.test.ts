@@ -37,7 +37,9 @@ describe("GET /api/admin/benchmark/export", () => {
     mocks.auth.mockResolvedValue({ userId: null });
 
     const response = await GET(
-      new Request("http://localhost/api/admin/benchmark/export?runId=run-1") as never,
+      new Request(
+        "http://localhost/api/admin/benchmark/export?runId=run-1",
+      ) as never,
     );
 
     expect(response.status).toBe(401);
@@ -50,14 +52,18 @@ describe("GET /api/admin/benchmark/export", () => {
     );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: "runId is required" });
+    await expect(response.json()).resolves.toEqual({
+      error: "runId is required",
+    });
   });
 
   it("returns 404 when no qualifying results are found", async () => {
     mocks.benchmarkResultFindMany.mockResolvedValue([]);
 
     const response = await GET(
-      new Request("http://localhost/api/admin/benchmark/export?runId=run-1") as never,
+      new Request(
+        "http://localhost/api/admin/benchmark/export?runId=run-1",
+      ) as never,
     );
 
     expect(response.status).toBe(404);
@@ -68,13 +74,17 @@ describe("GET /api/admin/benchmark/export", () => {
 
   it("returns JSONL export with attachment headers", async () => {
     const response = await GET(
-      new Request("http://localhost/api/admin/benchmark/export?runId=run-1&minScore=7.5") as never,
+      new Request(
+        "http://localhost/api/admin/benchmark/export?runId=run-1&minScore=7.5",
+      ) as never,
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toBe("application/x-jsonlines");
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/x-jsonlines",
+    );
     expect(response.headers.get("Content-Disposition")).toContain(
-      'benchmark-export-run-1.jsonl',
+      "benchmark-export-run-1.jsonl",
     );
 
     const text = await response.text();
@@ -92,7 +102,9 @@ describe("GET /api/admin/benchmark/export", () => {
     mocks.benchmarkResultFindMany.mockRejectedValue(new Error("db failed"));
 
     const response = await GET(
-      new Request("http://localhost/api/admin/benchmark/export?runId=run-1") as never,
+      new Request(
+        "http://localhost/api/admin/benchmark/export?runId=run-1",
+      ) as never,
     );
 
     expect(response.status).toBe(500);

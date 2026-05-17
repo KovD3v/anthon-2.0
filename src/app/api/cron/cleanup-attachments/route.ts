@@ -78,20 +78,11 @@ export async function POST(request: Request) {
           },
           OR: [
             {
+              userId: user.id,
+            },
+            {
               message: {
                 userId: user.id,
-              },
-            },
-            {
-              messageId: null,
-              blobUrl: {
-                contains: `/uploads/${user.id}/`,
-              },
-            },
-            {
-              messageId: null,
-              blobUrl: {
-                contains: `/attachments/${user.id}/`,
               },
             },
           ],

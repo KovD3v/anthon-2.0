@@ -75,9 +75,11 @@ describe("maintenance/session-archiver", () => {
       },
     };
 
-    mocks.transaction.mockImplementation(async (fn: (client: typeof tx) => Promise<unknown>) => {
-      await fn(tx);
-    });
+    mocks.transaction.mockImplementation(
+      async (fn: (client: typeof tx) => Promise<unknown>) => {
+        await fn(tx);
+      },
+    );
 
     await archiveOldSessions("user-1", 7);
 

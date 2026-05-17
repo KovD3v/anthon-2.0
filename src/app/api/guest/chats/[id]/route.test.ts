@@ -150,7 +150,9 @@ describe("/api/guest/chats/[id] route", () => {
 
   it("GET returns mapped guest chat payload with pagination", async () => {
     const response = await GET(
-      new Request("http://localhost/api/guest/chats/chat-1?limit=2&cursor=m-cursor"),
+      new Request(
+        "http://localhost/api/guest/chats/chat-1?limit=2&cursor=m-cursor",
+      ),
       { params: params("chat-1") },
     );
 

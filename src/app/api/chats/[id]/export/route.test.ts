@@ -59,9 +59,12 @@ describe("GET /api/chats/[id]/export", () => {
   it("returns 401 when unauthenticated", async () => {
     mocks.auth.mockResolvedValue({ userId: null });
 
-    const response = await GET(new Request("http://localhost/api/chats/chat-1/export"), {
-      params: params(),
-    });
+    const response = await GET(
+      new Request("http://localhost/api/chats/chat-1/export"),
+      {
+        params: params(),
+      },
+    );
 
     expect(response.status).toBe(401);
     await expect(response.text()).resolves.toBe("Unauthorized");
@@ -70,9 +73,12 @@ describe("GET /api/chats/[id]/export", () => {
   it("returns 404 when user is not found", async () => {
     mocks.userFindUnique.mockResolvedValue(null);
 
-    const response = await GET(new Request("http://localhost/api/chats/chat-1/export"), {
-      params: params(),
-    });
+    const response = await GET(
+      new Request("http://localhost/api/chats/chat-1/export"),
+      {
+        params: params(),
+      },
+    );
 
     expect(response.status).toBe(404);
     await expect(response.text()).resolves.toBe("User not found");
@@ -81,18 +87,24 @@ describe("GET /api/chats/[id]/export", () => {
   it("returns 404 when chat is not found", async () => {
     mocks.chatFindFirst.mockResolvedValue(null);
 
-    const response = await GET(new Request("http://localhost/api/chats/chat-404/export"), {
-      params: params("chat-404"),
-    });
+    const response = await GET(
+      new Request("http://localhost/api/chats/chat-404/export"),
+      {
+        params: params("chat-404"),
+      },
+    );
 
     expect(response.status).toBe(404);
     await expect(response.text()).resolves.toBe("Chat not found");
   });
 
   it("returns markdown export with expected headers and body", async () => {
-    const response = await GET(new Request("http://localhost/api/chats/chat-1/export"), {
-      params: params("chat-1"),
-    });
+    const response = await GET(
+      new Request("http://localhost/api/chats/chat-1/export"),
+      {
+        params: params("chat-1"),
+      },
+    );
 
     expect(response.status).toBe(200);
     expect(mocks.chatFindFirst).toHaveBeenCalledWith({
@@ -132,9 +144,12 @@ describe("GET /api/chats/[id]/export", () => {
       messages: [],
     });
 
-    const response = await GET(new Request("http://localhost/api/chats/chat-1/export"), {
-      params: params("chat-1"),
-    });
+    const response = await GET(
+      new Request("http://localhost/api/chats/chat-1/export"),
+      {
+        params: params("chat-1"),
+      },
+    );
 
     expect(response.status).toBe(200);
     const disposition = response.headers.get("Content-Disposition");

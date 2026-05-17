@@ -90,7 +90,10 @@ export async function sendWhatsAppVoice(
       });
 
       if (!uploadRes.ok) {
-        console.error("[WhatsApp] Voice upload failed:", await uploadRes.text());
+        console.error(
+          "[WhatsApp] Voice upload failed:",
+          await uploadRes.text(),
+        );
         return false;
       }
 

@@ -192,6 +192,23 @@ describe("/api/upload POST", () => {
     });
   });
 
+  it("rejects svg uploads even when the browser reports an image MIME type", async () => {
+    const form = new FormData();
+    form.append(
+      "file",
+      new File(["<svg></svg>"], "vector.svg", {
+        type: "image/svg+xml",
+      }),
+    );
+
+    const response = await POST(buildUploadRequest(form));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "File type not allowed: image/svg+xml",
+    });
+  });
+
   it("accepts codec MIME values by stripping codec parameters", async () => {
     const form = new FormData();
     form.append(
@@ -290,6 +307,7 @@ describe("/api/upload POST", () => {
     );
     expect(mocks.attachmentCreate).toHaveBeenCalledWith({
       data: {
+        userId: "user-1",
         name: "my file.md",
         contentType: "text/markdown",
         size: 9,
@@ -387,17 +405,7 @@ describe("/api/upload DELETE", () => {
     expect(mocks.attachmentFindFirst).toHaveBeenCalledWith({
       where: {
         blobUrl: "https://blob.example/file",
-        OR: [
-          { message: { userId: "user-1" } },
-          {
-            messageId: null,
-            blobUrl: { contains: "/uploads/user-1/" },
-          },
-          {
-            messageId: null,
-            blobUrl: { contains: "/attachments/user-1/" },
-          },
-        ],
+        OR: [{ userId: "user-1" }, { message: { userId: "user-1" } }],
       },
       select: {
         id: true,

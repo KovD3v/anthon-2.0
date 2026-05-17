@@ -108,20 +108,11 @@ describe("/api/cron/cleanup-attachments", () => {
         },
         OR: [
           {
+            userId: "user-1",
+          },
+          {
             message: {
               userId: "user-1",
-            },
-          },
-          {
-            messageId: null,
-            blobUrl: {
-              contains: "/uploads/user-1/",
-            },
-          },
-          {
-            messageId: null,
-            blobUrl: {
-              contains: "/attachments/user-1/",
             },
           },
         ],
@@ -138,20 +129,11 @@ describe("/api/cron/cleanup-attachments", () => {
         },
         OR: [
           {
+            userId: "user-2",
+          },
+          {
             message: {
               userId: "user-2",
-            },
-          },
-          {
-            messageId: null,
-            blobUrl: {
-              contains: "/uploads/user-2/",
-            },
-          },
-          {
-            messageId: null,
-            blobUrl: {
-              contains: "/attachments/user-2/",
             },
           },
         ],

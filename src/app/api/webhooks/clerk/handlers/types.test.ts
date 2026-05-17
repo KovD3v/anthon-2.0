@@ -17,7 +17,7 @@ describe("clerk webhook handler types helpers", () => {
 
   it("mapMembershipStatus maps removed statuses", () => {
     expect(mapMembershipStatus("removed")).toBe("REMOVED");
-    expect(mapMembershipStatus("deleted")) .toBe("REMOVED");
+    expect(mapMembershipStatus("deleted")).toBe("REMOVED");
   });
 
   it("mapMembershipStatus defaults to active", () => {

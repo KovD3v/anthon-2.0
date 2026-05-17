@@ -109,7 +109,9 @@ describe("GET /api/admin/users/[userId]", () => {
   it("returns 404 when user is not found", async () => {
     mocks.userFindUnique.mockResolvedValue(null);
 
-    const response = await GET({} as NextRequest, { params: params("missing") });
+    const response = await GET({} as NextRequest, {
+      params: params("missing"),
+    });
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: "User not found" });

@@ -40,7 +40,8 @@ vi.mock("./handlers/organization", () => ({
   handleOrganizationUpsert: mocks.handleOrganizationUpsert,
   handleOrganizationDeleted: mocks.handleOrganizationDeleted,
   handleOrganizationMembershipUpsert: mocks.handleOrganizationMembershipUpsert,
-  handleOrganizationMembershipDeleted: mocks.handleOrganizationMembershipDeleted,
+  handleOrganizationMembershipDeleted:
+    mocks.handleOrganizationMembershipDeleted,
   handleOrganizationInvitationAccepted:
     mocks.handleOrganizationInvitationAccepted,
 }));
@@ -96,7 +97,9 @@ describe("POST /api/webhooks/clerk", () => {
     );
 
     expect(response.status).toBe(500);
-    await expect(response.text()).resolves.toBe("Webhook secret not configured");
+    await expect(response.text()).resolves.toBe(
+      "Webhook secret not configured",
+    );
   });
 
   it("returns 400 when svix headers are missing", async () => {

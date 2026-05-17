@@ -32,7 +32,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { createUserContextTools, formatUserContextForPrompt } from "./user-context";
+import {
+  createUserContextTools,
+  formatUserContextForPrompt,
+} from "./user-context";
 
 describe("ai/tools/user-context", () => {
   beforeEach(() => {

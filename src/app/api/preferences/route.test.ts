@@ -29,7 +29,10 @@ describe("/api/preferences route", () => {
     mocks.userFindUnique.mockReset();
     mocks.preferencesUpsert.mockReset();
 
-    mocks.getAuthUser.mockResolvedValue({ user: { id: "user-1" }, error: null });
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "user-1" },
+      error: null,
+    });
     mocks.userFindUnique.mockResolvedValue({
       id: "user-1",
       preferences: {

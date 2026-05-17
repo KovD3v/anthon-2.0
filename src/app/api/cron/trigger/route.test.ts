@@ -90,12 +90,20 @@ describe("GET /api/cron/trigger", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.publishToQueue).toHaveBeenCalledTimes(2);
-    expect(mocks.publishToQueue).toHaveBeenNthCalledWith(1, "api/queues/analyze", {
-      userId: "u1",
-    });
-    expect(mocks.publishToQueue).toHaveBeenNthCalledWith(2, "api/queues/analyze", {
-      userId: "u2",
-    });
+    expect(mocks.publishToQueue).toHaveBeenNthCalledWith(
+      1,
+      "api/queues/analyze",
+      {
+        userId: "u1",
+      },
+    );
+    expect(mocks.publishToQueue).toHaveBeenNthCalledWith(
+      2,
+      "api/queues/analyze",
+      {
+        userId: "u2",
+      },
+    );
     await expect(response.json()).resolves.toEqual({
       success: true,
       usersProcessed: 2,

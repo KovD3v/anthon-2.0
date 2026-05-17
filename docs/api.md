@@ -176,7 +176,7 @@ Notes:
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| `GET` | `/api/health` | Health checks for DB, OpenRouter, Clerk, Blob. |
+| `GET` | `/api/health` | Lightweight public health check for app/database availability. Deep service diagnostics are shown in the admin dashboard. |
 | `GET` | `/api/cron/trigger?job=all|consolidate|archive|analyze` | Publish maintenance jobs to QStash (`CRON_SECRET` required). |
 | `GET` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |
 | `POST` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |

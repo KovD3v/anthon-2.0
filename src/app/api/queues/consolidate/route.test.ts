@@ -54,7 +54,9 @@ describe("POST /api/queues/consolidate", () => {
   });
 
   it("returns 400 when consolidation fails", async () => {
-    mocks.consolidateMemories.mockRejectedValue(new Error("consolidation failed"));
+    mocks.consolidateMemories.mockRejectedValue(
+      new Error("consolidation failed"),
+    );
 
     const response = await POST({} as import("next/server").NextRequest);
 

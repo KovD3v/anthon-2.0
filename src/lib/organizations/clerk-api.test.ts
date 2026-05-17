@@ -9,9 +9,9 @@ vi.mock("@clerk/nextjs/server", () => ({
 }));
 
 import {
+  addClerkMembership,
   CLERK_MEMBER_ROLE,
   CLERK_OWNER_ROLE,
-  addClerkMembership,
   callClerkMethod,
   createClerkOrganization,
   deleteClerkOrganization,
@@ -83,8 +83,11 @@ describe("organizations/clerk-api", () => {
   it("callClerkMethod throws when no compatible method exists", async () => {
     setOrganizationsApi({});
 
-    await expect(callClerkMethod(["missingOne", "missingTwo"], {})).rejects
-      .toThrow("No compatible Clerk method found (missingOne, missingTwo)");
+    await expect(
+      callClerkMethod(["missingOne", "missingTwo"], {}),
+    ).rejects.toThrow(
+      "No compatible Clerk method found (missingOne, missingTwo)",
+    );
   });
 
   it("createClerkOrganization returns normalized id", async () => {

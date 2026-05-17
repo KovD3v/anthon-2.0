@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, RefreshCw, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,66 +101,67 @@ export default function OrganizationsPage() {
 
   const selectedId = selectedOrganization?.id ?? null;
 
-  async function fetchOrganizations(options?: {
-    syncFromClerk?: boolean;
-  }): Promise<boolean> {
-    setLoadingList(true);
-    setListError(null);
-    try {
-      const params = new URLSearchParams({
-        t: String(Date.now()),
-      });
-      if (options?.syncFromClerk) {
-        params.set("sync", "1");
-      }
-
-      const res = await fetch(
-        `/api/admin/organizations?${params.toString()}`,
-        {
-          cache: "no-store",
-        },
-      );
-      if (!res.ok) {
-        const error = (await res.json().catch(() => null)) as {
-          error?: string;
-          details?: { message?: string };
-        } | null;
-        if (res.status === 401 || res.status === 403) {
-          throw new Error(error?.error || "Admin access required");
+  const fetchOrganizations = useCallback(
+    async (options?: { syncFromClerk?: boolean }): Promise<boolean> => {
+      setLoadingList(true);
+      setListError(null);
+      try {
+        const params = new URLSearchParams({
+          t: String(Date.now()),
+        });
+        if (options?.syncFromClerk) {
+          params.set("sync", "1");
         }
-        throw new Error(
-          error?.details?.message ||
-            error?.error ||
-            "Failed to fetch organizations",
+
+        const res = await fetch(
+          `/api/admin/organizations?${params.toString()}`,
+          {
+            cache: "no-store",
+          },
         );
+        if (!res.ok) {
+          const error = (await res.json().catch(() => null)) as {
+            error?: string;
+            details?: { message?: string };
+          } | null;
+          if (res.status === 401 || res.status === 403) {
+            throw new Error(error?.error || "Admin access required");
+          }
+          throw new Error(
+            error?.details?.message ||
+              error?.error ||
+              "Failed to fetch organizations",
+          );
+        }
+        const data = (await res.json()) as {
+          organizations: OrganizationSummary[];
+        };
+        const nextOrganizations = data.organizations || [];
+        setOrganizations(nextOrganizations);
+        if (
+          selectedId &&
+          !nextOrganizations.some(
+            (organization) => organization.id === selectedId,
+          )
+        ) {
+          setSelectedOrganization(null);
+          setAuditLogs([]);
+        }
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to load organizations";
+        setListError(message);
+        toast.error(message);
+        return false;
+      } finally {
+        setLoadingList(false);
       }
-      const data = (await res.json()) as {
-        organizations: OrganizationSummary[];
-      };
-      const nextOrganizations = data.organizations || [];
-      setOrganizations(nextOrganizations);
-      if (
-        selectedId &&
-        !nextOrganizations.some(
-          (organization) => organization.id === selectedId,
-        )
-      ) {
-        setSelectedOrganization(null);
-        setAuditLogs([]);
-      }
-      return true;
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to load organizations";
-      setListError(message);
-      toast.error(message);
-      return false;
-    } finally {
-      setLoadingList(false);
-    }
-  }
+    },
+    [selectedId],
+  );
 
   async function handleSyncFromClerk() {
     setSyncingFromClerk(true);
@@ -224,8 +225,7 @@ export default function OrganizationsPage() {
         maxInputTokensPerDay:
           contract?.maxInputTokensPerDay ?? DEFAULT_FORM.maxInputTokensPerDay,
         maxOutputTokensPerDay:
-          contract?.maxOutputTokensPerDay ??
-          DEFAULT_FORM.maxOutputTokensPerDay,
+          contract?.maxOutputTokensPerDay ?? DEFAULT_FORM.maxOutputTokensPerDay,
         maxCostPerDay: contract?.maxCostPerDay ?? DEFAULT_FORM.maxCostPerDay,
         maxContextMessages:
           contract?.maxContextMessages ?? DEFAULT_FORM.maxContextMessages,
@@ -241,7 +241,7 @@ export default function OrganizationsPage() {
 
   useEffect(() => {
     fetchOrganizations();
-  }, []);
+  }, [fetchOrganizations]);
 
   const contractPayload: OrganizationContractInput = {
     basePlan: form.basePlan,

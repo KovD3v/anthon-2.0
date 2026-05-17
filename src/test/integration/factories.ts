@@ -62,7 +62,8 @@ export async function createChat(
       userId,
       title: overrides.title ?? null,
       customTitle:
-        overrides.customTitle ?? (overrides.title !== null && !!overrides.title),
+        overrides.customTitle ??
+        (overrides.title !== null && !!overrides.title),
       visibility: overrides.visibility ?? "PRIVATE",
     },
   });

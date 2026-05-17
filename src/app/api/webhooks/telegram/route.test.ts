@@ -1,4 +1,12 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 const mocks = vi.hoisted(() => ({
   waitUntil: vi.fn(),
@@ -88,7 +96,6 @@ vi.mock("@/lib/voice", () => ({
   trackVoiceUsage: mocks.trackVoiceUsage,
 }));
 
-import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
 import {
   downloadTelegramAudio,
   getPublicAppUrl,
@@ -97,6 +104,7 @@ import {
   isTelegramConnectCommand,
   safeErrorSummary,
 } from "@/lib/channels/telegram/utils";
+import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
 import { GET, POST } from "./route";
 
 const originalEnv = { ...process.env };
@@ -477,7 +485,9 @@ describe("/api/webhooks/telegram", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response("bad", { status: 500 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: {} })));
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, result: {} })),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(getTelegramFilePath("file_2")).resolves.toBeNull();

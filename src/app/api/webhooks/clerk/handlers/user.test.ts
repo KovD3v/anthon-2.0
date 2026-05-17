@@ -59,7 +59,10 @@ describe("clerk webhook user handlers", () => {
   });
 
   it("handleUserCreated updates email on existing user when changed", async () => {
-    mocks.userFindUnique.mockResolvedValue({ id: "user-1", email: "old@example.com" });
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      email: "old@example.com",
+    });
 
     await handleUserCreated({
       id: "clerk-1",

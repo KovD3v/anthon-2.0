@@ -68,10 +68,14 @@ export function getPublicAppUrl() {
 export function hashLinkToken(token: string) {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
   if (!secret) return null;
-  return createHash("sha256").update(`tg-link:${secret}:${token}`).digest("hex");
+  return createHash("sha256")
+    .update(`tg-link:${secret}:${token}`)
+    .digest("hex");
 }
 
-export async function getTelegramFilePath(fileId: string): Promise<string | null> {
+export async function getTelegramFilePath(
+  fileId: string,
+): Promise<string | null> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
     console.error("[Telegram] TELEGRAM_BOT_TOKEN not configured");

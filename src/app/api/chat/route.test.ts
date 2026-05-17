@@ -196,6 +196,7 @@ describe("POST /api/chat", () => {
     mocks.attachmentFindFirst.mockImplementation(
       async (input: { where?: { id?: string } }) => ({
         id: input.where?.id || "att-1",
+        userId: "user-1",
         messageId: null,
         blobUrl: "https://blob.example/attachments/user-1/chat-1/file.png",
         message: null,
@@ -380,6 +381,7 @@ describe("POST /api/chat", () => {
         id: true,
         messageId: true,
         blobUrl: true,
+        userId: true,
         message: {
           select: {
             userId: true,
@@ -393,6 +395,7 @@ describe("POST /api/chat", () => {
         id: true,
         messageId: true,
         blobUrl: true,
+        userId: true,
         message: {
           select: {
             userId: true,
@@ -429,12 +432,14 @@ describe("POST /api/chat", () => {
     mocks.attachmentFindFirst
       .mockResolvedValueOnce({
         id: "att-1",
+        userId: "user-1",
         messageId: null,
         blobUrl: "https://blob.example/uploads/user-1/file-a.png",
         message: null,
       })
       .mockResolvedValueOnce({
         id: "att-2",
+        userId: "user-2",
         messageId: "msg-other",
         blobUrl: "https://blob.example/attachments/user-2/chat-9/file-b.png",
         message: { userId: "user-2" },

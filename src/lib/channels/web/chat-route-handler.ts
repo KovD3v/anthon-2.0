@@ -210,6 +210,7 @@ export async function handleWebChatPost(request: Request) {
                 id: true,
                 messageId: true,
                 blobUrl: true,
+                userId: true,
                 message: {
                   select: {
                     userId: true,
@@ -222,10 +223,18 @@ export async function handleWebChatPost(request: Request) {
               continue;
             }
 
+            if (attachment.userId && attachment.userId !== user.id) {
+              continue;
+            }
+
             if (
               attachment.message?.userId &&
               attachment.message.userId !== user.id
             ) {
+              continue;
+            }
+
+            if (!attachment.userId && !attachment.message?.userId) {
               continue;
             }
 

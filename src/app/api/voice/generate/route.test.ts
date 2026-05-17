@@ -112,7 +112,9 @@ describe("POST /api/voice/generate", () => {
       audioBuffer: Buffer.from("abc"),
       characterCount: 3,
     });
-    mocks.put.mockResolvedValue({ url: "https://blob.example/voice/msg-1.mp3" });
+    mocks.put.mockResolvedValue({
+      url: "https://blob.example/voice/msg-1.mp3",
+    });
     mocks.trackVoiceUsage.mockResolvedValue(undefined);
     mocks.attachmentCreate.mockResolvedValue({ id: "att-1" });
   });

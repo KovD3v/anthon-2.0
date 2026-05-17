@@ -32,7 +32,10 @@ describe("DELETE /api/channels/[id]", () => {
     mocks.channelIdentityFindUnique.mockReset();
     mocks.channelIdentityDelete.mockReset();
 
-    mocks.getAuthUser.mockResolvedValue({ user: { id: "user-1" }, error: null });
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "user-1" },
+      error: null,
+    });
     mocks.channelIdentityFindUnique.mockResolvedValue({
       id: "channel-1",
       channel: "TELEGRAM",
@@ -63,7 +66,9 @@ describe("DELETE /api/channels/[id]", () => {
   it("returns 404 when channel identity is not found", async () => {
     mocks.channelIdentityFindUnique.mockResolvedValue(null);
 
-    const response = await DELETE({} as NextRequest, { params: params("missing") });
+    const response = await DELETE({} as NextRequest, {
+      params: params("missing"),
+    });
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({
@@ -79,14 +84,18 @@ describe("DELETE /api/channels/[id]", () => {
       userId: "user-2",
     });
 
-    const response = await DELETE({} as NextRequest, { params: params("channel-1") });
+    const response = await DELETE({} as NextRequest, {
+      params: params("channel-1"),
+    });
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: "Access denied" });
   });
 
   it("deletes owned channel identity and returns success payload", async () => {
-    const response = await DELETE({} as NextRequest, { params: params("channel-1") });
+    const response = await DELETE({} as NextRequest, {
+      params: params("channel-1"),
+    });
 
     expect(response.status).toBe(200);
     expect(mocks.channelIdentityFindUnique).toHaveBeenCalledWith({
@@ -110,7 +119,9 @@ describe("DELETE /api/channels/[id]", () => {
   it("returns 500 on delete failures", async () => {
     mocks.channelIdentityDelete.mockRejectedValue(new Error("db failed"));
 
-    const response = await DELETE({} as NextRequest, { params: params("channel-1") });
+    const response = await DELETE({} as NextRequest, {
+      params: params("channel-1"),
+    });
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({

@@ -20,14 +20,13 @@ export const maxDuration = 60;
 // Max file size: 10MB
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-// Allowed file types (comprehensive list)
+// Allowed file types for user-provided coaching context.
 const ALLOWED_TYPES = [
   // Images
   "image/jpeg",
   "image/png",
   "image/gif",
   "image/webp",
-  "image/svg+xml",
   "image/bmp",
   // Documents
   "application/pdf",
@@ -41,18 +40,6 @@ const ALLOWED_TYPES = [
   "application/msword", // .doc
   "application/vnd.ms-excel", // .xls
   "application/vnd.ms-powerpoint", // .ppt
-  // Code
-  "application/json",
-  "text/javascript",
-  "text/typescript",
-  "text/html",
-  "text/css",
-  "application/xml",
-  "text/xml",
-  // Archives
-  "application/zip",
-  "application/x-rar-compressed",
-  "application/x-7z-compressed",
   // Audio
   "audio/mpeg",
   "audio/wav",
@@ -62,10 +49,6 @@ const ALLOWED_TYPES = [
   "audio/flac",
   "audio/mp4",
   "audio/x-m4a",
-  // Video
-  "video/mp4",
-  "video/mpeg",
-  "video/webm",
 ];
 
 /**
@@ -171,15 +154,16 @@ export async function POST(request: Request) {
       ? `attachments/${user.id}/${chatId}/${timestamp}-${sanitizedName}`
       : `uploads/${user.id}/${timestamp}-${sanitizedName}`;
 
-    // 7. Upload to Vercel Blob
+    // 8. Upload to Vercel Blob
     const { url, downloadUrl } = await put(pathname, file, {
       access: "public",
       contentType: fileType,
     });
 
-    // 8. Create attachment record (not linked to a message yet)
+    // 9. Create attachment record (not linked to a message yet)
     const attachment = await prisma.attachment.create({
       data: {
+        userId: user.id,
         name: file.name,
         contentType: fileType,
         size: file.size,
@@ -242,20 +226,11 @@ export async function DELETE(request: Request) {
         blobUrl,
         OR: [
           {
+            userId: user.id,
+          },
+          {
             message: {
               userId: user.id,
-            },
-          },
-          {
-            messageId: null,
-            blobUrl: {
-              contains: `/uploads/${user.id}/`,
-            },
-          },
-          {
-            messageId: null,
-            blobUrl: {
-              contains: `/attachments/${user.id}/`,
             },
           },
         ],
@@ -323,7 +298,6 @@ function detectFileType(filename: string): string {
     png: "image/png",
     gif: "image/gif",
     webp: "image/webp",
-    svg: "image/svg+xml",
     // Documents
     pdf: "application/pdf",
     txt: "text/plain",
@@ -333,17 +307,9 @@ function detectFileType(filename: string): string {
     docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    // Code
-    json: "application/json",
-    js: "text/javascript",
-    ts: "text/typescript",
-    html: "text/html",
-    css: "text/css",
-    xml: "application/xml",
-    // Archives
-    zip: "application/zip",
-    rar: "application/x-rar-compressed",
-    "7z": "application/x-7z-compressed",
+    doc: "application/msword",
+    xls: "application/vnd.ms-excel",
+    ppt: "application/vnd.ms-powerpoint",
     // Audio
     mp3: "audio/mpeg",
     wav: "audio/wav",
@@ -352,10 +318,6 @@ function detectFileType(filename: string): string {
     aac: "audio/aac",
     flac: "audio/flac",
     m4a: "audio/x-m4a",
-    // Video
-    mp4: "video/mp4",
-    mpeg: "video/mpeg",
-    // Note: webm handled above for audio
   };
 
   return typeMap[ext || ""] || "application/octet-stream";

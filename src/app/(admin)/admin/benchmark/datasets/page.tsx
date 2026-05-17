@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,7 +30,7 @@ export default function DatasetsPage() {
   const [generatingAdversarial, setGeneratingAdversarial] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  async function fetchTestCases() {
+  const fetchTestCases = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch(
@@ -50,7 +50,7 @@ export default function DatasetsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   const generateAdversarial = async () => {
     setGeneratingAdversarial(true);
@@ -89,7 +89,7 @@ export default function DatasetsPage() {
 
   useEffect(() => {
     fetchTestCases();
-  }, []);
+  }, [fetchTestCases]);
 
   const displayedCases = activeTab === "ALL" ? testCases : pendingAdversarial;
   const filteredCases = displayedCases.filter(

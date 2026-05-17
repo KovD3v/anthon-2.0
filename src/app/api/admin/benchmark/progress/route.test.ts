@@ -40,7 +40,9 @@ describe("GET /api/admin/benchmark/progress", () => {
     mocks.auth.mockResolvedValue({ userId: null });
 
     const response = await GET(
-      new Request("http://localhost/api/admin/benchmark/progress?runId=run-1") as never,
+      new Request(
+        "http://localhost/api/admin/benchmark/progress?runId=run-1",
+      ) as never,
     );
 
     expect(response.status).toBe(401);
@@ -53,14 +55,18 @@ describe("GET /api/admin/benchmark/progress", () => {
     );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: "runId is required" });
+    await expect(response.json()).resolves.toEqual({
+      error: "runId is required",
+    });
   });
 
   it("returns 404 when run does not exist", async () => {
     mocks.benchmarkRunFindUnique.mockResolvedValue(null);
 
     const response = await GET(
-      new Request("http://localhost/api/admin/benchmark/progress?runId=missing") as never,
+      new Request(
+        "http://localhost/api/admin/benchmark/progress?runId=missing",
+      ) as never,
     );
 
     expect(response.status).toBe(404);
@@ -69,7 +75,9 @@ describe("GET /api/admin/benchmark/progress", () => {
 
   it("returns progress payload", async () => {
     const response = await GET(
-      new Request("http://localhost/api/admin/benchmark/progress?runId=run-1") as never,
+      new Request(
+        "http://localhost/api/admin/benchmark/progress?runId=run-1",
+      ) as never,
     );
 
     expect(response.status).toBe(200);
@@ -87,7 +95,9 @@ describe("GET /api/admin/benchmark/progress", () => {
     mocks.benchmarkRunFindUnique.mockRejectedValue(new Error("db down"));
 
     const response = await GET(
-      new Request("http://localhost/api/admin/benchmark/progress?runId=run-1") as never,
+      new Request(
+        "http://localhost/api/admin/benchmark/progress?runId=run-1",
+      ) as never,
     );
 
     expect(response.status).toBe(500);

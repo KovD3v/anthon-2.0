@@ -127,7 +127,9 @@ describe("/api/admin/benchmark", () => {
     mocks.getBenchmarkRun.mockResolvedValue(null);
 
     const response = await GET(
-      new Request("http://localhost/api/admin/benchmark?runId=missing") as never,
+      new Request(
+        "http://localhost/api/admin/benchmark?runId=missing",
+      ) as never,
     );
 
     expect(response.status).toBe(404);
@@ -219,7 +221,9 @@ describe("/api/admin/benchmark", () => {
     );
 
     expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({ error: "Result not found" });
+    await expect(response.json()).resolves.toEqual({
+      error: "Result not found",
+    });
   });
 
   it("PATCH updates result scoring with weighted final score", async () => {
@@ -255,7 +259,10 @@ describe("/api/admin/benchmark", () => {
   });
 
   it("PATCH cancels run when action=cancel", async () => {
-    mocks.benchmarkRunUpdate.mockResolvedValue({ id: "run-1", status: "CANCELLED" });
+    mocks.benchmarkRunUpdate.mockResolvedValue({
+      id: "run-1",
+      status: "CANCELLED",
+    });
 
     const response = await PATCH(
       buildJsonRequest("http://localhost/api/admin/benchmark", "PATCH", {
@@ -285,7 +292,9 @@ describe("/api/admin/benchmark", () => {
     );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: "runId is required" });
+    await expect(response.json()).resolves.toEqual({
+      error: "runId is required",
+    });
   });
 
   it("DELETE removes benchmark run", async () => {
@@ -295,7 +304,9 @@ describe("/api/admin/benchmark", () => {
       }) as never,
     );
 
-    expect(mocks.benchmarkRunDelete).toHaveBeenCalledWith({ where: { id: "run-1" } });
+    expect(mocks.benchmarkRunDelete).toHaveBeenCalledWith({
+      where: { id: "run-1" },
+    });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       success: true,

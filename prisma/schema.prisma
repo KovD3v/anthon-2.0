@@ -49,6 +49,7 @@ model User {
   memories           Memory[]
   messages           Message[]
   chats              Chat[]
+  attachments        Attachment[]
   dailyUsage         DailyUsage[]
   identities         ChannelIdentity[]
   consumedLinkTokens ChannelLinkToken[] @relation("ChannelLinkTokenConsumedBy")
@@ -590,6 +591,8 @@ model ArtifactVersion {
 
 model Attachment {
   id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   messageId String?
   message   Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
@@ -600,6 +603,7 @@ model Attachment {
 
   createdAt DateTime @default(now())
 
+  @@index([userId])
   @@index([messageId])
 }
 

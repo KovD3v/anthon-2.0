@@ -33,7 +33,9 @@ function buildMessages(count: number) {
   return Array.from({ length: count }, (_, i) => ({
     id: `m-${i + 1}`,
     content: `message-${i + 1}`,
-    createdAt: new Date(`2026-02-${String(i + 1).padStart(2, "0")}T10:00:00.000Z`),
+    createdAt: new Date(
+      `2026-02-${String(i + 1).padStart(2, "0")}T10:00:00.000Z`,
+    ),
   }));
 }
 

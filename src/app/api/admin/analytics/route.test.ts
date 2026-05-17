@@ -114,7 +114,9 @@ describe("GET /api/admin/analytics", () => {
 
   it("returns overview analytics", async () => {
     const response = await GET(
-      new Request("http://localhost/api/admin/analytics?type=overview") as never,
+      new Request(
+        "http://localhost/api/admin/analytics?type=overview",
+      ) as never,
     );
 
     expect(response.status).toBe(200);
@@ -185,7 +187,10 @@ describe("GET /api/admin/analytics", () => {
   });
 
   it("returns funnel analytics", async () => {
-    mocks.messageGroupBy.mockResolvedValue([{ userId: "u1" }, { userId: "u2" }]);
+    mocks.messageGroupBy.mockResolvedValue([
+      { userId: "u1" },
+      { userId: "u2" },
+    ]);
 
     const response = await GET(
       new Request("http://localhost/api/admin/analytics?type=funnel") as never,
@@ -223,7 +228,9 @@ describe("GET /api/admin/analytics", () => {
     mocks.userCount.mockRejectedValue(new Error("db down"));
 
     const response = await GET(
-      new Request("http://localhost/api/admin/analytics?type=overview") as never,
+      new Request(
+        "http://localhost/api/admin/analytics?type=overview",
+      ) as never,
     );
 
     expect(response.status).toBe(500);
