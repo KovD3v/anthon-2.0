@@ -83,7 +83,11 @@ async function ChatSidebarData({ children }: { children: React.ReactNode }) {
     chats = await getSharedChats(authUser.id);
     usageData = await getSharedUsageData(authUser.id, authUser.role);
   } else {
-    // Check for guest user
+    // Anonymous chat visitors use guest-mode APIs even before their first
+    // guest cookie is created by /api/guest/*.
+    isGuest = true;
+
+    // Check for an existing guest user
     const guestToken = await getGuestTokenFromCookies();
     if (guestToken) {
       const tokenHash = hashGuestToken(guestToken);
@@ -102,7 +106,6 @@ async function ChatSidebarData({ children }: { children: React.ReactNode }) {
           guestUser.id,
           guestUser.role as UserRole,
         );
-        isGuest = true;
       }
     }
   }

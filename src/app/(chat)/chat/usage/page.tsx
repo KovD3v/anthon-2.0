@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { UsageData } from "@/types/chat";
+import { useChatContext } from "../layout-client";
 
 export default function UsagePage() {
+  const { isGuest } = useChatContext();
   const [data, setData] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState("");
@@ -16,7 +18,8 @@ export default function UsagePage() {
   useEffect(() => {
     async function fetchUsage() {
       try {
-        const res = await fetch(`/api/usage?t=${Date.now()}`, {
+        const endpoint = isGuest ? "/api/guest/usage" : "/api/usage";
+        const res = await fetch(`${endpoint}?t=${Date.now()}`, {
           cache: "no-store",
         });
         if (res.ok) {
@@ -29,7 +32,7 @@ export default function UsagePage() {
       }
     }
     fetchUsage();
-  }, []);
+  }, [isGuest]);
 
   useEffect(() => {
     const update = () => {
