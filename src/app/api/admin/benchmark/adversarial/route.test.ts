@@ -116,6 +116,18 @@ describe("/api/admin/benchmark/adversarial", () => {
     });
   });
 
+  it("POST returns 400 when count is not a positive integer", async () => {
+    const response = await POST(
+      buildJsonRequest("POST", { count: -1 }) as never,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "count must be a positive integer",
+    });
+    expect(mocks.generateAdversarialCases).not.toHaveBeenCalled();
+  });
+
   it("GET returns pending adversarial cases", async () => {
     const response = await GET(
       new Request("http://localhost/api/admin/benchmark/adversarial") as never,

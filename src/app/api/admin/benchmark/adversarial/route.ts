@@ -35,7 +35,19 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { count = 3, categories, focusOnLowScores = false } = body;
+    const {
+      count: requestedCount = 3,
+      categories,
+      focusOnLowScores = false,
+    } = body;
+    if (!Number.isInteger(requestedCount) || requestedCount < 1) {
+      return NextResponse.json(
+        { error: "count must be a positive integer" },
+        { status: 400 },
+      );
+    }
+
+    const count = Math.min(requestedCount, 10);
 
     console.log("[Adversarial API] Generating cases:", {
       count,
@@ -44,7 +56,7 @@ export async function POST(request: NextRequest) {
     });
 
     const generatedCases = await generateAdversarialCases({
-      count: Math.min(count, 10), // Cap at 10
+      count,
       categories,
       focusOnLowScores,
     });
