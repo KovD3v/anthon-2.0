@@ -27,6 +27,14 @@ function buildRequest(body: unknown): Request {
   });
 }
 
+function buildMalformedJsonRequest(): Request {
+  return new Request("http://localhost/api/rag/search", {
+    method: "POST",
+    body: "{",
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 describe("POST /api/rag/search", () => {
   beforeEach(() => {
     mocks.auth.mockReset();
@@ -56,6 +64,17 @@ describe("POST /api/rag/search", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Query is required",
     });
+  });
+
+  it("returns 400 when request body is malformed JSON", async () => {
+    const response = await POST(buildMalformedJsonRequest());
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid request body",
+    });
+    expect(mocks.searchDocuments).not.toHaveBeenCalled();
+    expect(mocks.getRagContext).not.toHaveBeenCalled();
   });
 
   it.each(["   ", 123, { text: "hello" }, ["hello"]])(
