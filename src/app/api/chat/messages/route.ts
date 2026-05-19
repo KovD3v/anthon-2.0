@@ -188,11 +188,29 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { messageId, content } = body as {
-      messageId: string;
-      content?: string;
-    };
+    let body: Record<string, unknown>;
+    try {
+      const parsedBody = await request.json();
+      if (
+        !parsedBody ||
+        typeof parsedBody !== "object" ||
+        Array.isArray(parsedBody)
+      ) {
+        return NextResponse.json(
+          { error: "Invalid request body" },
+          { status: 400 },
+        );
+      }
+      body = parsedBody as Record<string, unknown>;
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid request body" },
+        { status: 400 },
+      );
+    }
+
+    const messageId = typeof body.messageId === "string" ? body.messageId : "";
+    const content = typeof body.content === "string" ? body.content : undefined;
 
     if (!messageId) {
       return NextResponse.json(

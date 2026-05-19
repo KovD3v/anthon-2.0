@@ -363,6 +363,24 @@ describe("/api/chat/messages route", () => {
     });
   });
 
+  it("PATCH returns 400 when request body is malformed JSON", async () => {
+    const response = await PATCH(
+      new Request("http://localhost/api/chat/messages", {
+        method: "PATCH",
+        body: "{",
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid request body",
+    });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.messageFindUnique).not.toHaveBeenCalled();
+    expect(mocks.messageDeleteMany).not.toHaveBeenCalled();
+  });
+
   it("PATCH returns 404 when message is not found", async () => {
     mocks.messageFindUnique.mockResolvedValue(null);
 
