@@ -216,9 +216,19 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       );
     }
 
+    if (
+      body.generateTitle !== undefined &&
+      typeof body.generateTitle !== "boolean"
+    ) {
+      return Response.json(
+        { error: "generateTitle must be a boolean" },
+        { status: 400 },
+      );
+    }
+
     const title = body.title;
     const visibility = rawVisibility as "PRIVATE" | "PUBLIC" | undefined;
-    const generateTitle = body.generateTitle as boolean | undefined;
+    const generateTitle = body.generateTitle;
 
     let newTitle = title;
 
