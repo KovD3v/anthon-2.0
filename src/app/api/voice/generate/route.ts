@@ -48,7 +48,38 @@ export async function POST(request: Request) {
     // Parse request body
     let body: { messageId: string; userMessage?: string };
     try {
-      body = await request.json();
+      const parsedBody = await request.json();
+      if (
+        !parsedBody ||
+        typeof parsedBody !== "object" ||
+        Array.isArray(parsedBody)
+      ) {
+        requestTimer.end();
+        return Response.json(
+          { error: "Invalid request body" },
+          { status: 400 },
+        );
+      }
+
+      const rawBody = parsedBody as Record<string, unknown>;
+      if (
+        rawBody.messageId !== undefined &&
+        typeof rawBody.messageId !== "string"
+      ) {
+        requestTimer.end();
+        return Response.json(
+          { error: "messageId must be a string" },
+          { status: 400 },
+        );
+      }
+
+      body = {
+        messageId: rawBody.messageId ?? "",
+        userMessage:
+          typeof rawBody.userMessage === "string"
+            ? rawBody.userMessage
+            : undefined,
+      };
     } catch {
       requestTimer.end();
       return Response.json({ error: "Invalid JSON" }, { status: 400 });

@@ -112,7 +112,9 @@ describe("POST /api/voice/generate", () => {
       audioBuffer: Buffer.from("abc"),
       characterCount: 3,
     });
-    mocks.put.mockResolvedValue({ url: "https://blob.example/voice/msg-1.mp3" });
+    mocks.put.mockResolvedValue({
+      url: "https://blob.example/voice/msg-1.mp3",
+    });
     mocks.trackVoiceUsage.mockResolvedValue(undefined);
     mocks.attachmentCreate.mockResolvedValue({ id: "att-1" });
   });
@@ -151,6 +153,17 @@ describe("POST /api/voice/generate", () => {
     await expect(response.json()).resolves.toEqual({ error: "Invalid JSON" });
   });
 
+  it("returns 400 when request body is not an object", async () => {
+    const response = await POST(buildRequest(null));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid request body",
+    });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.messageFindFirst).not.toHaveBeenCalled();
+  });
+
   it("returns 400 when messageId is missing", async () => {
     const response = await POST(buildRequest({}));
 
@@ -158,6 +171,17 @@ describe("POST /api/voice/generate", () => {
     await expect(response.json()).resolves.toEqual({
       error: "messageId is required",
     });
+  });
+
+  it("returns 400 when messageId is not a string", async () => {
+    const response = await POST(buildRequest({ messageId: { id: "msg-1" } }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "messageId must be a string",
+    });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.messageFindFirst).not.toHaveBeenCalled();
   });
 
   it("returns 404 when user is missing", async () => {
