@@ -156,11 +156,26 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       );
     }
 
-    const body = await request.json();
-    const { title, generateTitle } = body as {
-      title?: string;
-      generateTitle?: boolean;
-    };
+    let body: Record<string, unknown>;
+    try {
+      const parsedBody = await request.json();
+      if (
+        !parsedBody ||
+        typeof parsedBody !== "object" ||
+        Array.isArray(parsedBody)
+      ) {
+        return Response.json(
+          { error: "Invalid request body" },
+          { status: 400 },
+        );
+      }
+      body = parsedBody as Record<string, unknown>;
+    } catch {
+      return Response.json({ error: "Invalid request body" }, { status: 400 });
+    }
+
+    const title = body.title as string | undefined;
+    const generateTitle = body.generateTitle as boolean | undefined;
 
     let newTitle = title;
 

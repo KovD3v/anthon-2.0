@@ -150,7 +150,9 @@ describe("/api/guest/chats/[id] route", () => {
 
   it("GET returns mapped guest chat payload with pagination", async () => {
     const response = await GET(
-      new Request("http://localhost/api/guest/chats/chat-1?limit=2&cursor=m-cursor"),
+      new Request(
+        "http://localhost/api/guest/chats/chat-1?limit=2&cursor=m-cursor",
+      ),
       { params: params("chat-1") },
     );
 
@@ -268,6 +270,24 @@ describe("/api/guest/chats/[id] route", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Chat not found or access denied",
     });
+  });
+
+  it("PATCH returns 400 when request body is malformed JSON", async () => {
+    const response = await PATCH(
+      new Request("http://localhost/api/guest/chats/chat-1", {
+        method: "PATCH",
+        body: "{",
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: params() },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid request body",
+    });
+    expect(mocks.messageFindFirst).not.toHaveBeenCalled();
+    expect(mocks.chatUpdate).not.toHaveBeenCalled();
   });
 
   it("PATCH auto-generates title from first user message", async () => {
