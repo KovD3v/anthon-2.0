@@ -13,10 +13,18 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const runId = searchParams.get("runId");
-    const minScore = parseFloat(searchParams.get("minScore") || "8");
+    const rawMinScore = searchParams.get("minScore");
 
     if (!runId) {
       return NextResponse.json({ error: "runId is required" }, { status: 400 });
+    }
+
+    const minScore = rawMinScore === null ? 8 : Number(rawMinScore);
+    if (!Number.isFinite(minScore) || minScore < 0 || minScore > 10) {
+      return NextResponse.json(
+        { error: "minScore must be a number between 0 and 10" },
+        { status: 400 },
+      );
     }
 
     // Fetch results with high scores (Golden Responses)

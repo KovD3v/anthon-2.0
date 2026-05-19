@@ -74,6 +74,23 @@ describe("GET /api/admin/benchmark/export", () => {
     });
   });
 
+  it.each(["not-a-number", "7.5abc", "Infinity", "-1", "11"])(
+    "returns 400 when minScore is invalid: %s",
+    async (minScore) => {
+      const response = await GET(
+        new Request(
+          `http://localhost/api/admin/benchmark/export?runId=run-1&minScore=${minScore}`,
+        ) as never,
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "minScore must be a number between 0 and 10",
+      });
+      expect(mocks.benchmarkResultFindMany).not.toHaveBeenCalled();
+    },
+  );
+
   it("returns 404 when no qualifying results are found", async () => {
     mocks.benchmarkResultFindMany.mockResolvedValue([]);
 
