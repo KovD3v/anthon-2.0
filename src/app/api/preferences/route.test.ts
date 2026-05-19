@@ -29,7 +29,10 @@ describe("/api/preferences route", () => {
     mocks.userFindUnique.mockReset();
     mocks.preferencesUpsert.mockReset();
 
-    mocks.getAuthUser.mockResolvedValue({ user: { id: "user-1" }, error: null });
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "user-1" },
+      error: null,
+    });
     mocks.userFindUnique.mockResolvedValue({
       id: "user-1",
       preferences: {
@@ -197,12 +200,31 @@ describe("/api/preferences route", () => {
     });
   });
 
-  it("PATCH returns 500 on parsing or persistence errors", async () => {
+  it("PATCH returns 400 on malformed JSON", async () => {
     const response = await PATCH({
       json: async () => {
         throw new Error("invalid json");
       },
     } as unknown as Request);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Corpo richiesta non valido",
+    });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.preferencesUpsert).not.toHaveBeenCalled();
+  });
+
+  it("PATCH returns 500 on persistence errors", async () => {
+    mocks.preferencesUpsert.mockRejectedValue(new Error("db failed"));
+
+    const response = await PATCH(
+      new Request("http://localhost/api/preferences", {
+        method: "PATCH",
+        body: JSON.stringify({ tone: "direct" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({

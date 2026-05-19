@@ -1,4 +1,5 @@
 import {
+  badRequest,
   jsonOk,
   notFound,
   serverError,
@@ -6,6 +7,14 @@ import {
 } from "@/lib/api/responses";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+
+type PreferencesPatchBody = {
+  voiceEnabled?: boolean;
+  tone?: string | null;
+  mode?: string | null;
+  language?: string;
+  push?: boolean;
+};
 
 /**
  * GET /api/preferences
@@ -57,7 +66,21 @@ export async function PATCH(request: Request) {
       return unauthorized(error || "Non autorizzato");
     }
 
-    const body = await request.json();
+    let body: PreferencesPatchBody;
+    try {
+      const parsedBody = await request.json();
+      if (
+        !parsedBody ||
+        typeof parsedBody !== "object" ||
+        Array.isArray(parsedBody)
+      ) {
+        return badRequest("Corpo richiesta non valido");
+      }
+      body = parsedBody as PreferencesPatchBody;
+    } catch {
+      return badRequest("Corpo richiesta non valido");
+    }
+
     const { voiceEnabled, tone, mode, language, push } = body;
 
     // Find the user by id
