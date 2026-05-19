@@ -137,6 +137,20 @@ describe("/api/admin/benchmark/test-cases", () => {
     });
   });
 
+  it("GET returns 400 for invalid category filter", async () => {
+    const response = await GET(
+      new Request(
+        "http://localhost/api/admin/benchmark/test-cases?category=invalid",
+      ) as never,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid category",
+    });
+    expect(mocks.benchmarkTestCaseFindMany).not.toHaveBeenCalled();
+  });
+
   it("POST creates test case with normalized payload", async () => {
     const response = await POST(
       buildJsonRequest("POST", {
@@ -205,6 +219,25 @@ describe("/api/admin/benchmark/test-cases", () => {
       success: true,
       testCase: { id: "tc-1", category: "WRITING_QUALITY" },
     });
+  });
+
+  it("POST returns 400 for invalid category", async () => {
+    const response = await POST(
+      buildJsonRequest("POST", {
+        category: "invalid",
+        name: "Case",
+        setup: {},
+        userMessage: "msg",
+        expectedBehavior: {},
+      }) as never,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid category",
+    });
+    expect(mocks.benchmarkTestCaseCreate).not.toHaveBeenCalled();
+    expect(mocks.benchmarkTestCaseUpdate).not.toHaveBeenCalled();
   });
 
   it("DELETE validates required id", async () => {

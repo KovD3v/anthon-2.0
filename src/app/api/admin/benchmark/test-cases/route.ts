@@ -1,7 +1,22 @@
 import { auth } from "@clerk/nextjs/server";
 import { type NextRequest, NextResponse } from "next/server";
-import type { Prisma } from "@/generated/prisma";
+import type { BenchmarkCategory, Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
+
+const BENCHMARK_CATEGORIES = ["TOOL_USAGE", "WRITING_QUALITY"] as const;
+
+function normalizeBenchmarkCategory(value: unknown): BenchmarkCategory | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.toUpperCase();
+  return BENCHMARK_CATEGORIES.includes(
+    normalized as (typeof BENCHMARK_CATEGORIES)[number],
+  )
+    ? (normalized as BenchmarkCategory)
+    : null;
+}
 
 /**
  * GET /api/admin/benchmark/test-cases
@@ -44,9 +59,16 @@ export async function GET(request: NextRequest) {
 
     // Otherwise, return a list
     const where: Prisma.BenchmarkTestCaseWhereInput = {};
-    if (category)
-      where.category =
-        category.toUpperCase() as Prisma.EnumBenchmarkCategoryFilter;
+    if (category) {
+      const normalizedCategory = normalizeBenchmarkCategory(category);
+      if (!normalizedCategory) {
+        return NextResponse.json(
+          { error: "Invalid category" },
+          { status: 400 },
+        );
+      }
+      where.category = normalizedCategory;
+    }
     if (activeOnly) where.isActive = true;
 
     const testCases = await prisma.benchmarkTestCase.findMany({
@@ -98,9 +120,14 @@ export async function POST(request: NextRequest) {
       tags,
     } = body;
 
+    const normalizedCategory = normalizeBenchmarkCategory(category);
+    if (!normalizedCategory) {
+      return NextResponse.json({ error: "Invalid category" }, { status: 400 });
+    }
+
     const data = {
       externalId,
-      category: category.toUpperCase(),
+      category: normalizedCategory,
       name,
       description,
       setup,
