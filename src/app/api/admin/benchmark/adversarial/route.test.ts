@@ -62,14 +62,19 @@ describe("/api/admin/benchmark/adversarial", () => {
       .mockResolvedValueOnce("tc-1")
       .mockResolvedValueOnce("tc-2");
     mocks.getPendingAdversarialCases.mockResolvedValue([{ id: "pending-1" }]);
-    mocks.benchmarkTestCaseUpdate.mockResolvedValue({ id: "tc-1", isActive: true });
+    mocks.benchmarkTestCaseUpdate.mockResolvedValue({
+      id: "tc-1",
+      isActive: true,
+    });
     mocks.benchmarkTestCaseDelete.mockResolvedValue({ id: "tc-1" });
   });
 
   it("returns 401 when unauthenticated", async () => {
     mocks.auth.mockResolvedValue({ userId: null });
 
-    const response = await POST(buildJsonRequest("POST", {} as object) as never);
+    const response = await POST(
+      buildJsonRequest("POST", {} as object) as never,
+    );
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
@@ -133,6 +138,22 @@ describe("/api/admin/benchmark/adversarial", () => {
     await expect(response.json()).resolves.toEqual({
       error: "testCaseId and action are required",
     });
+  });
+
+  it("PATCH returns 400 when testCaseId is not a string", async () => {
+    const response = await PATCH(
+      buildJsonRequest("PATCH", {
+        testCaseId: { id: "tc-1" },
+        action: "approve",
+      }) as never,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "testCaseId must be a string",
+    });
+    expect(mocks.benchmarkTestCaseUpdate).not.toHaveBeenCalled();
+    expect(mocks.benchmarkTestCaseDelete).not.toHaveBeenCalled();
   });
 
   it("PATCH approves test case", async () => {

@@ -140,6 +140,13 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    if (typeof testCaseId !== "string") {
+      return NextResponse.json(
+        { error: "testCaseId must be a string" },
+        { status: 400 },
+      );
+    }
+
     if (action === "approve") {
       await prisma.benchmarkTestCase.update({
         where: { id: testCaseId },
