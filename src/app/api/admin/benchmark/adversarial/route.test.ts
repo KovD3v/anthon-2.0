@@ -128,6 +128,32 @@ describe("/api/admin/benchmark/adversarial", () => {
     expect(mocks.generateAdversarialCases).not.toHaveBeenCalled();
   });
 
+  it("POST returns 400 when the request body is not an object", async () => {
+    const response = await POST(buildJsonRequest("POST", "oops") as never);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid request body",
+    });
+    expect(mocks.generateAdversarialCases).not.toHaveBeenCalled();
+  });
+
+  it("POST returns 400 when the request body is malformed JSON", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/admin/benchmark/adversarial", {
+        method: "POST",
+        body: "{",
+        headers: { "Content-Type": "application/json" },
+      }) as never,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid request body",
+    });
+    expect(mocks.generateAdversarialCases).not.toHaveBeenCalled();
+  });
+
   it("GET returns pending adversarial cases", async () => {
     const response = await GET(
       new Request("http://localhost/api/admin/benchmark/adversarial") as never,

@@ -34,7 +34,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const body = await request.json();
+    let body: {
+      autoSave?: boolean;
+      categories?: ("tool_usage" | "writing_quality")[];
+      count?: number;
+      focusOnLowScores?: boolean;
+    };
+    try {
+      const parsedBody = await request.json();
+      if (
+        !parsedBody ||
+        typeof parsedBody !== "object" ||
+        Array.isArray(parsedBody)
+      ) {
+        return NextResponse.json(
+          { error: "Invalid request body" },
+          { status: 400 },
+        );
+      }
+      body = parsedBody;
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid request body" },
+        { status: 400 },
+      );
+    }
+
     const {
       count: requestedCount = 3,
       categories,
