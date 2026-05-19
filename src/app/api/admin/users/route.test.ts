@@ -228,16 +228,23 @@ describe("/api/admin/users route", () => {
       errorResponse: forbidden,
     });
 
-    const response = await PATCH(patchRequest({ userId: "user-1", role: "ADMIN" }));
+    const response = await PATCH(
+      patchRequest({ userId: "user-1", role: "ADMIN" }),
+    );
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: "Forbidden" });
   });
 
   it("PATCH returns 401 when super admin user is missing", async () => {
-    mocks.requireSuperAdmin.mockResolvedValue({ user: null, errorResponse: null });
+    mocks.requireSuperAdmin.mockResolvedValue({
+      user: null,
+      errorResponse: null,
+    });
 
-    const response = await PATCH(patchRequest({ userId: "user-1", role: "ADMIN" }));
+    const response = await PATCH(
+      patchRequest({ userId: "user-1", role: "ADMIN" }),
+    );
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
@@ -250,6 +257,18 @@ describe("/api/admin/users route", () => {
     await expect(response.json()).resolves.toEqual({
       error: "userId and role are required",
     });
+  });
+
+  it("PATCH validates userId type", async () => {
+    const response = await PATCH(
+      patchRequest({ userId: { id: "user-1" }, role: "ADMIN" }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "userId must be a string",
+    });
+    expect(mocks.updateUserRole).not.toHaveBeenCalled();
   });
 
   it("PATCH validates accepted role values", async () => {
@@ -279,7 +298,10 @@ describe("/api/admin/users route", () => {
 
   it("PATCH updates role successfully", async () => {
     const actor = { id: "super-admin-1", role: "SUPER_ADMIN" };
-    mocks.requireSuperAdmin.mockResolvedValue({ user: actor, errorResponse: null });
+    mocks.requireSuperAdmin.mockResolvedValue({
+      user: actor,
+      errorResponse: null,
+    });
 
     const response = await PATCH(
       patchRequest({ userId: "user-9", role: "ADMIN" }),

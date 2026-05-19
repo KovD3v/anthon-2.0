@@ -164,6 +164,13 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    if (typeof userId !== "string") {
+      return NextResponse.json(
+        { error: "userId must be a string" },
+        { status: 400 },
+      );
+    }
+
     // Validate role
     if (!["USER", "ADMIN", "SUPER_ADMIN"].includes(role)) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
