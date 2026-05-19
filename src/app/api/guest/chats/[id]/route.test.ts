@@ -307,6 +307,24 @@ describe("/api/guest/chats/[id] route", () => {
     expect(mocks.chatUpdate).not.toHaveBeenCalled();
   });
 
+  it("PATCH returns 400 when generateTitle is not a boolean", async () => {
+    const response = await PATCH(
+      new Request("http://localhost/api/guest/chats/chat-1", {
+        method: "PATCH",
+        body: JSON.stringify({ generateTitle: "true" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: params() },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "generateTitle must be a boolean",
+    });
+    expect(mocks.messageFindFirst).not.toHaveBeenCalled();
+    expect(mocks.chatUpdate).not.toHaveBeenCalled();
+  });
+
   it("PATCH auto-generates title from first user message", async () => {
     const response = await PATCH(
       new Request("http://localhost/api/guest/chats/chat-1", {
