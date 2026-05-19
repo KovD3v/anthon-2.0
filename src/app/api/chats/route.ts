@@ -124,9 +124,22 @@ export async function POST(request: Request) {
 
     try {
       const body = await request.json();
-      title = body.title;
-      if (body.visibility === "PUBLIC" || body.visibility === "PRIVATE") {
-        visibility = body.visibility;
+      if (body && typeof body === "object" && !Array.isArray(body)) {
+        const rawBody = body as Record<string, unknown>;
+        if (rawBody.title !== undefined && typeof rawBody.title !== "string") {
+          return Response.json(
+            { error: "title must be a string" },
+            { status: 400 },
+          );
+        }
+
+        title = rawBody.title;
+        if (
+          rawBody.visibility === "PUBLIC" ||
+          rawBody.visibility === "PRIVATE"
+        ) {
+          visibility = rawBody.visibility;
+        }
       }
     } catch {
       // Empty body is fine - we'll create with defaults

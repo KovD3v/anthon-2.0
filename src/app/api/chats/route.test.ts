@@ -264,6 +264,16 @@ describe("/api/chats route", () => {
     });
   });
 
+  it("POST returns 400 when title is not a string", async () => {
+    const response = await POST(postRequest({ title: { text: "My chat" } }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "title must be a string",
+    });
+    expect(mocks.chatCreate).not.toHaveBeenCalled();
+  });
+
   it("POST falls back to PRIVATE for invalid visibility", async () => {
     await POST(postRequest({ title: "x", visibility: "INVALID" }));
 
