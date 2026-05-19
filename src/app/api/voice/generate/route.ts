@@ -73,12 +73,20 @@ export async function POST(request: Request) {
         );
       }
 
+      if (
+        rawBody.userMessage !== undefined &&
+        typeof rawBody.userMessage !== "string"
+      ) {
+        requestTimer.end();
+        return Response.json(
+          { error: "userMessage must be a string" },
+          { status: 400 },
+        );
+      }
+
       body = {
         messageId: rawBody.messageId ?? "",
-        userMessage:
-          typeof rawBody.userMessage === "string"
-            ? rawBody.userMessage
-            : undefined,
+        userMessage: rawBody.userMessage,
       };
     } catch {
       requestTimer.end();

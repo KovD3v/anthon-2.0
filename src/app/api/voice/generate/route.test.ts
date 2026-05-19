@@ -184,6 +184,19 @@ describe("POST /api/voice/generate", () => {
     expect(mocks.messageFindFirst).not.toHaveBeenCalled();
   });
 
+  it("returns 400 when userMessage is not a string", async () => {
+    const response = await POST(
+      buildRequest({ messageId: "msg-1", userMessage: { text: "hello" } }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "userMessage must be a string",
+    });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.messageFindFirst).not.toHaveBeenCalled();
+  });
+
   it("returns 404 when user is missing", async () => {
     mocks.userFindUnique.mockResolvedValue(null);
 
