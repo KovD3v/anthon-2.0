@@ -174,7 +174,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return Response.json({ error: "Invalid request body" }, { status: 400 });
     }
 
-    const title = body.title as string | undefined;
+    if (body.title !== undefined && typeof body.title !== "string") {
+      return Response.json(
+        { error: "title must be a string" },
+        { status: 400 },
+      );
+    }
+
+    const title = body.title;
     const generateTitle = body.generateTitle as boolean | undefined;
 
     let newTitle = title;
