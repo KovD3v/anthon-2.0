@@ -6,8 +6,9 @@ import {
   SignInButton,
   SignUpButton,
   UserButton,
+  useUser,
 } from "@clerk/nextjs";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import {
   Brain,
   Building2,
@@ -28,6 +29,7 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
+import { duration, ease } from "@/lib/motion";
 
 const subscribe = () => () => {};
 const getClientSnapshot = () => true;
@@ -36,6 +38,8 @@ const getServerSnapshot = () => false;
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { theme, setTheme } = useTheme();
+  const { user } = useUser();
+  const isOrgMember = (user?.organizationMemberships?.length ?? 0) > 0;
   const mounted = useSyncExternalStore(
     subscribe,
     getClientSnapshot,
@@ -80,12 +84,14 @@ export function Navbar() {
               >
                 Canali
               </Link>
-              <Link
-                href="/organization"
-                className="text-muted-foreground hover:text-primary transition-colors"
-              >
-                Organizzazione
-              </Link>
+              {isOrgMember && (
+                <Link
+                  href="/organization"
+                  className="text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Organizzazione
+                </Link>
+              )}
             </SignedIn>
             <Link
               href="/pricing"
@@ -140,25 +146,25 @@ export function Navbar() {
           <button type="button" className="md:hidden p-2" onClick={toggleMenu}>
             <AnimatePresence mode="wait">
               {isMenuOpen ? (
-                <motion.div
+                <m.div
                   key="close"
                   initial={{ opacity: 0, rotate: -90 }}
                   animate={{ opacity: 1, rotate: 0 }}
                   exit={{ opacity: 0, rotate: 90 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: duration.fast, ease: ease.inOut }}
                 >
                   <X className="h-6 w-6" />
-                </motion.div>
+                </m.div>
               ) : (
-                <motion.div
+                <m.div
                   key="menu"
                   initial={{ opacity: 0, rotate: 90 }}
                   animate={{ opacity: 1, rotate: 0 }}
                   exit={{ opacity: 0, rotate: -90 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: duration.fast, ease: ease.inOut }}
                 >
                   <Menu className="h-6 w-6" />
-                </motion.div>
+                </m.div>
               )}
             </AnimatePresence>
           </button>
@@ -167,7 +173,7 @@ export function Navbar() {
         {/* Mobile Menu */}
         <AnimatePresence>
           {isMenuOpen && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, height: 0, marginTop: 0 }}
               animate={{
                 opacity: 1,
@@ -175,7 +181,7 @@ export function Navbar() {
                 marginTop: 8,
               }}
               exit={{ opacity: 0, height: 0, marginTop: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
+              transition={{ duration: duration.base, ease: ease.inOut }}
               className="md:hidden overflow-hidden border-t border-white/10"
             >
               <div className="p-4 space-y-6 bg-background/40 backdrop-blur-3xl rounded-b-2xl">
@@ -193,12 +199,14 @@ export function Navbar() {
                       label="Canali"
                       onClick={() => setIsMenuOpen(false)}
                     />
-                    <MobileNavLink
-                      href="/organization"
-                      icon={<Building2 className="h-4 w-4" />}
-                      label="Organizzazione"
-                      onClick={() => setIsMenuOpen(false)}
-                    />
+                    {isOrgMember && (
+                      <MobileNavLink
+                        href="/organization"
+                        icon={<Building2 className="h-4 w-4" />}
+                        label="Organizzazione"
+                        onClick={() => setIsMenuOpen(false)}
+                      />
+                    )}
                   </SignedIn>
                   <MobileNavLink
                     href="/chat"
@@ -245,7 +253,7 @@ export function Navbar() {
                   </Button>
 
                   <SignedOut>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2">
                       <SignInButton mode="modal">
                         <Button
                           variant="ghost"
@@ -266,7 +274,7 @@ export function Navbar() {
 
                   <SignedIn>
                     <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         <UserButton />
                         <div className="flex flex-col">
                           <span className="text-sm font-semibold">Profilo</span>
@@ -280,7 +288,7 @@ export function Navbar() {
                   </SignedIn>
                 </div>
               </div>
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       </div>
@@ -305,7 +313,7 @@ function MobileNavLink({
       onClick={onClick}
       className="flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 hover:bg-white/5 active:scale-[0.98] group"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
           {icon}
         </div>

@@ -1,4 +1,3 @@
-import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
@@ -46,18 +45,14 @@ vi.mock("@/lib/organizations/service", () => ({
 
 import { GET, POST } from "./route";
 
-function getRequest(
-  url = "http://localhost/api/admin/organizations",
-): NextRequest {
-  return {
-    nextUrl: new URL(url),
-  } as unknown as NextRequest;
+function getRequest(url = "http://localhost/api/admin/organizations"): Request {
+  return { url } as unknown as Request;
 }
 
-function postRequest(body: unknown): NextRequest {
+function postRequest(body: unknown): Request {
   return {
     json: async () => body,
-  } as unknown as NextRequest;
+  } as unknown as Request;
 }
 
 function validContract(overrides: Partial<Record<string, unknown>> = {}) {

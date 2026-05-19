@@ -10,6 +10,10 @@ import { revalidateTag } from "next/cache";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+import { getTextFromParts } from "@/lib/utils/message-parts";
+
+const chatsLogger = createLogger("ai");
 
 export const runtime = "nodejs";
 
@@ -84,7 +88,6 @@ export async function GET(request: Request, { params }: RouteParams) {
       select: {
         id: true,
         role: true,
-        content: true,
         parts: true,
         createdAt: true,
         model: true,
@@ -127,7 +130,6 @@ export async function GET(request: Request, { params }: RouteParams) {
       messages: messagesToReturn.map((m) => ({
         id: m.id,
         role: m.role.toLowerCase(),
-        content: m.content,
         parts: m.parts,
         createdAt: m.createdAt.toISOString(),
         model: m.model,
@@ -151,7 +153,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       },
     });
   } catch (err) {
-    console.error("[Chat API] GET error:", err);
+    chatsLogger.error("get.error", "Failed to fetch chat", { error: err });
     return Response.json({ error: "Failed to fetch chat" }, { status: 500 });
   }
 }
@@ -237,11 +239,12 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       const firstUserMessage = await prisma.message.findFirst({
         where: { chatId: id, role: "USER" },
         orderBy: { createdAt: "asc" },
-        select: { content: true },
+        select: { parts: true },
       });
 
-      if (firstUserMessage?.content) {
-        newTitle = await generateChatTitle(firstUserMessage.content);
+      const firstUserText = getTextFromParts(firstUserMessage?.parts);
+      if (firstUserText) {
+        newTitle = await generateChatTitle(firstUserText);
       }
     }
 
@@ -270,7 +273,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       updatedAt: updatedChat.updatedAt.toISOString(),
     });
   } catch (err) {
-    console.error("[Chat API] PATCH error:", err);
+    chatsLogger.error("patch.error", "Failed to update chat", { error: err });
     return Response.json({ error: "Failed to update chat" }, { status: 500 });
   }
 }
@@ -311,15 +314,16 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
       revalidateTag(`chat-${id}`, "page");
     } catch (revalidateErr) {
       // Non-fatal: cache invalidation failure shouldn't block the response
-      console.warn(
-        "[Chat API] revalidateTag failed after DELETE:",
-        revalidateErr,
+      chatsLogger.warn(
+        "delete.revalidate_failed",
+        "revalidateTag failed after DELETE",
+        { error: revalidateErr },
       );
     }
 
     return Response.json({ success: true });
   } catch (err) {
-    console.error("[Chat API] DELETE error:", err);
+    chatsLogger.error("delete.error", "Failed to delete chat", { error: err });
     return Response.json({ error: "Failed to delete chat" }, { status: 500 });
   }
 }

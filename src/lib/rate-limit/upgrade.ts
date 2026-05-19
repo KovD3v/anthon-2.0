@@ -2,89 +2,105 @@
  * Rate Limit Module — upgrade CTA configuration.
  */
 
+import type { CanonicalPlan } from "@/lib/plans";
 import type { UpgradeInfo } from "./types";
 
-// Plan hierarchy for upgrades
-const PLAN_HIERARCHY = [
+const PLAN_HIERARCHY: CanonicalPlan[] = [
   "GUEST",
   "TRIAL",
-  "basic",
-  "basic_plus",
-  "pro",
-] as const;
-type PlanTier = (typeof PLAN_HIERARCHY)[number];
+  "BASIC",
+  "BASIC_PLUS",
+  "PRO",
+  "ADMIN",
+];
+
+const PLAN_DISPLAY_NAMES: Record<CanonicalPlan, string> = {
+  GUEST: "Ospite",
+  TRIAL: "Prova",
+  BASIC: "Basic",
+  BASIC_PLUS: "Basic Plus",
+  PRO: "Pro",
+  ADMIN: "Admin",
+};
 
 /**
  * Get upgrade information based on current plan and which limit was hit.
- * Returns null for pro/ADMIN plans (no upgrade available).
+ * Returns null for PRO/ADMIN plans (no upgrade available).
  */
 export function getUpgradeInfo(
-  currentPlan: string,
+  currentPlan: CanonicalPlan,
   limitType: "requests" | "tokens" | "cost" | "general",
 ): UpgradeInfo | null {
-  // Normalize plan name
-  const normalizedPlan = currentPlan.toUpperCase();
-
-  // No upgrade available for pro or admin plans
-  if (
-    normalizedPlan === "PRO" ||
-    normalizedPlan === "ADMIN" ||
-    normalizedPlan === "SUPER_ADMIN"
-  ) {
+  if (currentPlan === "PRO" || currentPlan === "ADMIN") {
     return null;
   }
 
-  // Determine current tier and next tier
-  let currentTier: PlanTier;
-  let nextTier: PlanTier;
-
-  if (normalizedPlan === "GUEST") {
-    currentTier = "GUEST";
-    nextTier = "basic";
-  } else if (normalizedPlan === "TRIAL") {
-    currentTier = "TRIAL";
-    nextTier = "basic";
-  } else if (normalizedPlan.includes("BASIC_PLUS")) {
-    currentTier = "basic_plus";
-    nextTier = "pro";
-  } else if (normalizedPlan.includes("BASIC")) {
-    currentTier = "basic";
-    nextTier = "basic_plus";
-  } else {
-    // Default fallback - treat as trial
-    currentTier = "TRIAL";
-    nextTier = "basic";
-  }
-
-  // Get plan display names
-  const planDisplayNames: Record<string, string> = {
-    GUEST: "Ospite",
-    TRIAL: "Prova",
-    basic: "Basic",
-    basic_plus: "Basic Plus",
-    pro: "Pro",
+  const nextPlanByCurrent: Partial<Record<CanonicalPlan, CanonicalPlan>> = {
+    GUEST: "BASIC",
+    TRIAL: "BASIC",
+    BASIC: "BASIC_PLUS",
+    BASIC_PLUS: "PRO",
   };
 
-  // Generate contextual CTA message based on limit type
-  let ctaMessage = "";
-  switch (limitType) {
-    case "requests":
-      ctaMessage = `Hai raggiunto il limite giornaliero di richieste per il piano ${planDisplayNames[currentTier]}. Passa a ${planDisplayNames[nextTier]} per continuare a utilizzare Anthon senza interruzioni.`;
-      break;
-    case "tokens":
-      ctaMessage = `Hai esaurito i token disponibili per oggi con il piano ${planDisplayNames[currentTier]}. Aggiorna a ${planDisplayNames[nextTier]} per ottenere più token giornalieri.`;
-      break;
-    case "cost":
-      ctaMessage = `Hai raggiunto il limite di spesa giornaliero del piano ${planDisplayNames[currentTier]}. Passa a ${planDisplayNames[nextTier]} per aumentare il tuo budget giornaliero.`;
-      break;
-    default:
-      ctaMessage = `Hai raggiunto un limite del tuo piano ${planDisplayNames[currentTier]}. Aggiorna a ${planDisplayNames[nextTier]} per sbloccare funzionalità aggiuntive e limiti più elevati.`;
+  const currentIndex = PLAN_HIERARCHY.indexOf(currentPlan);
+  if (currentIndex === -1) {
+    return null;
   }
 
+  const nextPlan = nextPlanByCurrent[currentPlan];
+
+  if (!nextPlan) {
+    return null;
+  }
+
+  const currentLabel = PLAN_DISPLAY_NAMES[currentPlan];
+  const nextLabel = PLAN_DISPLAY_NAMES[nextPlan];
+
+  let ctaMessage = "";
+  let headline = "Limite raggiunto";
+
+  switch (limitType) {
+    case "requests":
+      headline = "Limite richieste raggiunto";
+      ctaMessage = `Hai raggiunto il limite giornaliero di richieste per il piano ${currentLabel}. Passa a ${nextLabel} per continuare a utilizzare Anthon senza interruzioni.`;
+      break;
+    case "tokens":
+      headline = "Limite token raggiunto";
+      ctaMessage = `Hai esaurito i token disponibili per oggi con il piano ${currentLabel}. Aggiorna a ${nextLabel} per ottenere più token giornalieri.`;
+      break;
+    case "cost":
+      headline = "Limite budget giornaliero raggiunto";
+      ctaMessage = `Hai raggiunto il limite di spesa giornaliero del piano ${currentLabel}. Passa a ${nextLabel} per aumentare il tuo budget giornaliero.`;
+      break;
+    default:
+      headline = "Limite del piano raggiunto";
+      ctaMessage = `Hai raggiunto un limite del tuo piano ${currentLabel}. Aggiorna a ${nextLabel} per sbloccare funzionalità aggiuntive e limiti più elevati.`;
+  }
+
+  const isGuest = currentPlan === "GUEST";
+  const primaryCta = isGuest
+    ? {
+        label: "Registrati ora",
+        url: "/sign-up",
+        intent: "signup" as const,
+      }
+    : {
+        label: `Passa a ${nextLabel}`,
+        url: "/pricing",
+        intent: "upgrade" as const,
+      };
+
   return {
-    currentPlan: planDisplayNames[currentTier],
-    suggestedPlan: planDisplayNames[nextTier],
+    currentPlan: currentLabel,
+    suggestedPlan: nextLabel,
     upgradeUrl: "/pricing",
     ctaMessage,
+    limitType,
+    headline,
+    primaryCta,
+    secondaryCta: {
+      label: "Controlla utilizzo",
+      url: "/chat/usage",
+    },
   };
 }

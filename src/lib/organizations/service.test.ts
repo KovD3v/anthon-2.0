@@ -91,7 +91,10 @@ describe("organizations service sync helpers", () => {
     mocks.updateClerkMembershipRole.mockReset();
     mocks.updateClerkOrganization.mockReset();
 
-    mocks.userFindUnique.mockResolvedValue({ id: "user-1", clerkId: "clerk-user-1" });
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      clerkId: "clerk-user-1",
+    });
     mocks.removeClerkMembership.mockResolvedValue(undefined);
   });
 
@@ -109,7 +112,10 @@ describe("organizations service sync helpers", () => {
 
   it("syncOrganizationFromClerkEvent updates provided fields", async () => {
     mocks.organizationFindUnique.mockResolvedValue({ id: "org-1" });
-    mocks.organizationUpdate.mockResolvedValue({ id: "org-1", name: "Updated Org" });
+    mocks.organizationUpdate.mockResolvedValue({
+      id: "org-1",
+      name: "Updated Org",
+    });
 
     const result = await syncOrganizationFromClerkEvent({
       clerkOrganizationId: "org_clerk_1",
@@ -166,8 +172,8 @@ describe("organizations service sync helpers", () => {
       },
     };
 
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     const result = await syncMembershipFromClerkEvent({
@@ -215,8 +221,8 @@ describe("organizations service sync helpers", () => {
       },
     };
 
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     const result = await syncMembershipFromClerkEvent({
@@ -271,8 +277,8 @@ describe("organizations service sync helpers", () => {
 
     mocks.transaction
       .mockRejectedValueOnce({ code: "P2034" })
-      .mockImplementation(async (fn: (client: unknown) => unknown) =>
-        await fn(tx),
+      .mockImplementation(
+        async (fn: (client: unknown) => unknown) => await fn(tx),
       );
 
     const result = await syncMembershipFromClerkEvent({
@@ -310,7 +316,10 @@ describe("organizations service sync helpers", () => {
     mocks.userFindUnique
       .mockResolvedValueOnce(null) // lookup by clerkId
       .mockResolvedValueOnce({ id: "user-email", clerkId: null }); // lookup by email
-    mocks.userUpdate.mockResolvedValue({ id: "user-email", clerkId: "clerk-user-2" });
+    mocks.userUpdate.mockResolvedValue({
+      id: "user-email",
+      clerkId: "clerk-user-2",
+    });
 
     const getUser = vi.fn().mockResolvedValue({
       primaryEmailAddress: { emailAddress: "owner@org.test" },
@@ -335,8 +344,8 @@ describe("organizations service sync helpers", () => {
         update: vi.fn().mockResolvedValue({}),
       },
     };
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     const result = await syncMembershipFromClerkEvent({
@@ -387,8 +396,8 @@ describe("organizations service sync helpers", () => {
         update: vi.fn().mockResolvedValue({}),
       },
     };
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     const result = await syncMembershipFromClerkEvent({
@@ -410,7 +419,10 @@ describe("organizations service sync helpers", () => {
       contract: { seatLimit: 5 },
     });
     mocks.userFindUnique.mockResolvedValue(null);
-    mocks.userUpsert.mockResolvedValue({ id: "user-upsert", clerkId: "clerk-user-3" });
+    mocks.userUpsert.mockResolvedValue({
+      id: "user-upsert",
+      clerkId: "clerk-user-3",
+    });
 
     mocks.clerkClient.mockResolvedValue({
       users: {
@@ -433,8 +445,8 @@ describe("organizations service sync helpers", () => {
         update: vi.fn().mockResolvedValue({}),
       },
     };
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     const result = await syncMembershipFromClerkEvent({
@@ -475,8 +487,8 @@ describe("organizations service sync helpers", () => {
         update: vi.fn().mockResolvedValue({}),
       },
     };
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     const result = await syncMembershipFromClerkEvent({
@@ -526,8 +538,8 @@ describe("organizations service sync helpers", () => {
         update: vi.fn().mockResolvedValue({}),
       },
     };
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     const result = await syncMembershipFromClerkEvent({
@@ -567,10 +579,12 @@ describe("organizations service sync helpers", () => {
         update: vi.fn().mockResolvedValue({}),
       },
     };
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
-    mocks.removeClerkMembership.mockRejectedValue(new Error("clerk remove failed"));
+    mocks.removeClerkMembership.mockRejectedValue(
+      new Error("clerk remove failed"),
+    );
 
     await expect(
       syncMembershipFromClerkEvent({
@@ -696,7 +710,9 @@ describe("organizations service core flows", () => {
     });
 
     mocks.organizationFindUnique.mockImplementation(
-      async (args: { where?: { clerkOrganizationId?: string; slug?: string } }) => {
+      async (args: {
+        where?: { clerkOrganizationId?: string; slug?: string };
+      }) => {
         if (args.where?.clerkOrganizationId === "org_existing") {
           return { id: "db_org_1", slug: "old-slug" };
         }
@@ -744,7 +760,9 @@ describe("organizations service core flows", () => {
     });
 
     mocks.organizationFindUnique.mockImplementation(
-      async (args: { where?: { clerkOrganizationId?: string; slug?: string } }) => {
+      async (args: {
+        where?: { clerkOrganizationId?: string; slug?: string };
+      }) => {
         if (args.where?.clerkOrganizationId === "org_existing") {
           return { id: "db_existing", slug: "fallback-existing" };
         }
@@ -868,8 +886,8 @@ describe("organizations service core flows", () => {
       },
     };
 
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     const result = await createOrganizationWithContract({
@@ -967,8 +985,8 @@ describe("organizations service core flows", () => {
       },
     };
 
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     await expect(
@@ -1016,7 +1034,9 @@ describe("organizations service core flows", () => {
     mocks.userFindUnique.mockResolvedValue(null);
     mocks.inviteClerkOwner.mockResolvedValue(undefined);
     mocks.transaction.mockRejectedValue(new Error("tx failed"));
-    mocks.deleteClerkOrganization.mockRejectedValue(new Error("cleanup failed"));
+    mocks.deleteClerkOrganization.mockRejectedValue(
+      new Error("cleanup failed"),
+    );
 
     await expect(
       createOrganizationWithContract({
@@ -1051,7 +1071,9 @@ describe("organizations service core flows", () => {
     });
     mocks.addClerkMembership.mockResolvedValue({ id: "clerk_mem_1" });
     mocks.transaction.mockRejectedValue(new Error("tx failed"));
-    mocks.removeClerkMembership.mockRejectedValue(new Error("membership cleanup failed"));
+    mocks.removeClerkMembership.mockRejectedValue(
+      new Error("membership cleanup failed"),
+    );
     mocks.deleteClerkOrganization.mockResolvedValue(undefined);
 
     await expect(
@@ -1116,8 +1138,8 @@ describe("organizations service core flows", () => {
       },
     };
 
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
     mocks.updateClerkOrganization.mockResolvedValue(undefined);
 
@@ -1226,8 +1248,8 @@ describe("organizations service core flows", () => {
         create: vi.fn(),
       },
     };
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     await expect(
@@ -1303,8 +1325,8 @@ describe("organizations service core flows", () => {
       },
     };
 
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     await expect(
@@ -1431,8 +1453,8 @@ describe("organizations service core flows", () => {
         create: vi.fn(),
       },
     };
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     await expect(
@@ -1552,8 +1574,8 @@ describe("organizations service core flows", () => {
         create: vi.fn(),
       },
     };
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     await updateOrganization({
@@ -1629,8 +1651,8 @@ describe("organizations service core flows", () => {
         create: vi.fn(),
       },
     };
-    mocks.transaction.mockImplementation(async (fn: (client: unknown) => unknown) =>
-      await fn(tx),
+    mocks.transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => await fn(tx),
     );
 
     await updateOrganization({

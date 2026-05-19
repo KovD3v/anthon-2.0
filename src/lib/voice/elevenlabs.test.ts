@@ -38,13 +38,17 @@ describe("voice/elevenlabs", () => {
     delete process.env.ELEVENLABS_API_KEY;
     const { generateVoice } = await import("./elevenlabs");
 
-    await expect(generateVoice("hello")).rejects.toThrow("API key not configured");
+    await expect(generateVoice("hello")).rejects.toThrow(
+      "API key not configured",
+    );
   });
 
   it("generateVoice calls ElevenLabs and returns audio buffer + character count", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(new Response(new Uint8Array([1, 2, 3]), { status: 200 }));
+      .mockResolvedValue(
+        new Response(new Uint8Array([1, 2, 3]), { status: 200 }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const { generateVoice } = await import("./elevenlabs");
@@ -120,14 +124,12 @@ describe("voice/elevenlabs", () => {
       character_limit: 100,
       next_character_count_reset_unix: 1739999999,
     };
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify(subscription), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(subscription), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const { getSystemLoad } = await import("./elevenlabs");
@@ -147,14 +149,12 @@ describe("voice/elevenlabs", () => {
       character_limit: 0,
       next_character_count_reset_unix: 1739999999,
     };
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify(subscription), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(subscription), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const { getSystemLoad } = await import("./elevenlabs");

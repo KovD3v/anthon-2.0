@@ -3,6 +3,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { IdentifyUser } from "@/components/providers/identify-user";
+import { MotionProvider } from "@/components/providers/motion-provider";
+import { QueryProvider } from "@/components/providers/query-provider";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import "./globals.css";
 
@@ -57,7 +59,9 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <IdentifyUser />
-            {children}
+            <QueryProvider>
+              <MotionProvider>{children}</MotionProvider>
+            </QueryProvider>
             <ToastProvider />
           </ThemeProvider>
         </body>

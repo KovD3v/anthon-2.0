@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
+import { getTextFromParts } from "@/lib/utils/message-parts";
 import { getVoicePlanConfig } from "@/lib/voice";
 import type { Chat, ChatData } from "@/types/chat";
 
@@ -119,7 +120,6 @@ export const getSharedChat = cache(
       select: {
         id: true,
         role: true,
-        content: true,
         parts: true,
         createdAt: true,
         model: true,
@@ -160,7 +160,7 @@ export const getSharedChat = cache(
       messages: messagesToReturn.map((m) => ({
         id: m.id,
         role: m.role.toLowerCase() as "user" | "assistant",
-        content: m.content,
+        content: getTextFromParts(m.parts),
         parts: m.parts,
         createdAt: m.createdAt.toISOString(),
         model: m.model ?? undefined,

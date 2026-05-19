@@ -40,7 +40,8 @@ vi.mock("./handlers/organization", () => ({
   handleOrganizationUpsert: mocks.handleOrganizationUpsert,
   handleOrganizationDeleted: mocks.handleOrganizationDeleted,
   handleOrganizationMembershipUpsert: mocks.handleOrganizationMembershipUpsert,
-  handleOrganizationMembershipDeleted: mocks.handleOrganizationMembershipDeleted,
+  handleOrganizationMembershipDeleted:
+    mocks.handleOrganizationMembershipDeleted,
   handleOrganizationInvitationAccepted:
     mocks.handleOrganizationInvitationAccepted,
 }));
@@ -57,7 +58,7 @@ function setSvixHeaders(values?: Partial<Record<string, string>>) {
   };
 
   mocks.headers.mockResolvedValue({
-    get: (key: string) => resolved[key] ?? null,
+    get: (key: string) => resolved[key as keyof typeof resolved] ?? null,
   });
 }
 
@@ -96,7 +97,9 @@ describe("POST /api/webhooks/clerk", () => {
     );
 
     expect(response.status).toBe(500);
-    await expect(response.text()).resolves.toBe("Webhook secret not configured");
+    await expect(response.text()).resolves.toBe(
+      "Webhook secret not configured",
+    );
   });
 
   it("returns 400 when svix headers are missing", async () => {

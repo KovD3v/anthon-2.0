@@ -136,6 +136,102 @@ Organization service includes compensation for cross-system writes:
 - Create flow: if DB transaction fails after Clerk provisioning, created Clerk resources are cleaned up.
 - Update flow: if DB update fails after Clerk org patch/owner membership changes, best-effort rollback is attempted.
 
+## Access Control
+
+Organization management is admin-only. Regular users cannot create organizations.
+
+| Who | Can see "Organization" in sidebar | Can visit `/organization` | Can create orgs |
+|-----|----------------------------------|--------------------------|-----------------|
+| User with no org membership | No (hidden) | Sees "contact an admin" message | No |
+| User in ≥1 org | Yes | Yes — shows their org profile | No |
+| Admin | Yes (if also a member) | Yes | Yes — via `/admin/organizations` |
+
+**Sidebar**: `SidebarBottom` reads `user.organizationMemberships` from Clerk and hides the Organization menu item when the array is empty.
+
+**Organization page** (`/organization`): when no active `orgId` is in the session, shows a static message instead of `OrganizationSwitcher`. `OrganizationSwitcher` was intentionally removed because it exposes a "Create organization" button that bypasses admin-only creation.
+
+**Admin creation**: `POST /api/admin/organizations` is the only org creation path. It requires `requireAdmin()` and does a coordinated Clerk + DB dual-write with compensation on failure.
+
+## Known Fragility Points
+
+This feature is the most fragile part of the codebase. Read this section before touching it.
+
+### 1. Dual-Write Consistency (Clerk ↔ DB)
+
+Every write touches both Clerk and the local DB. If Clerk succeeds but the DB fails (or vice versa), the state is inconsistent. The service has compensation logic (`deleteClerkOrganization`, `removeClerkMembership`) but it is **best-effort** — it can also fail. There is no saga/outbox pattern; no retry queue.
+
+**Risk**: Clerk shows an org/member that the DB doesn't know about, so entitlement checks return wrong results.
+
+**Mitigation**: The `GET /api/admin/organizations?sync=1` endpoint backfills from Clerk. Run it if you suspect drift.
+
+### 2. Webhook Ordering and Idempotency
+
+Clerk fires webhook events for membership changes. These arrive out of order and can duplicate. The handler (`handleOrganizationMembershipUpsert`) uses an upsert but does **not** use a deduplication key — replaying a webhook is safe but may log duplicate audit entries.
+
+**Risk**: If webhooks are delayed or lost, the local `organizationMembership` rows are stale. Entitlement checks use the local DB, not Clerk directly.
+
+**Mitigation**: Use `?sync=1` to force re-sync. Monitor webhook delivery in Clerk Dashboard → Webhooks.
+
+### 3. Seat Limit Race Condition
+
+Seat limit enforcement uses a `serializable` transaction that counts active members. Under high concurrency (unlikely but possible), two simultaneous invitations could both pass the seat check before either commits.
+
+**Risk**: Organization ends up with one extra member beyond `seatLimit`.
+
+**Mitigation**: Catch it in the audit log (`MEMBERSHIP_BLOCKED_SEAT_LIMIT`). Re-sync or manually block the extra member.
+
+### 4. Owner Transfer Partial Failure
+
+Transferring ownership requires: (1) removing old owner in Clerk, (2) adding new owner in Clerk, (3) updating DB. If the process fails mid-way, the org may have no owner or two owners in Clerk but only one in the DB.
+
+**Mitigation**: Check `pendingOwnerEmail` on the `Organization` model — a non-null value means a transfer was initiated but may not have completed. Re-run the PATCH request or manually fix in Clerk Dashboard.
+
+### 5. Clerk Organization Deletion
+
+`DELETE /api/admin/organizations/[id]` deletes from Clerk first, then the DB. If DB cleanup fails after Clerk delete, the org is gone from Clerk but orphaned in the DB with no way to sync it back.
+
+**Mitigation**: The error is logged. Run a manual DB cleanup:
+```sql
+UPDATE "Organization" SET status = 'ARCHIVED' WHERE id = '<id>';
+```
+
+### 6. Session orgId Staleness
+
+Clerk sets `orgId` on the session token at login. If a user is added to or removed from an org after login, their `orgId` in `auth()` does not update until they refresh their session (sign out / sign in).
+
+**Risk**: A newly-invited user may see "not part of any org" until they sign out and back in. A removed member may still see the org page for the rest of their session (though entitlement checks use the DB, which will already reflect their removal).
+
+**Mitigation**: Instruct users to sign out and sign back in after org membership changes.
+
+## Operational Runbook
+
+### Checking for Clerk/DB drift
+```bash
+# Trigger a Clerk → DB re-sync for all orgs
+curl -X GET /api/admin/organizations?sync=1 -H "Authorization: Bearer <admin-token>"
+```
+
+### Manually unblocking a blocked member
+```sql
+UPDATE "OrganizationMembership"
+SET status = 'ACTIVE'
+WHERE "organizationId" = '<org_id>' AND "userId" = '<user_id>';
+```
+
+### Checking effective entitlements for a user
+```bash
+GET /api/usage  # as the target user — returns sources[] showing org vs personal
+```
+
+### Finding inconsistencies
+```sql
+-- Members in DB not in Clerk: run ?sync=1 and compare
+-- Orgs with no contract (will fall back to personal limits):
+SELECT o.id, o.name FROM "Organization" o
+LEFT JOIN "OrganizationContract" c ON c."organizationId" = o.id
+WHERE c.id IS NULL AND o.status = 'ACTIVE';
+```
+
 ## Related Docs
 
 - [API Reference](./api.md)

@@ -139,7 +139,7 @@ export function AudioPlayer({
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-3 p-2 pr-4 rounded-2xl overflow-hidden transition-all duration-300",
+        "group relative flex items-center gap-2 p-2 pr-4 rounded-2xl overflow-hidden transition-all duration-300",
         "bg-zinc-800 border border-zinc-700 shadow-sm",
         "hover:bg-zinc-750",
         "min-w-[200px]",

@@ -1,15 +1,21 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import { useClerk } from "@clerk/nextjs";
 import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
 import { convertToUIMessages, extractTextFromParts } from "@/lib/chat-client";
+import {
+  getPaywallCardContent,
+  type PaywallCardContent,
+} from "@/lib/rate-limit/paywall";
 import type { AttachmentData, ChatData } from "@/types/chat";
 import { ChatHeader } from "../../../(chat)/components/ChatHeader";
 import { ChatInput } from "../../../(chat)/components/ChatInput";
@@ -30,6 +36,8 @@ export function ChatConversationClient({
   chatId: string;
   initialChatData: ChatData;
 }) {
+  const clerk = useClerk();
+  const router = useRouter();
   const { renameChat, isGuest, getCachedChat, updateCachedChat } =
     useChatContext();
   const apiBase = isGuest ? "/api/guest" : "/api";
@@ -56,6 +64,9 @@ export function ChatConversationClient({
   const [voiceMessages, setVoiceMessages] = useState<Map<string, string>>(
     () => new Map(),
   );
+  const trialActivationAttemptedRef = useRef(false);
+  const trialActivationInFlightRef = useRef(false);
+  const submitInFlightRef = useRef(false);
 
   // Initial messages from server data
   const initialMessages = convertToUIMessages(chatData.messages);
@@ -212,63 +223,17 @@ export function ChatConversationClient({
     }
   }, [chatId, streamingMessages, status, updateCachedChat]);
 
-  const formattedError = (() => {
+  const formattedError:
+    | { message: string; title?: string }
+    | PaywallCardContent
+    | null = (() => {
     if (!chatError) return null;
     try {
       if (chatError.message.trim().startsWith("{")) {
         const parsed = JSON.parse(chatError.message);
-        if (parsed.error === "Rate limit exceeded") {
-          const upgradeInfo = parsed.upgradeInfo;
-
-          if (upgradeInfo) {
-            const isGuest = upgradeInfo.currentPlan === "Ospite";
-            const ctaMessage =
-              upgradeInfo.ctaMessage ||
-              (isGuest
-                ? "Hai raggiunto il limite di messaggi giornalieri per gli ospiti."
-                : `Hai raggiunto il limite del piano ${upgradeInfo.currentPlan}.`);
-
-            return {
-              title: "Limite Raggiunto",
-              message: ctaMessage,
-              action: (
-                <Button
-                  asChild
-                  size="sm"
-                  variant="outline"
-                  className="mt-2 w-full border-red-200 bg-white hover:bg-red-50 text-red-700 dark:bg-transparent dark:hover:bg-red-900/20"
-                >
-                  <Link
-                    href={
-                      isGuest
-                        ? "/sign-up"
-                        : upgradeInfo.upgradeUrl || "/pricing"
-                    }
-                  >
-                    {isGuest
-                      ? "Registrati per continuare"
-                      : `Passa a ${upgradeInfo.suggestedPlan}`}
-                  </Link>
-                </Button>
-              ),
-            };
-          }
-
-          return {
-            title: "Limite Raggiunto",
-            message:
-              "Hai raggiunto il limite di messaggi giornalieri per gli ospiti.",
-            action: (
-              <Button
-                asChild
-                size="sm"
-                variant="outline"
-                className="mt-2 w-full border-red-200 bg-white hover:bg-red-50 text-red-700 dark:bg-transparent dark:hover:bg-red-900/20"
-              >
-                <Link href="/sign-up">Registrati per continuare</Link>
-              </Button>
-            ),
-          };
+        const paywallCard = getPaywallCardContent(parsed, isGuest);
+        if (paywallCard) {
+          return paywallCard;
         }
         return { message: parsed.error || chatError.message };
       }
@@ -278,12 +243,96 @@ export function ChatConversationClient({
     return { message: chatError.message };
   })();
 
-  const handleSubmit = (e: React.FormEvent, attachments?: AttachmentData[]) => {
+  const maybeActivateClerkTrial = useCallback(async () => {
+    if (
+      isGuest ||
+      trialActivationAttemptedRef.current ||
+      trialActivationInFlightRef.current
+    ) {
+      return;
+    }
+
+    trialActivationInFlightRef.current = true;
+
+    try {
+      try {
+        const currentSubscription = await clerk.billing.getSubscription({});
+        const hasFreeTrialItem = currentSubscription.subscriptionItems.some(
+          (item) => item.isFreeTrial,
+        );
+
+        if (hasFreeTrialItem || !currentSubscription.eligibleForFreeTrial) {
+          trialActivationAttemptedRef.current = true;
+          return;
+        }
+      } catch {
+        // If subscription lookup fails, continue and try to bootstrap from plans.
+      }
+
+      const plans = await clerk.billing.getPlans({ for: "user" });
+      const trialPlan =
+        plans.data.find(
+          (plan) => plan.freeTrialEnabled && plan.publiclyVisible,
+        ) ?? plans.data.find((plan) => plan.freeTrialEnabled);
+
+      if (!trialPlan) {
+        trialActivationAttemptedRef.current = true;
+        return;
+      }
+
+      let checkout = await clerk.billing.startCheckout({
+        planId: trialPlan.id,
+        planPeriod: "month",
+      });
+
+      if (
+        checkout.status === "needs_confirmation" &&
+        checkout.needsPaymentMethod
+      ) {
+        trialActivationAttemptedRef.current = true;
+        toast.info(
+          "Per attivare la prova gratuita è richiesto un metodo di pagamento.",
+        );
+        router.push("/pricing");
+        return;
+      }
+
+      if (
+        checkout.status === "needs_confirmation" &&
+        !checkout.needsPaymentMethod
+      ) {
+        checkout = await checkout.confirm({});
+      }
+
+      if (checkout.status === "completed") {
+        trialActivationAttemptedRef.current = true;
+        toast.success("Prova gratuita attivata");
+      }
+    } catch (error) {
+      console.error("Failed to auto-activate Clerk trial:", error);
+    } finally {
+      trialActivationInFlightRef.current = false;
+    }
+  }, [clerk, isGuest, router]);
+
+  const handleSubmit = async (
+    e: React.FormEvent,
+    attachments?: AttachmentData[],
+  ) => {
     e.preventDefault();
     if (
-      (input.trim() || (attachments && attachments.length > 0)) &&
-      status === "ready"
+      !(input.trim() || (attachments && attachments.length > 0)) ||
+      status !== "ready" ||
+      submitInFlightRef.current
     ) {
+      return;
+    }
+
+    submitInFlightRef.current = true;
+
+    try {
+      await maybeActivateClerkTrial();
+
       const parts: UIMessage["parts"] = [];
       if (input.trim()) parts.push({ type: "text", text: input });
       if (attachments) {
@@ -303,8 +352,10 @@ export function ChatConversationClient({
           } as any);
         });
       }
-      sendMessage({ role: "user", parts: parts as UIMessage["parts"] });
+      await sendMessage({ role: "user", parts: parts as UIMessage["parts"] });
       setInput("");
+    } finally {
+      submitInFlightRef.current = false;
     }
   };
 
@@ -499,7 +550,28 @@ export function ChatConversationClient({
             {formattedError.title ? "" : "Un errore si è verificato: "}
             {formattedError.message}
           </div>
-          {formattedError.action}
+          {"primaryCta" in formattedError && (
+            <div className="mt-3 flex items-center gap-3">
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="w-full border-red-200 bg-white hover:bg-red-50 text-red-700 dark:bg-transparent dark:hover:bg-red-900/20"
+              >
+                <Link href={formattedError.primaryCta.href}>
+                  {formattedError.primaryCta.label}
+                </Link>
+              </Button>
+              {formattedError.secondaryCta && (
+                <Link
+                  href={formattedError.secondaryCta.href}
+                  className="text-xs underline underline-offset-2 text-red-700 dark:text-red-300 whitespace-nowrap"
+                >
+                  {formattedError.secondaryCta.label}
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       )}
 

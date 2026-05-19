@@ -4,6 +4,10 @@ import { SESSION } from "@/lib/ai/constants";
 import { subAgentModel } from "@/lib/ai/providers/openrouter";
 import { cacheSummary, getCachedSummary } from "@/lib/ai/session-cache";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+import { getTextFromParts } from "@/lib/utils/message-parts";
+
+const sessionLogger = createLogger("ai");
 
 interface Session {
   messages: Message[];
@@ -72,7 +76,7 @@ async function summarizeSession(
   const conversationText = session.messages
     .map((m) => {
       const role = m.role === "USER" ? "Utente" : "Assistente";
-      return `${role}: ${m.content || "[media]"}`;
+      return `${role}: ${getTextFromParts(m.parts) || "[media]"}`;
     })
     .join("\n");
 
@@ -104,7 +108,7 @@ function toModelMessage(message: Message): ModelMessage {
 
   return {
     role,
-    content: message.content || "",
+    content: getTextFromParts(message.parts),
   } as ModelMessage;
 }
 
@@ -190,7 +194,11 @@ export async function buildConversationContext(
         // Cache miss: trigger background summarization for next time
         // Fire-and-forget - don't await
         summarizeSession(userId, session).catch((err) => {
-          console.error("Background summarization failed:", err);
+          sessionLogger.error(
+            "ai.session.summarize.failed",
+            "Background summarization failed",
+            { error: err, userId },
+          );
         });
 
         // Use quick fallback: include only the last few messages from this session
@@ -236,7 +244,7 @@ export async function buildConversationContext(
  * Gets the timestamp of the last message for a user.
  * Useful for determining if we're in an active session.
  */
-async function getLastMessageTime(userId: string): Promise<Date | null> {
+async function _getLastMessageTime(userId: string): Promise<Date | null> {
   const lastMessage = await prisma.message.findFirst({
     where: { userId },
     orderBy: { createdAt: "desc" },
@@ -244,18 +252,4 @@ async function getLastMessageTime(userId: string): Promise<Date | null> {
   });
 
   return lastMessage?.createdAt ?? null;
-}
-
-/**
- * Checks if the user is currently in an active session.
- * Returns true if the last message was within 15 minutes.
- */
-async function _isInActiveSession(userId: string): Promise<boolean> {
-  const lastMessageTime = await getLastMessageTime(userId);
-  if (!lastMessageTime) return false;
-
-  const now = Date.now();
-  const lastTime = new Date(lastMessageTime).getTime();
-
-  return now - lastTime < SESSION.GAP_MS;
 }

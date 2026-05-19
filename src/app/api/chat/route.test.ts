@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
   streamChat: vi.fn(),
   generateChatTitle: vi.fn(),
   extractAndSaveMemories: vi.fn(),
+  trackInboundUserMessageFunnelProgress: vi.fn(),
+  isBillingSyncStale: vi.fn(),
+  syncPersonalSubscriptionFromClerk: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -76,6 +79,16 @@ vi.mock("@/lib/ai/chat-title", () => ({
 
 vi.mock("@/lib/ai/memory-extractor", () => ({
   extractAndSaveMemories: mocks.extractAndSaveMemories,
+}));
+
+vi.mock("@/lib/analytics/funnel", () => ({
+  trackInboundUserMessageFunnelProgress:
+    mocks.trackInboundUserMessageFunnelProgress,
+}));
+
+vi.mock("@/lib/billing/personal-subscription", () => ({
+  isBillingSyncStale: mocks.isBillingSyncStale,
+  syncPersonalSubscriptionFromClerk: mocks.syncPersonalSubscriptionFromClerk,
 }));
 
 import { POST } from "./route";
@@ -156,6 +169,9 @@ describe("POST /api/chat", () => {
     mocks.streamChat.mockReset();
     mocks.generateChatTitle.mockReset();
     mocks.extractAndSaveMemories.mockReset();
+    mocks.trackInboundUserMessageFunnelProgress.mockReset();
+    mocks.isBillingSyncStale.mockReset();
+    mocks.syncPersonalSubscriptionFromClerk.mockReset();
 
     mocks.start.mockReturnValue({
       end: vi.fn(),
@@ -170,6 +186,7 @@ describe("POST /api/chat", () => {
       id: "user-1",
       role: "USER",
       isGuest: false,
+      billingSyncedAt: new Date("2026-02-18T10:00:00.000Z"),
       subscription: {
         status: "ACTIVE",
         planId: "my-basic-plan",
@@ -179,6 +196,7 @@ describe("POST /api/chat", () => {
       id: "user-1",
       role: "USER",
       isGuest: false,
+      billingSyncedAt: new Date("2026-02-18T10:00:00.000Z"),
       subscription: {
         status: "ACTIVE",
         planId: "my-basic-plan",
@@ -204,6 +222,13 @@ describe("POST /api/chat", () => {
     mocks.attachmentUpdate.mockResolvedValue({});
     mocks.incrementUsage.mockResolvedValue({});
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
+    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
+    mocks.isBillingSyncStale.mockImplementation(
+      (billingSyncedAt?: Date | null) =>
+        !billingSyncedAt ||
+        Date.now() - billingSyncedAt.getTime() > 5 * 60 * 1000,
+    );
     mocks.generateChatTitle.mockResolvedValue("Generated title");
     mocks.waitUntil.mockImplementation(() => {});
     mocks.streamChat.mockResolvedValue({
@@ -243,7 +268,19 @@ describe("POST /api/chat", () => {
         maxCostPerDay: 10,
         maxContextMessages: 20,
       },
-      upgradeInfo: null,
+      upgradeInfo: {
+        currentPlan: "Basic",
+        suggestedPlan: "Basic Plus",
+        upgradeUrl: "/pricing",
+        ctaMessage: "Passa a Basic Plus",
+        limitType: "requests",
+        headline: "Limite richieste raggiunto",
+        primaryCta: {
+          label: "Passa a Basic Plus",
+          url: "/pricing",
+          intent: "upgrade",
+        },
+      },
     });
 
     const response = await POST(
@@ -257,6 +294,13 @@ describe("POST /api/chat", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: "Rate limit exceeded",
       reason: "Daily request limit reached",
+      upgradeInfo: {
+        primaryCta: {
+          label: "Passa a Basic Plus",
+          url: "/pricing",
+          intent: "upgrade",
+        },
+      },
     });
   });
 
@@ -308,6 +352,101 @@ describe("POST /api/chat", () => {
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Empty message");
+  });
+
+  it("skips Clerk sync when trial subscription was synced recently", async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      isGuest: false,
+      billingSyncedAt: new Date(),
+      subscription: {
+        status: "TRIAL",
+        planId: "my-basic-plan",
+      },
+    });
+
+    const response = await POST(
+      buildRequest({
+        messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.syncPersonalSubscriptionFromClerk).not.toHaveBeenCalled();
+  });
+
+  it("syncs stale trial subscription before rate-limit check", async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      isGuest: false,
+      billingSyncedAt: new Date(Date.now() - 6 * 60 * 1000),
+      subscription: {
+        status: "TRIAL",
+        planId: "my-basic-plan",
+      },
+    });
+    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue({
+      status: "ACTIVE",
+      planId: "my-pro-plan",
+    });
+
+    const response = await POST(
+      buildRequest({
+        messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.syncPersonalSubscriptionFromClerk).toHaveBeenCalledWith({
+      userId: "user-1",
+      clerkUserId: "clerk_1",
+      current: {
+        status: "TRIAL",
+        planId: "my-basic-plan",
+      },
+    });
+    expect(mocks.checkRateLimit).toHaveBeenCalledWith(
+      "user-1",
+      "ACTIVE",
+      "USER",
+      "my-pro-plan",
+      false,
+    );
+  });
+
+  it("keeps chat flow working when stale sync returns null", async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      isGuest: false,
+      billingSyncedAt: new Date(Date.now() - 6 * 60 * 1000),
+      subscription: {
+        status: "TRIAL",
+        planId: null,
+      },
+    });
+    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
+
+    const response = await POST(
+      buildRequest({
+        messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.syncPersonalSubscriptionFromClerk).toHaveBeenCalledTimes(1);
+    expect(mocks.checkRateLimit).toHaveBeenCalledWith(
+      "user-1",
+      "TRIAL",
+      "USER",
+      null,
+      false,
+    );
   });
 
   it("persists user message, links attachments, and streams response on success", async () => {
@@ -363,7 +502,6 @@ describe("POST /api/chat", () => {
         chatId: "chat-1",
         role: "USER",
         direction: "INBOUND",
-        content: "hello",
       }),
     });
     expect(mocks.attachmentUpdate).toHaveBeenNthCalledWith(1, {
@@ -422,6 +560,12 @@ describe("POST /api/chat", () => {
         }),
       ],
     });
+    expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        channel: "WEB",
+      }),
+    );
   });
 
   it("skips linking attachments that are not owned by the current user", async () => {
@@ -530,7 +674,6 @@ describe("POST /api/chat", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           role: "ASSISTANT",
-          content: "Assistant reply",
           model: "google/gemini-2.0-flash-001",
           inputTokens: 111,
           outputTokens: 222,
@@ -543,6 +686,7 @@ describe("POST /api/chat", () => {
       111,
       222,
       0.123,
+      10,
     );
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "page");
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "page");
@@ -551,7 +695,7 @@ describe("POST /api/chat", () => {
       "hello world",
       "Assistant reply",
     );
-    expect(mocks.waitUntil).toHaveBeenCalledTimes(1);
+    expect(mocks.waitUntil).toHaveBeenCalledTimes(2);
   });
 
   it("returns 500 when downstream streaming fails", async () => {

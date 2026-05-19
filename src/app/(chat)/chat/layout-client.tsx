@@ -68,8 +68,8 @@ function GuestBanner({
 }) {
   return (
     <div className="mx-2 mt-2 md:mx-4 md:mt-4">
-      <div className="flex items-center justify-between gap-3 bg-linear-to-r from-primary/10 via-primary/5 to-transparent backdrop-blur-xl border border-primary/20 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl shadow-sm shadow-primary/5">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center justify-between gap-2 bg-linear-to-r from-primary/10 via-primary/5 to-transparent backdrop-blur-xl border border-primary/20 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl shadow-sm shadow-primary/5">
+        <div className="flex items-center gap-2 min-w-0">
           {showToggle && (
             <Button
               variant="ghost"
@@ -249,11 +249,9 @@ export function LayoutClient({
 
   // Pre-fetch chat data on hover
   async function preFetchChat(id: string) {
-    console.log(`[Prefetch] Triggered for chat ${id}`);
     router.prefetch(`/chat/${id}`);
 
     if (chatCacheRef.current.has(id) || preFetchingIdsRef.current.has(id)) {
-      console.log(`[Prefetch] Already cached or fetching for ${id}`);
       return;
     }
 
@@ -272,10 +270,9 @@ export function LayoutClient({
         }
 
         chatCacheRef.current.set(id, data);
-        console.log(`[Prefetch] Successfully cached data for ${id}`);
       }
-    } catch (error) {
-      console.error("[Prefetch] Failed:", error);
+    } catch {
+      // prefetch failures are non-critical; suppress noise
     } finally {
       preFetchingIdsRef.current.delete(id);
     }

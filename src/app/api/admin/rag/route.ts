@@ -4,16 +4,19 @@
  */
 
 import { del, put } from "@vercel/blob";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { addDocument, deleteDocument as removeDocument } from "@/lib/ai/rag";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
 import {
   isValidFileType,
   parseDocument,
   SUPPORTED_EXTENSIONS,
 } from "@/lib/rag/parser";
+
+const ragLogger = createLogger("ai");
 
 // GET /api/admin/rag - List all RAG documents
 export async function GET() {
@@ -41,7 +44,7 @@ export async function GET() {
       })),
     });
   } catch (error) {
-    console.error("[RAG API] Error listing documents:", error);
+    ragLogger.error("get.error", "Failed to list RAG documents", { error });
     return NextResponse.json(
       { error: "Failed to list documents" },
       { status: 500 },
@@ -50,7 +53,7 @@ export async function GET() {
 }
 
 // POST /api/admin/rag - Upload and process document(s)
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
@@ -119,7 +122,11 @@ export async function POST(req: NextRequest) {
           blobUrl = blob.url;
         } catch (blobError) {
           // Blob upload is optional - continue without it
-          console.warn("[RAG API] Blob upload failed (optional):", blobError);
+          ragLogger.warn(
+            "blob.upload_failed",
+            "Blob upload failed (optional)",
+            { error: blobError },
+          );
         }
 
         // Determine title
@@ -152,7 +159,10 @@ export async function POST(req: NextRequest) {
           },
         });
       } catch (fileError) {
-        console.error(`[RAG API] Error processing ${file.name}:`, fileError);
+        ragLogger.error("file.process_failed", "Failed to process file", {
+          fileName: file.name,
+          error: fileError,
+        });
         results.push({
           success: false,
           fileName: file.name,
@@ -176,7 +186,7 @@ export async function POST(req: NextRequest) {
       results,
     });
   } catch (error) {
-    console.error("[RAG API] Error uploading documents:", error);
+    ragLogger.error("post.error", "Failed to upload RAG documents", { error });
     return NextResponse.json(
       { error: "Failed to process documents" },
       { status: 500 },
@@ -185,7 +195,7 @@ export async function POST(req: NextRequest) {
 }
 
 // DELETE /api/admin/rag - Delete a document
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
@@ -217,7 +227,9 @@ export async function DELETE(req: NextRequest) {
       try {
         await del(document.url);
       } catch (blobError) {
-        console.warn("[RAG API] Blob delete failed:", blobError);
+        ragLogger.warn("blob.delete_failed", "Blob delete failed", {
+          error: blobError,
+        });
       }
     }
 
@@ -226,7 +238,7 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[RAG API] Error deleting document:", error);
+    ragLogger.error("delete.error", "Failed to delete RAG document", { error });
     return NextResponse.json(
       { error: "Failed to delete document" },
       { status: 500 },

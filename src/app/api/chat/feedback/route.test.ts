@@ -53,7 +53,9 @@ describe("POST /api/chat/feedback", () => {
   it("returns 401 when unauthenticated", async () => {
     mocks.auth.mockResolvedValue({ userId: null });
 
-    const response = await POST(buildRequest({ messageId: "msg-1", feedback: 1 }));
+    const response = await POST(
+      buildRequest({ messageId: "msg-1", feedback: 1 }),
+    );
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
@@ -62,7 +64,9 @@ describe("POST /api/chat/feedback", () => {
   it("returns 404 when user is not found", async () => {
     mocks.userFindUnique.mockResolvedValue(null);
 
-    const response = await POST(buildRequest({ messageId: "msg-1", feedback: 1 }));
+    const response = await POST(
+      buildRequest({ messageId: "msg-1", feedback: 1 }),
+    );
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: "User not found" });
@@ -80,7 +84,9 @@ describe("POST /api/chat/feedback", () => {
   it("returns 404 when message cannot receive feedback", async () => {
     mocks.messageFindFirst.mockResolvedValue(null);
 
-    const response = await POST(buildRequest({ messageId: "msg-1", feedback: -1 }));
+    const response = await POST(
+      buildRequest({ messageId: "msg-1", feedback: -1 }),
+    );
 
     expect(response.status).toBe(404);
     expect(mocks.messageFindFirst).toHaveBeenCalledWith({
@@ -96,7 +102,9 @@ describe("POST /api/chat/feedback", () => {
   });
 
   it("updates feedback for owned assistant messages", async () => {
-    const response = await POST(buildRequest({ messageId: "msg-1", feedback: 1 }));
+    const response = await POST(
+      buildRequest({ messageId: "msg-1", feedback: 1 }),
+    );
 
     expect(response.status).toBe(200);
     expect(mocks.messageUpdate).toHaveBeenCalledWith({

@@ -40,7 +40,7 @@ describe("GET /api/cron/trigger", () => {
     const response = await GET(
       new Request("http://localhost/api/cron/trigger", {
         headers: { authorization: "Bearer wrong" },
-      }) as unknown as import("next/server").NextRequest,
+      }) as unknown as Request,
     );
 
     expect(response.status).toBe(401);
@@ -66,7 +66,7 @@ describe("GET /api/cron/trigger", () => {
     const response = await GET(
       new Request("http://localhost/api/cron/trigger", {
         headers: { authorization: "Bearer cron-secret" },
-      }) as unknown as import("next/server").NextRequest,
+      }) as unknown as Request,
     );
 
     expect(response.status).toBe(200);
@@ -100,7 +100,7 @@ describe("GET /api/cron/trigger", () => {
     const response = await GET(
       new Request("http://localhost/api/cron/trigger?job=analyze", {
         headers: { authorization: "Bearer cron-secret" },
-      }) as unknown as import("next/server").NextRequest,
+      }) as unknown as Request,
     );
 
     expect(response.status).toBe(200);
@@ -134,7 +134,7 @@ describe("GET /api/cron/trigger", () => {
     const response = await GET(
       new Request("http://localhost/api/cron/trigger?job=consolidate", {
         headers: { authorization: "Bearer cron-secret" },
-      }) as unknown as import("next/server").NextRequest,
+      }) as unknown as Request,
     );
 
     expect(response.status).toBe(200);
@@ -151,7 +151,7 @@ describe("GET /api/cron/trigger", () => {
     const response = await GET(
       new Request("http://localhost/api/cron/trigger", {
         headers: { authorization: "Bearer cron-secret" },
-      }) as unknown as import("next/server").NextRequest,
+      }) as unknown as Request,
     );
 
     expect(response.status).toBe(500);

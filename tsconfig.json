@@ -30,5 +30,14 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "scripts/benchmark-api.ts",
+    "scripts/debug-admins.ts",
+    "scripts/notify-admins.ts",
+    "scripts/posthog-alias-migration.ts",
+    "scripts/re-embed-rag.ts",
+    "scripts/test-telegram-webhook.ts",
+    "scripts/verify-maintenance.ts"
+  ]
 }

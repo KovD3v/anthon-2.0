@@ -16,7 +16,7 @@ async function syncUserNames() {
   console.log("Starting user name sync from Clerk...");
   if (forceSync) {
     console.log(
-      "⚠️  FORCE MODE: Will update all users, even those with existing names"
+      "⚠️  FORCE MODE: Will update all users, even those with existing names",
     );
   }
 
@@ -45,7 +45,7 @@ async function syncUserNames() {
     // Skip if profile already has a name (unless force mode)
     if (!forceSync && user.profile?.name) {
       console.log(
-        `✓ User ${user.clerkId} already has name: ${user.profile.name}`
+        `✓ User ${user.clerkId} already has name: ${user.profile.name}`,
       );
       skipped++;
       continue;

@@ -55,7 +55,13 @@ export interface UsageEntitlements {
   sources: EntitlementSource[];
 }
 
-export type UsageTier = "GUEST" | "TRIAL" | "ACTIVE" | "ADMIN";
+export type UsageTier =
+  | "GUEST"
+  | "TRIAL"
+  | "BASIC"
+  | "BASIC_PLUS"
+  | "PRO"
+  | "ADMIN";
 
 // -----------------------------------------------------
 // Full Usage and Limits (for layout/sidebar)

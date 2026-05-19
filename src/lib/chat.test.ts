@@ -162,7 +162,6 @@ describe("lib/chat", () => {
       {
         id: "m3",
         role: "USER",
-        content: "latest question",
         parts: [{ type: "text", text: "latest question" }],
         createdAt: new Date("2026-02-17T11:00:00.000Z"),
         model: "model-a",
@@ -178,7 +177,6 @@ describe("lib/chat", () => {
       {
         id: "m2",
         role: "ASSISTANT",
-        content: "assistant answer",
         parts: [],
         createdAt: new Date("2026-02-17T10:59:00.000Z"),
         model: null,
@@ -202,7 +200,6 @@ describe("lib/chat", () => {
       {
         id: "m1",
         role: "USER",
-        content: "oldest message",
         parts: [],
         createdAt: new Date("2026-02-17T10:58:00.000Z"),
         model: null,
@@ -240,7 +237,6 @@ describe("lib/chat", () => {
       select: {
         id: true,
         role: true,
-        content: true,
         parts: true,
         createdAt: true,
         model: true,

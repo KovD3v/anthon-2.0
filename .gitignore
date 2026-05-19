@@ -41,7 +41,26 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
-/scripts
 ideas.md
 .devtools
 .neon
+
+CLAUDE.md
+
+# next-agents-md
+.next-docs/
+
+# Claude Code
+.claude/
+
+# Local script artifacts
+/scripts/Quantum_Strategies_Categories_Fixed/
+/scripts/benchmark-api.ts
+/scripts/debug-admins.ts
+/scripts/knowledge_base.txt
+/scripts/main.py
+/scripts/notify-admins.ts
+/scripts/posthog-alias-migration.ts
+/scripts/re-embed-rag.ts
+/scripts/test-telegram-webhook.ts
+/scripts/verify-maintenance.ts

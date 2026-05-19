@@ -1,6 +1,6 @@
 import { clerkClient } from "@clerk/nextjs/server";
 import { del, put } from "@vercel/blob";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 interface HealthStatus {
@@ -101,7 +101,7 @@ async function checkVercelBlob(): Promise<HealthStatus> {
 }
 
 export async function GET(
-  _request: NextRequest,
+  _request: Request,
 ): Promise<NextResponse<HealthResponse>> {
   const [database, openrouter, clerk, vercelBlob] = await Promise.all([
     checkDatabase(),

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   userUpdate: vi.fn(),
   profileCreate: vi.fn(),
   profileUpdate: vi.fn(),
+  trackFunnelSignup: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -22,6 +23,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/analytics/funnel", () => ({
+  trackFunnelSignup: mocks.trackFunnelSignup,
+}));
+
 import { handleUserCreated, handleUserUpdated } from "./user";
 
 describe("clerk webhook user handlers", () => {
@@ -31,11 +36,16 @@ describe("clerk webhook user handlers", () => {
     mocks.userUpdate.mockReset();
     mocks.profileCreate.mockReset();
     mocks.profileUpdate.mockReset();
+    mocks.trackFunnelSignup.mockReset();
   });
 
   it("handleUserCreated creates user and profile when missing", async () => {
     mocks.userFindUnique.mockResolvedValue(null);
-    mocks.userCreate.mockResolvedValue({ id: "user-1" });
+    mocks.userCreate.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      isGuest: false,
+    });
 
     await handleUserCreated({
       id: "clerk-1",
@@ -56,10 +66,19 @@ describe("clerk webhook user handlers", () => {
         name: "Jane Doe",
       },
     });
+    expect(mocks.trackFunnelSignup).toHaveBeenCalledWith({
+      userId: "user-1",
+      isGuest: false,
+      userRole: "USER",
+      channel: "WEB",
+    });
   });
 
   it("handleUserCreated updates email on existing user when changed", async () => {
-    mocks.userFindUnique.mockResolvedValue({ id: "user-1", email: "old@example.com" });
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      email: "old@example.com",
+    });
 
     await handleUserCreated({
       id: "clerk-1",
@@ -71,11 +90,16 @@ describe("clerk webhook user handlers", () => {
       data: { email: "new@example.com" },
     });
     expect(mocks.userCreate).not.toHaveBeenCalled();
+    expect(mocks.trackFunnelSignup).not.toHaveBeenCalled();
   });
 
   it("handleUserCreated does not create profile when no name is provided", async () => {
     mocks.userFindUnique.mockResolvedValue(null);
-    mocks.userCreate.mockResolvedValue({ id: "user-1" });
+    mocks.userCreate.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      isGuest: false,
+    });
 
     await handleUserCreated({
       id: "clerk-1",
@@ -83,6 +107,7 @@ describe("clerk webhook user handlers", () => {
     });
 
     expect(mocks.profileCreate).not.toHaveBeenCalled();
+    expect(mocks.trackFunnelSignup).toHaveBeenCalledTimes(1);
   });
 
   it("handleUserUpdated returns when user is missing", async () => {

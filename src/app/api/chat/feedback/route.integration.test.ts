@@ -44,7 +44,6 @@ describe("integration /api/chat/feedback", () => {
       userId: user.id,
       chatId: chat.id,
       role: "ASSISTANT",
-      content: "Coach response",
       feedback: null,
     });
 
@@ -84,7 +83,6 @@ describe("integration /api/chat/feedback", () => {
       userId: user.id,
       chatId: chat.id,
       role: "USER",
-      content: "User prompt",
     });
 
     mocks.auth.mockResolvedValue({ userId: user.clerkId });

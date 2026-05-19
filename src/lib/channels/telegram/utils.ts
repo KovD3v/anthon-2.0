@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { createLogger } from "@/lib/logger";
+
+const telegramLogger = createLogger("webhook");
 
 export type TelegramVoice = {
   file_id: string;
@@ -68,13 +71,20 @@ export function getPublicAppUrl() {
 export function hashLinkToken(token: string) {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
   if (!secret) return null;
-  return createHash("sha256").update(`tg-link:${secret}:${token}`).digest("hex");
+  return createHash("sha256")
+    .update(`tg-link:${secret}:${token}`)
+    .digest("hex");
 }
 
-export async function getTelegramFilePath(fileId: string): Promise<string | null> {
+export async function getTelegramFilePath(
+  fileId: string,
+): Promise<string | null> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
-    console.error("[Telegram] TELEGRAM_BOT_TOKEN not configured");
+    telegramLogger.error(
+      "config.missing_token",
+      "TELEGRAM_BOT_TOKEN not configured",
+    );
     return null;
   }
 
@@ -86,7 +96,10 @@ export async function getTelegramFilePath(fileId: string): Promise<string | null
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.error("[Telegram] getFile failed:", res.status, body);
+      telegramLogger.error("file.get_failed", "getFile failed", {
+        status: res.status,
+        body,
+      });
       return null;
     }
 
@@ -96,23 +109,30 @@ export async function getTelegramFilePath(fileId: string): Promise<string | null
     };
 
     if (!data.ok || !data.result?.file_path) {
-      console.error("[Telegram] getFile returned no file_path:", data);
+      telegramLogger.error("file.no_path", "getFile returned no file_path", {
+        data,
+      });
       return null;
     }
 
     return data.result.file_path;
   } catch (error) {
-    console.error("[Telegram] Error getting file path:", error);
+    telegramLogger.error("file.path_error", "Error getting file path", {
+      error,
+    });
     return null;
   }
 }
 
-export async function downloadTelegramFileAsBase64(
+async function downloadTelegramFileAsBase64(
   filePath: string,
 ): Promise<string | null> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
-    console.error("[Telegram] TELEGRAM_BOT_TOKEN not configured");
+    telegramLogger.error(
+      "config.missing_token",
+      "TELEGRAM_BOT_TOKEN not configured",
+    );
     return null;
   }
 
@@ -122,14 +142,19 @@ export async function downloadTelegramFileAsBase64(
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.error("[Telegram] File download failed:", res.status, body);
+      telegramLogger.error("file.download_failed", "File download failed", {
+        status: res.status,
+        body,
+      });
       return null;
     }
 
     const arrayBuffer = await res.arrayBuffer();
     return Buffer.from(arrayBuffer).toString("base64");
   } catch (error) {
-    console.error("[Telegram] Error downloading file:", error);
+    telegramLogger.error("file.download_error", "Error downloading file", {
+      error,
+    });
     return null;
   }
 }

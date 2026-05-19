@@ -8,6 +8,7 @@
 const ELEVENLABS_API_BASE = "https://api.elevenlabs.io/v1";
 
 import { LatencyLogger } from "@/lib/latency-logger";
+import { createLogger } from "@/lib/logger";
 
 // Default voice ID - can be configured via env
 const DEFAULT_VOICE_ID =
@@ -15,6 +16,7 @@ const DEFAULT_VOICE_ID =
 
 // Use Flash model for ultra-low latency (~75ms vs ~7s for multilingual_v2)
 const TTS_MODEL = "eleven_flash_v2_5";
+const voiceLogger = createLogger("voice");
 
 interface ElevenLabsSubscription {
   character_count: number;
@@ -72,7 +74,14 @@ export async function generateVoice(
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => "");
-      console.error("[ElevenLabs] TTS failed:", response.status, errorBody);
+      voiceLogger.error(
+        "voice.elevenlabs.tts_failed",
+        "ElevenLabs TTS failed",
+        {
+          status: response.status,
+          errorBody,
+        },
+      );
       throw new Error(`[ElevenLabs] TTS failed: ${response.status}`);
     }
 
@@ -96,7 +105,10 @@ export async function getElevenLabsSubscription(
 ): Promise<ElevenLabsSubscription | null> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
-    console.warn("[ElevenLabs] API key not configured");
+    voiceLogger.warn(
+      "voice.elevenlabs.api_key_missing",
+      "ElevenLabs API key not configured",
+    );
     return null;
   }
 
@@ -123,9 +135,10 @@ export async function getElevenLabsSubscription(
         );
 
         if (!response.ok) {
-          console.error(
-            "[ElevenLabs] Failed to fetch subscription:",
-            response.status,
+          voiceLogger.error(
+            "voice.elevenlabs.subscription_fetch_failed",
+            "Failed to fetch ElevenLabs subscription",
+            { status: response.status },
           );
           return null;
         }
@@ -144,7 +157,11 @@ export async function getElevenLabsSubscription(
 
     return data;
   } catch (error) {
-    console.error("[ElevenLabs] Error fetching subscription:", error);
+    voiceLogger.error(
+      "voice.elevenlabs.subscription_fetch_error",
+      "Error fetching ElevenLabs subscription",
+      { error },
+    );
     return null;
   }
 }
@@ -173,11 +190,11 @@ export async function getSystemLoad(): Promise<number> {
   const remainingRatio = Math.max(0, (limit - used) / limit);
 
   // Log for monitoring
-  console.log(
-    `[ElevenLabs] Credits: ${used}/${limit} (${(remainingRatio * 100).toFixed(
-      1,
-    )}% remaining)`,
-  );
+  voiceLogger.info("voice.elevenlabs.credits", "ElevenLabs credits snapshot", {
+    used,
+    limit,
+    remainingRatio,
+  });
 
   return remainingRatio;
 }

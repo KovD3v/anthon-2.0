@@ -7,9 +7,12 @@
  * (e.g., Telegram, WhatsApp) from their Anthon profile.
  */
 
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const channelsLogger = createLogger("webhook");
 
 export const runtime = "nodejs";
 
@@ -21,7 +24,7 @@ type RouteParams = {
  * DELETE /api/channels/[id]
  * Disconnect a channel identity from the user's account.
  */
-export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+export async function DELETE(_request: Request, { params }: RouteParams) {
   const { user, error } = await getAuthUser();
 
   if (error || !user) {
@@ -69,8 +72,14 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       where: { id },
     });
 
-    console.log(
-      `[Channels API] User ${user.id} disconnected ${channelIdentity.channel} identity ${channelIdentity.externalId}`,
+    channelsLogger.info(
+      "delete.success",
+      "User disconnected channel identity",
+      {
+        userId: user.id,
+        channel: channelIdentity.channel,
+        externalId: channelIdentity.externalId,
+      },
     );
 
     return NextResponse.json({
@@ -78,7 +87,11 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       message: `${channelIdentity.channel} disconnected successfully`,
     });
   } catch (err) {
-    console.error("[Channels API] DELETE error:", err);
+    channelsLogger.error(
+      "delete.error",
+      "Failed to disconnect channel identity",
+      { error: err },
+    );
     return NextResponse.json(
       { error: "Failed to disconnect channel" },
       { status: 500 },

@@ -4,12 +4,15 @@
  */
 
 import { auth } from "@clerk/nextjs/server";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { RAG } from "@/lib/ai/constants";
 import { getRagContext, searchDocuments, shouldUseRag } from "@/lib/ai/rag";
+import { createLogger } from "@/lib/logger";
+
+const ragLogger = createLogger("ai");
 
 // POST /api/rag/search - Search for relevant documents
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const { userId } = await auth();
 
@@ -83,7 +86,7 @@ export async function POST(req: NextRequest) {
       resultCount: results.length,
     });
   } catch (error) {
-    console.error("[RAG API] Error searching:", error);
+    ragLogger.error("post.error", "Failed to search RAG documents", { error });
     return NextResponse.json(
       { error: "Failed to search documents" },
       { status: 500 },

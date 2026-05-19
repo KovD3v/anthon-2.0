@@ -1,12 +1,15 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const benchmarkLogger = createLogger("ai");
 
 /**
  * GET /api/admin/benchmark/progress
  * Get progress of a specific benchmark run
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
@@ -45,7 +48,9 @@ export async function GET(request: NextRequest) {
         run.totalTests > 0 ? (run.completedTests / run.totalTests) * 100 : 0,
     });
   } catch (error) {
-    console.error("[Progress API] GET error:", error);
+    benchmarkLogger.error("get.error", "Failed to fetch benchmark progress", {
+      error,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

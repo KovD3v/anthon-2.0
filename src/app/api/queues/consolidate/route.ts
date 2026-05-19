@@ -1,8 +1,11 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { createLogger } from "@/lib/logger";
 import { consolidateMemories } from "@/lib/maintenance/memory-consolidation";
 import { verifyQStashAuth } from "@/lib/qstash";
 
-export async function POST(request: NextRequest) {
+const qstashLogger = createLogger("qstash");
+
+export async function POST(request: Request) {
   try {
     const { userId } = await verifyQStashAuth(request);
 
@@ -15,7 +18,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, verified: true });
   } catch (error) {
-    console.error("[Queue] Consolidate Error:", error);
+    qstashLogger.error("consolidate.error", "Queue consolidate job failed", {
+      error,
+    });
     return new NextResponse("Unauthorized or Error", { status: 400 });
   }
 }

@@ -43,7 +43,9 @@ export async function getDailyUsage(userId: string): Promise<DailyUsageData> {
       requestCount: 0,
       inputTokens: 0,
       outputTokens: 0,
+      reasoningTokens: 0,
       totalCostUsd: 0,
+      voiceCostUsd: 0,
     };
   }
 
@@ -51,7 +53,9 @@ export async function getDailyUsage(userId: string): Promise<DailyUsageData> {
     requestCount: usage.requestCount,
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
+    reasoningTokens: usage.reasoningTokens,
     totalCostUsd: usage.totalCostUsd,
+    voiceCostUsd: usage.voiceCostUsd,
   };
 }
 
@@ -64,6 +68,7 @@ export async function incrementUsage(
   inputTokens: number,
   outputTokens: number,
   costUsd: number,
+  reasoningTokens: number = 0,
 ): Promise<DailyUsageData> {
   const today = getUTCDateOnly();
 
@@ -80,12 +85,14 @@ export async function incrementUsage(
       requestCount: 1,
       inputTokens,
       outputTokens,
+      reasoningTokens,
       totalCostUsd: costUsd,
     },
     update: {
       requestCount: { increment: 1 },
       inputTokens: { increment: inputTokens },
       outputTokens: { increment: outputTokens },
+      reasoningTokens: { increment: reasoningTokens },
       totalCostUsd: { increment: costUsd },
     },
   });
@@ -94,6 +101,36 @@ export async function incrementUsage(
     requestCount: usage.requestCount,
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
+    reasoningTokens: usage.reasoningTokens,
     totalCostUsd: usage.totalCostUsd,
+    voiceCostUsd: usage.voiceCostUsd,
   };
+}
+
+/**
+ * Increment voice cost for a user (does not increment requestCount).
+ */
+export async function incrementVoiceUsage(
+  userId: string,
+  costUsd: number,
+): Promise<void> {
+  const today = getUTCDateOnly();
+
+  await prisma.dailyUsage.upsert({
+    where: { userId_date: { userId, date: today } },
+    create: {
+      userId,
+      date: today,
+      requestCount: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      totalCostUsd: costUsd,
+      voiceCostUsd: costUsd,
+    },
+    update: {
+      voiceCostUsd: { increment: costUsd },
+      totalCostUsd: { increment: costUsd },
+    },
+  });
 }

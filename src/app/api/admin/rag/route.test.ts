@@ -123,14 +123,19 @@ describe("/api/admin/rag", () => {
     );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: "No files provided" });
+    await expect(response.json()).resolves.toEqual({
+      error: "No files provided",
+    });
   });
 
   it("POST reports unsupported file type", async () => {
     mocks.isValidFileType.mockReturnValue(false);
 
     const form = new FormData();
-    form.append("files", new File(["hello"], "script.exe", { type: "application/octet-stream" }));
+    form.append(
+      "files",
+      new File(["hello"], "script.exe", { type: "application/octet-stream" }),
+    );
 
     const response = await POST(
       new Request("http://localhost/api/admin/rag", {
@@ -158,7 +163,10 @@ describe("/api/admin/rag", () => {
   it("POST uploads and indexes valid document", async () => {
     const form = new FormData();
     form.append("source", "docs");
-    form.append("files", new File(["Hello markdown"], "guide.md", { type: "text/markdown" }));
+    form.append(
+      "files",
+      new File(["Hello markdown"], "guide.md", { type: "text/markdown" }),
+    );
 
     const response = await POST(
       new Request("http://localhost/api/admin/rag", {
@@ -207,11 +215,15 @@ describe("/api/admin/rag", () => {
 
   it("DELETE validates required id", async () => {
     const response = await DELETE(
-      new Request("http://localhost/api/admin/rag", { method: "DELETE" }) as never,
+      new Request("http://localhost/api/admin/rag", {
+        method: "DELETE",
+      }) as never,
     );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: "Document ID required" });
+    await expect(response.json()).resolves.toEqual({
+      error: "Document ID required",
+    });
   });
 
   it("DELETE returns 404 when document is missing", async () => {
@@ -224,7 +236,9 @@ describe("/api/admin/rag", () => {
     );
 
     expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({ error: "Document not found" });
+    await expect(response.json()).resolves.toEqual({
+      error: "Document not found",
+    });
   });
 
   it("DELETE removes blob and rag document", async () => {

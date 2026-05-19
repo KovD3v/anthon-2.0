@@ -4,13 +4,16 @@
  */
 
 import { auth } from "@clerk/nextjs/server";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import {
   addDocument,
   deleteDocument,
   listDocuments,
   updateMissingEmbeddings,
 } from "@/lib/ai/rag";
+import { createLogger } from "@/lib/logger";
+
+const ragLogger = createLogger("ai");
 
 // GET /api/rag/documents - List all documents
 export async function GET() {
@@ -24,7 +27,7 @@ export async function GET() {
     const documents = await listDocuments();
     return NextResponse.json({ documents });
   } catch (error) {
-    console.error("[RAG API] Error listing documents:", error);
+    ragLogger.error("get.error", "Failed to list RAG documents", { error });
     return NextResponse.json(
       { error: "Failed to list documents" },
       { status: 500 },
@@ -33,7 +36,7 @@ export async function GET() {
 }
 
 // POST /api/rag/documents - Add a new document
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const { userId } = await auth();
 
@@ -59,7 +62,7 @@ export async function POST(req: NextRequest) {
       message: `Document "${title}" added successfully`,
     });
   } catch (error) {
-    console.error("[RAG API] Error adding document:", error);
+    ragLogger.error("post.error", "Failed to add RAG document", { error });
     return NextResponse.json(
       { error: "Failed to add document" },
       { status: 500 },
@@ -68,7 +71,7 @@ export async function POST(req: NextRequest) {
 }
 
 // DELETE /api/rag/documents - Delete a document
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: Request) {
   try {
     const { userId } = await auth();
 
@@ -93,7 +96,7 @@ export async function DELETE(req: NextRequest) {
       message: "Document deleted successfully",
     });
   } catch (error) {
-    console.error("[RAG API] Error deleting document:", error);
+    ragLogger.error("delete.error", "Failed to delete RAG document", { error });
     return NextResponse.json(
       { error: "Failed to delete document" },
       { status: 500 },
@@ -118,7 +121,9 @@ export async function PATCH() {
       message: `Updated embeddings for ${updatedCount} chunks`,
     });
   } catch (error) {
-    console.error("[RAG API] Error updating embeddings:", error);
+    ragLogger.error("patch.error", "Failed to update RAG embeddings", {
+      error,
+    });
     return NextResponse.json(
       { error: "Failed to update embeddings" },
       { status: 500 },

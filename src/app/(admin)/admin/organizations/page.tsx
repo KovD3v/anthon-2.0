@@ -3,6 +3,7 @@
 import { Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -413,13 +414,10 @@ export default function OrganizationsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Organizations</h1>
-          <p className="text-muted-foreground">
-            Create and manage contracted organizations, seat limits, and owner
-            assignment.
-          </p>
-        </div>
+        <AnimatedPageHeader
+          title="Organizations"
+          description="Create and manage contracted organizations, seat limits, and owner assignment."
+        />
         <div className="flex gap-2">
           <Button variant="outline" onClick={resetForm}>
             New Organization
@@ -563,7 +561,7 @@ export default function OrganizationsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <label className="text-sm font-medium" htmlFor="base-plan">
                       Base Plan
@@ -708,7 +706,7 @@ export default function OrganizationsPage() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <label className="text-sm font-medium" htmlFor="req-limit">
                       Max Requests/Day
@@ -754,7 +752,7 @@ export default function OrganizationsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="grid gap-2">
                     <label
                       className="text-sm font-medium"

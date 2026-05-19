@@ -1,8 +1,9 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { MessageSquare, Sparkles, TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { defaultTransition, fadeUp, staggerContainer } from "@/lib/motion";
 
 const steps = [
   {
@@ -31,48 +32,35 @@ const steps = [
   },
 ];
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.2,
-    },
-  },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 30 },
-  show: { opacity: 1, y: 0 },
-};
-
 export function HowItWorks() {
   return (
     <section id="how-it-works" className="py-16 md:py-24 bg-background">
       <div className="container mx-auto px-4 md:px-6">
         <div className="text-center mb-16">
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <m.h2
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="show"
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"
+            transition={defaultTransition}
+            className="text-3xl font-semibold tracking-tight"
           >
             Come funziona Anthon
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          </m.h2>
+          <m.p
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="show"
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+            transition={{ ...defaultTransition, delay: 0.1 }}
             className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto"
           >
             Il tuo viaggio verso la forza mentale in tre semplici passi.
-          </motion.p>
+          </m.p>
         </div>
 
-        <motion.div
-          variants={container}
+        <m.div
+          variants={staggerContainer(0.12)}
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
@@ -82,7 +70,11 @@ export function HowItWorks() {
           <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-0.5 bg-border -z-10" />
 
           {steps.map((step) => (
-            <motion.div key={step.id} variants={item}>
+            <m.div
+              key={step.id}
+              variants={fadeUp}
+              transition={defaultTransition}
+            >
               <Card
                 variant="glass"
                 className="flex flex-col items-center text-center p-6 h-full"
@@ -93,12 +85,12 @@ export function HowItWorks() {
                     {step.number}
                   </div>
                 </div>
-                <h3 className="text-xl font-bold mb-3">{step.title}</h3>
+                <h3 className="text-lg font-semibold mb-3">{step.title}</h3>
                 <p className="text-muted-foreground">{step.description}</p>
               </Card>
-            </motion.div>
+            </m.div>
           ))}
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

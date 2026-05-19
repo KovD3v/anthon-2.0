@@ -46,9 +46,18 @@ describe("GET /api/admin/costs", () => {
         { model: "gpt-3.5", _sum: { costUsd: 4.5 }, _count: 6 },
       ])
       .mockResolvedValueOnce([
-        { createdAt: new Date("2026-02-15T01:00:00.000Z"), _sum: { costUsd: 1 } },
-        { createdAt: new Date("2026-02-15T05:00:00.000Z"), _sum: { costUsd: 2 } },
-        { createdAt: new Date("2026-02-16T04:00:00.000Z"), _sum: { costUsd: 3 } },
+        {
+          createdAt: new Date("2026-02-15T01:00:00.000Z"),
+          _sum: { costUsd: 1 },
+        },
+        {
+          createdAt: new Date("2026-02-15T05:00:00.000Z"),
+          _sum: { costUsd: 2 },
+        },
+        {
+          createdAt: new Date("2026-02-16T04:00:00.000Z"),
+          _sum: { costUsd: 3 },
+        },
       ]);
     mocks.voiceUsageAggregate.mockResolvedValue({
       _sum: {

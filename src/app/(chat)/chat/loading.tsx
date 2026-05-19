@@ -22,7 +22,7 @@ export default function ChatLoading() {
             return (
               <div
                 key={placeholder.id}
-                className={`flex items-start gap-3 ${
+                className={`flex items-start gap-2 ${
                   isUser ? "flex-row-reverse" : "flex-row"
                 }`}
               >

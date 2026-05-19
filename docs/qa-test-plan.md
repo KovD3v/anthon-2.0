@@ -3,37 +3,61 @@
 Guida pratica per persone non IT.
 Obiettivo: provare l'app, trovare problemi e segnalarli in modo chiaro.
 
-## 1) Procedura unica di test
+## 1) Procedura di test
 
-Ogni persona segue sempre questo flusso:
+Ogni persona segue questo flusso:
 
 1. entra nell'app
-2. esegue la checklist della propria area
-3. se trova un problema, lo segnala subito con il template
-4. continua dal punto in cui si era fermata
+2. verifica se il test va fatto con login oppure senza login
+3. esegue la checklist della propria area
+4. se trova un problema, lo segnala subito
+5. continua dal punto in cui si era fermata
 
 Tempo consigliato: 20-30 minuti per sessione.
 
-Nota importante:
+Note rapide:
 
-- se una funzione non e visibile nel proprio account, scrivere "funzione non visibile" e passare al punto successivo
+- se una funzione non e visibile, scrivere "funzione non visibile"
+- se un punto non riguarda il proprio test, scrivere "non applicabile"
+- 1 problema = 1 segnalazione
 
-## 2) Segnalazione problema (obbligatoria)
+## 2) Segnalazione problema
 
-Per ogni errore servono solo questi 5 dati:
+Quando trovi un problema, invialo subito con queste informazioni:
 
-- mail usata per l'accesso
-- giorno e ora del problema
+- account usato, oppure "non loggato"
+- giorno e ora
+- dispositivo e browser
+- pagina o sezione
+- tipo di problema
 - descrizione breve
-- screenshot o registrazione (se presenti)
-- step per riprodurre il problema
+- risultato atteso
+- risultato effettivo
+- step per riprodurre
+- screenshot o registrazione, se presenti
+
+Tipi di problema:
+
+- bug / funzione non va
+- messaggio di errore
+- pagina lenta o bloccata
+- dati sbagliati o mancanti
+- problema grafico / layout
+- problema di accesso / permessi
+- altro
 
 Template da copiare:
 
 ```md
-Mail di accesso:
+Account usato:
 Giorno e ora:
+Dispositivo:
+Browser:
+Pagina/sezione:
+Tipo di problema:
 Descrizione:
+Risultato atteso:
+Risultato effettivo:
 Screenshot/registrazione:
 Step per riprodurre:
 1.
@@ -41,130 +65,114 @@ Step per riprodurre:
 3.
 ```
 
-Regola semplice:
+Regole semplici:
 
-- chi testa invia questa segnalazione
+- se un dato non e disponibile, scrivere "non so"
+- se il problema blocca il test, segnalarlo subito
 - noi trasformiamo la segnalazione in issue GitHub
 
-## 3) Suddivisione persone per area (percentuali)
+## 3) Assegnazione aree
 
-| Area | Percentuale personale | Scopo |
+| Area | Percentuale | Scopo |
 | --- | --- | --- |
-| Chat, file, vocali e canali | 30% | test funzioni di comunicazione e contenuti |
+| Chat, file, vocali e canali | 30% | test comunicazione e contenuti |
 | Profiles, usage, tier e accessi | 25% | test account, limiti e login |
 | Admin panel e organizations | 20% | test gestione lato admin |
-| Troublemakers | 15% | provare a rompere l'app in modo creativo |
-| General purpose | 10% | uso libero realistico su piu funzioni |
+| Troublemakers | 15% | provare a rompere l'app |
+| General purpose | 10% | uso libero realistico |
 
-Totale: 100%.
-
-Come applicare le percentuali in un team piccolo:
-
-`ore area = ore totali test del team x percentuale area`
-
-Esempio con 4 persone e 5 ore ciascuna (20 ore totali):
-
-- Chat, file, vocali e canali: 6 ore
-- Profiles, usage, tier e accessi: 5 ore
-- Admin panel e organizations: 4 ore
-- Troublemakers: 3 ore
-- General purpose: 2 ore
-
-Regole di organizzazione:
+Regole:
 
 - ogni area deve avere almeno 1 owner
 - troublemakers e general purpose ruotano a ogni ciclo
 - le segnalazioni si aprono subito, non a fine giornata
 
-## 4) TODO dettagliato per area
+## 4) Checklist per area
 
-### A) Chat, file, vocali e canali (30%)
+### A) Chat, file, vocali e canali
 
 #### Chat
 
 - [ ] creare una nuova chat
-- [ ] inviare un messaggio semplice
-- [ ] inviare un secondo messaggio nella stessa chat
-- [ ] aprire una chat gia esistente dalla lista
+- [ ] inviare messaggi
+- [ ] aprire una chat esistente
 - [ ] rinominare la chat
 - [ ] eliminare la chat
-- [ ] usare ricerca chat con parola presente
-- [ ] usare ricerca chat con parola non presente
+- [ ] usare la ricerca chat
 - [ ] lasciare feedback su una risposta
 - [ ] esportare la chat
 
 #### File
 
-- [ ] caricare un file piccolo supportato
-- [ ] verificare che il file compaia nella chat
+- [ ] caricare un file supportato
+- [ ] verificare che compaia nella chat
 - [ ] inviare un messaggio dopo l'upload
-- [ ] provare file non supportato e verificare errore chiaro
-- [ ] provare file troppo grande e verificare errore chiaro
+- [ ] provare file non supportato
+- [ ] provare file troppo grande
 
 #### Vocali
 
-- [ ] creare audio/voce da testo
-- [ ] ascoltare l'audio generato
+- [ ] creare audio da testo
+- [ ] ascoltare l'audio
 - [ ] riprovare con testo diverso
-- [ ] verificare messaggio chiaro quando la funzione non e disponibile
+- [ ] verificare messaggio chiaro se non disponibile
 
 #### Canali
 
 - [ ] aprire la pagina canali
 - [ ] collegare Telegram o WhatsApp
-- [ ] inviare un messaggio di test dal canale collegato
-- [ ] verificare che il messaggio arrivi in app
-- [ ] scollegare il canale e verificare disconnessione
+- [ ] inviare un messaggio di test
+- [ ] verificare che arrivi in app
+- [ ] scollegare il canale
 
-### B) Profiles, usage, tier e accessi (25%)
+### B) Profiles, usage, tier e accessi
 
 #### Profilo
 
 - [ ] aprire la pagina profilo
-- [ ] modificare un dato profilo
-- [ ] salvare e ricaricare la pagina per verificare persistenza
+- [ ] modificare un dato
+- [ ] salvare e verificare persistenza
 
 #### Usage
 
 - [ ] usare la chat e verificare aggiornamento utilizzo
-- [ ] verificare che il contatore usage sia coerente
+- [ ] verificare coerenza del contatore
 - [ ] verificare messaggio al raggiungimento del limite
 
 #### Tier
 
-- [ ] verificare il tier mostrato nell'account
-- [ ] verificare coerenza tra tier e limiti visibili
-- [ ] se previsto, verificare aggiornamento dopo cambio tier
+- [ ] verificare il tier mostrato
+- [ ] verificare coerenza tra tier e limiti
+- [ ] verificare aggiornamento dopo cambio tier, se previsto
 
 #### Accessi
 
+- [ ] accesso a una pagina pubblica senza login, se prevista
 - [ ] login con account valido
-- [ ] logout e ritorno alla schermata accesso
-- [ ] apertura pagina protetta senza login (deve chiedere accesso)
-- [ ] se disponibile, provare reset password o accesso alternativo
+- [ ] logout
+- [ ] apertura pagina protetta senza login
+- [ ] reset password o accesso alternativo, se disponibile
 
-### C) Admin panel e organizations (20%)
+### C) Admin panel e organizations
 
 Solo per persone con permessi admin.
 
 #### Admin panel
 
 - [ ] aprire dashboard admin
-- [ ] verificare caricamento sezioni principali
-- [ ] aprire pagina utenti e verificare elenco
+- [ ] verificare che le sezioni principali si aprano senza errori
+- [ ] aprire pagina utenti
 - [ ] aprire dettaglio utente
 
 #### Organizations
 
 - [ ] aprire lista organizations
 - [ ] aprire una organization esistente
-- [ ] verificare dati principali (nome, stato, impostazioni base)
+- [ ] verificare dati principali
 - [ ] modificare un dato consentito e salvare
 - [ ] verificare audit/log attivita
 
-### D) Troublemakers (15%)
-
-Test di stress e comportamenti anomali:
+### D) Troublemakers
 
 - [ ] clic rapidi ripetuti sullo stesso bottone
 - [ ] invio messaggi molto lunghi
@@ -172,17 +180,15 @@ Test di stress e comportamenti anomali:
 - [ ] apertura di piu tab della stessa pagina
 - [ ] refresh durante caricamento risposta
 - [ ] logout/login rapido durante uso chat
-- [ ] tentativo azione non consentita (es. pagina admin senza permesso)
+- [ ] tentativo azione non consentita
 - [ ] verificare che l'app non si blocchi e mostri errori chiari
 
-### E) General purpose (10%)
-
-Uso libero realistico, come un utente normale:
+### E) General purpose
 
 - [ ] usare l'app 10-15 minuti in modo naturale
-- [ ] combinare piu funzioni nello stesso flusso (chat + ricerca + profilo)
+- [ ] combinare piu funzioni nello stesso flusso
 - [ ] cambiare pagina spesso e verificare continuita sessione
-- [ ] verificare fluidita generale dell'esperienza
+- [ ] verificare fluidita generale
 - [ ] segnalare comportamenti strani anche se non bloccanti
 
 ## 5) Chiusura giro test
@@ -190,5 +196,6 @@ Uso libero realistico, come un utente normale:
 Il giro test e chiuso quando:
 
 - tutte le aree assegnate sono state eseguite
-- tutte le segnalazioni usano il template completo
+- tutte le segnalazioni usano il template
 - i problemi bloccanti sono stati evidenziati
+- i punti non eseguibili sono stati marcati come "funzione non visibile" o "non applicabile"

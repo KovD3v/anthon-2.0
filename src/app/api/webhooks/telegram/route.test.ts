@@ -1,4 +1,12 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 const mocks = vi.hoisted(() => ({
   waitUntil: vi.fn(),
@@ -24,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   getSystemLoad: vi.fn(),
   generateVoice: vi.fn(),
   trackVoiceUsage: vi.fn(),
+  trackInboundUserMessageFunnelProgress: vi.fn(),
 }));
 
 vi.mock("@vercel/functions", () => ({
@@ -88,7 +97,11 @@ vi.mock("@/lib/voice", () => ({
   trackVoiceUsage: mocks.trackVoiceUsage,
 }));
 
-import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
+vi.mock("@/lib/analytics/funnel", () => ({
+  trackInboundUserMessageFunnelProgress:
+    mocks.trackInboundUserMessageFunnelProgress,
+}));
+
 import {
   downloadTelegramAudio,
   getPublicAppUrl,
@@ -97,6 +110,7 @@ import {
   isTelegramConnectCommand,
   safeErrorSummary,
 } from "@/lib/channels/telegram/utils";
+import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
 import { GET, POST } from "./route";
 
 const originalEnv = { ...process.env };
@@ -156,8 +170,10 @@ describe("/api/webhooks/telegram", () => {
     mocks.getSystemLoad.mockReset();
     mocks.generateVoice.mockReset();
     mocks.trackVoiceUsage.mockReset();
+    mocks.trackInboundUserMessageFunnelProgress.mockReset();
 
     mocks.waitUntil.mockImplementation(() => {});
+    mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.start.mockReturnValue({ end: vi.fn(), split: vi.fn() });
     mocks.measure.mockImplementation(
       async (_name: string, fn: () => unknown) => await fn(),
@@ -373,6 +389,12 @@ describe("/api/webhooks/telegram", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.prismaMessageCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        channel: "TELEGRAM",
+      }),
+    );
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
@@ -438,6 +460,12 @@ describe("/api/webhooks/telegram", () => {
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.streamChat).toHaveBeenCalledTimes(1);
     expect(mocks.prismaMessageCreate).toHaveBeenCalledTimes(2);
+    expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        channel: "TELEGRAM",
+      }),
+    );
     expect(mocks.incrementUsage).toHaveBeenCalledTimes(1);
     expect(mocks.extractAndSaveMemories).toHaveBeenCalledTimes(1);
   });
@@ -477,7 +505,9 @@ describe("/api/webhooks/telegram", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response("bad", { status: 500 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: {} })));
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, result: {} })),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(getTelegramFilePath("file_2")).resolves.toBeNull();

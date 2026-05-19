@@ -16,7 +16,9 @@ export interface DailyUsageData {
   requestCount: number;
   inputTokens: number;
   outputTokens: number;
+  reasoningTokens: number;
   totalCostUsd: number;
+  voiceCostUsd: number;
 }
 
 export interface UpgradeInfo {
@@ -24,6 +26,17 @@ export interface UpgradeInfo {
   suggestedPlan: string;
   upgradeUrl: string;
   ctaMessage: string;
+  limitType?: "requests" | "tokens" | "cost" | "general";
+  headline?: string;
+  primaryCta?: {
+    label: string;
+    url: string;
+    intent: "signup" | "upgrade";
+  };
+  secondaryCta?: {
+    label: string;
+    url: string;
+  };
 }
 
 export interface RateLimitResult {

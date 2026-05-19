@@ -1,8 +1,11 @@
 import type { Prisma } from "@/generated/prisma";
 import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
 import { incrementUsage } from "@/lib/rate-limit";
 import type { PersistAssistantOutputInput } from "./types";
+
+const persistenceLogger = createLogger("ai");
 
 function scheduleBackground(
   waitUntil: ((promise: Promise<unknown>) => void) | undefined,
@@ -28,11 +31,19 @@ async function revalidateTags(tags: string[]) {
       try {
         revalidateTag(tag, "page");
       } catch (error) {
-        console.error("[ChannelFlow] Failed to revalidate tag:", tag, error);
+        persistenceLogger.error(
+          "revalidate.tag_failed",
+          "Failed to revalidate tag",
+          { tag, error },
+        );
       }
     }
   } catch (error) {
-    console.error("[ChannelFlow] Failed importing next/cache:", error);
+    persistenceLogger.error(
+      "revalidate.import_failed",
+      "Failed importing next/cache",
+      { error },
+    );
   }
 }
 
@@ -57,7 +68,6 @@ export async function persistAssistantOutput({
       direction: "OUTBOUND",
       role: "ASSISTANT",
       type: "TEXT",
-      content: text,
       parts: [{ type: "text", text }] as Prisma.InputJsonValue,
       ...(metadata ? { metadata } : {}),
       model: metrics.model,
@@ -86,6 +96,7 @@ export async function persistAssistantOutput({
     metrics.inputTokens,
     metrics.outputTokens,
     metrics.costUsd,
+    metrics.reasoningTokens ?? 0,
   );
 
   if (tags.length > 0) {
@@ -101,7 +112,11 @@ export async function persistAssistantOutput({
     userMessageText,
     text,
   ).catch((error) => {
-    console.error("[ChannelFlow] Memory extraction error:", error);
+    persistenceLogger.error(
+      "memory.extraction_failed",
+      "Memory extraction error",
+      { error },
+    );
   });
 
   scheduleBackground(waitUntil, memoryTask);

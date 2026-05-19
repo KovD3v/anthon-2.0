@@ -5,6 +5,10 @@ import {
   type OrganizationBasePlan,
   type OrganizationModelTier,
 } from "@/lib/organizations/types";
+import {
+  compareEntitlementVectors as comparePlanEntitlementVectors,
+  PLAN_CATALOG,
+} from "@/lib/plans";
 
 interface OrgPlanDefaults {
   basePlan: OrganizationBasePlan;
@@ -30,51 +34,24 @@ const ORG_BASE_PLAN_DEFAULTS: Record<OrganizationBasePlan, OrgPlanDefaults> = {
   BASIC: {
     basePlan: "BASIC",
     planLabel: "Basic",
-    modelTier: "BASIC",
+    modelTier: PLAN_CATALOG.BASIC.modelTier,
     seatLimit: 10,
-    limits: {
-      maxRequestsPerDay: 50,
-      maxInputTokensPerDay: 500_000,
-      maxOutputTokensPerDay: 250_000,
-      maxCostPerDay: 3,
-      maxContextMessages: 15,
-    },
+    limits: PLAN_CATALOG.BASIC.limits,
   },
   BASIC_PLUS: {
     basePlan: "BASIC_PLUS",
     planLabel: "Basic Plus",
-    modelTier: "BASIC_PLUS",
+    modelTier: PLAN_CATALOG.BASIC_PLUS.modelTier,
     seatLimit: 25,
-    limits: {
-      maxRequestsPerDay: 50,
-      maxInputTokensPerDay: 800_000,
-      maxOutputTokensPerDay: 400_000,
-      maxCostPerDay: 5,
-      maxContextMessages: 30,
-    },
+    limits: PLAN_CATALOG.BASIC_PLUS.limits,
   },
   PRO: {
     basePlan: "PRO",
     planLabel: "Pro",
-    modelTier: "PRO",
+    modelTier: PLAN_CATALOG.PRO.modelTier,
     seatLimit: 50,
-    limits: {
-      maxRequestsPerDay: 100,
-      maxInputTokensPerDay: 2_000_000,
-      maxOutputTokensPerDay: 1_000_000,
-      maxCostPerDay: 15,
-      maxContextMessages: 100,
-    },
+    limits: PLAN_CATALOG.PRO.limits,
   },
-};
-
-const MODEL_TIER_PRIORITY: Record<OrganizationModelTier, number> = {
-  TRIAL: 0,
-  BASIC: 1,
-  BASIC_PLUS: 2,
-  PRO: 3,
-  ENTERPRISE: 4,
-  ADMIN: 5,
 };
 
 export function isOrganizationBasePlan(
@@ -167,23 +144,5 @@ export function compareEntitlementVectors(
   a: { modelTier: OrganizationModelTier; limits: EntitlementLimits },
   b: { modelTier: OrganizationModelTier; limits: EntitlementLimits },
 ): number {
-  const tierDiff =
-    MODEL_TIER_PRIORITY[a.modelTier] - MODEL_TIER_PRIORITY[b.modelTier];
-  if (tierDiff !== 0) {
-    return tierDiff;
-  }
-
-  if (a.limits.maxRequestsPerDay !== b.limits.maxRequestsPerDay) {
-    return a.limits.maxRequestsPerDay - b.limits.maxRequestsPerDay;
-  }
-  if (a.limits.maxInputTokensPerDay !== b.limits.maxInputTokensPerDay) {
-    return a.limits.maxInputTokensPerDay - b.limits.maxInputTokensPerDay;
-  }
-  if (a.limits.maxOutputTokensPerDay !== b.limits.maxOutputTokensPerDay) {
-    return a.limits.maxOutputTokensPerDay - b.limits.maxOutputTokensPerDay;
-  }
-  if (a.limits.maxCostPerDay !== b.limits.maxCostPerDay) {
-    return a.limits.maxCostPerDay - b.limits.maxCostPerDay;
-  }
-  return a.limits.maxContextMessages - b.limits.maxContextMessages;
+  return comparePlanEntitlementVectors(a, b);
 }

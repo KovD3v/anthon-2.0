@@ -17,6 +17,8 @@ vi.mock("@/lib/rate-limit", () => ({
 
 import { GET } from "./route";
 
+const request = () => new Request("http://localhost/api/guest/usage");
+
 describe("GET /api/guest/usage", () => {
   beforeEach(() => {
     mocks.authenticateGuest.mockReset();
@@ -44,7 +46,7 @@ describe("GET /api/guest/usage", () => {
   });
 
   it("returns guest usage and mapped limits", async () => {
-    const response = await GET();
+    const response = await GET(request());
 
     expect(response.status).toBe(200);
     expect(mocks.getDailyUsage).toHaveBeenCalledWith("guest-1");
@@ -75,7 +77,7 @@ describe("GET /api/guest/usage", () => {
   it("returns 500 when guest authentication fails", async () => {
     mocks.authenticateGuest.mockRejectedValue(new Error("bad token"));
 
-    const response = await GET();
+    const response = await GET(request());
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
@@ -86,7 +88,7 @@ describe("GET /api/guest/usage", () => {
   it("returns 500 when usage lookup fails", async () => {
     mocks.getDailyUsage.mockRejectedValue(new Error("db failed"));
 
-    const response = await GET();
+    const response = await GET(request());
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({

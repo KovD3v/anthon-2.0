@@ -1,5 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+
+import { PageWrapper } from "@/components/ui/page-wrapper";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ChannelsPageClient } from "./client";
@@ -47,10 +49,12 @@ export default async function ChannelsPage() {
   }));
 
   return (
-    <ChannelsPageClient
-      connectedChannels={serializedChannels}
-      linkTokens={serializedTokens}
-      userCreatedAt={dbUser.createdAt.toISOString()}
-    />
+    <PageWrapper>
+      <ChannelsPageClient
+        connectedChannels={serializedChannels}
+        linkTokens={serializedTokens}
+        userCreatedAt={dbUser.createdAt.toISOString()}
+      />
+    </PageWrapper>
   );
 }

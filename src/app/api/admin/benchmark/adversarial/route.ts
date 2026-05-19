@@ -5,19 +5,22 @@
  */
 
 import { auth } from "@clerk/nextjs/server";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import {
   generateAdversarialCases,
   getPendingAdversarialCases,
   saveAdversarialCase,
 } from "@/lib/benchmark";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const benchmarkLogger = createLogger("ai");
 
 /**
  * POST /api/admin/benchmark/adversarial
  * Generate new adversarial test cases
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     const count = Math.min(requestedCount, 10);
 
-    console.log("[Adversarial API] Generating cases:", {
+    benchmarkLogger.info("post.generate", "Generating adversarial cases", {
       count,
       categories,
       focusOnLowScores,
@@ -102,7 +105,7 @@ export async function POST(request: NextRequest) {
       savedIds: savedIds.length > 0 ? savedIds : undefined,
     });
   } catch (error) {
-    console.error("[Adversarial API] Error:", error);
+    benchmarkLogger.error("request.error", "Adversarial API error", { error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 },
@@ -114,7 +117,7 @@ export async function POST(request: NextRequest) {
  * GET /api/admin/benchmark/adversarial
  * List pending adversarial cases
  */
-export async function GET(_request: NextRequest) {
+export async function GET(_request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -139,7 +142,7 @@ export async function GET(_request: NextRequest) {
       cases: pendingCases,
     });
   } catch (error) {
-    console.error("[Adversarial API] Error:", error);
+    benchmarkLogger.error("request.error", "Adversarial API error", { error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 },
@@ -151,7 +154,7 @@ export async function GET(_request: NextRequest) {
  * PATCH /api/admin/benchmark/adversarial
  * Approve or reject adversarial cases
  */
-export async function PATCH(request: NextRequest) {
+export async function PATCH(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -206,7 +209,7 @@ export async function PATCH(request: NextRequest) {
       testCaseId,
     });
   } catch (error) {
-    console.error("[Adversarial API] Error:", error);
+    benchmarkLogger.error("request.error", "Adversarial API error", { error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 },

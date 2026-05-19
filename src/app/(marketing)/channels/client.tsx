@@ -321,7 +321,7 @@ export function ChannelsPageClient({
                       {connected.map((identity) => (
                         <div
                           key={identity.id}
-                          className="flex items-center gap-3 rounded-lg bg-muted/50 p-3"
+                          className="flex items-center gap-2 rounded-lg bg-muted/50 p-3"
                         >
                           <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
                           <div className="flex-1 min-w-0">

@@ -1,5 +1,13 @@
 import { createHmac } from "node:crypto";
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 const mocks = vi.hoisted(() => ({
   waitUntil: vi.fn(),
@@ -24,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   getSystemLoad: vi.fn(),
   generateVoice: vi.fn(),
   trackVoiceUsage: vi.fn(),
+  trackInboundUserMessageFunnelProgress: vi.fn(),
 }));
 
 vi.mock("@vercel/functions", () => ({
@@ -83,6 +92,11 @@ vi.mock("@/lib/voice", () => ({
   getSystemLoad: mocks.getSystemLoad,
   generateVoice: mocks.generateVoice,
   trackVoiceUsage: mocks.trackVoiceUsage,
+}));
+
+vi.mock("@/lib/analytics/funnel", () => ({
+  trackInboundUserMessageFunnelProgress:
+    mocks.trackInboundUserMessageFunnelProgress,
 }));
 
 import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
@@ -173,8 +187,10 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.getSystemLoad.mockReset();
     mocks.generateVoice.mockReset();
     mocks.trackVoiceUsage.mockReset();
+    mocks.trackInboundUserMessageFunnelProgress.mockReset();
 
     mocks.waitUntil.mockImplementation(() => {});
+    mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.start.mockReturnValue({ end: vi.fn(), split: vi.fn() });
     mocks.measure.mockImplementation(
       async (_name: string, fn: () => unknown) => await fn(),
@@ -382,6 +398,12 @@ describe("/api/webhooks/whatsapp", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.prismaMessageCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        channel: "WHATSAPP",
+      }),
+    );
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
@@ -438,6 +460,12 @@ describe("/api/webhooks/whatsapp", () => {
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.streamChat).toHaveBeenCalledTimes(1);
     expect(mocks.prismaMessageCreate).toHaveBeenCalledTimes(2);
+    expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        channel: "WHATSAPP",
+      }),
+    );
     expect(mocks.incrementUsage).toHaveBeenCalledTimes(1);
     expect(mocks.extractAndSaveMemories).toHaveBeenCalledTimes(1);
   });
@@ -456,12 +484,17 @@ describe("/api/webhooks/whatsapp", () => {
     process.env.WHATSAPP_APP_SECRET = "app-secret";
     expect(verifySignature(request, "hello")).toBe(false);
 
-    const sig = createHmac("sha256", "app-secret").update("hello").digest("hex");
-    const signedRequest = new Request("http://localhost/api/webhooks/whatsapp", {
-      method: "POST",
-      body: "hello",
-      headers: { "x-hub-signature-256": `sha256=${sig}` },
-    });
+    const sig = createHmac("sha256", "app-secret")
+      .update("hello")
+      .digest("hex");
+    const signedRequest = new Request(
+      "http://localhost/api/webhooks/whatsapp",
+      {
+        method: "POST",
+        body: "hello",
+        headers: { "x-hub-signature-256": `sha256=${sig}` },
+      },
+    );
     expect(verifySignature(signedRequest, "hello")).toBe(true);
 
     expect(isConnectCommand("/connect")).toBe(true);
@@ -493,7 +526,9 @@ describe("/api/webhooks/whatsapp", () => {
     const fetchSuccess = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: "media_1" })))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ messages: [{ id: "m1" }] })));
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ messages: [{ id: "m1" }] })),
+      );
     vi.stubGlobal("fetch", fetchSuccess);
     await expect(
       sendWhatsAppVoice("39333111222", Buffer.from("audio")),

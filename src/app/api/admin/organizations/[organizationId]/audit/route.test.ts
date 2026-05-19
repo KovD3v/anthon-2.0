@@ -1,4 +1,3 @@
-import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -18,10 +17,8 @@ import { GET } from "./route";
 
 function request(
   url = "http://localhost/api/admin/organizations/org-1/audit",
-): NextRequest {
-  return {
-    nextUrl: new URL(url),
-  } as unknown as NextRequest;
+): Request {
+  return { url } as unknown as Request;
 }
 
 function params(organizationId = "org-1") {

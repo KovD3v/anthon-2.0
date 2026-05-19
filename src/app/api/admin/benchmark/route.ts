@@ -6,9 +6,12 @@
  * PATCH - Update admin review
  */
 
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const benchmarkLogger = createLogger("ai");
 
 // Dynamically import benchmark functions to avoid issues before migration
 async function getBenchmarkModule() {
@@ -21,7 +24,7 @@ async function getBenchmarkModule() {
  *   - runId: Get specific run with results
  *   - limit: Number of runs to list (default 20)
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
@@ -63,7 +66,9 @@ export async function GET(request: NextRequest) {
     const runs = await listBenchmarkRuns(limit);
     return NextResponse.json({ runs });
   } catch (error) {
-    console.error("[Benchmark API] GET error:", error);
+    benchmarkLogger.error("get.error", "Failed to fetch benchmark data", {
+      error,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -80,7 +85,7 @@ export async function GET(request: NextRequest) {
  *   - testCaseIds?: string[]
  *   - categories?: ('tool_usage' | 'writing_quality')[]
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
@@ -120,9 +125,10 @@ export async function POST(request: NextRequest) {
       iterations: body.iterations,
       concurrency: body.concurrency,
     }).catch((err: Error) => {
-      console.error(
-        `[Benchmark API] Background run failed for ${run.id}:`,
-        err,
+      benchmarkLogger.error(
+        "background_run.failed",
+        "Background benchmark run failed",
+        { runId: run.id, error: err },
       );
     });
 
@@ -132,7 +138,9 @@ export async function POST(request: NextRequest) {
       message: "Benchmark started",
     });
   } catch (error) {
-    console.error("[Benchmark API] POST error:", error);
+    benchmarkLogger.error("post.error", "Failed to start benchmark run", {
+      error,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -151,7 +159,7 @@ export async function POST(request: NextRequest) {
  *   - adminScore: number (0-10)
  *   - adminReasoning?: string
  */
-export async function PATCH(request: NextRequest) {
+export async function PATCH(request: Request) {
   const { user, errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
   if (!user) {
@@ -238,7 +246,9 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, run: updated });
   } catch (error) {
-    console.error("[Benchmark API] PATCH error:", error);
+    benchmarkLogger.error("patch.error", "Failed to update benchmark", {
+      error,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -251,7 +261,7 @@ export async function PATCH(request: NextRequest) {
  * Query params:
  *   - runId: string - Delete entire benchmark run
  */
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
@@ -273,7 +283,9 @@ export async function DELETE(request: NextRequest) {
       message: "Benchmark run deleted",
     });
   } catch (error) {
-    console.error("[Benchmark API] DELETE error:", error);
+    benchmarkLogger.error("delete.error", "Failed to delete benchmark run", {
+      error,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

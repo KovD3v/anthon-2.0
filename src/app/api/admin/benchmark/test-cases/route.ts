@@ -1,7 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import type { BenchmarkCategory, Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const benchmarkLogger = createLogger("ai");
 
 const BENCHMARK_CATEGORIES = ["TOOL_USAGE", "WRITING_QUALITY"] as const;
 
@@ -22,7 +25,7 @@ function normalizeBenchmarkCategory(value: unknown): BenchmarkCategory | null {
  * GET /api/admin/benchmark/test-cases
  * List all test cases, or get a single one by ID
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -78,7 +81,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ testCases });
   } catch (error) {
-    console.error("[TestCases API] GET error:", error);
+    benchmarkLogger.error("get.error", "Failed to fetch benchmark test cases", {
+      error,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -90,7 +95,7 @@ export async function GET(request: NextRequest) {
  * POST /api/admin/benchmark/test-cases
  * Create or update test case
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -151,7 +156,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, testCase });
   } catch (error) {
-    console.error("[TestCases API] POST error:", error);
+    benchmarkLogger.error(
+      "post.error",
+      "Failed to create/update benchmark test case",
+      { error },
+    );
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -162,7 +171,7 @@ export async function POST(request: NextRequest) {
 /**
  * DELETE /api/admin/benchmark/test-cases
  */
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -191,7 +200,11 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[TestCases API] DELETE error:", error);
+    benchmarkLogger.error(
+      "delete.error",
+      "Failed to delete benchmark test case",
+      { error },
+    );
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

@@ -320,9 +320,7 @@ describe("lib/guest-migration", () => {
       },
     });
     expect(tx.memory.upsert).toHaveBeenCalledTimes(1);
-    expect(result.conflicts.some((c) => c.reason === "guest_newer")).toBe(
-      true,
-    );
+    expect(result.conflicts.some((c) => c.reason === "guest_newer")).toBe(true);
   });
 
   it("records target_newer conflicts when target profile/preferences are newer", async () => {

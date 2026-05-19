@@ -1,8 +1,14 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Star } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import {
+  defaultTransition,
+  fadeUp,
+  scaleIn,
+  staggerContainer,
+} from "@/lib/motion";
 
 const testimonials = [
   {
@@ -31,65 +37,58 @@ const testimonials = [
   },
 ];
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-};
-
-const item = {
-  hidden: { opacity: 0, scale: 0.9 },
-  show: { opacity: 1, scale: 1 },
-};
-
 export function Testimonials() {
   return (
     <section className="py-16 md:py-24 bg-muted/30" id="testimonials">
       <div className="container mx-auto px-4 md:px-6">
         <div className="text-center mb-12">
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <m.h2
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="show"
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"
+            transition={defaultTransition}
+            className="text-3xl font-semibold tracking-tight"
           >
             Scelto dagli Atleti
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          </m.h2>
+          <m.p
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="show"
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+            transition={{ ...defaultTransition, delay: 0.1 }}
             className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto"
           >
             Scopri come Anthon sta aiutando atleti di diversi sport a
             raggiungere il loro potenziale.
-          </motion.p>
+          </m.p>
         </div>
 
-        <motion.div
-          variants={container}
+        <m.div
+          variants={staggerContainer(0.08)}
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
           className="grid grid-cols-1 md:grid-cols-3 gap-6"
         >
           {testimonials.map((testimonial) => (
-            <motion.div key={testimonial.id} variants={item}>
+            <m.div
+              key={testimonial.id}
+              variants={scaleIn}
+              transition={defaultTransition}
+            >
               <Card variant="glass" className="h-full">
                 <CardContent className="pt-6">
                   <div className="flex mb-4">
-                    {[...Array(testimonial.rating)].map((_, i) => (
-                      <Star
-                        key={`${testimonial.id}-star-${i}`}
-                        className="h-4 w-4 fill-primary text-primary"
-                      />
-                    ))}
+                    {(["★1", "★2", "★3", "★4", "★5"] as const)
+                      .slice(0, testimonial.rating)
+                      .map((starKey) => (
+                        <Star
+                          key={`${testimonial.id}-${starKey}`}
+                          className="h-4 w-4 fill-primary text-primary"
+                        />
+                      ))}
                   </div>
                   <p className="text-muted-foreground mb-6 italic">
                     "{testimonial.quote}"
@@ -111,9 +110,9 @@ export function Testimonials() {
                   </div>
                 </CardFooter>
               </Card>
-            </motion.div>
+            </m.div>
           ))}
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

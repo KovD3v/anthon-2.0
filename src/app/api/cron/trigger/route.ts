@@ -1,8 +1,11 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
 import { publishToQueue } from "@/lib/qstash";
 
-export async function GET(request: NextRequest) {
+const cronLogger = createLogger("maintenance");
+
+export async function GET(request: Request) {
   // 1. Validate Cron Secret (Native Vercel Cron security)
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
@@ -24,7 +27,11 @@ export async function GET(request: NextRequest) {
       select: { id: true },
     });
 
-    console.log(`[Cron] Triggering '${jobType}' for ${users.length} users`);
+    cronLogger.info(
+      "trigger.start",
+      `Triggering '${jobType}' for ${users.length} users`,
+      { jobType, userCount: users.length },
+    );
 
     // 3. Publish jobs to QStash
     const results = await Promise.allSettled(
@@ -32,7 +39,10 @@ export async function GET(request: NextRequest) {
         const promises = [];
 
         // Consolidate Memories (Daily)
-        console.log(`[Cron] jobType=${jobType} user=${user.id}`);
+        cronLogger.info("trigger.job", "Processing user job", {
+          jobType,
+          userId: user.id,
+        });
         if (jobType === "all" || jobType === "consolidate") {
           promises.push(
             publishToQueue("api/queues/consolidate", {
@@ -76,7 +86,11 @@ export async function GET(request: NextRequest) {
     // Log any failures
     results.forEach((r, i) => {
       if (r.status === "rejected") {
-        console.error(`[Cron] Failed for user ${users[i].id}:`, r.reason);
+        cronLogger.error(
+          "trigger.user_failed",
+          "Failed to publish jobs for user",
+          { userId: users[i].id, error: r.reason },
+        );
       }
     });
 
@@ -86,7 +100,9 @@ export async function GET(request: NextRequest) {
       jobsPublished: totalJobsPublished,
     });
   } catch (error) {
-    console.error("[Cron] Error triggering maintenance:", error);
+    cronLogger.error("trigger.error", "Error triggering maintenance cron", {
+      error,
+    });
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { waitUntil } from "@vercel/functions";
 import type { Prisma } from "@/generated/prisma";
+import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import { runChannelFlow } from "@/lib/channel-flow";
 import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
 import {
@@ -12,6 +13,10 @@ import {
   verifySignature,
 } from "@/lib/channels/whatsapp/utils";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const whatsappLogger = createLogger("webhook");
+
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   generateVoice,
@@ -22,6 +27,7 @@ import {
   trackVoiceUsage,
 } from "@/lib/voice";
 
+/** @lintignore */
 export const runtime = "nodejs";
 
 // --- Types ---
@@ -122,7 +128,11 @@ export async function handleWhatsAppWebhookPost(request: Request) {
     // Async background execution
     safeWaitUntil(
       processPayload(payload).catch((err) => {
-        console.error("[WhatsApp Webhook] Background handler error:", err);
+        whatsappLogger.error(
+          "handler.background_error",
+          "Background handler error",
+          { err },
+        );
       }),
     );
 
@@ -250,20 +260,20 @@ async function handleMessage(
   }
 
   let messageType: "IMAGE" | "DOCUMENT" | "AUDIO" | "TEXT";
-  let defaultContent: string;
+  let _defaultContent: string;
 
   if (hasImage) {
     messageType = "IMAGE";
-    defaultContent = "Foto";
+    _defaultContent = "Foto";
   } else if (hasDocument) {
     messageType = "DOCUMENT";
-    defaultContent = "Documento";
+    _defaultContent = "Documento";
   } else if (hasAudio) {
     messageType = "AUDIO";
-    defaultContent = "Messaggio vocale";
+    _defaultContent = "Messaggio vocale";
   } else {
     messageType = "TEXT";
-    defaultContent = "";
+    _defaultContent = "";
   }
 
   const inbound = await prisma.message
@@ -274,7 +284,6 @@ async function handleMessage(
         direction: "INBOUND",
         role: "USER",
         type: messageType,
-        content: text || defaultContent,
         externalMessageId: messageId,
         metadata: {
           whatsapp: {
@@ -301,6 +310,21 @@ async function handleMessage(
 
   if (!inbound) return;
 
+  safeWaitUntil(
+    trackInboundUserMessageFunnelProgress({
+      userId: user.id,
+      isGuest: user.isGuest,
+      userRole: user.role,
+      channel: "WHATSAPP",
+      planId: user.subscription?.planId,
+      subscriptionStatus: user.subscription?.status,
+    }).catch((error) => {
+      whatsappLogger.error("funnel.tracking_failed", "Funnel tracking failed", {
+        error,
+      });
+    }),
+  );
+
   if (process.env.WHATSAPP_DISABLE_AI === "true") return;
 
   // Process Media (Audio, Image, Document)
@@ -324,7 +348,9 @@ async function handleMessage(
             title: "WhatsApp Bot",
           });
         } catch (err) {
-          console.error("[WhatsApp] Transcription failed:", err);
+          whatsappLogger.error("transcription.failed", "Transcription failed", {
+            err,
+          });
           await sendWhatsAppMessage(
             from,
             "Non sono riuscito a trascrivere il messaggio audio. Riprova.",
@@ -435,7 +461,7 @@ async function handleMessage(
     });
     assistantText = flowResult.assistantText;
   } catch (err) {
-    console.error("[WhatsApp] streamChat failed:", err);
+    whatsappLogger.error("chat.stream_failed", "streamChat failed", { err });
     await sendWhatsAppMessage(from, "Si è verificato un errore. Riprova.");
     return;
   }
@@ -477,16 +503,25 @@ async function handleMessage(
             return;
           }
 
-          console.warn(
-            "[WhatsApp] Voice send returned false, falling back to text",
+          whatsappLogger.warn(
+            "voice.send_fallback",
+            "Voice send returned false, falling back to text",
           );
         } catch (voiceErr) {
-          console.error("[WhatsApp] Voice generation/send threw:", voiceErr);
+          whatsappLogger.error(
+            "voice.generation_failed",
+            "Voice generation/send threw",
+            { voiceErr },
+          );
           // Fall through to text fallback
         }
       }
     } catch (err) {
-      console.error("[WhatsApp] Voice funnel/process failed:", err);
+      whatsappLogger.error(
+        "voice.process_failed",
+        "Voice funnel/process failed",
+        { err },
+      );
     }
   }
 

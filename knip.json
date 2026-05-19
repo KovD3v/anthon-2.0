@@ -5,6 +5,8 @@
     "type": true
   },
   "ignore": ["src/components/ui/**/*"],
-  "ignoreDependencies": ["@prisma/client", "@types/pg", "pg"],
-  "tags": ["-lintignore"]
+  "ignoreDependencies": ["@prisma/client"],
+  "ignoreBinaries": ["sleep"],
+  "tags": ["-lintignore"],
+  "ignoreMembers": ["^runtime$", "^maxDuration$"]
 }

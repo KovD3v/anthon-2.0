@@ -28,7 +28,7 @@ async function testRagSearch() {
     if (results.length > 0) {
       for (const r of results) {
         console.log(
-          `  - ${r.title} (similarity: ${(r.similarity * 100).toFixed(1)}%)`
+          `  - ${r.title} (similarity: ${(r.similarity * 100).toFixed(1)}%)`,
         );
         console.log(`    "${r.content.substring(0, 100)}..."`);
       }

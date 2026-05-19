@@ -1,12 +1,15 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const benchmarkLogger = createLogger("ai");
 
 /**
  * GET /api/admin/benchmark/export
  * Export results as JSONL for fine-tuning
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
@@ -76,7 +79,9 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("[Export API] GET error:", error);
+    benchmarkLogger.error("get.error", "Failed to export benchmark results", {
+      error,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

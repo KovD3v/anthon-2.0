@@ -1,12 +1,16 @@
 import { auth } from "@clerk/nextjs/server";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+import { getTextFromParts } from "@/lib/utils/message-parts";
+
+const chatLogger = createLogger("ai");
 
 /**
  * GET /api/chat/messages?chatId=<chatId>
  * Returns the chat history for a specific chat.
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
     // Authenticate user with Clerk
     const { userId: clerkId } = await auth();
@@ -49,7 +53,6 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         role: true,
-        content: true,
         parts: true,
         createdAt: true,
         model: true,
@@ -64,7 +67,7 @@ export async function GET(request: NextRequest) {
     const uiMessages = messages.map((msg) => ({
       id: msg.id,
       role: msg.role === "USER" ? "user" : "assistant",
-      content: msg.content || "",
+      content: getTextFromParts(msg.parts) || "",
       parts: msg.parts,
       createdAt: msg.createdAt.toISOString(),
       model: msg.model,
@@ -81,7 +84,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ messages: uiMessages });
   } catch (error) {
-    console.error("[Chat Messages API] Error:", error);
+    chatLogger.error("get.error", "Failed to fetch chat messages", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -95,7 +98,7 @@ export async function GET(request: NextRequest) {
  * Only the message owner can delete their messages.
  * Only USER messages can be deleted directly.
  */
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: Request) {
   try {
     // Authenticate user with Clerk
     const { userId: clerkId } = await auth();
@@ -164,7 +167,9 @@ export async function DELETE(request: NextRequest) {
       deletedCount: deleteResult.count,
     });
   } catch (error) {
-    console.error("[Chat Messages API] Delete error:", error);
+    chatLogger.error("delete.error", "Failed to delete chat message", {
+      error,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -179,7 +184,7 @@ export async function DELETE(request: NextRequest) {
  *
  * Body: { messageId: string, content: string }
  */
-export async function PATCH(request: NextRequest) {
+export async function PATCH(request: Request) {
   try {
     // Authenticate user with Clerk
     const { userId: clerkId } = await auth();
@@ -272,10 +277,10 @@ export async function PATCH(request: NextRequest) {
       success: true,
       deletedCount: deleteResult.count,
       chatId: message.chatId,
-      newContent: content || message.content,
+      newContent: content || getTextFromParts(message.parts),
     });
   } catch (error) {
-    console.error("[Chat Messages API] Edit error:", error);
+    chatLogger.error("patch.error", "Failed to edit chat message", { error });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

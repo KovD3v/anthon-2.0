@@ -10,7 +10,7 @@ describe("maintenance/retention-policy", () => {
         isGuest: false,
         subscription: null,
       } as never),
-    ).toEqual({ retentionDays: 90 });
+    ).toEqual({ retentionDays: 3650 });
 
     expect(
       getRetentionParams({
@@ -18,7 +18,7 @@ describe("maintenance/retention-policy", () => {
         isGuest: false,
         subscription: null,
       } as never),
-    ).toEqual({ retentionDays: 90 });
+    ).toEqual({ retentionDays: 3650 });
   });
 
   it("returns GUEST retention for guest users", () => {
@@ -28,7 +28,7 @@ describe("maintenance/retention-policy", () => {
         isGuest: true,
         subscription: null,
       } as never),
-    ).toEqual({ retentionDays: 7 });
+    ).toEqual({ retentionDays: 1 });
   });
 
   it("returns PRO retention for active pro plans", () => {
@@ -41,10 +41,10 @@ describe("maintenance/retention-policy", () => {
           planId: "my-pro-plan",
         },
       } as never),
-    ).toEqual({ retentionDays: 30 });
+    ).toEqual({ retentionDays: 180 });
   });
 
-  it("returns BASIC retention for active basic plans", () => {
+  it("returns BASIC_PLUS retention for active basic_plus plans", () => {
     expect(
       getRetentionParams({
         role: "USER",
@@ -54,7 +54,7 @@ describe("maintenance/retention-policy", () => {
           planId: "basic_plus",
         },
       } as never),
-    ).toEqual({ retentionDays: 14 });
+    ).toEqual({ retentionDays: 60 });
   });
 
   it("falls back to TRIAL retention", () => {

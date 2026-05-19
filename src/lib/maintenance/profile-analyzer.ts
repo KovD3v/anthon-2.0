@@ -2,6 +2,10 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { maintenanceModel } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+import { getTextFromParts } from "@/lib/utils/message-parts";
+
+const analyzerLogger = createLogger("maintenance");
 
 const ProfileAnalysisSchema = z.object({
   tone: z
@@ -43,7 +47,7 @@ export async function analyzeUserProfile(userId: string): Promise<void> {
 
   const textAnalysis = messages
     .reverse() // chronologic
-    .map((m) => m.content)
+    .map((m) => getTextFromParts(m.parts))
     .join("\n---\n");
 
   try {
@@ -120,6 +124,8 @@ Se parla di "tennis", aggiorna lo sport.`,
       }
     });
   } catch (error) {
-    console.error("[Analyzer] Error analyzing profile:", error);
+    analyzerLogger.error("analysis_failed", "Error analyzing profile", {
+      error,
+    });
   }
 }

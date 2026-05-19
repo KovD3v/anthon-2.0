@@ -30,7 +30,7 @@ export function SidebarSkeleton() {
         {chatRows.map((row) => (
           <div
             key={row.id}
-            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
+            className={`flex items-center gap-2 rounded-xl px-3 py-2.5 ${
               row.active
                 ? "bg-accent ring-1 ring-border/60 dark:bg-white/10 dark:ring-white/10"
                 : ""
@@ -45,7 +45,7 @@ export function SidebarSkeleton() {
       </div>
 
       <div className="mt-auto border-t border-border/50 p-3 dark:border-white/10">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <div className="h-8 w-8 animate-pulse rounded-full bg-muted/45" />
           <div className="flex-1 space-y-1.5">
             <div className="h-3 w-2/3 animate-pulse rounded bg-muted/35" />

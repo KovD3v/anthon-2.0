@@ -2,6 +2,7 @@
  * Clerk webhook handlers for organization and membership events.
  */
 
+import { createLogger } from "@/lib/logger";
 import {
   syncMembershipFromClerkEvent,
   syncOrganizationFromClerkEvent,
@@ -13,20 +14,34 @@ import type {
 } from "./types";
 import { mapMembershipStatus, readString } from "./types";
 
+const webhookLogger = createLogger("webhook");
+
 export async function handleOrganizationUpsert(data: ClerkOrganizationData) {
   const payload = data as Record<string, unknown>;
   const clerkOrganizationId = readString(payload, "id");
 
   if (!clerkOrganizationId) {
-    console.error("[Webhook] Missing organization id in upsert event");
+    webhookLogger.error(
+      "webhook.organization.upsert.invalid",
+      "Missing organization id in upsert event",
+    );
     return;
   }
 
-  await syncOrganizationFromClerkEvent({
+  const syncedOrganization = await syncOrganizationFromClerkEvent({
     clerkOrganizationId,
     name: readString(payload, "name"),
     slug: readString(payload, "slug"),
   });
+
+  webhookLogger.info(
+    "webhook.organization.upsert.processed",
+    "Processed organization upsert webhook",
+    {
+      clerkOrganizationId,
+      synced: Boolean(syncedOrganization),
+    },
+  );
 }
 
 export async function handleOrganizationDeleted(data: ClerkOrganizationData) {
@@ -34,14 +49,26 @@ export async function handleOrganizationDeleted(data: ClerkOrganizationData) {
   const clerkOrganizationId = readString(payload, "id");
 
   if (!clerkOrganizationId) {
-    console.error("[Webhook] Missing organization id in delete event");
+    webhookLogger.error(
+      "webhook.organization.deleted.invalid",
+      "Missing organization id in delete event",
+    );
     return;
   }
 
-  await syncOrganizationFromClerkEvent({
+  const syncedOrganization = await syncOrganizationFromClerkEvent({
     clerkOrganizationId,
     status: "ARCHIVED",
   });
+
+  webhookLogger.info(
+    "webhook.organization.deleted.processed",
+    "Processed organization delete webhook",
+    {
+      clerkOrganizationId,
+      synced: Boolean(syncedOrganization),
+    },
+  );
 }
 
 export async function handleOrganizationMembershipUpsert(
@@ -67,21 +94,36 @@ export async function handleOrganizationMembershipUpsert(
     );
 
   if (!id || !organizationId || !userId) {
-    console.error("[Webhook] Missing fields for membership upsert", {
-      id,
-      organizationId,
-      userId,
-    });
+    webhookLogger.error(
+      "webhook.organization.membership.upsert.invalid",
+      "Missing fields for membership upsert",
+      {
+        id,
+        organizationId,
+        userId,
+      },
+    );
     return;
   }
 
-  await syncMembershipFromClerkEvent({
+  const result = await syncMembershipFromClerkEvent({
     clerkMembershipId: id,
     clerkOrganizationId: organizationId,
     clerkUserId: userId,
     role: readString(payload, "role"),
     status: mapMembershipStatus(readString(payload, "status") || "active"),
   });
+
+  webhookLogger.info(
+    "webhook.organization.membership.upsert.processed",
+    "Processed organization membership upsert webhook",
+    {
+      clerkMembershipId: id,
+      clerkOrganizationId: organizationId,
+      clerkUserId: userId,
+      result,
+    },
+  );
 }
 
 export async function handleOrganizationMembershipDeleted(
@@ -107,21 +149,36 @@ export async function handleOrganizationMembershipDeleted(
     );
 
   if (!id || !organizationId || !userId) {
-    console.error("[Webhook] Missing fields for membership delete", {
-      id,
-      organizationId,
-      userId,
-    });
+    webhookLogger.error(
+      "webhook.organization.membership.delete.invalid",
+      "Missing fields for membership delete",
+      {
+        id,
+        organizationId,
+        userId,
+      },
+    );
     return;
   }
 
-  await syncMembershipFromClerkEvent({
+  const result = await syncMembershipFromClerkEvent({
     clerkMembershipId: id,
     clerkOrganizationId: organizationId,
     clerkUserId: userId,
     role: readString(payload, "role"),
     status: "REMOVED",
   });
+
+  webhookLogger.info(
+    "webhook.organization.membership.delete.processed",
+    "Processed organization membership delete webhook",
+    {
+      clerkMembershipId: id,
+      clerkOrganizationId: organizationId,
+      clerkUserId: userId,
+      result,
+    },
+  );
 }
 
 export async function handleOrganizationInvitationAccepted(
@@ -144,19 +201,9 @@ export async function handleOrganizationInvitationAccepted(
     );
 
   if (!organizationId || !userId) {
-    console.error("[Webhook] Missing fields for invitation accepted", {
-      invitationId,
-      organizationId,
-      userId,
-    });
-    return;
-  }
-
-  // Invitation payload id is the invitation id, not membership id.
-  // Wait for organizationMembership.created unless a concrete membership id is present.
-  if (!membershipId) {
-    console.log(
-      "[Webhook] Invitation accepted; waiting for membership.created",
+    webhookLogger.error(
+      "webhook.organization.invitation.invalid",
+      "Missing fields for invitation accepted",
       {
         invitationId,
         organizationId,
@@ -166,11 +213,38 @@ export async function handleOrganizationInvitationAccepted(
     return;
   }
 
-  await syncMembershipFromClerkEvent({
+  // Invitation payload id is the invitation id, not membership id.
+  // Wait for organizationMembership.created unless a concrete membership id is present.
+  if (!membershipId) {
+    webhookLogger.info(
+      "webhook.organization.invitation.await_membership",
+      "Invitation accepted; waiting for membership.created",
+      {
+        invitationId,
+        organizationId,
+        userId,
+      },
+    );
+    return;
+  }
+
+  const result = await syncMembershipFromClerkEvent({
     clerkMembershipId: membershipId,
     clerkOrganizationId: organizationId,
     clerkUserId: userId,
     role: readString(payload, "role"),
     status: "ACTIVE",
   });
+
+  webhookLogger.info(
+    "webhook.organization.invitation.processed",
+    "Processed organization invitation accepted webhook",
+    {
+      invitationId,
+      clerkMembershipId: membershipId,
+      clerkOrganizationId: organizationId,
+      clerkUserId: userId,
+      result,
+    },
+  );
 }

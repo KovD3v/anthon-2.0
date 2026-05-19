@@ -3,10 +3,13 @@
  * List, view, and manage users.
  */
 
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import type { UserRole } from "@/generated/prisma";
 import { requireAdmin, requireSuperAdmin, updateUserRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const usersLogger = createLogger("auth");
 
 function parsePositiveIntegerParam(
   value: string | null,
@@ -31,7 +34,7 @@ function parsePositiveIntegerParam(
 }
 
 // GET /api/admin/users - List users with pagination and search
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
@@ -138,7 +141,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("[Users API] Error:", error);
+    usersLogger.error("get.error", "Failed to fetch users", { error });
     return NextResponse.json(
       { error: "Failed to fetch users" },
       { status: 500 },
@@ -147,7 +150,7 @@ export async function GET(req: NextRequest) {
 }
 
 // PATCH /api/admin/users - Update user role (SUPER_ADMIN only)
-export async function PATCH(req: NextRequest) {
+export async function PATCH(req: Request) {
   const { user, errorResponse } = await requireSuperAdmin();
   if (errorResponse) return errorResponse;
   if (!user)
@@ -184,7 +187,7 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[Users API] Error updating role:", error);
+    usersLogger.error("patch.error", "Failed to update user role", { error });
     return NextResponse.json(
       { error: "Failed to update role" },
       { status: 500 },

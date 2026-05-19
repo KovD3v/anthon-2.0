@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import {
   Check,
   Loader2,
@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { duration, ease } from "@/lib/motion";
 
 interface Chat {
   id: string;
@@ -64,13 +65,13 @@ export function ChatList({
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : chats.length === 0 ? (
-          <motion.p
+          <m.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="px-2 py-8 text-center text-sm text-muted-foreground"
           >
             Nessuna conversazione ancora. Clicca su "Nuova Chat" per iniziare!
-          </motion.p>
+          </m.p>
         ) : (
           <ul className="space-y-1">
             <AnimatePresence mode="popLayout">
@@ -156,11 +157,16 @@ function ChatItem({
   };
 
   return (
-    <motion.li
+    <m.li
       layout
-      initial={{ opacity: 0, x: -10 }}
+      initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -10, transition: { duration: 0.2 } }}
+      exit={{
+        opacity: 0,
+        x: -8,
+        transition: { duration: duration.fast, ease: ease.in },
+      }}
+      transition={{ duration: duration.base, ease: ease.out }}
       className="group relative list-none"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setShowActions(false)}
@@ -171,7 +177,7 @@ function ChatItem({
         href={`/chat/${chat.id}`}
         prefetch={true}
         onClick={onClick}
-        className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 sm:py-2.5 text-sm transition-all active:scale-[0.98] ${
+        className={`flex w-full items-center gap-2 rounded-xl px-3 py-3 sm:py-2.5 text-sm transition-all active:scale-[0.98] ${
           isActive
             ? "bg-accent dark:bg-white/10 font-medium text-foreground shadow-sm ring-1 ring-border dark:ring-white/10"
             : "text-muted-foreground hover:text-foreground hover:bg-accent dark:hover:bg-white/5"
@@ -208,11 +214,11 @@ function ChatItem({
       {/* Actions - visible on hover/touch */}
       <AnimatePresence>
         {showActions && !isDeleting && !isRenaming && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 10 }}
-            transition={{ duration: 0.15 }}
+            transition={{ duration: duration.fast, ease: ease.out }}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10 bg-background/90 dark:bg-muted/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-border/50 dark:border-white/10"
           >
             <Button
@@ -240,14 +246,14 @@ function ChatItem({
             >
               <Trash2 className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
             </Button>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
       {/* Rename Actions */}
       <AnimatePresence>
         {isRenaming && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
@@ -286,7 +292,7 @@ function ChatItem({
             >
               <X className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
             </Button>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
@@ -295,6 +301,6 @@ function ChatItem({
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       )}
-    </motion.li>
+    </m.li>
   );
 }

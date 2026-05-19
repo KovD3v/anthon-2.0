@@ -52,7 +52,10 @@ come nome, sport praticato, obiettivi, preferenze e altre informazioni personali
       }),
       execute: async ({ category }) => {
         const memories = await prisma.memory.findMany({
-          where: { userId },
+          where: {
+            userId,
+            ...(category && category !== "all" ? { category } : {}),
+          },
           orderBy: { createdAt: "desc" },
         });
 
@@ -64,20 +67,12 @@ come nome, sport praticato, obiettivi, preferenze e altre informazioni personali
           };
         }
 
-        // Filter by category if specified
-        const filteredMemories = memories.filter((m) => {
-          if (category === "all" || !category) return true;
-          const value = m.value as unknown as MemoryValue;
-          return value.category === category;
-        });
-
-        // Format memories for the agent
-        const formattedMemories = filteredMemories.map((m) => {
+        const formattedMemories = memories.map((m) => {
           const value = m.value as unknown as MemoryValue;
           return {
             key: m.key,
             value: value.content,
-            category: value.category,
+            category: m.category, // use column, not JSON
             confidence: value.confidence,
           };
         });
@@ -125,6 +120,7 @@ DO NOT use this for updating profile fields like 'name', 'sport', 'goal' - use u
             await prisma.memory.update({
               where: { id: existing.id },
               data: {
+                category,
                 value: {
                   content: value,
                   category,
@@ -147,6 +143,7 @@ DO NOT use this for updating profile fields like 'name', 'sport', 'goal' - use u
             data: {
               userId,
               key,
+              category,
               value: {
                 content: value,
                 category,
@@ -226,7 +223,9 @@ async function getAllMemories(
 
   const memoryMap = new Map<string, MemoryValue>();
   for (const m of memories) {
-    memoryMap.set(m.key, m.value as unknown as MemoryValue);
+    const val = m.value as unknown as MemoryValue;
+    // Use the column as source of truth for category
+    memoryMap.set(m.key, { ...val, category: m.category });
   }
 
   return memoryMap;

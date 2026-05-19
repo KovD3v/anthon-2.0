@@ -12,7 +12,10 @@ import { del, put } from "@vercel/blob";
 
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
+
+const uploadLogger = createLogger("ai");
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -197,7 +200,7 @@ export async function POST(request: Request) {
       createdAt: attachment.createdAt,
     });
   } catch (err) {
-    console.error("[Upload API] Error:", err);
+    uploadLogger.error("upload.error", "Failed to upload file", { error: err });
     return Response.json(
       {
         error: err instanceof Error ? err.message : "Failed to upload file",
@@ -286,7 +289,7 @@ export async function DELETE(request: Request) {
       message: "File deleted successfully",
     });
   } catch (err) {
-    console.error("[Upload API] Delete error:", err);
+    uploadLogger.error("delete.error", "Failed to delete file", { error: err });
     return Response.json(
       {
         error: err instanceof Error ? err.message : "Failed to delete file",

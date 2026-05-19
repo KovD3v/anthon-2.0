@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { PageWrapper } from "@/components/ui/page-wrapper";
 import { getAuthUser } from "@/lib/auth";
 import { getSharedChat } from "@/lib/chat";
 import { prisma } from "@/lib/db";
@@ -51,5 +52,9 @@ export default async function ChatConversationPage({
     notFound();
   }
 
-  return <ChatConversationClient chatId={id} initialChatData={chatData} />;
+  return (
+    <PageWrapper className="flex flex-1 flex-col">
+      <ChatConversationClient chatId={id} initialChatData={chatData} />
+    </PageWrapper>
+  );
 }

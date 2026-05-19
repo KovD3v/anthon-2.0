@@ -1,5 +1,12 @@
 import { formatDistanceToNow } from "date-fns";
+import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 import { getQStashEvents } from "@/lib/qstash";
+import {
+  triggerAllMaintenance,
+  triggerAnalyzeProfiles,
+  triggerArchiveSessions,
+  triggerConsolidateMemories,
+} from "./actions";
 
 // Revalidate every minute
 export const revalidate = 60;
@@ -9,30 +16,16 @@ export default async function JobsPage() {
 
   return (
     <div className="p-6 space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold mb-2">Background Jobs</h1>
-        <p className="text-muted-foreground">
-          Monitor QStash maintenance jobs and trigger manual runs.
-        </p>
-      </div>
+      <AnimatedPageHeader
+        title="Background Jobs"
+        description="Monitor QStash maintenance jobs and trigger manual runs."
+      />
 
       {/* Manual Triggers Card */}
       <div className="p-6 border rounded-lg bg-card text-card-foreground shadow-sm">
         <h2 className="text-lg font-semibold mb-4">Manual Triggers</h2>
         <div className="flex gap-4 flex-wrap">
-          <form
-            action={async () => {
-              "use server";
-              // In a real app, use a proper server action, but for this admin panel fetch is simple
-              // But server components can't fetch strictly local API routes with relative paths usually.
-              // Relying on public public url or localhost.
-              const secret = process.env.CRON_SECRET;
-              const appUrl = process.env.APP_URL || "http://localhost:3000";
-              await fetch(`${appUrl}/api/cron/trigger?job=all`, {
-                headers: { Authorization: `Bearer ${secret}` },
-              });
-            }}
-          >
+          <form action={triggerAllMaintenance}>
             <button
               type="submit"
               className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition"
@@ -41,18 +34,7 @@ export default async function JobsPage() {
             </button>
           </form>
 
-          <form
-            action={async () => {
-              "use server";
-              const secret = process.env.CRON_SECRET;
-              const appUrl = process.env.APP_URL || "http://localhost:3000";
-              await fetch(`${appUrl}/api/cron/trigger?job=consolidate`, {
-                headers: {
-                  Authorization: `Bearer ${secret}`,
-                },
-              });
-            }}
-          >
+          <form action={triggerConsolidateMemories}>
             <button
               type="submit"
               className="px-4 py-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition"
@@ -61,18 +43,7 @@ export default async function JobsPage() {
             </button>
           </form>
 
-          <form
-            action={async () => {
-              "use server";
-              const secret = process.env.CRON_SECRET;
-              const appUrl = process.env.APP_URL || "http://localhost:3000";
-              await fetch(`${appUrl}/api/cron/trigger?job=archive`, {
-                headers: {
-                  Authorization: `Bearer ${secret}`,
-                },
-              });
-            }}
-          >
+          <form action={triggerArchiveSessions}>
             <button
               type="submit"
               className="px-4 py-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition"
@@ -81,18 +52,7 @@ export default async function JobsPage() {
             </button>
           </form>
 
-          <form
-            action={async () => {
-              "use server";
-              const secret = process.env.CRON_SECRET;
-              const appUrl = process.env.APP_URL || "http://localhost:3000";
-              await fetch(`${appUrl}/api/cron/trigger?job=analyze`, {
-                headers: {
-                  Authorization: `Bearer ${secret}`,
-                },
-              });
-            }}
-          >
+          <form action={triggerAnalyzeProfiles}>
             <button
               type="submit"
               className="px-4 py-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition"

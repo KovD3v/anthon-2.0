@@ -7,6 +7,9 @@ import {
 } from "@/lib/api/responses";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const preferencesLogger = createLogger("ai");
 
 type PreferencesPatchBody = {
   voiceEnabled?: boolean | null;
@@ -64,7 +67,9 @@ export async function GET() {
 
     return jsonOk(preferences);
   } catch (error) {
-    console.error("[GET /api/preferences] Error:", error);
+    preferencesLogger.error("get.error", "Failed to fetch preferences", {
+      error,
+    });
     return serverError("Errore interno del server");
   }
 }
@@ -133,7 +138,9 @@ export async function PATCH(request: Request) {
 
     return jsonOk(preferences);
   } catch (error) {
-    console.error("[PATCH /api/preferences] Error:", error);
+    preferencesLogger.error("patch.error", "Failed to update preferences", {
+      error,
+    });
     return serverError("Errore interno del server");
   }
 }

@@ -194,10 +194,7 @@ describe("ai/rag", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
-          data: [
-            { index: 1 },
-            { index: 0, embedding: [0.11, 0.22] },
-          ],
+          data: [{ index: 1 }, { index: 0, embedding: [0.11, 0.22] }],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),

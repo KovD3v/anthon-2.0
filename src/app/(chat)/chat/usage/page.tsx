@@ -76,7 +76,7 @@ export default function UsagePage() {
               Torna alla chat
             </Link>
           </Button>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
             Il tuo utilizzo
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -91,7 +91,7 @@ export default function UsagePage() {
           <div className="space-y-4">
             {/* Main message card */}
             <Card variant="glass" className="p-6">
-              <div className="flex items-center gap-3 mb-5">
+              <div className="flex items-center gap-2 mb-5">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
                   <MessageSquare className="h-5 w-5 text-primary" />
                 </div>
@@ -104,7 +104,7 @@ export default function UsagePage() {
 
               {/* Big number */}
               <div className="flex items-baseline gap-2 mb-4">
-                <span className="text-4xl font-bold text-foreground">
+                <span className="text-3xl font-semibold tracking-tight text-foreground">
                   {remaining}
                 </span>
                 <span className="text-sm text-muted-foreground">
@@ -149,9 +149,9 @@ export default function UsagePage() {
 
             {/* Upgrade CTA */}
             {data.subscriptionStatus !== "ACTIVE" && data.tier !== "ADMIN" && (
-              <Card variant="glass" className="p-5">
+              <Card variant="glass" className="p-4">
                 <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
                       <Zap className="h-5 w-5 text-primary" />
                     </div>

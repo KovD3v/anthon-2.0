@@ -6,14 +6,13 @@
 
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { RAG, RAG_KEYWORDS } from "@/lib/ai/constants";
+import { RAG, RAG_KEYWORDS, RAG_NEGATIVE_KEYWORDS } from "@/lib/ai/constants";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
+import { createLogger } from "@/lib/logger";
 
-// Embedding dimensions for OpenAI text-embedding-3-small
-// The model outputs 1536-dimensional embeddings
-const _EMBEDDING_DIMENSIONS = 1536;
+const ragLogger = createLogger("ai");
 
 // OpenRouter API endpoint for embeddings
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/embeddings";
@@ -54,7 +53,11 @@ async function fetchWithRetry(
     // Don't sleep after the last attempt
     if (attempt < maxRetries - 1) {
       const delay = RAG.RETRY_BASE_DELAY_MS * 2 ** attempt;
-      console.warn(`[RAG] Retry ${attempt + 1}/${maxRetries} after ${delay}ms`);
+      ragLogger.warn(
+        "ai.rag.embed.retry",
+        `Retry ${attempt + 1}/${maxRetries} after ${delay}ms`,
+        { attempt, maxRetries, delay },
+      );
       await sleep(delay);
     }
   }
@@ -70,7 +73,10 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
     const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
-      console.error("[RAG] OPENROUTER_API_KEY not configured");
+      ragLogger.error(
+        "ai.rag.config.missing_key",
+        "OPENROUTER_API_KEY not configured",
+      );
       return null;
     }
 
@@ -95,7 +101,9 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error("[RAG] OpenRouter embedding error:", error);
+      ragLogger.error("ai.rag.embed.error", "OpenRouter embedding error", {
+        error,
+      });
       return null;
     }
 
@@ -105,10 +113,16 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
       return data.data[0].embedding;
     }
 
-    console.error("[RAG] Unexpected embedding response format:", data);
+    ragLogger.error(
+      "ai.rag.embed.format_error",
+      "Unexpected embedding response format",
+      { data },
+    );
     return null;
   } catch (error) {
-    console.error("[RAG] Embedding generation error:", error);
+    ragLogger.error("ai.rag.embed.failed", "Embedding generation error", {
+      error,
+    });
     return null;
   }
 }
@@ -123,7 +137,10 @@ async function generateEmbeddings(
     const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
-      console.error("[RAG] OPENROUTER_API_KEY not configured");
+      ragLogger.error(
+        "ai.rag.config.missing_key",
+        "OPENROUTER_API_KEY not configured",
+      );
       return texts.map(() => null);
     }
 
@@ -144,7 +161,11 @@ async function generateEmbeddings(
 
     if (!response.ok) {
       const error = await response.text();
-      console.error("[RAG] OpenRouter batch embedding error:", error);
+      ragLogger.error(
+        "ai.rag.embed.batch_error",
+        "OpenRouter batch embedding error",
+        { error },
+      );
       return texts.map(() => null);
     }
 
@@ -160,10 +181,18 @@ async function generateEmbeddings(
       );
     }
 
-    console.error("[RAG] Unexpected batch embedding response format:", data);
+    ragLogger.error(
+      "ai.rag.embed.batch_format_error",
+      "Unexpected batch embedding response format",
+      { data },
+    );
     return texts.map(() => null);
   } catch (error) {
-    console.error("[RAG] Batch embedding generation error:", error);
+    ragLogger.error(
+      "ai.rag.embed.batch_failed",
+      "Batch embedding generation error",
+      { error },
+    );
     return texts.map(() => null);
   }
 }
@@ -181,7 +210,10 @@ export async function searchDocuments(
     const queryEmbedding = await generateEmbedding(query);
 
     if (!queryEmbedding) {
-      console.warn("[RAG] Could not generate query embedding");
+      ragLogger.warn(
+        "ai.rag.search.no_embedding",
+        "Could not generate query embedding",
+      );
       return [];
     }
 
@@ -219,7 +251,7 @@ export async function searchDocuments(
     // Filter by similarity threshold
     return results.filter((r) => r.similarity > RAG.SIMILARITY_THRESHOLD);
   } catch (error) {
-    console.error("[RAG] Search error:", error);
+    ragLogger.error("ai.rag.search.error", "Search error", { error });
     return [];
   }
 }
@@ -288,7 +320,11 @@ export async function addDocument(
       const embedding = embeddings[i];
 
       if (!embedding) {
-        console.warn(`[RAG] Skipping chunk ${i} - embedding generation failed`);
+        ragLogger.warn(
+          "ai.rag.index.chunk_failed",
+          `Skipping chunk ${i} - embedding generation failed`,
+          { chunkIndex: i },
+        );
         continue;
       }
 
@@ -307,7 +343,9 @@ export async function addDocument(
 
     return document.id;
   } catch (error) {
-    console.error("[RAG] Error adding document:", error);
+    ragLogger.error("ai.rag.index.add_failed", "Error adding document", {
+      error,
+    });
     throw error;
   }
 }
@@ -354,7 +392,9 @@ export async function updateMissingEmbeddings(): Promise<number> {
 
     return updated;
   } catch (error) {
-    console.error("[RAG] Error updating embeddings:", error);
+    ragLogger.error("ai.rag.index.update_failed", "Error updating embeddings", {
+      error,
+    });
     throw error;
   }
 }
@@ -374,7 +414,9 @@ export async function deleteDocument(documentId: string): Promise<void> {
       where: { id: documentId },
     });
   } catch (error) {
-    console.error("[RAG] Error deleting document:", error);
+    ragLogger.error("ai.rag.index.delete_failed", "Error deleting document", {
+      error,
+    });
     throw error;
   }
 }
@@ -453,57 +495,6 @@ function splitIntoChunks(
  */
 let documentCountCache: { count: number; timestamp: number } | null = null;
 const DOCUMENT_COUNT_CACHE_TTL = 60000; // 1 minute
-
-/**
- * Negative keywords - if found, immediately skip RAG (no LLM call needed)
- * These indicate personal/conversational queries that don't need methodology documents
- */
-const RAG_NEGATIVE_KEYWORDS = [
-  // Greetings and social
-  "ciao",
-  "salve",
-  "buongiorno",
-  "buonasera",
-  "buonanotte",
-  "hello",
-  "hi ",
-  "hey",
-  // Gratitude
-  "grazie",
-  "thanks",
-  "thank you",
-  // Affirmations
-  "ok",
-  "okay",
-  "va bene",
-  "perfetto",
-  "bene",
-  "ottimo",
-  // Questions about self/profile
-  "chi sei",
-  "cosa fai",
-  "come ti chiami",
-  "who are you",
-  "what do you do",
-  // Temporal/status queries
-  "come va",
-  "come stai",
-  "tutto bene",
-  "how are you",
-  "what's up",
-  // Personal feelings (unless technical)
-  "mi sento",
-  "sono stanco",
-  "sono felice",
-  "sono triste",
-  // Meta questions about the conversation
-  "hai capito",
-  "mi hai capito",
-  "ricordi",
-  "ti ricordi",
-  "did you understand",
-  "do you remember",
-];
 
 /**
  * Patterns that indicate RAG is NOT needed
@@ -701,8 +692,9 @@ Answer needsRag: false if the question is:
         }),
     );
 
-    if (ragClassificationCache.size > RAG_CLASSIFICATION_CACHE_MAX_ENTRIES) {
-      ragClassificationCache.clear();
+    if (ragClassificationCache.size >= RAG_CLASSIFICATION_CACHE_MAX_ENTRIES) {
+      const firstKey = ragClassificationCache.keys().next().value;
+      if (firstKey !== undefined) ragClassificationCache.delete(firstKey);
     }
     ragClassificationCache.set(cacheKey, {
       needsRag: output?.needsRag ?? false,
@@ -711,7 +703,9 @@ Answer needsRag: false if the question is:
 
     return output?.needsRag ?? false;
   } catch (error) {
-    console.error("[RAG] Error classifying query:", error);
+    ragLogger.error("ai.rag.classify.error", "Error classifying query", {
+      error,
+    });
     return false;
   }
 }

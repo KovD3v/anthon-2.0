@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "DailyUsage" ADD COLUMN "voiceCostUsd" DOUBLE PRECISION NOT NULL DEFAULT 0;

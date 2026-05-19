@@ -1,7 +1,7 @@
 "use client";
 
 import { useClerk, useUser } from "@clerk/nextjs";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import {
   BarChart3,
   Building2,
@@ -18,6 +18,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useRef, useState } from "react";
+import { duration, ease } from "@/lib/motion";
 
 export function SidebarBottom() {
   const { user } = useUser();
@@ -43,6 +44,8 @@ export function SidebarBottom() {
     action();
   };
 
+  const isOrgMember = (user?.organizationMemberships?.length ?? 0) > 0;
+
   const menuItems = [
     {
       icon: Settings,
@@ -54,11 +57,15 @@ export function SidebarBottom() {
       label: "Profile",
       onClick: () => router.push("/profile"),
     },
-    {
-      icon: Building2,
-      label: "Organization",
-      onClick: () => router.push("/organization"),
-    },
+    ...(isOrgMember
+      ? [
+          {
+            icon: Building2,
+            label: "Organization",
+            onClick: () => router.push("/organization"),
+          },
+        ]
+      : []),
     {
       icon: BarChart3,
       label: "Utilizzo",
@@ -85,11 +92,11 @@ export function SidebarBottom() {
     <div className="relative mt-auto" ref={menuRef}>
       <AnimatePresence>
         {isOpen && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            transition={{ duration: duration.fast, ease: ease.out }}
             className="absolute bottom-full left-0 mb-2 w-[calc(100%-16px)] mx-2 overflow-hidden rounded-xl border border-border dark:border-white/20 bg-background/95 dark:bg-black/60 backdrop-blur-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10"
           >
             <div className="flex flex-col p-1">
@@ -116,7 +123,7 @@ export function SidebarBottom() {
                 Sign Out
               </button>
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
@@ -124,7 +131,7 @@ export function SidebarBottom() {
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="group flex w-full items-center gap-3 rounded-xl bg-background/50 p-2.5 transition-all hover:bg-background/80 hover:shadow-sm active:scale-[0.98]"
+          className="group flex w-full items-center gap-2 rounded-xl bg-background/50 p-2.5 transition-all hover:bg-background/80 hover:shadow-sm active:scale-[0.98]"
         >
           <div className="relative h-9 w-9 overflow-hidden rounded-full bg-linear-to-br from-primary/20 to-primary/10 ring-2 ring-border dark:ring-white/20 transition-all group-hover:ring-primary/20">
             {user?.imageUrl ? (
@@ -132,6 +139,7 @@ export function SidebarBottom() {
                 src={user.imageUrl}
                 alt={user.fullName || "User"}
                 fill
+                sizes="36px"
                 className="object-cover"
               />
             ) : (

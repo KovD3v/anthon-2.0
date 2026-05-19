@@ -794,7 +794,7 @@ function createMockTools() {
   return {
     updateProfile: tool({
       description: "Aggiorna il profilo dell'utente",
-      parameters: z.object({
+      inputSchema: z.object({
         name: z.string().optional(),
         sport: z.string().optional(),
         goal: z.string().optional(),
@@ -809,7 +809,7 @@ function createMockTools() {
 
     updatePreferences: tool({
       description: "Aggiorna le preferenze dell'utente",
-      parameters: z.object({
+      inputSchema: z.object({
         tone: z.string().optional(),
         mode: z.string().optional(),
         language: z.string().optional(),
@@ -823,7 +823,7 @@ function createMockTools() {
 
     saveMemory: tool({
       description: "Salva un fatto nella memoria",
-      parameters: z.object({
+      inputSchema: z.object({
         key: z.string(),
         value: z.string(),
         category: z.string().optional(),
@@ -837,7 +837,7 @@ function createMockTools() {
 
     getMemories: tool({
       description: "Recupera le memorie dell'utente",
-      parameters: z.object({
+      inputSchema: z.object({
         category: z.string().optional(),
       }),
       execute: async () => ({
@@ -849,7 +849,7 @@ function createMockTools() {
 
     tavilySearch: tool({
       description: "Cerca informazioni sul web",
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string(),
       }),
       execute: async (params: { query: string }) => ({
@@ -865,7 +865,7 @@ function createMockTools() {
 
     addNotes: tool({
       description: "Aggiungi note sul profilo",
-      parameters: z.object({
+      inputSchema: z.object({
         note: z.string(),
       }),
       execute: async (params: { note: string }) => ({

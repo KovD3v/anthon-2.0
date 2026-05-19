@@ -19,7 +19,6 @@ vi.mock("@ai-sdk/devtools", () => ({
   devToolsMiddleware: mocks.devToolsMiddleware,
 }));
 
-const originalNodeEnv = process.env.NODE_ENV;
 const originalApiKey = process.env.OPENROUTER_API_KEY;
 
 describe("ai/providers/openrouter", () => {
@@ -41,11 +40,11 @@ describe("ai/providers/openrouter", () => {
     );
 
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
-    process.env.NODE_ENV = "test";
+    vi.stubEnv("NODE_ENV", "test");
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = originalNodeEnv;
+    vi.unstubAllEnvs();
     process.env.OPENROUTER_API_KEY = originalApiKey;
   });
 
@@ -63,35 +62,91 @@ describe("ai/providers/openrouter", () => {
     expect(getModelIdForPlan(null, undefined, "orchestrator")).toBe(
       "google/gemini-2.0-flash-lite-001",
     );
-    expect(getModelIdForPlan("my-basic-plan", undefined, "orchestrator")).toBe(
-      "google/gemini-2.0-flash-001",
-    );
-    expect(getModelIdForPlan("my-basic_plus-plan", undefined, "subAgent")).toBe(
-      "google/gemini-2.0-flash-001",
-    );
-    expect(getModelIdForPlan("my-pro-plan", undefined, "orchestrator")).toBe(
-      "google/gemini-2.0-flash-lite-001",
-    );
-    expect(getModelIdForPlan("my-pro-plan", "ADMIN", "orchestrator")).toBe(
-      "google/gemini-2.0-flash-lite-001",
-    );
     expect(
-      getModelIdForPlan("my-pro-plan", "USER", "orchestrator", "BASIC"),
+      getModelIdForPlan(
+        "my-basic-plan",
+        undefined,
+        "orchestrator",
+        undefined,
+        "ACTIVE",
+      ),
     ).toBe("google/gemini-2.0-flash-001");
     expect(
-      getModelIdForPlan("my-basic-plan", "USER", "orchestrator", "PRO"),
+      getModelIdForPlan(
+        "my-basic_plus-plan",
+        undefined,
+        "subAgent",
+        undefined,
+        "ACTIVE",
+      ),
+    ).toBe("google/gemini-2.0-flash-001");
+    expect(
+      getModelIdForPlan(
+        "my-pro-plan",
+        undefined,
+        "orchestrator",
+        undefined,
+        "ACTIVE",
+      ),
+    ).toBe("google/gemini-2.0-flash-lite-001");
+    expect(
+      getModelIdForPlan(
+        "my-pro-plan",
+        "ADMIN",
+        "orchestrator",
+        undefined,
+        "ACTIVE",
+      ),
+    ).toBe("google/gemini-2.0-flash-lite-001");
+    expect(
+      getModelIdForPlan(
+        "my-pro-plan",
+        "USER",
+        "orchestrator",
+        "BASIC",
+        "ACTIVE",
+      ),
+    ).toBe("google/gemini-2.0-flash-001");
+    expect(
+      getModelIdForPlan(
+        "my-basic-plan",
+        "USER",
+        "orchestrator",
+        "PRO",
+        "ACTIVE",
+      ),
     ).toBe("google/gemini-2.0-flash-lite-001");
   });
 
+  it("throws when active subscription has invalid planId", async () => {
+    const { getModelIdForPlan } = await import("./openrouter");
+
+    expect(() =>
+      getModelIdForPlan(
+        "invalid-plan",
+        "USER",
+        "orchestrator",
+        undefined,
+        "ACTIVE",
+      ),
+    ).toThrow("Active subscription requires a recognized planId");
+  });
+
   it("wraps models with devtools in development", async () => {
-    process.env.NODE_ENV = "development";
+    vi.stubEnv("NODE_ENV", "development");
     const { getModelForUser } = await import("./openrouter");
 
     mocks.provider.mockClear();
     mocks.wrapLanguageModel.mockClear();
     mocks.devToolsMiddleware.mockClear();
 
-    const model = getModelForUser("my-basic_plus-plan", undefined, "subAgent");
+    const model = getModelForUser(
+      "my-basic_plus-plan",
+      undefined,
+      "subAgent",
+      undefined,
+      "ACTIVE",
+    );
 
     expect(mocks.provider).toHaveBeenCalledWith("google/gemini-2.0-flash-001");
     expect(mocks.devToolsMiddleware).toHaveBeenCalledTimes(1);
@@ -104,13 +159,19 @@ describe("ai/providers/openrouter", () => {
   });
 
   it("returns raw model in non-development environments", async () => {
-    process.env.NODE_ENV = "production";
+    vi.stubEnv("NODE_ENV", "production");
     const { getModelForUser } = await import("./openrouter");
 
     mocks.provider.mockClear();
     mocks.wrapLanguageModel.mockClear();
 
-    const model = getModelForUser("my-basic-plan", undefined, "orchestrator");
+    const model = getModelForUser(
+      "my-basic-plan",
+      undefined,
+      "orchestrator",
+      undefined,
+      "ACTIVE",
+    );
 
     expect(mocks.provider).toHaveBeenCalledWith("google/gemini-2.0-flash-001");
     expect(mocks.wrapLanguageModel).not.toHaveBeenCalled();

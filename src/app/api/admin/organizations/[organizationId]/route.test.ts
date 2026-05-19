@@ -1,4 +1,3 @@
-import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -31,10 +30,10 @@ function params(organizationId = "org-1") {
   return Promise.resolve({ organizationId });
 }
 
-function patchRequest(body: unknown): NextRequest {
+function patchRequest(body: unknown): Request {
   return {
     json: async () => body,
-  } as unknown as NextRequest;
+  } as unknown as Request;
 }
 
 function contract(overrides: Partial<Record<string, unknown>> = {}) {
@@ -118,7 +117,7 @@ describe("/api/admin/organizations/[organizationId] route", () => {
       errorResponse: forbidden,
     });
 
-    const response = await GET({} as NextRequest, { params: params() });
+    const response = await GET({} as Request, { params: params() });
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: "Forbidden" });
@@ -127,7 +126,7 @@ describe("/api/admin/organizations/[organizationId] route", () => {
   it("GET returns 404 when organization is not found", async () => {
     mocks.getOrganizationById.mockResolvedValue(null);
 
-    const response = await GET({} as NextRequest, { params: params() });
+    const response = await GET({} as Request, { params: params() });
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({
@@ -136,7 +135,7 @@ describe("/api/admin/organizations/[organizationId] route", () => {
   });
 
   it("GET returns organization detail with active member count", async () => {
-    const response = await GET({} as NextRequest, { params: params("org-1") });
+    const response = await GET({} as Request, { params: params("org-1") });
 
     expect(response.status).toBe(200);
     expect(mocks.getOrganizationById).toHaveBeenCalledWith("org-1");
@@ -161,7 +160,7 @@ describe("/api/admin/organizations/[organizationId] route", () => {
   it("GET returns 500 on service errors", async () => {
     mocks.getOrganizationById.mockRejectedValue(new Error("db failed"));
 
-    const response = await GET({} as NextRequest, { params: params() });
+    const response = await GET({} as Request, { params: params() });
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
@@ -387,7 +386,7 @@ describe("/api/admin/organizations/[organizationId] route", () => {
       errorResponse: forbidden,
     });
 
-    const response = await DELETE({} as NextRequest, { params: params() });
+    const response = await DELETE({} as Request, { params: params() });
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: "Forbidden" });
@@ -396,7 +395,7 @@ describe("/api/admin/organizations/[organizationId] route", () => {
   it("DELETE returns 401 when user is missing", async () => {
     mocks.requireAdmin.mockResolvedValue({ user: null, errorResponse: null });
 
-    const response = await DELETE({} as NextRequest, { params: params() });
+    const response = await DELETE({} as Request, { params: params() });
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
@@ -407,7 +406,7 @@ describe("/api/admin/organizations/[organizationId] route", () => {
       new Error("Organization not found"),
     );
 
-    const response = await DELETE({} as NextRequest, {
+    const response = await DELETE({} as Request, {
       params: params("org-404"),
     });
 
@@ -418,7 +417,7 @@ describe("/api/admin/organizations/[organizationId] route", () => {
   });
 
   it("DELETE removes organization and returns deletion payload", async () => {
-    const response = await DELETE({} as NextRequest, {
+    const response = await DELETE({} as Request, {
       params: params("org-1"),
     });
 
@@ -437,7 +436,7 @@ describe("/api/admin/organizations/[organizationId] route", () => {
   it("DELETE returns 500 on unexpected errors", async () => {
     mocks.deleteOrganization.mockRejectedValue(new Error("db failed"));
 
-    const response = await DELETE({} as NextRequest, {
+    const response = await DELETE({} as Request, {
       params: params("org-1"),
     });
 

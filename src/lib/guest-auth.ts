@@ -8,10 +8,12 @@
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
 
 // Cookie configuration
 const GUEST_COOKIE_NAME = "anthon_guest_token";
 const GUEST_COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
+const authLogger = createLogger("auth");
 
 // Guest user type (subset of full User)
 export interface GuestUser {
@@ -52,6 +54,10 @@ export async function getGuestTokenFromCookies(): Promise<string | null> {
       ((error as { digest?: string }).digest === "DYNAMIC_SERVER_USAGE" ||
         error.message.includes("Dynamic server usage"))
     ) {
+      authLogger.warn(
+        "auth.guest.dynamic_server_usage",
+        "Dynamic server usage while reading guest cookie",
+      );
       return null;
     }
     throw error;
@@ -202,6 +208,16 @@ export async function authenticateGuest(): Promise<{
   if (result.isNew || result.token !== existingToken) {
     await setGuestCookie(result.token);
   }
+
+  authLogger.info(
+    result.isNew ? "auth.guest_session_created" : "auth.guest_session_reused",
+    result.isNew ? "Guest session created" : "Guest session reused",
+    {
+      userId: result.user.id,
+      tokenChanged: result.token !== existingToken,
+      hasExistingToken: Boolean(existingToken),
+    },
+  );
 
   return result;
 }
