@@ -139,6 +139,22 @@ describe("/api/guest/chats route", () => {
     });
   });
 
+  it("POST returns 400 when title is not a string", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/guest/chats", {
+        method: "POST",
+        body: JSON.stringify({ title: { text: "Planning" } }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "title must be a string",
+    });
+    expect(mocks.chatCreate).not.toHaveBeenCalled();
+  });
+
   it("POST allows empty body and falls back to default title", async () => {
     mocks.chatCreate.mockResolvedValue({
       id: "chat-new",

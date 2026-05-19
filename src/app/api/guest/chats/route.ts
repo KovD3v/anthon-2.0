@@ -63,7 +63,17 @@ export async function POST(request: Request) {
 
     try {
       const body = await request.json();
-      title = body.title;
+      if (body && typeof body === "object" && !Array.isArray(body)) {
+        const rawBody = body as Record<string, unknown>;
+        if (rawBody.title !== undefined && typeof rawBody.title !== "string") {
+          return Response.json(
+            { error: "title must be a string" },
+            { status: 400 },
+          );
+        }
+
+        title = rawBody.title;
+      }
     } catch {
       // Empty body is fine
     }
