@@ -381,6 +381,24 @@ describe("/api/chat/messages route", () => {
     expect(mocks.messageDeleteMany).not.toHaveBeenCalled();
   });
 
+  it("PATCH returns 400 when content is not a string", async () => {
+    const response = await PATCH(
+      new Request("http://localhost/api/chat/messages", {
+        method: "PATCH",
+        body: JSON.stringify({ messageId: "m1", content: { text: "edited" } }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "content must be a string",
+    });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.messageFindUnique).not.toHaveBeenCalled();
+    expect(mocks.messageDeleteMany).not.toHaveBeenCalled();
+  });
+
   it("PATCH returns 404 when message is not found", async () => {
     mocks.messageFindUnique.mockResolvedValue(null);
 

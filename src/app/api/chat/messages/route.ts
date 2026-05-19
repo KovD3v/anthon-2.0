@@ -210,6 +210,12 @@ export async function PATCH(request: NextRequest) {
     }
 
     const messageId = typeof body.messageId === "string" ? body.messageId : "";
+    if (body.content !== undefined && typeof body.content !== "string") {
+      return NextResponse.json(
+        { error: "content must be a string" },
+        { status: 400 },
+      );
+    }
     const content = typeof body.content === "string" ? body.content : undefined;
 
     if (!messageId) {
