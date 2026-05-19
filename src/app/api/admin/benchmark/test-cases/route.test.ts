@@ -51,10 +51,19 @@ describe("/api/admin/benchmark/test-cases", () => {
 
     mocks.auth.mockResolvedValue({ userId: "clerk-1" });
     mocks.userFindFirst.mockResolvedValue({ role: "ADMIN" });
-    mocks.benchmarkTestCaseFindUnique.mockResolvedValue({ id: "tc-1", name: "Case One" });
+    mocks.benchmarkTestCaseFindUnique.mockResolvedValue({
+      id: "tc-1",
+      name: "Case One",
+    });
     mocks.benchmarkTestCaseFindMany.mockResolvedValue([{ id: "tc-2" }]);
-    mocks.benchmarkTestCaseCreate.mockResolvedValue({ id: "tc-new", category: "TOOL_USAGE" });
-    mocks.benchmarkTestCaseUpdate.mockResolvedValue({ id: "tc-1", category: "WRITING_QUALITY" });
+    mocks.benchmarkTestCaseCreate.mockResolvedValue({
+      id: "tc-new",
+      category: "TOOL_USAGE",
+    });
+    mocks.benchmarkTestCaseUpdate.mockResolvedValue({
+      id: "tc-1",
+      category: "WRITING_QUALITY",
+    });
     mocks.benchmarkTestCaseDelete.mockResolvedValue({ id: "tc-1" });
   });
 
@@ -84,7 +93,9 @@ describe("/api/admin/benchmark/test-cases", () => {
     mocks.benchmarkTestCaseFindUnique.mockResolvedValue(null);
 
     const response = await GET(
-      new Request("http://localhost/api/admin/benchmark/test-cases?id=missing") as never,
+      new Request(
+        "http://localhost/api/admin/benchmark/test-cases?id=missing",
+      ) as never,
     );
 
     expect(response.status).toBe(404);
@@ -95,7 +106,9 @@ describe("/api/admin/benchmark/test-cases", () => {
 
   it("GET returns single case by id", async () => {
     const response = await GET(
-      new Request("http://localhost/api/admin/benchmark/test-cases?id=tc-1") as never,
+      new Request(
+        "http://localhost/api/admin/benchmark/test-cases?id=tc-1",
+      ) as never,
     );
 
     expect(response.status).toBe(200);
@@ -119,7 +132,9 @@ describe("/api/admin/benchmark/test-cases", () => {
       orderBy: { createdAt: "desc" },
     });
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ testCases: [{ id: "tc-2" }] });
+    await expect(response.json()).resolves.toEqual({
+      testCases: [{ id: "tc-2" }],
+    });
   });
 
   it("POST creates test case with normalized payload", async () => {
@@ -201,6 +216,20 @@ describe("/api/admin/benchmark/test-cases", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "ID is required" });
+  });
+
+  it("DELETE returns 403 for non-admin", async () => {
+    mocks.userFindFirst.mockResolvedValue({ role: "USER" });
+
+    const response = await DELETE(
+      new Request("http://localhost/api/admin/benchmark/test-cases?id=tc-1", {
+        method: "DELETE",
+      }) as never,
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "Forbidden" });
+    expect(mocks.benchmarkTestCaseDelete).not.toHaveBeenCalled();
   });
 
   it("DELETE removes test case", async () => {
