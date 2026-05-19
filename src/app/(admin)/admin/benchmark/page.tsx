@@ -22,7 +22,7 @@ import {
   Trophy,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +43,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
 import {
   Table,
   TableBody,
@@ -64,7 +63,6 @@ import {
   BenchmarkCategory,
   type BenchmarkResult,
   type BenchmarkRun,
-  type BenchmarkTestCase,
   type ModelScore,
   ScoreBadge,
   StatusBadge,
@@ -177,7 +175,7 @@ export default function BenchmarkPage() {
     return tc?.name || id;
   }
 
-  async function fetchRuns() {
+  const fetchRuns = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/benchmark");
       if (!res.ok) throw new Error("Failed to fetch benchmark runs");
@@ -188,9 +186,9 @@ export default function BenchmarkPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  async function fetchRunDetails(runId: string) {
+  const fetchRunDetails = useCallback(async (runId: string) => {
     try {
       const res = await fetch(`/api/admin/benchmark?runId=${runId}`);
       if (!res.ok) throw new Error("Failed to fetch run details");
@@ -215,7 +213,7 @@ export default function BenchmarkPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     }
-  }
+  }, []);
 
   const startBenchmark = async (options?: {
     testCaseIds?: string[];
@@ -262,7 +260,7 @@ export default function BenchmarkPage() {
     }
   };
 
-  async function fetchTestCases() {
+  const fetchTestCases = useCallback(async () => {
     try {
       const res = await fetch(
         "/api/admin/benchmark/test-cases?activeOnly=false",
@@ -285,7 +283,7 @@ export default function BenchmarkPage() {
         err instanceof Error ? err.message : "Failed to load test cases",
       );
     }
-  }
+  }, []);
 
   const generateAdversarial = async () => {
     setGeneratingAdversarial(true);
@@ -556,7 +554,7 @@ export default function BenchmarkPage() {
   useEffect(() => {
     fetchRuns();
     fetchTestCases();
-  }, []);
+  }, [fetchRuns, fetchTestCases]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -583,7 +581,7 @@ export default function BenchmarkPage() {
       }, 2000);
     }
     return () => clearInterval(interval);
-  }, [activeRunId, selectedRun?.id]);
+  }, [activeRunId, selectedRun?.id, fetchRunDetails, fetchRuns]);
 
   if (loading) {
     return (
