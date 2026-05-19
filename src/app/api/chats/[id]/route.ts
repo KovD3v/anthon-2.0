@@ -200,11 +200,18 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return Response.json({ error: "Invalid request body" }, { status: 400 });
     }
 
-    const { title, visibility, generateTitle } = body as {
-      title?: string;
-      visibility?: "PRIVATE" | "PUBLIC";
-      generateTitle?: boolean;
-    };
+    const rawVisibility = body.visibility;
+    if (
+      rawVisibility !== undefined &&
+      rawVisibility !== "PRIVATE" &&
+      rawVisibility !== "PUBLIC"
+    ) {
+      return Response.json({ error: "Invalid visibility" }, { status: 400 });
+    }
+
+    const title = body.title as string | undefined;
+    const visibility = rawVisibility as "PRIVATE" | "PUBLIC" | undefined;
+    const generateTitle = body.generateTitle as boolean | undefined;
 
     let newTitle = title;
 
