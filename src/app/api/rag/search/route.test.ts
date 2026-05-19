@@ -58,6 +58,20 @@ describe("POST /api/rag/search", () => {
     });
   });
 
+  it.each([0, -1, 1.5, 6, "many"])(
+    "returns 400 when limit is invalid: %s",
+    async (limit) => {
+      const response = await POST(buildRequest({ query: "hello", limit }));
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "limit must be an integer between 1 and 5",
+      });
+      expect(mocks.searchDocuments).not.toHaveBeenCalled();
+      expect(mocks.getRagContext).not.toHaveBeenCalled();
+    },
+  );
+
   it("returns early when checkNeedsRag resolves false", async () => {
     mocks.shouldUseRag.mockResolvedValue(false);
 

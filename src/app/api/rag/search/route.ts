@@ -5,6 +5,7 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { type NextRequest, NextResponse } from "next/server";
+import { RAG } from "@/lib/ai/constants";
 import { getRagContext, searchDocuments, shouldUseRag } from "@/lib/ai/rag";
 
 // POST /api/rag/search - Search for relevant documents
@@ -17,10 +18,23 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { query, limit = 5, checkNeedsRag = false } = body;
+    const { query, limit: rawLimit, checkNeedsRag = false } = body;
 
     if (!query) {
       return NextResponse.json({ error: "Query is required" }, { status: 400 });
+    }
+
+    const limit = rawLimit ?? RAG.MAX_RESULTS;
+    if (
+      typeof limit !== "number" ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > RAG.MAX_RESULTS
+    ) {
+      return NextResponse.json(
+        { error: `limit must be an integer between 1 and ${RAG.MAX_RESULTS}` },
+        { status: 400 },
+      );
     }
 
     // Optionally check if the query needs RAG
