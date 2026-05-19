@@ -47,6 +47,21 @@ describe("GET /api/cron/trigger", () => {
     await expect(response.text()).resolves.toBe("Unauthorized");
   });
 
+  it("returns 401 when cron secret is missing", async () => {
+    delete process.env.CRON_SECRET;
+
+    const response = await GET(
+      new Request("http://localhost/api/cron/trigger", {
+        headers: { authorization: "Bearer undefined" },
+      }) as unknown as import("next/server").NextRequest,
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.text()).resolves.toBe("Unauthorized");
+    expect(mocks.userFindMany).not.toHaveBeenCalled();
+    expect(mocks.publishToQueue).not.toHaveBeenCalled();
+  });
+
   it("publishes consolidate + archive jobs by default", async () => {
     const response = await GET(
       new Request("http://localhost/api/cron/trigger", {
@@ -90,12 +105,20 @@ describe("GET /api/cron/trigger", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.publishToQueue).toHaveBeenCalledTimes(2);
-    expect(mocks.publishToQueue).toHaveBeenNthCalledWith(1, "api/queues/analyze", {
-      userId: "u1",
-    });
-    expect(mocks.publishToQueue).toHaveBeenNthCalledWith(2, "api/queues/analyze", {
-      userId: "u2",
-    });
+    expect(mocks.publishToQueue).toHaveBeenNthCalledWith(
+      1,
+      "api/queues/analyze",
+      {
+        userId: "u1",
+      },
+    );
+    expect(mocks.publishToQueue).toHaveBeenNthCalledWith(
+      2,
+      "api/queues/analyze",
+      {
+        userId: "u2",
+      },
+    );
     await expect(response.json()).resolves.toEqual({
       success: true,
       usersProcessed: 2,

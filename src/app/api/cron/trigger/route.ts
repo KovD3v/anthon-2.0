@@ -5,7 +5,8 @@ import { publishToQueue } from "@/lib/qstash";
 export async function GET(request: NextRequest) {
   // 1. Validate Cron Secret (Native Vercel Cron security)
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
