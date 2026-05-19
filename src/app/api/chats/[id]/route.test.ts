@@ -336,6 +336,24 @@ describe("/api/chats/[id] route", () => {
     });
   });
 
+  it("PATCH returns 400 when request body is malformed JSON", async () => {
+    const response = await PATCH(
+      new Request("http://localhost/api/chats/chat-1", {
+        method: "PATCH",
+        body: "{",
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: params() },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid request body",
+    });
+    expect(mocks.messageFindFirst).not.toHaveBeenCalled();
+    expect(mocks.chatUpdate).not.toHaveBeenCalled();
+  });
+
   it("PATCH auto-generates title from first user message", async () => {
     const response = await PATCH(
       new Request("http://localhost/api/chats/chat-1", {
