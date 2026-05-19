@@ -1,5 +1,5 @@
-import { auth } from "@clerk/nextjs/server";
 import { type NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 /**
@@ -7,12 +7,10 @@ import { prisma } from "@/lib/db";
  * Export results as JSONL for fine-tuning
  */
 export async function GET(request: NextRequest) {
-  try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const { errorResponse } = await requireAdmin();
+  if (errorResponse) return errorResponse;
 
+  try {
     const { searchParams } = new URL(request.url);
     const runId = searchParams.get("runId");
     const minScore = parseFloat(searchParams.get("minScore") || "8");
