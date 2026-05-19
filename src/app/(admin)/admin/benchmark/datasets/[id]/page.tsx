@@ -3,7 +3,7 @@
 import { ArrowLeft, Loader2, Save, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,7 +37,7 @@ export default function TestCaseEditPage() {
     isActive: true,
   });
 
-  async function fetchTestCase() {
+  const fetchTestCase = useCallback(async () => {
     if (!testCaseId) return;
     try {
       setLoading(true);
@@ -55,11 +55,11 @@ export default function TestCaseEditPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [testCaseId]);
 
   useEffect(() => {
     fetchTestCase();
-  }, [testCaseId]);
+  }, [fetchTestCase]);
 
   const handleSave = async () => {
     setSaving(true);
