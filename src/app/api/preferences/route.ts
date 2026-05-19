@@ -9,12 +9,27 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 type PreferencesPatchBody = {
-  voiceEnabled?: boolean;
+  voiceEnabled?: boolean | null;
   tone?: string | null;
   mode?: string | null;
-  language?: string;
-  push?: boolean;
+  language?: string | null;
+  push?: boolean | null;
 };
+
+function hasValidPreferenceTypes(body: PreferencesPatchBody): boolean {
+  const isBooleanOrNull = (value: unknown) =>
+    value === undefined || value === null || typeof value === "boolean";
+  const isStringOrNull = (value: unknown) =>
+    value === undefined || value === null || typeof value === "string";
+
+  return (
+    isBooleanOrNull(body.voiceEnabled) &&
+    isBooleanOrNull(body.push) &&
+    isStringOrNull(body.tone) &&
+    isStringOrNull(body.mode) &&
+    isStringOrNull(body.language)
+  );
+}
 
 /**
  * GET /api/preferences
@@ -79,6 +94,9 @@ export async function PATCH(request: Request) {
       body = parsedBody as PreferencesPatchBody;
     } catch {
       return badRequest("Corpo richiesta non valido");
+    }
+    if (!hasValidPreferenceTypes(body)) {
+      return badRequest("Preferenze non valide");
     }
 
     const { voiceEnabled, tone, mode, language, push } = body;

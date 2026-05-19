@@ -200,6 +200,29 @@ describe("/api/preferences route", () => {
     });
   });
 
+  it.each([
+    { voiceEnabled: "true" },
+    { push: "false" },
+    { tone: 123 },
+    { mode: false },
+    { language: false },
+  ])("PATCH returns 400 for invalid preference types: %o", async (body) => {
+    const response = await PATCH(
+      new Request("http://localhost/api/preferences", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Preferenze non valide",
+    });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.preferencesUpsert).not.toHaveBeenCalled();
+  });
+
   it("PATCH returns 400 on malformed JSON", async () => {
     const response = await PATCH({
       json: async () => {
