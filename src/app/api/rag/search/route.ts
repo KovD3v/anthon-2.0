@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { query, limit: rawLimit, checkNeedsRag = false } = body;
 
-    if (!query) {
+    const normalizedQuery = typeof query === "string" ? query.trim() : "";
+    if (!normalizedQuery) {
       return NextResponse.json({ error: "Query is required" }, { status: 400 });
     }
 
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     // Optionally check if the query needs RAG
     let needsRag = true;
     if (checkNeedsRag) {
-      needsRag = await shouldUseRag(query);
+      needsRag = await shouldUseRag(normalizedQuery);
       if (!needsRag) {
         return NextResponse.json({
           needsRag: false,
@@ -52,8 +53,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Search for relevant documents
-    const results = await searchDocuments(query, limit);
-    const context = getRagContext ? await getRagContext(query) : "";
+    const results = await searchDocuments(normalizedQuery, limit);
+    const context = getRagContext ? await getRagContext(normalizedQuery) : "";
 
     return NextResponse.json({
       needsRag,

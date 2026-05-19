@@ -58,6 +58,21 @@ describe("POST /api/rag/search", () => {
     });
   });
 
+  it.each(["   ", 123, { text: "hello" }, ["hello"]])(
+    "returns 400 when query is not a non-empty string: %s",
+    async (query) => {
+      const response = await POST(buildRequest({ query }));
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "Query is required",
+      });
+      expect(mocks.shouldUseRag).not.toHaveBeenCalled();
+      expect(mocks.searchDocuments).not.toHaveBeenCalled();
+      expect(mocks.getRagContext).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([0, -1, 1.5, 6, "many"])(
     "returns 400 when limit is invalid: %s",
     async (limit) => {
