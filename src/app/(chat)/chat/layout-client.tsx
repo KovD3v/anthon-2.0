@@ -6,11 +6,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
-  startTransition,
   useContext,
   useEffect,
   useRef,
   useState,
+  useTransition,
 } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ import { UsageBanner } from "../../(chat)/components/UsageBanner";
 interface ChatContextType {
   chats: Chat[];
   isLoading: boolean;
+  isCreatingChat: boolean;
   currentChatId: string | null;
   isGuest: boolean;
   createChat: () => Promise<string | null>;
@@ -128,6 +129,13 @@ export function LayoutClient({
   const pathname = usePathname();
   const [chats, setChats] = useState<Chat[]>(initialChats);
   const [isLoading, _setIsLoading] = useState(false);
+  const [isCreateChatRequestPending, setIsCreateChatRequestPending] =
+    useState(false);
+  const [, startChatNavigation] = useTransition();
+  const [isCreateChatNavigationPending, startCreateChatNavigation] =
+    useTransition();
+  const isCreatingChat =
+    isCreateChatRequestPending || isCreateChatNavigationPending;
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (typeof window !== "undefined") {
       return window.innerWidth >= 768;
@@ -219,6 +227,7 @@ export function LayoutClient({
   // Chat data cache for avoiding redundant API calls
   const chatCacheRef = useRef<Map<string, ChatData>>(new Map());
   const preFetchingIdsRef = useRef<Set<string>>(new Set());
+  const createChatPromiseRef = useRef<Promise<string | null> | null>(null);
   const MAX_CACHE_SIZE = 20;
 
   // Get current chat ID from pathname
@@ -292,14 +301,22 @@ export function LayoutClient({
   }
 
   function navigateToChat(id: string) {
-    startTransition(() => {
+    startChatNavigation(() => {
       router.push(`/chat/${id}`, { scroll: false });
     });
   }
 
   // Create chat
   const createChat = async (): Promise<string | null> => {
-    try {
+    if (isCreatingChat) {
+      return createChatPromiseRef.current ?? null;
+    }
+
+    if (createChatPromiseRef.current) {
+      return createChatPromiseRef.current;
+    }
+
+    const createChatPromise = (async () => {
       const response = await fetch(`${apiBase}/chats`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -319,13 +336,29 @@ export function LayoutClient({
         };
 
         setChats((prev) => [newChat, ...prev]);
-        router.push(`/chat/${chat.id}`);
+        startCreateChatNavigation(() => {
+          router.push(`/chat/${chat.id}`, { scroll: false });
+        });
         return chat.id;
       }
+
+      toast.error("Creazione conversazione fallita");
+      return null;
+    })();
+
+    createChatPromiseRef.current = createChatPromise;
+    setIsCreateChatRequestPending(true);
+
+    try {
+      return await createChatPromise;
     } catch (error) {
       console.error("Failed to create chat:", error);
+      toast.error("Creazione conversazione fallita");
+      return null;
+    } finally {
+      createChatPromiseRef.current = null;
+      setIsCreateChatRequestPending(false);
     }
-    return null;
   };
 
   // Rename chat
@@ -420,6 +453,7 @@ export function LayoutClient({
       value={{
         chats,
         isLoading,
+        isCreatingChat,
         currentChatId,
         isGuest,
         createChat,
@@ -459,6 +493,7 @@ export function LayoutClient({
             <ChatList
               chats={chats}
               isLoading={isLoading}
+              isCreatingChat={isCreatingChat}
               currentChatId={currentChatId}
               deletingChatId={deletingChatId}
               onDelete={deleteChat}

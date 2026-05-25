@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { duration, ease } from "@/lib/motion";
+import { getCreateChatButtonState } from "../chat/create-chat-ui";
 
 interface Chat {
   id: string;
@@ -24,6 +25,7 @@ interface Chat {
 interface ChatListProps {
   chats: Chat[];
   isLoading: boolean;
+  isCreatingChat: boolean;
   currentChatId: string | null;
   deletingChatId: string | null;
   onDelete: (id: string) => void;
@@ -36,6 +38,7 @@ interface ChatListProps {
 export function ChatList({
   chats,
   isLoading,
+  isCreatingChat,
   currentChatId,
   deletingChatId,
   onDelete,
@@ -44,6 +47,11 @@ export function ChatList({
   onRename,
   onPreFetch,
 }: ChatListProps) {
+  const createChatButton = getCreateChatButtonState({
+    isCreating: isCreatingChat,
+    idleLabel: "Nuova Chat",
+  });
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="p-3">
@@ -51,11 +59,17 @@ export function ChatList({
           onClick={onCreate}
           className="group w-full justify-start gap-2 bg-background/50 text-foreground/80 shadow-sm backdrop-blur-sm transition-all hover:bg-background/80 hover:shadow-md active:scale-[0.98] border border-border/50 dark:border-white/10"
           variant="outline"
+          disabled={createChatButton.isDisabled}
+          aria-busy={isCreatingChat}
         >
-          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
-            <Plus className="h-3.5 w-3.5" />
+          <div className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+            {createChatButton.icon === "loading" ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Plus className="size-3.5" />
+            )}
           </div>
-          Nuova Chat
+          {createChatButton.label}
         </Button>
       </div>
 
