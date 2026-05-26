@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { formatRelativeTime } from "@/lib/format-time";
 import { defaultTransition, fadeUp, scaleIn } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 import { AttachmentPreview } from "./Attachments";
 import { AudioPlayer } from "./AudioPlayer";
 import { useMessageVirtualizer } from "./hooks/useMessageVirtualizer";
@@ -150,28 +151,7 @@ export function MessageList({
   };
 
   if (messages.length === 0) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
-        <m.div
-          variants={scaleIn}
-          initial="hidden"
-          animate="show"
-          transition={defaultTransition}
-          className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-linear-to-br from-primary/10 to-transparent ring-1 ring-white/10"
-        >
-          <Brain className="h-12 w-12 text-primary/80" />
-        </m.div>
-        <m.h2
-          variants={fadeUp}
-          initial="hidden"
-          animate="show"
-          transition={{ ...defaultTransition, delay: 0.15 }}
-          className="mt-6 text-3xl font-semibold tracking-tight text-foreground"
-        >
-          How can I help you today?
-        </m.h2>
-      </div>
-    );
+    return <EmptyChatWelcome className="flex-1 justify-center p-8" />;
   }
 
   return (
@@ -631,5 +611,30 @@ export function MessageList({
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+export function EmptyChatWelcome({ className }: { className?: string }) {
+  return (
+    <div className={cn("flex flex-col items-center text-center", className)}>
+      <m.div
+        variants={scaleIn}
+        initial="hidden"
+        animate="show"
+        transition={defaultTransition}
+        className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-linear-to-br from-primary/10 to-transparent ring-1 ring-white/10"
+      >
+        <Brain className="h-12 w-12 text-primary/80" />
+      </m.div>
+      <m.h2
+        variants={fadeUp}
+        initial="hidden"
+        animate="show"
+        transition={{ ...defaultTransition, delay: 0.15 }}
+        className="mt-6 text-3xl font-semibold tracking-tight text-foreground"
+      >
+        How can I help you today?
+      </m.h2>
+    </div>
   );
 }

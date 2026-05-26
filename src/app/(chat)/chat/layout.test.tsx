@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -66,5 +67,79 @@ describe("chat layout sidebar data", () => {
       isGuest: true,
     });
     expect(mocks.prismaUserFindFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe("chat mobile viewport layout", () => {
+  it("uses the small viewport height on mobile so browser toolbars do not cover the composer", () => {
+    const css = readFileSync("src/app/globals.css", "utf8");
+    const layoutClient = readFileSync(
+      "src/app/(chat)/chat/layout-client.tsx",
+      "utf8",
+    );
+    const layout = readFileSync("src/app/(chat)/chat/layout.tsx", "utf8");
+
+    expect(css).toContain(".chat-mobile-viewport");
+    expect(css).toContain("height: var(--chat-viewport-height, 100dvh);");
+    expect(css).toContain("@media (max-width: 767px)");
+    expect(css).toContain("height: var(--chat-viewport-height, 100svh);");
+    expect(layoutClient).toContain("installChatViewportSizing");
+    expect(layoutClient).toContain("ref={chatViewportRef}");
+    expect(layoutClient).not.toContain("debugViewport");
+    expect(layoutClient).not.toContain("ViewportDebugOverlay");
+    expect(layoutClient).toContain(
+      'className="flex chat-mobile-viewport overflow-hidden"',
+    );
+    expect(layout).toContain(
+      'className="flex chat-mobile-viewport overflow-hidden"',
+    );
+  });
+
+  it("does not derive the first sidebar render from window width", () => {
+    const layoutClient = readFileSync(
+      "src/app/(chat)/chat/layout-client.tsx",
+      "utf8",
+    );
+
+    expect(layoutClient).toContain(
+      "const [isSidebarOpen, setIsSidebarOpen] = useState(false);",
+    );
+    expect(layoutClient).not.toContain(
+      "const [isSidebarOpen, setIsSidebarOpen] = useState(() => {",
+    );
+  });
+
+  it("keeps the composer outside a single scrollable empty-state content region", () => {
+    const conversationClient = readFileSync(
+      "src/app/(chat)/chat/[id]/chat-conversation-client.tsx",
+      "utf8",
+    );
+    const conversationPage = readFileSync(
+      "src/app/(chat)/chat/[id]/page.tsx",
+      "utf8",
+    );
+    const layoutClient = readFileSync(
+      "src/app/(chat)/chat/layout-client.tsx",
+      "utf8",
+    );
+    const chatInput = readFileSync(
+      "src/app/(chat)/components/ChatInput.tsx",
+      "utf8",
+    );
+
+    expect(layoutClient).toContain(
+      'className="flex min-h-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]"',
+    );
+    expect(conversationPage).toContain(
+      '<PageWrapper className="flex min-h-0 flex-1 flex-col">',
+    );
+    expect(conversationClient).toContain("const isEmptyIdle =");
+    expect(conversationClient).toContain(
+      'className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-linear-to-b from-background to-muted/20"',
+    );
+    expect(conversationClient).toContain(
+      'className="min-h-0 flex-1 overflow-y-auto px-4 py-6"',
+    );
+    expect(chatInput).toContain("w-full shrink-0");
   });
 });

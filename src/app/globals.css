@@ -196,6 +196,16 @@
 }
 
 @layer utilities {
+  .chat-mobile-viewport {
+    height: var(--chat-viewport-height, 100dvh);
+  }
+
+  @media (max-width: 767px) {
+    .chat-mobile-viewport {
+      height: var(--chat-viewport-height, 100svh);
+    }
+  }
+
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
     height: 4px;

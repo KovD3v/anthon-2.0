@@ -19,7 +19,10 @@ import {
 import type { AttachmentData, ChatData } from "@/types/chat";
 import { ChatHeader } from "../../../(chat)/components/ChatHeader";
 import { ChatInput } from "../../../(chat)/components/ChatInput";
-import { MessageList } from "../../../(chat)/components/MessageList";
+import {
+  EmptyChatWelcome,
+  MessageList,
+} from "../../../(chat)/components/MessageList";
 import { SuggestedActions } from "../../../(chat)/components/SuggestedActions";
 import { useChatContext } from "../layout-client";
 
@@ -492,9 +495,10 @@ export function ChatConversationClient({
   };
 
   const isLoading = status === "streaming" || status === "submitted";
+  const isEmptyIdle = streamingMessages.length === 0 && !isLoading;
 
   return (
-    <div className="flex flex-1 flex-col min-h-0 relative bg-linear-to-b from-background to-muted/20">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-linear-to-b from-background to-muted/20">
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-primary/5 via-background/0 to-background/0" />
 
       <ChatHeader
@@ -507,38 +511,42 @@ export function ChatConversationClient({
         }}
       />
 
-      <MessageList
-        messages={streamingMessages}
-        isLoading={isLoading}
-        editingMessageId={editingMessageId}
-        deletingMessageId={deletingMessageId}
-        editContent={editContent}
-        onEditStart={(id, text) => {
-          setEditingMessageId(id);
-          setEditContent(text);
-        }}
-        onEditCancel={() => {
-          setEditingMessageId(null);
-          setEditContent("");
-        }}
-        onEditSave={handleSaveEdit}
-        onEditContentChange={setEditContent}
-        onDelete={handleDeleteMessage}
-        onRegenerate={handleRegenerate}
-        hasMoreMessages={chatData.pagination?.hasMore ?? false}
-        isLoadingMore={isLoadingMore}
-        voiceMessages={voiceMessages}
-        voiceGeneratingMessageId={voiceGeneratingMessageId}
-        onLoadMore={loadMoreMessages}
-      />
-
-      {streamingMessages.length === 0 && !isLoading && (
-        <div className="flex-1 flex items-center justify-center px-4">
-          <SuggestedActions
-            onSelect={(prompt) => setInput(prompt)}
-            variant="cards"
-          />
+      {isEmptyIdle ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
+          <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-center gap-6 py-4">
+            <EmptyChatWelcome />
+            <SuggestedActions
+              onSelect={(prompt) => setInput(prompt)}
+              variant="cards"
+              className="w-full"
+            />
+          </div>
         </div>
+      ) : (
+        <MessageList
+          messages={streamingMessages}
+          isLoading={isLoading}
+          editingMessageId={editingMessageId}
+          deletingMessageId={deletingMessageId}
+          editContent={editContent}
+          onEditStart={(id, text) => {
+            setEditingMessageId(id);
+            setEditContent(text);
+          }}
+          onEditCancel={() => {
+            setEditingMessageId(null);
+            setEditContent("");
+          }}
+          onEditSave={handleSaveEdit}
+          onEditContentChange={setEditContent}
+          onDelete={handleDeleteMessage}
+          onRegenerate={handleRegenerate}
+          hasMoreMessages={chatData.pagination?.hasMore ?? false}
+          isLoadingMore={isLoadingMore}
+          voiceMessages={voiceMessages}
+          voiceGeneratingMessageId={voiceGeneratingMessageId}
+          onLoadMore={loadMoreMessages}
+        />
       )}
 
       {formattedError && (

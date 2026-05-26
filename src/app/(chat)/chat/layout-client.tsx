@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
+import { installChatViewportSizing } from "@/lib/visual-viewport";
 import type { Chat, ChatData, UsageData } from "@/types/chat";
 import { ChatList } from "../../(chat)/components/ChatList";
 import { SearchDialog } from "../../(chat)/components/SearchDialog";
@@ -136,12 +137,7 @@ export function LayoutClient({
     useTransition();
   const isCreatingChat =
     isCreateChatRequestPending || isCreateChatNavigationPending;
-  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
-    if (typeof window !== "undefined") {
-      return window.innerWidth >= 768;
-    }
-    return true;
-  });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
@@ -160,6 +156,12 @@ export function LayoutClient({
   useEffect(() => {
     setUsageData(initialUsageData);
   }, [initialUsageData]);
+
+  useEffect(() => {
+    if (window.innerWidth >= 768) {
+      setIsSidebarOpen(true);
+    }
+  }, []);
 
   // Keep usage monitor fresh while user is active in chat.
   useEffect(() => {
@@ -228,10 +230,17 @@ export function LayoutClient({
   const chatCacheRef = useRef<Map<string, ChatData>>(new Map());
   const preFetchingIdsRef = useRef<Set<string>>(new Set());
   const createChatPromiseRef = useRef<Promise<string | null> | null>(null);
+  const chatViewportRef = useRef<HTMLDivElement>(null);
   const MAX_CACHE_SIZE = 20;
 
   // Get current chat ID from pathname
   const currentChatId = pathname?.split("/chat/")?.[1] || null;
+
+  useEffect(() => {
+    if (!chatViewportRef.current) return;
+
+    return installChatViewportSizing(chatViewportRef.current);
+  }, []);
 
   // Fetch chats (for refresh)
   async function refreshChats() {
@@ -466,7 +475,10 @@ export function LayoutClient({
         updateCachedChat,
       }}
     >
-      <div className="flex h-dvh overflow-hidden">
+      <div
+        ref={chatViewportRef}
+        className="flex chat-mobile-viewport overflow-hidden"
+      >
         {/* Mobile Backdrop */}
         {isSidebarOpen && (
           <button
@@ -513,7 +525,7 @@ export function LayoutClient({
         </aside>
 
         {/* Main Content */}
-        <div className="flex flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
           {/* Integrated Header Bar */}
           {isGuest ? (
             <GuestBanner
