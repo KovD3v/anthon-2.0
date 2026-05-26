@@ -4,7 +4,7 @@
  * GET /api/guest/usage - Get current guest user's usage and limits
  */
 
-import { authenticateGuest } from "@/lib/guest-auth";
+import { getExistingGuestUser } from "@/lib/guest-auth";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { getDailyUsage, getRateLimitsForUser } from "@/lib/rate-limit";
 
@@ -17,11 +17,6 @@ export async function GET(request: Request) {
     { route: "/api/guest/usage", channel: "WEB_GUEST" },
     async () => {
       try {
-        const { user } = await authenticateGuest();
-
-        // Get daily usage for guest
-        const usage = await getDailyUsage(user.id);
-
         // Get limits for guest
         const limits = getRateLimitsForUser(
           undefined,
@@ -29,6 +24,30 @@ export async function GET(request: Request) {
           null,
           true, // isGuest
         );
+
+        const user = await getExistingGuestUser();
+
+        if (!user) {
+          return Response.json({
+            usage: {
+              requestCount: 0,
+              inputTokens: 0,
+              outputTokens: 0,
+              totalCostUsd: 0,
+            },
+            limits: {
+              maxRequests: limits.maxRequestsPerDay,
+              maxInputTokens: limits.maxInputTokensPerDay,
+              maxOutputTokens: limits.maxOutputTokensPerDay,
+              maxCostUsd: limits.maxCostPerDay,
+            },
+            tier: "GUEST",
+            subscriptionStatus: null,
+          });
+        }
+
+        // Get daily usage for guest
+        const usage = await getDailyUsage(user.id);
 
         logger.info("usage.snapshot.guest", "Fetched guest usage snapshot", {
           userId: user.id,

@@ -160,7 +160,7 @@ async function getOrCreateGuestUser(
  * Get an existing guest user from cookies (does not create new).
  * Returns null if no guest session exists.
  */
-async function _getExistingGuestUser(): Promise<GuestUser | null> {
+export async function getExistingGuestUser(): Promise<GuestUser | null> {
   const token = await getGuestTokenFromCookies();
   if (!token) return null;
 
