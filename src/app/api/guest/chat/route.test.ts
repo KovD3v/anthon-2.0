@@ -348,6 +348,28 @@ describe("POST /api/guest/chat", () => {
     );
   });
 
+  it("uses request messages for title refresh without a blocking message count", async () => {
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Nuova Chat",
+      customTitle: false,
+    });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          { role: "user", parts: [{ type: "text", text: "first prompt" }] },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.messageCount).not.toHaveBeenCalled();
+    expect(mocks.waitUntil).toHaveBeenCalledTimes(2);
+    expect(mocks.generateChatTitle).toHaveBeenCalledWith("USER: first prompt");
+  });
+
   it("runs onFinish side effects and does not schedule memory extraction", async () => {
     let streamArgs: Record<string, unknown> | undefined;
     mocks.streamChat.mockImplementation(

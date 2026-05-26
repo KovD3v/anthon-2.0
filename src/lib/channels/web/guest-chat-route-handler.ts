@@ -186,11 +186,10 @@ export async function handleGuestChatPost(request: Request) {
 
         // Auto-generate or refresh chat title if not manually set by user
         if (!chat.customTitle) {
-          const messageCount = await LatencyLogger.measure(
-            "DB: Count messages",
-            () => prisma.message.count({ where: { chatId } }),
-            "🌐 Guest Chat API Request",
-          );
+          const messageCount = messages.filter(
+            (message) =>
+              message.role === "user" || message.role === "assistant",
+          ).length;
 
           const shouldRefresh =
             messageCount === 1 ||
