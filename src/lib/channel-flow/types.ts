@@ -38,6 +38,8 @@ export interface InboundContext {
     isGuest?: boolean;
     hasImages?: boolean;
     hasAudio?: boolean;
+    responseMode?: "text" | "voice";
+    voiceEnabled?: boolean;
   };
   execution?: {
     mode?: "stream" | "text";
@@ -74,6 +76,9 @@ export interface PersistAssistantOutputInput {
   text: string;
   userMessageText: string;
   metrics: AIMetrics;
+  messageType?: "TEXT" | "AUDIO";
+  mediaUrl?: string;
+  mediaType?: string;
   metadata?: Prisma.InputJsonValue;
   updateChatTimestamp?: boolean;
   revalidateTags?: string[];

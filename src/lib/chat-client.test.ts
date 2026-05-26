@@ -1,7 +1,11 @@
 import type { UIMessage } from "ai";
 import { describe, expect, it } from "vitest";
 import type { ChatMessage } from "@/types/chat";
-import { convertToUIMessages, extractTextFromParts } from "./chat-client";
+import {
+  convertToUIMessages,
+  extractTextFromParts,
+  normalizeFilePartForPreview,
+} from "./chat-client";
 
 describe("chat-client", () => {
   it("converts messages with explicit parts and usage metadata", () => {
@@ -86,5 +90,42 @@ describe("chat-client", () => {
 
     expect(extractTextFromParts(parts)).toBe("Hi there");
     expect(extractTextFromParts(undefined)).toBe("");
+  });
+
+  it("normalizes uploaded and streamed file parts for previews", () => {
+    expect(
+      normalizeFilePartForPreview({
+        type: "file",
+        data: "data:audio",
+        mimeType: "audio/mpeg",
+        name: "voice.mp3",
+        size: 12,
+        attachmentId: "att-1",
+      }),
+    ).toEqual({
+      src: "data:audio",
+      mimeType: "audio/mpeg",
+      name: "voice.mp3",
+      size: 12,
+      attachmentId: "att-1",
+    });
+
+    expect(
+      normalizeFilePartForPreview({
+        type: "file",
+        url: "https://blob.example/voice.mp3",
+        mediaType: "audio/mpeg",
+      }),
+    ).toEqual({
+      src: "https://blob.example/voice.mp3",
+      mimeType: "audio/mpeg",
+      name: "Allegato",
+      size: 0,
+      attachmentId: undefined,
+    });
+
+    expect(normalizeFilePartForPreview({ type: "text", text: "nope" })).toBe(
+      null,
+    );
   });
 });

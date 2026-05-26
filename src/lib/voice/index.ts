@@ -18,3 +18,8 @@ export {
   shouldGenerateVoice,
   trackVoiceUsage,
 } from "./funnel";
+export {
+  decideWebVoiceMode,
+  type WebVoiceMode,
+  type WebVoiceModeDecision,
+} from "./preflight";

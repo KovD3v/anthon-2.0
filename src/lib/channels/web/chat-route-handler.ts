@@ -1,6 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { waitUntil } from "@vercel/functions";
-import type { UIMessage } from "ai";
+import {
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  type UIMessage,
+} from "ai";
 import type { Prisma } from "@/generated/prisma";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
@@ -10,10 +14,14 @@ import {
 } from "@/lib/billing/personal-subscription";
 import type { ChannelMessagePart } from "@/lib/channel-flow";
 import { runChannelFlow } from "@/lib/channel-flow";
+import { persistAssistantOutput } from "@/lib/channel-flow/persistence";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { generateVoice, trackVoiceUsage } from "@/lib/voice";
+import { getVoicePlanConfig } from "@/lib/voice/config";
+import { decideWebVoiceMode } from "@/lib/voice/preflight";
 
 const logger = createLogger("ai");
 
@@ -64,6 +72,11 @@ export async function handleWebChatPost(request: Request) {
                     planId: true,
                   },
                 },
+                preferences: {
+                  select: {
+                    voiceEnabled: true,
+                  },
+                },
               },
             });
 
@@ -83,6 +96,11 @@ export async function handleWebChatPost(request: Request) {
                   select: {
                     status: true,
                     planId: true,
+                  },
+                },
+                preferences: {
+                  select: {
+                    voiceEnabled: true,
                   },
                 },
               },
@@ -399,6 +417,45 @@ export async function handleWebChatPost(request: Request) {
           }
         }
 
+        const voicePlanConfig = getVoicePlanConfig(
+          subscriptionStatus,
+          user.role,
+          planId,
+          user.isGuest,
+          rateLimitResult.effectiveEntitlements?.modelTier,
+        );
+        const voiceDecision = await decideWebVoiceMode({
+          userId: user.id,
+          userMessage: userMessageText,
+          recentMessages: getRecentTextMessages(messages),
+          userPreferences: {
+            voiceEnabled: user.preferences?.voiceEnabled ?? true,
+          },
+          planConfig: voicePlanConfig,
+          planId,
+          hasAttachments: Boolean(hasAttachments),
+        });
+
+        if (voiceDecision.mode === "VOICE") {
+          const voiceResponse = await handleVoiceFirstWebResponse({
+            userId: user.id,
+            chatId,
+            userMessageText,
+            messageParts,
+            rateLimitResult,
+            planId,
+            userRole: user.role,
+            subscriptionStatus,
+            isGuest: user.isGuest,
+            hasImages,
+            hasAudio,
+            waitUntil,
+          });
+
+          requestTimer.split("Voice response complete");
+          return voiceResponse;
+        }
+
         const flowResult = await runChannelFlow({
           channel: "WEB",
           userId: user.id,
@@ -422,6 +479,7 @@ export async function handleWebChatPost(request: Request) {
             isGuest: user.isGuest,
             hasImages,
             hasAudio,
+            responseMode: "text",
           },
           execution: { mode: "stream" },
           persistence: {
@@ -473,4 +531,185 @@ function normalizeFilePartData(filePart: {
   }
 
   return filePart.url;
+}
+
+function getRecentTextMessages(messages: UIMessage[]) {
+  return messages.slice(-6).map((message) => ({
+    role: message.role,
+    content:
+      message.parts
+        ?.map((part) => (part.type === "text" ? part.text : ""))
+        .join("")
+        .slice(0, 500) || "",
+  }));
+}
+
+async function handleVoiceFirstWebResponse({
+  userId,
+  chatId,
+  userMessageText,
+  messageParts,
+  rateLimitResult,
+  planId,
+  userRole,
+  subscriptionStatus,
+  isGuest,
+  hasImages,
+  hasAudio,
+  waitUntil: schedule,
+}: {
+  userId: string;
+  chatId: string;
+  userMessageText: string;
+  messageParts: ChannelMessagePart[];
+  rateLimitResult: Awaited<ReturnType<typeof checkRateLimit>>;
+  planId?: string | null;
+  userRole?: string;
+  subscriptionStatus?: string;
+  isGuest?: boolean;
+  hasImages?: boolean;
+  hasAudio?: boolean;
+  waitUntil?: (promise: Promise<unknown>) => void;
+}) {
+  const flowResult = await runChannelFlow({
+    channel: "WEB",
+    userId,
+    chatId,
+    userMessageText,
+    parts: messageParts,
+    rateLimit: {
+      allowed: rateLimitResult.allowed,
+      effectiveEntitlements: rateLimitResult.effectiveEntitlements,
+      upgradeInfo: rateLimitResult.upgradeInfo,
+    },
+    options: {
+      allowAttachments: true,
+      allowMemoryExtraction: true,
+      allowVoiceOutput: true,
+    },
+    ai: {
+      planId,
+      userRole,
+      subscriptionStatus,
+      isGuest,
+      hasImages,
+      hasAudio,
+      responseMode: "voice",
+      voiceEnabled: true,
+    },
+    execution: { mode: "text" },
+    persistence: {
+      channel: "WEB",
+      saveAssistantMessage: false,
+    },
+  });
+
+  const assistantText = flowResult.assistantText.trim();
+  if (!assistantText || !flowResult.metrics) {
+    throw new Error("Voice response generation produced no assistant text");
+  }
+
+  try {
+    const audio = await generateVoice(assistantText);
+    const { put } = await import("@vercel/blob");
+    const blobResult = await put(
+      `voice/${chatId}/${Date.now()}.mp3`,
+      audio.audioBuffer,
+      {
+        access: "public",
+        contentType: "audio/mpeg",
+      },
+    );
+
+    const assistantMessage = await persistAssistantOutput({
+      userId,
+      chatId,
+      channel: "WEB",
+      text: assistantText,
+      userMessageText,
+      metrics: flowResult.metrics,
+      messageType: "AUDIO",
+      mediaUrl: blobResult.url,
+      mediaType: "audio/mpeg",
+      metadata: {
+        responseMode: "voice",
+        transcript: assistantText,
+      },
+      updateChatTimestamp: true,
+      revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
+      allowMemoryExtraction: true,
+      waitUntil: schedule,
+    });
+
+    await Promise.all([
+      prisma.attachment.create({
+        data: {
+          messageId: assistantMessage.id,
+          name: "voice.mp3",
+          contentType: "audio/mpeg",
+          size: audio.audioBuffer.length,
+          blobUrl: blobResult.url,
+        },
+      }),
+      trackVoiceUsage(userId, audio.characterCount, "WEB"),
+    ]);
+
+    return createVoiceFileStreamResponse(assistantMessage.id, blobResult.url);
+  } catch (error) {
+    logger.error("voice.web_generation_failed", "Web voice generation failed", {
+      error,
+      userId,
+      chatId,
+    });
+
+    const fallbackMessage = await persistAssistantOutput({
+      userId,
+      chatId,
+      channel: "WEB",
+      text: assistantText,
+      userMessageText,
+      metrics: flowResult.metrics,
+      metadata: {
+        responseMode: "text_fallback",
+        voiceFailure: true,
+      },
+      updateChatTimestamp: true,
+      revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
+      allowMemoryExtraction: true,
+      waitUntil: schedule,
+    });
+
+    return createTextStreamResponse(fallbackMessage.id, assistantText);
+  }
+}
+
+function createVoiceFileStreamResponse(messageId: string, url: string) {
+  const stream = createUIMessageStream<UIMessage>({
+    execute: ({ writer }) => {
+      writer.write({ type: "start", messageId });
+      writer.write({ type: "start-step" });
+      writer.write({ type: "file", url, mediaType: "audio/mpeg" });
+      writer.write({ type: "finish-step" });
+      writer.write({ type: "finish", finishReason: "stop" });
+    },
+  });
+
+  return createUIMessageStreamResponse({ stream });
+}
+
+function createTextStreamResponse(messageId: string, text: string) {
+  const textPartId = `${messageId}-text`;
+  const stream = createUIMessageStream<UIMessage>({
+    execute: ({ writer }) => {
+      writer.write({ type: "start", messageId });
+      writer.write({ type: "start-step" });
+      writer.write({ type: "text-start", id: textPartId });
+      writer.write({ type: "text-delta", id: textPartId, delta: text });
+      writer.write({ type: "text-end", id: textPartId });
+      writer.write({ type: "finish-step" });
+      writer.write({ type: "finish", finishReason: "stop" });
+    },
+  });
+
+  return createUIMessageStreamResponse({ stream });
 }

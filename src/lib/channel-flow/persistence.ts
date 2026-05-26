@@ -54,21 +54,26 @@ export async function persistAssistantOutput({
   text,
   userMessageText,
   metrics,
+  messageType = "TEXT",
+  mediaUrl,
+  mediaType,
   metadata,
   updateChatTimestamp = false,
   revalidateTags: tags = [],
   allowMemoryExtraction = false,
   waitUntil,
 }: PersistAssistantOutputInput) {
-  await prisma.message.create({
+  const message = await prisma.message.create({
     data: {
       userId,
       ...(chatId ? { chatId } : {}),
       channel,
       direction: "OUTBOUND",
       role: "ASSISTANT",
-      type: "TEXT",
+      type: messageType,
       parts: [{ type: "text", text }] as Prisma.InputJsonValue,
+      ...(mediaUrl ? { mediaUrl } : {}),
+      ...(mediaType ? { mediaType } : {}),
       ...(metadata ? { metadata } : {}),
       model: metrics.model,
       inputTokens: metrics.inputTokens,
@@ -104,7 +109,7 @@ export async function persistAssistantOutput({
   }
 
   if (!allowMemoryExtraction) {
-    return;
+    return message;
   }
 
   const memoryTask = extractAndSaveMemories(
@@ -120,4 +125,6 @@ export async function persistAssistantOutput({
   });
 
   scheduleBackground(waitUntil, memoryTask);
+
+  return message;
 }

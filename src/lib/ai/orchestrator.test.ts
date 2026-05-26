@@ -271,6 +271,23 @@ describe("ai/orchestrator", () => {
     expect(streamInput.system).toContain("Voice generation is disabled");
   });
 
+  it("adds voice-first response instructions when the response mode is voice", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-voice",
+      userMessage: "Mi serve un reset mentale prima della partita",
+      responseMode: "voice",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      system: string;
+    };
+
+    expect(streamInput.system).toContain("VOICE RESPONSE MODE");
+    expect(streamInput.system).toContain("spoken audio");
+    expect(streamInput.system).toContain("Do not use markdown");
+  });
+
   it("continues streaming when memories are temporarily unavailable", async () => {
     mocks.formatMemoriesForPrompt.mockRejectedValue(
       new Error("memory table is out of sync"),

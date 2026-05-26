@@ -56,17 +56,6 @@ export function ChatConversationClient({
   const [hasInitialized, setHasInitialized] = useState(false);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
 
-  // Audio/Voice state
-  const [_audioState, setAudioState] = useState<{
-    src: string;
-    isPlaying: boolean;
-  } | null>(null);
-  const [voiceGeneratingMessageId, setVoiceGeneratingMessageId] = useState<
-    string | null
-  >(null);
-  const [voiceMessages, setVoiceMessages] = useState<Map<string, string>>(
-    () => new Map(),
-  );
   const trialActivationAttemptedRef = useRef(false);
   const trialActivationInFlightRef = useRef(false);
   const submitInFlightRef = useRef(false);
@@ -138,55 +127,6 @@ export function ChatConversationClient({
       const newMessages = await refreshChatData();
       if (newMessages) {
         setMessages(newMessages);
-
-        const lastMessage = newMessages[newMessages.length - 1];
-        const lastUserMessage = newMessages
-          .slice(0, newMessages.length - 1)
-          .reverse()
-          .find((m) => m.role === "user");
-
-        if (isGuest) return;
-
-        if (lastMessage && lastMessage.role === "assistant") {
-          // Skip voice API if quiet mode is enabled (L1) or plan doesn't include voice (L2)
-          if (
-            chatData.voiceEnabled === false ||
-            chatData.voicePlanEnabled === false
-          ) {
-            return;
-          }
-
-          setVoiceGeneratingMessageId(lastMessage.id);
-          try {
-            const userText = extractTextFromParts(lastUserMessage?.parts);
-            const res = await fetch("/api/voice/generate", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                messageId: lastMessage.id,
-                userMessage: userText,
-              }),
-            });
-
-            if (res.ok) {
-              const data = await res.json();
-              if (data.shouldGenerateVoice && data.audio) {
-                const audioSrc = `data:${data.mimeType};base64,${data.audio}`;
-                setVoiceMessages((prev) =>
-                  new Map(prev).set(lastMessage.id, audioSrc),
-                );
-                setAudioState({
-                  src: audioSrc,
-                  isPlaying: true,
-                });
-              }
-            }
-          } catch (err) {
-            console.error("Voice generation failed:", err);
-          } finally {
-            setVoiceGeneratingMessageId(null);
-          }
-        }
       }
     },
   });
@@ -540,8 +480,6 @@ export function ChatConversationClient({
           onRegenerate={handleRegenerate}
           hasMoreMessages={chatData.pagination?.hasMore ?? false}
           isLoadingMore={isLoadingMore}
-          voiceMessages={voiceMessages}
-          voiceGeneratingMessageId={voiceGeneratingMessageId}
           onLoadMore={loadMoreMessages}
         />
       )}

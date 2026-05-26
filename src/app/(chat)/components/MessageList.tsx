@@ -13,13 +13,13 @@ import {
   ThumbsDown,
   ThumbsUp,
   Trash2,
-  Volume2,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
+import { normalizeFilePartForPreview } from "@/lib/chat-client";
 import { formatRelativeTime } from "@/lib/format-time";
 import { defaultTransition, fadeUp, scaleIn } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -49,9 +49,6 @@ interface MessageListProps {
   hasMoreMessages?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
-  // Voice message props
-  voiceMessages?: Map<string, string>;
-  voiceGeneratingMessageId?: string | null;
 }
 
 export function MessageList({
@@ -69,9 +66,6 @@ export function MessageList({
   hasMoreMessages = false,
   isLoadingMore = false,
   onLoadMore,
-  // Voice
-  voiceMessages,
-  voiceGeneratingMessageId,
 }: MessageListProps) {
   const { parentRef, rowVirtualizer } = useMessageVirtualizer(messages.length);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -206,11 +200,7 @@ export function MessageList({
               const hasText = messageText.trim().length > 0;
               const isAttachmentOnly = hasAttachments && !hasText;
 
-              // Voice message state - check both in-memory and DB attachments
-              // First check in-memory state (for newly generated voices)
-              const inMemoryVoiceSrc = voiceMessages?.get(message.id);
-
-              // Then check for audio attachments from DB
+              // Voice message state from persisted DB attachments.
               const dbVoiceAttachment = (
                 message as unknown as {
                   attachments?: Array<{
@@ -220,10 +210,8 @@ export function MessageList({
                 }
               ).attachments?.find((a) => a.contentType.startsWith("audio/"));
 
-              const isVoiceMessage = !!inMemoryVoiceSrc || !!dbVoiceAttachment;
-              const voiceAudioSrc =
-                inMemoryVoiceSrc || dbVoiceAttachment?.blobUrl;
-              const isGeneratingVoice = voiceGeneratingMessageId === message.id;
+              const isVoiceMessage = !!dbVoiceAttachment;
+              const voiceAudioSrc = dbVoiceAttachment?.blobUrl;
 
               return (
                 <div
@@ -326,16 +314,6 @@ export function MessageList({
                           </div>
                         ) : message.role === "assistant" ? (
                           <>
-                            {/* Voice generating indicator */}
-                            {isGeneratingVoice && (
-                              <div className="flex items-center gap-2 py-2 text-primary/80">
-                                <Volume2 className="h-4 w-4 animate-pulse" />
-                                <span className="text-sm">
-                                  Generando vocale...
-                                </span>
-                              </div>
-                            )}
-
                             {/* Voice message: show only audio player */}
                             {isVoiceMessage && voiceAudioSrc ? (
                               <AudioPlayer
@@ -345,9 +323,7 @@ export function MessageList({
                               />
                             ) : (
                               /* Text message: show markdown */
-                              !isGeneratingVoice && (
-                                <MemoizedMarkdown content={messageText} />
-                              )
+                              <MemoizedMarkdown content={messageText} />
                             )}
                           </>
                         ) : (
@@ -366,21 +342,16 @@ export function MessageList({
                             {message.parts
                               ?.filter((part) => part.type === "file")
                               .map((part, idx: number) => {
-                                const filePart = part as unknown as {
-                                  type: "file";
-                                  data: string;
-                                  mimeType: string;
-                                  name: string;
-                                  size?: number;
-                                  attachmentId?: string;
-                                };
+                                const filePart =
+                                  normalizeFilePartForPreview(part);
+                                if (!filePart) return null;
 
                                 // Use AudioPlayer for audio files
                                 if (filePart.mimeType?.startsWith("audio/")) {
                                   return (
                                     <AudioPlayer
                                       key={filePart.attachmentId || idx}
-                                      src={filePart.data}
+                                      src={filePart.src}
                                       name={filePart.name}
                                       mimeType={filePart.mimeType}
                                     />
@@ -396,8 +367,8 @@ export function MessageList({
                                         `${message.id}-${idx}`,
                                       name: filePart.name,
                                       contentType: filePart.mimeType,
-                                      size: filePart.size || 0,
-                                      url: filePart.data,
+                                      size: filePart.size,
+                                      url: filePart.src,
                                     }}
                                   />
                                 );

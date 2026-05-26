@@ -143,6 +143,7 @@ interface StreamChatOptions {
     toolResults?: unknown[];
   }) => void;
   voiceEnabled?: boolean;
+  responseMode?: "text" | "voice";
   effectiveEntitlements?: EffectiveEntitlements;
 }
 
@@ -158,6 +159,7 @@ async function buildSystemPrompt(
     currentDate?: string;
     voiceEnabled?: boolean;
     userStyle?: string;
+    responseMode?: "text" | "voice";
   },
 ): Promise<string> {
   const currentDate =
@@ -216,6 +218,16 @@ async function buildSystemPrompt(
     );
   }
 
+  if (prefetched?.responseMode === "voice") {
+    systemPrompt += `\n\nVOICE RESPONSE MODE
+- This answer will be converted directly into spoken audio.
+- Write for spoken audio, not for the screen.
+- Keep it short: 1 to 4 natural sentences.
+- Do not use markdown, bullets, numbered lists, tables, URLs, code, headings, or formatting.
+- Use warm, direct Italian when the user writes in Italian.
+- If the answer genuinely needs visible structure, say that you will keep it written instead.`;
+  }
+
   // Inject user style information if available (Phase 2: Naturalness)
   if (prefetched?.userStyle) {
     systemPrompt += `\n\nDETECTED USER STYLE (Mirroring):\n${prefetched.userStyle}`;
@@ -269,6 +281,7 @@ export async function streamChat({
   onFinish,
   onStepFinish,
   voiceEnabled,
+  responseMode = "text",
   effectiveEntitlements: prefetchedEntitlements,
 }: StreamChatOptions) {
   // Record start time for performance tracking
@@ -408,6 +421,7 @@ export async function streamChat({
         userMemories,
         currentDate,
         voiceEnabled: voiceEnabledResult,
+        responseMode,
         userStyle: userStyleInstruction,
       });
     },

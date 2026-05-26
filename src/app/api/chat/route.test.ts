@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   messageCreate: vi.fn(),
   messageCount: vi.fn(),
   attachmentFindFirst: vi.fn(),
+  attachmentCreate: vi.fn(),
   attachmentUpdate: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
@@ -22,6 +23,10 @@ const mocks = vi.hoisted(() => ({
   trackInboundUserMessageFunnelProgress: vi.fn(),
   isBillingSyncStale: vi.fn(),
   syncPersonalSubscriptionFromClerk: vi.fn(),
+  decideWebVoiceMode: vi.fn(),
+  generateVoice: vi.fn(),
+  trackVoiceUsage: vi.fn(),
+  put: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -59,6 +64,7 @@ vi.mock("@/lib/db", () => ({
     },
     attachment: {
       findFirst: mocks.attachmentFindFirst,
+      create: mocks.attachmentCreate,
       update: mocks.attachmentUpdate,
     },
   },
@@ -89,6 +95,19 @@ vi.mock("@/lib/analytics/funnel", () => ({
 vi.mock("@/lib/billing/personal-subscription", () => ({
   isBillingSyncStale: mocks.isBillingSyncStale,
   syncPersonalSubscriptionFromClerk: mocks.syncPersonalSubscriptionFromClerk,
+}));
+
+vi.mock("@/lib/voice/preflight", () => ({
+  decideWebVoiceMode: mocks.decideWebVoiceMode,
+}));
+
+vi.mock("@/lib/voice", () => ({
+  generateVoice: mocks.generateVoice,
+  trackVoiceUsage: mocks.trackVoiceUsage,
+}));
+
+vi.mock("@vercel/blob", () => ({
+  put: mocks.put,
 }));
 
 import { POST } from "./route";
@@ -163,6 +182,7 @@ describe("POST /api/chat", () => {
     mocks.messageCreate.mockReset();
     mocks.messageCount.mockReset();
     mocks.attachmentFindFirst.mockReset();
+    mocks.attachmentCreate.mockReset();
     mocks.attachmentUpdate.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
@@ -172,6 +192,10 @@ describe("POST /api/chat", () => {
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
     mocks.isBillingSyncStale.mockReset();
     mocks.syncPersonalSubscriptionFromClerk.mockReset();
+    mocks.decideWebVoiceMode.mockReset();
+    mocks.generateVoice.mockReset();
+    mocks.trackVoiceUsage.mockReset();
+    mocks.put.mockReset();
 
     mocks.start.mockReturnValue({
       end: vi.fn(),
@@ -191,6 +215,9 @@ describe("POST /api/chat", () => {
         status: "ACTIVE",
         planId: "my-basic-plan",
       },
+      preferences: {
+        voiceEnabled: true,
+      },
     });
     mocks.userUpsert.mockResolvedValue({
       id: "user-1",
@@ -200,6 +227,9 @@ describe("POST /api/chat", () => {
       subscription: {
         status: "ACTIVE",
         planId: "my-basic-plan",
+      },
+      preferences: {
+        voiceEnabled: true,
       },
     });
     mocks.checkRateLimit.mockResolvedValue(rateLimitAllowed);
@@ -220,6 +250,7 @@ describe("POST /api/chat", () => {
       }),
     );
     mocks.attachmentUpdate.mockResolvedValue({});
+    mocks.attachmentCreate.mockResolvedValue({ id: "att-voice-1" });
     mocks.incrementUsage.mockResolvedValue({});
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
@@ -231,6 +262,19 @@ describe("POST /api/chat", () => {
     );
     mocks.generateChatTitle.mockResolvedValue("Generated title");
     mocks.waitUntil.mockImplementation(() => {});
+    mocks.decideWebVoiceMode.mockResolvedValue({
+      mode: "TEXT",
+      reason: "default",
+      source: "classifier",
+    });
+    mocks.generateVoice.mockResolvedValue({
+      audioBuffer: Buffer.from("audio"),
+      characterCount: 20,
+    });
+    mocks.put.mockResolvedValue({
+      url: "https://blob.example/voice/msg-assistant-1.mp3",
+    });
+    mocks.trackVoiceUsage.mockResolvedValue(undefined);
     mocks.streamChat.mockResolvedValue({
       toUIMessageStreamResponse: () =>
         Response.json({ ok: true, stream: true }, { status: 200 }),
@@ -566,6 +610,78 @@ describe("POST /api/chat", () => {
         channel: "WEB",
       }),
     );
+    expect(mocks.decideWebVoiceMode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        userMessage: "hello",
+        userPreferences: { voiceEnabled: true },
+        planId: "my-basic-plan",
+      }),
+    );
+  });
+
+  it("generates a voice-first assistant response when preflight chooses voice", async () => {
+    mocks.decideWebVoiceMode.mockResolvedValue({
+      mode: "VOICE",
+      reason: "User explicitly requested voice",
+      source: "deterministic",
+    });
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "Respira. Spalle morbide. Ora scegli una sola azione semplice.",
+        metrics: {
+          model: "qwen/qwen3.5-flash-02-23",
+          inputTokens: 11,
+          outputTokens: 22,
+          reasoningTokens: 0,
+          reasoningContent: "",
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.01,
+          generationTimeMs: 250,
+          reasoningTimeMs: 0,
+        },
+      });
+
+      return {
+        textStream: (async function* () {
+          yield "Respira. Spalle morbide. Ora scegli una sola azione semplice.";
+        })(),
+      };
+    });
+    mocks.messageCreate
+      .mockResolvedValueOnce({ id: "msg-user-1" })
+      .mockResolvedValueOnce({ id: "msg-assistant-1" });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [{ type: "text", text: "Mandami un vocale rapido" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        responseMode: "voice",
+        voiceEnabled: true,
+      }),
+    );
+    expect(mocks.generateVoice).toHaveBeenCalledWith(
+      "Respira. Spalle morbide. Ora scegli una sola azione semplice.",
+    );
+    expect(mocks.put).toHaveBeenCalledWith(
+      expect.stringMatching(/^voice\/.+\.mp3$/),
+      Buffer.from("audio"),
+      expect.objectContaining({ contentType: "audio/mpeg" }),
+    );
+    expect(mocks.trackVoiceUsage).toHaveBeenCalledWith("user-1", 20, "WEB");
   });
 
   it("normalizes file part url fields into data for the AI flow", async () => {

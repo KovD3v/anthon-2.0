@@ -61,6 +61,8 @@ export async function runChannelFlow(
     hasImages: ctx.ai?.hasImages ?? detectImages(ctx.parts),
     hasAudio: ctx.ai?.hasAudio ?? detectAudio(ctx.parts),
     messageParts: normalizedParts,
+    responseMode: ctx.ai?.responseMode ?? "text",
+    voiceEnabled: ctx.ai?.voiceEnabled,
     effectiveEntitlements: ctx.rateLimit.effectiveEntitlements,
     onFinish: async ({ text, metrics }) => {
       finalMetrics = metrics;
