@@ -158,7 +158,7 @@ export function MessageList({
     <>
       <div
         ref={parentRef}
-        className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent relative"
+        className="flex-1 min-w-0 overflow-y-auto px-4 py-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent relative"
       >
         <div className="mx-auto max-w-3xl">
           {/* Loading indicator for older messages */}

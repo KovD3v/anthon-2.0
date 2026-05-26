@@ -106,6 +106,30 @@ describe("ai/tools/memory", () => {
     expect(mocks.memoryDelete).not.toHaveBeenCalled();
   });
 
+  it("getMemories returns a non-fatal error when memory storage is unavailable", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mocks.memoryFindMany.mockRejectedValue(
+      new Error("missing category column"),
+    );
+
+    const tools = createMemoryTools("user-1");
+    type GetResult = { success: boolean; message: string };
+    const getExec = tools.getMemories.execute as unknown as (
+      args: object,
+    ) => Promise<GetResult>;
+    const result = await getExec({ category: "all" });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Errore nel recuperare");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "[getMemories] Error:",
+      expect.any(Error),
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
   it("formatMemoriesForPrompt caches output and supports invalidation", async () => {
     const userId = "user-cache";
     mocks.memoryFindMany.mockResolvedValue([

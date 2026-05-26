@@ -343,10 +343,7 @@ export function ChatConversationClient({
           const isAudio = att.contentType.startsWith("audio/");
           parts.push({
             type: "file",
-            url:
-              isAudio && att.base64Data
-                ? `data:${att.contentType};base64,${att.base64Data}`
-                : att.url,
+            data: isAudio && att.base64Data ? att.base64Data : att.url,
             mimeType: att.contentType,
             name: att.name,
             size: att.size,
@@ -498,7 +495,7 @@ export function ChatConversationClient({
   const isEmptyIdle = streamingMessages.length === 0 && !isLoading;
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-linear-to-b from-background to-muted/20">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-linear-to-b from-background to-muted/20">
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-primary/5 via-background/0 to-background/0" />
 
       <ChatHeader

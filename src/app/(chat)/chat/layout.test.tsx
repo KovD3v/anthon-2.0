@@ -128,18 +128,49 @@ describe("chat mobile viewport layout", () => {
     );
 
     expect(layoutClient).toContain(
-      'className="flex min-h-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]"',
+      'className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]"',
     );
     expect(conversationPage).toContain(
       '<PageWrapper className="flex min-h-0 flex-1 flex-col">',
     );
     expect(conversationClient).toContain("const isEmptyIdle =");
     expect(conversationClient).toContain(
-      'className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-linear-to-b from-background to-muted/20"',
+      'className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-linear-to-b from-background to-muted/20"',
     );
     expect(conversationClient).toContain(
       'className="min-h-0 flex-1 overflow-y-auto px-4 py-6"',
     );
-    expect(chatInput).toContain("w-full shrink-0");
+    expect(chatInput).toContain("w-full min-w-0 shrink-0");
+  });
+
+  it("allows the chat column and composer to shrink with narrow desktop windows", () => {
+    const layoutClient = readFileSync(
+      "src/app/(chat)/chat/layout-client.tsx",
+      "utf8",
+    );
+    const conversationClient = readFileSync(
+      "src/app/(chat)/chat/[id]/chat-conversation-client.tsx",
+      "utf8",
+    );
+    const messageList = readFileSync(
+      "src/app/(chat)/components/MessageList.tsx",
+      "utf8",
+    );
+    const chatInput = readFileSync(
+      "src/app/(chat)/components/ChatInput.tsx",
+      "utf8",
+    );
+
+    expect(layoutClient).toContain(
+      'className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]"',
+    );
+    expect(conversationClient).toContain(
+      'className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-linear-to-b from-background to-muted/20"',
+    );
+    expect(messageList).toContain(
+      'className="flex-1 min-w-0 overflow-y-auto px-4 py-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent relative"',
+    );
+    expect(chatInput).toContain("w-full min-w-0 shrink-0");
+    expect(chatInput).toContain("min-w-0 flex-1");
   });
 });

@@ -568,6 +568,54 @@ describe("POST /api/chat", () => {
     );
   });
 
+  it("normalizes file part url fields into data for the AI flow", async () => {
+    let streamArgs: Record<string, unknown> | undefined;
+    mocks.streamChat.mockImplementation(
+      async (args: Record<string, unknown>) => {
+        streamArgs = args;
+        return {
+          toUIMessageStreamResponse: () =>
+            Response.json({ ok: true, stream: true }, { status: 200 }),
+        };
+      },
+    );
+    mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [
+              {
+                type: "file",
+                attachmentId: "att-voice",
+                mimeType: "audio/wav",
+                name: "voice.wav",
+                size: 99,
+                url: "voice-base64",
+              },
+            ],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(streamArgs).toMatchObject({
+      hasAudio: true,
+      messageParts: [
+        expect.objectContaining({
+          type: "file",
+          attachmentId: "att-voice",
+          data: "voice-base64",
+          mimeType: "audio/wav",
+        }),
+      ],
+    });
+  });
+
   it("skips linking attachments that are not owned by the current user", async () => {
     mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
     mocks.attachmentFindFirst

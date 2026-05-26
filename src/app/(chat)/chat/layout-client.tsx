@@ -525,7 +525,7 @@ export function LayoutClient({
         </aside>
 
         {/* Main Content */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
           {/* Integrated Header Bar */}
           {isGuest ? (
             <GuestBanner

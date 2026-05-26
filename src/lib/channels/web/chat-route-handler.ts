@@ -381,14 +381,16 @@ export async function handleWebChatPost(request: Request) {
           if (part.type === "file") {
             const filePart = part as unknown as {
               data?: string;
+              url?: string;
               mimeType?: string;
               name?: string;
               size?: number;
               attachmentId?: string;
             };
+            const fileData = normalizeFilePartData(filePart);
             messageParts.push({
               type: "file",
-              data: filePart.data,
+              data: fileData,
               mimeType: filePart.mimeType,
               name: filePart.name,
               size: filePart.size,
@@ -451,4 +453,24 @@ export async function handleWebChatPost(request: Request) {
       }
     },
   );
+}
+
+function normalizeFilePartData(filePart: {
+  data?: string;
+  url?: string;
+  mimeType?: string;
+}) {
+  if (filePart.data) {
+    return filePart.data;
+  }
+
+  if (!filePart.url) {
+    return undefined;
+  }
+
+  if (filePart.mimeType?.startsWith("audio/") && filePart.url.includes(",")) {
+    return filePart.url.split(",")[1];
+  }
+
+  return filePart.url;
 }
