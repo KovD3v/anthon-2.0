@@ -324,8 +324,26 @@ export async function streamChat({
     () => buildConversationContext(userId, maxContextMessages, chatId),
   );
 
-  const userContextPromise = formatUserContextForPrompt(userId);
-  const userMemoriesPromise = formatMemoriesForPrompt(userId);
+  const userContextPromise = formatUserContextForPrompt(userId).catch(
+    (error) => {
+      aiLogger.error(
+        "ai.user_context.error",
+        "User context enrichment failed",
+        {
+          error,
+          userId,
+        },
+      );
+      return "No user context available.";
+    },
+  );
+  const userMemoriesPromise = formatMemoriesForPrompt(userId).catch((error) => {
+    aiLogger.error("ai.memories.error", "Memory enrichment failed", {
+      error,
+      userId,
+    });
+    return "No user memories available.";
+  });
   const currentDate = new Date().toLocaleDateString("it-IT", {
     weekday: "long",
     year: "numeric",

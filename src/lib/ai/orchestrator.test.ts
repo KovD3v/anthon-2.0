@@ -271,6 +271,25 @@ describe("ai/orchestrator", () => {
     expect(streamInput.system).toContain("Voice generation is disabled");
   });
 
+  it("continues streaming when memories are temporarily unavailable", async () => {
+    mocks.formatMemoriesForPrompt.mockRejectedValue(
+      new Error("memory table is out of sync"),
+    );
+
+    const result = await streamChat({
+      userId: "user-1",
+      chatId: "chat-2",
+      userMessage: "same message",
+    });
+
+    expect(result).toEqual({ marker: "stream-result" });
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      system: string;
+    };
+    expect(streamInput.system).toContain("user-context-data");
+    expect(streamInput.system).toContain("No user memories available.");
+  });
+
   it("collects step tool calls and forwards computed metrics through onFinish", async () => {
     mocks.shouldUseRag.mockResolvedValue(true);
     mocks.getRagContext.mockResolvedValue("**Doc A**\n...\n**Doc B**\n...");

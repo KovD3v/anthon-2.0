@@ -51,37 +51,46 @@ come nome, sport praticato, obiettivi, preferenze e altre informazioni personali
           ),
       }),
       execute: async ({ category }) => {
-        const memories = await prisma.memory.findMany({
-          where: {
-            userId,
-            ...(category && category !== "all" ? { category } : {}),
-          },
-          orderBy: { createdAt: "desc" },
-        });
+        try {
+          const memories = await prisma.memory.findMany({
+            where: {
+              userId,
+              ...(category && category !== "all" ? { category } : {}),
+            },
+            orderBy: { createdAt: "desc" },
+          });
 
-        if (memories.length === 0) {
+          if (memories.length === 0) {
+            return {
+              success: true,
+              data: null,
+              message: "Nessuna memoria salvata per questo utente.",
+            };
+          }
+
+          const formattedMemories = memories.map((m) => {
+            const value = m.value as unknown as MemoryValue;
+            return {
+              key: m.key,
+              value: value.content,
+              category: m.category, // use column, not JSON
+              confidence: value.confidence,
+            };
+          });
+
           return {
             success: true,
+            data: formattedMemories,
+            message: `Trovate ${formattedMemories.length} memorie.`,
+          };
+        } catch (error) {
+          console.error("[getMemories] Error:", error);
+          return {
+            success: false,
             data: null,
-            message: "Nessuna memoria salvata per questo utente.",
+            message: "Errore nel recuperare le memorie.",
           };
         }
-
-        const formattedMemories = memories.map((m) => {
-          const value = m.value as unknown as MemoryValue;
-          return {
-            key: m.key,
-            value: value.content,
-            category: m.category, // use column, not JSON
-            confidence: value.confidence,
-          };
-        });
-
-        return {
-          success: true,
-          data: formattedMemories,
-          message: `Trovate ${formattedMemories.length} memorie.`,
-        };
       },
     }),
 
