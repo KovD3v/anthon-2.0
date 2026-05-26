@@ -111,6 +111,16 @@ describe("ai/rag", () => {
     expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
+  it("shouldUseRag skips database checks for brief conversational requests", async () => {
+    const { shouldUseRag } = await loadModule();
+
+    const result = await shouldUseRag("Ciao, dammi una risposta brevissima.");
+
+    expect(result).toBe(false);
+    expect(mocks.ragDocumentCount).not.toHaveBeenCalled();
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
   it("shouldUseRag returns true for positive keywords when documents exist", async () => {
     mocks.ragDocumentCount.mockResolvedValue(1);
     const { shouldUseRag } = await loadModule();

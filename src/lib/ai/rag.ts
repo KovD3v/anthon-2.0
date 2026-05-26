@@ -512,6 +512,13 @@ function matchesNonTechnicalPattern(message: string): boolean {
     return true;
   }
 
+  const greetingPattern = /^(ciao|salve|buongiorno|buonasera|hello|hi|hey)\b/i;
+  const briefReplyPattern =
+    /(risposta|answer|reply).{0,24}(breve|brevissima|short|brief)|\b(brevemente|briefly)\b/i;
+  if (greetingPattern.test(lower) && briefReplyPattern.test(lower)) {
+    return true;
+  }
+
   // Questions about the user's own data/profile
   if (
     lower.includes("mio profilo") ||
