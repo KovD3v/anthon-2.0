@@ -618,37 +618,40 @@ function normalizeClassificationKey(userMessage: string): string {
  * 5. Fast LLM classification (only as last resort, ~100-200ms)
  */
 export async function shouldUseRag(userMessage: string): Promise<boolean> {
-  // OPTIMIZATION 1: Skip if no documents exist (saves 1.3s LLM call)
+  const lower = userMessage.toLowerCase();
+  const messageLength = userMessage.trim().length;
+  const hasPositiveKeyword = RAG_KEYWORDS.some((kw) => lower.includes(kw));
+
+  // OPTIMIZATION 1: Fast local rejects before any database work, unless a
+  // positive RAG keyword is present.
+  if (!hasPositiveKeyword) {
+    // "ciao" alone = skip, but "ciao, mi dai un allenamento" = don't skip
+    // because "allenamento" is a positive keyword.
+    if (
+      messageLength < 30 &&
+      RAG_NEGATIVE_KEYWORDS.some((kw) => lower.includes(kw))
+    ) {
+      return false;
+    }
+
+    if (matchesNonTechnicalPattern(userMessage)) {
+      return false;
+    }
+  }
+
+  // OPTIMIZATION 2: Skip if no documents exist (saves LLM classification)
   const hasDocuments = await hasRagDocuments();
   if (!hasDocuments) {
     return false;
   }
 
-  const lower = userMessage.toLowerCase();
-  const messageLength = userMessage.trim().length;
-
-  // OPTIMIZATION 2: Check POSITIVE keywords FIRST - these always trigger RAG
+  // OPTIMIZATION 3: Check POSITIVE keywords - these always trigger RAG
   // This ensures "ciao, dimmi come fare allenamento" still uses RAG
-  if (RAG_KEYWORDS.some((kw) => lower.includes(kw))) {
+  if (hasPositiveKeyword) {
     return true;
   }
 
-  // OPTIMIZATION 3: Negative keywords - but ONLY for SHORT messages
-  // "ciao" alone = skip, but "ciao, mi dai questa informazione" = don't skip
-  // Threshold: 30 chars allows for simple greetings but catches longer requests
-  if (
-    messageLength < 30 &&
-    RAG_NEGATIVE_KEYWORDS.some((kw) => lower.includes(kw))
-  ) {
-    return false;
-  }
-
-  // OPTIMIZATION 4: Non-technical patterns - fast reject
-  if (matchesNonTechnicalPattern(userMessage)) {
-    return false;
-  }
-
-  // OPTIMIZATION 5: Fast LLM classification (only for uncertain cases)
+  // OPTIMIZATION 4: Fast LLM classification (only for uncertain cases)
   // Uses GPT-3.5-turbo instead of Gemini for faster classification (~300ms vs ~1300ms)
   try {
     const cacheKey = normalizeClassificationKey(userMessage);
