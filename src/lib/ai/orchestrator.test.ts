@@ -307,6 +307,30 @@ describe("ai/orchestrator", () => {
     expect(streamInput.system).toContain("No user memories available.");
   });
 
+  it("skips memory prompt lookup and memory tools when memory is disabled", async () => {
+    await streamChat({
+      userId: "guest-1",
+      chatId: "chat-guest",
+      userMessage: "ciao",
+      isGuest: true,
+      memoryEnabled: false,
+    });
+
+    expect(mocks.formatMemoriesForPrompt).not.toHaveBeenCalled();
+    expect(mocks.createMemoryTools).not.toHaveBeenCalled();
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      system: string;
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.system).toContain("Persistent memory is disabled");
+    expect(streamInput.tools).not.toHaveProperty("saveMemory");
+    expect(streamInput.tools).toMatchObject({
+      updateProfile: "profile-tool",
+      tavilySearch: "tavily-tool",
+    });
+  });
+
   it("collects step tool calls and forwards computed metrics through onFinish", async () => {
     mocks.shouldUseRag.mockResolvedValue(true);
     mocks.getRagContext.mockResolvedValue("**Doc A**\n...\n**Doc B**\n...");

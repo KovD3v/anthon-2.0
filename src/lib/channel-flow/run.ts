@@ -61,6 +61,7 @@ export async function runChannelFlow(
     hasImages: ctx.ai?.hasImages ?? detectImages(ctx.parts),
     hasAudio: ctx.ai?.hasAudio ?? detectAudio(ctx.parts),
     messageParts: normalizedParts,
+    memoryEnabled: ctx.options.allowMemoryExtraction,
     responseMode: ctx.ai?.responseMode ?? "text",
     voiceEnabled: ctx.ai?.voiceEnabled,
     effectiveEntitlements: ctx.rateLimit.effectiveEntitlements,

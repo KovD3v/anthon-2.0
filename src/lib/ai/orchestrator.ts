@@ -142,6 +142,7 @@ interface StreamChatOptions {
     toolCalls?: unknown[];
     toolResults?: unknown[];
   }) => void;
+  memoryEnabled?: boolean;
   voiceEnabled?: boolean;
   responseMode?: "text" | "voice";
   effectiveEntitlements?: EffectiveEntitlements;
@@ -158,6 +159,7 @@ async function buildSystemPrompt(
     userMemories?: string;
     currentDate?: string;
     voiceEnabled?: boolean;
+    memoryEnabled?: boolean;
     userStyle?: string;
     responseMode?: "text" | "voice";
   },
@@ -209,6 +211,13 @@ async function buildSystemPrompt(
     userMemories || "No memories saved for this user.",
   );
 
+  if (prefetched?.memoryEnabled === false) {
+    systemPrompt += `\n\nSESSION MEMORY POLICY
+- Persistent memory is disabled for this session.
+- Do not save, fetch, or rely on persistent user memories.
+- Use only the current conversation and provided user context.`;
+  }
+
   // Dynamic voice instructions
   const voiceEnabled = prefetched?.voiceEnabled ?? true;
   if (!voiceEnabled) {
@@ -251,8 +260,12 @@ function base64ToUint8Array(base64: string): Uint8Array {
 /**
  * Creates all tools with the userId context injected via factory pattern.
  */
-function createToolsWithContext(userId: string) {
-  const memoryTools = createMemoryTools(userId);
+function createToolsWithContext(
+  userId: string,
+  options?: { memoryEnabled?: boolean },
+) {
+  const memoryTools =
+    options?.memoryEnabled === false ? {} : createMemoryTools(userId);
   const userContextTools = createUserContextTools(userId);
   const tavilyTools = createTavilyTools();
 
@@ -280,6 +293,7 @@ export async function streamChat({
   messageParts,
   onFinish,
   onStepFinish,
+  memoryEnabled = true,
   voiceEnabled,
   responseMode = "text",
   effectiveEntitlements: prefetchedEntitlements,
@@ -350,13 +364,16 @@ export async function streamChat({
       return "No user context available.";
     },
   );
-  const userMemoriesPromise = formatMemoriesForPrompt(userId).catch((error) => {
-    aiLogger.error("ai.memories.error", "Memory enrichment failed", {
-      error,
-      userId,
-    });
-    return "No user memories available.";
-  });
+  const userMemoriesPromise =
+    memoryEnabled === false
+      ? Promise.resolve("Persistent memory is disabled for this session.")
+      : formatMemoriesForPrompt(userId).catch((error) => {
+          aiLogger.error("ai.memories.error", "Memory enrichment failed", {
+            error,
+            userId,
+          });
+          return "No user memories available.";
+        });
   const currentDate = new Date().toLocaleDateString("it-IT", {
     weekday: "long",
     year: "numeric",
@@ -420,6 +437,7 @@ export async function streamChat({
         userContext,
         userMemories,
         currentDate,
+        memoryEnabled,
         voiceEnabled: voiceEnabledResult,
         responseMode,
         userStyle: userStyleInstruction,
@@ -518,7 +536,7 @@ export async function streamChat({
   const messages: ModelMessage[] = [...conversationHistory, lastMessage];
 
   // Create tools with userId context
-  const tools = createToolsWithContext(userId);
+  const tools = createToolsWithContext(userId, { memoryEnabled });
 
   // Collect tool calls during execution
   const collectedToolCalls: Array<{

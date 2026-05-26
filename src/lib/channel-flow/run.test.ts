@@ -66,6 +66,44 @@ describe("channel-flow/run", () => {
     );
   });
 
+  it("passes memory availability from channel options to the orchestrator", async () => {
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "";
+      })(),
+    });
+
+    await runChannelFlow({
+      channel: "WEB_GUEST",
+      userId: "guest-1",
+      chatId: "chat-1",
+      userMessageText: "ciao",
+      parts: [{ type: "text", text: "ciao" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: false,
+        allowMemoryExtraction: false,
+        allowVoiceOutput: false,
+      },
+      ai: {
+        isGuest: true,
+      },
+      execution: { mode: "stream" },
+      persistence: {
+        channel: "WEB",
+        saveAssistantMessage: true,
+      },
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "guest-1",
+        isGuest: true,
+        memoryEnabled: false,
+      }),
+    );
+  });
+
   it("consumes text stream and persists assistant output in text mode", async () => {
     mocks.streamChat.mockImplementation(async ({ onFinish }) => {
       await onFinish?.({
