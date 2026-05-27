@@ -2,8 +2,10 @@
 
 import { useUser } from "@clerk/nextjs";
 import { Brain, Loader2, Sparkles } from "lucide-react";
+import { type FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PageWrapper } from "@/components/ui/page-wrapper";
+import { ChatInput } from "../components/ChatInput";
 import { getCreateChatButtonState } from "./create-chat-ui";
 import { useChatContext } from "./layout-client";
 
@@ -15,9 +17,23 @@ import { useChatContext } from "./layout-client";
 export default function ChatPage() {
   const { user } = useUser();
   const { createChat, chats, isCreatingChat, isGuest } = useChatContext();
+  const [initialInput, setInitialInput] = useState("");
 
   const handleNewChat = async () => {
     await createChat();
+  };
+
+  const handleInitialSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const initialMessage = initialInput.trim();
+    if (!initialMessage || isCreatingChat) {
+      return;
+    }
+
+    const chatId = await createChat({ initialMessage });
+    if (chatId) {
+      setInitialInput("");
+    }
   };
 
   // Determine greeting based on auth state
@@ -32,7 +48,7 @@ export default function ChatPage() {
   return (
     <PageWrapper className="flex flex-1 flex-col">
       <div className="flex flex-1 flex-col items-center justify-center p-8">
-        <div className="max-w-2xl text-center">
+        <div className="flex w-full max-w-3xl flex-col items-center text-center">
           {/* Welcome */}
           <div className="mb-8">
             <Brain className="mx-auto size-16 text-primary/80" />
@@ -42,11 +58,20 @@ export default function ChatPage() {
             </p>
           </div>
 
-          {/* New Chat Button */}
+          <ChatInput
+            input={initialInput}
+            setInput={setInitialInput}
+            onSubmit={handleInitialSubmit}
+            isLoading={isCreatingChat}
+            onStop={() => {}}
+            disableAttachments
+          />
+
           <Button
             onClick={handleNewChat}
-            size="lg"
-            className="gap-2"
+            size="sm"
+            variant="ghost"
+            className="mt-1 gap-2 text-muted-foreground"
             disabled={createChatButton.isDisabled}
             aria-busy={isCreatingChat}
           >

@@ -35,7 +35,7 @@ interface ChatContextType {
   isCreatingChat: boolean;
   currentChatId: string | null;
   isGuest: boolean;
-  createChat: () => Promise<string | null>;
+  createChat: (options?: CreateChatOptions) => Promise<string | null>;
   deleteChat: (id: string) => Promise<boolean>;
   refreshChats: () => Promise<void>;
   preFetchChat: (id: string) => Promise<void>;
@@ -43,9 +43,14 @@ interface ChatContextType {
   navigateToChat: (id: string) => void;
   renameChat: (id: string, newTitle: string) => Promise<boolean>;
   updateCachedChat: (id: string, data: Partial<ChatData>) => void;
+  consumePendingInitialMessage: (chatId: string) => string | null;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
+
+interface CreateChatOptions {
+  initialMessage?: string;
+}
 
 export function useChatContext() {
   const context = useContext(ChatContext);
@@ -230,6 +235,7 @@ export function LayoutClient({
   const chatCacheRef = useRef<Map<string, ChatData>>(new Map());
   const preFetchingIdsRef = useRef<Set<string>>(new Set());
   const createChatPromiseRef = useRef<Promise<string | null> | null>(null);
+  const pendingInitialMessagesRef = useRef<Map<string, string>>(new Map());
   const chatViewportRef = useRef<HTMLDivElement>(null);
   const MAX_CACHE_SIZE = 20;
 
@@ -315,8 +321,18 @@ export function LayoutClient({
     });
   }
 
+  function consumePendingInitialMessage(chatId: string) {
+    const pending = pendingInitialMessagesRef.current.get(chatId) ?? null;
+    if (pending) {
+      pendingInitialMessagesRef.current.delete(chatId);
+    }
+    return pending;
+  }
+
   // Create chat
-  const createChat = async (): Promise<string | null> => {
+  const createChat = async (
+    options: CreateChatOptions = {},
+  ): Promise<string | null> => {
     if (isCreatingChat) {
       return createChatPromiseRef.current ?? null;
     }
@@ -324,6 +340,8 @@ export function LayoutClient({
     if (createChatPromiseRef.current) {
       return createChatPromiseRef.current;
     }
+
+    const initialMessage = options.initialMessage?.trim();
 
     const createChatPromise = (async () => {
       const response = await fetch(`${apiBase}/chats`, {
@@ -345,6 +363,24 @@ export function LayoutClient({
         };
 
         setChats((prev) => [newChat, ...prev]);
+        if (initialMessage) {
+          pendingInitialMessagesRef.current.set(chat.id, initialMessage);
+          chatCacheRef.current.set(chat.id, {
+            id: chat.id,
+            title: newChat.title,
+            visibility: newChat.visibility,
+            isOwner: true,
+            createdAt: chat.createdAt,
+            updatedAt: chat.updatedAt,
+            messages: [],
+            pagination: {
+              hasMore: false,
+              nextCursor: null,
+            },
+            voiceEnabled: true,
+            voicePlanEnabled: !isGuest,
+          });
+        }
         startCreateChatNavigation(() => {
           router.push(`/chat/${chat.id}`, { scroll: false });
         });
@@ -473,6 +509,7 @@ export function LayoutClient({
         navigateToChat,
         renameChat,
         updateCachedChat,
+        consumePendingInitialMessage,
       }}
     >
       <div

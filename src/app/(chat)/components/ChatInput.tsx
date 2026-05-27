@@ -174,7 +174,7 @@ export function ChatInput({
             adjustHeight();
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Send a message..."
+          placeholder="Scrivi un messaggio..."
           rows={1}
           className="min-w-0 flex-1 resize-none bg-transparent px-2 py-3 text-sm outline-none placeholder:text-muted-foreground/50 max-h-[200px] overflow-y-auto scrollbar-none"
           disabled={isLoading}

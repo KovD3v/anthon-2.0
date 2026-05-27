@@ -41,8 +41,13 @@ export function ChatConversationClient({
 }) {
   const clerk = useClerk();
   const router = useRouter();
-  const { renameChat, isGuest, getCachedChat, updateCachedChat } =
-    useChatContext();
+  const {
+    renameChat,
+    isGuest,
+    getCachedChat,
+    updateCachedChat,
+    consumePendingInitialMessage,
+  } = useChatContext();
   const apiBase = isGuest ? "/api/guest" : "/api";
 
   const [chatData, setChatData] = useState<ChatData>(initialChatData);
@@ -59,6 +64,7 @@ export function ChatConversationClient({
   const trialActivationAttemptedRef = useRef(false);
   const trialActivationInFlightRef = useRef(false);
   const submitInFlightRef = useRef(false);
+  const pendingInitialMessageSubmittedRef = useRef(false);
 
   // Initial messages from server data
   const initialMessages = convertToUIMessages(chatData.messages);
@@ -130,6 +136,28 @@ export function ChatConversationClient({
       }
     },
   });
+
+  useEffect(() => {
+    if (pendingInitialMessageSubmittedRef.current || status !== "ready") {
+      return;
+    }
+
+    const pendingInitialMessage = consumePendingInitialMessage(chatId);
+    if (!pendingInitialMessage) {
+      return;
+    }
+
+    pendingInitialMessageSubmittedRef.current = true;
+    sendMessage({
+      role: "user",
+      parts: [{ type: "text", text: pendingInitialMessage }],
+    }).catch((error) => {
+      pendingInitialMessageSubmittedRef.current = false;
+      setInput(pendingInitialMessage);
+      console.error("Failed to send initial chat message:", error);
+      toast.error("Invio messaggio fallito");
+    });
+  }, [chatId, consumePendingInitialMessage, sendMessage, status]);
 
   // Sync cached data to local state if available
   useEffect(() => {

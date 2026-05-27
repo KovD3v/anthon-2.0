@@ -173,4 +173,24 @@ describe("chat mobile viewport layout", () => {
     expect(chatInput).toContain("w-full min-w-0 shrink-0");
     expect(chatInput).toContain("min-w-0 flex-1");
   });
+
+  it("keeps first-message handoff local to the chat layout state", () => {
+    const chatPage = readFileSync("src/app/(chat)/chat/page.tsx", "utf8");
+    const layoutClient = readFileSync(
+      "src/app/(chat)/chat/layout-client.tsx",
+      "utf8",
+    );
+    const conversationClient = readFileSync(
+      "src/app/(chat)/chat/[id]/chat-conversation-client.tsx",
+      "utf8",
+    );
+
+    expect(chatPage).toContain("<ChatInput");
+    expect(chatPage).toContain("createChat({ initialMessage");
+    expect(layoutClient).toContain("pendingInitialMessagesRef");
+    expect(layoutClient).toContain("consumePendingInitialMessage");
+    expect(conversationClient).toContain(
+      "consumePendingInitialMessage(chatId)",
+    );
+  });
 });
