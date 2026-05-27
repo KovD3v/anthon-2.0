@@ -82,6 +82,10 @@ vi.mock("@/lib/voice", () => ({
 
 import { streamChat } from "./orchestrator";
 
+function countOccurrences(value: string, needle: string) {
+  return value.split(needle).length - 1;
+}
+
 const baseEntitlements = {
   limits: {
     maxRequestsPerDay: 100,
@@ -137,9 +141,16 @@ describe("ai/orchestrator", () => {
     ]);
     mocks.formatUserContextForPrompt.mockResolvedValue("user-context-data");
     mocks.formatMemoriesForPrompt.mockResolvedValue("user-memories-data");
-    mocks.createMemoryTools.mockReturnValue({ saveMemory: "memory-tool" });
+    mocks.createMemoryTools.mockReturnValue({
+      getMemories: "memory-read-tool",
+      saveMemory: "memory-tool",
+      deleteMemory: "memory-delete-tool",
+    });
     mocks.createUserContextTools.mockReturnValue({
+      getUserContext: "context-read-tool",
       updateProfile: "profile-tool",
+      updatePreferences: "preferences-tool",
+      addNotes: "notes-tool",
     });
     mocks.createTavilyTools.mockReturnValue({ tavilySearch: "tavily-tool" });
     mocks.resolveEffectiveEntitlements.mockResolvedValue(baseEntitlements);
@@ -211,8 +222,10 @@ describe("ai/orchestrator", () => {
         messages: [{ role: "user", content: "same message" }],
         tools: {
           saveMemory: "memory-tool",
+          deleteMemory: "memory-delete-tool",
           updateProfile: "profile-tool",
-          tavilySearch: "tavily-tool",
+          updatePreferences: "preferences-tool",
+          addNotes: "notes-tool",
         },
       }),
     );
@@ -225,6 +238,34 @@ describe("ai/orchestrator", () => {
     expect(streamInput.system).toContain(
       "No RAG documents available at this time.",
     );
+    expect(countOccurrences(streamInput.system, "user-context-data")).toBe(1);
+    expect(countOccurrences(streamInput.system, "user-memories-data")).toBe(1);
+    expect(
+      countOccurrences(
+        streamInput.system,
+        "No RAG documents available at this time.",
+      ),
+    ).toBe(1);
+  });
+
+  it("enables Tavily only for time-sensitive requests", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-news",
+      userMessage: "Chi ha vinto la partita ieri?",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        tavilySearch: "tavily-tool",
+        saveMemory: "memory-tool",
+      }),
+    );
+    expect(streamInput.tools).not.toHaveProperty("getMemories");
+    expect(streamInput.tools).not.toHaveProperty("getUserContext");
   });
 
   it("builds audio/file content parts, strips codec suffixes, and applies voice-disabled prompt variant", async () => {
@@ -381,6 +422,11 @@ describe("ai/orchestrator", () => {
           outputTokens?: number;
           totalTokens?: number;
         };
+        totalUsage?: {
+          inputTokens?: number;
+          outputTokens?: number;
+          totalTokens?: number;
+        };
         providerMetadata?: Record<string, unknown>;
       }) => Promise<void>;
     };
@@ -400,6 +446,7 @@ describe("ai/orchestrator", () => {
     await streamInput.onFinish({
       text: "assistant response",
       usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      totalUsage: { inputTokens: 110, outputTokens: 120, totalTokens: 230 },
       providerMetadata: { openrouter: { usage: { promptTokens: 10 } } },
     });
 
@@ -409,10 +456,11 @@ describe("ai/orchestrator", () => {
       expect.objectContaining({
         text: "assistant response",
         usage: {
-          promptTokens: 10,
-          completionTokens: 20,
-          totalTokens: 30,
+          promptTokens: 110,
+          completionTokens: 120,
+          totalTokens: 230,
         },
+        preferProviderUsage: false,
         ragUsed: true,
         ragChunksCount: 2,
         collectedToolCalls: [

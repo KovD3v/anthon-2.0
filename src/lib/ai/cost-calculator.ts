@@ -50,6 +50,12 @@ interface FinishResultInput {
     promptTokens?: number;
     completionTokens?: number;
   };
+  /**
+   * OpenRouter provider metadata is exact for single-step calls, but can describe
+   * only the final step in multi-step tool loops. Set false when caller passes
+   * AI SDK totalUsage so aggregate tokens are preserved.
+   */
+  preferProviderUsage?: boolean;
   providerMetadata?: Record<string, unknown>;
   collectedToolCalls?: Array<{
     name: string;
@@ -80,6 +86,7 @@ export function extractAIMetrics(
 
   // Try to extract cost and tokens from OpenRouter metadata
   let costFromOpenRouter: number | undefined;
+  const preferProviderUsage = finishResult.preferProviderUsage ?? true;
   if (finishResult.providerMetadata) {
     const openrouterMeta = finishResult.providerMetadata.openrouter as
       | Record<string, unknown>
@@ -87,7 +94,7 @@ export function extractAIMetrics(
     if (openrouterMeta) {
       // Extract from nested usage object if available
       const usage = openrouterMeta.usage as Record<string, unknown> | undefined;
-      if (usage) {
+      if (usage && preferProviderUsage) {
         inputTokens = (usage.promptTokens as number) || inputTokens;
         outputTokens = (usage.completionTokens as number) || outputTokens;
         costFromOpenRouter = usage.cost as number | undefined;
