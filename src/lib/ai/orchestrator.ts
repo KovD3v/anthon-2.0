@@ -119,6 +119,42 @@ USER CONTEXT
 USER MEMORIES
 {{USER_MEMORIES}}`;
 
+const GUEST_SYSTEM_PROMPT_TEMPLATE = `You are Anthon, a digital sports performance coach.
+You help athletes, coaches, and parents improve mindset, technique, motivation, and performance.
+
+NEVER say you are an AI or a model. You are a professional coach.
+
+PRIORITIES
+1) User safety and well-being.
+2) Answer the user's latest request clearly and practically.
+3) Use conversation history and RAG context only when relevant.
+
+STYLE
+- Professional, honest, direct, and empathetic.
+- Reply in the same language as the user's latest message.
+- If the user is brief, greeting you, or asks for a short reply, answer in under 50 words.
+- Avoid long lists unless the user asks for detail.
+- For coaching requests, give concrete next actions and one useful follow-up question.
+
+GUEST SESSION
+- Persistent profile, preferences, and memory are unavailable in this guest session.
+- If the user shares personal details, use them in this conversation only.
+- Do not claim that anything has been saved.
+
+SAFETY
+- Do not make medical or clinical diagnoses.
+- For acute pain, head trauma, neurological symptoms, or serious health concerns, advise stopping and consulting a healthcare professional.
+- Refuse doping, unsafe, or illegal requests and offer lawful alternatives.
+
+VOICE
+- If the user asks for audio, answer as text that can be spoken naturally.
+
+DATE
+{{CURRENT_DATE}}
+
+RAG CONTEXT
+{{RAG_CONTEXT}}`;
+
 interface StreamChatOptions {
   userId: string;
   chatId?: string;
@@ -162,6 +198,7 @@ async function buildSystemPrompt(
     memoryEnabled?: boolean;
     userStyle?: string;
     responseMode?: "text" | "voice";
+    isGuest?: boolean;
   },
 ): Promise<string> {
   const currentDate =
@@ -172,6 +209,37 @@ async function buildSystemPrompt(
       month: "long",
       day: "numeric",
     });
+
+  if (prefetched?.isGuest) {
+    let guestPrompt = GUEST_SYSTEM_PROMPT_TEMPLATE;
+    guestPrompt = guestPrompt.replaceAll("{{CURRENT_DATE}}", currentDate);
+    guestPrompt = guestPrompt.replaceAll(
+      "{{RAG_CONTEXT}}",
+      ragContext || "No RAG documents available at this time.",
+    );
+
+    if (prefetched.voiceEnabled === false) {
+      guestPrompt = guestPrompt.replace(
+        "- If the user asks for audio, answer as text that can be spoken naturally.",
+        "- Voice generation is disabled for this guest session. If the user asks for audio, kindly explain you can only write.",
+      );
+    }
+
+    if (prefetched.responseMode === "voice") {
+      guestPrompt += `\n\nVOICE RESPONSE MODE
+- This answer will be converted directly into spoken audio.
+- Write for spoken audio, not for the screen.
+- Keep it short: 1 to 4 natural sentences.
+- Do not use markdown, bullets, numbered lists, tables, URLs, code, headings, or formatting.
+- Use warm, direct Italian when the user writes in Italian.`;
+    }
+
+    if (prefetched.userStyle) {
+      guestPrompt += `\n\nDETECTED USER STYLE (Mirroring):\n${prefetched.userStyle}`;
+    }
+
+    return guestPrompt;
+  }
 
   // Fetch user context and memories in parallel (unless prefetched)
   const [userContext, userMemories] = await Promise.all([
@@ -262,8 +330,12 @@ function base64ToUint8Array(base64: string): Uint8Array {
  */
 function createToolsWithContext(
   userId: string,
-  options?: { memoryEnabled?: boolean },
+  options?: { memoryEnabled?: boolean; isGuest?: boolean },
 ) {
+  if (options?.isGuest) {
+    return {};
+  }
+
   const memoryTools =
     options?.memoryEnabled === false ? {} : createMemoryTools(userId);
   const userContextTools = createUserContextTools(userId);
@@ -351,21 +423,21 @@ export async function streamChat({
     () => buildConversationContext(userId, maxContextMessages, chatId),
   );
 
-  const userContextPromise = formatUserContextForPrompt(userId).catch(
-    (error) => {
-      aiLogger.error(
-        "ai.user_context.error",
-        "User context enrichment failed",
-        {
-          error,
-          userId,
-        },
-      );
-      return "No user context available.";
-    },
-  );
+  const userContextPromise = isGuest
+    ? Promise.resolve("")
+    : formatUserContextForPrompt(userId).catch((error) => {
+        aiLogger.error(
+          "ai.user_context.error",
+          "User context enrichment failed",
+          {
+            error,
+            userId,
+          },
+        );
+        return "No user context available.";
+      });
   const userMemoriesPromise =
-    memoryEnabled === false
+    memoryEnabled === false || isGuest
       ? Promise.resolve("Persistent memory is disabled for this session.")
       : formatMemoriesForPrompt(userId).catch((error) => {
           aiLogger.error("ai.memories.error", "Memory enrichment failed", {
@@ -411,16 +483,21 @@ export async function streamChat({
   const [{ ragContext, ragUsed, ragChunksCount }, conversationHistory] =
     await Promise.all([ragPromise, conversationHistoryPromise]);
 
-  // Calculate if voice is enabled for this user/plan
-  const { getVoicePlanConfig } = await import("@/lib/voice");
-  const planConfig = getVoicePlanConfig(
-    subscriptionStatus,
-    userRole,
-    planId,
-    isGuest,
-    effectiveEntitlements.modelTier,
-  );
-  const voiceEnabledResult = planConfig.enabled && (voiceEnabled ?? true);
+  // Calculate if voice is enabled for this user/plan. Guest web chat has no
+  // voice output, so avoid loading plan config on its critical path.
+  const voiceEnabledResult = isGuest
+    ? false
+    : await (async () => {
+        const { getVoicePlanConfig } = await import("@/lib/voice");
+        const planConfig = getVoicePlanConfig(
+          subscriptionStatus,
+          userRole,
+          planId,
+          isGuest,
+          effectiveEntitlements.modelTier,
+        );
+        return planConfig.enabled && (voiceEnabled ?? true);
+      })();
 
   // Analyze user style from history (heuristic)
   const userStyleInstruction = analyzeUserStyle(conversationHistory);
@@ -441,6 +518,7 @@ export async function streamChat({
         voiceEnabled: voiceEnabledResult,
         responseMode,
         userStyle: userStyleInstruction,
+        isGuest,
       });
     },
   );
@@ -536,7 +614,7 @@ export async function streamChat({
   const messages: ModelMessage[] = [...conversationHistory, lastMessage];
 
   // Create tools with userId context
-  const tools = createToolsWithContext(userId, { memoryEnabled });
+  const tools = createToolsWithContext(userId, { memoryEnabled, isGuest });
 
   // Collect tool calls during execution
   const collectedToolCalls: Array<{

@@ -307,7 +307,7 @@ describe("ai/orchestrator", () => {
     expect(streamInput.system).toContain("No user memories available.");
   });
 
-  it("skips memory prompt lookup and memory tools when memory is disabled", async () => {
+  it("uses compact prompt and skips persistent tools for guest chats", async () => {
     await streamChat({
       userId: "guest-1",
       chatId: "chat-guest",
@@ -316,19 +316,23 @@ describe("ai/orchestrator", () => {
       memoryEnabled: false,
     });
 
+    expect(mocks.formatUserContextForPrompt).not.toHaveBeenCalled();
     expect(mocks.formatMemoriesForPrompt).not.toHaveBeenCalled();
     expect(mocks.createMemoryTools).not.toHaveBeenCalled();
+    expect(mocks.createUserContextTools).not.toHaveBeenCalled();
+    expect(mocks.createTavilyTools).not.toHaveBeenCalled();
+    expect(mocks.getVoicePlanConfig).not.toHaveBeenCalled();
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       system: string;
       tools: Record<string, unknown>;
     };
-    expect(streamInput.system).toContain("Persistent memory is disabled");
-    expect(streamInput.tools).not.toHaveProperty("saveMemory");
-    expect(streamInput.tools).toMatchObject({
-      updateProfile: "profile-tool",
-      tavilySearch: "tavily-tool",
-    });
+    expect(streamInput.system).toContain("GUEST SESSION");
+    expect(streamInput.system).toContain(
+      "Persistent profile, preferences, and memory are unavailable",
+    );
+    expect(streamInput.system).not.toContain("SAVING DATA");
+    expect(streamInput.tools).toEqual({});
   });
 
   it("collects step tool calls and forwards computed metrics through onFinish", async () => {
