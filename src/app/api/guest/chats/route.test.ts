@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   authenticateGuest: vi.fn(),
   chatFindMany: vi.fn(),
   chatCreate: vi.fn(),
+  latencyMeasure: vi.fn(),
 }));
 
 vi.mock("@/lib/guest-auth", () => ({
@@ -19,6 +20,12 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/latency-logger", () => ({
+  LatencyLogger: {
+    measure: mocks.latencyMeasure,
+  },
+}));
+
 import { GET, POST } from "./route";
 
 describe("/api/guest/chats route", () => {
@@ -26,10 +33,14 @@ describe("/api/guest/chats route", () => {
     mocks.authenticateGuest.mockReset();
     mocks.chatFindMany.mockReset();
     mocks.chatCreate.mockReset();
+    mocks.latencyMeasure.mockReset();
 
     mocks.authenticateGuest.mockResolvedValue({
       user: { id: "guest-1", isGuest: true },
     });
+    mocks.latencyMeasure.mockImplementation(
+      async (_name: string, fn: () => Promise<unknown>) => await fn(),
+    );
 
     mocks.chatFindMany.mockResolvedValue([
       {
@@ -137,6 +148,14 @@ describe("/api/guest/chats route", () => {
         updatedAt: true,
       },
     });
+    expect(mocks.latencyMeasure).toHaveBeenCalledWith(
+      "Guest Chats: Authenticate guest",
+      expect.any(Function),
+    );
+    expect(mocks.latencyMeasure).toHaveBeenCalledWith(
+      "Guest Chats: Create chat row",
+      expect.any(Function),
+    );
   });
 
   it("POST returns 400 when title is not a string", async () => {

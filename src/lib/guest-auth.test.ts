@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   cookieGet: vi.fn(),
   cookieSet: vi.fn(),
   cookieDelete: vi.fn(),
+  latencyMeasure: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({
@@ -19,6 +20,12 @@ vi.mock("@/lib/db", () => ({
       findFirst: mocks.userFindFirst,
       create: mocks.userCreate,
     },
+  },
+}));
+
+vi.mock("@/lib/latency-logger", () => ({
+  LatencyLogger: {
+    measure: mocks.latencyMeasure,
   },
 }));
 
@@ -37,12 +44,16 @@ describe("lib/guest-auth", () => {
     mocks.cookieGet.mockReset();
     mocks.cookieSet.mockReset();
     mocks.cookieDelete.mockReset();
+    mocks.latencyMeasure.mockReset();
 
     mocks.cookies.mockResolvedValue({
       get: mocks.cookieGet,
       set: mocks.cookieSet,
       delete: mocks.cookieDelete,
     });
+    mocks.latencyMeasure.mockImplementation(
+      async (_name: string, fn: () => Promise<unknown>) => await fn(),
+    );
   });
 
   it("hashGuestToken returns deterministic sha256 hash", () => {
@@ -98,6 +109,10 @@ describe("lib/guest-auth", () => {
     });
     expect(mocks.userCreate).not.toHaveBeenCalled();
     expect(mocks.cookieSet).not.toHaveBeenCalled();
+    expect(mocks.latencyMeasure).toHaveBeenCalledWith(
+      "Guest Auth: Lookup existing guest user",
+      expect.any(Function),
+    );
   });
 
   it("authenticateGuest creates user and sets cookie when no token exists", async () => {
@@ -123,6 +138,14 @@ describe("lib/guest-auth", () => {
         maxAge: 30 * 24 * 60 * 60,
         path: "/",
       }),
+    );
+    expect(mocks.latencyMeasure).toHaveBeenCalledWith(
+      "Guest Auth: Create guest user",
+      expect.any(Function),
+    );
+    expect(mocks.latencyMeasure).toHaveBeenCalledWith(
+      "Guest Auth: Set guest cookie",
+      expect.any(Function),
     );
   });
 

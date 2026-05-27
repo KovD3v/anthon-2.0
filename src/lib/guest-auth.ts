@@ -8,6 +8,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
+import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 
 // Cookie configuration
@@ -69,13 +70,15 @@ export async function getGuestTokenFromCookies(): Promise<string | null> {
  * Call this from API routes that need to set the cookie.
  */
 async function setGuestCookie(token: string): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.set(GUEST_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: GUEST_COOKIE_MAX_AGE,
-    path: "/",
+  await LatencyLogger.measure("Guest Auth: Set guest cookie", async () => {
+    const cookieStore = await cookies();
+    cookieStore.set(GUEST_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: GUEST_COOKIE_MAX_AGE,
+      path: "/",
+    });
   });
 }
 
@@ -99,24 +102,28 @@ async function getOrCreateGuestUser(
   if (existingToken) {
     const tokenHash = hashGuestToken(existingToken);
 
-    const user = await prisma.user.findFirst({
-      where: {
-        isGuest: true,
-        guestAbuseIdHash: tokenHash,
-        guestConvertedAt: null, // Not yet converted to registered user
-      },
-      select: {
-        id: true,
-        isGuest: true,
-        role: true,
-        subscription: {
-          select: {
-            status: true,
-            planId: true,
+    const user = await LatencyLogger.measure(
+      "Guest Auth: Lookup existing guest user",
+      () =>
+        prisma.user.findFirst({
+          where: {
+            isGuest: true,
+            guestAbuseIdHash: tokenHash,
+            guestConvertedAt: null, // Not yet converted to registered user
           },
-        },
-      },
-    });
+          select: {
+            id: true,
+            isGuest: true,
+            role: true,
+            subscription: {
+              select: {
+                status: true,
+                planId: true,
+              },
+            },
+          },
+        }),
+    );
 
     if (user?.isGuest) {
       return {
@@ -131,23 +138,27 @@ async function getOrCreateGuestUser(
   const newToken = generateGuestToken();
   const tokenHash = hashGuestToken(newToken);
 
-  const user = await prisma.user.create({
-    data: {
-      isGuest: true,
-      guestAbuseIdHash: tokenHash,
-    },
-    select: {
-      id: true,
-      isGuest: true,
-      role: true,
-      subscription: {
-        select: {
-          status: true,
-          planId: true,
+  const user = await LatencyLogger.measure(
+    "Guest Auth: Create guest user",
+    () =>
+      prisma.user.create({
+        data: {
+          isGuest: true,
+          guestAbuseIdHash: tokenHash,
         },
-      },
-    },
-  });
+        select: {
+          id: true,
+          isGuest: true,
+          role: true,
+          subscription: {
+            select: {
+              status: true,
+              planId: true,
+            },
+          },
+        },
+      }),
+  );
 
   return {
     user: user as GuestUser,

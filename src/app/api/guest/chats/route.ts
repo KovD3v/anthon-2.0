@@ -7,6 +7,7 @@
 
 import { prisma } from "@/lib/db";
 import { authenticateGuest } from "@/lib/guest-auth";
+import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 
 const guestLogger = createLogger("auth");
@@ -19,22 +20,29 @@ export const runtime = "nodejs";
 
 export async function GET() {
   try {
-    const { user } = await authenticateGuest();
+    const { user } = await LatencyLogger.measure(
+      "Guest Chats: Authenticate guest",
+      () => authenticateGuest(),
+    );
 
-    const chats = await prisma.chat.findMany({
-      where: { userId: user.id },
-      orderBy: { updatedAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        visibility: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: {
-          select: { messages: true },
-        },
-      },
-    });
+    const chats = await LatencyLogger.measure(
+      "Guest Chats: List chat rows",
+      () =>
+        prisma.chat.findMany({
+          where: { userId: user.id },
+          orderBy: { updatedAt: "desc" },
+          select: {
+            id: true,
+            title: true,
+            visibility: true,
+            createdAt: true,
+            updatedAt: true,
+            _count: {
+              select: { messages: true },
+            },
+          },
+        }),
+    );
 
     return Response.json({
       chats: chats.map((chat) => ({
@@ -61,7 +69,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { user } = await authenticateGuest();
+    const { user } = await LatencyLogger.measure(
+      "Guest Chats: Authenticate guest",
+      () => authenticateGuest(),
+    );
 
     // Optional: parse body for initial title
     let title: string | undefined;
@@ -83,21 +94,25 @@ export async function POST(request: Request) {
       // Empty body is fine
     }
 
-    const chat = await prisma.chat.create({
-      data: {
-        userId: user.id,
-        title,
-        customTitle: !!title,
-        visibility: "PRIVATE", // Guests always have private chats
-      },
-      select: {
-        id: true,
-        title: true,
-        visibility: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    const chat = await LatencyLogger.measure(
+      "Guest Chats: Create chat row",
+      () =>
+        prisma.chat.create({
+          data: {
+            userId: user.id,
+            title,
+            customTitle: !!title,
+            visibility: "PRIVATE", // Guests always have private chats
+          },
+          select: {
+            id: true,
+            title: true,
+            visibility: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+    );
 
     return Response.json(
       {
