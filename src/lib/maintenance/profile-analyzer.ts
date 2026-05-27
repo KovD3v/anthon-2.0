@@ -1,6 +1,10 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { maintenanceModel } from "@/lib/ai/providers/openrouter";
+import {
+  MAINTENANCE_MODEL_ID,
+  maintenanceModel,
+} from "@/lib/ai/providers/openrouter";
+import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { getTextFromParts } from "@/lib/utils/message-parts";
@@ -52,7 +56,7 @@ export async function analyzeUserProfile(userId: string): Promise<void> {
 
   try {
     // 2. Analyze
-    const { output } = await generateText({
+    const result = await generateText({
       model: maintenanceModel,
       output: Output.object({ schema: ProfileAnalysisSchema }),
       system: `Analizza lo stile di comunicazione e gli obiettivi dell'utente dai messaggi recenti.
@@ -65,6 +69,14 @@ Se rilevi queste informazioni, AGGIORNALE. Non esitare.
 Se l'utente dice "mi piace X", aggiorna le preferenze.
 Se parla di "tennis", aggiorna lo sport.`,
       prompt: `Messaggi recenti dell'utente:\n${textAnalysis}`,
+    });
+    const { output } = result;
+
+    await trackSupportAiUsage({
+      userId,
+      modelId: MAINTENANCE_MODEL_ID,
+      usage: result.usage,
+      providerMetadata: result.providerMetadata,
     });
 
     if (!output) return;

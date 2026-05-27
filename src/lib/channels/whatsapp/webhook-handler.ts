@@ -346,6 +346,7 @@ async function handleMessage(
           transcribedText = await transcribeAudioWithOpenRouter({
             ...audioData,
             title: "WhatsApp Bot",
+            userId: user.id,
           });
         } catch (err) {
           whatsappLogger.error("transcription.failed", "Transcription failed", {

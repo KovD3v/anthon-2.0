@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
   messageFindMany: vi.fn(),
   transaction: vi.fn(),
+  trackSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -11,7 +12,12 @@ vi.mock("ai", () => ({
 }));
 
 vi.mock("@/lib/ai/providers/openrouter", () => ({
+  MAINTENANCE_MODEL_ID: "maintenance-model-id",
   maintenanceModel: "model",
+}));
+
+vi.mock("@/lib/ai/usage-meter", () => ({
+  trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -33,8 +39,14 @@ describe("maintenance/session-archiver", () => {
     mocks.generateText.mockReset();
     mocks.messageFindMany.mockReset();
     mocks.transaction.mockReset();
+    mocks.trackSupportAiUsage.mockReset();
 
-    mocks.generateText.mockResolvedValue({ text: "summary" });
+    mocks.generateText.mockResolvedValue({
+      text: "summary",
+      usage: { inputTokens: 30, outputTokens: 8 },
+      providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
+    });
+    mocks.trackSupportAiUsage.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -84,6 +96,12 @@ describe("maintenance/session-archiver", () => {
     await archiveOldSessions("user-1", 7);
 
     expect(mocks.generateText).toHaveBeenCalledTimes(1);
+    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      userId: "user-1",
+      modelId: "maintenance-model-id",
+      usage: { inputTokens: 30, outputTokens: 8 },
+      providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
+    });
     expect(tx.archivedSession.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

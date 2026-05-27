@@ -1,8 +1,13 @@
+import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
+
+export const TRANSCRIPTION_MODEL_ID = "google/gemini-2.0-flash-lite-001";
+
 export interface TranscriptionInput {
   base64: string;
   mimeType: string;
   title?: string;
   prompt?: string;
+  userId?: string;
 }
 
 export async function transcribeAudioWithOpenRouter({
@@ -10,6 +15,7 @@ export async function transcribeAudioWithOpenRouter({
   mimeType,
   title = "Channel Bot",
   prompt = "Trascrivi questo messaggio audio in testo. Rispondi SOLO con la trascrizione, senza commenti.",
+  userId,
 }: TranscriptionInput): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -30,7 +36,7 @@ export async function transcribeAudioWithOpenRouter({
         "X-Title": title,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.0-flash-lite-001",
+        model: TRANSCRIPTION_MODEL_ID,
         messages: [
           {
             role: "user",
@@ -59,6 +65,13 @@ export async function transcribeAudioWithOpenRouter({
 
   const data = (await response.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      promptTokens?: number;
+      completionTokens?: number;
+      cost?: number;
+    };
   };
 
   const text = data.choices?.[0]?.message?.content?.trim();
@@ -66,5 +79,39 @@ export async function transcribeAudioWithOpenRouter({
     throw new Error("OpenRouter returned no text output");
   }
 
+  if (userId) {
+    await trackSupportAiUsage({
+      userId,
+      modelId: TRANSCRIPTION_MODEL_ID,
+      providerMetadata: toOpenRouterProviderMetadata(data.usage),
+    });
+  }
+
   return text;
+}
+
+function toOpenRouterProviderMetadata(
+  usage:
+    | {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        promptTokens?: number;
+        completionTokens?: number;
+        cost?: number;
+      }
+    | undefined,
+) {
+  if (!usage) {
+    return undefined;
+  }
+
+  return {
+    openrouter: {
+      usage: {
+        promptTokens: usage.promptTokens ?? usage.prompt_tokens,
+        completionTokens: usage.completionTokens ?? usage.completion_tokens,
+        cost: usage.cost,
+      },
+    },
+  };
 }

@@ -375,6 +375,7 @@ async function handleUpdate(update: TelegramUpdate) {
       transcribedText = await transcribeAudioWithOpenRouter({
         ...audioData,
         title: "Telegram Bot",
+        userId: user.id,
       });
     } catch (err) {
       telegramLogger.error("transcription.failed", "Transcription failed", {

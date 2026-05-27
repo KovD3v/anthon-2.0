@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   outputObject: vi.fn(),
   messageFindMany: vi.fn(),
   transaction: vi.fn(),
+  trackSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -15,7 +16,12 @@ vi.mock("ai", () => ({
 }));
 
 vi.mock("@/lib/ai/providers/openrouter", () => ({
+  MAINTENANCE_MODEL_ID: "maintenance-model-id",
   maintenanceModel: "maintenance-model",
+}));
+
+vi.mock("@/lib/ai/usage-meter", () => ({
+  trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -45,8 +51,10 @@ describe("maintenance/profile-analyzer", () => {
     mocks.outputObject.mockReset();
     mocks.messageFindMany.mockReset();
     mocks.transaction.mockReset();
+    mocks.trackSupportAiUsage.mockReset();
 
     mocks.outputObject.mockReturnValue({ schema: "mocked" });
+    mocks.trackSupportAiUsage.mockResolvedValue(undefined);
   });
 
   it("returns early when there are fewer than 10 user messages", async () => {
@@ -60,17 +68,29 @@ describe("maintenance/profile-analyzer", () => {
 
   it("returns when AI output is null", async () => {
     mocks.messageFindMany.mockResolvedValue(buildMessages(10));
-    mocks.generateText.mockResolvedValue({ output: null });
+    mocks.generateText.mockResolvedValue({
+      output: null,
+      usage: { inputTokens: 20, outputTokens: 2 },
+      providerMetadata: { openrouter: { usage: { cost: 0.0005 } } },
+    });
 
     await analyzeUserProfile("user-1");
 
     expect(mocks.generateText).toHaveBeenCalledTimes(1);
+    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      userId: "user-1",
+      modelId: "maintenance-model-id",
+      usage: { inputTokens: 20, outputTokens: 2 },
+      providerMetadata: { openrouter: { usage: { cost: 0.0005 } } },
+    });
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
   it("updates preferences and profile fields from analysis output", async () => {
     mocks.messageFindMany.mockResolvedValue(buildMessages(10));
     mocks.generateText.mockResolvedValue({
+      usage: { inputTokens: 50, outputTokens: 12 },
+      providerMetadata: { openrouter: { usage: { cost: 0.002 } } },
       output: {
         tone: "friendly",
         mode: "coaching",
@@ -105,6 +125,12 @@ describe("maintenance/profile-analyzer", () => {
         prompt: expect.stringContaining("message-10"),
       }),
     );
+    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      userId: "user-1",
+      modelId: "maintenance-model-id",
+      usage: { inputTokens: 50, outputTokens: 12 },
+      providerMetadata: { openrouter: { usage: { cost: 0.002 } } },
+    });
 
     expect(tx.preferences.upsert).toHaveBeenCalledWith({
       where: { userId: "user-1" },

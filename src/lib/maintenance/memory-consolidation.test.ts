@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   memoryFindMany: vi.fn(),
   transaction: vi.fn(),
   invalidateMemoriesForPromptCache: vi.fn(),
+  trackSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -16,7 +17,12 @@ vi.mock("ai", () => ({
 }));
 
 vi.mock("@/lib/ai/providers/openrouter", () => ({
+  MAINTENANCE_MODEL_ID: "maintenance-model-id",
   maintenanceModel: "maintenance-model",
+}));
+
+vi.mock("@/lib/ai/usage-meter", () => ({
+  trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
 
 vi.mock("@/lib/ai/tools/memory", () => ({
@@ -53,8 +59,10 @@ describe("maintenance/memory-consolidation", () => {
     mocks.memoryFindMany.mockReset();
     mocks.transaction.mockReset();
     mocks.invalidateMemoriesForPromptCache.mockReset();
+    mocks.trackSupportAiUsage.mockReset();
 
     mocks.outputObject.mockReturnValue({ schema: "mocked-schema" });
+    mocks.trackSupportAiUsage.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -74,6 +82,8 @@ describe("maintenance/memory-consolidation", () => {
   it("returns without applying changes when AI output has no consolidations", async () => {
     mocks.memoryFindMany.mockResolvedValue(buildMemories(5));
     mocks.generateText.mockResolvedValue({
+      usage: { inputTokens: 40, outputTokens: 5 },
+      providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
       output: {
         memories: [],
       },
@@ -82,6 +92,12 @@ describe("maintenance/memory-consolidation", () => {
     await consolidateMemories("user-1");
 
     expect(mocks.generateText).toHaveBeenCalledTimes(1);
+    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      userId: "user-1",
+      modelId: "maintenance-model-id",
+      usage: { inputTokens: 40, outputTokens: 5 },
+      providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
+    });
     expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.invalidateMemoriesForPromptCache).not.toHaveBeenCalled();
   });
@@ -92,6 +108,8 @@ describe("maintenance/memory-consolidation", () => {
 
     mocks.memoryFindMany.mockResolvedValue(buildMemories(5));
     mocks.generateText.mockResolvedValue({
+      usage: { inputTokens: 80, outputTokens: 20 },
+      providerMetadata: { openrouter: { usage: { cost: 0.003 } } },
       output: {
         memories: [
           {
@@ -133,6 +151,12 @@ describe("maintenance/memory-consolidation", () => {
         prompt: expect.stringContaining("- [key-1]"),
       }),
     );
+    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      userId: "user-1",
+      modelId: "maintenance-model-id",
+      usage: { inputTokens: 80, outputTokens: 20 },
+      providerMetadata: { openrouter: { usage: { cost: 0.003 } } },
+    });
     expect(tx.memory.deleteMany).toHaveBeenNthCalledWith(1, {
       where: {
         userId: "user-1",

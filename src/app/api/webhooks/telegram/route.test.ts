@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   generateVoice: vi.fn(),
   trackVoiceUsage: vi.fn(),
   trackInboundUserMessageFunnelProgress: vi.fn(),
+  trackSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("@vercel/functions", () => ({
@@ -100,6 +101,10 @@ vi.mock("@/lib/voice", () => ({
 vi.mock("@/lib/analytics/funnel", () => ({
   trackInboundUserMessageFunnelProgress:
     mocks.trackInboundUserMessageFunnelProgress,
+}));
+
+vi.mock("@/lib/ai/usage-meter", () => ({
+  trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
 
 import {
@@ -171,9 +176,11 @@ describe("/api/webhooks/telegram", () => {
     mocks.generateVoice.mockReset();
     mocks.trackVoiceUsage.mockReset();
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
+    mocks.trackSupportAiUsage.mockReset();
 
     mocks.waitUntil.mockImplementation(() => {});
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
+    mocks.trackSupportAiUsage.mockResolvedValue(undefined);
     mocks.start.mockReturnValue({ end: vi.fn(), split: vi.fn() });
     mocks.measure.mockImplementation(
       async (_name: string, fn: () => unknown) => await fn(),
@@ -565,6 +572,11 @@ describe("/api/webhooks/telegram", () => {
         new Response(
           JSON.stringify({
             choices: [{ message: { content: " trascrizione ok " } }],
+            usage: {
+              prompt_tokens: 12,
+              completion_tokens: 3,
+              cost: 0.0004,
+            },
           }),
         ),
       );
@@ -586,7 +598,23 @@ describe("/api/webhooks/telegram", () => {
       transcribeAudioWithOpenRouter({
         base64: "YQ==",
         mimeType: "audio/ogg",
+        userId: "user-1",
       }),
     ).resolves.toBe("trascrizione ok");
+    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        modelId: "google/gemini-2.0-flash-lite-001",
+        providerMetadata: {
+          openrouter: {
+            usage: {
+              promptTokens: 12,
+              completionTokens: 3,
+              cost: 0.0004,
+            },
+          },
+        },
+      }),
+    );
   });
 });

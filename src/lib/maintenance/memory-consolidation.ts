@@ -1,7 +1,11 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { maintenanceModel } from "@/lib/ai/providers/openrouter";
+import {
+  MAINTENANCE_MODEL_ID,
+  maintenanceModel,
+} from "@/lib/ai/providers/openrouter";
 import { invalidateMemoriesForPromptCache } from "@/lib/ai/tools/memory";
+import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 
@@ -51,7 +55,7 @@ export async function consolidateMemories(userId: string): Promise<void> {
 
   try {
     // 2. Analyze with AI
-    const { output } = await generateText({
+    const result = await generateText({
       model: maintenanceModel,
       output: Output.object({ schema: ConsolidatedMemoriesSchema }),
       system: `Sei un sistema di gestione della memoria a lungo termine.
@@ -67,6 +71,14 @@ Regole di consolidamento:
 Devi restituire un array di oggetti con 'originalKeys' (da eliminare) e 'newKey'/'newValue' (da creare/aggiornare).
 NON aver paura di unire.`,
       prompt: `Analizza e consolida queste memorie:\n\n${memoryList}`,
+    });
+    const { output } = result;
+
+    await trackSupportAiUsage({
+      userId,
+      modelId: MAINTENANCE_MODEL_ID,
+      usage: result.usage,
+      providerMetadata: result.providerMetadata,
     });
 
     const changes = output?.memories || [];

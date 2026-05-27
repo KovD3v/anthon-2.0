@@ -1,7 +1,11 @@
 import { generateText } from "ai";
 import type { Message } from "@/generated/prisma/client";
 import { SESSION } from "@/lib/ai/constants"; // GAP_MS
-import { maintenanceModel } from "@/lib/ai/providers/openrouter";
+import {
+  MAINTENANCE_MODEL_ID,
+  maintenanceModel,
+} from "@/lib/ai/providers/openrouter";
+import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { getTextFromParts } from "@/lib/utils/message-parts";
@@ -98,13 +102,21 @@ export async function archiveOldSessions(
       )
       .join("\n");
 
-    const { text: summary } = await generateText({
+    const result = await generateText({
       model: maintenanceModel,
       system: `Sei un archivista. Riassumi questa vecchia conversazione per conservare il contesto a lungo termine.
 Includi: argomenti trattati, decisioni prese, fatti importanti.
 Ignora: saluti, chiacchiere inutili.
 Sii conciso ma completo.`,
       prompt: transcript,
+    });
+    const { text: summary } = result;
+
+    await trackSupportAiUsage({
+      userId,
+      modelId: MAINTENANCE_MODEL_ID,
+      usage: result.usage,
+      providerMetadata: result.providerMetadata,
     });
 
     // 5. Transaction: Save Archive + Delete Messages

@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   generateVoice: vi.fn(),
   trackVoiceUsage: vi.fn(),
   trackInboundUserMessageFunnelProgress: vi.fn(),
+  trackSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("@vercel/functions", () => ({
@@ -97,6 +98,10 @@ vi.mock("@/lib/voice", () => ({
 vi.mock("@/lib/analytics/funnel", () => ({
   trackInboundUserMessageFunnelProgress:
     mocks.trackInboundUserMessageFunnelProgress,
+}));
+
+vi.mock("@/lib/ai/usage-meter", () => ({
+  trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
 
 import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
@@ -188,9 +193,11 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.generateVoice.mockReset();
     mocks.trackVoiceUsage.mockReset();
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
+    mocks.trackSupportAiUsage.mockReset();
 
     mocks.waitUntil.mockImplementation(() => {});
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
+    mocks.trackSupportAiUsage.mockResolvedValue(undefined);
     mocks.start.mockReturnValue({ end: vi.fn(), split: vi.fn() });
     mocks.measure.mockImplementation(
       async (_name: string, fn: () => unknown) => await fn(),
@@ -576,6 +583,11 @@ describe("/api/webhooks/whatsapp", () => {
         new Response(
           JSON.stringify({
             choices: [{ message: { content: " trascrizione wa " } }],
+            usage: {
+              prompt_tokens: 9,
+              completion_tokens: 4,
+              cost: 0.0003,
+            },
           }),
         ),
       );
@@ -592,7 +604,23 @@ describe("/api/webhooks/whatsapp", () => {
       transcribeAudioWithOpenRouter({
         base64: "YQ==",
         mimeType: "audio/ogg",
+        userId: "user-1",
       }),
     ).resolves.toBe("trascrizione wa");
+    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        modelId: "google/gemini-2.0-flash-lite-001",
+        providerMetadata: {
+          openrouter: {
+            usage: {
+              promptTokens: 9,
+              completionTokens: 4,
+              cost: 0.0003,
+            },
+          },
+        },
+      }),
+    );
   });
 });
