@@ -420,6 +420,7 @@ describe("/api/chats/[id] route", () => {
     });
     expect(mocks.generateChatTitle).toHaveBeenCalledWith(
       "How do I test this route?",
+      { userId: "user-1" },
     );
     expect(mocks.chatUpdate).toHaveBeenCalledWith({
       where: { id: "chat-1" },

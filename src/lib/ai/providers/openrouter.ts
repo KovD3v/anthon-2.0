@@ -45,6 +45,9 @@ function resolveModelRouting(
 }
 
 const trialRouting = resolveModelRouting("TRIAL");
+export const ORCHESTRATOR_MODEL_ID = trialRouting.orchestrator;
+export const SUB_AGENT_MODEL_ID = trialRouting.subAgent;
+export const MAINTENANCE_MODEL_ID = trialRouting.maintenance;
 
 // Default models (for backward compatibility - uses trial tier)
 const _orchestratorModel = withDevTools(openrouter(trialRouting.orchestrator));
@@ -91,10 +94,8 @@ export function getModelIdForPlan(
 }
 
 // Model IDs for reference
-const _ORCHESTRATOR_MODEL_ID = trialRouting.orchestrator;
-const _SUB_AGENT_MODEL_ID = trialRouting.subAgent;
+const _ORCHESTRATOR_MODEL_ID = ORCHESTRATOR_MODEL_ID;
+const _SUB_AGENT_MODEL_ID = SUB_AGENT_MODEL_ID;
 
 // Dedicated low-cost model for background maintenance tasks
-export const maintenanceModel = withDevTools(
-  openrouter(trialRouting.maintenance),
-);
+export const maintenanceModel = withDevTools(openrouter(MAINTENANCE_MODEL_ID));

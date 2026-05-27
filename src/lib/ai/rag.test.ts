@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   queryRaw: vi.fn(),
   executeRawUnsafe: vi.fn(),
   measure: vi.fn(),
+  trackSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -49,6 +50,10 @@ vi.mock("@/lib/latency-logger", () => ({
   },
 }));
 
+vi.mock("@/lib/ai/usage-meter", () => ({
+  trackSupportAiUsage: mocks.trackSupportAiUsage,
+}));
+
 const originalOpenRouterKey = process.env.OPENROUTER_API_KEY;
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 
@@ -73,6 +78,7 @@ describe("ai/rag", () => {
     mocks.queryRaw.mockReset();
     mocks.executeRawUnsafe.mockReset();
     mocks.measure.mockReset();
+    mocks.trackSupportAiUsage.mockReset();
 
     mocks.openrouter.mockReturnValue("rag-classifier-model");
     mocks.outputObject.mockImplementation(
@@ -81,6 +87,7 @@ describe("ai/rag", () => {
     mocks.measure.mockImplementation(
       async (_name: string, fn: () => unknown | Promise<unknown>) => await fn(),
     );
+    mocks.trackSupportAiUsage.mockResolvedValue(undefined);
 
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
     process.env.NEXT_PUBLIC_APP_URL = "https://app.test";
@@ -131,20 +138,40 @@ describe("ai/rag", () => {
     expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
+  it("shouldUseRag does not auto-enable RAG for generic question words", async () => {
+    mocks.ragDocumentCount.mockResolvedValue(1);
+    mocks.generateText.mockResolvedValue({
+      output: { needsRag: false, reason: "generic personal question" },
+    });
+    const { shouldUseRag } = await loadModule();
+
+    const result = await shouldUseRag("Quale approccio mi consigli oggi?");
+
+    expect(result).toBe(false);
+    expect(mocks.generateText).toHaveBeenCalledTimes(1);
+  });
+
   it("shouldUseRag uses LLM classification and caches decision", async () => {
     mocks.ragDocumentCount.mockResolvedValue(1);
     mocks.generateText.mockResolvedValue({
       output: { needsRag: true, reason: "technical methodology request" },
+      usage: { inputTokens: 80, outputTokens: 12 },
     });
     const { shouldUseRag } = await loadModule();
     const query = "Can you compare periodization frameworks for athletes?";
 
-    const first = await shouldUseRag(query);
-    const second = await shouldUseRag(query);
+    const first = await shouldUseRag(query, { userId: "user-1" });
+    const second = await shouldUseRag(query, { userId: "user-1" });
 
     expect(first).toBe(true);
     expect(second).toBe(true);
     expect(mocks.generateText).toHaveBeenCalledTimes(1);
+    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      userId: "user-1",
+      modelId: "google/gemini-2.0-flash-001",
+      usage: { inputTokens: 80, outputTokens: 12 },
+      providerMetadata: undefined,
+    });
   });
 
   it("shouldUseRag returns false when LLM classification throws", async () => {

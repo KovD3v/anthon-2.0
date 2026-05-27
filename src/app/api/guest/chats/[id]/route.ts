@@ -212,7 +212,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       if (firstUserMessage) {
         const text = getTextFromParts(firstUserMessage.parts);
         if (text) {
-          newTitle = await generateChatTitle(text);
+          newTitle = await generateChatTitle(text, { userId: user.id });
         }
       }
     }

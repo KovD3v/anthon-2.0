@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   openrouter: vi.fn(),
   voiceCount: vi.fn(),
   getSystemLoad: vi.fn(),
+  trackSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -30,6 +31,10 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("./elevenlabs", () => ({
   getSystemLoad: mocks.getSystemLoad,
+}));
+
+vi.mock("@/lib/ai/usage-meter", () => ({
+  trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
 
 import { decideWebVoiceMode } from "./preflight";
@@ -67,6 +72,7 @@ describe("voice/preflight", () => {
     mocks.openrouter.mockReset();
     mocks.voiceCount.mockReset();
     mocks.getSystemLoad.mockReset();
+    mocks.trackSupportAiUsage.mockReset();
 
     mocks.outputObject.mockImplementation(
       ({ schema }: { schema: unknown }) => ({ schema }),
@@ -74,12 +80,14 @@ describe("voice/preflight", () => {
     mocks.openrouter.mockReturnValue("preflight-model");
     mocks.voiceCount.mockResolvedValue(0);
     mocks.getSystemLoad.mockResolvedValue(1);
+    mocks.trackSupportAiUsage.mockResolvedValue(undefined);
     mocks.generateText.mockResolvedValue({
       output: {
         mode: "VOICE",
         reason: "conversational_support",
         confidence: 0.88,
       },
+      usage: { inputTokens: 90, outputTokens: 10 },
     });
   });
 
@@ -146,5 +154,11 @@ describe("voice/preflight", () => {
         timeout: { totalMs: 1000 },
       }),
     );
+    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      userId: "user-1",
+      modelId: "qwen/qwen3.5-flash-02-23",
+      usage: { inputTokens: 90, outputTokens: 10 },
+      providerMetadata: undefined,
+    });
   });
 });

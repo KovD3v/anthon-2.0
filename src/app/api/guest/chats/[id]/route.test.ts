@@ -339,7 +339,9 @@ describe("/api/guest/chats/[id] route", () => {
       orderBy: { createdAt: "asc" },
       select: { parts: true },
     });
-    expect(mocks.generateChatTitle).toHaveBeenCalledWith("First user prompt");
+    expect(mocks.generateChatTitle).toHaveBeenCalledWith("First user prompt", {
+      userId: "guest-1",
+    });
     expect(mocks.chatUpdate).toHaveBeenCalledWith({
       where: { id: "chat-1" },
       data: {

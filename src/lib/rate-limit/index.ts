@@ -21,4 +21,4 @@ export type {
   UpgradeInfo,
 } from "./types";
 // Usage tracking
-export { getDailyUsage, incrementUsage } from "./usage";
+export { getDailyUsage, incrementTokenUsage, incrementUsage } from "./usage";

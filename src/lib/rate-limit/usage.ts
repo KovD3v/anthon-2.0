@@ -108,6 +108,53 @@ export async function incrementUsage(
 }
 
 /**
+ * Increment token/cost counters without counting another user-facing request.
+ * Use for background/support AI calls triggered by an already-counted request.
+ */
+export async function incrementTokenUsage(
+  userId: string,
+  inputTokens: number,
+  outputTokens: number,
+  costUsd: number,
+  reasoningTokens: number = 0,
+): Promise<DailyUsageData> {
+  const today = getUTCDateOnly();
+
+  const usage = await prisma.dailyUsage.upsert({
+    where: {
+      userId_date: {
+        userId,
+        date: today,
+      },
+    },
+    create: {
+      userId,
+      date: today,
+      requestCount: 0,
+      inputTokens,
+      outputTokens,
+      reasoningTokens,
+      totalCostUsd: costUsd,
+    },
+    update: {
+      inputTokens: { increment: inputTokens },
+      outputTokens: { increment: outputTokens },
+      reasoningTokens: { increment: reasoningTokens },
+      totalCostUsd: { increment: costUsd },
+    },
+  });
+
+  return {
+    requestCount: usage.requestCount,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    reasoningTokens: usage.reasoningTokens,
+    totalCostUsd: usage.totalCostUsd,
+    voiceCostUsd: usage.voiceCostUsd,
+  };
+}
+
+/**
  * Increment voice cost for a user (does not increment requestCount).
  */
 export async function incrementVoiceUsage(

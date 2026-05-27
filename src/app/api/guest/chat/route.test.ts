@@ -368,7 +368,9 @@ describe("POST /api/guest/chat", () => {
     expect(response.status).toBe(200);
     expect(mocks.messageCount).not.toHaveBeenCalled();
     expect(mocks.waitUntil).toHaveBeenCalledTimes(2);
-    expect(mocks.generateChatTitle).toHaveBeenCalledWith("USER: first prompt");
+    expect(mocks.generateChatTitle).toHaveBeenCalledWith("USER: first prompt", {
+      userId: "guest-1",
+    });
   });
 
   it("runs onFinish side effects and does not schedule memory extraction", async () => {

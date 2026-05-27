@@ -8,6 +8,7 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { RAG, RAG_KEYWORDS, RAG_NEGATIVE_KEYWORDS } from "@/lib/ai/constants";
 import { openrouter } from "@/lib/ai/providers/openrouter";
+import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -594,7 +595,8 @@ async function hasRagDocuments(): Promise<boolean> {
  * Fast classifier model for RAG detection
  * Uses Gemini 2.0 Flash for reliable, fast classification (~100-200ms)
  */
-const ragClassifierModel = openrouter("google/gemini-2.0-flash-001");
+const RAG_CLASSIFIER_MODEL_ID = "google/gemini-2.0-flash-001";
+const ragClassifierModel = openrouter(RAG_CLASSIFIER_MODEL_ID);
 
 /**
  * Short-lived cache for LLM classification results.
@@ -624,7 +626,10 @@ function normalizeClassificationKey(userMessage: string): string {
  * 4. Non-technical pattern matching (instant)
  * 5. Fast LLM classification (only as last resort, ~100-200ms)
  */
-export async function shouldUseRag(userMessage: string): Promise<boolean> {
+export async function shouldUseRag(
+  userMessage: string,
+  options?: { userId?: string },
+): Promise<boolean> {
   const lower = userMessage.toLowerCase();
   const messageLength = userMessage.trim().length;
   const hasPositiveKeyword = RAG_KEYWORDS.some((kw) => lower.includes(kw));
@@ -667,7 +672,7 @@ export async function shouldUseRag(userMessage: string): Promise<boolean> {
       return cached.needsRag;
     }
 
-    const { output } = await LatencyLogger.measure(
+    const result = await LatencyLogger.measure(
       "RAG: Classify query (LLM)",
       () =>
         generateText({
@@ -701,6 +706,16 @@ Answer needsRag: false if the question is:
           prompt: `User query: "${userMessage}"`,
         }),
     );
+    const { output } = result;
+
+    if (options?.userId) {
+      await trackSupportAiUsage({
+        userId: options.userId,
+        modelId: RAG_CLASSIFIER_MODEL_ID,
+        usage: result.usage,
+        providerMetadata: result.providerMetadata,
+      });
+    }
 
     if (ragClassificationCache.size >= RAG_CLASSIFICATION_CACHE_MAX_ENTRIES) {
       const firstKey = ragClassificationCache.keys().next().value;

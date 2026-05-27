@@ -10,7 +10,11 @@
 
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { maintenanceModel } from "@/lib/ai/providers/openrouter";
+import {
+  MAINTENANCE_MODEL_ID,
+  maintenanceModel,
+} from "@/lib/ai/providers/openrouter";
+import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -107,7 +111,12 @@ export async function shouldGenerateVoice(
 
     // Start level 3 semantic check and level 4 business check in parallel
     const [l3Result, l4Result] = await Promise.all([
-      checkLevel3Semantic(userMessage, assistantText, conversationContext),
+      checkLevel3Semantic(
+        userId,
+        userMessage,
+        assistantText,
+        conversationContext,
+      ),
       (async () => {
         const loadValue =
           typeof systemLoad === "function"
@@ -216,6 +225,7 @@ const semanticSchema = z.object({
 });
 
 async function checkLevel3Semantic(
+  userId: string,
   userMessage: string,
   assistantText: string,
   conversationContext?: Array<{ role: string; content: string }>,
@@ -253,6 +263,12 @@ ${contextStr}
 
 ## Risposta da valutare:
 "${assistantText.slice(0, 500)}"`,
+        });
+        await trackSupportAiUsage({
+          userId,
+          modelId: MAINTENANCE_MODEL_ID,
+          usage: result.usage,
+          providerMetadata: result.providerMetadata,
         });
 
         const { decision, reason, confidence } = result.output ?? {

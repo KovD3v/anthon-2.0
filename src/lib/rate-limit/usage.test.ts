@@ -14,7 +14,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { getDailyUsage, incrementUsage } from "./usage";
+import { getDailyUsage, incrementTokenUsage, incrementUsage } from "./usage";
 
 describe("rate-limit/usage", () => {
   beforeEach(() => {
@@ -114,5 +114,43 @@ describe("rate-limit/usage", () => {
       totalCostUsd: 0.9,
       voiceCostUsd: 0,
     });
+  });
+
+  it("increments token usage without counting a new user request", async () => {
+    mocks.upsert.mockResolvedValue({
+      requestCount: 4,
+      inputTokens: 950,
+      outputTokens: 475,
+      reasoningTokens: 5,
+      totalCostUsd: 1.05,
+      voiceCostUsd: 0,
+    });
+
+    const result = await incrementTokenUsage("user-4", 50, 25, 0.15, 5);
+
+    expect(mocks.upsert).toHaveBeenCalledWith({
+      where: {
+        userId_date: {
+          userId: "user-4",
+          date: new Date(Date.UTC(2026, 1, 16)),
+        },
+      },
+      create: {
+        userId: "user-4",
+        date: new Date(Date.UTC(2026, 1, 16)),
+        requestCount: 0,
+        inputTokens: 50,
+        outputTokens: 25,
+        reasoningTokens: 5,
+        totalCostUsd: 0.15,
+      },
+      update: {
+        inputTokens: { increment: 50 },
+        outputTokens: { increment: 25 },
+        reasoningTokens: { increment: 5 },
+        totalCostUsd: { increment: 0.15 },
+      },
+    });
+    expect(result.requestCount).toBe(4);
   });
 });

@@ -369,7 +369,9 @@ export async function handleWebChatPost(request: Request) {
               .join("\n");
 
             waitUntil(
-              generateChatTitle(context || userMessageText).then((title) => {
+              generateChatTitle(context || userMessageText, {
+                userId: user.id,
+              }).then((title) => {
                 prisma.chat
                   .update({
                     where: { id: chatId },

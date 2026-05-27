@@ -72,11 +72,8 @@ export const RAG_KEYWORDS = [
   "forza",
   "resistenza",
   "potenza",
-  // Questions
-  "perché",
-  "quando",
-  "quanto",
-  "quale",
+  // Intent should be specific enough to avoid sending generic questions to RAG.
+  // Broad question words are handled by the classifier instead.
 ] as const;
 
 /**

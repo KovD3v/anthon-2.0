@@ -1,15 +1,20 @@
 import { generateText } from "ai";
 import { openrouter } from "@/lib/ai/providers/openrouter";
+import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { createLogger } from "@/lib/logger";
 
 const titleLogger = createLogger("ai");
 
-const SUMMARIZATION_MODEL = openrouter("google/gemini-2.0-flash-001");
+const SUMMARIZATION_MODEL_ID = "google/gemini-2.0-flash-001";
+const SUMMARIZATION_MODEL = openrouter(SUMMARIZATION_MODEL_ID);
 
 /**
  * Generate a title for a conversation based on the first few messages.
  */
-export async function generateChatTitle(context: string): Promise<string> {
+export async function generateChatTitle(
+  context: string,
+  options?: { userId?: string },
+): Promise<string> {
   try {
     const result = await generateText({
       model: SUMMARIZATION_MODEL,
@@ -21,6 +26,15 @@ export async function generateChatTitle(context: string): Promise<string> {
       maxOutputTokens: 20,
       temperature: 0.7,
     });
+
+    if (options?.userId) {
+      await trackSupportAiUsage({
+        userId: options.userId,
+        modelId: SUMMARIZATION_MODEL_ID,
+        usage: result.usage,
+        providerMetadata: result.providerMetadata,
+      });
+    }
 
     // Clean up the title
     return result.text

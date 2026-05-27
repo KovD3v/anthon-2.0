@@ -1,6 +1,7 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { openrouter } from "@/lib/ai/providers/openrouter";
+import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { parseCanonicalPlanFromPlanId } from "@/lib/plans";
@@ -87,6 +88,13 @@ User message:
     });
 
     const output = result.output;
+    await trackSupportAiUsage({
+      userId: params.userId,
+      modelId: DEFAULT_PREFLIGHT_MODEL,
+      usage: result.usage,
+      providerMetadata: result.providerMetadata,
+    });
+
     if (!output || output.mode === "TEXT") {
       return {
         mode: "TEXT",

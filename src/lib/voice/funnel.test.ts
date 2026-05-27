@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   voiceCreate: vi.fn(),
   dailyUsageUpsert: vi.fn(),
   measure: vi.fn(),
+  trackSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -19,6 +20,11 @@ vi.mock("ai", () => ({
 
 vi.mock("@/lib/ai/providers/openrouter", () => ({
   maintenanceModel: "mock-maintenance-model",
+  MAINTENANCE_MODEL_ID: "maintenance-model-id",
+}));
+
+vi.mock("@/lib/ai/usage-meter", () => ({
+  trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -75,6 +81,7 @@ describe("voice/funnel", () => {
     mocks.voiceCount.mockReset();
     mocks.voiceCreate.mockReset();
     mocks.measure.mockReset();
+    mocks.trackSupportAiUsage.mockReset();
 
     mocks.outputObject.mockImplementation(
       ({ schema }: { schema: unknown }) => ({ schema }),
@@ -83,12 +90,14 @@ describe("voice/funnel", () => {
       async (_name: string, fn: () => unknown | Promise<unknown>) => fn(),
     );
     mocks.voiceCount.mockResolvedValue(0);
+    mocks.trackSupportAiUsage.mockResolvedValue(undefined);
     mocks.generateText.mockResolvedValue({
       output: {
         decision: "VOICE",
         reason: "conversational",
         confidence: 0.9,
       },
+      usage: { inputTokens: 70, outputTokens: 9 },
     });
   });
 
@@ -235,6 +244,12 @@ describe("voice/funnel", () => {
     const result = await shouldGenerateVoice(baseParams());
 
     expect(result).toEqual({ shouldGenerateVoice: true });
+    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      userId: "user-1",
+      modelId: "maintenance-model-id",
+      usage: { inputTokens: 70, outputTokens: 9 },
+      providerMetadata: undefined,
+    });
   });
 
   it("tracks voice usage with the expected payload", async () => {

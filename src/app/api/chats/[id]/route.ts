@@ -244,7 +244,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
       const firstUserText = getTextFromParts(firstUserMessage?.parts);
       if (firstUserText) {
-        newTitle = await generateChatTitle(firstUserText);
+        newTitle = await generateChatTitle(firstUserText, { userId: user.id });
       }
     }
 

@@ -1,13 +1,20 @@
 import { generateText, type ModelMessage } from "ai";
 import type { Message } from "@/generated/prisma/client";
 import { SESSION } from "@/lib/ai/constants";
-import { subAgentModel } from "@/lib/ai/providers/openrouter";
+import {
+  SUB_AGENT_MODEL_ID,
+  subAgentModel,
+} from "@/lib/ai/providers/openrouter";
 import { cacheSummary, getCachedSummary } from "@/lib/ai/session-cache";
+import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 
 const sessionLogger = createLogger("ai");
+const MAX_CONTEXT_MESSAGE_CHARS = 2000;
+const MAX_CONTEXT_TOTAL_CHARS = 12_000;
+const TRUNCATED_MARKER = "\n[truncated]";
 
 interface Session {
   messages: Message[];
@@ -80,13 +87,21 @@ async function summarizeSession(
     })
     .join("\n");
 
-  const { text } = await generateText({
+  const result = await generateText({
     model: subAgentModel,
     system: `Sei un assistente che crea riassunti concisi di conversazioni. 
 Estrai i punti chiave, le richieste dell'utente, le risposte importanti e qualsiasi informazione rilevante.
 Il riassunto deve essere in italiano e non superare 200 parole.
 Mantieni il contesto importante per continuare la conversazione.`,
     prompt: `Riassumi questa conversazione:\n\n${conversationText}`,
+  });
+  const { text } = result;
+
+  await trackSupportAiUsage({
+    userId,
+    modelId: SUB_AGENT_MODEL_ID,
+    usage: result.usage,
+    providerMetadata: result.providerMetadata,
   });
 
   // Cache the summary in database
@@ -108,8 +123,44 @@ function toModelMessage(message: Message): ModelMessage {
 
   return {
     role,
-    content: getTextFromParts(message.parts),
+    content: truncateContextText(getTextFromParts(message.parts)),
   } as ModelMessage;
+}
+
+function truncateContextText(text: string): string {
+  if (text.length <= MAX_CONTEXT_MESSAGE_CHARS) {
+    return text;
+  }
+
+  return `${text.slice(
+    0,
+    MAX_CONTEXT_MESSAGE_CHARS - TRUNCATED_MARKER.length,
+  )}${TRUNCATED_MARKER}`;
+}
+
+function getContextTextLength(message: ModelMessage): number {
+  return typeof message.content === "string" ? message.content.length : 0;
+}
+
+function fitContextBudget(messages: ModelMessage[]): ModelMessage[] {
+  const fitted: ModelMessage[] = [];
+  let totalChars = 0;
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    const textLength = getContextTextLength(message);
+    if (
+      fitted.length > 0 &&
+      totalChars + textLength > MAX_CONTEXT_TOTAL_CHARS
+    ) {
+      continue;
+    }
+
+    fitted.unshift(message);
+    totalChars += textLength;
+  }
+
+  return fitted;
 }
 
 /**
@@ -147,7 +198,7 @@ export async function buildConversationContext(
   // If we have a chatId, we don't group into sessions or summarize.
   // We just return the messages for that specific chat up to the cap.
   if (chatId) {
-    return recentMessages.map(toModelMessage);
+    return fitContextBudget(recentMessages.map(toModelMessage));
   }
 
   // Group into sessions (for global history mode)
@@ -237,7 +288,7 @@ export async function buildConversationContext(
     }
   }
 
-  return contextMessages;
+  return fitContextBudget(contextMessages);
 }
 
 /**

@@ -134,6 +134,7 @@ describe("integration /api/chats/[id]", () => {
     expect(body.title).toBe("Weekly Running Plan");
     expect(mocks.generateChatTitle).toHaveBeenCalledWith(
       "Find my weekly running plan",
+      { userId: user.id },
     );
     expect(mocks.revalidateTag).toHaveBeenCalledWith(`chat-${chat.id}`, "page");
     expect(mocks.revalidateTag).toHaveBeenCalledWith(

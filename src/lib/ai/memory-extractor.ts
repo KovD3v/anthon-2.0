@@ -1,8 +1,12 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { MEMORY } from "@/lib/ai/constants";
-import { subAgentModel } from "@/lib/ai/providers/openrouter";
+import {
+  SUB_AGENT_MODEL_ID,
+  subAgentModel,
+} from "@/lib/ai/providers/openrouter";
 import { invalidateMemoriesForPromptCache } from "@/lib/ai/tools/memory";
+import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 
@@ -62,7 +66,7 @@ export async function extractAndSaveMemories(
 
   try {
     // Use generateText with Output.object() for structured extraction
-    const { output } = await generateText({
+    const result = await generateText({
       model: subAgentModel,
       output: Output.object({
         schema: ExtractedFactsSchema,
@@ -84,6 +88,14 @@ UTENTE: ${userMessage}
 ASSISTENTE: ${assistantResponse}
 
 Restituisci i fatti estratti o un array vuoto se non ce ne sono.`,
+    });
+    const { output } = result;
+
+    await trackSupportAiUsage({
+      userId,
+      modelId: SUB_AGENT_MODEL_ID,
+      usage: result.usage,
+      providerMetadata: result.providerMetadata,
     });
 
     // Filter facts with high enough confidence and save them

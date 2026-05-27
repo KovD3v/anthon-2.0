@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   memoryUpsert: vi.fn(),
   userUpdate: vi.fn(),
   invalidateMemoriesForPromptCache: vi.fn(),
+  trackSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -17,6 +18,11 @@ vi.mock("ai", () => ({
 
 vi.mock("@/lib/ai/providers/openrouter", () => ({
   subAgentModel: "sub-agent-model",
+  SUB_AGENT_MODEL_ID: "sub-agent-model-id",
+}));
+
+vi.mock("@/lib/ai/usage-meter", () => ({
+  trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
 
 vi.mock("@/lib/ai/tools/memory", () => ({
@@ -43,10 +49,12 @@ describe("ai/memory-extractor", () => {
     mocks.memoryUpsert.mockReset();
     mocks.userUpdate.mockReset();
     mocks.invalidateMemoriesForPromptCache.mockReset();
+    mocks.trackSupportAiUsage.mockReset();
 
     mocks.outputObject.mockReturnValue({ schema: "mocked" });
     mocks.memoryUpsert.mockResolvedValue({});
     mocks.userUpdate.mockResolvedValue({});
+    mocks.trackSupportAiUsage.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -83,6 +91,8 @@ describe("ai/memory-extractor", () => {
           },
         ],
       },
+      usage: { inputTokens: 120, outputTokens: 30 },
+      providerMetadata: { openrouter: { usage: { cost: 0.002 } } },
     });
 
     await extractAndSaveMemories(
@@ -121,6 +131,12 @@ describe("ai/memory-extractor", () => {
     expect(mocks.userUpdate).toHaveBeenCalledWith({
       where: { id: "user-1" },
       data: { lastActivityAt: new Date("2026-02-17T15:00:00.000Z") },
+    });
+    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      userId: "user-1",
+      modelId: "sub-agent-model-id",
+      usage: { inputTokens: 120, outputTokens: 30 },
+      providerMetadata: { openrouter: { usage: { cost: 0.002 } } },
     });
   });
 
