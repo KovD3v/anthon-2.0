@@ -40,6 +40,7 @@ export interface InboundContext {
     hasAudio?: boolean;
     responseMode?: "text" | "voice";
     voiceEnabled?: boolean;
+    skipConversationHistory?: boolean;
   };
   execution?: {
     mode?: "stream" | "text";

@@ -65,6 +65,7 @@ export async function runChannelFlow(
     responseMode: ctx.ai?.responseMode ?? "text",
     voiceEnabled: ctx.ai?.voiceEnabled,
     effectiveEntitlements: ctx.rateLimit.effectiveEntitlements,
+    skipConversationHistory: ctx.ai?.skipConversationHistory,
     onFinish: async ({ text, metrics }) => {
       finalMetrics = metrics;
 

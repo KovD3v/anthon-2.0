@@ -338,6 +338,7 @@ describe("POST /api/guest/chat", () => {
       isGuest: true,
       hasImages: false,
       hasAudio: false,
+      skipConversationHistory: true,
       effectiveEntitlements: allowedRateLimit.effectiveEntitlements,
     });
     expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(

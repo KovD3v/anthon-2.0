@@ -335,6 +335,24 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).toEqual({});
   });
 
+  it("skips conversation history lookup when the caller knows this is the first message", async () => {
+    await streamChat({
+      userId: "guest-1",
+      chatId: "chat-new",
+      userMessage: "ciao",
+      isGuest: true,
+      memoryEnabled: false,
+      skipConversationHistory: true,
+    });
+
+    expect(mocks.buildConversationContext).not.toHaveBeenCalled();
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    expect(streamInput.messages).toEqual([{ role: "user", content: "ciao" }]);
+  });
+
   it("collects step tool calls and forwards computed metrics through onFinish", async () => {
     mocks.shouldUseRag.mockResolvedValue(true);
     mocks.getRagContext.mockResolvedValue("**Doc A**\n...\n**Doc B**\n...");

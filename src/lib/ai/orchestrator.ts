@@ -182,6 +182,7 @@ interface StreamChatOptions {
   voiceEnabled?: boolean;
   responseMode?: "text" | "voice";
   effectiveEntitlements?: EffectiveEntitlements;
+  skipConversationHistory?: boolean;
 }
 
 /**
@@ -369,6 +370,7 @@ export async function streamChat({
   voiceEnabled,
   responseMode = "text",
   effectiveEntitlements: prefetchedEntitlements,
+  skipConversationHistory = false,
 }: StreamChatOptions) {
   // Record start time for performance tracking
   const startTime = Date.now();
@@ -418,10 +420,11 @@ export async function streamChat({
   const maxContextMessages = effectiveEntitlements.limits.maxContextMessages;
 
   // Kick off independent work ASAP to reduce end-to-end latency
-  const conversationHistoryPromise = LatencyLogger.measure(
-    "📋 Orchestrator: Get conversation history",
-    () => buildConversationContext(userId, maxContextMessages, chatId),
-  );
+  const conversationHistoryPromise = skipConversationHistory
+    ? Promise.resolve<ModelMessage[]>([])
+    : LatencyLogger.measure("📋 Orchestrator: Get conversation history", () =>
+        buildConversationContext(userId, maxContextMessages, chatId),
+      );
 
   const userContextPromise = isGuest
     ? Promise.resolve("")

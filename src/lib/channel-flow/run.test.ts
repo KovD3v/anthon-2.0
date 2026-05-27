@@ -104,6 +104,44 @@ describe("channel-flow/run", () => {
     );
   });
 
+  it("passes first-message history skip to the orchestrator", async () => {
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "";
+      })(),
+    });
+
+    await runChannelFlow({
+      channel: "WEB_GUEST",
+      userId: "guest-1",
+      chatId: "chat-new",
+      userMessageText: "ciao",
+      parts: [{ type: "text", text: "ciao" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: false,
+        allowMemoryExtraction: false,
+        allowVoiceOutput: false,
+      },
+      ai: {
+        isGuest: true,
+        skipConversationHistory: true,
+      },
+      execution: { mode: "stream" },
+      persistence: {
+        channel: "WEB",
+        saveAssistantMessage: true,
+      },
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: "chat-new",
+        skipConversationHistory: true,
+      }),
+    );
+  });
+
   it("consumes text stream and persists assistant output in text mode", async () => {
     mocks.streamChat.mockImplementation(async ({ onFinish }) => {
       await onFinish?.({

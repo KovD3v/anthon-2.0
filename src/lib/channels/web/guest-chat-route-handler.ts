@@ -143,6 +143,10 @@ export async function handleGuestChatPost(request: Request) {
           return new Response("Empty message", { status: 400 });
         }
 
+        const requestConversationMessageCount = messages.filter(
+          (message) => message.role === "user" || message.role === "assistant",
+        ).length;
+
         // Save the user message to the database
         const message = await LatencyLogger.measure(
           "DB: Save user message",
@@ -186,16 +190,12 @@ export async function handleGuestChatPost(request: Request) {
 
         // Auto-generate or refresh chat title if not manually set by user
         if (!chat.customTitle) {
-          const messageCount = messages.filter(
-            (message) =>
-              message.role === "user" || message.role === "assistant",
-          ).length;
-
           const shouldRefresh =
-            messageCount === 1 ||
-            messageCount === 2 ||
-            messageCount === 4 ||
-            (messageCount > 0 && messageCount % 5 === 0);
+            requestConversationMessageCount === 1 ||
+            requestConversationMessageCount === 2 ||
+            requestConversationMessageCount === 4 ||
+            (requestConversationMessageCount > 0 &&
+              requestConversationMessageCount % 5 === 0);
 
           if (shouldRefresh) {
             // Use the last few messages for better context on refresh
@@ -272,6 +272,7 @@ export async function handleGuestChatPost(request: Request) {
             isGuest: true,
             hasImages: false,
             hasAudio: false,
+            skipConversationHistory: requestConversationMessageCount === 1,
           },
           execution: { mode: "stream" },
           persistence: {
