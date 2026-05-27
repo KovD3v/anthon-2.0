@@ -139,6 +139,7 @@ describe("lib/chat", () => {
       userId: "user-1",
       createdAt: new Date("2026-02-14T12:00:00.000Z"),
       updatedAt: new Date("2026-02-17T12:00:00.000Z"),
+      _count: { messages: 3 },
     });
     mocks.userFindUnique.mockResolvedValue({
       role: "USER",
@@ -306,6 +307,7 @@ describe("lib/chat", () => {
       userId: "owner-1",
       createdAt: new Date("2026-02-10T10:00:00.000Z"),
       updatedAt: new Date("2026-02-11T10:00:00.000Z"),
+      _count: { messages: 1 },
     });
     mocks.userFindUnique.mockResolvedValue(null);
     mocks.messageFindMany.mockResolvedValue([
@@ -353,6 +355,42 @@ describe("lib/chat", () => {
         hasMore: false,
         nextCursor: null,
       },
+    });
+  });
+
+  it("getSharedChat fast-paths empty guest chats without message or entitlement queries", async () => {
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "guest-chat",
+      title: null,
+      visibility: "PRIVATE",
+      userId: "guest-1",
+      createdAt: new Date("2026-02-18T09:00:00.000Z"),
+      updatedAt: new Date("2026-02-18T09:00:00.000Z"),
+      _count: { messages: 0 },
+    });
+    mocks.userFindUnique.mockResolvedValue({
+      role: "USER",
+      isGuest: true,
+      preferences: null,
+      subscription: null,
+    });
+
+    const result = await getSharedChat("guest-chat", "guest-1");
+
+    expect(mocks.resolveEffectiveEntitlements).not.toHaveBeenCalled();
+    expect(mocks.getVoicePlanConfig).not.toHaveBeenCalled();
+    expect(mocks.messageFindMany).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      id: "guest-chat",
+      title: "New Chat",
+      isOwner: true,
+      messages: [],
+      pagination: {
+        hasMore: false,
+        nextCursor: null,
+      },
+      voiceEnabled: true,
+      voicePlanEnabled: false,
     });
   });
 });

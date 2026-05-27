@@ -74,6 +74,9 @@ export const getSharedChat = cache(
           userId: true,
           createdAt: true,
           updatedAt: true,
+          _count: {
+            select: { messages: true },
+          },
         },
       }),
       // Fetch user preferences and subscription for voice config
@@ -90,57 +93,64 @@ export const getSharedChat = cache(
 
     if (!chat) return null;
 
-    const entitlements = userData
-      ? await resolveEffectiveEntitlements({
-          userId,
-          subscriptionStatus: userData.subscription?.status,
-          userRole: userData.role,
-          planId: userData.subscription?.planId,
-          isGuest: userData.isGuest,
-        })
-      : null;
+    const entitlements = userData?.isGuest
+      ? null
+      : userData
+        ? await resolveEffectiveEntitlements({
+            userId,
+            subscriptionStatus: userData.subscription?.status,
+            userRole: userData.role,
+            planId: userData.subscription?.planId,
+            isGuest: userData.isGuest,
+          })
+        : null;
 
     // Compute voice plan config
-    const voicePlanConfig = getVoicePlanConfig(
-      userData?.subscription?.status ?? undefined,
-      userData?.role,
-      userData?.subscription?.planId,
-      userData?.isGuest,
-      entitlements?.modelTier,
-    );
+    const voicePlanConfig = userData?.isGuest
+      ? { enabled: false }
+      : getVoicePlanConfig(
+          userData?.subscription?.status ?? undefined,
+          userData?.role,
+          userData?.subscription?.planId,
+          userData?.isGuest,
+          entitlements?.modelTier,
+        );
 
-    const messages = await prisma.message.findMany({
-      where: { chatId },
-      orderBy: { createdAt: "desc" },
-      take: limit + 1,
-      ...(cursor && {
-        cursor: { id: cursor },
-        skip: 1,
-      }),
-      select: {
-        id: true,
-        role: true,
-        parts: true,
-        createdAt: true,
-        model: true,
-        inputTokens: true,
-        outputTokens: true,
-        costUsd: true,
-        generationTimeMs: true,
-        reasoningTimeMs: true,
-        ragUsed: true,
-        toolCalls: true,
-        attachments: {
-          select: {
-            id: true,
-            name: true,
-            contentType: true,
-            size: true,
-            blobUrl: true,
-          },
-        },
-      },
-    });
+    const messages =
+      chat._count.messages === 0 && !cursor
+        ? []
+        : await prisma.message.findMany({
+            where: { chatId },
+            orderBy: { createdAt: "desc" },
+            take: limit + 1,
+            ...(cursor && {
+              cursor: { id: cursor },
+              skip: 1,
+            }),
+            select: {
+              id: true,
+              role: true,
+              parts: true,
+              createdAt: true,
+              model: true,
+              inputTokens: true,
+              outputTokens: true,
+              costUsd: true,
+              generationTimeMs: true,
+              reasoningTimeMs: true,
+              ragUsed: true,
+              toolCalls: true,
+              attachments: {
+                select: {
+                  id: true,
+                  name: true,
+                  contentType: true,
+                  size: true,
+                  blobUrl: true,
+                },
+              },
+            },
+          });
 
     const hasMore = messages.length > limit;
     const messagesToReturn = hasMore ? messages.slice(0, -1) : messages;
