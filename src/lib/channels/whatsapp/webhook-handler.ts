@@ -369,6 +369,14 @@ async function handleMessage(
 
   if (process.env.WHATSAPP_DISABLE_AI === "true") return;
 
+  if (!process.env.OPENROUTER_API_KEY) {
+    await sendWhatsAppMessage(
+      from,
+      "Servizio AI non configurato. Riprova più tardi.",
+    );
+    return;
+  }
+
   // Process Media (Audio, Image, Document)
   let transcribedText: string | null = null;
   const files: ChannelMessagePart[] = [];

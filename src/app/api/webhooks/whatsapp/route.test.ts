@@ -297,6 +297,7 @@ function buildDocumentPayload(caption: string) {
 describe("/api/webhooks/whatsapp", () => {
   beforeEach(() => {
     process.env.WHATSAPP_VERIFY_TOKEN = "verify-token";
+    process.env.OPENROUTER_API_KEY = "sk-test";
     delete process.env.WHATSAPP_APP_SECRET;
     delete process.env.WHATSAPP_SYNC_WEBHOOK;
     delete process.env.WHATSAPP_DISABLE_SEND;
@@ -562,6 +563,51 @@ describe("/api/webhooks/whatsapp", () => {
       }),
     );
     expect(mocks.streamChat).not.toHaveBeenCalled();
+  });
+
+  it("sync text message saves inbound and returns when OPENROUTER key is missing", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+    delete process.env.OPENROUTER_API_KEY;
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate.mockResolvedValue({ id: "wa_in_1" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildTextPayload("ciao da wa")),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.prismaMessageCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://graph.facebook.com/v21.0/phone_1/messages",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining("Servizio AI non configurato"),
+      }),
+    );
   });
 
   it("sync text message runs AI stream path and persists assistant output", async () => {
