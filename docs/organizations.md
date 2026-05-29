@@ -58,7 +58,7 @@ Contract payload fields:
 
 - Guests and admins use personal/admin limits only.
 - If the user has no active org memberships, personal limits are used.
-- If active org memberships with contracts exist, the best available organization entitlement source is used.
+- If active org memberships with contracts exist, personal and organization entitlement sources are compared and the strongest single source is used.
 - If memberships exist but no valid org contract is found, personal fallback is used.
 
 The response carries source metadata:
@@ -68,6 +68,8 @@ The response carries source metadata:
 - `sourceLabel`
 - resolved `modelTier`
 - resolved numeric limits
+
+Only the applied source is returned in `sources`; it is not a list of every candidate considered during resolution.
 
 ## Admin API
 

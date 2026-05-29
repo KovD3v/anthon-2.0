@@ -25,7 +25,7 @@ These are the personal limits used by the entitlement resolver.
 For non-guest, non-admin users, effective entitlements are resolved with this priority:
 
 1. If no active organization memberships exist: use personal limits.
-2. If active memberships exist and at least one valid organization contract exists: use the single best organization entitlement source.
+2. If active memberships exist and at least one valid organization contract exists: compare personal and organization entitlement sources, then use the strongest single source.
 3. If memberships exist but no valid organization contract is available: use personal fallback limits.
 
 Notes:
@@ -57,7 +57,7 @@ Returned payload includes:
 2. Effective `limits`
 3. Block reason (if blocked)
 4. Upgrade info (if applicable)
-5. Entitlement source metadata (`modelTier` + applied `sources`)
+5. Entitlement source metadata (`modelTier` + the applied source in `sources`)
 
 ## Guest and Admin Behavior
 

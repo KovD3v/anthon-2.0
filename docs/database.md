@@ -99,7 +99,7 @@ Individual messages supporting text, media, and AI metadata.
 | `role`         | MessageRole      | USER, ASSISTANT, SYSTEM                          |
 | `direction`    | MessageDirection | INBOUND or OUTBOUND                              |
 | `type`         | MessageType      | TEXT, IMAGE, AUDIO, etc.                         |
-| `parts`        | Json?            | AI SDK v5 message parts — canonical content format |
+| `parts`        | Json?            | AI SDK v6 message parts — canonical content format |
 | `mediaUrl`     | String?          | Media URL (for non-web channels)                 |
 | `mediaType`    | String?          | Media MIME type                                  |
 | `externalMessageId` | String?     | External message id (unique per channel)         |
@@ -239,7 +239,7 @@ Entitlement behavior:
 
 - `basePlan` defines the default limits and model tier.
 - Contract fields (`seatLimit`, numeric limits, `modelTier`) are enterprise overrides on top of that base.
-- For active organization members, organization entitlements are used; personal subscription is fallback only when organization contract data is missing/invalid.
+- For active organization members, the resolver compares personal and organization entitlement sources and applies the strongest source. Personal subscription is also used when organization contract data is missing/invalid.
 
 ### OrganizationMembership
 

@@ -17,17 +17,17 @@ An AI-powered coaching chat application built with Next.js 16, featuring intelli
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Setup environment variables
 cp .env.example .env
 # Edit .env with your credentials
 
 # Run database migrations
-npx prisma migrate dev
+bunx prisma migrate dev
 
 # Start development server
-npm run dev
+bun run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
@@ -84,28 +84,18 @@ anthon-2.0/
 
 | Script           | Description              |
 | ---------------- | ------------------------ |
-| `npm run dev`    | Start development server |
-| `npm run build`  | Build for production     |
-| `npm run lint`   | Run Biome linter         |
-| `npm run format` | Format code with Biome   |
-| `npm run test`   | Run unit tests (Vitest)  |
-| `npm run test:integration` | Run integration tests (real DB) |
-| `npm run test:coverage:unit` | Run unit coverage + thresholds |
-| `npm run test:coverage:integration` | Run integration coverage for `organizations` routes |
-| `npm run test:coverage` | Run unit + integration coverage |
-| `npm run test:all` | Run unit + integration + coverage |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run test:ui` | Run tests with Vitest UI |
-
-Test command equivalents:
-
-- `npm run test` (canonical)
-- `bun run test`
-- `bun run test:integration`
-- `bun run test:coverage:unit`
-- `bun run test:coverage:integration`
-- `bun run test:coverage`
-- `bun run test:all`
+| `bun run dev`    | Start development server |
+| `bun run build`  | Build for production     |
+| `bun run lint`   | Run Biome check          |
+| `bun run format` | Format code with Biome   |
+| `bun run test`   | Run unit tests (Vitest)  |
+| `bun run test:integration` | Run integration tests (real DB) |
+| `bun run test:coverage:unit` | Run unit coverage |
+| `bun run test:coverage:integration` | Run integration coverage |
+| `bun run test:coverage` | Run unit + integration coverage |
+| `bun run test:all` | Run unit + integration + coverage |
+| `bun run test:watch` | Run tests in watch mode |
+| `bun run test:ui` | Run tests with Vitest UI |
 
 ## 🪵 Logging
 

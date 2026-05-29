@@ -29,7 +29,7 @@ Welcome to the Anthon 2.0 documentation. Anthon is an AI-powered coaching chat a
 | **Database**       | PostgreSQL with Prisma ORM         |
 | **Vector Search**  | pgvector for RAG embeddings        |
 | **Authentication** | Clerk                              |
-| **AI Provider**    | OpenRouter (GPT-4.1, Gemini, Qwen) |
+| **AI Provider**    | OpenRouter (Gemini model routing)   |
 | **AI SDK**         | Vercel AI SDK v6                   |
 | **Styling**        | Tailwind CSS                       |
 | **UI Components**  | Radix UI, Framer Motion            |
@@ -38,16 +38,16 @@ Welcome to the Anthon 2.0 documentation. Anthon is an AI-powered coaching chat a
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Setup environment variables
 cp .env.example .env
 
 # Run database migrations
-npx prisma migrate dev
+bunx prisma migrate dev
 
 # Start development server
-npm run dev
+bun run dev
 ```
 
 See [Getting Started](./getting-started.md) for detailed setup instructions.

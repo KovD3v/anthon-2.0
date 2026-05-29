@@ -4,7 +4,7 @@ This guide will help you set up and run Anthon 2.0 locally.
 
 ## Prerequisites
 
--   **Node.js** 18.17 or later
+-   **Node.js** 20.9.0 or later
 -   **PostgreSQL** 15+ with [pgvector](https://github.com/pgvector/pgvector) extension
 -   **Clerk account** for authentication ([clerk.com](https://clerk.com))
 -   **OpenRouter API key** for AI models ([openrouter.ai](https://openrouter.ai))
@@ -21,8 +21,6 @@ cd anthon-2.0
 ### 2. Install Dependencies
 
 ```bash
-npm install
-# or
 bun install
 ```
 
@@ -105,7 +103,7 @@ PROD_DATABASE_URL=<pooled> PROD_DIRECT_DATABASE_URL=<direct> ./scripts/migrate-p
 ### 5. Seed Database (Optional)
 
 ```bash
-npx prisma db seed
+bunx prisma db seed
 ```
 
 ## Running the Application
@@ -113,7 +111,7 @@ npx prisma db seed
 ### Development
 
 ```bash
-npm run dev
+bun run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
@@ -121,37 +119,27 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ### Production Build
 
 ```bash
-npm run build
-npm start
+bun run build
+bun run start
 ```
 
 ## Available Scripts
 
 | Script           | Description              |
 | ---------------- | ------------------------ |
-| `npm run dev`    | Start development server |
-| `npm run build`  | Build for production     |
-| `npm start`      | Start production server  |
-| `npm run lint`   | Run Biome linter         |
-| `npm run format` | Format code with Biome   |
-| `npm run test`   | Run unit tests (Vitest)  |
-| `npm run test:integration` | Run integration tests (real DB) |
-| `npm run test:coverage:unit` | Run unit coverage + thresholds |
-| `npm run test:coverage:integration` | Run integration coverage for `organizations` routes |
-| `npm run test:coverage` | Run unit + integration coverage |
-| `npm run test:all` | Run unit + integration + coverage |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run test:ui` | Run tests with Vitest UI |
-
-Test command equivalents:
-
-- `npm run test` (canonical)
-- `bun run test`
-- `bun run test:integration`
-- `bun run test:coverage:unit`
-- `bun run test:coverage:integration`
-- `bun run test:coverage`
-- `bun run test:all`
+| `bun run dev`    | Start development server |
+| `bun run build`  | Build for production     |
+| `bun run start`  | Start production server  |
+| `bun run lint`   | Run Biome check          |
+| `bun run format` | Format code with Biome   |
+| `bun run test`   | Run unit tests (Vitest)  |
+| `bun run test:integration` | Run integration tests (real DB) |
+| `bun run test:coverage:unit` | Run unit coverage |
+| `bun run test:coverage:integration` | Run integration coverage |
+| `bun run test:coverage` | Run unit + integration coverage |
+| `bun run test:all` | Run unit + integration + coverage |
+| `bun run test:watch` | Run tests in watch mode |
+| `bun run test:ui` | Run tests with Vitest UI |
 
 ## Project Structure
 
