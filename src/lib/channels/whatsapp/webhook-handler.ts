@@ -498,7 +498,17 @@ async function handleMessage(
           const success = await sendWhatsAppVoice(from, audio.audioBuffer);
 
           if (success) {
-            await trackVoiceUsage(user.id, audio.characterCount, "WHATSAPP");
+            await trackVoiceUsage(
+              user.id,
+              audio.characterCount,
+              "WHATSAPP",
+            ).catch((error) =>
+              whatsappLogger.error(
+                "voice.usage_tracking_failed",
+                "Failed tracking WhatsApp voice usage",
+                { error, userId: user.id },
+              ),
+            );
             return;
           }
 

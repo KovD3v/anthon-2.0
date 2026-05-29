@@ -618,7 +618,17 @@ async function handleUpdate(update: TelegramUpdate) {
           async () => sendTelegramVoice(chatId, audio.audioBuffer),
         );
         if (voiceSent) {
-          await trackVoiceUsage(user.id, audio.characterCount, "TELEGRAM");
+          await trackVoiceUsage(
+            user.id,
+            audio.characterCount,
+            "TELEGRAM",
+          ).catch((error) =>
+            telegramLogger.error(
+              "voice.usage_tracking_failed",
+              "Failed tracking Telegram voice usage",
+              { error, userId: user.id },
+            ),
+          );
           return;
         }
       }

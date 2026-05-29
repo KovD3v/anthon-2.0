@@ -688,6 +688,91 @@ describe("/api/webhooks/telegram", () => {
     expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
   });
 
+  it("does not send duplicate text when Telegram voice usage tracking fails after send", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.OPENROUTER_API_KEY = "sk-test";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      id: "ci_1",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: false,
+        subscription: {
+          status: "ACTIVE",
+          planId: "my-basic-plan",
+        },
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate
+      .mockResolvedValueOnce({ id: "msg_in_1" })
+      .mockResolvedValueOnce({ id: "msg_out_1" });
+    mocks.incrementUsage.mockResolvedValue(undefined);
+    mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.isElevenLabsConfigured.mockReturnValue(true);
+    mocks.shouldGenerateVoice.mockResolvedValue({ shouldGenerateVoice: true });
+    mocks.getVoicePlanConfig.mockReturnValue({ enabled: true });
+    mocks.generateVoice.mockResolvedValue({
+      audioBuffer: Buffer.from("audio"),
+      characterCount: 21,
+    });
+    mocks.trackVoiceUsage.mockRejectedValue(new Error("usage write failed"));
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "risposta vocale",
+        metrics: {
+          model: "test-model",
+          inputTokens: 10,
+          outputTokens: 20,
+          reasoningTokens: 0,
+          reasoningContent: null,
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.001,
+          generationTimeMs: 42,
+          reasoningTimeMs: 0,
+        },
+      });
+      return {
+        textStream: (async function* () {
+          yield "risposta vocale";
+        })(),
+      };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildTextUpdate("mandami un vocale")),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.telegram.org/botbot-token/sendVoice",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(mocks.trackVoiceUsage).toHaveBeenCalledWith(
+      "user_1",
+      21,
+      "TELEGRAM",
+    );
+  });
+
   it("helper utils normalize errors and command/url detection", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
     delete process.env.VERCEL_URL;
