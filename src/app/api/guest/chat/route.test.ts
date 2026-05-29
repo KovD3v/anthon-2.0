@@ -72,6 +72,14 @@ function buildRequest(body: unknown): Request {
   });
 }
 
+function buildRawRequest(body: string): Request {
+  return new Request("http://localhost/api/guest/chat", {
+    method: "POST",
+    body,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 const guestUser = {
   id: "guest-1",
   role: "USER",
@@ -235,6 +243,17 @@ describe("POST /api/guest/chat", () => {
     await expect(response.json()).resolves.toEqual({
       error: "messages must be a non-empty array",
     });
+  });
+
+  it("returns 400 for malformed json", async () => {
+    const response = await POST(buildRawRequest("{not-json"));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid JSON body",
+    });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
   it("returns 400 when chatId is missing", async () => {

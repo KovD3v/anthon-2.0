@@ -71,7 +71,13 @@ export async function handleGuestChatPost(request: Request) {
         }
 
         // Parse request body
-        const body = await bodyPromise;
+        let body: unknown;
+        try {
+          body = await bodyPromise;
+        } catch {
+          return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+        }
+
         const { messages, chatId } = body as {
           messages: UIMessage[];
           chatId?: string;
