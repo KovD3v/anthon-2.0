@@ -142,6 +142,97 @@ describe("channel-flow/run", () => {
     );
   });
 
+  it("removes file parts and media hints when attachments are disabled", async () => {
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "";
+      })(),
+    });
+
+    await runChannelFlow({
+      channel: "WEB_GUEST",
+      userId: "guest-1",
+      chatId: "chat-1",
+      userMessageText: "caption",
+      parts: [
+        { type: "text", text: "caption" },
+        {
+          type: "file",
+          data: "image-base64",
+          mimeType: "image/png",
+          name: "photo.png",
+        },
+        {
+          type: "file",
+          data: "audio-base64",
+          mimeType: "audio/ogg",
+          name: "voice.ogg",
+        },
+      ],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: false,
+        allowMemoryExtraction: false,
+        allowVoiceOutput: false,
+      },
+      ai: {
+        hasImages: true,
+        hasAudio: true,
+        isGuest: true,
+      },
+      execution: { mode: "stream" },
+      persistence: {
+        channel: "WEB",
+        saveAssistantMessage: true,
+      },
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageParts: [{ type: "text", text: "caption" }],
+        hasImages: false,
+        hasAudio: false,
+      }),
+    );
+  });
+
+  it("forces text response settings when voice output is disabled", async () => {
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "";
+      })(),
+    });
+
+    await runChannelFlow({
+      channel: "TELEGRAM",
+      userId: "user-1",
+      userMessageText: "say it",
+      parts: [{ type: "text", text: "say it" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: false,
+      },
+      ai: {
+        responseMode: "voice",
+        voiceEnabled: true,
+      },
+      execution: { mode: "text" },
+      persistence: {
+        channel: "TELEGRAM",
+        saveAssistantMessage: true,
+      },
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        responseMode: "text",
+        voiceEnabled: false,
+      }),
+    );
+  });
+
   it.each([
     {
       name: "web stream",

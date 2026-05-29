@@ -45,7 +45,10 @@ function detectAudio(parts: ChannelMessagePart[]) {
 export async function runChannelFlow(
   ctx: InboundContext,
 ): Promise<RunChannelFlowResult> {
-  const normalizedParts = normalizeParts(ctx.parts);
+  const policyParts = ctx.options.allowAttachments
+    ? ctx.parts
+    : ctx.parts.filter((part) => part.type === "text");
+  const normalizedParts = normalizeParts(policyParts);
   const mode = ctx.execution?.mode ?? "text";
 
   let finalMetrics: RunChannelFlowResult["metrics"];
@@ -62,12 +65,18 @@ export async function runChannelFlow(
     userRole: ctx.ai?.userRole,
     subscriptionStatus: ctx.ai?.subscriptionStatus,
     isGuest: ctx.ai?.isGuest,
-    hasImages: ctx.ai?.hasImages ?? detectImages(ctx.parts),
-    hasAudio: ctx.ai?.hasAudio ?? detectAudio(ctx.parts),
+    hasImages: ctx.options.allowAttachments
+      ? (ctx.ai?.hasImages ?? detectImages(policyParts))
+      : false,
+    hasAudio: ctx.options.allowAttachments
+      ? (ctx.ai?.hasAudio ?? detectAudio(policyParts))
+      : false,
     messageParts: normalizedParts,
     memoryEnabled: ctx.options.allowMemoryExtraction,
-    responseMode: ctx.ai?.responseMode ?? "text",
-    voiceEnabled: ctx.ai?.voiceEnabled,
+    responseMode: ctx.options.allowVoiceOutput
+      ? (ctx.ai?.responseMode ?? "text")
+      : "text",
+    voiceEnabled: ctx.options.allowVoiceOutput ? ctx.ai?.voiceEnabled : false,
     effectiveEntitlements: ctx.rateLimit.effectiveEntitlements,
     skipConversationHistory: ctx.ai?.skipConversationHistory,
     onFinish: async ({ text, metrics }) => {
