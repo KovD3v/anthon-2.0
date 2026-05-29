@@ -116,4 +116,65 @@ describe("channel-flow/persistence", () => {
     expect(mocks.chatUpdate).not.toHaveBeenCalled();
     expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
   });
+
+  it("returns the assistant message when chat timestamp update fails after create", async () => {
+    mocks.messageCreate.mockResolvedValue({ id: "msg-created" });
+    mocks.chatUpdate.mockRejectedValue(new Error("chat update failed"));
+
+    const result = await persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        inputTokens: 1,
+        outputTokens: 2,
+        reasoningTokens: 0,
+        reasoningContent: "",
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.001,
+        generationTimeMs: 10,
+        reasoningTimeMs: 0,
+      },
+      updateChatTimestamp: true,
+      allowMemoryExtraction: false,
+    });
+
+    expect(result).toEqual({ id: "msg-created" });
+    expect(mocks.incrementUsage).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the assistant message when usage increment fails after create", async () => {
+    mocks.messageCreate.mockResolvedValue({ id: "msg-created" });
+    mocks.incrementUsage.mockRejectedValue(new Error("usage failed"));
+
+    const result = await persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        inputTokens: 1,
+        outputTokens: 2,
+        reasoningTokens: 0,
+        reasoningContent: "",
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.001,
+        generationTimeMs: 10,
+        reasoningTimeMs: 0,
+      },
+      allowMemoryExtraction: true,
+    });
+
+    expect(result).toEqual({ id: "msg-created" });
+    expect(mocks.extractAndSaveMemories).toHaveBeenCalledTimes(1);
+  });
 });

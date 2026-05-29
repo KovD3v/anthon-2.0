@@ -90,19 +90,35 @@ export async function persistAssistantOutput({
   });
 
   if (updateChatTimestamp && chatId) {
-    await prisma.chat.update({
-      where: { id: chatId },
-      data: { updatedAt: new Date() },
-    });
+    try {
+      await prisma.chat.update({
+        where: { id: chatId },
+        data: { updatedAt: new Date() },
+      });
+    } catch (error) {
+      persistenceLogger.error(
+        "chat.timestamp_update_failed",
+        "Failed updating chat timestamp after assistant persistence",
+        { error, chatId },
+      );
+    }
   }
 
-  await incrementUsage(
-    userId,
-    metrics.inputTokens,
-    metrics.outputTokens,
-    metrics.costUsd,
-    metrics.reasoningTokens ?? 0,
-  );
+  try {
+    await incrementUsage(
+      userId,
+      metrics.inputTokens,
+      metrics.outputTokens,
+      metrics.costUsd,
+      metrics.reasoningTokens ?? 0,
+    );
+  } catch (error) {
+    persistenceLogger.error(
+      "usage.increment_failed",
+      "Failed incrementing usage after assistant persistence",
+      { error, userId, messageId: message.id },
+    );
+  }
 
   if (tags.length > 0) {
     await revalidateTags(tags);
