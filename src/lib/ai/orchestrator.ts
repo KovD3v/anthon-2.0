@@ -450,7 +450,18 @@ export async function streamChat({
     ? Promise.resolve<ModelMessage[]>([])
     : LatencyLogger.measure("📋 Orchestrator: Get conversation history", () =>
         buildConversationContext(userId, maxContextMessages, chatId),
-      );
+      ).catch((error) => {
+        aiLogger.error(
+          "ai.conversation_history.error",
+          "Conversation history enrichment failed",
+          {
+            error,
+            userId,
+            chatId,
+          },
+        );
+        return [];
+      });
 
   const userContextPromise = isGuest
     ? Promise.resolve("")

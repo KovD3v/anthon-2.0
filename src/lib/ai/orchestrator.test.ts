@@ -348,6 +348,30 @@ describe("ai/orchestrator", () => {
     expect(streamInput.system).toContain("No user memories available.");
   });
 
+  it("continues streaming with empty history when conversation history lookup fails", async () => {
+    mocks.buildConversationContext.mockRejectedValue(
+      new Error("messages table is temporarily unavailable"),
+    );
+
+    const result = await streamChat({
+      userId: "user-1",
+      chatId: "chat-history",
+      userMessage: "continue anyway",
+    });
+
+    expect(result).toEqual({ marker: "stream-result" });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      messages: Array<{ role: string; content: unknown }>;
+      system: string;
+    };
+    expect(streamInput.messages).toEqual([
+      { role: "user", content: "continue anyway" },
+    ]);
+    expect(streamInput.system).toContain("user-context-data");
+    expect(streamInput.system).toContain("user-memories-data");
+  });
+
   it("uses compact prompt and skips persistent tools for guest chats", async () => {
     await streamChat({
       userId: "guest-1",

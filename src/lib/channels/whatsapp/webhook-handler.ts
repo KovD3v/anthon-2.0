@@ -376,38 +376,6 @@ async function handleMessage(
     }
   }
 
-  // --- Image Download ---
-  let downloadedPhoto = false;
-  if (hasImage && message.image?.id) {
-    const imageData = await downloadWhatsAppMedia(message.image.id);
-    if (imageData) {
-      messageParts.push({
-        type: "file",
-        mimeType: imageData.mimeType,
-        data: imageData.base64,
-      });
-      downloadedPhoto = true;
-    }
-  }
-
-  // --- Document Download ---
-  if (hasDocument && message.document?.id) {
-    const docData = await downloadWhatsAppMedia(message.document.id);
-    if (docData) {
-      messageParts.push({
-        type: "file",
-        mimeType: docData.mimeType,
-        data: docData.base64,
-      });
-      if (!text && message.document.filename) {
-        messageParts.unshift({
-          type: "text",
-          text: `L'utente ha inviato il file: ${message.document.filename}`,
-        });
-      }
-    }
-  }
-
   // Prepare input for AI
   const voiceInstruction = transcribedText
     ? "NOTA: l'utente ha inviato un messaggio vocale. Usa la TRASCRIZIONE qui sotto."
@@ -426,6 +394,38 @@ async function handleMessage(
 
   if (userMessageText) {
     messageParts.push({ type: "text", text: userMessageText });
+  }
+
+  // --- Image Download ---
+  let downloadedPhoto = false;
+  if (hasImage && message.image?.id) {
+    const imageData = await downloadWhatsAppMedia(message.image.id);
+    if (imageData) {
+      messageParts.push({
+        type: "file",
+        mimeType: imageData.mimeType,
+        data: imageData.base64,
+      });
+      downloadedPhoto = true;
+    }
+  }
+
+  // --- Document Download ---
+  if (hasDocument && message.document?.id) {
+    const docData = await downloadWhatsAppMedia(message.document.id);
+    if (docData) {
+      if (!text && message.document.filename) {
+        messageParts.unshift({
+          type: "text",
+          text: `L'utente ha inviato il file: ${message.document.filename}`,
+        });
+      }
+      messageParts.push({
+        type: "file",
+        mimeType: docData.mimeType,
+        data: docData.base64,
+      });
+    }
   }
 
   // Default prompt if nothing else

@@ -203,6 +203,48 @@ function buildAudioPayload() {
   };
 }
 
+function buildImagePayload(caption: string) {
+  return {
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        id: "entry_1",
+        changes: [
+          {
+            field: "messages",
+            value: {
+              messaging_product: "whatsapp",
+              metadata: {
+                display_phone_number: "3900000000",
+                phone_number_id: "phone_1",
+              },
+              contacts: [
+                {
+                  profile: { name: "Mario Rossi" },
+                  wa_id: "39333111222",
+                },
+              ],
+              messages: [
+                {
+                  from: "39333111222",
+                  id: "wamid_image_1",
+                  timestamp: "1700000000",
+                  type: "image",
+                  image: {
+                    id: "image_1",
+                    caption,
+                    mime_type: "image/jpeg",
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
 describe("/api/webhooks/whatsapp", () => {
   beforeEach(() => {
     process.env.WHATSAPP_VERIFY_TOKEN = "verify-token";
@@ -646,6 +688,87 @@ describe("/api/webhooks/whatsapp", () => {
         body: expect.stringContaining(
           "Non sono riuscito a scaricare il messaggio audio",
         ),
+      }),
+    );
+  });
+
+  it("sync image message sends caption before media part to the AI", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_DISABLE_SEND = "true";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            url: "https://example.com/image.jpg",
+            mime_type: "image/jpeg",
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(new Response("image-data"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate
+      .mockResolvedValueOnce({ id: "wa_in_1" })
+      .mockResolvedValueOnce({ id: "wa_out_1" });
+    mocks.incrementUsage.mockResolvedValue(undefined);
+    mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.isElevenLabsConfigured.mockReturnValue(false);
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "risposta immagine",
+        metrics: {
+          model: "test-model",
+          inputTokens: 11,
+          outputTokens: 22,
+          costUsd: 0.0011,
+          generationTimeMs: 35,
+        },
+      });
+      return {
+        textStream: (async function* () {
+          yield "risposta immagine";
+        })(),
+      };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildImagePayload("  valuta questa posizione  ")),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userMessage: "valuta questa posizione",
+        hasImages: true,
+        messageParts: [
+          { type: "text", text: "valuta questa posizione" },
+          {
+            type: "file",
+            mimeType: "image/jpeg",
+            data: Buffer.from("image-data").toString("base64"),
+          },
+        ],
       }),
     );
   });
