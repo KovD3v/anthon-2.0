@@ -35,6 +35,20 @@ export const runtime = "nodejs";
 
 // --- Types ---
 
+function safeErrorSummary(err: unknown) {
+  if (!err) return "Unknown error";
+  if (typeof err === "string") return err.slice(0, 300);
+  if (err instanceof Error) {
+    const msg = `${err.name}: ${err.message}`.trim();
+    return msg.slice(0, 300);
+  }
+  try {
+    return JSON.stringify(err).slice(0, 300);
+  } catch {
+    return "Unserializable error";
+  }
+}
+
 type WhatsAppMessage = {
   from: string;
   id: string;
@@ -346,6 +360,25 @@ async function handleMessage(
         whatsappLogger.error("transcription.failed", "Transcription failed", {
           err,
         });
+        await prisma.message
+          .update({
+            where: { id: inbound.id },
+            data: {
+              metadata: {
+                whatsapp: {
+                  id: messageId,
+                  timestamp: message.timestamp,
+                  type: message.type,
+                  name: context.contacts?.[0]?.profile?.name,
+                  error: {
+                    kind: "transcription_failed",
+                    summary: safeErrorSummary(err),
+                  },
+                },
+              } as Prisma.InputJsonValue,
+            },
+          })
+          .catch(() => undefined);
         await sendWhatsAppMessage(
           from,
           "Non sono riuscito a trascrivere il messaggio audio. Riprova.",

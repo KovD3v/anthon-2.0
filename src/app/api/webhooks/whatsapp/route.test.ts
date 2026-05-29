@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   prismaChannelIdentityCreate: vi.fn(),
   prismaChatUpsert: vi.fn(),
   prismaMessageCreate: vi.fn(),
+  prismaMessageUpdate: vi.fn(),
   prismaChatUpdate: vi.fn(),
   prismaAttachmentCreate: vi.fn(),
   prismaPreferencesFindUnique: vi.fn(),
@@ -46,6 +47,7 @@ vi.mock("@/lib/db", () => ({
     message: {
       findFirst: mocks.prismaMessageFindFirst,
       create: mocks.prismaMessageCreate,
+      update: mocks.prismaMessageUpdate,
     },
     channelIdentity: {
       findUnique: mocks.prismaChannelIdentityFindUnique,
@@ -266,6 +268,7 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.prismaChannelIdentityCreate.mockReset();
     mocks.prismaChatUpsert.mockReset();
     mocks.prismaMessageCreate.mockReset();
+    mocks.prismaMessageUpdate.mockReset();
     mocks.prismaChatUpdate.mockReset();
     mocks.prismaAttachmentCreate.mockReset();
     mocks.prismaPreferencesFindUnique.mockReset();
@@ -288,6 +291,7 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
     mocks.prismaPreferencesFindUnique.mockResolvedValue({ voiceEnabled: true });
+    mocks.prismaMessageUpdate.mockResolvedValue({});
     mocks.start.mockReturnValue({ end: vi.fn(), split: vi.fn() });
     mocks.measure.mockImplementation(
       async (_name: string, fn: () => unknown) => await fn(),
@@ -761,6 +765,80 @@ describe("/api/webhooks/whatsapp", () => {
         method: "POST",
         body: expect.stringContaining(
           "Non sono riuscito a scaricare il messaggio audio",
+        ),
+      }),
+    );
+  });
+
+  it("sync audio message records inbound metadata when transcription fails", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+    process.env.OPENROUTER_API_KEY = "sk-test";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            url: "https://example.com/audio.ogg",
+            mime_type: "audio/ogg",
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(new Response("audio-data"))
+      .mockResolvedValueOnce(new Response("{}"))
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate.mockResolvedValueOnce({ id: "wa_in_1" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildAudioPayload()),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wa_in_1" },
+        data: {
+          metadata: expect.objectContaining({
+            whatsapp: expect.objectContaining({
+              id: "wamid_audio_1",
+              type: "audio",
+              error: expect.objectContaining({
+                kind: "transcription_failed",
+              }),
+            }),
+          }),
+        },
+      }),
+    );
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "https://graph.facebook.com/v21.0/phone_1/messages",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining(
+          "Non sono riuscito a trascrivere il messaggio audio",
         ),
       }),
     );
