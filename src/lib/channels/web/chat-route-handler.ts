@@ -535,11 +535,15 @@ function normalizeFilePartData(filePart: {
     return undefined;
   }
 
-  if (filePart.mimeType?.startsWith("audio/") && filePart.url.includes(",")) {
+  if (filePart.mimeType?.startsWith("image/")) {
+    return filePart.url;
+  }
+
+  if (filePart.url.startsWith("data:") && filePart.url.includes(",")) {
     return filePart.url.split(",")[1];
   }
 
-  return filePart.url;
+  return undefined;
 }
 
 function getRecentTextMessages(messages: UIMessage[]) {

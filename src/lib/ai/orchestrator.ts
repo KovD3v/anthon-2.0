@@ -326,6 +326,14 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
+function isBase64Payload(value: string) {
+  const normalized = value.replace(/\s/g, "");
+  if (normalized.length === 0 || normalized.length % 4 !== 0) {
+    return false;
+  }
+  return /^[A-Za-z0-9+/]+={0,2}$/.test(normalized);
+}
+
 /**
  * Creates all tools with the userId context injected via factory pattern.
  */
@@ -602,6 +610,14 @@ export async function streamChat({
         part.mimeType?.startsWith("audio/") &&
         part.data
       ) {
+        if (!isBase64Payload(part.data)) {
+          aiLogger.warn(
+            "ai.file.invalid_audio_data",
+            "Skipping audio file with invalid base64 payload",
+            { userId, chatId, mimeType: part.mimeType },
+          );
+          continue;
+        }
         // Convert base64 to Uint8Array for the AI SDK file type
         const binaryData = base64ToUint8Array(part.data);
         // Strip codec parameters from mimeType (e.g., "audio/webm;codecs=opus" -> "audio/webm")
@@ -612,6 +628,14 @@ export async function streamChat({
           mediaType: cleanMimeType,
         });
       } else if (part.type === "file" && part.data) {
+        if (!isBase64Payload(part.data)) {
+          aiLogger.warn(
+            "ai.file.invalid_data",
+            "Skipping file with invalid base64 payload",
+            { userId, chatId, mimeType: part.mimeType },
+          );
+          continue;
+        }
         // Handle other file types (PDF, text, etc.)
         const binaryData = base64ToUint8Array(part.data);
         contentParts.push({

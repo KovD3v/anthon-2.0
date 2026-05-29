@@ -711,7 +711,7 @@ describe("POST /api/chat", () => {
     expect(mocks.trackVoiceUsage).toHaveBeenCalledWith("user-1", 20, "WEB");
   });
 
-  it("normalizes file part url fields into data for the AI flow", async () => {
+  it("normalizes audio data-url fields into base64 data for the AI flow", async () => {
     let streamArgs: Record<string, unknown> | undefined;
     mocks.streamChat.mockImplementation(
       async (args: Record<string, unknown>) => {
@@ -736,7 +736,7 @@ describe("POST /api/chat", () => {
                 mimeType: "audio/wav",
                 name: "voice.wav",
                 size: 99,
-                url: "voice-base64",
+                url: "data:audio/wav;base64,dm9pY2UtYmFzZTY0",
               },
             ],
           },
@@ -752,11 +752,62 @@ describe("POST /api/chat", () => {
         expect.objectContaining({
           type: "file",
           attachmentId: "att-voice",
-          data: "voice-base64",
+          data: "dm9pY2UtYmFzZTY0",
           mimeType: "audio/wav",
         }),
       ],
     });
+  });
+
+  it("does not pass non-base64 audio urls as AI file data", async () => {
+    let streamArgs: Record<string, unknown> | undefined;
+    mocks.streamChat.mockImplementation(
+      async (args: Record<string, unknown>) => {
+        streamArgs = args;
+        return {
+          toUIMessageStreamResponse: () =>
+            Response.json({ ok: true, stream: true }, { status: 200 }),
+        };
+      },
+    );
+    mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [
+              { type: "text", text: "trascrivi questo" },
+              {
+                type: "file",
+                attachmentId: "att-voice",
+                mimeType: "audio/wav",
+                name: "voice.wav",
+                size: 99,
+                url: "https://blob.example/voice.wav",
+              },
+            ],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(streamArgs).toMatchObject({
+      hasAudio: true,
+      messageParts: [
+        { type: "text", text: "trascrivi questo" },
+        expect.objectContaining({
+          type: "file",
+          attachmentId: "att-voice",
+          mimeType: "audio/wav",
+        }),
+      ],
+    });
+    const filePart = (streamArgs?.messageParts as Array<{ data?: string }>)[1];
+    expect(filePart.data).toBeUndefined();
   });
 
   it("skips linking attachments that are not owned by the current user", async () => {

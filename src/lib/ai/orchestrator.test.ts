@@ -312,6 +312,34 @@ describe("ai/orchestrator", () => {
     expect(streamInput.system).toContain("Voice generation is disabled");
   });
 
+  it("skips invalid non-image file data instead of failing stream setup", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-file",
+      userMessage: "leggi questo file",
+      messageParts: [
+        { type: "text", text: "leggi questo file" },
+        {
+          type: "file",
+          data: "https://blob.example/file.pdf",
+          mimeType: "application/pdf",
+        },
+      ],
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      messages: Array<{ role: string; content: unknown }>;
+    };
+
+    expect(streamInput.messages).toEqual([
+      { role: "user", content: "same message" },
+      {
+        role: "user",
+        content: [{ type: "text", text: "leggi questo file" }],
+      },
+    ]);
+  });
+
   it("adds voice-first response instructions when the response mode is voice", async () => {
     await streamChat({
       userId: "user-1",
