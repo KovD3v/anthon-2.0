@@ -711,6 +711,69 @@ describe("POST /api/chat", () => {
     expect(mocks.trackVoiceUsage).toHaveBeenCalledWith("user-1", 20, "WEB");
   });
 
+  it("does not persist a duplicate text fallback when voice side effects fail after audio persistence", async () => {
+    mocks.decideWebVoiceMode.mockResolvedValue({
+      mode: "VOICE",
+      reason: "User explicitly requested voice",
+      source: "deterministic",
+    });
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "Respira. Spalle morbide.",
+        metrics: {
+          model: "qwen/qwen3.5-flash-02-23",
+          inputTokens: 11,
+          outputTokens: 22,
+          reasoningTokens: 0,
+          reasoningContent: "",
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.01,
+          generationTimeMs: 250,
+          reasoningTimeMs: 0,
+        },
+      });
+
+      return {
+        textStream: (async function* () {
+          yield "Respira. Spalle morbide.";
+        })(),
+      };
+    });
+    mocks.messageCreate
+      .mockResolvedValueOnce({ id: "msg-user-1" })
+      .mockResolvedValueOnce({ id: "msg-assistant-1" })
+      .mockResolvedValueOnce({ id: "msg-fallback-1" });
+    mocks.trackVoiceUsage.mockRejectedValue(new Error("usage write failed"));
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [{ type: "text", text: "Mandami un vocale rapido" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.messageCreate).toHaveBeenCalledTimes(2);
+    expect(mocks.messageCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "AUDIO",
+          mediaUrl: "https://blob.example/voice/msg-assistant-1.mp3",
+          metadata: expect.objectContaining({
+            responseMode: "voice",
+          }),
+        }),
+      }),
+    );
+  });
+
   it("normalizes audio data-url fields into base64 data for the AI flow", async () => {
     let streamArgs: Record<string, unknown> | undefined;
     mocks.streamChat.mockImplementation(

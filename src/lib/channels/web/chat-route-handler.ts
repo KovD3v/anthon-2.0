@@ -622,10 +622,13 @@ async function handleVoiceFirstWebResponse({
     throw new Error("Voice response generation produced no assistant text");
   }
 
+  let audio: Awaited<ReturnType<typeof generateVoice>>;
+  let blobResult: { url: string };
+
   try {
-    const audio = await generateVoice(assistantText);
+    audio = await generateVoice(assistantText);
     const { put } = await import("@vercel/blob");
-    const blobResult = await put(
+    blobResult = await put(
       `voice/${chatId}/${Date.now()}.mp3`,
       audio.audioBuffer,
       {
@@ -633,41 +636,6 @@ async function handleVoiceFirstWebResponse({
         contentType: "audio/mpeg",
       },
     );
-
-    const assistantMessage = await persistAssistantOutput({
-      userId,
-      chatId,
-      channel: "WEB",
-      text: assistantText,
-      userMessageText,
-      metrics: flowResult.metrics,
-      messageType: "AUDIO",
-      mediaUrl: blobResult.url,
-      mediaType: "audio/mpeg",
-      metadata: {
-        responseMode: "voice",
-        transcript: assistantText,
-      },
-      updateChatTimestamp: true,
-      revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
-      allowMemoryExtraction: true,
-      waitUntil: schedule,
-    });
-
-    await Promise.all([
-      prisma.attachment.create({
-        data: {
-          messageId: assistantMessage.id,
-          name: "voice.mp3",
-          contentType: "audio/mpeg",
-          size: audio.audioBuffer.length,
-          blobUrl: blobResult.url,
-        },
-      }),
-      trackVoiceUsage(userId, audio.characterCount, "WEB"),
-    ]);
-
-    return createVoiceFileStreamResponse(assistantMessage.id, blobResult.url);
   } catch (error) {
     logger.error("voice.web_generation_failed", "Web voice generation failed", {
       error,
@@ -694,6 +662,55 @@ async function handleVoiceFirstWebResponse({
 
     return createTextStreamResponse(fallbackMessage.id, assistantText);
   }
+
+  const assistantMessage = await persistAssistantOutput({
+    userId,
+    chatId,
+    channel: "WEB",
+    text: assistantText,
+    userMessageText,
+    metrics: flowResult.metrics,
+    messageType: "AUDIO",
+    mediaUrl: blobResult.url,
+    mediaType: "audio/mpeg",
+    metadata: {
+      responseMode: "voice",
+      transcript: assistantText,
+    },
+    updateChatTimestamp: true,
+    revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
+    allowMemoryExtraction: true,
+    waitUntil: schedule,
+  });
+
+  await Promise.all([
+    prisma.attachment
+      .create({
+        data: {
+          messageId: assistantMessage.id,
+          name: "voice.mp3",
+          contentType: "audio/mpeg",
+          size: audio.audioBuffer.length,
+          blobUrl: blobResult.url,
+        },
+      })
+      .catch((error) =>
+        logger.error(
+          "voice.web_attachment_failed",
+          "Failed creating web voice attachment",
+          { error, userId, chatId, messageId: assistantMessage.id },
+        ),
+      ),
+    trackVoiceUsage(userId, audio.characterCount, "WEB").catch((error) =>
+      logger.error(
+        "voice.web_usage_tracking_failed",
+        "Failed tracking web voice usage",
+        { error, userId, chatId, messageId: assistantMessage.id },
+      ),
+    ),
+  ]);
+
+  return createVoiceFileStreamResponse(assistantMessage.id, blobResult.url);
 }
 
 function createVoiceFileStreamResponse(messageId: string, url: string) {
