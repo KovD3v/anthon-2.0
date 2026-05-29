@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   listBenchmarkRuns: vi.fn(),
   getModelScores: vi.fn(),
   runBenchmarkForExistingRun: vi.fn(),
+  publishToQueue: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -38,6 +39,10 @@ vi.mock("@/lib/benchmark", () => ({
   runBenchmarkForExistingRun: mocks.runBenchmarkForExistingRun,
 }));
 
+vi.mock("@/lib/qstash", () => ({
+  publishToQueue: mocks.publishToQueue,
+}));
+
 import { DELETE, GET, PATCH, POST } from "./route";
 
 function buildJsonRequest(url: string, method: string, body: unknown): Request {
@@ -60,6 +65,7 @@ describe("/api/admin/benchmark", () => {
     mocks.listBenchmarkRuns.mockReset();
     mocks.getModelScores.mockReset();
     mocks.runBenchmarkForExistingRun.mockReset();
+    mocks.publishToQueue.mockReset();
 
     mocks.requireAdmin.mockResolvedValue({
       user: { id: "admin-1", role: "ADMIN" },
@@ -79,6 +85,7 @@ describe("/api/admin/benchmark", () => {
       finalScore: 8.4,
     });
     mocks.runBenchmarkForExistingRun.mockResolvedValue(undefined);
+    mocks.publishToQueue.mockResolvedValue({ messageId: "msg-1" });
   });
 
   it("GET returns error when requireAdmin fails", async () => {
@@ -160,7 +167,7 @@ describe("/api/admin/benchmark", () => {
     expect(mocks.listBenchmarkRuns).not.toHaveBeenCalled();
   });
 
-  it("POST creates run and starts background job", async () => {
+  it("POST creates run and queues background job", async () => {
     const response = await POST(
       buildJsonRequest("http://localhost/api/admin/benchmark", "POST", {
         name: "My Run",
@@ -181,6 +188,32 @@ describe("/api/admin/benchmark", () => {
         }),
       }),
     );
+    expect(mocks.publishToQueue).toHaveBeenCalledWith("api/queues/benchmark", {
+      runId: "run-new",
+      options: expect.objectContaining({
+        models: ["model-a"],
+        testCaseIds: ["tc-1"],
+      }),
+    });
+    expect(mocks.runBenchmarkForExistingRun).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      runId: "run-new",
+      message: "Benchmark started",
+    });
+  });
+
+  it("POST falls back to in-process background job when queue publish fails", async () => {
+    mocks.publishToQueue.mockRejectedValue(new Error("qstash unavailable"));
+
+    const response = await POST(
+      buildJsonRequest("http://localhost/api/admin/benchmark", "POST", {
+        models: ["model-a"],
+        testCaseIds: ["tc-1"],
+      }) as never,
+    );
+
     expect(mocks.runBenchmarkForExistingRun).toHaveBeenCalledWith(
       "run-new",
       expect.objectContaining({

@@ -28,7 +28,10 @@ async function fetchTestCases(options: {
   const where: Prisma.BenchmarkTestCaseWhereInput = { isActive: true };
 
   if (options.testCaseIds?.length) {
-    where.externalId = { in: options.testCaseIds };
+    where.OR = [
+      { id: { in: options.testCaseIds } },
+      { externalId: { in: options.testCaseIds } },
+    ];
   }
 
   if (options.categories?.length) {
@@ -264,6 +267,16 @@ export async function runBenchmark(
     }
 
     await Promise.all(pool);
+
+    const finalRun = await prisma.benchmarkRun.findUnique({
+      where: { id: run.id },
+      select: { status: true },
+    });
+
+    if (finalRun?.status === BenchmarkStatus.CANCELLED) {
+      console.log(`\n⏹️ Benchmark cancelled: ${run.id}`);
+      return run.id;
+    }
 
     // Mark run as completed
     await prisma.benchmarkRun.update({
@@ -509,6 +522,16 @@ export async function runBenchmarkForExistingRun(
     }
 
     await Promise.all(pool);
+
+    const finalRun = await prisma.benchmarkRun.findUnique({
+      where: { id: runId },
+      select: { status: true },
+    });
+
+    if (finalRun?.status === BenchmarkStatus.CANCELLED) {
+      console.log(`\n⏹️ Benchmark cancelled: ${runId}`);
+      return;
+    }
 
     // Mark run as completed
     await prisma.benchmarkRun.update({

@@ -30,45 +30,97 @@ export async function GET(request: Request) {
       );
     }
 
-    // Fetch results with high scores (Golden Responses)
+    // Fetch results for the run, then apply the same effective-score priority
+    // used by the benchmark UI: admin final score > consensus > judge 1.
     const results = await prisma.benchmarkResult.findMany({
       where: {
         runId,
-        overallScore: { gte: minScore },
       },
       include: {
         run: true,
       },
     });
 
-    if (results.length === 0) {
+    const qualifyingResults = results.filter((result) => {
+      const effectiveScore =
+        result.finalScore ?? result.consensusScore ?? result.overallScore;
+      return effectiveScore >= minScore;
+    });
+
+    if (qualifyingResults.length === 0) {
       return NextResponse.json(
         { error: "No results found with the given criteria" },
         { status: 404 },
       );
     }
 
-    // Format as JSONL for fine-tuning (OpenAI/Gemini format)
-    const jsonlLines = results
-      .map((r) => {
-        // Reconstruct the conversation
-        // In a real scenario, we might want to fetch the test case setup again
-        // but here we can try to use what we saved in the result if possible.
-        // For now, let's assume a simple {messages: [...]} format.
+    const testCaseIds = [
+      ...new Set(qualifyingResults.map((result) => result.testCaseId)),
+    ];
+    const testCases = await prisma.benchmarkTestCase.findMany({
+      where: {
+        OR: [{ id: { in: testCaseIds } }, { externalId: { in: testCaseIds } }],
+      },
+      select: {
+        id: true,
+        externalId: true,
+        setup: true,
+        userMessage: true,
+      },
+    });
+    const testCasesById = new Map(
+      testCases.flatMap((testCase) => {
+        const entries: Array<[string, (typeof testCases)[number]]> = [
+          [testCase.id, testCase],
+        ];
+        if (testCase.externalId) {
+          entries.push([testCase.externalId, testCase]);
+        }
+        return entries;
+      }),
+    );
 
+    // Format as JSONL for fine-tuning / golden-response review.
+    const jsonlLines = qualifyingResults
+      .map((r) => {
         const messages: { role: string; content: string }[] = [
           {
             role: "system",
             content: "Sei Anthon, un coach digitale di performance sportiva.",
           },
         ];
+        const testCase = testCasesById.get(r.testCaseId);
+        const setup = testCase?.setup as
+          | { session?: Array<{ role?: string; content?: string }> }
+          | null
+          | undefined;
 
-        // Add user message and assistant response
-        // This is a simplified version. For a better one, we'd need the full context.
-        messages.push({ role: "user", content: "..." }); // Placeholder for original user message
+        for (const message of setup?.session ?? []) {
+          if (
+            (message.role === "user" || message.role === "assistant") &&
+            typeof message.content === "string"
+          ) {
+            messages.push({ role: message.role, content: message.content });
+          }
+        }
+
+        messages.push({
+          role: "user",
+          content: testCase?.userMessage ?? r.testCaseId,
+        });
         messages.push({ role: "assistant", content: r.responseText });
 
-        return JSON.stringify({ messages });
+        const effectiveScore =
+          r.finalScore ?? r.consensusScore ?? r.overallScore;
+        return JSON.stringify({
+          messages,
+          metadata: {
+            runId,
+            testCaseId: r.testCaseId,
+            modelId: r.modelId,
+            score: effectiveScore,
+          },
+        });
       })
       .join("\n");
 

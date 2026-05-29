@@ -8,6 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
+import type { BenchmarkRunnerOptions } from "@/lib/benchmark/types";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 
@@ -16,6 +17,38 @@ const benchmarkLogger = createLogger("ai");
 // Dynamically import benchmark functions to avoid issues before migration
 async function getBenchmarkModule() {
   return import("@/lib/benchmark");
+}
+
+type BackgroundBenchmarkOptions = Omit<
+  BenchmarkRunnerOptions,
+  "runName" | "description"
+>;
+
+async function dispatchBenchmarkRun(
+  runId: string,
+  options: BackgroundBenchmarkOptions,
+) {
+  const { runBenchmarkForExistingRun } = await getBenchmarkModule();
+
+  try {
+    const { publishToQueue } = await import("@/lib/qstash");
+    await publishToQueue("api/queues/benchmark", { runId, options });
+    return;
+  } catch (error) {
+    benchmarkLogger.warn(
+      "background_queue.unavailable",
+      "Falling back to in-process benchmark execution",
+      { runId, error },
+    );
+  }
+
+  runBenchmarkForExistingRun(runId, options).catch((err: Error) => {
+    benchmarkLogger.error(
+      "background_run.failed",
+      "Background benchmark run failed",
+      { runId, error: err },
+    );
+  });
 }
 
 /**
@@ -114,22 +147,12 @@ export async function POST(request: Request) {
       },
     });
 
-    // Start benchmark in background (fire-and-forget)
-    const { runBenchmarkForExistingRun } = await getBenchmarkModule();
-
-    // Don't await - this runs in the background
-    runBenchmarkForExistingRun(run.id, {
+    await dispatchBenchmarkRun(run.id, {
       models: body.models,
       testCaseIds: body.testCaseIds,
       categories: body.categories,
       iterations: body.iterations,
       concurrency: body.concurrency,
-    }).catch((err: Error) => {
-      benchmarkLogger.error(
-        "background_run.failed",
-        "Background benchmark run failed",
-        { runId: run.id, error: err },
-      );
     });
 
     return NextResponse.json({

@@ -152,15 +152,20 @@ describe("/api/admin/benchmark/test-cases", () => {
   });
 
   it("POST creates test case with normalized payload", async () => {
+    const setup = { session: [], memories: [], userContext: {} };
+    const expectedBehavior = {
+      shouldUseTool: true,
+      expectedTools: ["updateProfile"],
+    };
     const response = await POST(
       buildJsonRequest("POST", {
         category: "tool_usage",
         externalId: "ext-1",
         name: "New Case",
         description: "desc",
-        setup: "setup",
+        setup,
         userMessage: "message",
-        expectedBehavior: "expected",
+        expectedBehavior,
       }) as never,
     );
 
@@ -170,9 +175,9 @@ describe("/api/admin/benchmark/test-cases", () => {
         category: "TOOL_USAGE",
         name: "New Case",
         description: "desc",
-        setup: "setup",
+        setup,
         userMessage: "message",
-        expectedBehavior: "expected",
+        expectedBehavior,
         isActive: true,
         tags: [],
       },
@@ -185,6 +190,8 @@ describe("/api/admin/benchmark/test-cases", () => {
   });
 
   it("POST updates when id is provided", async () => {
+    const setup = { session: [], memories: [], userContext: {} };
+    const expectedBehavior = { maxLength: 200, shouldBeShort: true };
     const response = await POST(
       buildJsonRequest("POST", {
         id: "tc-1",
@@ -192,9 +199,9 @@ describe("/api/admin/benchmark/test-cases", () => {
         externalId: "ext-1",
         name: "Case",
         description: "desc",
-        setup: "setup",
+        setup,
         userMessage: "msg",
-        expectedBehavior: "expected",
+        expectedBehavior,
         isActive: false,
         tags: ["adversarial"],
       }) as never,
@@ -207,9 +214,9 @@ describe("/api/admin/benchmark/test-cases", () => {
         category: "WRITING_QUALITY",
         name: "Case",
         description: "desc",
-        setup: "setup",
+        setup,
         userMessage: "msg",
-        expectedBehavior: "expected",
+        expectedBehavior,
         isActive: false,
         tags: ["adversarial"],
       },
@@ -235,6 +242,44 @@ describe("/api/admin/benchmark/test-cases", () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
       error: "Invalid category",
+    });
+    expect(mocks.benchmarkTestCaseCreate).not.toHaveBeenCalled();
+    expect(mocks.benchmarkTestCaseUpdate).not.toHaveBeenCalled();
+  });
+
+  it("POST returns 400 for malformed setup", async () => {
+    const response = await POST(
+      buildJsonRequest("POST", {
+        category: "tool_usage",
+        name: "Case",
+        setup: "not-json-shape",
+        userMessage: "msg",
+        expectedBehavior: { shouldUseTool: true },
+      }) as never,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid benchmark test case payload",
+    });
+    expect(mocks.benchmarkTestCaseCreate).not.toHaveBeenCalled();
+    expect(mocks.benchmarkTestCaseUpdate).not.toHaveBeenCalled();
+  });
+
+  it("POST returns 400 for malformed expectedBehavior", async () => {
+    const response = await POST(
+      buildJsonRequest("POST", {
+        category: "writing_quality",
+        name: "Case",
+        setup: { session: [], memories: [], userContext: {} },
+        userMessage: "msg",
+        expectedBehavior: "not-json-shape",
+      }) as never,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid benchmark test case payload",
     });
     expect(mocks.benchmarkTestCaseCreate).not.toHaveBeenCalled();
     expect(mocks.benchmarkTestCaseUpdate).not.toHaveBeenCalled();

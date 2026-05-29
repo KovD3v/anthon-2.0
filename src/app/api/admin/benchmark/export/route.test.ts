@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   requireAdmin: vi.fn(),
   benchmarkResultFindMany: vi.fn(),
+  benchmarkTestCaseFindMany: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -14,6 +15,9 @@ vi.mock("@/lib/db", () => ({
     benchmarkResult: {
       findMany: mocks.benchmarkResultFindMany,
     },
+    benchmarkTestCase: {
+      findMany: mocks.benchmarkTestCaseFindMany,
+    },
   },
 }));
 
@@ -23,12 +27,27 @@ describe("GET /api/admin/benchmark/export", () => {
   beforeEach(() => {
     mocks.requireAdmin.mockReset();
     mocks.benchmarkResultFindMany.mockReset();
+    mocks.benchmarkTestCaseFindMany.mockReset();
 
     mocks.requireAdmin.mockResolvedValue({ errorResponse: null });
     mocks.benchmarkResultFindMany.mockResolvedValue([
       {
+        testCaseId: "tc-1",
+        overallScore: 6,
+        consensusScore: 7.5,
+        finalScore: null,
         responseText: "Assistant best response",
         run: { id: "run-1" },
+      },
+    ]);
+    mocks.benchmarkTestCaseFindMany.mockResolvedValue([
+      {
+        id: "tc-1",
+        externalId: null,
+        setup: {
+          session: [{ role: "assistant", content: "Come posso aiutarti?" }],
+        },
+        userMessage: "Come gestisco l'ansia pre gara?",
       },
     ]);
   });
@@ -126,10 +145,77 @@ describe("GET /api/admin/benchmark/export", () => {
       messages: Array<{ role: string; content: string }>;
     };
 
+    expect(mocks.benchmarkResultFindMany).toHaveBeenCalledWith({
+      where: { runId: "run-1" },
+      include: { run: true },
+    });
+    expect(mocks.benchmarkTestCaseFindMany).toHaveBeenCalledWith({
+      where: {
+        OR: [{ id: { in: ["tc-1"] } }, { externalId: { in: ["tc-1"] } }],
+      },
+      select: {
+        id: true,
+        externalId: true,
+        setup: true,
+        userMessage: true,
+      },
+    });
+    expect(line.messages).toEqual([
+      {
+        role: "system",
+        content: "Sei Anthon, un coach digitale di performance sportiva.",
+      },
+      { role: "assistant", content: "Come posso aiutarti?" },
+      { role: "user", content: "Come gestisco l'ansia pre gara?" },
+      { role: "assistant", content: "Assistant best response" },
+    ]);
     expect(line.messages.at(-1)).toEqual({
       role: "assistant",
       content: "Assistant best response",
     });
+  });
+
+  it("uses final score then consensus score before judge score for minScore filtering", async () => {
+    mocks.benchmarkResultFindMany.mockResolvedValue([
+      {
+        testCaseId: "tc-low-overall",
+        overallScore: 2,
+        consensusScore: 4,
+        finalScore: 8.2,
+        responseText: "Admin approved response",
+      },
+      {
+        testCaseId: "tc-low",
+        overallScore: 8.1,
+        consensusScore: null,
+        finalScore: null,
+        responseText: "Judge approved response",
+      },
+      {
+        testCaseId: "tc-rejected",
+        overallScore: 2,
+        consensusScore: 7.9,
+        finalScore: null,
+        responseText: "Too low",
+      },
+    ]);
+    mocks.benchmarkTestCaseFindMany.mockResolvedValue([]);
+
+    const response = await GET(
+      new Request(
+        "http://localhost/api/admin/benchmark/export?runId=run-1&minScore=8",
+      ) as never,
+    );
+
+    expect(response.status).toBe(200);
+    const lines = (await response.text()).split("\n").map((line) => {
+      return JSON.parse(line) as { messages: Array<{ content: string }> };
+    });
+    expect(lines).toHaveLength(2);
+    expect(lines.map((line) => line.messages.at(-1)?.content)).toEqual([
+      "Admin approved response",
+      "Judge approved response",
+    ]);
   });
 
   it("returns 500 on unexpected error", async () => {
