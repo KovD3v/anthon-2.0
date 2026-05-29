@@ -623,11 +623,14 @@ async function handleUpdate(update: TelegramUpdate) {
 
       if (voiceResult.shouldGenerateVoice) {
         const audio = await generateVoice(assistantText);
-        await LatencyLogger.measure("Voice: Telegram Send", async () =>
-          sendTelegramVoice(chatId, audio.audioBuffer),
+        const voiceSent = await LatencyLogger.measure(
+          "Voice: Telegram Send",
+          async () => sendTelegramVoice(chatId, audio.audioBuffer),
         );
-        await trackVoiceUsage(user.id, audio.characterCount, "TELEGRAM");
-        return;
+        if (voiceSent) {
+          await trackVoiceUsage(user.id, audio.characterCount, "TELEGRAM");
+          return;
+        }
       }
     } catch (err) {
       telegramLogger.error(
@@ -743,9 +746,12 @@ async function sendTelegramMessage(chatId: number, text: string) {
 /**
  * Send a voice message to a Telegram chat.
  */
-async function sendTelegramVoice(chatId: number, audioBuffer: Buffer) {
+async function sendTelegramVoice(
+  chatId: number,
+  audioBuffer: Buffer,
+): Promise<boolean> {
   if (process.env.TELEGRAM_DISABLE_SEND === "true") {
-    return;
+    return false;
   }
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -754,7 +760,7 @@ async function sendTelegramVoice(chatId: number, audioBuffer: Buffer) {
       "config.missing_token",
       "TELEGRAM_BOT_TOKEN not configured",
     );
-    return;
+    return false;
   }
 
   const url = `https://api.telegram.org/bot${token}/sendVoice`;
@@ -779,5 +785,8 @@ async function sendTelegramVoice(chatId: number, audioBuffer: Buffer) {
       status: res.status,
       body,
     });
+    return false;
   }
+
+  return true;
 }

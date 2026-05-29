@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   prismaMessageCreate: vi.fn(),
   prismaChatUpdate: vi.fn(),
   prismaAttachmentCreate: vi.fn(),
+  prismaPreferencesFindUnique: vi.fn(),
   prismaSubscriptionFindUnique: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
@@ -62,6 +63,9 @@ vi.mock("@/lib/db", () => ({
     },
     attachment: {
       create: mocks.prismaAttachmentCreate,
+    },
+    preferences: {
+      findUnique: mocks.prismaPreferencesFindUnique,
     },
     subscription: {
       findUnique: mocks.prismaSubscriptionFindUnique,
@@ -162,6 +166,7 @@ describe("/api/webhooks/telegram", () => {
     mocks.prismaMessageCreate.mockReset();
     mocks.prismaChatUpdate.mockReset();
     mocks.prismaAttachmentCreate.mockReset();
+    mocks.prismaPreferencesFindUnique.mockReset();
     mocks.prismaSubscriptionFindUnique.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
@@ -181,6 +186,7 @@ describe("/api/webhooks/telegram", () => {
     mocks.waitUntil.mockImplementation(() => {});
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.prismaPreferencesFindUnique.mockResolvedValue({ voiceEnabled: true });
     mocks.start.mockReturnValue({ end: vi.fn(), split: vi.fn() });
     mocks.measure.mockImplementation(
       async (_name: string, fn: () => unknown) => await fn(),
@@ -589,6 +595,97 @@ describe("/api/webhooks/telegram", () => {
         body: expect.stringContaining("risposta non salvata"),
       }),
     );
+  });
+
+  it("falls back to text and skips usage tracking when Telegram voice send fails", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.OPENROUTER_API_KEY = "sk-test";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("voice-send-failed", { status: 500 }))
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      id: "ci_1",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: false,
+        subscription: {
+          status: "ACTIVE",
+          planId: "my-basic-plan",
+        },
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate
+      .mockResolvedValueOnce({ id: "msg_in_1" })
+      .mockResolvedValueOnce({ id: "msg_out_1" });
+    mocks.incrementUsage.mockResolvedValue(undefined);
+    mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.isElevenLabsConfigured.mockReturnValue(true);
+    mocks.shouldGenerateVoice.mockResolvedValue({ shouldGenerateVoice: true });
+    mocks.getVoicePlanConfig.mockReturnValue({ enabled: true });
+    mocks.generateVoice.mockResolvedValue({
+      audioBuffer: Buffer.from("audio"),
+      characterCount: 21,
+    });
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "risposta vocale",
+        metrics: {
+          model: "test-model",
+          inputTokens: 10,
+          outputTokens: 20,
+          reasoningTokens: 0,
+          reasoningContent: null,
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.001,
+          generationTimeMs: 42,
+          reasoningTimeMs: 0,
+        },
+      });
+      return {
+        textStream: (async function* () {
+          yield "risposta vocale";
+        })(),
+      };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildTextUpdate("mandami un vocale")),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.telegram.org/botbot-token/sendVoice",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.telegram.org/botbot-token/sendMessage",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining("risposta vocale"),
+      }),
+    );
+    expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
   });
 
   it("helper utils normalize errors and command/url detection", () => {
