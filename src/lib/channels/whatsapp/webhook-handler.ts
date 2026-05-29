@@ -512,6 +512,25 @@ async function handleMessage(
   }
 
   if (!assistantText.trim()) {
+    await prisma.message
+      .update({
+        where: { id: inbound.id },
+        data: {
+          metadata: {
+            whatsapp: {
+              id: messageId,
+              timestamp: message.timestamp,
+              type: message.type,
+              name: context.contacts?.[0]?.profile?.name,
+              error: {
+                kind: "empty_assistant_response",
+              },
+            },
+          } as Prisma.InputJsonValue,
+        },
+      })
+      .catch(() => undefined);
+
     await sendWhatsAppMessage(
       from,
       "Non ho generato una risposta. Riprova tra qualche secondo.",

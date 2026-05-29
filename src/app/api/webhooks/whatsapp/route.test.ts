@@ -652,6 +652,22 @@ describe("/api/webhooks/whatsapp", () => {
         body: expect.stringContaining("Non ho generato una risposta"),
       }),
     );
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wa_in_1" },
+        data: {
+          metadata: expect.objectContaining({
+            whatsapp: expect.objectContaining({
+              id: "wamid_1",
+              type: "text",
+              error: expect.objectContaining({
+                kind: "empty_assistant_response",
+              }),
+            }),
+          }),
+        },
+      }),
+    );
   });
 
   it("sync text message sends fallback when assistant persistence fails", async () => {
