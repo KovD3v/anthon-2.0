@@ -841,6 +841,89 @@ describe("/api/webhooks/whatsapp", () => {
     );
   });
 
+  it("sync image-only message uses image fallback text for the channel flow", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_DISABLE_SEND = "true";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            url: "https://example.com/image.jpg",
+            mime_type: "image/jpeg",
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(new Response("image-data"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate
+      .mockResolvedValueOnce({ id: "wa_in_1" })
+      .mockResolvedValueOnce({ id: "wa_out_1" });
+    mocks.incrementUsage.mockResolvedValue(undefined);
+    mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.isElevenLabsConfigured.mockReturnValue(false);
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "risposta immagine",
+        metrics: {
+          model: "test-model",
+          inputTokens: 11,
+          outputTokens: 22,
+          costUsd: 0.0011,
+          generationTimeMs: 35,
+        },
+      });
+      return {
+        textStream: (async function* () {
+          yield "risposta immagine";
+        })(),
+      };
+    });
+
+    const payload = buildImagePayload("");
+    payload.entry[0].changes[0].value.messages[0].image.caption = undefined;
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userMessage: "Immagine",
+        messageParts: [
+          { type: "text", text: "L'utente ha inviato questa immagine." },
+          {
+            type: "file",
+            mimeType: "image/jpeg",
+            data: Buffer.from("image-data").toString("base64"),
+          },
+        ],
+      }),
+    );
+  });
+
   it("helper signature and command/url helpers cover validation branches", () => {
     delete process.env.WHATSAPP_APP_SECRET;
     delete process.env.NEXT_PUBLIC_APP_URL;

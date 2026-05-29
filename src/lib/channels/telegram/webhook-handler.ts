@@ -3,6 +3,8 @@ import { waitUntil } from "@vercel/functions";
 import type { Prisma } from "@/generated/prisma";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import { runChannelFlow } from "@/lib/channel-flow";
+import { buildExternalChannelInbound } from "@/lib/channel-flow/inbound";
+import type { ChannelMessagePart } from "@/lib/channel-flow/types";
 import {
   downloadTelegramAudio,
   downloadTelegramDocument,
@@ -419,33 +421,7 @@ async function handleUpdate(update: TelegramUpdate) {
     }
   }
 
-  // Determine the user message for context (pure text; include transcription as text).
-  const voiceInstruction = transcribedText
-    ? "NOTA: l'utente ha inviato un messaggio vocale. Puoi comprenderlo e rispondere usando la TRASCRIZIONE qui sotto. Non dire che non puoi ascoltare i vocali."
-    : null;
-
-  let userMessageText: string;
-  if (text && transcribedText) {
-    userMessageText = `${text}\n\n${voiceInstruction}\n\n[Trascrizione audio]\n${transcribedText}`;
-  } else if (text) {
-    userMessageText = text;
-  } else if (transcribedText) {
-    userMessageText = `${voiceInstruction}\n\n[Trascrizione audio]\n${transcribedText}`;
-  } else {
-    userMessageText = "Messaggio vocale";
-  }
-
-  // Build message parts for the AI - can now include photos/documents.
-  type MessagePart =
-    | { type: "text"; text: string }
-    | { type: "file"; mimeType: string; data: string };
-
-  const messageParts: MessagePart[] = [];
-
-  // Add text if present
-  if (userMessageText) {
-    messageParts.push({ type: "text", text: userMessageText });
-  }
+  const files: ChannelMessagePart[] = [];
 
   // Download and add photo if present
   let downloadedPhoto = false;
@@ -453,7 +429,7 @@ async function handleUpdate(update: TelegramUpdate) {
     try {
       const photoData = await downloadTelegramPhoto(message.photo);
       if (photoData) {
-        messageParts.push({
+        files.push({
           type: "file",
           mimeType: photoData.mimeType,
           data: photoData.base64,
@@ -474,18 +450,17 @@ async function handleUpdate(update: TelegramUpdate) {
     try {
       const docData = await downloadTelegramDocument(message.document);
       if (docData) {
-        messageParts.push({
-          type: "file",
-          mimeType: docData.mimeType,
-          data: docData.base64,
-        });
-        // Add context about the document name if no caption
         if (!text && docData.fileName) {
-          messageParts.unshift({
+          files.unshift({
             type: "text",
             text: `L'utente ha inviato il file: ${docData.fileName}`,
           });
         }
+        files.push({
+          type: "file",
+          mimeType: docData.mimeType,
+          data: docData.base64,
+        });
       }
     } catch (err) {
       telegramLogger.error(
@@ -496,15 +471,22 @@ async function handleUpdate(update: TelegramUpdate) {
     }
   }
 
-  // Add default prompt for media-only messages
-  if (messageParts.length > 0 && !messageParts.some((p) => p.type === "text")) {
-    messageParts.unshift({
-      type: "text",
-      text: hasPhoto
-        ? "L'utente ha inviato questa immagine."
-        : "L'utente ha inviato questo file.",
-    });
-  }
+  const { userMessageText, parts: messageParts } = buildExternalChannelInbound({
+    text,
+    transcribedText,
+    voiceInstruction: transcribedText
+      ? "NOTA: l'utente ha inviato un messaggio vocale. Puoi comprenderlo e rispondere usando la TRASCRIZIONE qui sotto. Non dire che non puoi ascoltare i vocali."
+      : null,
+    fallbackText: hasAudioMessage
+      ? "Messaggio vocale"
+      : hasPhoto
+        ? "Immagine"
+        : "Documento",
+    defaultMediaPrompt: hasPhoto
+      ? "L'utente ha inviato questa immagine."
+      : "L'utente ha inviato questo file.",
+    files,
+  });
 
   // Generate assistant response.
   let assistantText = "";

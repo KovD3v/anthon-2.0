@@ -3,6 +3,8 @@ import { waitUntil } from "@vercel/functions";
 import type { Prisma } from "@/generated/prisma";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import { runChannelFlow } from "@/lib/channel-flow";
+import { buildExternalChannelInbound } from "@/lib/channel-flow/inbound";
+import type { ChannelMessagePart } from "@/lib/channel-flow/types";
 import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
 import {
   downloadWhatsAppMedia,
@@ -329,12 +331,7 @@ async function handleMessage(
 
   // Process Media (Audio, Image, Document)
   let transcribedText: string | null = null;
-  const messageParts: Array<{
-    type: "text" | "file";
-    text?: string;
-    mimeType?: string;
-    data?: string;
-  }> = [];
+  const files: ChannelMessagePart[] = [];
 
   // --- Audio Transcription ---
   if (hasAudio) {
@@ -376,32 +373,12 @@ async function handleMessage(
     }
   }
 
-  // Prepare input for AI
-  const voiceInstruction = transcribedText
-    ? "NOTA: l'utente ha inviato un messaggio vocale. Usa la TRASCRIZIONE qui sotto."
-    : null;
-
-  let userMessageText: string;
-  if (text && transcribedText) {
-    userMessageText = `${text}\n\n${voiceInstruction}\n\n[Trascrizione audio]\n${transcribedText}`;
-  } else if (text) {
-    userMessageText = text;
-  } else if (transcribedText) {
-    userMessageText = `${voiceInstruction}\n\n[Trascrizione audio]\n${transcribedText}`;
-  } else {
-    userMessageText = "Messaggio vocale";
-  }
-
-  if (userMessageText) {
-    messageParts.push({ type: "text", text: userMessageText });
-  }
-
   // --- Image Download ---
   let downloadedPhoto = false;
   if (hasImage && message.image?.id) {
     const imageData = await downloadWhatsAppMedia(message.image.id);
     if (imageData) {
-      messageParts.push({
+      files.push({
         type: "file",
         mimeType: imageData.mimeType,
         data: imageData.base64,
@@ -415,12 +392,12 @@ async function handleMessage(
     const docData = await downloadWhatsAppMedia(message.document.id);
     if (docData) {
       if (!text && message.document.filename) {
-        messageParts.unshift({
+        files.unshift({
           type: "text",
           text: `L'utente ha inviato il file: ${message.document.filename}`,
         });
       }
-      messageParts.push({
+      files.push({
         type: "file",
         mimeType: docData.mimeType,
         data: docData.base64,
@@ -428,15 +405,22 @@ async function handleMessage(
     }
   }
 
-  // Default prompt if nothing else
-  if (messageParts.length > 0 && !messageParts.some((p) => p.type === "text")) {
-    messageParts.unshift({
-      type: "text",
-      text: hasImage
-        ? "L'utente ha inviato questa immagine."
-        : "L'utente ha inviato questo file.",
-    });
-  }
+  const { userMessageText, parts: messageParts } = buildExternalChannelInbound({
+    text,
+    transcribedText,
+    voiceInstruction: transcribedText
+      ? "NOTA: l'utente ha inviato un messaggio vocale. Usa la TRASCRIZIONE qui sotto."
+      : null,
+    fallbackText: hasAudio
+      ? "Messaggio vocale"
+      : hasImage
+        ? "Immagine"
+        : "Documento",
+    defaultMediaPrompt: hasImage
+      ? "L'utente ha inviato questa immagine."
+      : "L'utente ha inviato questo file.",
+    files,
+  });
 
   // Generate Response
   let assistantText = "";
