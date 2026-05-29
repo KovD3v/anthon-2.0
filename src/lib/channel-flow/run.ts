@@ -49,6 +49,10 @@ export async function runChannelFlow(
   const mode = ctx.execution?.mode ?? "text";
 
   let finalMetrics: RunChannelFlowResult["metrics"];
+  let persistence: RunChannelFlowResult["persistence"] =
+    ctx.persistence?.saveAssistantMessage === false
+      ? { status: "skipped" }
+      : undefined;
 
   const streamResult = await streamChat({
     userId: ctx.userId,
@@ -85,7 +89,9 @@ export async function runChannelFlow(
               allowMemoryExtraction: ctx.options.allowMemoryExtraction,
               waitUntil: ctx.persistence?.waitUntil,
             });
+            persistence = { status: "saved" };
           } catch (error) {
+            persistence = { status: "failed", error };
             runLogger.error(
               "persist.failed",
               "Failed persisting assistant output",
@@ -111,6 +117,7 @@ export async function runChannelFlow(
     return {
       assistantText: "",
       metrics: finalMetrics,
+      persistence,
       streamResult: streamResult as RunChannelFlowResult["streamResult"],
     };
   }
@@ -123,5 +130,6 @@ export async function runChannelFlow(
   return {
     assistantText,
     metrics: finalMetrics,
+    persistence,
   };
 }

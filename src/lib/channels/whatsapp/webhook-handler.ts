@@ -475,6 +475,10 @@ async function handleMessage(
       },
     });
     assistantText = flowResult.assistantText;
+    if (flowResult.persistence?.status === "failed") {
+      await sendWhatsAppMessage(from, "Errore temporaneo. Riprova.");
+      return;
+    }
   } catch (err) {
     whatsappLogger.error("chat.stream_failed", "streamChat failed", { err });
     await sendWhatsAppMessage(from, "Si è verificato un errore. Riprova.");

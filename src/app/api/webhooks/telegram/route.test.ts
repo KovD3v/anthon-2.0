@@ -515,6 +515,82 @@ describe("/api/webhooks/telegram", () => {
     expect(mocks.extractAndSaveMemories).toHaveBeenCalledTimes(1);
   });
 
+  it("sync text message sends fallback when assistant persistence fails", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.OPENROUTER_API_KEY = "sk-test";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      id: "ci_1",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate
+      .mockResolvedValueOnce({ id: "msg_in_1" })
+      .mockRejectedValueOnce(new Error("assistant persistence failed"));
+    mocks.isElevenLabsConfigured.mockReturnValue(false);
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "risposta non salvata",
+        metrics: {
+          model: "test-model",
+          inputTokens: 10,
+          outputTokens: 20,
+          reasoningTokens: 0,
+          reasoningContent: null,
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.001,
+          generationTimeMs: 42,
+          reasoningTimeMs: 0,
+        },
+      });
+      return {
+        textStream: (async function* () {
+          yield "risposta non salvata";
+        })(),
+      };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildTextUpdate("ciao ai")),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.telegram.org/botbot-token/sendMessage",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining("Errore temporaneo"),
+      }),
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "https://api.telegram.org/botbot-token/sendMessage",
+      expect.objectContaining({
+        body: expect.stringContaining("risposta non salvata"),
+      }),
+    );
+  });
+
   it("helper utils normalize errors and command/url detection", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
     delete process.env.VERCEL_URL;

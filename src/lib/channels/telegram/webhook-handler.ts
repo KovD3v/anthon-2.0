@@ -547,6 +547,13 @@ async function handleUpdate(update: TelegramUpdate) {
       },
     });
     assistantText = flowResult.assistantText;
+    if (flowResult.persistence?.status === "failed") {
+      await sendTelegramMessage(
+        chatId,
+        "Errore temporaneo. Riprova tra qualche secondo.",
+      );
+      return;
+    }
   } catch (err) {
     telegramLogger.error("chat.stream_failed", "streamChat failed", { err });
 

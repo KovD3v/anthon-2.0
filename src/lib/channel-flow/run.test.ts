@@ -450,4 +450,57 @@ describe("channel-flow/run", () => {
 
     expect(mocks.persistAssistantOutput).not.toHaveBeenCalled();
   });
+
+  it("returns failed persistence status when assistant output cannot be saved", async () => {
+    const persistenceError = new Error("database is unavailable");
+
+    mocks.persistAssistantOutput.mockRejectedValue(persistenceError);
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "answer without persistence",
+        metrics: {
+          model: "test-model",
+          inputTokens: 1,
+          outputTokens: 2,
+          reasoningTokens: 0,
+          reasoningContent: "",
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0,
+          generationTimeMs: 1,
+          reasoningTimeMs: 0,
+        },
+      });
+      return {
+        textStream: (async function* () {
+          yield "answer without persistence";
+        })(),
+      };
+    });
+
+    const result = await runChannelFlow({
+      channel: "WHATSAPP",
+      userId: "user-1",
+      userMessageText: "ciao",
+      parts: [{ type: "text", text: "ciao" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: true,
+      },
+      execution: { mode: "text" },
+      persistence: {
+        channel: "WHATSAPP",
+        saveAssistantMessage: true,
+      },
+    });
+
+    expect(result.assistantText).toBe("answer without persistence");
+    expect(result.persistence).toEqual({
+      status: "failed",
+      error: persistenceError,
+    });
+  });
 });

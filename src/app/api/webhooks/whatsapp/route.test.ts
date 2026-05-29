@@ -644,6 +644,74 @@ describe("/api/webhooks/whatsapp", () => {
     );
   });
 
+  it("sync text message sends fallback when assistant persistence fails", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate
+      .mockResolvedValueOnce({ id: "wa_in_1" })
+      .mockRejectedValueOnce(new Error("assistant persistence failed"));
+    mocks.isElevenLabsConfigured.mockReturnValue(false);
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "risposta non salvata",
+        metrics: {
+          model: "test-model",
+          inputTokens: 11,
+          outputTokens: 22,
+          costUsd: 0.0011,
+          generationTimeMs: 35,
+        },
+      });
+      return {
+        textStream: (async function* () {
+          yield "risposta non salvata";
+        })(),
+      };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildTextPayload("ciao wa ai")),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://graph.facebook.com/v21.0/phone_1/messages",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining("Errore temporaneo"),
+      }),
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "https://graph.facebook.com/v21.0/phone_1/messages",
+      expect.objectContaining({
+        body: expect.stringContaining("risposta non salvata"),
+      }),
+    );
+  });
+
   it("sync audio message sends fallback when media download fails", async () => {
     process.env.WHATSAPP_SYNC_WEBHOOK = "true";
     process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";

@@ -64,6 +64,10 @@ export interface InboundContext {
 export interface RunChannelFlowResult {
   assistantText: string;
   metrics?: AIMetrics;
+  persistence?: {
+    status: "saved" | "skipped" | "failed";
+    error?: unknown;
+  };
   streamResult?: {
     toUIMessageStreamResponse: () => Response;
     textStream: AsyncIterable<string>;
