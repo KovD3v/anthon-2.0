@@ -163,7 +163,13 @@ export async function handleWebChatPost(request: Request) {
         }
 
         // Parse request body
-        const body = await bodyPromise;
+        let body: unknown;
+        try {
+          body = await bodyPromise;
+        } catch {
+          return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+        }
+
         const { messages, chatId } = body as {
           messages: UIMessage[];
           chatId?: string;
@@ -217,6 +223,7 @@ export async function handleWebChatPost(request: Request) {
               part.type === "text" ? (part as { text: string }).text : "",
             )
             .join("") || "";
+        const normalizedUserMessageText = userMessageText.trim();
 
         // Check if message has images
         const hasImages = lastUserMessage.parts?.some((part) => {
@@ -242,7 +249,7 @@ export async function handleWebChatPost(request: Request) {
         );
 
         // Allow messages with text OR any file attachment
-        if (!userMessageText && !hasAttachments) {
+        if (!normalizedUserMessageText && !hasAttachments) {
           return new Response("Empty message", { status: 400 });
         }
 
@@ -369,7 +376,7 @@ export async function handleWebChatPost(request: Request) {
               .join("\n");
 
             waitUntil(
-              generateChatTitle(context || userMessageText, {
+              generateChatTitle(context || normalizedUserMessageText, {
                 userId: user.id,
               }).then((title) => {
                 prisma.chat
@@ -428,7 +435,7 @@ export async function handleWebChatPost(request: Request) {
         );
         const voiceDecision = await decideWebVoiceMode({
           userId: user.id,
-          userMessage: userMessageText,
+          userMessage: normalizedUserMessageText,
           recentMessages: getRecentTextMessages(messages),
           userPreferences: {
             voiceEnabled: user.preferences?.voiceEnabled ?? true,
@@ -442,7 +449,7 @@ export async function handleWebChatPost(request: Request) {
           const voiceResponse = await handleVoiceFirstWebResponse({
             userId: user.id,
             chatId,
-            userMessageText,
+            userMessageText: normalizedUserMessageText,
             messageParts,
             rateLimitResult,
             planId,
@@ -462,7 +469,7 @@ export async function handleWebChatPost(request: Request) {
           channel: "WEB",
           userId: user.id,
           chatId,
-          userMessageText,
+          userMessageText: normalizedUserMessageText,
           parts: messageParts,
           rateLimit: {
             allowed: rateLimitResult.allowed,

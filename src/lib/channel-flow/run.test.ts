@@ -142,6 +142,214 @@ describe("channel-flow/run", () => {
     );
   });
 
+  it.each([
+    {
+      name: "web stream",
+      input: {
+        channel: "WEB" as const,
+        userId: "user-web",
+        chatId: "chat-web",
+        userMessageText: "ciao web",
+        parts: [
+          { type: "text" as const, text: "ciao web" },
+          {
+            type: "file" as const,
+            data: "image-base64",
+            mimeType: "image/png",
+            name: "photo.png",
+          },
+        ],
+        options: {
+          allowAttachments: true,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: true,
+        },
+        ai: {
+          planId: "basic",
+          userRole: "USER",
+          subscriptionStatus: "ACTIVE",
+          isGuest: false,
+        },
+        execution: { mode: "stream" as const },
+        persistence: {
+          channel: "WEB" as const,
+          saveAssistantMessage: true,
+          metadata: { web: { inReplyTo: "msg-web" } },
+        },
+      },
+      expected: {
+        hasImages: true,
+        hasAudio: false,
+        memoryEnabled: true,
+        responseMode: "text",
+        persistenceChannel: "WEB",
+      },
+    },
+    {
+      name: "guest web stream",
+      input: {
+        channel: "WEB_GUEST" as const,
+        userId: "guest-web",
+        chatId: "chat-guest",
+        userMessageText: "ciao guest",
+        parts: [{ type: "text" as const, text: "ciao guest" }],
+        options: {
+          allowAttachments: false,
+          allowMemoryExtraction: false,
+          allowVoiceOutput: false,
+        },
+        ai: {
+          isGuest: true,
+          skipConversationHistory: true,
+        },
+        execution: { mode: "stream" as const },
+        persistence: {
+          channel: "WEB" as const,
+          saveAssistantMessage: true,
+          metadata: { web: { guest: true } },
+        },
+      },
+      expected: {
+        hasImages: false,
+        hasAudio: false,
+        memoryEnabled: false,
+        responseMode: "text",
+        persistenceChannel: "WEB",
+      },
+    },
+    {
+      name: "telegram text",
+      input: {
+        channel: "TELEGRAM" as const,
+        userId: "user-tg",
+        userMessageText: "ciao telegram",
+        parts: [{ type: "text" as const, text: "ciao telegram" }],
+        options: {
+          allowAttachments: true,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: true,
+        },
+        execution: { mode: "text" as const },
+        persistence: {
+          channel: "TELEGRAM" as const,
+          saveAssistantMessage: true,
+          metadata: { telegram: { inReplyTo: "msg-tg" } },
+        },
+      },
+      expected: {
+        hasImages: false,
+        hasAudio: false,
+        memoryEnabled: true,
+        responseMode: "text",
+        persistenceChannel: "TELEGRAM",
+      },
+    },
+    {
+      name: "whatsapp text",
+      input: {
+        channel: "WHATSAPP" as const,
+        userId: "user-wa",
+        userMessageText: "ciao whatsapp",
+        parts: [{ type: "text" as const, text: "ciao whatsapp" }],
+        options: {
+          allowAttachments: true,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: true,
+        },
+        execution: { mode: "text" as const },
+        persistence: {
+          channel: "WHATSAPP" as const,
+          saveAssistantMessage: true,
+          metadata: { whatsapp: { inReplyTo: "msg-wa" } },
+        },
+      },
+      expected: {
+        hasImages: false,
+        hasAudio: false,
+        memoryEnabled: true,
+        responseMode: "text",
+        persistenceChannel: "WHATSAPP",
+      },
+    },
+  ])(
+    "passes canonical AI and persistence fields for $name",
+    async (testCase) => {
+      mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+        await onFinish?.({
+          text: "contract answer",
+          metrics: {
+            model: "test-model",
+            inputTokens: 1,
+            outputTokens: 2,
+            reasoningTokens: 0,
+            reasoningContent: "",
+            toolCalls: [],
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0,
+            generationTimeMs: 1,
+            reasoningTimeMs: 0,
+          },
+        });
+
+        return {
+          toUIMessageStreamResponse: () => Response.json({ ok: true }),
+          textStream: (async function* () {
+            yield "contract answer";
+          })(),
+        };
+      });
+
+      await runChannelFlow({
+        ...testCase.input,
+        rateLimit: {
+          allowed: true,
+          effectiveEntitlements: {
+            modelTier: "BASIC",
+            limits: {
+              maxRequestsPerDay: 10,
+              maxInputTokensPerDay: 1000,
+              maxOutputTokensPerDay: 1000,
+              maxCostPerDay: 1,
+              maxContextMessages: 20,
+            },
+            sources: [],
+          },
+        },
+      });
+
+      expect(mocks.streamChat).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: testCase.input.userId,
+          chatId: testCase.input.chatId,
+          userMessage: testCase.input.userMessageText,
+          messageParts: testCase.input.parts,
+          effectiveEntitlements: expect.objectContaining({
+            modelTier: "BASIC",
+          }),
+          isGuest: testCase.input.ai?.isGuest,
+          memoryEnabled: testCase.expected.memoryEnabled,
+          hasImages: testCase.expected.hasImages,
+          hasAudio: testCase.expected.hasAudio,
+          responseMode: testCase.expected.responseMode,
+          skipConversationHistory: testCase.input.ai?.skipConversationHistory,
+        }),
+      );
+
+      expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: testCase.input.userId,
+          chatId: testCase.input.chatId,
+          channel: testCase.expected.persistenceChannel,
+          text: "contract answer",
+          userMessageText: testCase.input.userMessageText,
+          metadata: testCase.input.persistence.metadata,
+          allowMemoryExtraction: testCase.expected.memoryEnabled,
+        }),
+      );
+    },
+  );
+
   it("consumes text stream and persists assistant output in text mode", async () => {
     mocks.streamChat.mockImplementation(async ({ onFinish }) => {
       await onFinish?.({

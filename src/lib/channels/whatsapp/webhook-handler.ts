@@ -173,11 +173,11 @@ async function handleMessage(
   // Extract content
   let text = "";
   if (message.type === "text") {
-    text = message.text?.body || "";
+    text = message.text?.body?.trim() || "";
   } else if (message.type === "image") {
-    text = message.image?.caption || "";
+    text = message.image?.caption?.trim() || "";
   } else if (message.type === "document") {
-    text = message.document?.caption || "";
+    text = message.document?.caption?.trim() || "";
   }
 
   const hasAudio = message.type === "audio" || message.type === "voice";
@@ -231,34 +231,6 @@ async function handleMessage(
     ? identity.user
     : await createGuestUserForWhatsApp(from, context);
 
-  // Rate Limiting
-  const rateLimit = await checkRateLimit(
-    user.id,
-    user.subscription?.status,
-    user.role,
-    user.subscription?.planId,
-    user.isGuest,
-  );
-
-  if (!rateLimit.allowed) {
-    // Use upgradeInfo for contextual CTA if available
-    const upgradeInfo = rateLimit.upgradeInfo;
-    let message: string;
-
-    if (upgradeInfo) {
-      const isGuest = upgradeInfo.currentPlan === "Ospite";
-      message = isGuest
-        ? `${upgradeInfo.ctaMessage}\n\nRegistrati qui: https://anthon.ai/sign-up`
-        : `${upgradeInfo.ctaMessage}\n\nVedi i piani: https://anthon.ai/pricing`;
-    } else {
-      message =
-        "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti.\n\nhttps://anthon.ai/sign-up";
-    }
-
-    await sendWhatsAppMessage(from, message);
-    return;
-  }
-
   let messageType: "IMAGE" | "DOCUMENT" | "AUDIO" | "TEXT";
   let _defaultContent: string;
 
@@ -310,6 +282,34 @@ async function handleMessage(
 
   if (!inbound) return;
 
+  // Rate Limiting
+  const rateLimit = await checkRateLimit(
+    user.id,
+    user.subscription?.status,
+    user.role,
+    user.subscription?.planId,
+    user.isGuest,
+  );
+
+  if (!rateLimit.allowed) {
+    // Use upgradeInfo for contextual CTA if available
+    const upgradeInfo = rateLimit.upgradeInfo;
+    let message: string;
+
+    if (upgradeInfo) {
+      const isGuest = upgradeInfo.currentPlan === "Ospite";
+      message = isGuest
+        ? `${upgradeInfo.ctaMessage}\n\nRegistrati qui: https://anthon.ai/sign-up`
+        : `${upgradeInfo.ctaMessage}\n\nVedi i piani: https://anthon.ai/pricing`;
+    } else {
+      message =
+        "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti.\n\nhttps://anthon.ai/sign-up";
+    }
+
+    await sendWhatsAppMessage(from, message);
+    return;
+  }
+
   safeWaitUntil(
     trackInboundUserMessageFunnelProgress({
       userId: user.id,
@@ -341,23 +341,37 @@ async function handleMessage(
     const audioId = message.audio?.id || message.voice?.id;
     if (audioId) {
       const audioData = await downloadWhatsAppMedia(audioId);
-      if (audioData) {
-        try {
-          transcribedText = await transcribeAudioWithOpenRouter({
-            ...audioData,
-            title: "WhatsApp Bot",
-            userId: user.id,
-          });
-        } catch (err) {
-          whatsappLogger.error("transcription.failed", "Transcription failed", {
-            err,
-          });
-          await sendWhatsAppMessage(
-            from,
-            "Non sono riuscito a trascrivere il messaggio audio. Riprova.",
-          );
-          return;
-        }
+      if (!audioData) {
+        await sendWhatsAppMessage(
+          from,
+          "Non sono riuscito a scaricare il messaggio audio. Riprova.",
+        );
+        return;
+      }
+
+      try {
+        transcribedText = await transcribeAudioWithOpenRouter({
+          ...audioData,
+          title: "WhatsApp Bot",
+          userId: user.id,
+        });
+      } catch (err) {
+        whatsappLogger.error("transcription.failed", "Transcription failed", {
+          err,
+        });
+        await sendWhatsAppMessage(
+          from,
+          "Non sono riuscito a trascrivere il messaggio audio. Riprova.",
+        );
+        return;
+      }
+
+      if (!transcribedText || transcribedText.trim().length === 0) {
+        await sendWhatsAppMessage(
+          from,
+          "Non sono riuscito a trascrivere l'audio. Prova a reinviare il messaggio.",
+        );
+        return;
       }
     }
   }
@@ -467,7 +481,13 @@ async function handleMessage(
     return;
   }
 
-  if (!assistantText.trim()) return;
+  if (!assistantText.trim()) {
+    await sendWhatsAppMessage(
+      from,
+      "Non ho generato una risposta. Riprova tra qualche secondo.",
+    );
+    return;
+  }
 
   // Voice output
   if (isElevenLabsConfigured()) {

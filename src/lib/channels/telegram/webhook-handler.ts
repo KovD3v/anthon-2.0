@@ -240,34 +240,6 @@ async function handleUpdate(update: TelegramUpdate) {
     ? identity.user
     : await createGuestUserForTelegramIdentity(externalId);
 
-  // Check rate limit (guest tier is stricter than trial).
-  const rateLimit = await checkRateLimit(
-    user.id,
-    user.subscription?.status,
-    user.role,
-    user.subscription?.planId,
-    user.isGuest,
-  );
-
-  if (!rateLimit.allowed) {
-    // Use upgradeInfo for contextual CTA if available
-    const upgradeInfo = rateLimit.upgradeInfo;
-    let message: string;
-
-    if (upgradeInfo) {
-      const isGuest = upgradeInfo.currentPlan === "Ospite";
-      message = isGuest
-        ? `${upgradeInfo.ctaMessage}\n\nRegistrati qui: https://anthon.ai/sign-up`
-        : `${upgradeInfo.ctaMessage}\n\nVedi i piani: https://anthon.ai/pricing`;
-    } else {
-      message =
-        "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti.\n\nhttps://anthon.ai/sign-up";
-    }
-
-    await sendTelegramMessage(chatId, message);
-    return;
-  }
-
   let messageType: "IMAGE" | "DOCUMENT" | "AUDIO" | "TEXT";
   let _defaultContent: string;
 
@@ -325,6 +297,34 @@ async function handleUpdate(update: TelegramUpdate) {
     });
 
   if (!inbound) {
+    return;
+  }
+
+  // Check rate limit (guest tier is stricter than trial).
+  const rateLimit = await checkRateLimit(
+    user.id,
+    user.subscription?.status,
+    user.role,
+    user.subscription?.planId,
+    user.isGuest,
+  );
+
+  if (!rateLimit.allowed) {
+    // Use upgradeInfo for contextual CTA if available
+    const upgradeInfo = rateLimit.upgradeInfo;
+    let message: string;
+
+    if (upgradeInfo) {
+      const isGuest = upgradeInfo.currentPlan === "Ospite";
+      message = isGuest
+        ? `${upgradeInfo.ctaMessage}\n\nRegistrati qui: https://anthon.ai/sign-up`
+        : `${upgradeInfo.ctaMessage}\n\nVedi i piani: https://anthon.ai/pricing`;
+    } else {
+      message =
+        "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti.\n\nhttps://anthon.ai/sign-up";
+    }
+
+    await sendTelegramMessage(chatId, message);
     return;
   }
 

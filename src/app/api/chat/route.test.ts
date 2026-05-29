@@ -358,6 +358,21 @@ describe("POST /api/chat", () => {
     });
   });
 
+  it("returns 400 for malformed json", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        body: "{ bad",
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid JSON body",
+    });
+  });
+
   it("returns 400 when chatId is missing", async () => {
     const response = await POST(
       buildRequest({
@@ -390,6 +405,18 @@ describe("POST /api/chat", () => {
     const response = await POST(
       buildRequest({
         messages: [{ role: "user", parts: [{ type: "text", text: "" }] }],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.text()).resolves.toBe("Empty message");
+  });
+
+  it("returns 400 for whitespace-only text without attachments", async () => {
+    const response = await POST(
+      buildRequest({
+        messages: [{ role: "user", parts: [{ type: "text", text: "   " }] }],
         chatId: "chat-1",
       }),
     );

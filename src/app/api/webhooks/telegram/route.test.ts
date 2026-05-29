@@ -329,7 +329,7 @@ describe("/api/webhooks/telegram", () => {
     expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledTimes(1);
   });
 
-  it("sync text message stops before persistence when rate limit is exceeded", async () => {
+  it("sync text message persists inbound idempotency marker when rate limit is exceeded", async () => {
     process.env.TELEGRAM_SYNC_WEBHOOK = "true";
     process.env.TELEGRAM_DISABLE_SEND = "true";
 
@@ -348,6 +348,7 @@ describe("/api/webhooks/telegram", () => {
       allowed: false,
       upgradeInfo: null,
     });
+    mocks.prismaMessageCreate.mockResolvedValue({ id: "msg_rate_limited" });
 
     const response = await POST(
       new Request("http://localhost/api/webhooks/telegram", {
@@ -360,7 +361,19 @@ describe("/api/webhooks/telegram", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.checkRateLimit).toHaveBeenCalledTimes(1);
-    expect(mocks.prismaMessageCreate).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "user_1",
+          channel: "TELEGRAM",
+          direction: "INBOUND",
+          role: "USER",
+          type: "TEXT",
+          externalMessageId: "100:2",
+        }),
+      }),
+    );
+    expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
   it("sync text message saves inbound content and returns when OPENROUTER key is missing", async () => {
@@ -466,7 +479,32 @@ describe("/api/webhooks/telegram", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.streamChat).toHaveBeenCalledTimes(1);
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        userMessage: "ciao ai",
+        effectiveEntitlements: { modelTier: "STANDARD" },
+        isGuest: true,
+        hasAudio: false,
+        hasImages: false,
+        chatId: undefined,
+      }),
+    );
     expect(mocks.prismaMessageCreate).toHaveBeenCalledTimes(2);
+    expect(mocks.prismaMessageCreate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          channel: "TELEGRAM",
+          metadata: {
+            telegram: {
+              inReplyTo: "msg_in_1",
+              chatId: 100,
+            },
+          },
+        }),
+      }),
+    );
     expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user_1",

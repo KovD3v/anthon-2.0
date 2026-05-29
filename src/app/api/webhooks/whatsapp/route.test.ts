@@ -161,6 +161,48 @@ function buildTextPayload(text: string) {
   };
 }
 
+function buildAudioPayload() {
+  return {
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        id: "entry_1",
+        changes: [
+          {
+            field: "messages",
+            value: {
+              messaging_product: "whatsapp",
+              metadata: {
+                display_phone_number: "3900000000",
+                phone_number_id: "phone_1",
+              },
+              contacts: [
+                {
+                  profile: { name: "Mario Rossi" },
+                  wa_id: "39333111222",
+                },
+              ],
+              messages: [
+                {
+                  from: "39333111222",
+                  id: "wamid_audio_1",
+                  timestamp: "1700000000",
+                  type: "audio",
+                  audio: {
+                    id: "audio_1",
+                    mime_type: "audio/ogg",
+                    voice: true,
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
 describe("/api/webhooks/whatsapp", () => {
   beforeEach(() => {
     process.env.WHATSAPP_VERIFY_TOKEN = "verify-token";
@@ -342,7 +384,7 @@ describe("/api/webhooks/whatsapp", () => {
     expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledTimes(1);
   });
 
-  it("sync text message stops before persistence when rate limit is exceeded", async () => {
+  it("sync text message persists inbound idempotency marker when rate limit is exceeded", async () => {
     process.env.WHATSAPP_SYNC_WEBHOOK = "true";
     process.env.WHATSAPP_DISABLE_SEND = "true";
 
@@ -360,6 +402,7 @@ describe("/api/webhooks/whatsapp", () => {
       allowed: false,
       upgradeInfo: null,
     });
+    mocks.prismaMessageCreate.mockResolvedValue({ id: "wa_rate_limited" });
 
     const response = await POST(
       new Request("http://localhost/api/webhooks/whatsapp", {
@@ -371,7 +414,19 @@ describe("/api/webhooks/whatsapp", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.checkRateLimit).toHaveBeenCalledTimes(1);
-    expect(mocks.prismaMessageCreate).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "user_1",
+          channel: "WHATSAPP",
+          direction: "INBOUND",
+          role: "USER",
+          type: "TEXT",
+          externalMessageId: "wamid_1",
+        }),
+      }),
+    );
+    expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
   it("sync text message saves inbound and returns when AI is disabled", async () => {
@@ -459,14 +514,36 @@ describe("/api/webhooks/whatsapp", () => {
     const response = await POST(
       new Request("http://localhost/api/webhooks/whatsapp", {
         method: "POST",
-        body: JSON.stringify(buildTextPayload("ciao wa ai")),
+        body: JSON.stringify(buildTextPayload("  ciao wa ai  ")),
       }),
     );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.streamChat).toHaveBeenCalledTimes(1);
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        userMessage: "ciao wa ai",
+        effectiveEntitlements: { modelTier: "STANDARD" },
+        isGuest: true,
+        hasAudio: false,
+        hasImages: false,
+        chatId: undefined,
+      }),
+    );
     expect(mocks.prismaMessageCreate).toHaveBeenCalledTimes(2);
+    expect(mocks.prismaMessageCreate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          channel: "WHATSAPP",
+          metadata: {
+            whatsapp: { inReplyTo: "wa_in_1" },
+          },
+        }),
+      }),
+    );
     expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user_1",
@@ -475,6 +552,102 @@ describe("/api/webhooks/whatsapp", () => {
     );
     expect(mocks.incrementUsage).toHaveBeenCalledTimes(1);
     expect(mocks.extractAndSaveMemories).toHaveBeenCalledTimes(1);
+  });
+
+  it("sync text message sends fallback when assistant response is empty", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate.mockResolvedValueOnce({ id: "wa_in_1" });
+    mocks.isElevenLabsConfigured.mockReturnValue(false);
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "";
+      })(),
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildTextPayload("ciao wa ai")),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://graph.facebook.com/v21.0/phone_1/messages",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining("Non ho generato una risposta"),
+      }),
+    );
+  });
+
+  it("sync audio message sends fallback when media download fails", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("download-failed", { status: 500 }))
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate.mockResolvedValueOnce({ id: "wa_in_1" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildAudioPayload()),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "https://graph.facebook.com/v21.0/phone_1/messages",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining(
+          "Non sono riuscito a scaricare il messaggio audio",
+        ),
+      }),
+    );
   });
 
   it("helper signature and command/url helpers cover validation branches", () => {
