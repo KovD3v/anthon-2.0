@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import { runChannelFlow } from "@/lib/channel-flow";
 import { buildExternalChannelInbound } from "@/lib/channel-flow/inbound";
+import { formatExternalRateLimitMessage } from "@/lib/channel-flow/rate-limit-message";
 import type { ChannelMessagePart } from "@/lib/channel-flow/types";
 import {
   downloadTelegramAudio,
@@ -312,21 +313,10 @@ async function handleUpdate(update: TelegramUpdate) {
   );
 
   if (!rateLimit.allowed) {
-    // Use upgradeInfo for contextual CTA if available
-    const upgradeInfo = rateLimit.upgradeInfo;
-    let message: string;
-
-    if (upgradeInfo) {
-      const isGuest = upgradeInfo.currentPlan === "Ospite";
-      message = isGuest
-        ? `${upgradeInfo.ctaMessage}\n\nRegistrati qui: https://anthon.ai/sign-up`
-        : `${upgradeInfo.ctaMessage}\n\nVedi i piani: https://anthon.ai/pricing`;
-    } else {
-      message =
-        "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti.\n\nhttps://anthon.ai/sign-up";
-    }
-
-    await sendTelegramMessage(chatId, message);
+    await sendTelegramMessage(
+      chatId,
+      formatExternalRateLimitMessage(rateLimit.upgradeInfo),
+    );
     return;
   }
 
