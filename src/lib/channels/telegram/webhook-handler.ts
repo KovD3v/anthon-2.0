@@ -76,6 +76,47 @@ type TelegramUpdate = {
   };
 };
 
+async function recordTelegramInboundError({
+  inboundId,
+  update,
+  chatId,
+  fromId,
+  message,
+  kind,
+  summary,
+}: {
+  inboundId: string;
+  update: TelegramUpdate;
+  chatId: number;
+  fromId: number;
+  message: TelegramUpdate["message"];
+  kind: string;
+  summary?: string;
+}) {
+  await prisma.message
+    .update({
+      where: { id: inboundId },
+      data: {
+        metadata: {
+          telegram: {
+            updateId: update.update_id,
+            chatId,
+            fromId,
+            username: message?.from?.username,
+            languageCode: message?.from?.language_code,
+            documentName: message?.document?.file_name,
+            documentMimeType: message?.document?.mime_type,
+            error: {
+              kind,
+              ...(summary ? { summary } : {}),
+            },
+          },
+        } as Prisma.InputJsonValue,
+      },
+    })
+    .catch(() => undefined);
+}
+
 export async function handleTelegramWebhookGet() {
   return Response.json({ ok: true, channel: "telegram" });
 }
@@ -356,25 +397,14 @@ async function handleUpdate(update: TelegramUpdate) {
       message?.audio,
     );
     if (!audioData) {
-      await prisma.message
-        .update({
-          where: { id: inbound.id },
-          data: {
-            metadata: {
-              telegram: {
-                updateId: update.update_id,
-                chatId,
-                fromId,
-                username: message?.from?.username,
-                languageCode: message?.from?.language_code,
-                error: {
-                  kind: "audio_download_failed",
-                },
-              },
-            } as Prisma.InputJsonValue,
-          },
-        })
-        .catch(() => undefined);
+      await recordTelegramInboundError({
+        inboundId: inbound.id,
+        update,
+        chatId,
+        fromId,
+        message,
+        kind: "audio_download_failed",
+      });
 
       await sendTelegramMessage(
         chatId,
@@ -394,26 +424,15 @@ async function handleUpdate(update: TelegramUpdate) {
         err,
       });
 
-      await prisma.message
-        .update({
-          where: { id: inbound.id },
-          data: {
-            metadata: {
-              telegram: {
-                updateId: update.update_id,
-                chatId,
-                fromId,
-                username: message?.from?.username,
-                languageCode: message?.from?.language_code,
-                error: {
-                  kind: "transcription_failed",
-                  summary: safeErrorSummary(err),
-                },
-              },
-            } as Prisma.InputJsonValue,
-          },
-        })
-        .catch(() => undefined);
+      await recordTelegramInboundError({
+        inboundId: inbound.id,
+        update,
+        chatId,
+        fromId,
+        message,
+        kind: "transcription_failed",
+        summary: safeErrorSummary(err),
+      });
 
       await sendTelegramMessage(
         chatId,
@@ -438,20 +457,47 @@ async function handleUpdate(update: TelegramUpdate) {
   if (hasPhoto && message?.photo) {
     try {
       const photoData = await downloadTelegramPhoto(message.photo);
-      if (photoData) {
-        files.push({
-          type: "file",
-          mimeType: photoData.mimeType,
-          data: photoData.base64,
+      if (!photoData) {
+        await recordTelegramInboundError({
+          inboundId: inbound.id,
+          update,
+          chatId,
+          fromId,
+          message,
+          kind: "photo_download_failed",
         });
-        downloadedPhoto = true;
+        await sendTelegramMessage(
+          chatId,
+          "Non sono riuscito a scaricare l'immagine. Riprova.",
+        );
+        return;
       }
+      files.push({
+        type: "file",
+        mimeType: photoData.mimeType,
+        data: photoData.base64,
+      });
+      downloadedPhoto = true;
     } catch (err) {
       telegramLogger.error(
         "media.photo_download_failed",
         "Failed to download photo",
         { err },
       );
+      await recordTelegramInboundError({
+        inboundId: inbound.id,
+        update,
+        chatId,
+        fromId,
+        message,
+        kind: "photo_download_failed",
+        summary: safeErrorSummary(err),
+      });
+      await sendTelegramMessage(
+        chatId,
+        "Non sono riuscito a scaricare l'immagine. Riprova.",
+      );
+      return;
     }
   }
 
@@ -459,25 +505,52 @@ async function handleUpdate(update: TelegramUpdate) {
   if (hasDocument && message?.document) {
     try {
       const docData = await downloadTelegramDocument(message.document);
-      if (docData) {
-        if (!text && docData.fileName) {
-          files.unshift({
-            type: "text",
-            text: `L'utente ha inviato il file: ${docData.fileName}`,
-          });
-        }
-        files.push({
-          type: "file",
-          mimeType: docData.mimeType,
-          data: docData.base64,
+      if (!docData) {
+        await recordTelegramInboundError({
+          inboundId: inbound.id,
+          update,
+          chatId,
+          fromId,
+          message,
+          kind: "document_download_failed",
+        });
+        await sendTelegramMessage(
+          chatId,
+          "Non sono riuscito a scaricare il documento. Riprova.",
+        );
+        return;
+      }
+      if (!text && docData.fileName) {
+        files.unshift({
+          type: "text",
+          text: `L'utente ha inviato il file: ${docData.fileName}`,
         });
       }
+      files.push({
+        type: "file",
+        mimeType: docData.mimeType,
+        data: docData.base64,
+      });
     } catch (err) {
       telegramLogger.error(
         "media.document_download_failed",
         "Failed to download document",
         { err },
       );
+      await recordTelegramInboundError({
+        inboundId: inbound.id,
+        update,
+        chatId,
+        fromId,
+        message,
+        kind: "document_download_failed",
+        summary: safeErrorSummary(err),
+      });
+      await sendTelegramMessage(
+        chatId,
+        "Non sono riuscito a scaricare il documento. Riprova.",
+      );
+      return;
     }
   }
 

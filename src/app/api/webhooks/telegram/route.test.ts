@@ -169,6 +169,52 @@ function buildVoiceUpdate() {
   };
 }
 
+function buildPhotoUpdate(caption = "") {
+  return {
+    update_id: 1,
+    message: {
+      message_id: 2,
+      date: 1700000000,
+      caption,
+      photo: [
+        {
+          file_id: "photo_small",
+          file_unique_id: "photo_unique_small",
+          width: 90,
+          height: 90,
+        },
+        {
+          file_id: "photo_large",
+          file_unique_id: "photo_unique_large",
+          width: 1280,
+          height: 720,
+        },
+      ],
+      chat: { id: 100, type: "private" },
+      from: { id: 200, is_bot: false, username: "test-user" },
+    },
+  };
+}
+
+function buildDocumentUpdate(caption = "") {
+  return {
+    update_id: 1,
+    message: {
+      message_id: 2,
+      date: 1700000000,
+      caption,
+      document: {
+        file_id: "document_1",
+        file_unique_id: "document_unique_1",
+        file_name: "report.pdf",
+        mime_type: "application/pdf",
+      },
+      chat: { id: 100, type: "private" },
+      from: { id: 200, is_bot: false, username: "test-user" },
+    },
+  };
+}
+
 describe("/api/webhooks/telegram", () => {
   beforeEach(() => {
     process.env.TELEGRAM_WEBHOOK_SECRET = "tg-secret";
@@ -771,6 +817,140 @@ describe("/api/webhooks/telegram", () => {
         method: "POST",
         body: expect.stringContaining(
           "Non sono riuscito a scaricare il messaggio audio",
+        ),
+      }),
+    );
+  });
+
+  it("records inbound metadata when Telegram photo download fails", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.OPENROUTER_API_KEY = "sk-test";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("download-failed", { status: 500 }))
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      id: "ci_1",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate.mockResolvedValueOnce({ id: "tg_in_1" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildPhotoUpdate()),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "tg_in_1" },
+        data: {
+          metadata: expect.objectContaining({
+            telegram: expect.objectContaining({
+              chatId: 100,
+              fromId: 200,
+              error: expect.objectContaining({
+                kind: "photo_download_failed",
+              }),
+            }),
+          }),
+        },
+      }),
+    );
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "https://api.telegram.org/botbot-token/sendMessage",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining(
+          "Non sono riuscito a scaricare l'immagine",
+        ),
+      }),
+    );
+  });
+
+  it("records inbound metadata when Telegram document download fails", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.OPENROUTER_API_KEY = "sk-test";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("download-failed", { status: 500 }))
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      id: "ci_1",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate.mockResolvedValueOnce({ id: "tg_in_1" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildDocumentUpdate()),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "tg_in_1" },
+        data: {
+          metadata: expect.objectContaining({
+            telegram: expect.objectContaining({
+              chatId: 100,
+              fromId: 200,
+              documentName: "report.pdf",
+              documentMimeType: "application/pdf",
+              error: expect.objectContaining({
+                kind: "document_download_failed",
+              }),
+            }),
+          }),
+        },
+      }),
+    );
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "https://api.telegram.org/botbot-token/sendMessage",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining(
+          "Non sono riuscito a scaricare il documento",
         ),
       }),
     );

@@ -251,6 +251,49 @@ function buildImagePayload(caption: string) {
   };
 }
 
+function buildDocumentPayload(caption: string) {
+  return {
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        id: "entry_1",
+        changes: [
+          {
+            field: "messages",
+            value: {
+              messaging_product: "whatsapp",
+              metadata: {
+                display_phone_number: "3900000000",
+                phone_number_id: "phone_1",
+              },
+              contacts: [
+                {
+                  profile: { name: "Mario Rossi" },
+                  wa_id: "39333111222",
+                },
+              ],
+              messages: [
+                {
+                  from: "39333111222",
+                  id: "wamid_document_1",
+                  timestamp: "1700000000",
+                  type: "document",
+                  document: {
+                    id: "document_1",
+                    caption,
+                    filename: "report.pdf",
+                    mime_type: "application/pdf",
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
 describe("/api/webhooks/whatsapp", () => {
   beforeEach(() => {
     process.env.WHATSAPP_VERIFY_TOKEN = "verify-token";
@@ -1096,6 +1139,136 @@ describe("/api/webhooks/whatsapp", () => {
             data: Buffer.from("image-data").toString("base64"),
           },
         ],
+      }),
+    );
+  });
+
+  it("sync image message records inbound metadata when media download fails", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("download-failed", { status: 500 }))
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate.mockResolvedValueOnce({ id: "wa_in_1" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildImagePayload("valuta questa immagine")),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wa_in_1" },
+        data: {
+          metadata: expect.objectContaining({
+            whatsapp: expect.objectContaining({
+              id: "wamid_image_1",
+              type: "image",
+              error: expect.objectContaining({
+                kind: "image_download_failed",
+              }),
+            }),
+          }),
+        },
+      }),
+    );
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "https://graph.facebook.com/v21.0/phone_1/messages",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining(
+          "Non sono riuscito a scaricare l'immagine",
+        ),
+      }),
+    );
+  });
+
+  it("sync document message records inbound metadata when media download fails", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("download-failed", { status: 500 }))
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate.mockResolvedValueOnce({ id: "wa_in_1" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildDocumentPayload("leggi questo documento")),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wa_in_1" },
+        data: {
+          metadata: expect.objectContaining({
+            whatsapp: expect.objectContaining({
+              id: "wamid_document_1",
+              type: "document",
+              documentName: "report.pdf",
+              documentMimeType: "application/pdf",
+              error: expect.objectContaining({
+                kind: "document_download_failed",
+              }),
+            }),
+          }),
+        },
+      }),
+    );
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "https://graph.facebook.com/v21.0/phone_1/messages",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining(
+          "Non sono riuscito a scaricare il documento",
+        ),
       }),
     );
   });

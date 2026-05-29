@@ -105,6 +105,42 @@ function safeWaitUntil(promise: Promise<unknown>) {
   }
 }
 
+async function recordWhatsAppInboundError({
+  inboundId,
+  message,
+  context,
+  kind,
+  summary,
+}: {
+  inboundId: string;
+  message: WhatsAppMessage;
+  context: WhatsAppChangeValue;
+  kind: string;
+  summary?: string;
+}) {
+  await prisma.message
+    .update({
+      where: { id: inboundId },
+      data: {
+        metadata: {
+          whatsapp: {
+            id: message.id,
+            timestamp: message.timestamp,
+            type: message.type,
+            name: context.contacts?.[0]?.profile?.name,
+            documentName: message.document?.filename,
+            documentMimeType: message.document?.mime_type,
+            error: {
+              kind,
+              ...(summary ? { summary } : {}),
+            },
+          },
+        } as Prisma.InputJsonValue,
+      },
+    })
+    .catch(() => undefined);
+}
+
 // --- Main Handler ---
 
 export async function handleWhatsAppWebhookGet(request: Request) {
@@ -343,24 +379,12 @@ async function handleMessage(
     if (audioId) {
       const audioData = await downloadWhatsAppMedia(audioId);
       if (!audioData) {
-        await prisma.message
-          .update({
-            where: { id: inbound.id },
-            data: {
-              metadata: {
-                whatsapp: {
-                  id: messageId,
-                  timestamp: message.timestamp,
-                  type: message.type,
-                  name: context.contacts?.[0]?.profile?.name,
-                  error: {
-                    kind: "audio_download_failed",
-                  },
-                },
-              } as Prisma.InputJsonValue,
-            },
-          })
-          .catch(() => undefined);
+        await recordWhatsAppInboundError({
+          inboundId: inbound.id,
+          message,
+          context,
+          kind: "audio_download_failed",
+        });
 
         await sendWhatsAppMessage(
           from,
@@ -379,25 +403,13 @@ async function handleMessage(
         whatsappLogger.error("transcription.failed", "Transcription failed", {
           err,
         });
-        await prisma.message
-          .update({
-            where: { id: inbound.id },
-            data: {
-              metadata: {
-                whatsapp: {
-                  id: messageId,
-                  timestamp: message.timestamp,
-                  type: message.type,
-                  name: context.contacts?.[0]?.profile?.name,
-                  error: {
-                    kind: "transcription_failed",
-                    summary: safeErrorSummary(err),
-                  },
-                },
-              } as Prisma.InputJsonValue,
-            },
-          })
-          .catch(() => undefined);
+        await recordWhatsAppInboundError({
+          inboundId: inbound.id,
+          message,
+          context,
+          kind: "transcription_failed",
+          summary: safeErrorSummary(err),
+        });
         await sendWhatsAppMessage(
           from,
           "Non sono riuscito a trascrivere il messaggio audio. Riprova.",
@@ -418,21 +430,65 @@ async function handleMessage(
   // --- Image Download ---
   let downloadedPhoto = false;
   if (hasImage && message.image?.id) {
-    const imageData = await downloadWhatsAppMedia(message.image.id);
-    if (imageData) {
+    try {
+      const imageData = await downloadWhatsAppMedia(message.image.id);
+      if (!imageData) {
+        await recordWhatsAppInboundError({
+          inboundId: inbound.id,
+          message,
+          context,
+          kind: "image_download_failed",
+        });
+        await sendWhatsAppMessage(
+          from,
+          "Non sono riuscito a scaricare l'immagine. Riprova.",
+        );
+        return;
+      }
       files.push({
         type: "file",
         mimeType: imageData.mimeType,
         data: imageData.base64,
       });
       downloadedPhoto = true;
+    } catch (err) {
+      whatsappLogger.error(
+        "media.image_download_failed",
+        "Failed to download image",
+        { err },
+      );
+      await recordWhatsAppInboundError({
+        inboundId: inbound.id,
+        message,
+        context,
+        kind: "image_download_failed",
+        summary: safeErrorSummary(err),
+      });
+      await sendWhatsAppMessage(
+        from,
+        "Non sono riuscito a scaricare l'immagine. Riprova.",
+      );
+      return;
     }
   }
 
   // --- Document Download ---
   if (hasDocument && message.document?.id) {
-    const docData = await downloadWhatsAppMedia(message.document.id);
-    if (docData) {
+    try {
+      const docData = await downloadWhatsAppMedia(message.document.id);
+      if (!docData) {
+        await recordWhatsAppInboundError({
+          inboundId: inbound.id,
+          message,
+          context,
+          kind: "document_download_failed",
+        });
+        await sendWhatsAppMessage(
+          from,
+          "Non sono riuscito a scaricare il documento. Riprova.",
+        );
+        return;
+      }
       if (!text && message.document.filename) {
         files.unshift({
           type: "text",
@@ -444,6 +500,24 @@ async function handleMessage(
         mimeType: docData.mimeType,
         data: docData.base64,
       });
+    } catch (err) {
+      whatsappLogger.error(
+        "media.document_download_failed",
+        "Failed to download document",
+        { err },
+      );
+      await recordWhatsAppInboundError({
+        inboundId: inbound.id,
+        message,
+        context,
+        kind: "document_download_failed",
+        summary: safeErrorSummary(err),
+      });
+      await sendWhatsAppMessage(
+        from,
+        "Non sono riuscito a scaricare il documento. Riprova.",
+      );
+      return;
     }
   }
 
