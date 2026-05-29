@@ -343,6 +343,25 @@ async function handleMessage(
     if (audioId) {
       const audioData = await downloadWhatsAppMedia(audioId);
       if (!audioData) {
+        await prisma.message
+          .update({
+            where: { id: inbound.id },
+            data: {
+              metadata: {
+                whatsapp: {
+                  id: messageId,
+                  timestamp: message.timestamp,
+                  type: message.type,
+                  name: context.contacts?.[0]?.profile?.name,
+                  error: {
+                    kind: "audio_download_failed",
+                  },
+                },
+              } as Prisma.InputJsonValue,
+            },
+          })
+          .catch(() => undefined);
+
         await sendWhatsAppMessage(
           from,
           "Non sono riuscito a scaricare il messaggio audio. Riprova.",

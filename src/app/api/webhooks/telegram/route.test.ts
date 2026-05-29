@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   prismaChannelIdentityCreate: vi.fn(),
   prismaChatUpsert: vi.fn(),
   prismaMessageCreate: vi.fn(),
+  prismaMessageUpdate: vi.fn(),
   prismaChatUpdate: vi.fn(),
   prismaAttachmentCreate: vi.fn(),
   prismaPreferencesFindUnique: vi.fn(),
@@ -46,6 +47,7 @@ vi.mock("@/lib/db", () => ({
     message: {
       findFirst: mocks.prismaMessageFindFirst,
       create: mocks.prismaMessageCreate,
+      update: mocks.prismaMessageUpdate,
     },
     channelIdentity: {
       findUnique: mocks.prismaChannelIdentityFindUnique,
@@ -149,6 +151,24 @@ function buildTextUpdate(text: string) {
   };
 }
 
+function buildVoiceUpdate() {
+  return {
+    update_id: 1,
+    message: {
+      message_id: 2,
+      date: 1700000000,
+      voice: {
+        file_id: "voice_1",
+        file_unique_id: "voice_unique_1",
+        duration: 2,
+        mime_type: "audio/ogg",
+      },
+      chat: { id: 100, type: "private" },
+      from: { id: 200, is_bot: false, username: "test-user" },
+    },
+  };
+}
+
 describe("/api/webhooks/telegram", () => {
   beforeEach(() => {
     process.env.TELEGRAM_WEBHOOK_SECRET = "tg-secret";
@@ -164,6 +184,7 @@ describe("/api/webhooks/telegram", () => {
     mocks.prismaChannelIdentityCreate.mockReset();
     mocks.prismaChatUpsert.mockReset();
     mocks.prismaMessageCreate.mockReset();
+    mocks.prismaMessageUpdate.mockReset();
     mocks.prismaChatUpdate.mockReset();
     mocks.prismaAttachmentCreate.mockReset();
     mocks.prismaPreferencesFindUnique.mockReset();
@@ -186,6 +207,7 @@ describe("/api/webhooks/telegram", () => {
     mocks.waitUntil.mockImplementation(() => {});
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.prismaMessageUpdate.mockResolvedValue({});
     mocks.prismaPreferencesFindUnique.mockResolvedValue({ voiceEnabled: true });
     mocks.start.mockReturnValue({ end: vi.fn(), split: vi.fn() });
     mocks.measure.mockImplementation(
@@ -686,6 +708,72 @@ describe("/api/webhooks/telegram", () => {
       }),
     );
     expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
+  });
+
+  it("records inbound metadata when Telegram audio download fails", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.OPENROUTER_API_KEY = "sk-test";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("download-failed", { status: 500 }))
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      id: "ci_1",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate.mockResolvedValueOnce({ id: "tg_in_1" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildVoiceUpdate()),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "tg_in_1" },
+        data: {
+          metadata: expect.objectContaining({
+            telegram: expect.objectContaining({
+              chatId: 100,
+              fromId: 200,
+              error: expect.objectContaining({
+                kind: "audio_download_failed",
+              }),
+            }),
+          }),
+        },
+      }),
+    );
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "https://api.telegram.org/botbot-token/sendMessage",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining(
+          "Non sono riuscito a scaricare il messaggio audio",
+        ),
+      }),
+    );
   });
 
   it("does not send duplicate text when Telegram voice usage tracking fails after send", async () => {

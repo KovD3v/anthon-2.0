@@ -356,6 +356,26 @@ async function handleUpdate(update: TelegramUpdate) {
       message?.audio,
     );
     if (!audioData) {
+      await prisma.message
+        .update({
+          where: { id: inbound.id },
+          data: {
+            metadata: {
+              telegram: {
+                updateId: update.update_id,
+                chatId,
+                fromId,
+                username: message?.from?.username,
+                languageCode: message?.from?.language_code,
+                error: {
+                  kind: "audio_download_failed",
+                },
+              },
+            } as Prisma.InputJsonValue,
+          },
+        })
+        .catch(() => undefined);
+
       await sendTelegramMessage(
         chatId,
         "Non sono riuscito a scaricare il messaggio audio. Riprova.",
