@@ -68,6 +68,10 @@ export interface RunChannelFlowResult {
     status: "saved" | "skipped" | "failed";
     error?: unknown;
   };
+  rateLimit?: {
+    status: "denied";
+    upgradeInfo?: unknown;
+  };
   streamResult?: {
     toUIMessageStreamResponse: () => Response;
     textStream: AsyncIterable<string>;

@@ -57,6 +57,17 @@ export async function runChannelFlow(
       ? { status: "skipped" }
       : undefined;
 
+  if (!ctx.rateLimit.allowed) {
+    return {
+      assistantText: "",
+      persistence: { status: "skipped" },
+      rateLimit: {
+        status: "denied",
+        upgradeInfo: ctx.rateLimit.upgradeInfo,
+      },
+    };
+  }
+
   const streamResult = await streamChat({
     userId: ctx.userId,
     chatId: ctx.chatId,

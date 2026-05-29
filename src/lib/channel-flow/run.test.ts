@@ -233,6 +233,40 @@ describe("channel-flow/run", () => {
     );
   });
 
+  it("does not call the AI or persist output when rate limit is denied", async () => {
+    const result = await runChannelFlow({
+      channel: "TELEGRAM",
+      userId: "user-1",
+      userMessageText: "blocked",
+      parts: [{ type: "text", text: "blocked" }],
+      rateLimit: {
+        allowed: false,
+        upgradeInfo: { ctaMessage: "Upgrade" },
+      },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: true,
+      },
+      execution: { mode: "text" },
+      persistence: {
+        channel: "TELEGRAM",
+        saveAssistantMessage: true,
+      },
+    });
+
+    expect(result).toEqual({
+      assistantText: "",
+      persistence: { status: "skipped" },
+      rateLimit: {
+        status: "denied",
+        upgradeInfo: { ctaMessage: "Upgrade" },
+      },
+    });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.persistAssistantOutput).not.toHaveBeenCalled();
+  });
+
   it.each([
     {
       name: "web stream",
