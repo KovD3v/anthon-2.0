@@ -371,6 +371,10 @@ describe("POST /api/chat", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Invalid JSON body",
     });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
   it("returns 400 when chatId is missing", async () => {

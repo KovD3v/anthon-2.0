@@ -40,8 +40,14 @@ export async function handleGuestChatPost(request: Request) {
           "🌐 Guest Chat API Request",
         );
 
-        // Parse request body early
-        const bodyPromise = request.json();
+        // Parse request body before rate-limit work so malformed requests do not
+        // consume quota or trigger unrelated side effects.
+        let body: unknown;
+        try {
+          body = await request.json();
+        } catch {
+          return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+        }
 
         // Check rate limit with GUEST tier
         const rateLimitResult = await LatencyLogger.measure(
@@ -68,14 +74,6 @@ export async function handleGuestChatPost(request: Request) {
             },
             { status: 429 },
           );
-        }
-
-        // Parse request body
-        let body: unknown;
-        try {
-          body = await bodyPromise;
-        } catch {
-          return Response.json({ error: "Invalid JSON body" }, { status: 400 });
         }
 
         const { messages, chatId } = body as {

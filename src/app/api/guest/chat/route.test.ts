@@ -252,6 +252,7 @@ describe("POST /api/guest/chat", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Invalid JSON body",
     });
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
     expect(mocks.streamChat).not.toHaveBeenCalled();
     expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
