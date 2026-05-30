@@ -356,6 +356,9 @@ describe("POST /api/chat", () => {
     await expect(response.json()).resolves.toEqual({
       error: "messages must be a non-empty array",
     });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
   it("returns 400 for malformed json", async () => {
@@ -387,6 +390,9 @@ describe("POST /api/chat", () => {
     await expect(response.json()).resolves.toEqual({
       error: "chatId is required",
     });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
   it("returns 404 when chat ownership check fails", async () => {

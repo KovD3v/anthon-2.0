@@ -49,6 +49,26 @@ export async function handleGuestChatPost(request: Request) {
           return Response.json({ error: "Invalid JSON body" }, { status: 400 });
         }
 
+        const { messages, chatId } = body as {
+          messages: UIMessage[];
+          chatId?: string;
+        };
+
+        // Validate structural request input before rate-limit work.
+        if (!Array.isArray(messages) || messages.length === 0) {
+          return Response.json(
+            { error: "messages must be a non-empty array" },
+            { status: 400 },
+          );
+        }
+
+        if (!chatId) {
+          return Response.json(
+            { error: "chatId is required" },
+            { status: 400 },
+          );
+        }
+
         // Check rate limit with GUEST tier
         const rateLimitResult = await LatencyLogger.measure(
           "Rate Limit: Check limits",
@@ -73,27 +93,6 @@ export async function handleGuestChatPost(request: Request) {
               upgradeInfo: rateLimitResult.upgradeInfo,
             },
             { status: 429 },
-          );
-        }
-
-        const { messages, chatId } = body as {
-          messages: UIMessage[];
-          chatId?: string;
-        };
-
-        // Validate messages array
-        if (!Array.isArray(messages) || messages.length === 0) {
-          return Response.json(
-            { error: "messages must be a non-empty array" },
-            { status: 400 },
-          );
-        }
-
-        // Require chatId
-        if (!chatId) {
-          return Response.json(
-            { error: "chatId is required" },
-            { status: 400 },
           );
         }
 
