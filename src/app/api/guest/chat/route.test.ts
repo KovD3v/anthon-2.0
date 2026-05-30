@@ -288,6 +288,8 @@ describe("POST /api/guest/chat", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Chat not found or access denied",
     });
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
   it("returns 403 when guest message contains attachments", async () => {

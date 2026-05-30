@@ -409,6 +409,8 @@ describe("POST /api/chat", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Chat not found or access denied",
     });
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
   it("returns 400 for empty text without attachments", async () => {

@@ -99,7 +99,26 @@ export async function handleGuestChatPost(request: Request) {
           "🌐 Guest Chat API Request",
         );
 
-        // Check rate limit with GUEST tier
+        // Verify chat ownership (guest user owns this chat)
+        const chat = await LatencyLogger.measure(
+          "DB: Verify chat ownership",
+          () =>
+            prisma.chat.findFirst({
+              where: { id: chatId, userId: user.id },
+              select: { id: true, title: true, customTitle: true },
+            }),
+          "🌐 Guest Chat API Request",
+        );
+
+        if (!chat) {
+          return Response.json(
+            { error: "Chat not found or access denied" },
+            { status: 404 },
+          );
+        }
+
+        // Check rate limit after ownership verification so missing or
+        // inaccessible chats do not consume quota.
         const rateLimitResult = await LatencyLogger.measure(
           "Rate Limit: Check limits",
           () =>
@@ -123,24 +142,6 @@ export async function handleGuestChatPost(request: Request) {
               upgradeInfo: rateLimitResult.upgradeInfo,
             },
             { status: 429 },
-          );
-        }
-
-        // Verify chat ownership (guest user owns this chat)
-        const chat = await LatencyLogger.measure(
-          "DB: Verify chat ownership",
-          () =>
-            prisma.chat.findFirst({
-              where: { id: chatId, userId: user.id },
-              select: { id: true, title: true, customTitle: true },
-            }),
-          "🌐 Guest Chat API Request",
-        );
-
-        if (!chat) {
-          return Response.json(
-            { error: "Chat not found or access denied" },
-            { status: 404 },
           );
         }
 
