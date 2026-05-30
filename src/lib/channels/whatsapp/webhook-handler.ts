@@ -376,6 +376,12 @@ async function handleMessage(
   if (process.env.WHATSAPP_DISABLE_AI === "true") return;
 
   if (!process.env.OPENROUTER_API_KEY) {
+    await recordWhatsAppInboundError({
+      inboundId: inbound.id,
+      message,
+      context,
+      kind: "ai_configuration_missing",
+    });
     await sendWhatsAppMessage(
       from,
       "Servizio AI non configurato. Riprova più tardi.",

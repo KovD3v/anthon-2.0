@@ -616,6 +616,22 @@ describe("/api/webhooks/whatsapp", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.prismaMessageCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wa_in_1" },
+        data: {
+          metadata: expect.objectContaining({
+            whatsapp: expect.objectContaining({
+              id: "wamid_1",
+              type: "text",
+              error: expect.objectContaining({
+                kind: "ai_configuration_missing",
+              }),
+            }),
+          }),
+        },
+      }),
+    );
     expect(mocks.streamChat).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledWith(
       "https://graph.facebook.com/v21.0/phone_1/messages",

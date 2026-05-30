@@ -389,6 +389,14 @@ async function handleUpdate(update: TelegramUpdate) {
   }
 
   if (!process.env.OPENROUTER_API_KEY) {
+    await recordTelegramInboundError({
+      inboundId: inbound.id,
+      update,
+      chatId,
+      fromId,
+      message,
+      kind: "ai_configuration_missing",
+    });
     await sendTelegramMessage(
       chatId,
       "Servizio AI non configurato. Riprova più tardi.",
