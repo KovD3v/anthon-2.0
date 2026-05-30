@@ -243,6 +243,7 @@ describe("POST /api/guest/chat", () => {
     await expect(response.json()).resolves.toEqual({
       error: "messages must be a non-empty array",
     });
+    expect(mocks.authenticateGuest).not.toHaveBeenCalled();
     expect(mocks.checkRateLimit).not.toHaveBeenCalled();
     expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
@@ -254,6 +255,7 @@ describe("POST /api/guest/chat", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Invalid JSON body",
     });
+    expect(mocks.authenticateGuest).not.toHaveBeenCalled();
     expect(mocks.checkRateLimit).not.toHaveBeenCalled();
     expect(mocks.streamChat).not.toHaveBeenCalled();
     expect(mocks.messageCreate).not.toHaveBeenCalled();
@@ -269,6 +271,7 @@ describe("POST /api/guest/chat", () => {
     await expect(response.json()).resolves.toEqual({
       error: "chatId is required",
     });
+    expect(mocks.authenticateGuest).not.toHaveBeenCalled();
     expect(mocks.checkRateLimit).not.toHaveBeenCalled();
     expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
@@ -307,6 +310,7 @@ describe("POST /api/guest/chat", () => {
       error: "File uploads are not available for guest users",
       hint: "Sign up to upload files",
     });
+    expect(mocks.authenticateGuest).not.toHaveBeenCalled();
     expect(mocks.checkRateLimit).not.toHaveBeenCalled();
     expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
@@ -321,6 +325,7 @@ describe("POST /api/guest/chat", () => {
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Empty message");
+    expect(mocks.authenticateGuest).not.toHaveBeenCalled();
     expect(mocks.checkRateLimit).not.toHaveBeenCalled();
     expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
@@ -340,6 +345,7 @@ describe("POST /api/guest/chat", () => {
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("No user message provided");
+    expect(mocks.authenticateGuest).not.toHaveBeenCalled();
     expect(mocks.checkRateLimit).not.toHaveBeenCalled();
     expect(mocks.messageCreate).not.toHaveBeenCalled();
   });

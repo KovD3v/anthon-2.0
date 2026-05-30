@@ -33,15 +33,8 @@ export async function handleGuestChatPost(request: Request) {
       const requestTimer = LatencyLogger.start("🌐 Guest Chat API Request");
 
       try {
-        // Authenticate guest user via cookies
-        const { user } = await LatencyLogger.measure(
-          "Auth: Guest authentication",
-          () => authenticateGuest(),
-          "🌐 Guest Chat API Request",
-        );
-
-        // Parse request body before rate-limit work so malformed requests do not
-        // consume quota or trigger unrelated side effects.
+        // Parse request body before auth/rate-limit work so malformed requests
+        // do not create guest state, consume quota, or trigger side effects.
         let body: unknown;
         try {
           body = await request.json();
@@ -98,6 +91,13 @@ export async function handleGuestChatPost(request: Request) {
         if (!userMessageText.trim()) {
           return new Response("Empty message", { status: 400 });
         }
+
+        // Authenticate guest user via cookies after request-only validation.
+        const { user } = await LatencyLogger.measure(
+          "Auth: Guest authentication",
+          () => authenticateGuest(),
+          "🌐 Guest Chat API Request",
+        );
 
         // Check rate limit with GUEST tier
         const rateLimitResult = await LatencyLogger.measure(
