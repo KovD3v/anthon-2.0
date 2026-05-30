@@ -21,12 +21,15 @@ export function buildExternalChannelInbound({
   const normalizedTranscript = transcribedText?.trim() || "";
 
   let userMessageText: string;
+  const transcriptPrefix = voiceInstruction
+    ? `${voiceInstruction}\n\n[Trascrizione audio]`
+    : "[Trascrizione audio]";
   if (normalizedText && normalizedTranscript) {
-    userMessageText = `${normalizedText}\n\n${voiceInstruction}\n\n[Trascrizione audio]\n${normalizedTranscript}`;
+    userMessageText = `${normalizedText}\n\n${transcriptPrefix}\n${normalizedTranscript}`;
   } else if (normalizedText) {
     userMessageText = normalizedText;
   } else if (normalizedTranscript) {
-    userMessageText = `${voiceInstruction}\n\n[Trascrizione audio]\n${normalizedTranscript}`;
+    userMessageText = `${transcriptPrefix}\n${normalizedTranscript}`;
   } else {
     userMessageText = fallbackText;
   }

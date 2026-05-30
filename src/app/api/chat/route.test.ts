@@ -361,6 +361,37 @@ describe("POST /api/chat", () => {
     expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
+  it("returns 400 for malformed message objects before side effects", async () => {
+    const response = await POST(
+      buildRequest({ messages: [null], chatId: "chat-1" }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "messages must be a non-empty array",
+    });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for malformed message parts before side effects", async () => {
+    const response = await POST(
+      buildRequest({
+        messages: [{ role: "user", parts: { type: "text", text: "hello" } }],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "messages must be a non-empty array",
+    });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
+  });
+
   it("returns 400 for malformed json", async () => {
     const response = await POST(
       new Request("http://localhost/api/chat", {
@@ -874,19 +905,7 @@ describe("POST /api/chat", () => {
     });
   });
 
-  it("does not pass non-base64 audio urls as AI file data", async () => {
-    let streamArgs: Record<string, unknown> | undefined;
-    mocks.streamChat.mockImplementation(
-      async (args: Record<string, unknown>) => {
-        streamArgs = args;
-        return {
-          toUIMessageStreamResponse: () =>
-            Response.json({ ok: true, stream: true }, { status: 200 }),
-        };
-      },
-    );
-    mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
-
+  it("returns 400 for unsupported non-image file urls before side effects", async () => {
     const response = await POST(
       buildRequest({
         messages: [
@@ -909,20 +928,13 @@ describe("POST /api/chat", () => {
       }),
     );
 
-    expect(response.status).toBe(200);
-    expect(streamArgs).toMatchObject({
-      hasAudio: true,
-      messageParts: [
-        { type: "text", text: "trascrivi questo" },
-        expect.objectContaining({
-          type: "file",
-          attachmentId: "att-voice",
-          mimeType: "audio/wav",
-        }),
-      ],
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Unsupported file payload",
     });
-    const filePart = (streamArgs?.messageParts as Array<{ data?: string }>)[1];
-    expect(filePart.data).toBeUndefined();
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
   it("skips linking attachments that are not owned by the current user", async () => {

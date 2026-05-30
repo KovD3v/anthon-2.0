@@ -48,7 +48,7 @@ export async function handleGuestChatPost(request: Request) {
         };
 
         // Validate structural request input before rate-limit work.
-        if (!Array.isArray(messages) || messages.length === 0) {
+        if (!isValidMessageArray(messages)) {
           return Response.json(
             { error: "messages must be a non-empty array" },
             { status: 400 },
@@ -310,4 +310,34 @@ export async function handleGuestChatPost(request: Request) {
       }
     },
   );
+}
+
+function isValidMessageArray(value: unknown): value is UIMessage[] {
+  return Array.isArray(value) && value.length > 0 && value.every(isMessageLike);
+}
+
+function isMessageLike(value: unknown): value is UIMessage {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const message = value as { role?: unknown; parts?: unknown };
+  if (typeof message.role !== "string") {
+    return false;
+  }
+
+  if (message.parts === undefined) {
+    return true;
+  }
+
+  return Array.isArray(message.parts) && message.parts.every(isMessagePartLike);
+}
+
+function isMessagePartLike(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const part = value as { type?: unknown };
+  return typeof part.type === "string";
 }

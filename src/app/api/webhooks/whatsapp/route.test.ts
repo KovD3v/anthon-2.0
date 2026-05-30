@@ -110,6 +110,7 @@ vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
 
+import * as openRouterTranscription from "@/lib/channels/transcription/openrouter";
 import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
 import {
   downloadWhatsAppMedia,
@@ -1069,6 +1070,75 @@ describe("/api/webhooks/whatsapp", () => {
         body: expect.stringContaining(
           "Non sono riuscito a trascrivere il messaggio audio",
         ),
+      }),
+    );
+  });
+
+  it("sync audio message records inbound metadata when transcription is empty", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+    process.env.OPENROUTER_API_KEY = "sk-test";
+
+    vi.spyOn(
+      openRouterTranscription,
+      "transcribeAudioWithOpenRouter",
+    ).mockResolvedValueOnce("   ");
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            url: "https://example.com/audio.ogg",
+            mime_type: "audio/ogg",
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(new Response("audio-data"))
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate.mockResolvedValueOnce({ id: "wa_in_1" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildAudioPayload()),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wa_in_1" },
+        data: {
+          metadata: expect.objectContaining({
+            whatsapp: expect.objectContaining({
+              id: "wamid_audio_1",
+              type: "audio",
+              error: expect.objectContaining({
+                kind: "empty_transcription",
+              }),
+            }),
+          }),
+        },
       }),
     );
   });

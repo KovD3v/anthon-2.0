@@ -734,7 +734,7 @@ export async function streamChat({
             ragChunksCount,
           });
 
-          onFinish({ text, metrics });
+          await onFinish({ text, metrics });
         }
       : undefined,
     onStepFinish: (step: StepResult<ToolSet>) => {

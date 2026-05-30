@@ -438,6 +438,13 @@ async function handleMessage(
       }
 
       if (!transcribedText || transcribedText.trim().length === 0) {
+        await recordWhatsAppInboundError({
+          inboundId: inbound.id,
+          message,
+          context,
+          kind: "empty_transcription",
+        });
+
         await sendWhatsAppMessage(
           from,
           "Non sono riuscito a trascrivere l'audio. Prova a reinviare il messaggio.",

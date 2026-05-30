@@ -121,6 +121,7 @@ import {
   isTelegramConnectCommand,
   safeErrorSummary,
 } from "@/lib/channels/telegram/utils";
+import * as openRouterTranscription from "@/lib/channels/transcription/openrouter";
 import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
 import { GET, POST } from "./route";
 
@@ -866,6 +867,76 @@ describe("/api/webhooks/telegram", () => {
         body: expect.stringContaining(
           "Non sono riuscito a scaricare il messaggio audio",
         ),
+      }),
+    );
+  });
+
+  it("records inbound metadata when Telegram transcription is empty", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.OPENROUTER_API_KEY = "sk-test";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+
+    vi.spyOn(
+      openRouterTranscription,
+      "transcribeAudioWithOpenRouter",
+    ).mockResolvedValueOnce("   ");
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            result: { file_path: "voice/file.ogg" },
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(new Response("audio-data"))
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      id: "ci_1",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate.mockResolvedValueOnce({ id: "tg_in_1" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildVoiceUpdate()),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "tg_in_1" },
+        data: {
+          metadata: expect.objectContaining({
+            telegram: expect.objectContaining({
+              chatId: 100,
+              fromId: 200,
+              error: expect.objectContaining({
+                kind: "empty_transcription",
+              }),
+            }),
+          }),
+        },
       }),
     );
   });

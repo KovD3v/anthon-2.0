@@ -533,4 +533,51 @@ describe("ai/orchestrator", () => {
       }),
     });
   });
+
+  it("waits for async onFinish work before resolving the stream finish callback", async () => {
+    const userOnFinish = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          setTimeout(resolve, 10);
+        }),
+    );
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-async-finish",
+      userMessage: "hello",
+      onFinish: userOnFinish,
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      onFinish: (step: {
+        text: string;
+        usage?: {
+          inputTokens?: number;
+          outputTokens?: number;
+          totalTokens?: number;
+        };
+      }) => Promise<void>;
+    };
+
+    const finishPromise = streamInput.onFinish({
+      text: "assistant response",
+      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+    });
+
+    await Promise.resolve();
+    expect(userOnFinish).toHaveBeenCalledTimes(1);
+
+    let resolved = false;
+    finishPromise.then(() => {
+      resolved = true;
+    });
+
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(10);
+    await finishPromise;
+    expect(resolved).toBe(true);
+  });
 });

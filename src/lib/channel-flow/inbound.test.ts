@@ -24,6 +24,25 @@ describe("channel-flow/inbound", () => {
     ]);
   });
 
+  it("does not interpolate null voice instructions for transcript-only input", () => {
+    const result = buildExternalChannelInbound({
+      text: "",
+      transcribedText: "trascrizione",
+      voiceInstruction: null,
+      fallbackText: "Messaggio vocale",
+      defaultMediaPrompt: "L'utente ha inviato questo file.",
+      files: [],
+    });
+
+    expect(result.userMessageText).toBe("[Trascrizione audio]\ntrascrizione");
+    expect(result.parts).toEqual([
+      {
+        type: "text",
+        text: "[Trascrizione audio]\ntrascrizione",
+      },
+    ]);
+  });
+
   it("keeps text before files for multimodal messages", () => {
     const result = buildExternalChannelInbound({
       text: "valuta questa posizione",

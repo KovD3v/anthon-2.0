@@ -458,6 +458,15 @@ async function handleUpdate(update: TelegramUpdate) {
     }
 
     if (!transcribedText || transcribedText.trim().length === 0) {
+      await recordTelegramInboundError({
+        inboundId: inbound.id,
+        update,
+        chatId,
+        fromId,
+        message,
+        kind: "empty_transcription",
+      });
+
       await sendTelegramMessage(
         chatId,
         "Non sono riuscito a trascrivere l'audio. Prova a reinviare il messaggio.",

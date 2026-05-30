@@ -67,7 +67,7 @@ export async function handleWebChatPost(request: Request) {
         };
 
         // Validate structural request input before DB/rate-limit work.
-        if (!Array.isArray(messages) || messages.length === 0) {
+        if (!isValidMessageArray(messages)) {
           return Response.json(
             { error: "messages must be a non-empty array" },
             { status: 400 },
@@ -99,6 +99,13 @@ export async function handleWebChatPost(request: Request) {
         const hasAttachments = lastUserMessage.parts?.some(
           (part) => part.type === "file",
         );
+
+        if (lastUserMessage.parts?.some(hasUnsupportedFilePayload)) {
+          return Response.json(
+            { error: "Unsupported file payload" },
+            { status: 400 },
+          );
+        }
 
         if (!normalizedUserMessageText && !hasAttachments) {
           return new Response("Empty message", { status: 400 });
@@ -542,6 +549,32 @@ function normalizeFilePartData(filePart: {
   return undefined;
 }
 
+function hasUnsupportedFilePayload(part: UIMessage["parts"][number]) {
+  if (part.type !== "file") {
+    return false;
+  }
+
+  const filePart = part as unknown as {
+    data?: string;
+    url?: string;
+    mimeType?: string;
+  };
+
+  if (filePart.data) {
+    return false;
+  }
+
+  if (!filePart.url) {
+    return false;
+  }
+
+  if (filePart.mimeType?.startsWith("image/")) {
+    return false;
+  }
+
+  return !filePart.url.startsWith("data:");
+}
+
 function getRecentTextMessages(messages: UIMessage[]) {
   return messages.slice(-6).map((message) => ({
     role: message.role,
@@ -551,6 +584,36 @@ function getRecentTextMessages(messages: UIMessage[]) {
         .join("")
         .slice(0, 500) || "",
   }));
+}
+
+function isValidMessageArray(value: unknown): value is UIMessage[] {
+  return Array.isArray(value) && value.length > 0 && value.every(isMessageLike);
+}
+
+function isMessageLike(value: unknown): value is UIMessage {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const message = value as { role?: unknown; parts?: unknown };
+  if (typeof message.role !== "string") {
+    return false;
+  }
+
+  if (message.parts === undefined) {
+    return true;
+  }
+
+  return Array.isArray(message.parts) && message.parts.every(isMessagePartLike);
+}
+
+function isMessagePartLike(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const part = value as { type?: unknown };
+  return typeof part.type === "string";
 }
 
 async function handleVoiceFirstWebResponse({
