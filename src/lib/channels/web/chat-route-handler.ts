@@ -160,6 +160,25 @@ export async function handleWebChatPost(request: Request) {
 
         let subscriptionStatus = user.subscription?.status;
         let planId = user.subscription?.planId;
+
+        // Verify chat ownership
+        const chat = await LatencyLogger.measure(
+          "DB: Verify chat ownership",
+          () =>
+            prisma.chat.findFirst({
+              where: { id: chatId, userId: user.id },
+              select: { id: true, title: true, customTitle: true },
+            }),
+          "🌐 Chat API Request",
+        );
+
+        if (!chat) {
+          return Response.json(
+            { error: "Chat not found or access denied" },
+            { status: 404 },
+          );
+        }
+
         const shouldSyncSubscription =
           !user.isGuest &&
           isBillingSyncStale(user.billingSyncedAt) &&
@@ -182,24 +201,6 @@ export async function handleWebChatPost(request: Request) {
 
           subscriptionStatus = syncedSubscription?.status ?? subscriptionStatus;
           planId = syncedSubscription?.planId ?? planId;
-        }
-
-        // Verify chat ownership
-        const chat = await LatencyLogger.measure(
-          "DB: Verify chat ownership",
-          () =>
-            prisma.chat.findFirst({
-              where: { id: chatId, userId: user.id },
-              select: { id: true, title: true, customTitle: true },
-            }),
-          "🌐 Chat API Request",
-        );
-
-        if (!chat) {
-          return Response.json(
-            { error: "Chat not found or access denied" },
-            { status: 404 },
-          );
         }
 
         // Check rate limit after ownership verification so missing or

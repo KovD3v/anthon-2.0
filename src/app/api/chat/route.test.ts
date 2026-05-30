@@ -396,6 +396,19 @@ describe("POST /api/chat", () => {
   });
 
   it("returns 404 when chat ownership check fails", async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      isGuest: false,
+      billingSyncedAt: new Date(Date.now() - 6 * 60 * 1000),
+      subscription: {
+        status: "TRIAL",
+        planId: "my-basic-plan",
+      },
+      preferences: {
+        voiceEnabled: true,
+      },
+    });
     mocks.chatFindFirst.mockResolvedValue(null);
 
     const response = await POST(
@@ -409,6 +422,7 @@ describe("POST /api/chat", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Chat not found or access denied",
     });
+    expect(mocks.syncPersonalSubscriptionFromClerk).not.toHaveBeenCalled();
     expect(mocks.checkRateLimit).not.toHaveBeenCalled();
     expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
