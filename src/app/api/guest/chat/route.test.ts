@@ -307,6 +307,8 @@ describe("POST /api/guest/chat", () => {
       error: "File uploads are not available for guest users",
       hint: "Sign up to upload files",
     });
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
   it("returns 400 for empty text-only payload", async () => {
@@ -319,6 +321,27 @@ describe("POST /api/guest/chat", () => {
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Empty message");
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when no guest user message is provided before side effects", async () => {
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "assistant",
+            parts: [{ type: "text", text: "assistant only" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.text()).resolves.toBe("No user message provided");
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
   it("saves inbound guest message and calls streamChat with guest flags", async () => {

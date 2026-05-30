@@ -421,6 +421,9 @@ describe("POST /api/chat", () => {
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Empty message");
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
   it("returns 400 for whitespace-only text without attachments", async () => {
@@ -433,6 +436,29 @@ describe("POST /api/chat", () => {
 
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toBe("Empty message");
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when no user message is provided before side effects", async () => {
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "assistant",
+            parts: [{ type: "text", text: "assistant only" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.text()).resolves.toBe("No user message provided");
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
   it("skips Clerk sync when trial subscription was synced recently", async () => {

@@ -81,6 +81,29 @@ export async function handleWebChatPost(request: Request) {
           );
         }
 
+        // Get and validate the last user message before DB/rate-limit work.
+        const lastUserMessage = messages.filter((m) => m.role === "user").pop();
+
+        if (!lastUserMessage) {
+          return new Response("No user message provided", { status: 400 });
+        }
+
+        const userMessageText =
+          lastUserMessage.parts
+            ?.map((part) =>
+              part.type === "text" ? (part as { text: string }).text : "",
+            )
+            .join("") || "";
+        const normalizedUserMessageText = userMessageText.trim();
+
+        const hasAttachments = lastUserMessage.parts?.some(
+          (part) => part.type === "file",
+        );
+
+        if (!normalizedUserMessageText && !hasAttachments) {
+          return new Response("Empty message", { status: 400 });
+        }
+
         // Get or create internal user with subscription info
         const user = await LatencyLogger.measure(
           "DB: Find user",
@@ -206,22 +229,6 @@ export async function handleWebChatPost(request: Request) {
           );
         }
 
-        // Get the last user message
-        const lastUserMessage = messages.filter((m) => m.role === "user").pop();
-
-        if (!lastUserMessage) {
-          return new Response("No user message provided", { status: 400 });
-        }
-
-        // Extract text content from the message parts
-        const userMessageText =
-          lastUserMessage.parts
-            ?.map((part) =>
-              part.type === "text" ? (part as { text: string }).text : "",
-            )
-            .join("") || "";
-        const normalizedUserMessageText = userMessageText.trim();
-
         // Check if message has images
         const hasImages = lastUserMessage.parts?.some((part) => {
           if (part.type === "file") {
@@ -239,16 +246,6 @@ export async function handleWebChatPost(request: Request) {
           }
           return false;
         });
-
-        // Check if message has any file attachments
-        const hasAttachments = lastUserMessage.parts?.some(
-          (part) => part.type === "file",
-        );
-
-        // Allow messages with text OR any file attachment
-        if (!normalizedUserMessageText && !hasAttachments) {
-          return new Response("Empty message", { status: 400 });
-        }
 
         // Save the user message to the database with parts
         const message = await LatencyLogger.measure(

@@ -69,6 +69,36 @@ export async function handleGuestChatPost(request: Request) {
           );
         }
 
+        // Validate guest message semantics before rate-limit work.
+        const lastUserMessage = messages.filter((m) => m.role === "user").pop();
+
+        if (!lastUserMessage) {
+          return new Response("No user message provided", { status: 400 });
+        }
+
+        const hasAttachments = lastUserMessage.parts?.some(
+          (part) => part.type === "file",
+        );
+
+        if (hasAttachments) {
+          return Response.json(
+            {
+              error: "File uploads are not available for guest users",
+              hint: "Sign up to upload files",
+            },
+            { status: 403 },
+          );
+        }
+
+        const userMessageText =
+          lastUserMessage.parts
+            ?.map((part) => (part.type === "text" ? part.text : ""))
+            .join("") || "";
+
+        if (!userMessageText.trim()) {
+          return new Response("Empty message", { status: 400 });
+        }
+
         // Check rate limit with GUEST tier
         const rateLimitResult = await LatencyLogger.measure(
           "Rate Limit: Check limits",
@@ -112,38 +142,6 @@ export async function handleGuestChatPost(request: Request) {
             { error: "Chat not found or access denied" },
             { status: 404 },
           );
-        }
-
-        // Get the last user message
-        const lastUserMessage = messages.filter((m) => m.role === "user").pop();
-
-        if (!lastUserMessage) {
-          return new Response("No user message provided", { status: 400 });
-        }
-
-        // Check for file attachments (blocked for guests)
-        const hasAttachments = lastUserMessage.parts?.some(
-          (part) => part.type === "file",
-        );
-
-        if (hasAttachments) {
-          return Response.json(
-            {
-              error: "File uploads are not available for guest users",
-              hint: "Sign up to upload files",
-            },
-            { status: 403 },
-          );
-        }
-
-        // Extract text content from the message parts
-        const userMessageText =
-          lastUserMessage.parts
-            ?.map((part) => (part.type === "text" ? part.text : ""))
-            .join("") || "";
-
-        if (!userMessageText.trim()) {
-          return new Response("Empty message", { status: 400 });
         }
 
         const requestConversationMessageCount = messages.filter(
