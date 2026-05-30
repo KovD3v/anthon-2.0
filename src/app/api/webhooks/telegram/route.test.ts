@@ -650,6 +650,22 @@ describe("/api/webhooks/telegram", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "msg_in_1" },
+        data: {
+          metadata: expect.objectContaining({
+            telegram: expect.objectContaining({
+              chatId: 100,
+              fromId: 200,
+              error: expect.objectContaining({
+                kind: "assistant_persistence_failed",
+              }),
+            }),
+          }),
+        },
+      }),
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.telegram.org/botbot-token/sendMessage",
       expect.objectContaining({

@@ -613,6 +613,15 @@ async function handleUpdate(update: TelegramUpdate) {
     });
     assistantText = flowResult.assistantText;
     if (flowResult.persistence?.status === "failed") {
+      await recordTelegramInboundError({
+        inboundId: inbound.id,
+        update,
+        chatId,
+        fromId,
+        message,
+        kind: "assistant_persistence_failed",
+        summary: safeErrorSummary(flowResult.persistence.error),
+      });
       await sendTelegramMessage(
         chatId,
         "Errore temporaneo. Riprova tra qualche secondo.",

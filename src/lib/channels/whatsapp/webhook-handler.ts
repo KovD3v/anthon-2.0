@@ -584,6 +584,13 @@ async function handleMessage(
     });
     assistantText = flowResult.assistantText;
     if (flowResult.persistence?.status === "failed") {
+      await recordWhatsAppInboundError({
+        inboundId: inbound.id,
+        message,
+        context,
+        kind: "assistant_persistence_failed",
+        summary: safeErrorSummary(flowResult.persistence.error),
+      });
       await sendWhatsAppMessage(from, "Errore temporaneo. Riprova.");
       return;
     }
