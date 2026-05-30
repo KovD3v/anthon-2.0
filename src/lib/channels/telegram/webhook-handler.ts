@@ -354,6 +354,14 @@ async function handleUpdate(update: TelegramUpdate) {
   );
 
   if (!rateLimit.allowed) {
+    await recordTelegramInboundError({
+      inboundId: inbound.id,
+      update,
+      chatId,
+      fromId,
+      message,
+      kind: "rate_limit_denied",
+    });
     await sendTelegramMessage(
       chatId,
       formatExternalRateLimitMessage(rateLimit.upgradeInfo),

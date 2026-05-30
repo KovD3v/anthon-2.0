@@ -522,6 +522,22 @@ describe("/api/webhooks/whatsapp", () => {
         }),
       }),
     );
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wa_rate_limited" },
+        data: {
+          metadata: expect.objectContaining({
+            whatsapp: expect.objectContaining({
+              id: "wamid_1",
+              type: "text",
+              error: expect.objectContaining({
+                kind: "rate_limit_denied",
+              }),
+            }),
+          }),
+        },
+      }),
+    );
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 

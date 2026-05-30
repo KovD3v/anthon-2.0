@@ -345,6 +345,12 @@ async function handleMessage(
   );
 
   if (!rateLimit.allowed) {
+    await recordWhatsAppInboundError({
+      inboundId: inbound.id,
+      message,
+      context,
+      kind: "rate_limit_denied",
+    });
     await sendWhatsAppMessage(
       from,
       formatExternalRateLimitMessage(rateLimit.upgradeInfo),

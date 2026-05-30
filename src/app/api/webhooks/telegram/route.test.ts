@@ -447,6 +447,22 @@ describe("/api/webhooks/telegram", () => {
         }),
       }),
     );
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "msg_rate_limited" },
+        data: {
+          metadata: expect.objectContaining({
+            telegram: expect.objectContaining({
+              chatId: 100,
+              fromId: 200,
+              error: expect.objectContaining({
+                kind: "rate_limit_denied",
+              }),
+            }),
+          }),
+        },
+      }),
+    );
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
