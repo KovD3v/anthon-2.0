@@ -18,6 +18,7 @@ interface PlanCatalogEntry {
 }
 
 const MAINTENANCE_MODEL_ID = "google/gemini-2.5-flash-lite";
+const ORCHESTRATOR_MODEL_ID = "openai/gpt-chat-latest";
 
 export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
   GUEST: {
@@ -31,7 +32,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     attachmentRetentionDays: 1,
     modelRouting: {
-      orchestrator: "google/gemini-2.5-flash-lite",
+      orchestrator: ORCHESTRATOR_MODEL_ID,
       subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },
@@ -54,7 +55,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     attachmentRetentionDays: 7,
     modelRouting: {
-      orchestrator: "google/gemini-2.5-flash-lite",
+      orchestrator: ORCHESTRATOR_MODEL_ID,
       subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },
@@ -77,7 +78,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     attachmentRetentionDays: 30,
     modelRouting: {
-      orchestrator: "google/gemini-2.5-flash",
+      orchestrator: ORCHESTRATOR_MODEL_ID,
       subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },
@@ -100,7 +101,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     attachmentRetentionDays: 60,
     modelRouting: {
-      orchestrator: "google/gemini-2.5-flash",
+      orchestrator: ORCHESTRATOR_MODEL_ID,
       subAgent: "google/gemini-2.5-flash",
       maintenance: MAINTENANCE_MODEL_ID,
     },
@@ -123,7 +124,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     attachmentRetentionDays: 180,
     modelRouting: {
-      orchestrator: "google/gemini-2.5-flash-lite",
+      orchestrator: ORCHESTRATOR_MODEL_ID,
       subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },
@@ -146,7 +147,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     attachmentRetentionDays: 365 * 10,
     modelRouting: {
-      orchestrator: "google/gemini-2.5-flash-lite",
+      orchestrator: ORCHESTRATOR_MODEL_ID,
       subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },

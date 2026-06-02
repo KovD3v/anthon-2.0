@@ -42,21 +42,21 @@ for auditability.
 
 ## Decision
 
-Recommended default for the product:
+Selected default for the product:
 
-- `google/gemini-3.1-flash-lite`
+- `openai/gpt-chat-latest`
 
 Reasoning:
 
-- It is the fastest model in the comparison.
-- It has the lowest total cost among the top candidates.
-- Its quality score is close enough to the leading group for the current chat
-  product needs.
-- It avoids the high latency and cost profile of the OpenAI candidates.
+- It had the best overall benchmark score.
+- It had strong writing quality while keeping latency acceptable for chat.
+- It is more expensive than the fastest low-cost candidates, so cost should be
+  monitored after rollout.
 
 Recommended alternatives:
 
-- Use `openai/gpt-chat-latest` when maximum quality matters more than cost.
+- Use `google/gemini-3.1-flash-lite` when latency and cost matter more than
+  maximum quality.
 - Use `minimax/minimax-m2.5` for tool-heavy flows where tool-call behavior is
   more important than writing polish.
 - Keep `minimax/minimax-m3` as a candidate for follow-up testing. It is more
@@ -84,4 +84,3 @@ Recommended alternatives:
 - Variance: 1.7499
 - Total input tokens: 45599
 - Total output tokens: 8603
-

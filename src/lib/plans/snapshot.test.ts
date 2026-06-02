@@ -13,7 +13,7 @@ describe("plans/snapshot", () => {
     expect(snapshot.personalPlan).toBe("BASIC_PLUS");
     expect(snapshot.effective.plan).toBe("BASIC_PLUS");
     expect(snapshot.policies.modelRouting.orchestrator).toBe(
-      "google/gemini-2.5-flash",
+      "openai/gpt-chat-latest",
     );
     expect(snapshot.policies.attachmentRetentionDays).toBe(60);
     expect(snapshot.policies.voice.maxPerWindow).toBe(20);
@@ -42,7 +42,7 @@ describe("plans/snapshot", () => {
 
     expect(snapshot.effective.modelTier).toBe("ENTERPRISE");
     expect(snapshot.policies.modelRouting.orchestrator).toBe(
-      "google/gemini-2.5-flash-lite",
+      "openai/gpt-chat-latest",
     );
     expect(snapshot.policies.voice.maxPerWindow).toBe(50);
   });
