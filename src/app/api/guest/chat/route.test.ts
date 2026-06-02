@@ -505,7 +505,7 @@ describe("POST /api/guest/chat", () => {
     await onFinish?.({
       text: "Guest assistant reply",
       metrics: {
-        model: "google/gemini-2.0-flash-lite-001",
+        model: "google/gemini-2.5-flash-lite",
         inputTokens: 12,
         outputTokens: 34,
         reasoningTokens: 0,

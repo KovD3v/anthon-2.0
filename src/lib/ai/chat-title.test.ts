@@ -41,7 +41,7 @@ describe("ai/chat-title", () => {
     expect(title).toBe("Match Prep Plan");
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
       userId: "user-1",
-      modelId: "google/gemini-2.0-flash-001",
+      modelId: "google/gemini-2.5-flash",
       usage: { inputTokens: 40, outputTokens: 5 },
       providerMetadata: undefined,
     });

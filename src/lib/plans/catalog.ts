@@ -17,7 +17,7 @@ interface PlanCatalogEntry {
   voice: VoicePlanConfig;
 }
 
-const MAINTENANCE_MODEL_ID = "google/gemini-2.0-flash-lite-001";
+const MAINTENANCE_MODEL_ID = "google/gemini-2.5-flash-lite";
 
 export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
   GUEST: {
@@ -31,8 +31,8 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     attachmentRetentionDays: 1,
     modelRouting: {
-      orchestrator: "google/gemini-2.0-flash-lite-001",
-      subAgent: "google/gemini-2.0-flash-lite-001",
+      orchestrator: "google/gemini-2.5-flash-lite",
+      subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },
     voice: {
@@ -54,8 +54,8 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     attachmentRetentionDays: 7,
     modelRouting: {
-      orchestrator: "google/gemini-2.0-flash-lite-001",
-      subAgent: "google/gemini-2.0-flash-lite-001",
+      orchestrator: "google/gemini-2.5-flash-lite",
+      subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },
     voice: {
@@ -77,8 +77,8 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     attachmentRetentionDays: 30,
     modelRouting: {
-      orchestrator: "google/gemini-2.0-flash-001",
-      subAgent: "google/gemini-2.0-flash-lite-001",
+      orchestrator: "google/gemini-2.5-flash",
+      subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },
     voice: {
@@ -100,8 +100,8 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     attachmentRetentionDays: 60,
     modelRouting: {
-      orchestrator: "google/gemini-2.0-flash-001",
-      subAgent: "google/gemini-2.0-flash-001",
+      orchestrator: "google/gemini-2.5-flash",
+      subAgent: "google/gemini-2.5-flash",
       maintenance: MAINTENANCE_MODEL_ID,
     },
     voice: {
@@ -123,8 +123,8 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     attachmentRetentionDays: 180,
     modelRouting: {
-      orchestrator: "google/gemini-2.0-flash-lite-001",
-      subAgent: "google/gemini-2.0-flash-lite-001",
+      orchestrator: "google/gemini-2.5-flash-lite",
+      subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },
     voice: {
@@ -146,8 +146,8 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     attachmentRetentionDays: 365 * 10,
     modelRouting: {
-      orchestrator: "google/gemini-2.0-flash-lite-001",
-      subAgent: "google/gemini-2.0-flash-lite-001",
+      orchestrator: "google/gemini-2.5-flash-lite",
+      subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },
     voice: {

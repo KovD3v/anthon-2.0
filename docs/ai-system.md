@@ -82,7 +82,7 @@ The decision pipeline uses layered optimization:
 2. Positive keyword fast-path
 3. Negative keyword fast-path for short messages
 4. Non-technical pattern rejection
-5. LLM classifier fallback (`google/gemini-2.0-flash-001`)
+5. LLM classifier fallback (`google/gemini-2.5-flash`)
 
 ### Core functions
 
@@ -114,15 +114,15 @@ Plan-level defaults:
 
 | Tier | Orchestrator | Sub-agent |
 | ---- | ------------ | --------- |
-| `trial` | `google/gemini-2.0-flash-lite-001` | `google/gemini-2.0-flash-lite-001` |
-| `basic` | `google/gemini-2.0-flash-001` | `google/gemini-2.0-flash-lite-001` |
-| `basic_plus` | `google/gemini-2.0-flash-001` | `google/gemini-2.0-flash-001` |
-| `pro` | `google/gemini-2.0-flash-lite-001` | `google/gemini-2.0-flash-lite-001` |
-| `admin` | `google/gemini-2.0-flash-lite-001` | `google/gemini-2.0-flash-lite-001` |
+| `trial` | `google/gemini-2.5-flash-lite` | `google/gemini-2.5-flash-lite` |
+| `basic` | `google/gemini-2.5-flash` | `google/gemini-2.5-flash-lite` |
+| `basic_plus` | `google/gemini-2.5-flash` | `google/gemini-2.5-flash` |
+| `pro` | `google/gemini-2.5-flash-lite` | `google/gemini-2.5-flash-lite` |
+| `admin` | `google/gemini-2.5-flash-lite` | `google/gemini-2.5-flash-lite` |
 
 Maintenance model:
 
-- `google/gemini-2.0-flash-lite-001`
+- `google/gemini-2.5-flash-lite`
 
 ## Constants
 

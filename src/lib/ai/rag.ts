@@ -593,9 +593,9 @@ async function hasRagDocuments(): Promise<boolean> {
 
 /**
  * Fast classifier model for RAG detection
- * Uses Gemini 2.0 Flash for reliable, fast classification (~100-200ms)
+ * Uses Gemini 2.5 Flash for reliable, fast classification (~100-200ms)
  */
-const RAG_CLASSIFIER_MODEL_ID = "google/gemini-2.0-flash-001";
+const RAG_CLASSIFIER_MODEL_ID = "google/gemini-2.5-flash";
 const ragClassifierModel = openrouter(RAG_CLASSIFIER_MODEL_ID);
 
 /**

@@ -127,8 +127,8 @@ export async function POST(request: Request) {
 
     // Create the run record FIRST so we can return immediately
     const models = body.models || [
-      "google/gemini-2.0-flash-lite-001",
-      "google/gemini-2.0-flash-001",
+      "google/gemini-2.5-flash-lite",
+      "google/gemini-2.5-flash",
     ];
     const runName =
       body.name ||

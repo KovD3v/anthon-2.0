@@ -13,7 +13,7 @@ describe("plans/snapshot", () => {
     expect(snapshot.personalPlan).toBe("BASIC_PLUS");
     expect(snapshot.effective.plan).toBe("BASIC_PLUS");
     expect(snapshot.policies.modelRouting.orchestrator).toBe(
-      "google/gemini-2.0-flash-001",
+      "google/gemini-2.5-flash",
     );
     expect(snapshot.policies.attachmentRetentionDays).toBe(60);
     expect(snapshot.policies.voice.maxPerWindow).toBe(20);
@@ -42,7 +42,7 @@ describe("plans/snapshot", () => {
 
     expect(snapshot.effective.modelTier).toBe("ENTERPRISE");
     expect(snapshot.policies.modelRouting.orchestrator).toBe(
-      "google/gemini-2.0-flash-lite-001",
+      "google/gemini-2.5-flash-lite",
     );
     expect(snapshot.policies.voice.maxPerWindow).toBe(50);
   });

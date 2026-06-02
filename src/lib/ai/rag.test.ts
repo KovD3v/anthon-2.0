@@ -168,7 +168,7 @@ describe("ai/rag", () => {
     expect(mocks.generateText).toHaveBeenCalledTimes(1);
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
       userId: "user-1",
-      modelId: "google/gemini-2.0-flash-001",
+      modelId: "google/gemini-2.5-flash",
       usage: { inputTokens: 80, outputTokens: 12 },
       providerMetadata: undefined,
     });

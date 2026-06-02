@@ -1287,7 +1287,7 @@ describe("/api/webhooks/telegram", () => {
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-1",
-        modelId: "google/gemini-2.0-flash-lite-001",
+        modelId: "google/gemini-2.5-flash-lite",
         providerMetadata: {
           openrouter: {
             usage: {

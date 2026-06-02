@@ -1,6 +1,6 @@
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 
-export const TRANSCRIPTION_MODEL_ID = "google/gemini-2.0-flash-lite-001";
+export const TRANSCRIPTION_MODEL_ID = "google/gemini-2.5-flash-lite";
 
 export interface TranscriptionInput {
   base64: string;

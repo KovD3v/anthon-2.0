@@ -60,7 +60,7 @@ describe("ai/providers/openrouter", () => {
     const { getModelIdForPlan } = await import("./openrouter");
 
     expect(getModelIdForPlan(null, undefined, "orchestrator")).toBe(
-      "google/gemini-2.0-flash-lite-001",
+      "google/gemini-2.5-flash-lite",
     );
     expect(
       getModelIdForPlan(
@@ -70,7 +70,7 @@ describe("ai/providers/openrouter", () => {
         undefined,
         "ACTIVE",
       ),
-    ).toBe("google/gemini-2.0-flash-001");
+    ).toBe("google/gemini-2.5-flash");
     expect(
       getModelIdForPlan(
         "my-basic_plus-plan",
@@ -79,7 +79,7 @@ describe("ai/providers/openrouter", () => {
         undefined,
         "ACTIVE",
       ),
-    ).toBe("google/gemini-2.0-flash-001");
+    ).toBe("google/gemini-2.5-flash");
     expect(
       getModelIdForPlan(
         "my-pro-plan",
@@ -88,7 +88,7 @@ describe("ai/providers/openrouter", () => {
         undefined,
         "ACTIVE",
       ),
-    ).toBe("google/gemini-2.0-flash-lite-001");
+    ).toBe("google/gemini-2.5-flash-lite");
     expect(
       getModelIdForPlan(
         "my-pro-plan",
@@ -97,7 +97,7 @@ describe("ai/providers/openrouter", () => {
         undefined,
         "ACTIVE",
       ),
-    ).toBe("google/gemini-2.0-flash-lite-001");
+    ).toBe("google/gemini-2.5-flash-lite");
     expect(
       getModelIdForPlan(
         "my-pro-plan",
@@ -106,7 +106,7 @@ describe("ai/providers/openrouter", () => {
         "BASIC",
         "ACTIVE",
       ),
-    ).toBe("google/gemini-2.0-flash-001");
+    ).toBe("google/gemini-2.5-flash");
     expect(
       getModelIdForPlan(
         "my-basic-plan",
@@ -115,7 +115,7 @@ describe("ai/providers/openrouter", () => {
         "PRO",
         "ACTIVE",
       ),
-    ).toBe("google/gemini-2.0-flash-lite-001");
+    ).toBe("google/gemini-2.5-flash-lite");
   });
 
   it("throws when active subscription has invalid planId", async () => {
@@ -148,12 +148,12 @@ describe("ai/providers/openrouter", () => {
       "ACTIVE",
     );
 
-    expect(mocks.provider).toHaveBeenCalledWith("google/gemini-2.0-flash-001");
+    expect(mocks.provider).toHaveBeenCalledWith("google/gemini-2.5-flash");
     expect(mocks.devToolsMiddleware).toHaveBeenCalledTimes(1);
     expect(mocks.wrapLanguageModel).toHaveBeenCalledTimes(1);
     expect(model).toEqual({
       wrapped: true,
-      model: { modelId: "google/gemini-2.0-flash-001" },
+      model: { modelId: "google/gemini-2.5-flash" },
       middleware: "devtools-middleware",
     });
   });
@@ -173,10 +173,10 @@ describe("ai/providers/openrouter", () => {
       "ACTIVE",
     );
 
-    expect(mocks.provider).toHaveBeenCalledWith("google/gemini-2.0-flash-001");
+    expect(mocks.provider).toHaveBeenCalledWith("google/gemini-2.5-flash");
     expect(mocks.wrapLanguageModel).not.toHaveBeenCalled();
     expect(model).toEqual({
-      modelId: "google/gemini-2.0-flash-001",
+      modelId: "google/gemini-2.5-flash",
     });
   });
 });

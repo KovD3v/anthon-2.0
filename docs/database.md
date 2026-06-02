@@ -104,7 +104,7 @@ Individual messages supporting text, media, and AI metadata.
 | `mediaType`    | String?          | Media MIME type                                  |
 | `externalMessageId` | String?     | External message id (unique per channel)         |
 | `metadata`     | Json?            | Channel-specific payload (e.g. Telegram)        |
-| `model`        | String?          | AI model used (e.g., "google/gemini-2.0-flash-001") |
+| `model`        | String?          | AI model used (e.g., "google/gemini-2.5-flash") |
 | `inputTokens`  | Int?             | Prompt tokens                                    |
 | `outputTokens` | Int?             | Generated tokens                                 |
 | `costUsd`      | Float?           | Response cost                                    |

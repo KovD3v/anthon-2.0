@@ -1024,7 +1024,7 @@ describe("POST /api/chat", () => {
     await onFinish?.({
       text: "Assistant reply",
       metrics: {
-        model: "google/gemini-2.0-flash-001",
+        model: "google/gemini-2.5-flash",
         inputTokens: 111,
         outputTokens: 222,
         reasoningTokens: 10,
@@ -1043,7 +1043,7 @@ describe("POST /api/chat", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           role: "ASSISTANT",
-          model: "google/gemini-2.0-flash-001",
+          model: "google/gemini-2.5-flash",
           inputTokens: 111,
           outputTokens: 222,
           costUsd: 0.123,
