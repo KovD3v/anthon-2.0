@@ -2,27 +2,16 @@
  * Benchmark Constants
  */
 
-// Models to benchmark by default (current production models)
-export const DEFAULT_MODELS = [
-  "google/gemini-2.5-flash-lite",
-  "google/gemini-2.5-flash",
+export const AVAILABLE_MODELS = [
+  "openai/gpt-5.5",
+  "minimax/minimax-m2.5",
+  "x-ai/grok-4.3",
+  "z-ai/glm-5.1",
+  "openai/gpt-chat-latest",
+  "qwen/qwen3.6-plus",
+  "openai/gpt-5.5-pro",
+  "google/gemini-3.1-flash-lite",
 ] as const;
 
-// All models available for benchmarking in UI
-export const AVAILABLE_MODELS = [
-  "google/gemini-3-flash-preview",
-  "google/gemini-2.5-flash",
-  "google/gemini-2.5-flash-lite",
-  "openai/gpt-oss-120b",
-  "minimax/minimax-m2.1",
-  "minimax/minimax-m2.5",
-  "minimax/minimax-m2-her",
-  "z-ai/glm-4.7",
-  "z-ai/glm-5",
-  "stepfun/step-3.5-flash",
-  "xiaomi/mimo-v2-flash:free",
-  "nvidia/nemotron-3-nano-30b-a3b:free",
-  "moonshotai/kimi-k2-thinking",
-  "moonshotai/kimi-k2.5",
-  "deepseek/deepseek-v3.2",
-] as const;
+// Models to benchmark by default: exactly the curated target set.
+export const DEFAULT_MODELS = AVAILABLE_MODELS;

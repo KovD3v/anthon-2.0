@@ -43,6 +43,7 @@ vi.mock("@/lib/qstash", () => ({
   publishToQueue: mocks.publishToQueue,
 }));
 
+import { DEFAULT_MODELS } from "@/lib/benchmark/constants";
 import { DELETE, GET, PATCH, POST } from "./route";
 
 function buildJsonRequest(url: string, method: string, body: unknown): Request {
@@ -227,6 +228,30 @@ describe("/api/admin/benchmark", () => {
       runId: "run-new",
       message: "Benchmark started",
     });
+  });
+
+  it("POST uses curated default models when none are supplied", async () => {
+    const response = await POST(
+      buildJsonRequest("http://localhost/api/admin/benchmark", "POST", {
+        testCaseIds: ["tc-1"],
+      }) as never,
+    );
+
+    expect(mocks.benchmarkRunCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          models: [...DEFAULT_MODELS],
+        }),
+      }),
+    );
+    expect(mocks.publishToQueue).toHaveBeenCalledWith("api/queues/benchmark", {
+      runId: "run-new",
+      options: expect.objectContaining({
+        models: [...DEFAULT_MODELS],
+        testCaseIds: ["tc-1"],
+      }),
+    });
+    expect(response.status).toBe(200);
   });
 
   it("PATCH validates adminScore bounds for result review", async () => {

@@ -8,6 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
+import { DEFAULT_MODELS } from "@/lib/benchmark/constants";
 import type { BenchmarkRunnerOptions } from "@/lib/benchmark/types";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
@@ -126,10 +127,7 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     // Create the run record FIRST so we can return immediately
-    const models = body.models || [
-      "google/gemini-2.5-flash-lite",
-      "google/gemini-2.5-flash",
-    ];
+    const models = body.models || [...DEFAULT_MODELS];
     const runName =
       body.name ||
       `Benchmark ${new Date().toLocaleDateString("it-IT", {
@@ -148,7 +146,7 @@ export async function POST(request: Request) {
     });
 
     await dispatchBenchmarkRun(run.id, {
-      models: body.models,
+      models,
       testCaseIds: body.testCaseIds,
       categories: body.categories,
       iterations: body.iterations,
