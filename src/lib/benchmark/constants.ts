@@ -11,6 +11,7 @@ export const AVAILABLE_MODELS = [
   "qwen/qwen3.6-plus",
   "openai/gpt-5.5-pro",
   "google/gemini-3.1-flash-lite",
+  "xiaomi/mimo-v2.5",
 ] as const;
 
 // Models to benchmark by default: exactly the curated target set.
