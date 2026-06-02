@@ -1,7 +1,7 @@
 /**
  * AI Judge
  *
- * Uses Gemini 2.5 Pro to evaluate benchmark results.
+ * Uses two current OpenRouter models to evaluate benchmark results.
  */
 
 import { generateText, Output } from "ai";
@@ -20,8 +20,8 @@ import type {
 } from "./types";
 
 // Judge models for multi-judge consensus
-const JUDGE_MODEL = "x-ai/grok-4-fast";
-const JUDGE_MODEL_2 = "google/gemini-3-flash-preview"; // Second judge for consensus
+const JUDGE_MODEL = "x-ai/grok-4.3";
+const JUDGE_MODEL_2 = "google/gemini-3.5-flash"; // Second judge for consensus
 
 // Disagreement threshold for flagging results
 const DISAGREEMENT_THRESHOLD = 3;
