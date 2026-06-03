@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -31,6 +32,13 @@ interface DeleteSnapshot {
   previousMessages: UIMessage[];
   previousChatData: ChatData;
 }
+
+const messageMetadataSchema = z.object({
+  inputTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
+  generationTimeMs: z.number().optional(),
+  reasoningTimeMs: z.number().optional(),
+});
 
 export function ChatConversationClient({
   chatId,
@@ -128,6 +136,7 @@ export function ChatConversationClient({
   } = useChat({
     id: chatId,
     messages: initialMessages,
+    messageMetadataSchema,
     transport,
     onFinish: async () => {
       const newMessages = await refreshChatData();

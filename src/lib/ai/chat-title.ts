@@ -5,7 +5,7 @@ import { createLogger } from "@/lib/logger";
 
 const titleLogger = createLogger("ai");
 
-const SUMMARIZATION_MODEL_ID = "google/gemini-2.5-flash";
+const SUMMARIZATION_MODEL_ID = "google/gemini-2.5-flash-lite";
 const SUMMARIZATION_MODEL = openrouter(SUMMARIZATION_MODEL_ID);
 
 /**
