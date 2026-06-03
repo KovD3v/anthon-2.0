@@ -22,8 +22,9 @@ describe("channel-flow/run", () => {
   });
 
   it("returns stream result in stream mode", async () => {
+    const toUIMessageStreamResponse = vi.fn(() => Response.json({ ok: true }));
     const streamResult = {
-      toUIMessageStreamResponse: () => Response.json({ ok: true }),
+      toUIMessageStreamResponse,
       textStream: (async function* () {
         yield "ignored";
       })(),
@@ -55,7 +56,15 @@ describe("channel-flow/run", () => {
       },
     });
 
-    expect(result.streamResult).toBe(streamResult);
+    expect(result.streamResult?.textStream).toBe(streamResult.textStream);
+    expect(result.streamResult?.toUIMessageStreamResponse()).toBeInstanceOf(
+      Response,
+    );
+    expect(toUIMessageStreamResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageMetadata: expect.any(Function),
+      }),
+    );
     expect(result.assistantText).toBe("");
     expect(mocks.streamChat).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -64,6 +73,89 @@ describe("channel-flow/run", () => {
         userMessage: "hello",
       }),
     );
+  });
+
+  it("adds finish usage metadata to streamed UI responses", async () => {
+    let onFinish:
+      | ((input: {
+          text: string;
+          metrics: {
+            model: string;
+            inputTokens: number;
+            outputTokens: number;
+            reasoningTokens: number | null;
+            reasoningContent: string | null;
+            toolCalls: null;
+            ragUsed: boolean;
+            ragChunksCount: number;
+            costUsd: number;
+            generationTimeMs: number;
+            reasoningTimeMs: number | null;
+          };
+        }) => Promise<void>)
+      | undefined;
+    const toUIMessageStreamResponse = vi.fn(() => Response.json({ ok: true }));
+    mocks.streamChat.mockImplementation(async (input) => {
+      onFinish = input.onFinish;
+      return {
+        toUIMessageStreamResponse,
+        textStream: (async function* () {
+          yield "ignored";
+        })(),
+      };
+    });
+
+    const result = await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      chatId: "chat-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: true,
+      },
+      execution: { mode: "stream" },
+      persistence: {
+        channel: "WEB",
+        saveAssistantMessage: false,
+      },
+    });
+
+    await onFinish?.({
+      text: "assistant",
+      metrics: {
+        model: "openai/gpt-chat-latest",
+        inputTokens: 123,
+        outputTokens: 45,
+        reasoningTokens: null,
+        reasoningContent: null,
+        toolCalls: null,
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.01,
+        generationTimeMs: 3210,
+        reasoningTimeMs: null,
+      },
+    });
+    result.streamResult?.toUIMessageStreamResponse();
+
+    const metadata =
+      toUIMessageStreamResponse.mock.calls[0]?.[0]?.messageMetadata({
+        part: {
+          type: "finish",
+          totalUsage: { inputTokens: 1, outputTokens: 2 },
+        },
+      });
+
+    expect(metadata).toEqual({
+      inputTokens: 123,
+      outputTokens: 45,
+      generationTimeMs: 3210,
+      reasoningTimeMs: undefined,
+    });
   });
 
   it("passes memory availability from channel options to the orchestrator", async () => {

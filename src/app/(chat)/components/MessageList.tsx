@@ -384,19 +384,19 @@ export function MessageList({
                                 annotations?: unknown[];
                               }
                             ).annotations;
+                            const metadata = (
+                              message as {
+                                metadata?: unknown;
+                              }
+                            ).metadata;
 
-                            if (!annotations || annotations.length === 0)
-                              return null;
-
-                            const usageAnn = annotations.find(
-                              (ann: unknown) => {
-                                const a = ann as Record<string, unknown>;
-                                return (
-                                  a.inputTokens !== undefined ||
-                                  a.outputTokens !== undefined
-                                );
-                              },
-                            ) as
+                            const metadataUsage = hasUsageMetadata(metadata)
+                              ? metadata
+                              : undefined;
+                            const annotationUsage =
+                              annotations?.find(hasUsageMetadata);
+                            const usageAnn = (metadataUsage ??
+                              annotationUsage) as
                               | {
                                   inputTokens?: number;
                                   outputTokens?: number;
@@ -608,4 +608,18 @@ export function EmptyChatWelcome({ className }: { className?: string }) {
       </m.h2>
     </div>
   );
+}
+
+function hasUsageMetadata(value: unknown): value is {
+  inputTokens?: number;
+  outputTokens?: number;
+  generationTimeMs?: number;
+  reasoningTimeMs?: number;
+} {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const usage = value as Record<string, unknown>;
+  return usage.inputTokens !== undefined || usage.outputTokens !== undefined;
 }

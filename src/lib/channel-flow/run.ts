@@ -138,7 +138,29 @@ export async function runChannelFlow(
       assistantText: "",
       metrics: finalMetrics,
       persistence,
-      streamResult: streamResult as RunChannelFlowResult["streamResult"],
+      streamResult: {
+        ...(streamResult as RunChannelFlowResult["streamResult"]),
+        toUIMessageStreamResponse: () =>
+          streamResult.toUIMessageStreamResponse({
+            messageMetadata: ({ part }: { part: unknown }) => {
+              if (!isFinishStreamPart(part)) {
+                return undefined;
+              }
+
+              const usage = finalMetrics ?? metricsFromFinishPart(part);
+              if (!usage) {
+                return undefined;
+              }
+
+              return {
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+                generationTimeMs: usage.generationTimeMs,
+                reasoningTimeMs: usage.reasoningTimeMs ?? undefined,
+              };
+            },
+          }),
+      },
     };
   }
 
@@ -151,5 +173,45 @@ export async function runChannelFlow(
     assistantText,
     metrics: finalMetrics,
     persistence,
+  };
+}
+
+function isFinishStreamPart(part: unknown): part is {
+  type: "finish";
+  totalUsage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+  };
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+  };
+} {
+  return (
+    Boolean(part && typeof part === "object" && "type" in part) &&
+    (part as { type?: unknown }).type === "finish"
+  );
+}
+
+function metricsFromFinishPart(part: {
+  totalUsage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+  };
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+  };
+}) {
+  const usage = part.totalUsage ?? part.usage;
+  if (!usage) {
+    return undefined;
+  }
+
+  return {
+    inputTokens: usage.inputTokens ?? 0,
+    outputTokens: usage.outputTokens ?? 0,
+    generationTimeMs: undefined,
+    reasoningTimeMs: undefined,
   };
 }
