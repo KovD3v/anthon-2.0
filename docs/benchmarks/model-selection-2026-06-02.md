@@ -17,6 +17,7 @@ Runs:
 - Main comparison run: `cmpwu6s38000ob00lg4roh7pl`
 - MiniMax M3 follow-up run: `cmpwvaytv0000980li7zlb2qi`
 - Xiaomi MiMo V2.5 follow-up run: `cmpx2r5xb0000jk0l93xkgbrx`
+- DeepSeek V4 Flash follow-up run: `cmpxyhsb60000kb0l1pty8foi`
 
 ## Updated Ranking
 
@@ -30,7 +31,8 @@ Runs:
 | 6 | `qwen/qwen3.6-plus` | 6.60 | 7.33 | 6.58 | 24.32s | 20.45s | $0.0494 | 100.0% | Too slow for default chat. |
 | 7 | `x-ai/grok-4.3` | 6.58 | 6.50 | 7.58 | 5.72s | 4.72s | $0.0682 | 100.0% | Strongest writing score, weaker tool score. |
 | 8 | `z-ai/glm-5.1` | 6.50 | 6.83 | 6.17 | 12.24s | 6.28s | $0.0552 | 100.0% | Not competitive enough. |
-| 9 | `xiaomi/mimo-v2.5` | 6.42 | 6.67 | 6.50 | 9.45s | 6.08s | $0.0088 | 100.0% | Audio-capable and very cheap, but weaker on this dataset. |
+| 9 | `deepseek/deepseek-v4-flash` | 6.45 | 7.58 | 5.83 | 8.25s | 4.63s | $0.0053 | 95.8% | Very cheap and strong tool score, but weaker writing and one failed/zero-score case. |
+| 10 | `xiaomi/mimo-v2.5` | 6.42 | 6.67 | 6.50 | 9.45s | 6.08s | $0.0088 | 100.0% | Audio-capable and very cheap, but weaker on this dataset. |
 
 ## Recorded But Excluded From Selection
 
@@ -67,6 +69,10 @@ Recommended alternatives:
 - Keep `minimax/minimax-m3` as a candidate for follow-up testing. It is more
   balanced than M2.5, but the latency profile is too slow for the default chat
   path in this run.
+- Consider `deepseek/deepseek-v4-flash` only for low-cost tool-heavy
+  experiments. It produced a strong tool score and the lowest total cost in the
+  recorded set, but the writing score, variance, and one zero-score case make it
+  unsuitable as the default chat model.
 
 ## Raw Aggregates
 
@@ -110,3 +116,25 @@ Recommended alternatives:
 - Total input tokens: 48432
 - Total output tokens: 7309
 - OpenRouter modalities: text, audio, image, video input; text output
+
+### `deepseek/deepseek-v4-flash`
+
+- Run ID: `cmpxyhsb60000kb0l1pty8foi`
+- Test count: 24
+- Average score: 6.4479
+- Judge 1 average: 6.7083
+- Judge 2 average: 6.1875
+- Consensus average: 6.4479
+- Flagged for review: 1
+- Average inference time: 8249.38 ms
+- Average TTFT: 4631.91 ms
+- Average request cost: $0.000219
+- Total cost: $0.005256
+- Tool usage score: 7.5833
+- Writing quality score: 5.8333
+- Reliability: 0.9583
+- Variance: 2.1626
+- Reasoning efficiency: 0.3369
+- Token efficiency index: 2.5089
+- Total input tokens: 39137
+- Total output tokens: 7166

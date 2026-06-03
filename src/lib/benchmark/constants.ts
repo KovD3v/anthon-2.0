@@ -12,6 +12,7 @@ export const AVAILABLE_MODELS = [
   "openai/gpt-5.5-pro",
   "google/gemini-3.1-flash-lite",
   "xiaomi/mimo-v2.5",
+  "deepseek/deepseek-v4-flash",
 ] as const;
 
 // Models to benchmark by default: exactly the curated target set.
