@@ -39,11 +39,17 @@ export async function trackSupportAiUsage({
   const openrouterUsage = getOpenRouterUsage(providerMetadata);
   const inputTokens =
     asNumber(openrouterUsage?.promptTokens) ??
+    asNumber(openrouterUsage?.prompt_tokens) ??
+    asNumber(openrouterUsage?.inputTokens) ??
+    asNumber(openrouterUsage?.input_tokens) ??
     asNumber(usage?.inputTokens) ??
     asNumber(usage?.promptTokens) ??
     0;
   const outputTokens =
     asNumber(openrouterUsage?.completionTokens) ??
+    asNumber(openrouterUsage?.completion_tokens) ??
+    asNumber(openrouterUsage?.outputTokens) ??
+    asNumber(openrouterUsage?.output_tokens) ??
     asNumber(usage?.outputTokens) ??
     asNumber(usage?.completionTokens) ??
     0;

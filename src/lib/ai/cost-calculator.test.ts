@@ -97,6 +97,55 @@ describe("ai/cost-calculator", () => {
     expect(result.reasoningTokens).toBe(4);
   });
 
+  it("reads AI SDK v5 input and output usage fields", () => {
+    mocks.calculateCost.mockReturnValue({
+      inputCost: 0.1,
+      outputCost: 0.2,
+      totalCost: 0.3,
+      model: "model-v5",
+    });
+
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+    const result = extractAIMetrics("model-v5", startTime, {
+      text: "done",
+      usage: {
+        inputTokens: 1832,
+        outputTokens: 244,
+      },
+    });
+
+    expect(mocks.calculateCost).toHaveBeenCalledWith("model-v5", 1832, 244);
+    expect(result.inputTokens).toBe(1832);
+    expect(result.outputTokens).toBe(244);
+    expect(result.costUsd).toBe(0.3);
+  });
+
+  it("uses OpenRouter snake_case usage when caller usage is empty", () => {
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+    const result = extractAIMetrics("model-openrouter", startTime, {
+      text: "done",
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+      providerMetadata: {
+        openrouter: {
+          usage: {
+            prompt_tokens: 1832,
+            completion_tokens: 244,
+            cost: 0.0101,
+          },
+        },
+      },
+      preferProviderUsage: false,
+    });
+
+    expect(mocks.calculateCost).not.toHaveBeenCalled();
+    expect(result.inputTokens).toBe(1832);
+    expect(result.outputTokens).toBe(244);
+    expect(result.costUsd).toBe(0.0101);
+  });
+
   it("can keep caller-provided aggregate usage instead of final-step provider usage", () => {
     mocks.calculateCost.mockReturnValue({
       inputCost: 0.4,

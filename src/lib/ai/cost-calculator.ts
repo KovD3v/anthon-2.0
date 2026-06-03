@@ -49,6 +49,8 @@ interface FinishResultInput {
     totalTokens?: number;
     promptTokens?: number;
     completionTokens?: number;
+    inputTokens?: number;
+    outputTokens?: number;
   };
   /**
    * OpenRouter provider metadata is exact for single-step calls, but can describe
@@ -79,14 +81,14 @@ export function extractAIMetrics(
   const endTime = Date.now();
   const generationTimeMs = endTime - startTime;
 
-  // Extract token usage - AI SDK v5 uses different property names
-  // The streamText callback returns: inputTokens, outputTokens, totalTokens, reasoningTokens, cachedInputTokens
-  let inputTokens = (finishResult.usage?.promptTokens as number) ?? 0;
-  let outputTokens = (finishResult.usage?.completionTokens as number) ?? 0;
+  const usageTokens = getUsageTokens(finishResult.usage);
+  let inputTokens = usageTokens.inputTokens ?? 0;
+  let outputTokens = usageTokens.outputTokens ?? 0;
 
   // Try to extract cost and tokens from OpenRouter metadata
   let costFromOpenRouter: number | undefined;
   const preferProviderUsage = finishResult.preferProviderUsage ?? true;
+  const hasCallerUsage = inputTokens > 0 || outputTokens > 0;
   if (finishResult.providerMetadata) {
     const openrouterMeta = finishResult.providerMetadata.openrouter as
       | Record<string, unknown>
@@ -94,10 +96,18 @@ export function extractAIMetrics(
     if (openrouterMeta) {
       // Extract from nested usage object if available
       const usage = openrouterMeta.usage as Record<string, unknown> | undefined;
-      if (usage && preferProviderUsage) {
-        inputTokens = (usage.promptTokens as number) || inputTokens;
-        outputTokens = (usage.completionTokens as number) || outputTokens;
-        costFromOpenRouter = usage.cost as number | undefined;
+      const providerUsage = getOpenRouterUsageTokens(usage);
+      if (providerUsage && (preferProviderUsage || !hasCallerUsage)) {
+        inputTokens = providerUsage.inputTokens ?? inputTokens;
+        outputTokens = providerUsage.outputTokens ?? outputTokens;
+      }
+
+      const providerCost = asNumber(usage?.cost);
+      if (
+        providerCost !== undefined &&
+        (preferProviderUsage || !hasCallerUsage)
+      ) {
+        costFromOpenRouter = providerCost;
       }
     }
   }
@@ -144,6 +154,52 @@ export function extractAIMetrics(
     costUsd,
     generationTimeMs,
     reasoningTimeMs: null, // Not available from OpenRouter currently
+  };
+}
+
+function asNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function getUsageTokens(
+  usage:
+    | {
+        promptTokens?: number;
+        completionTokens?: number;
+        inputTokens?: number;
+        outputTokens?: number;
+      }
+    | undefined,
+) {
+  if (!usage) {
+    return {};
+  }
+
+  return {
+    inputTokens: asNumber(usage.promptTokens) ?? asNumber(usage.inputTokens),
+    outputTokens:
+      asNumber(usage.completionTokens) ?? asNumber(usage.outputTokens),
+  };
+}
+
+function getOpenRouterUsageTokens(usage: Record<string, unknown> | undefined) {
+  if (!usage) {
+    return undefined;
+  }
+
+  return {
+    inputTokens:
+      asNumber(usage.promptTokens) ??
+      asNumber(usage.prompt_tokens) ??
+      asNumber(usage.inputTokens) ??
+      asNumber(usage.input_tokens),
+    outputTokens:
+      asNumber(usage.completionTokens) ??
+      asNumber(usage.completion_tokens) ??
+      asNumber(usage.outputTokens) ??
+      asNumber(usage.output_tokens),
   };
 }
 
