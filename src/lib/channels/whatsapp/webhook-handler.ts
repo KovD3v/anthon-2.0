@@ -418,6 +418,7 @@ async function handleMessage(
           ...audioData,
           title: "WhatsApp Bot",
           userId: user.id,
+          source: "WHATSAPP",
         });
       } catch (err) {
         whatsappLogger.error("transcription.failed", "Transcription failed", {

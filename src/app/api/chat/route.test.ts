@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   isBillingSyncStale: vi.fn(),
   syncPersonalSubscriptionFromClerk: vi.fn(),
   decideWebVoiceMode: vi.fn(),
+  transcribeAudio: vi.fn(),
   generateVoice: vi.fn(),
   trackVoiceUsage: vi.fn(),
   put: vi.fn(),
@@ -99,6 +100,10 @@ vi.mock("@/lib/billing/personal-subscription", () => ({
 
 vi.mock("@/lib/voice/preflight", () => ({
   decideWebVoiceMode: mocks.decideWebVoiceMode,
+}));
+
+vi.mock("@/lib/transcription", () => ({
+  transcribeAudio: mocks.transcribeAudio,
 }));
 
 vi.mock("@/lib/voice", () => ({
@@ -193,6 +198,7 @@ describe("POST /api/chat", () => {
     mocks.isBillingSyncStale.mockReset();
     mocks.syncPersonalSubscriptionFromClerk.mockReset();
     mocks.decideWebVoiceMode.mockReset();
+    mocks.transcribeAudio.mockReset();
     mocks.generateVoice.mockReset();
     mocks.trackVoiceUsage.mockReset();
     mocks.put.mockReset();
@@ -266,6 +272,11 @@ describe("POST /api/chat", () => {
       mode: "TEXT",
       reason: "default",
       source: "classifier",
+    });
+    mocks.transcribeAudio.mockResolvedValue({
+      text: "trascrizione del vocale",
+      provider: "openrouter-gemini",
+      modelId: "google/gemini-2.5-flash-lite",
     });
     mocks.generateVoice.mockResolvedValue({
       audioBuffer: Buffer.from("audio"),
@@ -696,9 +707,10 @@ describe("POST /api/chat", () => {
     expect(streamArgs).toMatchObject({
       userId: "user-1",
       chatId: "chat-1",
-      userMessage: "hello",
+      userMessage:
+        "hello\n\nTrascrizione del messaggio vocale allegato:\ntrascrizione del vocale",
       hasImages: true,
-      hasAudio: true,
+      hasAudio: false,
       effectiveEntitlements: rateLimitAllowed.effectiveEntitlements,
       messageParts: [
         { type: "text", text: "hello" },
@@ -708,11 +720,17 @@ describe("POST /api/chat", () => {
           mimeType: "image/png",
         }),
         expect.objectContaining({
-          type: "file",
-          attachmentId: "att-2",
-          mimeType: "audio/mpeg",
+          type: "text",
+          text: "Trascrizione del messaggio vocale allegato:\ntrascrizione del vocale",
         }),
       ],
+    });
+    expect(mocks.transcribeAudio).toHaveBeenCalledWith({
+      base64: "data:audio",
+      mimeType: "audio/mpeg",
+      title: "Web Chat",
+      userId: "user-1",
+      source: "WEB",
     });
     expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -723,7 +741,8 @@ describe("POST /api/chat", () => {
     expect(mocks.decideWebVoiceMode).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-1",
-        userMessage: "hello",
+        userMessage:
+          "hello\n\nTrascrizione del messaggio vocale allegato:\ntrascrizione del vocale",
         userPreferences: { voiceEnabled: true },
         planId: "my-basic-plan",
       }),
@@ -857,7 +876,7 @@ describe("POST /api/chat", () => {
     );
   });
 
-  it("normalizes audio data-url fields into base64 data for the AI flow", async () => {
+  it("transcribes audio data-url fields before the AI flow", async () => {
     let streamArgs: Record<string, unknown> | undefined;
     mocks.streamChat.mockImplementation(
       async (args: Record<string, unknown>) => {
@@ -893,16 +912,63 @@ describe("POST /api/chat", () => {
 
     expect(response.status).toBe(200);
     expect(streamArgs).toMatchObject({
-      hasAudio: true,
+      userMessage:
+        "Trascrizione del messaggio vocale:\ntrascrizione del vocale",
+      hasAudio: false,
       messageParts: [
         expect.objectContaining({
-          type: "file",
-          attachmentId: "att-voice",
-          data: "dm9pY2UtYmFzZTY0",
-          mimeType: "audio/wav",
+          type: "text",
+          text: "Trascrizione del messaggio vocale:\ntrascrizione del vocale",
         }),
       ],
     });
+    expect(streamArgs?.messageParts).not.toContainEqual(
+      expect.objectContaining({
+        type: "file",
+        mimeType: "audio/wav",
+      }),
+    );
+    expect(mocks.transcribeAudio).toHaveBeenCalledWith({
+      base64: "dm9pY2UtYmFzZTY0",
+      mimeType: "audio/wav",
+      title: "Web Chat",
+      userId: "user-1",
+      source: "WEB",
+    });
+  });
+
+  it("returns a transcription error without calling the AI flow", async () => {
+    mocks.transcribeAudio.mockRejectedValue(new Error("provider down"));
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [
+              {
+                type: "file",
+                attachmentId: "att-voice",
+                mimeType: "audio/wav",
+                name: "voice.wav",
+                size: 99,
+                url: "data:audio/wav;base64,dm9pY2UtYmFzZTY0",
+              },
+            ],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      error:
+        "Non sono riuscito a trascrivere l'audio in questo momento. Riprova o invia un messaggio testuale.",
+    });
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.decideWebVoiceMode).not.toHaveBeenCalled();
   });
 
   it("returns 400 for unsupported non-image file urls before side effects", async () => {

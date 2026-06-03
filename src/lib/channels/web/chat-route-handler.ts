@@ -19,6 +19,7 @@ import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { transcribeAudio } from "@/lib/transcription";
 import { generateVoice, trackVoiceUsage } from "@/lib/voice";
 import { getVoicePlanConfig } from "@/lib/voice/config";
 import { decideWebVoiceMode } from "@/lib/voice/preflight";
@@ -247,14 +248,33 @@ export async function handleWebChatPost(request: Request) {
           return false;
         });
 
-        // Check if message has audio files
-        const hasAudio = lastUserMessage.parts?.some((part) => {
-          if (part.type === "file") {
-            const filePart = part as unknown as { mimeType?: string };
-            return filePart.mimeType?.startsWith("audio/");
-          }
-          return false;
-        });
+        const messageParts = buildChannelMessageParts(lastUserMessage);
+        let aiMessageParts: ChannelMessagePart[];
+        let aiUserMessageText: string;
+        let aiHasAudio: boolean;
+        try {
+          const preparedInput = await prepareWebMessageForAi({
+            messageParts,
+            userId: user.id,
+            normalizedUserMessageText,
+          });
+          aiMessageParts = preparedInput.parts;
+          aiUserMessageText = preparedInput.userMessageText;
+          aiHasAudio = preparedInput.hasAudio;
+        } catch (error) {
+          logger.error(
+            "chat.transcription_failed",
+            "Failed transcribing web audio message",
+            { error, userId: user.id, chatId },
+          );
+          return Response.json(
+            {
+              error:
+                "Non sono riuscito a trascrivere l'audio in questo momento. Riprova o invia un messaggio testuale.",
+            },
+            { status: 502 },
+          );
+        }
 
         // Save the user message to the database with parts
         const message = await LatencyLogger.measure(
@@ -376,10 +396,11 @@ export async function handleWebChatPost(request: Request) {
                     .join("") || "";
                 return `${m.role.toUpperCase()}: ${content}`;
               })
+              .filter((entry) => entry.replace(/^[A-Z]+:\s*/, "").trim())
               .join("\n");
 
             waitUntil(
-              generateChatTitle(context || normalizedUserMessageText, {
+              generateChatTitle(context || aiUserMessageText, {
                 userId: user.id,
               }).then((title) => {
                 prisma.chat
@@ -399,36 +420,6 @@ export async function handleWebChatPost(request: Request) {
           }
         }
 
-        const messageParts: ChannelMessagePart[] = [];
-        for (const part of lastUserMessage.parts ?? []) {
-          if (part.type === "text") {
-            messageParts.push({
-              type: "text",
-              text: (part as { text: string }).text || "",
-            });
-            continue;
-          }
-          if (part.type === "file") {
-            const filePart = part as unknown as {
-              data?: string;
-              url?: string;
-              mimeType?: string;
-              name?: string;
-              size?: number;
-              attachmentId?: string;
-            };
-            const fileData = normalizeFilePartData(filePart);
-            messageParts.push({
-              type: "file",
-              data: fileData,
-              mimeType: filePart.mimeType,
-              name: filePart.name,
-              size: filePart.size,
-              attachmentId: filePart.attachmentId,
-            });
-          }
-        }
-
         const voicePlanConfig = getVoicePlanConfig(
           subscriptionStatus,
           user.role,
@@ -438,7 +429,7 @@ export async function handleWebChatPost(request: Request) {
         );
         const voiceDecision = await decideWebVoiceMode({
           userId: user.id,
-          userMessage: normalizedUserMessageText,
+          userMessage: aiUserMessageText,
           recentMessages: getRecentTextMessages(messages),
           userPreferences: {
             voiceEnabled: user.preferences?.voiceEnabled ?? true,
@@ -452,15 +443,15 @@ export async function handleWebChatPost(request: Request) {
           const voiceResponse = await handleVoiceFirstWebResponse({
             userId: user.id,
             chatId,
-            userMessageText: normalizedUserMessageText,
-            messageParts,
+            userMessageText: aiUserMessageText,
+            messageParts: aiMessageParts,
             rateLimitResult,
             planId,
             userRole: user.role,
             subscriptionStatus,
             isGuest: user.isGuest,
             hasImages,
-            hasAudio,
+            hasAudio: aiHasAudio,
             waitUntil,
           });
 
@@ -472,8 +463,8 @@ export async function handleWebChatPost(request: Request) {
           channel: "WEB",
           userId: user.id,
           chatId,
-          userMessageText: normalizedUserMessageText,
-          parts: messageParts,
+          userMessageText: aiUserMessageText,
+          parts: aiMessageParts,
           rateLimit: {
             allowed: rateLimitResult.allowed,
             effectiveEntitlements: rateLimitResult.effectiveEntitlements,
@@ -490,7 +481,7 @@ export async function handleWebChatPost(request: Request) {
             subscriptionStatus,
             isGuest: user.isGuest,
             hasImages,
-            hasAudio,
+            hasAudio: aiHasAudio,
             responseMode: "text",
           },
           execution: { mode: "stream" },
@@ -547,6 +538,110 @@ function normalizeFilePartData(filePart: {
   }
 
   return undefined;
+}
+
+function buildChannelMessageParts(message: UIMessage): ChannelMessagePart[] {
+  const messageParts: ChannelMessagePart[] = [];
+
+  for (const part of message.parts ?? []) {
+    if (part.type === "text") {
+      messageParts.push({
+        type: "text",
+        text: (part as { text: string }).text || "",
+      });
+      continue;
+    }
+
+    if (part.type === "file") {
+      const filePart = part as unknown as {
+        data?: string;
+        url?: string;
+        mimeType?: string;
+        name?: string;
+        size?: number;
+        attachmentId?: string;
+      };
+      const fileData = normalizeFilePartData(filePart);
+      messageParts.push({
+        type: "file",
+        data: fileData,
+        mimeType: filePart.mimeType,
+        name: filePart.name,
+        size: filePart.size,
+        attachmentId: filePart.attachmentId,
+      });
+    }
+  }
+
+  return messageParts;
+}
+
+async function prepareWebMessageForAi({
+  messageParts,
+  userId,
+  normalizedUserMessageText,
+}: {
+  messageParts: ChannelMessagePart[];
+  userId: string;
+  normalizedUserMessageText: string;
+}) {
+  const aiMessageParts: ChannelMessagePart[] = [];
+  const transcriptTexts: string[] = [];
+
+  for (const part of messageParts) {
+    if (part.type !== "file" || !part.mimeType?.startsWith("audio/")) {
+      aiMessageParts.push(part);
+      continue;
+    }
+
+    if (!part.data?.trim()) {
+      throw new Error("Web audio message has no base64 payload");
+    }
+
+    const transcript = await transcribeAudio({
+      base64: part.data,
+      mimeType: part.mimeType,
+      title: "Web Chat",
+      userId,
+      source: "WEB",
+    });
+
+    transcriptTexts.push(transcript.text);
+  }
+
+  if (transcriptTexts.length === 0) {
+    return {
+      parts: aiMessageParts,
+      userMessageText: normalizedUserMessageText,
+      hasAudio: false,
+    };
+  }
+
+  const transcriptText = transcriptTexts
+    .map((text) => text.trim())
+    .filter(Boolean)
+    .join("\n\n");
+
+  if (!transcriptText) {
+    throw new Error("Web audio transcription is empty");
+  }
+
+  const transcriptPartText = normalizedUserMessageText
+    ? `Trascrizione del messaggio vocale allegato:\n${transcriptText}`
+    : `Trascrizione del messaggio vocale:\n${transcriptText}`;
+
+  aiMessageParts.push({
+    type: "text",
+    text: transcriptPartText,
+  });
+
+  return {
+    parts: aiMessageParts,
+    userMessageText: [normalizedUserMessageText, transcriptPartText]
+      .filter(Boolean)
+      .join("\n\n"),
+    hasAudio: false,
+  };
 }
 
 function hasUnsupportedFilePayload(part: UIMessage["parts"][number]) {

@@ -434,6 +434,7 @@ async function handleUpdate(update: TelegramUpdate) {
         ...audioData,
         title: "Telegram Bot",
         userId: user.id,
+        source: "TELEGRAM",
       });
     } catch (err) {
       telegramLogger.error("transcription.failed", "Transcription failed", {
