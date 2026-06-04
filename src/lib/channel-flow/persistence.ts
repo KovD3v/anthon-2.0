@@ -29,7 +29,7 @@ async function revalidateTags(tags: string[]) {
     const { revalidateTag } = await import("next/cache");
     for (const tag of tags) {
       try {
-        revalidateTag(tag, "page");
+        revalidateTag(tag, "max");
       } catch (error) {
         persistenceLogger.error(
           "revalidate.tag_failed",

@@ -230,8 +230,8 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         updatedAt: true,
       },
     });
-    revalidateTag(`chat-${id}`, "page");
-    revalidateTag(`chats-${user.id}`, "page");
+    revalidateTag(`chat-${id}`, "max");
+    revalidateTag(`chats-${user.id}`, "max");
 
     return Response.json({
       id: updatedChat.id,
@@ -275,8 +275,8 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
     });
 
     try {
-      revalidateTag(`chats-${user.id}`, "page");
-      revalidateTag(`chat-${id}`, "page");
+      revalidateTag(`chats-${user.id}`, "max");
+      revalidateTag(`chat-${id}`, "max");
     } catch (revalidateErr) {
       guestLogger.warn(
         "delete.revalidate_failed",

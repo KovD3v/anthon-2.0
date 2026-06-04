@@ -167,7 +167,7 @@ export async function POST(request: Request) {
       },
     });
 
-    revalidateTag(`chats-${user.id}`, "page");
+    revalidateTag(`chats-${user.id}`, "max");
 
     return Response.json(
       {

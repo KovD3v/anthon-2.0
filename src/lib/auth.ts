@@ -403,5 +403,5 @@ export async function updateUserRole(
  */
 async function invalidateAuthCache(): Promise<void> {
   const { revalidateTag } = await import("next/cache");
-  revalidateTag("user-auth", "page");
+  revalidateTag("user-auth", "max");
 }

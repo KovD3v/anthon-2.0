@@ -435,8 +435,8 @@ describe("/api/chats/[id] route", () => {
         updatedAt: true,
       },
     });
-    expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "page");
-    expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "page");
+    expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "max");
+    expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "max");
     await expect(response.json()).resolves.toEqual({
       id: "chat-1",
       title: "Generated Title",
@@ -521,8 +521,8 @@ describe("/api/chats/[id] route", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.chatDelete).toHaveBeenCalledWith({ where: { id: "chat-1" } });
-    expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "page");
-    expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "page");
+    expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "max");
+    expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "max");
     await expect(response.json()).resolves.toEqual({ success: true });
   });
 

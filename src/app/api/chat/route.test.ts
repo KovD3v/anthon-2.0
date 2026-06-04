@@ -1123,8 +1123,8 @@ describe("POST /api/chat", () => {
       0.123,
       10,
     );
-    expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "page");
-    expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "page");
+    expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "max");
+    expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "max");
     expect(mocks.extractAndSaveMemories).toHaveBeenCalledWith(
       "user-1",
       "hello world",

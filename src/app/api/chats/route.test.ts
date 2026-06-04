@@ -231,7 +231,7 @@ describe("/api/chats route", () => {
         updatedAt: true,
       },
     });
-    expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "page");
+    expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "max");
     await expect(response.json()).resolves.toEqual({
       id: "chat-3",
       title: "New Chat",

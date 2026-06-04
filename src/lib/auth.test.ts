@@ -304,7 +304,7 @@ describe("lib/auth", () => {
       where: { id: "target" },
       data: { role: "ADMIN" },
     });
-    expect(mocks.revalidateTag).toHaveBeenCalledWith("user-auth", "page");
+    expect(mocks.revalidateTag).toHaveBeenCalledWith("user-auth", "max");
   });
 
   it("updateUserRole returns failure when DB update throws", async () => {

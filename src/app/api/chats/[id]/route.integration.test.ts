@@ -136,7 +136,7 @@ describe("integration /api/chats/[id]", () => {
       "Find my weekly running plan",
       { userId: user.id },
     );
-    expect(mocks.revalidateTag).toHaveBeenCalledWith(`chat-${chat.id}`, "page");
+    expect(mocks.revalidateTag).toHaveBeenCalledWith(`chat-${chat.id}`, "max");
     expect(mocks.revalidateTag).toHaveBeenCalledWith(
       `chats-${user.id}`,
       "page",
