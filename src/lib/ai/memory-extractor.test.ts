@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
-  outputObject: vi.fn(),
+  loggerWarn: vi.fn(),
+  loggerError: vi.fn(),
   memoryUpsert: vi.fn(),
   userUpdate: vi.fn(),
   invalidateMemoriesForPromptCache: vi.fn(),
@@ -11,9 +12,15 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("ai", () => ({
   generateText: mocks.generateText,
-  Output: {
-    object: mocks.outputObject,
-  },
+}));
+
+vi.mock("@/lib/logger", () => ({
+  createLogger: () => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: mocks.loggerWarn,
+    error: mocks.loggerError,
+  }),
 }));
 
 vi.mock("@/lib/ai/providers/openrouter", () => ({
@@ -45,13 +52,13 @@ import { extractAndSaveMemories } from "./memory-extractor";
 describe("ai/memory-extractor", () => {
   beforeEach(() => {
     mocks.generateText.mockReset();
-    mocks.outputObject.mockReset();
+    mocks.loggerWarn.mockReset();
+    mocks.loggerError.mockReset();
     mocks.memoryUpsert.mockReset();
     mocks.userUpdate.mockReset();
     mocks.invalidateMemoriesForPromptCache.mockReset();
     mocks.trackSupportAiUsage.mockReset();
 
-    mocks.outputObject.mockReturnValue({ schema: "mocked" });
     mocks.memoryUpsert.mockResolvedValue({});
     mocks.userUpdate.mockResolvedValue({});
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
@@ -75,7 +82,7 @@ describe("ai/memory-extractor", () => {
     vi.setSystemTime(new Date("2026-02-17T15:00:00.000Z"));
 
     mocks.generateText.mockResolvedValue({
-      output: {
+      text: JSON.stringify({
         facts: [
           {
             key: "user_sport",
@@ -90,7 +97,7 @@ describe("ai/memory-extractor", () => {
             confidence: 0.3,
           },
         ],
-      },
+      }),
       usage: { inputTokens: 120, outputTokens: 30 },
       providerMetadata: { openrouter: { usage: { cost: 0.002 } } },
     });
@@ -142,7 +149,7 @@ describe("ai/memory-extractor", () => {
 
   it("updates last activity even when no facts pass confidence threshold", async () => {
     mocks.generateText.mockResolvedValue({
-      output: {
+      text: JSON.stringify({
         facts: [
           {
             key: "user_goal",
@@ -151,7 +158,7 @@ describe("ai/memory-extractor", () => {
             confidence: 0.5,
           },
         ],
-      },
+      }),
     });
 
     await extractAndSaveMemories(
@@ -163,6 +170,35 @@ describe("ai/memory-extractor", () => {
     expect(mocks.memoryUpsert).not.toHaveBeenCalled();
     expect(mocks.invalidateMemoriesForPromptCache).not.toHaveBeenCalled();
     expect(mocks.userUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips invalid extractor output without logging an error", async () => {
+    mocks.generateText.mockResolvedValue({
+      text: "",
+      usage: { inputTokens: 20, outputTokens: 0 },
+      providerMetadata: { openrouter: { usage: { cost: 0.0001 } } },
+    });
+
+    await extractAndSaveMemories(
+      "user-1",
+      "I play football every week and want to improve endurance quickly.",
+      "Let's build a progressive training plan.",
+    );
+
+    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    expect(mocks.userUpdate).not.toHaveBeenCalled();
+    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      userId: "user-1",
+      modelId: "sub-agent-model-id",
+      usage: { inputTokens: 20, outputTokens: 0 },
+      providerMetadata: { openrouter: { usage: { cost: 0.0001 } } },
+    });
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      "extraction_skipped",
+      "Memory extractor returned no parseable output",
+      expect.objectContaining({ userId: "user-1" }),
+    );
+    expect(mocks.loggerError).not.toHaveBeenCalled();
   });
 
   it("swallows extraction errors and does not throw", async () => {
@@ -178,5 +214,10 @@ describe("ai/memory-extractor", () => {
 
     expect(mocks.memoryUpsert).not.toHaveBeenCalled();
     expect(mocks.userUpdate).not.toHaveBeenCalled();
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      "extraction_failed",
+      "Error extracting memories",
+      expect.objectContaining({ userId: "user-1" }),
+    );
   });
 });

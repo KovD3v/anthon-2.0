@@ -1,4 +1,4 @@
-import { generateText, Output } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import { MEMORY } from "@/lib/ai/constants";
 import {
@@ -65,12 +65,10 @@ export async function extractAndSaveMemories(
   }
 
   try {
-    // Use generateText with Output.object() for structured extraction
     const result = await generateText({
       model: subAgentModel,
-      output: Output.object({
-        schema: ExtractedFactsSchema,
-      }),
+      temperature: 0,
+      maxOutputTokens: 500,
       system: `Sei un assistente che estrae informazioni importanti dalle conversazioni.
 Analizza lo scambio tra utente e assistente e estrai fatti persistenti sull'utente.
 
@@ -80,7 +78,8 @@ Regole:
 - Ignora informazioni transitorie o specifiche del momento
 - Usa key in snake_case in inglese (es: user_name, user_sport, user_goal)
 - Assegna confidence alta (>0.8) solo se l'informazione è chiara e non ambigua
-- Se non ci sono fatti da estrarre, restituisci un array vuoto`,
+- Se non ci sono fatti da estrarre, restituisci un array vuoto
+- Rispondi solo con JSON valido nel formato {"facts":[...]}, senza markdown e senza testo extra`,
       prompt: `Estrai i fatti importanti da questo scambio:
 
 UTENTE: ${userMessage}
@@ -89,7 +88,6 @@ ASSISTENTE: ${assistantResponse}
 
 Restituisci i fatti estratti o un array vuoto se non ce ne sono.`,
     });
-    const { output } = result;
 
     await trackSupportAiUsage({
       userId,
@@ -98,8 +96,18 @@ Restituisci i fatti estratti o un array vuoto se non ce ne sono.`,
       providerMetadata: result.providerMetadata,
     });
 
+    const output = parseExtractorOutput(result.text);
+    if (!output) {
+      extractorLogger.warn(
+        "extraction_skipped",
+        "Memory extractor returned no parseable output",
+        { userId },
+      );
+      return;
+    }
+
     // Filter facts with high enough confidence and save them
-    const highConfidenceFacts = (output?.facts ?? []).filter(
+    const highConfidenceFacts = output.facts.filter(
       (f) => f.confidence >= MEMORY.MIN_CONFIDENCE,
     );
 
@@ -143,6 +151,36 @@ Restituisci i fatti estratti o un array vuoto se non ce ne sono.`,
     // Log error but don't throw - memory extraction is non-critical
     extractorLogger.error("extraction_failed", "Error extracting memories", {
       error,
+      userId,
     });
   }
+}
+
+function parseExtractorOutput(text: string | undefined) {
+  const jsonText = extractJsonText(text);
+  if (!jsonText) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(jsonText);
+    const result = ExtractedFactsSchema.safeParse(parsed);
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
+}
+
+function extractJsonText(text: string | undefined) {
+  const trimmed = text?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch?.[1]) {
+    return fencedMatch[1].trim();
+  }
+
+  return trimmed;
 }
