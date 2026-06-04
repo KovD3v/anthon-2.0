@@ -127,7 +127,7 @@ describe("channel-flow/run", () => {
     await onFinish?.({
       text: "assistant",
       metrics: {
-        model: "openai/gpt-chat-latest",
+        model: "z-ai/glm-4.7",
         inputTokens: 123,
         outputTokens: 45,
         reasoningTokens: null,

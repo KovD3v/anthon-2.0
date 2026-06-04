@@ -114,11 +114,11 @@ Plan-level defaults:
 
 | Tier | Orchestrator | Sub-agent |
 | ---- | ------------ | --------- |
-| `trial` | `openai/gpt-chat-latest` | `google/gemini-2.5-flash-lite` |
-| `basic` | `openai/gpt-chat-latest` | `google/gemini-2.5-flash-lite` |
-| `basic_plus` | `openai/gpt-chat-latest` | `google/gemini-2.5-flash` |
-| `pro` | `openai/gpt-chat-latest` | `google/gemini-2.5-flash-lite` |
-| `admin` | `openai/gpt-chat-latest` | `google/gemini-2.5-flash-lite` |
+| `trial` | `z-ai/glm-4.7` | `google/gemini-2.5-flash-lite` |
+| `basic` | `z-ai/glm-4.7` | `google/gemini-2.5-flash-lite` |
+| `basic_plus` | `z-ai/glm-4.7` | `google/gemini-2.5-flash` |
+| `pro` | `z-ai/glm-4.7` | `google/gemini-2.5-flash-lite` |
+| `admin` | `z-ai/glm-4.7` | `google/gemini-2.5-flash-lite` |
 
 Maintenance model:
 
