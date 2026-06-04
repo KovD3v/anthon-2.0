@@ -1,10 +1,8 @@
-import {
-  OPENROUTER_GEMINI_TRANSCRIPTION_MODEL_ID,
-  transcribeWithOpenRouterGemini,
-} from "@/lib/transcription/providers/openrouter-gemini";
+import { transcribeAudio } from "@/lib/transcription";
+import { OPENROUTER_WHISPER_TRANSCRIPTION_MODEL_ID } from "@/lib/transcription/providers/openrouter-whisper";
 import type { TranscriptionSource } from "@/lib/transcription/types";
 
-export const TRANSCRIPTION_MODEL_ID = OPENROUTER_GEMINI_TRANSCRIPTION_MODEL_ID;
+export const TRANSCRIPTION_MODEL_ID = OPENROUTER_WHISPER_TRANSCRIPTION_MODEL_ID;
 
 export interface TranscriptionInput {
   base64: string;
@@ -23,7 +21,7 @@ export async function transcribeAudioWithOpenRouter({
   userId,
   source = "TELEGRAM",
 }: TranscriptionInput): Promise<string> {
-  const result = await transcribeWithOpenRouterGemini({
+  const result = await transcribeAudio({
     base64,
     mimeType,
     title,

@@ -1,5 +1,6 @@
 import { createLogger } from "@/lib/logger";
 import { openRouterGeminiTranscriptionProvider } from "@/lib/transcription/providers/openrouter-gemini";
+import { openRouterWhisperTranscriptionProvider } from "@/lib/transcription/providers/openrouter-whisper";
 import type {
   TranscriptionInput,
   TranscriptionProvider,
@@ -17,8 +18,10 @@ export async function transcribeAudio(
   input: TranscriptionInput,
   options: TranscriptionServiceOptions = {},
 ): Promise<TranscriptionResult> {
-  const primary = options.primary ?? openRouterGeminiTranscriptionProvider;
-  const fallback = options.fallback;
+  const primary = options.primary ?? openRouterWhisperTranscriptionProvider;
+  const fallback =
+    options.fallback ??
+    (options.primary ? undefined : openRouterGeminiTranscriptionProvider);
 
   try {
     return await primary.transcribe(input);

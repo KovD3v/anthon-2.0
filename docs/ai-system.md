@@ -124,6 +124,18 @@ Maintenance model:
 
 - `google/gemini-2.5-flash-lite`
 
+## Audio Transcription
+
+- Service boundary: `src/lib/transcription/service.ts`
+- Primary provider: `openai/whisper-large-v3-turbo` via OpenRouter
+- Fallback provider: `google/gemini-2.5-flash-lite` via OpenRouter chat completions
+
+Web, Telegram, and WhatsApp audio all call the shared transcription service
+before the orchestrator receives user input. The Whisper Turbo path uses
+OpenRouter's `/api/v1/audio/transcriptions` endpoint for lower latency and
+lower per-hour STT cost, while Gemini remains as a fallback for provider
+failures.
+
 ## Constants
 
 - File: `src/lib/ai/constants.ts`

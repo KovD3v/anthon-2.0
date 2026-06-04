@@ -1,6 +1,9 @@
 export type TranscriptionSource = "WEB" | "TELEGRAM" | "WHATSAPP";
 
-export type TranscriptionProviderName = "openrouter-gemini" | "specialized";
+export type TranscriptionProviderName =
+  | "openrouter-gemini"
+  | "openrouter-whisper"
+  | "specialized";
 
 export interface TranscriptionInput {
   base64: string;

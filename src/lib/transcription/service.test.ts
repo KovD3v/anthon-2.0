@@ -7,6 +7,15 @@ vi.mock("@/lib/transcription/providers/openrouter-gemini", () => ({
   },
 }));
 
+vi.mock("@/lib/transcription/providers/openrouter-whisper", () => ({
+  openRouterWhisperTranscriptionProvider: {
+    name: "openrouter-whisper",
+    transcribe: vi.fn(),
+  },
+}));
+
+import { openRouterGeminiTranscriptionProvider } from "@/lib/transcription/providers/openrouter-gemini";
+import { openRouterWhisperTranscriptionProvider } from "@/lib/transcription/providers/openrouter-whisper";
 import { transcribeAudio } from "@/lib/transcription/service";
 import type {
   TranscriptionInput,
@@ -21,6 +30,47 @@ const input: TranscriptionInput = {
 };
 
 describe("transcribeAudio", () => {
+  it("uses OpenRouter Whisper Turbo as the default primary provider", async () => {
+    vi.mocked(
+      openRouterWhisperTranscriptionProvider.transcribe,
+    ).mockResolvedValue({
+      text: "trascrizione whisper",
+      provider: "openrouter-whisper",
+      modelId: "openai/whisper-large-v3-turbo",
+    });
+
+    await expect(transcribeAudio(input)).resolves.toEqual({
+      text: "trascrizione whisper",
+      provider: "openrouter-whisper",
+      modelId: "openai/whisper-large-v3-turbo",
+    });
+    expect(
+      openRouterWhisperTranscriptionProvider.transcribe,
+    ).toHaveBeenCalledWith(input);
+  });
+
+  it("falls back to OpenRouter Gemini by default when Whisper Turbo fails", async () => {
+    vi.mocked(
+      openRouterWhisperTranscriptionProvider.transcribe,
+    ).mockRejectedValue(new Error("whisper unavailable"));
+    vi.mocked(
+      openRouterGeminiTranscriptionProvider.transcribe,
+    ).mockResolvedValue({
+      text: "fallback gemini",
+      provider: "openrouter-gemini",
+      modelId: "google/gemini-2.5-flash-lite",
+    });
+
+    await expect(transcribeAudio(input)).resolves.toEqual({
+      text: "fallback gemini",
+      provider: "openrouter-gemini",
+      modelId: "google/gemini-2.5-flash-lite",
+    });
+    expect(
+      openRouterGeminiTranscriptionProvider.transcribe,
+    ).toHaveBeenCalledWith(input);
+  });
+
   it("uses the primary provider", async () => {
     const primary = createProvider("specialized", "trascrizione primaria");
 

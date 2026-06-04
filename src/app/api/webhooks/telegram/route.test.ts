@@ -1237,7 +1237,7 @@ describe("/api/webhooks/telegram", () => {
     });
   });
 
-  it("transcribeWithOpenRouterResponses handles API errors and success", async () => {
+  it("transcribeWithOpenRouterResponses handles provider fallback and success", async () => {
     delete process.env.OPENROUTER_API_KEY;
     await expect(
       transcribeAudioWithOpenRouter({
@@ -1254,23 +1254,19 @@ describe("/api/webhooks/telegram", () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            choices: [{ message: { content: " trascrizione ok " } }],
+            text: " trascrizione ok ",
             usage: {
-              prompt_tokens: 12,
-              completion_tokens: 3,
+              input_tokens: 12,
+              output_tokens: 3,
               cost: 0.0004,
+              seconds: 4.2,
+              total_tokens: 15,
             },
           }),
         ),
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      transcribeAudioWithOpenRouter({
-        base64: "YQ==",
-        mimeType: "audio/ogg",
-      }),
-    ).rejects.toThrow("OpenRouter API failed");
     await expect(
       transcribeAudioWithOpenRouter({
         base64: "YQ==",
@@ -1287,13 +1283,15 @@ describe("/api/webhooks/telegram", () => {
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-1",
-        modelId: "google/gemini-2.5-flash-lite",
+        modelId: "openai/whisper-large-v3-turbo",
         providerMetadata: {
           openrouter: {
             usage: {
-              promptTokens: 12,
-              completionTokens: 3,
+              input_tokens: 12,
+              output_tokens: 3,
               cost: 0.0004,
+              seconds: 4.2,
+              total_tokens: 15,
             },
           },
         },

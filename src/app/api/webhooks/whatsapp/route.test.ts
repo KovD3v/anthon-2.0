@@ -1018,6 +1018,7 @@ describe("/api/webhooks/whatsapp", () => {
       )
       .mockResolvedValueOnce(new Response("audio-data"))
       .mockResolvedValueOnce(new Response("{}"))
+      .mockResolvedValueOnce(new Response("{}"))
       .mockResolvedValueOnce(new Response("{}"));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -1618,7 +1619,7 @@ describe("/api/webhooks/whatsapp", () => {
     });
   });
 
-  it("transcribeWithOpenRouterResponses handles key/config error branches", async () => {
+  it("transcribeWithOpenRouterResponses handles provider fallback and success", async () => {
     delete process.env.OPENROUTER_API_KEY;
     await expect(
       transcribeAudioWithOpenRouter({
@@ -1631,14 +1632,17 @@ describe("/api/webhooks/whatsapp", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response("bad", { status: 500 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [] })))
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            choices: [{ message: { content: " trascrizione wa " } }],
+            text: " trascrizione wa ",
             usage: {
-              prompt_tokens: 9,
-              completion_tokens: 4,
+              input_tokens: 9,
+              output_tokens: 4,
               cost: 0.0003,
+              seconds: 3.1,
+              total_tokens: 13,
             },
           }),
         ),
@@ -1650,7 +1654,7 @@ describe("/api/webhooks/whatsapp", () => {
         base64: "YQ==",
         mimeType: "audio/ogg",
       }),
-    ).rejects.toThrow("OpenRouter API failed");
+    ).rejects.toThrow("OpenRouter returned no text output");
 
     await expect(
       transcribeAudioWithOpenRouter({
@@ -1662,13 +1666,15 @@ describe("/api/webhooks/whatsapp", () => {
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-1",
-        modelId: "google/gemini-2.5-flash-lite",
+        modelId: "openai/whisper-large-v3-turbo",
         providerMetadata: {
           openrouter: {
             usage: {
-              promptTokens: 9,
-              completionTokens: 4,
+              input_tokens: 9,
+              output_tokens: 4,
               cost: 0.0003,
+              seconds: 3.1,
+              total_tokens: 13,
             },
           },
         },
