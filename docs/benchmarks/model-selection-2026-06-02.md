@@ -19,6 +19,10 @@ Runs:
 - Xiaomi MiMo V2.5 follow-up run: `cmpx2r5xb0000jk0l93xkgbrx`
 - DeepSeek V4 Flash follow-up run: `cmpxyhsb60000kb0l1pty8foi`
 
+Raw model responses for qualitative review:
+
+- `docs/benchmarks/model-selection-2026-06-02-responses.json`
+
 ## Updated Ranking
 
 | Rank | Model | Avg score | Tool score | Writing score | Avg latency | Avg TTFT | Total cost | Reliability | Notes |
