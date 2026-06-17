@@ -41,6 +41,7 @@ Runner:
 - `evaluateRealityTurn`
 - `createStreamChatRealityExecutor`
 - `createDatabaseBackedRealityExecutor`
+- `scripts/run-reality-benchmark.ts`
 
 The runner is intentionally executor-based. Tests can use a fake executor; real
 model runs should use `createDatabaseBackedRealityExecutor` when validating
@@ -62,8 +63,29 @@ without explicitly choosing that target. The executor mutates user, chat,
 message, memory, profile, preferences, and usage tables for benchmark-only
 records.
 
-## Recommended Next Step
+## CLI Runner
 
-Add an admin or script entrypoint that runs `runRealityBenchmark` with
-`createDatabaseBackedRealityExecutor`, exports the result JSON, and calls
-`cleanup()` after the report is written.
+The CLI runner uses `createDatabaseBackedRealityExecutor`, writes a JSON report
+and a Markdown summary, then calls `cleanup()` unless `--keep-data` is set.
+It refuses to run unless DB mutation is explicitly approved:
+
+```bash
+bun run scripts/run-reality-benchmark.ts --allow-db-mutation
+```
+
+Current candidate-model default:
+
+- `openai/gpt-chat-latest`
+- `moonshotai/kimi-k2.7-code`
+- `z-ai/glm-5.2`
+- `z-ai/glm-4.7`
+- `stepfun/step-3.7-flash`
+- `minimax/minimax-m3`
+
+Useful flags:
+
+- `--models model-a,model-b`
+- `--run-label reality-2026-06-17-model-comparison`
+- `--output-dir docs/benchmarks/runs`
+- `--scenarios prelaunch-knee-pain-safety`
+- `--keep-data`
