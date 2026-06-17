@@ -24,8 +24,10 @@ export type RealityBenchmarkCliConfig = {
   scenarioIds: string[];
   allowDbMutation: boolean;
   keepData: boolean;
+  modelConcurrency: number;
   judge: boolean;
   judgeModels: string[];
+  judgeConcurrency: number;
   judgeExistingPath: string | null;
   rescoreHeuristic: boolean;
 };
@@ -44,8 +46,10 @@ export function parseRealityBenchmarkArgs(
     scenarioIds: [],
     allowDbMutation: false,
     keepData: false,
+    modelConcurrency: 1,
     judge: false,
     judgeModels: [...DEFAULT_REALITY_JUDGE_MODELS],
+    judgeConcurrency: 1,
     judgeExistingPath: null,
     rescoreHeuristic: false,
   };
@@ -70,6 +74,38 @@ export function parseRealityBenchmarkArgs(
 
     if (arg === "--judge") {
       config.judge = true;
+      continue;
+    }
+
+    if (arg.startsWith("--model-concurrency=")) {
+      config.modelConcurrency = parsePositiveInteger(
+        arg.slice("--model-concurrency=".length),
+        "--model-concurrency",
+      );
+      continue;
+    }
+
+    if (arg === "--model-concurrency") {
+      config.modelConcurrency = parsePositiveInteger(
+        readNextValue(argv, ++i, arg),
+        arg,
+      );
+      continue;
+    }
+
+    if (arg.startsWith("--judge-concurrency=")) {
+      config.judgeConcurrency = parsePositiveInteger(
+        arg.slice("--judge-concurrency=".length),
+        "--judge-concurrency",
+      );
+      continue;
+    }
+
+    if (arg === "--judge-concurrency") {
+      config.judgeConcurrency = parsePositiveInteger(
+        readNextValue(argv, ++i, arg),
+        arg,
+      );
       continue;
     }
 
@@ -389,9 +425,11 @@ Options:
   --run-label <label>        Label used in DB metadata and output filenames.
   --output-dir <path>        Directory for JSON and Markdown reports.
   --scenarios <ids>          Comma-separated scenario ids for a partial run.
+  --model-concurrency <n>    Number of candidate models to run in parallel. Default: 1.
   --judge                    Add LLM-as-a-judge scoring after candidate run.
   --judge-existing <path>    Add judge scores to an existing JSON run without DB mutation.
   --judge-models <ids>       Exactly two comma-separated judge model ids.
+  --judge-concurrency <n>    Number of judge calls to run in parallel. Default: 1.
   --rescore-heuristic        Recompute current heuristic scores before judging an existing run.
   --allow-db-mutation        Required unless ${REALITY_BENCHMARK_DB_MUTATION_ENV}=1.
   --keep-data                Do not delete benchmark users/chats after the run.
@@ -409,6 +447,15 @@ function parseList(value: string, flag: string) {
   }
 
   return items;
+}
+
+function parsePositiveInteger(value: string, flag: string) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${flag} requires a positive integer.`);
+  }
+
+  return parsed;
 }
 
 function readNextValue(argv: string[], index: number, flag: string) {

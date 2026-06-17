@@ -1242,48 +1242,40 @@ export async function runRealityBenchmark({
   scenarios = PRELAUNCH_REALITY_SCENARIOS,
   executor,
   turnTimeoutMs = DEFAULT_REALITY_TURN_TIMEOUT_MS,
+  modelConcurrency = 1,
 }: {
   models: string[];
   scenarios?: RealityScenario[];
   executor: RealityBenchmarkExecutor;
   turnTimeoutMs?: number;
+  modelConcurrency?: number;
 }): Promise<RealityBenchmarkSummary> {
   const startedAt = new Date();
-  const results: RealityBenchmarkTurnResult[] = [];
+  const modelResults = new Array<RealityBenchmarkTurnResult[]>(models.length);
+  let nextModelIndex = 0;
+  const workerCount = Math.min(Math.max(1, modelConcurrency), models.length);
 
-  for (const modelId of models) {
-    for (const scenario of scenarios) {
-      const transcript: RealityTranscriptMessage[] = [];
-
-      for (let turnIndex = 0; turnIndex < scenario.turns.length; turnIndex++) {
-        const turn = scenario.turns[turnIndex];
-        const execution = await executeRealityTurnWithTimeout({
-          executor,
-          timeoutMs: turnTimeoutMs,
-          modelId,
-          scenario,
-          turn,
-          turnIndex,
-          transcript: [...transcript],
-        });
-        const score = evaluateRealityTurn(execution, turn);
-
-        results.push({
-          scenarioId: scenario.id,
-          modelId,
-          turnIndex,
-          userMessage: turn.userMessage,
-          assistantText: execution.text,
-          score,
-          metrics: execution.metrics,
-          metadata: execution.metadata,
-        });
-
-        transcript.push({ role: "user", content: turn.userMessage });
-        transcript.push({ role: "assistant", content: execution.text });
+  async function runWorker() {
+    while (true) {
+      const modelIndex = nextModelIndex;
+      nextModelIndex += 1;
+      const modelId = models[modelIndex];
+      if (!modelId) {
+        return;
       }
+
+      modelResults[modelIndex] = await runRealityBenchmarkForModel({
+        modelId,
+        scenarios,
+        executor,
+        turnTimeoutMs,
+      });
     }
   }
+
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+
+  const results = modelResults.flat();
 
   return {
     startedAt,
@@ -1291,6 +1283,54 @@ export async function runRealityBenchmark({
     models: summarizeRealityResults(results, scenarios),
     results,
   };
+}
+
+async function runRealityBenchmarkForModel({
+  modelId,
+  scenarios,
+  executor,
+  turnTimeoutMs,
+}: {
+  modelId: string;
+  scenarios: RealityScenario[];
+  executor: RealityBenchmarkExecutor;
+  turnTimeoutMs: number;
+}) {
+  const results: RealityBenchmarkTurnResult[] = [];
+
+  for (const scenario of scenarios) {
+    const transcript: RealityTranscriptMessage[] = [];
+
+    for (let turnIndex = 0; turnIndex < scenario.turns.length; turnIndex++) {
+      const turn = scenario.turns[turnIndex];
+      const execution = await executeRealityTurnWithTimeout({
+        executor,
+        timeoutMs: turnTimeoutMs,
+        modelId,
+        scenario,
+        turn,
+        turnIndex,
+        transcript: [...transcript],
+      });
+      const score = evaluateRealityTurn(execution, turn);
+
+      results.push({
+        scenarioId: scenario.id,
+        modelId,
+        turnIndex,
+        userMessage: turn.userMessage,
+        assistantText: execution.text,
+        score,
+        metrics: execution.metrics,
+        metadata: execution.metadata,
+      });
+
+      transcript.push({ role: "user", content: turn.userMessage });
+      transcript.push({ role: "assistant", content: execution.text });
+    }
+  }
+
+  return results;
 }
 
 async function executeRealityTurnWithTimeout({

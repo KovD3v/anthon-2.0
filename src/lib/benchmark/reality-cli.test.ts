@@ -32,6 +32,9 @@ describe("benchmark/reality-cli", () => {
       "--judge",
       "--judge-models",
       "judge-a, judge-b",
+      "--model-concurrency=3",
+      "--judge-concurrency",
+      "4",
       "--allow-db-mutation",
       "--keep-data",
     ]);
@@ -43,9 +46,20 @@ describe("benchmark/reality-cli", () => {
       scenarioIds: ["scenario-a", "scenario-b"],
       judge: true,
       judgeModels: ["judge-a", "judge-b"],
+      modelConcurrency: 3,
+      judgeConcurrency: 4,
       allowDbMutation: true,
       keepData: true,
     });
+  });
+
+  it("rejects invalid concurrency values", () => {
+    expect(() =>
+      parseRealityBenchmarkArgs(["--model-concurrency", "0"]),
+    ).toThrow(/positive integer/);
+    expect(() => parseRealityBenchmarkArgs(["--judge-concurrency=-1"])).toThrow(
+      /positive integer/,
+    );
   });
 
   it("parses judge-existing without requiring DB mutation approval", () => {

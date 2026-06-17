@@ -100,11 +100,15 @@ export async function judgeRealityBenchmarkSummary({
   summary,
   scenarios,
   judgeModels = DEFAULT_REALITY_JUDGE_MODELS,
+  judgeConcurrency = 1,
+  judgeTurnExecutor = judgeRealityTurn,
   onProgress,
 }: {
   summary: RealityBenchmarkSummary;
   scenarios: RealityScenario[];
   judgeModels?: string[];
+  judgeConcurrency?: number;
+  judgeTurnExecutor?: typeof judgeRealityTurn;
   onProgress?: (progress: {
     completed: number;
     total: number;
@@ -116,7 +120,17 @@ export async function judgeRealityBenchmarkSummary({
   const scenarioById = new Map(
     scenarios.map((scenario) => [scenario.id, scenario]),
   );
-  const judgeResults: RealityJudgeTurnResult[] = [];
+  const judgeByTurn = new Map<
+    string,
+    { result: RealityBenchmarkTurnResult; judges: RealityJudgeModelScore[] }
+  >();
+  const judgeJobs: Array<{
+    result: RealityBenchmarkTurnResult;
+    judgeModelId: string;
+    scenario: RealityScenario;
+    turn: RealityScenarioTurn;
+    transcript: RealityTranscriptMessage[];
+  }> = [];
   const total = summary.results.length;
 
   for (const result of summary.results) {
@@ -134,31 +148,84 @@ export async function judgeRealityBenchmarkSummary({
     }
 
     const transcript = buildTranscriptForResult(summary.results, result);
-    const judges = await Promise.all(
-      judgeModels.map((judgeModelId) =>
-        judgeRealityTurn({
-          judgeModelId,
-          scenario,
-          turn,
-          turnIndex: result.turnIndex,
-          transcript,
-          candidateAnswer: result.assistantText,
-        }),
-      ),
-    );
+    judgeByTurn.set(turnKey(result), {
+      result,
+      judges: [],
+    });
+    for (const judgeModelId of judgeModels) {
+      judgeJobs.push({
+        result,
+        judgeModelId,
+        scenario,
+        turn,
+        transcript,
+      });
+    }
+  }
 
-    judgeResults.push({
+  let nextJobIndex = 0;
+  let completedTurns = 0;
+  const workerCount = Math.min(Math.max(1, judgeConcurrency), judgeJobs.length);
+  const judgeModelOrder = new Map(
+    judgeModels.map((judgeModelId, index) => [judgeModelId, index]),
+  );
+
+  async function runWorker() {
+    while (true) {
+      const jobIndex = nextJobIndex;
+      nextJobIndex += 1;
+      const job = judgeJobs[jobIndex];
+      if (!job) {
+        return;
+      }
+
+      const judge = await judgeTurnExecutor({
+        judgeModelId: job.judgeModelId,
+        scenario: job.scenario,
+        turn: job.turn,
+        turnIndex: job.result.turnIndex,
+        transcript: job.transcript,
+        candidateAnswer: job.result.assistantText,
+      });
+      const turnJudges = judgeByTurn.get(turnKey(job.result));
+      if (!turnJudges) {
+        throw new Error(
+          `Missing judge result bucket for ${turnKey(job.result)}`,
+        );
+      }
+
+      turnJudges.judges.push(judge);
+      if (turnJudges.judges.length === judgeModels.length) {
+        turnJudges.judges.sort(
+          (a, b) =>
+            (judgeModelOrder.get(a.judgeModelId) ?? 0) -
+            (judgeModelOrder.get(b.judgeModelId) ?? 0),
+        );
+        completedTurns += 1;
+        onProgress?.({
+          completed: completedTurns,
+          total,
+          result: turnJudges.result,
+        });
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+
+  const judgeResults = summary.results.map((result) => {
+    const turnJudges = judgeByTurn.get(turnKey(result));
+    if (!turnJudges || turnJudges.judges.length !== judgeModels.length) {
+      throw new Error(`Incomplete judge scores for ${turnKey(result)}`);
+    }
+
+    return {
       scenarioId: result.scenarioId,
       modelId: result.modelId,
       turnIndex: result.turnIndex,
-      judges,
-    });
-    onProgress?.({
-      completed: judgeResults.length,
-      total,
-      result,
-    });
-  }
+      judges: turnJudges.judges,
+    };
+  });
 
   return aggregateRealityJudgeScores(summary, judgeResults);
 }

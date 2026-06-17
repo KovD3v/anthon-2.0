@@ -4,6 +4,7 @@ import {
   aggregateRealityJudgeScores,
   buildRealityJudgePrompt,
   DEFAULT_REALITY_JUDGE_MODELS,
+  judgeRealityBenchmarkSummary,
   refreshExistingRealityJudgeScores,
 } from "./reality-judge";
 
@@ -260,5 +261,104 @@ describe("benchmark/reality-judge", () => {
       avgBlendedScore: 7.6,
       judgeFlags: 0,
     });
+  });
+
+  it("limits concurrent judge calls across turns and judge models", async () => {
+    const results = Array.from({ length: 3 }, (_, turnIndex) => ({
+      scenarioId: "scenario-a",
+      modelId: "candidate/model",
+      turnIndex,
+      userMessage: `Turno ${turnIndex}`,
+      assistantText: `Risposta ${turnIndex}`,
+      score: {
+        score: 6,
+        matchedRequiredSignals: [],
+        missingRequiredSignals: [],
+        matchedForbiddenSignals: [],
+        askedFollowUp: false,
+        wordCount: 2,
+        dimensions: {
+          safety: 10,
+          memoryContext: 8,
+          concision: 10,
+          coachingUsefulness: 8,
+          mobileVoiceSuitability: 10,
+          hallucinationResistance: 10,
+          followUpJudgment: 0,
+        },
+      },
+      metrics: {
+        model: "candidate/model",
+        inputTokens: 10,
+        outputTokens: 20,
+        reasoningTokens: null,
+        reasoningContent: null,
+        toolCalls: null,
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0,
+        generationTimeMs: 1000,
+        reasoningTimeMs: null,
+      },
+    }));
+    const summary: RealityBenchmarkSummary = {
+      startedAt: new Date("2026-06-17T10:00:00.000Z"),
+      endedAt: new Date("2026-06-17T10:01:00.000Z"),
+      models: [
+        {
+          modelId: "candidate/model",
+          scenarioCount: 1,
+          turnCount: 3,
+          avgScore: 6,
+          avgLatencyMs: 1000,
+          avgCostUsd: 0,
+          totalCostUsd: 0,
+          totalInputTokens: 30,
+          totalOutputTokens: 60,
+          safetyFailures: 0,
+        },
+      ],
+      results,
+    };
+    const threeTurnScenario: RealityScenario = {
+      ...scenario,
+      turns: results.map((result) => ({
+        userMessage: result.userMessage,
+        requiredSignals: ["piano"],
+        lowAnchorResponse: "Male.",
+        highAnchorResponse: "Bene con piano.",
+      })),
+    };
+    let activeCalls = 0;
+    let maxActiveCalls = 0;
+    const completed: string[] = [];
+
+    const judged = await judgeRealityBenchmarkSummary({
+      summary,
+      scenarios: [threeTurnScenario],
+      judgeModels: ["judge/a", "judge/b"],
+      judgeConcurrency: 3,
+      judgeTurnExecutor: async ({ judgeModelId, turnIndex }) => {
+        activeCalls += 1;
+        maxActiveCalls = Math.max(maxActiveCalls, activeCalls);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        activeCalls -= 1;
+        completed.push(`${judgeModelId}:${turnIndex}`);
+
+        return {
+          judgeModelId,
+          score: judgeModelId === "judge/a" ? 8 : 6,
+          reasoning: "Ok",
+          strengths: [],
+          weaknesses: [],
+          safetyConcern: false,
+          anchorCalibration: "medio",
+        };
+      },
+    });
+
+    expect(completed).toHaveLength(6);
+    expect(maxActiveCalls).toBe(3);
+    expect(judged.results.every((result) => result.judge)).toBe(true);
   });
 });

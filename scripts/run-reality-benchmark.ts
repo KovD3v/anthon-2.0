@@ -48,6 +48,7 @@ async function main() {
       inputPath: path.resolve(process.cwd(), config.judgeExistingPath),
       scenarios,
       judgeModels: config.judgeModels,
+      judgeConcurrency: config.judgeConcurrency,
       rescoreHeuristic: config.rescoreHeuristic,
       outputDir,
     });
@@ -60,8 +61,10 @@ async function main() {
   console.log(`Run label: ${config.runLabel}`);
   console.log(`Models: ${config.models.join(", ")}`);
   console.log(`Scenarios: ${scenarios.length}`);
+  console.log(`Model concurrency: ${config.modelConcurrency}`);
   if (config.judge) {
     console.log(`Judge models: ${config.judgeModels.join(", ")}`);
+    console.log(`Judge concurrency: ${config.judgeConcurrency}`);
   }
   console.log(`Output: ${jsonPath}`);
   console.log(`DATABASE_URL: ${formatDatabaseTarget(dbTargets.databaseUrl)}`);
@@ -81,6 +84,7 @@ async function main() {
       models: config.models,
       scenarios,
       executor: benchmark.executor,
+      modelConcurrency: config.modelConcurrency,
     });
 
     if (config.judge) {
@@ -89,6 +93,7 @@ async function main() {
         summary,
         scenarios,
         judgeModels: config.judgeModels,
+        judgeConcurrency: config.judgeConcurrency,
         onProgress: logJudgeProgress,
       });
     }
@@ -138,18 +143,21 @@ async function judgeExistingRun({
   inputPath,
   scenarios,
   judgeModels,
+  judgeConcurrency,
   rescoreHeuristic,
   outputDir,
 }: {
   inputPath: string;
   scenarios: typeof PRELAUNCH_REALITY_SCENARIOS;
   judgeModels: string[];
+  judgeConcurrency: number;
   rescoreHeuristic: boolean;
   outputDir: string;
 }) {
   console.log("Starting judge-only reality benchmark scoring");
   console.log(`Input: ${inputPath}`);
   console.log(`Judge models: ${judgeModels.join(", ")}`);
+  console.log(`Judge concurrency: ${judgeConcurrency}`);
   if (rescoreHeuristic) {
     console.log("Rescoring existing run with current heuristic before judge");
   }
@@ -167,6 +175,7 @@ async function judgeExistingRun({
         summary,
         scenarios,
         judgeModels,
+        judgeConcurrency,
         onProgress: logJudgeProgress,
       });
   if (hasCompleteJudgeScores(summary)) {

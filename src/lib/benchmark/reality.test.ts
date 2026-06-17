@@ -308,6 +308,82 @@ describe("benchmark/reality", () => {
     });
   });
 
+  it("can run candidate models concurrently while preserving per-model transcript order", async () => {
+    let activeCalls = 0;
+    let maxActiveCalls = 0;
+    const seenTurnsByModel = new Map<string, number[]>();
+    const executor = vi.fn(
+      async ({
+        modelId,
+        turnIndex,
+        transcript,
+      }: Parameters<
+        Parameters<typeof runRealityBenchmark>[0]["executor"]
+      >[0]) => {
+        activeCalls += 1;
+        maxActiveCalls = Math.max(maxActiveCalls, activeCalls);
+        seenTurnsByModel.set(modelId, [
+          ...(seenTurnsByModel.get(modelId) ?? []),
+          turnIndex,
+        ]);
+
+        expect(transcript).toHaveLength(turnIndex * 2);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        activeCalls -= 1;
+
+        return {
+          text: `${modelId} turn ${turnIndex} con piano?`,
+          metrics: {
+            model: modelId,
+            inputTokens: 10,
+            outputTokens: 20,
+            reasoningTokens: null,
+            reasoningContent: null,
+            toolCalls: null,
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0.001,
+            generationTimeMs: 1000,
+            reasoningTimeMs: null,
+          },
+        };
+      },
+    );
+
+    const summary = await runRealityBenchmark({
+      models: ["model-a", "model-b"],
+      scenarios: [
+        {
+          id: "scenario-1",
+          title: "Scenario",
+          persona: "Atleta",
+          tags: ["memory"],
+          setup: {},
+          turns: [
+            {
+              userMessage: "Prima domanda",
+              requiredSignals: ["piano"],
+            },
+            {
+              userMessage: "Seconda domanda",
+              requiredSignals: ["piano"],
+            },
+          ],
+        },
+      ],
+      modelConcurrency: 2,
+      executor,
+    });
+
+    expect(maxActiveCalls).toBeGreaterThan(1);
+    expect(seenTurnsByModel.get("model-a")).toEqual([0, 1]);
+    expect(seenTurnsByModel.get("model-b")).toEqual([0, 1]);
+    expect(summary.models.map((model) => model.modelId)).toEqual([
+      "model-a",
+      "model-b",
+    ]);
+  });
+
   it("records a benchmark error turn when a candidate call times out", async () => {
     const summary = await runRealityBenchmark({
       models: ["model-a"],
