@@ -27,6 +27,7 @@ export type RealityBenchmarkCliConfig = {
   judge: boolean;
   judgeModels: string[];
   judgeExistingPath: string | null;
+  rescoreHeuristic: boolean;
 };
 
 type Env = Record<string, string | undefined>;
@@ -46,6 +47,7 @@ export function parseRealityBenchmarkArgs(
     judge: false,
     judgeModels: [...DEFAULT_REALITY_JUDGE_MODELS],
     judgeExistingPath: null,
+    rescoreHeuristic: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -68,6 +70,11 @@ export function parseRealityBenchmarkArgs(
 
     if (arg === "--judge") {
       config.judge = true;
+      continue;
+    }
+
+    if (arg === "--rescore-heuristic") {
+      config.rescoreHeuristic = true;
       continue;
     }
 
@@ -296,6 +303,33 @@ export function formatRealityBenchmarkReport(
     }
   }
 
+  if (summary.models.some((model) => model.avgDimensions)) {
+    lines.push(
+      "",
+      "## Dimension Averages",
+      "",
+      "| Model | Safety | Memory/context | Concision | Coaching usefulness | Mobile/voice | Hallucination resistance | Follow-up judgment |",
+      "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    );
+
+    for (const model of summary.models) {
+      const dimensions = model.avgDimensions;
+      if (!dimensions) continue;
+      lines.push(
+        `${[
+          `| ${model.modelId}`,
+          formatNumber(dimensions.safety, 2),
+          formatNumber(dimensions.memoryContext, 2),
+          formatNumber(dimensions.concision, 2),
+          formatNumber(dimensions.coachingUsefulness, 2),
+          formatNumber(dimensions.mobileVoiceSuitability, 2),
+          formatNumber(dimensions.hallucinationResistance, 2),
+          formatNumber(dimensions.followUpJudgment, 2),
+        ].join(" | ")} |`,
+      );
+    }
+  }
+
   if (hasJudgeScores) {
     lines.push(
       "",
@@ -358,6 +392,7 @@ Options:
   --judge                    Add LLM-as-a-judge scoring after candidate run.
   --judge-existing <path>    Add judge scores to an existing JSON run without DB mutation.
   --judge-models <ids>       Exactly two comma-separated judge model ids.
+  --rescore-heuristic        Recompute current heuristic scores before judging an existing run.
   --allow-db-mutation        Required unless ${REALITY_BENCHMARK_DB_MUTATION_ENV}=1.
   --keep-data                Do not delete benchmark users/chats after the run.
   --help                     Show this help.

@@ -43,6 +43,13 @@ Scoring:
   then blends semantic judge consensus with heuristic score:
   `0.7 * judgeConsensusScore + 0.3 * heuristicScore`.
 - Judge disagreement above 2 points is flagged for review.
+- Each heuristic turn score also emits diagnostic dimensions:
+  `safety`, `memoryContext`, `concision`, `coachingUsefulness`,
+  `mobileVoiceSuitability`, `hallucinationResistance`, and
+  `followUpJudgment`.
+- When judging an older JSON run, use `--rescore-heuristic` to recompute the
+  current heuristic before blending. This avoids reports where the judge score
+  is current but the heuristic score is stale.
 
 Default judge models:
 
@@ -56,9 +63,11 @@ judging candidate model outputs.
 Dataset:
 
 - `PRELAUNCH_REALITY_SCENARIOS`
-- 6 curated scenarios.
+- 20 curated scenarios.
 - At least 2 turns per scenario.
-- Coverage: onboarding, memory, safety, parent, coach, motivation, voice.
+- Coverage: onboarding, memory, safety, parent, coach, motivation, voice,
+  mobile brevity, false capability claims, uncertainty, recovery/load, and
+  cases where the model should ask for missing context before advising.
 
 Runner:
 
@@ -111,6 +120,13 @@ To judge an existing JSON run without DB mutation:
 bun run scripts/run-reality-benchmark.ts --judge-existing docs/benchmarks/runs/reality-2026-06-17-model-comparison.json
 ```
 
+To judge an existing JSON run and recompute the official blended score with the
+current heuristic first:
+
+```bash
+bun run scripts/run-reality-benchmark.ts --judge-existing docs/benchmarks/runs/reality-2026-06-17-model-comparison.json --rescore-heuristic
+```
+
 Current candidate-model default:
 
 - `openai/gpt-chat-latest`
@@ -129,4 +145,5 @@ Useful flags:
 - `--judge`
 - `--judge-existing docs/benchmarks/runs/run.json`
 - `--judge-models anthropic/claude-opus-4.6,openai/gpt-5.5`
+- `--rescore-heuristic`
 - `--keep-data`

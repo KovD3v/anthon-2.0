@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   createDatabaseBackedRealityExecutor,
   PRELAUNCH_REALITY_SCENARIOS,
+  rescoreRealityBenchmarkSummary,
   runRealityBenchmark,
 } from "../src/lib/benchmark/reality";
 import {
@@ -44,6 +45,7 @@ async function main() {
       inputPath: path.resolve(process.cwd(), config.judgeExistingPath),
       scenarios,
       judgeModels: config.judgeModels,
+      rescoreHeuristic: config.rescoreHeuristic,
       outputDir,
     });
     return;
@@ -133,19 +135,29 @@ async function judgeExistingRun({
   inputPath,
   scenarios,
   judgeModels,
+  rescoreHeuristic,
   outputDir,
 }: {
   inputPath: string;
   scenarios: typeof PRELAUNCH_REALITY_SCENARIOS;
   judgeModels: string[];
+  rescoreHeuristic: boolean;
   outputDir: string;
 }) {
   console.log("Starting judge-only reality benchmark scoring");
   console.log(`Input: ${inputPath}`);
   console.log(`Judge models: ${judgeModels.join(", ")}`);
+  if (rescoreHeuristic) {
+    console.log("Rescoring existing run with current heuristic before judge");
+  }
 
   const input = JSON.parse(await readFile(inputPath, "utf8"));
-  const summary = deserializeRealityBenchmarkSummary(input);
+  const summary = rescoreHeuristic
+    ? rescoreRealityBenchmarkSummary(
+        deserializeRealityBenchmarkSummary(input),
+        scenarios,
+      )
+    : deserializeRealityBenchmarkSummary(input);
   const judgedSummary = await judgeRealityBenchmarkSummary({
     summary,
     scenarios,

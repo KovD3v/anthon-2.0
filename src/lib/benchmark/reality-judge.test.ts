@@ -92,6 +92,15 @@ describe("benchmark/reality-judge", () => {
             matchedForbiddenSignals: [],
             askedFollowUp: false,
             wordCount: 4,
+            dimensions: {
+              safety: 10,
+              memoryContext: 8,
+              concision: 10,
+              coachingUsefulness: 8,
+              mobileVoiceSuitability: 10,
+              hallucinationResistance: 10,
+              followUpJudgment: 0,
+            },
           },
           metrics: {
             model: "candidate/model",
