@@ -19,9 +19,11 @@ export const DEFAULT_REALITY_JUDGE_MODELS = [
 export const REALITY_JUDGE_DISAGREEMENT_THRESHOLD = 2;
 export const REALITY_JUDGE_WEIGHT = 0.7;
 export const REALITY_HEURISTIC_WEIGHT = 0.3;
+const REALITY_JUDGE_TIMEOUT_MS = 120_000;
+const REALITY_JUDGE_MAX_ATTEMPTS = 2;
 
 const RealityJudgeOutputSchema = z.object({
-  score: z.number().min(0).max(10),
+  score: z.number(),
   reasoning: z.string(),
   strengths: z.array(z.string()),
   weaknesses: z.array(z.string()),
@@ -98,10 +100,16 @@ export async function judgeRealityBenchmarkSummary({
   summary,
   scenarios,
   judgeModels = DEFAULT_REALITY_JUDGE_MODELS,
+  onProgress,
 }: {
   summary: RealityBenchmarkSummary;
   scenarios: RealityScenario[];
   judgeModels?: string[];
+  onProgress?: (progress: {
+    completed: number;
+    total: number;
+    result: RealityBenchmarkTurnResult;
+  }) => void;
 }) {
   assertTwoJudgeModels(judgeModels);
 
@@ -109,6 +117,7 @@ export async function judgeRealityBenchmarkSummary({
     scenarios.map((scenario) => [scenario.id, scenario]),
   );
   const judgeResults: RealityJudgeTurnResult[] = [];
+  const total = summary.results.length;
 
   for (const result of summary.results) {
     const scenario = scenarioById.get(result.scenarioId);
@@ -144,6 +153,11 @@ export async function judgeRealityBenchmarkSummary({
       turnIndex: result.turnIndex,
       judges,
     });
+    onProgress?.({
+      completed: judgeResults.length,
+      total,
+      result,
+    });
   }
 
   return aggregateRealityJudgeScores(summary, judgeResults);
@@ -164,20 +178,35 @@ export async function judgeRealityTurn({
   transcript: RealityTranscriptMessage[];
   candidateAnswer: string;
 }): Promise<RealityJudgeModelScore> {
-  const { output } = await generateText({
-    model: openrouter(judgeModelId),
-    output: Output.object({ schema: RealityJudgeOutputSchema }),
-    system:
-      "Sei un giudice severo e calibrato di risposte AI per coaching sportivo. Valuti solo la risposta candidata rispetto agli anchor e al contesto.",
-    prompt: buildRealityJudgePrompt({
-      scenario,
-      turn,
-      turnIndex,
-      transcript,
-      candidateAnswer,
-    }),
-    temperature: 0,
+  const prompt = buildRealityJudgePrompt({
+    scenario,
+    turn,
+    turnIndex,
+    transcript,
+    candidateAnswer,
   });
+
+  const { output } = await retryJudgeCall(async () => {
+    const abortController = new AbortController();
+    const timeout = setTimeout(
+      () => abortController.abort(),
+      REALITY_JUDGE_TIMEOUT_MS,
+    );
+
+    try {
+      return await generateText({
+        model: openrouter(judgeModelId),
+        output: Output.object({ schema: RealityJudgeOutputSchema }),
+        system:
+          "Sei un giudice severo e calibrato di risposte AI per coaching sportivo. Valuti solo la risposta candidata rispetto agli anchor e al contesto.",
+        prompt,
+        temperature: 0,
+        abortSignal: abortController.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }, judgeModelId);
 
   return {
     judgeModelId,
@@ -189,6 +218,30 @@ export async function judgeRealityTurn({
     anchorCalibration:
       output?.anchorCalibration ?? "Judge failed to return calibration.",
   };
+}
+
+async function retryJudgeCall<T>(
+  call: () => Promise<T>,
+  judgeModelId: string,
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= REALITY_JUDGE_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await call();
+    } catch (error) {
+      lastError = error;
+      if (attempt === REALITY_JUDGE_MAX_ATTEMPTS) {
+        break;
+      }
+    }
+  }
+
+  throw new Error(
+    `Reality judge ${judgeModelId} failed after ${REALITY_JUDGE_MAX_ATTEMPTS} attempts: ${formatJudgeError(
+      lastError,
+    )}`,
+  );
 }
 
 export function aggregateRealityJudgeScores(
@@ -331,4 +384,12 @@ function average(values: number[]) {
 
 function roundScore(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+function formatJudgeError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
 }

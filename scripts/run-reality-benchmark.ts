@@ -84,6 +84,7 @@ async function main() {
         summary,
         scenarios,
         judgeModels: config.judgeModels,
+        onProgress: logJudgeProgress,
       });
     }
 
@@ -149,6 +150,7 @@ async function judgeExistingRun({
     summary,
     scenarios,
     judgeModels,
+    onProgress: logJudgeProgress,
   });
   const inputBase = path.basename(inputPath, path.extname(inputPath));
   const outputBase = `${sanitizeFileSegment(inputBase)}-judged`;
@@ -198,6 +200,24 @@ function formatDatabaseTarget(
   }
 
   return `set host=${target.host} db=${target.database ?? ""}`;
+}
+
+function logJudgeProgress({
+  completed,
+  total,
+  result,
+}: {
+  completed: number;
+  total: number;
+  result: {
+    modelId: string;
+    scenarioId: string;
+    turnIndex: number;
+  };
+}) {
+  console.log(
+    `Judged ${completed}/${total}: ${result.modelId} ${result.scenarioId}#${result.turnIndex}`,
+  );
 }
 
 main().catch((error) => {
