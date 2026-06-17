@@ -12,7 +12,9 @@ describe("plans/snapshot", () => {
 
     expect(snapshot.personalPlan).toBe("BASIC_PLUS");
     expect(snapshot.effective.plan).toBe("BASIC_PLUS");
-    expect(snapshot.policies.modelRouting.orchestrator).toBe("z-ai/glm-4.7");
+    expect(snapshot.policies.modelRouting.orchestrator).toBe(
+      "moonshotai/kimi-k2.7-code",
+    );
     expect(snapshot.policies.attachmentRetentionDays).toBe(60);
     expect(snapshot.policies.voice.maxPerWindow).toBe(20);
   });
@@ -39,7 +41,9 @@ describe("plans/snapshot", () => {
     });
 
     expect(snapshot.effective.modelTier).toBe("ENTERPRISE");
-    expect(snapshot.policies.modelRouting.orchestrator).toBe("z-ai/glm-4.7");
+    expect(snapshot.policies.modelRouting.orchestrator).toBe(
+      "moonshotai/kimi-k2.7-code",
+    );
     expect(snapshot.policies.voice.maxPerWindow).toBe(50);
   });
 

@@ -18,7 +18,7 @@ interface PlanCatalogEntry {
 }
 
 const MAINTENANCE_MODEL_ID = "google/gemini-2.5-flash-lite";
-const ORCHESTRATOR_MODEL_ID = "z-ai/glm-4.7";
+const ORCHESTRATOR_MODEL_ID = "moonshotai/kimi-k2.7-code";
 
 export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
   GUEST: {

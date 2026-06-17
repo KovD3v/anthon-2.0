@@ -60,7 +60,7 @@ describe("ai/providers/openrouter", () => {
     const { getModelIdForPlan } = await import("./openrouter");
 
     expect(getModelIdForPlan(null, undefined, "orchestrator")).toBe(
-      "z-ai/glm-4.7",
+      "moonshotai/kimi-k2.7-code",
     );
     expect(
       getModelIdForPlan(
@@ -70,7 +70,7 @@ describe("ai/providers/openrouter", () => {
         undefined,
         "ACTIVE",
       ),
-    ).toBe("z-ai/glm-4.7");
+    ).toBe("moonshotai/kimi-k2.7-code");
     expect(
       getModelIdForPlan(
         "my-basic_plus-plan",
@@ -88,7 +88,7 @@ describe("ai/providers/openrouter", () => {
         undefined,
         "ACTIVE",
       ),
-    ).toBe("z-ai/glm-4.7");
+    ).toBe("moonshotai/kimi-k2.7-code");
     expect(
       getModelIdForPlan(
         "my-pro-plan",
@@ -97,7 +97,7 @@ describe("ai/providers/openrouter", () => {
         undefined,
         "ACTIVE",
       ),
-    ).toBe("z-ai/glm-4.7");
+    ).toBe("moonshotai/kimi-k2.7-code");
     expect(
       getModelIdForPlan(
         "my-pro-plan",
@@ -106,7 +106,7 @@ describe("ai/providers/openrouter", () => {
         "BASIC",
         "ACTIVE",
       ),
-    ).toBe("z-ai/glm-4.7");
+    ).toBe("moonshotai/kimi-k2.7-code");
     expect(
       getModelIdForPlan(
         "my-basic-plan",
@@ -115,7 +115,7 @@ describe("ai/providers/openrouter", () => {
         "PRO",
         "ACTIVE",
       ),
-    ).toBe("z-ai/glm-4.7");
+    ).toBe("moonshotai/kimi-k2.7-code");
   });
 
   it("throws when active subscription has invalid planId", async () => {
@@ -173,10 +173,10 @@ describe("ai/providers/openrouter", () => {
       "ACTIVE",
     );
 
-    expect(mocks.provider).toHaveBeenCalledWith("z-ai/glm-4.7");
+    expect(mocks.provider).toHaveBeenCalledWith("moonshotai/kimi-k2.7-code");
     expect(mocks.wrapLanguageModel).not.toHaveBeenCalled();
     expect(model).toEqual({
-      modelId: "z-ai/glm-4.7",
+      modelId: "moonshotai/kimi-k2.7-code",
     });
   });
 
