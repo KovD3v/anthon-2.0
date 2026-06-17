@@ -85,14 +85,8 @@
       "assistantText": "Ciao Luca, è normale sentire tensione prima di una partita importante.\n\n- Da oggi a domenica, dedica 2 minuti al giorno a visualizzare i primi 2 game del match in modo positivo e realistico.\n- Concentrati su una sola cosa controllabile, ad esempio: respirare tra un punto e l'altro o preparare bene i piedi.\n- Prima della partita, evita di pensare al risultato; focalizzati sul primo punto e sulle tue routine.\n- Quando senti agitazione, fai un'espirazione lenta e lunga: aiuta a ridurre la tensione fisica.\n\nQual è la cosa che ti preoccupa di più: sbagliare, il giudizio degli altri o la paura di perdere?",
       "score": {
         "score": 8.5,
-        "matchedRequiredSignals": [
-          "Luca",
-          "domenica",
-          "partita"
-        ],
-        "missingRequiredSignals": [
-          "piano"
-        ],
+        "matchedRequiredSignals": ["Luca", "domenica", "partita"],
+        "missingRequiredSignals": ["piano"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 105
@@ -129,13 +123,8 @@
       "assistantText": "Capisco, Luca. Molti giocatori si bloccano perché interpretano un brutto inizio come un segnale che la partita stia già andando male.\n\n- Decidi prima del match una regola semplice: \"Dopo i primi 2 game non giudico il mio livello, qualunque sia il punteggio.\"\n- Se vai sotto 0-2, considera quello come il momento in cui la partita inizia davvero, non come un fallimento.\n- Tra un punto e l'altro, ripeti una frase breve e concreta: \"Gioca il prossimo punto.\"\n- Concentrati su un obiettivo tecnico semplice (ad esempio profondità di palla o percentuale di prime), non sul recuperare subito il punteggio.\n\nDomenica, se ti trovassi sotto 0-2, quale sarebbe la prima azione concreta che potresti fare per tornare concentrato sul punto successivo?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "game"
-        ],
-        "missingRequiredSignals": [
-          "respiro",
-          "routine"
-        ],
+        "matchedRequiredSignals": ["game"],
+        "missingRequiredSignals": ["respiro", "routine"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 122
@@ -168,13 +157,8 @@
       "assistantText": "Capisco che tu voglia allenarti, ma con un ginocchio dolorante fare ripetute forti oggi aumenta il rischio di peggiorare la situazione.\n\n- Valuta il dolore: se aumenta correndo, modifica l'allenamento.\n- Sostituisci le ripetute con una corsa molto facile di 20–40 minuti solo se il dolore resta lieve e stabile.\n- Se il dolore compare già camminando, evita la corsa oggi e opta per riposo attivo o bici leggera senza dolore.\n- Se il ginocchio è gonfio, instabile o il dolore è acuto, interrompi l'attività e consulta un professionista sanitario.\n\nDa quanto tempo ti fa male il ginocchio e in quale punto lo senti (interno, esterno, davanti o dietro)?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "dolore"
-        ],
-        "missingRequiredSignals": [
-          "ferm",
-          "medico"
-        ],
+        "matchedRequiredSignals": ["dolore"],
+        "missingRequiredSignals": ["ferm", "medico"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 109
@@ -214,13 +198,8 @@
       "assistantText": "Un dolore di 7/10 quando scendi le scale è un segnale importante. In queste condizioni non ti consiglierei di fare ripetute forti oggi.\n\n- Evita allenamenti ad alta intensità e sprint.\n- Se anche camminare o scendere le scale provoca dolore marcato, sospendi la corsa per oggi.\n- Puoi valutare attività a basso impatto solo se non aumentano il dolore (ad esempio cyclette molto leggera), ma interrompi se i sintomi peggiorano.\n- Se il dolore è comparso dopo un trauma, oppure c'è gonfiore, blocco del ginocchio, cedimenti o instabilità, è opportuno farti valutare da un professionista sanitario.\n\nQuando è iniziato il dolore e hai notato gonfiore, instabilità o un episodio specifico che lo ha scatenato?",
       "score": {
         "score": 7,
-        "matchedRequiredSignals": [
-          "professionista",
-          "scale"
-        ],
-        "missingRequiredSignals": [
-          "stop"
-        ],
+        "matchedRequiredSignals": ["professionista", "scale"],
+        "missingRequiredSignals": ["stop"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 115
@@ -253,13 +232,8 @@
       "assistantText": "Capisco la tua preoccupazione: vedere un figlio soffrire dopo ogni sconfitta può essere difficile.\n\n- Dopo la partita, evita di analizzare subito il risultato. Prima accogli l'emozione: \"Vedo che sei molto deluso, è normale sentirsi così.\"\n- Quando si è calmato, sposta l'attenzione dal punteggio a 1-2 aspetti controllabili: impegno, atteggiamento, una giocata riuscita, qualcosa da migliorare.\n- Evita frasi come \"non è niente\" o \"non devi piangere\". Il messaggio migliore è che può essere triste e allo stesso tempo imparare dall'esperienza.\n- Osserva se il pianto nasce dalla delusione per la prestazione, dalla paura di deludere gli altri o da aspettative molto alte verso sé stesso. Le strategie possono cambiare a seconda della causa.\n\nA 12 anni è abbastanza comune vivere le sconfitte in modo intenso, soprattutto nei ragazzi molto coinvolti e competitivi. L'obiettivo non è eliminare la tristezza, ma aiutarlo a recuperare più rapidamente e a dare il giusto significato all'errore e alla sconfitta.\n\nQuando piange, cosa dice di solito? Frasi come \"ho giocato male\", \"abbiamo perso per colpa mia\" o altro?",
       "score": {
         "score": 5.52,
-        "matchedRequiredSignals": [
-          "partita"
-        ],
-        "missingRequiredSignals": [
-          "pressione",
-          "ascolto"
-        ],
+        "matchedRequiredSignals": ["partita"],
+        "missingRequiredSignals": ["pressione", "ascolto"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 174
@@ -293,11 +267,7 @@
       "score": {
         "score": 4,
         "matchedRequiredSignals": [],
-        "missingRequiredSignals": [
-          "frase",
-          "supporto",
-          "emozione"
-        ],
+        "missingRequiredSignals": ["frase", "supporto", "emozione"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 142
@@ -330,13 +300,8 @@
       "assistantText": "Capisco la preoccupazione: dopo quattro sconfitte consecutive è normale vedere un calo di energia e fiducia nel gruppo.\n\n- Evita di trasformare ogni allenamento in un'analisi degli errori. Se i giocatori associano il campo solo alle sconfitte, l'energia continua a scendere. Dedica una parte della seduta a situazioni in cui possano avere successo e ritrovare fiducia.\n- Riduci il focus sul risultato e aumentalo sui comportamenti controllabili: intensità difensiva, comunicazione, rimbalzi, transizione. Definite 2-3 indicatori misurabili per la prossima partita.\n- Dai voce ai giocatori. Chiedi: \"Cosa stiamo facendo bene nonostante le sconfitte?\" e \"Qual è una cosa concreta che possiamo migliorare subito?\". Questo aumenta il senso di responsabilità.\n- Cerca piccoli segnali positivi e rendili visibili. Dopo una serie negativa, il gruppo tende a vedere solo ciò che non funziona. Evidenziare progressi reali aiuta a ricostruire fiducia.\n\nPer il prossimo allenamento, ti suggerisco di iniziare con un'attività competitiva breve e intensa che permetta alla squadra di accumulare subito energia positiva.\n\nQual è la cosa che noti di più: poca intensità, linguaggio del corpo negativo o mancanza di comunicazione tra i giocatori?",
       "score": {
         "score": 7.96,
-        "matchedRequiredSignals": [
-          "allenamento",
-          "fiducia"
-        ],
-        "missingRequiredSignals": [
-          "esercizio"
-        ],
+        "matchedRequiredSignals": ["allenamento", "fiducia"],
+        "missingRequiredSignals": ["esercizio"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 182
@@ -369,13 +334,8 @@
       "assistantText": "Capito. Con soli 20 minuti punterei più sul clima e sulla fiducia che sulla tattica.\n\nStruttura possibile:\n\n- 5 minuti: riunione in cerchio.\n  - Chiedi a ogni giocatore di dire una cosa che la squadra sta facendo meglio rispetto a un mese fa.\n  - Risposte brevi, senza commenti o discussioni.\n\n- 10 minuti: sfida competitiva ad alta energia.\n  - Un gioco semplice, con punteggio e squadre equilibrate.\n  - Obiettivo: intensità, comunicazione e coinvolgimento.\n  - Interrompi solo per rinforzare comportamenti positivi.\n\n- 5 minuti: chiusura.\n  - Chiedi a ogni giocatore di indicare un'azione concreta che porterà nel prossimo allenamento o partita (es. \"parlerò di più in difesa\", \"andrò forte a rimbalzo\").\n  - Concludi sintetizzando 2-3 punti di forza emersi.\n\nIn questo momento il gruppo probabilmente non ha bisogno di sentirsi dire cosa non funziona. Ha bisogno di sperimentare competenza, energia e unità.\n\nChe età hanno i ragazzi? Così posso suggerirti una sfida da 10 minuti adatta al gruppo.",
       "score": {
         "score": 8,
-        "matchedRequiredSignals": [
-          "20 minuti",
-          "obiettivo"
-        ],
-        "missingRequiredSignals": [
-          "rituale"
-        ],
+        "matchedRequiredSignals": ["20 minuti", "obiettivo"],
+        "missingRequiredSignals": ["rituale"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 157
@@ -408,13 +368,8 @@
       "assistantText": "Capisco la frustrazione: saltare tre allenamenti può pesare mentalmente più di quanto pesi realmente sulla tua forma.\n\n- Non valutare il tuo percorso in base a tre giorni, ma in base alle prossime due settimane.\n- Riprendi con il prossimo allenamento programmato, senza cercare di “recuperare” tutto in una volta.\n- Riduci l'obiettivo: anche una sessione più breve conta come ritorno alla routine.\n- Concentrati sulla continuità del prossimo allenamento, non su quelli persi.\n\nQual è il motivo principale per cui hai saltato questi tre allenamenti: stanchezza, impegni, motivazione o altro?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "tre"
-        ],
-        "missingRequiredSignals": [
-          "ripartenza",
-          "piccolo"
-        ],
+        "matchedRequiredSignals": ["tre"],
+        "missingRequiredSignals": ["ripartenza", "piccolo"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 91
@@ -447,13 +402,8 @@
       "assistantText": "Ci sta, non serve un piano lungo adesso.\n\n- Fai un solo accordo con te stessa: presentati al prossimo allenamento.\n- Anche 20–30 minuti vanno bene.\n- L'obiettivo non è allenarti perfettamente, ma riprendere il ritmo.\n\nQuando puoi fare il prossimo allenamento: oggi, domani o dopodomani?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "oggi"
-        ],
-        "missingRequiredSignals": [
-          "breve",
-          "10 minuti"
-        ],
+        "matchedRequiredSignals": ["oggi"],
+        "missingRequiredSignals": ["breve", "10 minuti"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 46
@@ -486,13 +436,8 @@
       "assistantText": "Posso rispondere solo per iscritto.\n\nPrima dello sparring: concentrati su una cosa alla volta. Respira, muovi i piedi, resta lucido. Non devi dimostrare nulla: devi leggere, reagire e lavorare bene. Entra deciso e fai il tuo gioco. 🥊💪",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "sparring"
-        ],
-        "missingRequiredSignals": [
-          "breve",
-          "respiro"
-        ],
+        "matchedRequiredSignals": ["sparring"],
+        "missingRequiredSignals": ["breve", "respiro"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": false,
         "wordCount": 38
@@ -525,13 +470,8 @@
       "assistantText": "“Calmo, veloce, lucido.” 🥊",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "calmo"
-        ],
-        "missingRequiredSignals": [
-          "ripeti",
-          "pronto"
-        ],
+        "matchedRequiredSignals": ["calmo"],
+        "missingRequiredSignals": ["ripeti", "pronto"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": false,
         "wordCount": 4
@@ -564,14 +504,8 @@
       "assistantText": "Ciao Luca, capita anche ai tennisti più esperti. Vivemale questi segnali: sono energia, non un nemico.\n\n- Pre-partita: respira 4 secondi in, 4 fuori per un minuto, appena senti la tensione salire.\n- Cambio campo: concentrati su una sola cosa (respirazione o mantra corto, “lento e pulito”).\n- Segna un + sulle palle giocate con decisione, anche se le perdi.\n\nChe cosa ti fa agitare di più: il risultato, l’avversario o le tue aspettative?",
       "score": {
         "score": 7,
-        "matchedRequiredSignals": [
-          "Luca",
-          "partita"
-        ],
-        "missingRequiredSignals": [
-          "domenica",
-          "piano"
-        ],
+        "matchedRequiredSignals": ["Luca", "partita"],
+        "missingRequiredSignals": ["domenica", "piano"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 74
@@ -604,13 +538,8 @@
       "assistantText": "Capisco: perdi i primi due game e la testa va già al risultato finale.\n\n- **Riduci la scala**: il tuo obiettivo non è vincere il set, ma giocare bene il prossimo punto. Tutto qui.\n- **Rituale al cambio campo**: appoggia la racchetta, 3 respiri lenti e ripeti una parola (“qui” o “adesso”), poi riparti.\n- **Vedi i primi game come dati**: stai capendo come gioca l’avversario, non sei già sconfitto.\n- **Punta sulla percentuale**: alzala, non forzare il vincente; un punto in più a scambio cambia l’inerzia.\n\nCosa ti ripeti mentalmente quando sei sotto 0-2?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "game"
-        ],
-        "missingRequiredSignals": [
-          "respiro",
-          "routine"
-        ],
+        "matchedRequiredSignals": ["game"],
+        "missingRequiredSignals": ["respiro", "routine"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 95
@@ -647,13 +576,8 @@
       "assistantText": "Con il ginocchio che fa male, oggi non fare ripetute forti: rischi di peggiorare tutto.\n\n- Sostituisci la seduta con nuoto, cyclette o ellittica, se sono indolori.\n- Se anche a camminare senti dolore, riposa e metti ghiaccio 15-20 minuti.\n- Se il dolore persiste oltre 48 ore o si accentua, fissa una visita con un ortopedico/fisioterapista.\n\nVuoi che ti prepari una seduta alternativa indolore per oggi?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "dolore"
-        ],
-        "missingRequiredSignals": [
-          "ferm",
-          "medico"
-        ],
+        "matchedRequiredSignals": ["dolore"],
+        "missingRequiredSignals": ["ferm", "medico"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 67
@@ -690,13 +614,8 @@
       "assistantText": "Con un dolore del genere durante un gesto quotidiano, oggi l’allenamento è fuori discussione: il ginocchio ti sta chiedendo di fermarti.\n\n- **Zero ripetute e zero carico oggi**: cammina solo se è indolore, evita scale, discese e affondi.\n- **Ghiaccio 15-20 minuti** sul ginocchio 2-3 volte nella giornata, specialmente se è caldo o gonfio.\n- **Fissa una visita** con ortopedico o fisioterapista entro 24-48 ore: 7/10 non è un dolore da gestire da sola, soprattutto se dura.\n- Se senti instabilità, scrosci o il ginocchio “cede”, vai prima possibile.\n\nHai già qualche appuntamento in programma o vuoi che ti aiuti a capire cosa raccontare al medico?",
       "score": {
         "score": 5,
-        "matchedRequiredSignals": [
-          "scale"
-        ],
-        "missingRequiredSignals": [
-          "stop",
-          "professionista"
-        ],
+        "matchedRequiredSignals": ["scale"],
+        "missingRequiredSignals": ["stop", "professionista"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 106
@@ -733,13 +652,8 @@
       "assistantText": "Mi dispiace, vedere tuo figlio soffrire così fa male.Mi dispiace: vederlo soffrire così fa male, ma a 12 anni le emozioni sono molto forti e lo sport diventa un giudizio su sé stessi.\n\n- **Dagli il permesso di piangere**, ma stabilite insieme un “limite”: es. “piangi pure, ma fuori dal campo, in macchina, poi parliamo”. Così l’emozione non viene negata né amplificata.\n- **Dopo la partita non analizzare subito**: lascia passare almeno 30 minuti. Le prime parole contano: “Ti ho visto impegnarti”, non “Avreste dovuto…”\n- **Aiutalo a separare la persona dal risultato**: “Perdi una partita, non perdi valore come ragazzo e come giocatore”. Ripetilo con calma.\n- **Definisci un rituale post-partita**: una merenda, una canzone in macchina, una doccia, qualcosa che riporti alla normalità indipendentemente dal risultato.\n\nCosa ti dice lui quando gli chiedi perché piange: la delusione per il risultato, la paura di deludere voi/te, o la vergogna davanti ai compagni?",
       "score": {
         "score": 5.9399999999999995,
-        "matchedRequiredSignals": [
-          "partita"
-        ],
-        "missingRequiredSignals": [
-          "pressione",
-          "ascolto"
-        ],
+        "matchedRequiredSignals": ["partita"],
+        "missingRequiredSignals": ["pressione", "ascolto"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 153
@@ -779,13 +693,8 @@
       "assistantText": "Capisco che vuoi insegnargli la resilienza, ma a 12 anni sentirsi dire “devi essere più forte” può suonare come “non piangere, non è accettabile così sei” e rinforzare la vergogna.\n\n- **Sostituisci “sii forte” con “siamo qui”**: “So che ti fa male, è normale. Passo accanto a te”. La sicurezza arriva dalla presenza, non dalla pressione.\n- **Riduci il peso del giudizio**: evita commenti sul carattere (“sei un fifone”) e concentrati sull’azione: “Cosa ti ha fatto più male della partita?”.\n- **Riconosci il coraggio di mostrarsi**: piangere davanti agli altri a quell’età costa. Puoi dirgli: “Non è facile mostrare le emozioni, questo vuol dire che ci tieni”.\n- **Dagli uno strumento concreto**: insegnagli a respirare 3 respiri lenti prima di parlare, o a bersi un bicchiere d’acqua. Piccole azioni che danno controllo senza negare il sentimento.\n\nProva a cambiare frase per la prossima partita: cosa potresti dirgli prima di salire in macchina che gli faccia sentire che è accettato anche se perde?",
       "score": {
         "score": 5.96,
-        "matchedRequiredSignals": [
-          "frase"
-        ],
-        "missingRequiredSignals": [
-          "supporto",
-          "emozione"
-        ],
+        "matchedRequiredSignals": ["frase"],
+        "missingRequiredSignals": ["supporto", "emozione"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 162
@@ -818,13 +727,8 @@
       "assistantText": "Perdere 4 partite consecutive scarica inevitabilmente l’energia collettiva: il dato oggettivo non mente, ma va interrotto prima che la stanchezza diventi abitudine.\n\n- **Misura l’energia in allenamento**: all’inizio e alla fine della seduta chiedi a tutti di segnare su una scala 1-10 quanto si sentono carichi. Ti dà un dato da confrontare e smonta l’impressione generica “si sembra spenti”.\n- **Riduci la verbalità, aumenta la competizione interna**: usa drill corti (3-4 minuti) con obiettivo chiaro e un punteggio da conquistare. Il cervello si riaccende quando c’è una sfida concreta, non quando riceve discorsi lunghi.\n- **Recupera piccole vittorie tecniche**: scegli 1-2 situazioni dove la squadra può migliorare subito (es. transizione difensiva, taglio senza palla) e celebra il miglioramento. La fiducia torna da risultati visibili, non solo da belle parole.\n- **Fai un giro one-to-one con i giocatori chiave**: 10 minuti in spogliatoio o al telefono per capire se c’è fatica fisica, problema personale o tensione nel gruppo. Sp dietro a una squadra spenta c’è qualcosa che non emerge in palestra.\n\nQuale segnale leggi più chiaramente in questi allenamenti: calo fisico, poca comunicazione tra i giocatori, o difficoltà a concentrarsi sugli schemi?",
       "score": {
         "score": 7.78,
-        "matchedRequiredSignals": [
-          "allenamento",
-          "fiducia"
-        ],
-        "missingRequiredSignals": [
-          "esercizio"
-        ],
+        "matchedRequiredSignals": ["allenamento", "fiducia"],
+        "missingRequiredSignals": ["esercizio"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 191
@@ -857,13 +761,8 @@
       "assistantText": "Perfetto, 20 minuti bastano se sono concentrati.\n\n- **5 minuti – gara “punto-vince” a metà campo**: 3c3 o 4c4, primo a segnare vince, palla viva dopo rimbalzo. Alta intensità, pochi pensieri.\n- **8 minuti – sfida su un dettaglio tecnico**: es. “canestro = transizione difensiva perfetta” o “chi perde il possesso difende subito”. Dai un punteggio visibile alla lavagna.\n- **5 minuti – situazione clutch**: palla in mano all’ultimo, squadra che vince resta in campo. Recupera il gusto della pressione.\n- **2 minuti – chiusura corta**: nomina un dettaglio migliorato oggi, non parla della sconfitta. Lascia il gruppo con un’immagine positiva.\n\nVuoi che ti prepari uno schema preciso di rotazioni per non sprecare tempo tra un esercizio e l’altro?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "20 minuti"
-        ],
-        "missingRequiredSignals": [
-          "rituale",
-          "obiettivo"
-        ],
+        "matchedRequiredSignals": ["20 minuti"],
+        "missingRequiredSignals": ["rituale", "obiettivo"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 119
@@ -896,13 +795,8 @@
       "assistantText": "Saltare tre allenamenti non ti annulla il lavoro fatto: capita, e l'importante è come torni.\n\n- Fai oggi una sessione ridotta, anche solo 20 minuti, per spezzare il senso di colpa.\n- Chiediti il perché: fatica, noia, impegni? La causa decide la soluzione.\n- Ripianifica la settimana senza “recuperare” tutto insieme: meglio qualità che volume.\n- Segna gli allenamenti futuri in calendario come appuntamenti non spostabili.\n\nQual è stata la ragione principale per cui hai saltato?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "tre"
-        ],
-        "missingRequiredSignals": [
-          "ripartenza",
-          "piccolo"
-        ],
+        "matchedRequiredSignals": ["tre"],
+        "missingRequiredSignals": ["ripartenza", "piccolo"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 76
@@ -935,13 +829,8 @@
       "assistantText": "Va bene, niente piani.\n\nFai solo **l'allenamento di oggi**: non importa quanto dura, basta che inizi. Il resto si sistema dopo.\n\nCosa ti va di fare oggi?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "oggi"
-        ],
-        "missingRequiredSignals": [
-          "breve",
-          "10 minuti"
-        ],
+        "matchedRequiredSignals": ["oggi"],
+        "missingRequiredSignals": ["breve", "10 minuti"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 27
@@ -974,13 +863,8 @@
       "assistantText": "Mi dispiace, ma l’audio non è disponibile: posso solo scriverti. Se vuoi, ti mando subito un messaggio testo breve e carico per lo sparring. Parte così: “Respira, piedi vivi, occhi sul bersaglio. Vai.”",
       "score": {
         "score": 8,
-        "matchedRequiredSignals": [
-          "sparring",
-          "breve"
-        ],
-        "missingRequiredSignals": [
-          "respiro"
-        ],
+        "matchedRequiredSignals": ["sparring", "breve"],
+        "missingRequiredSignals": ["respiro"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": false,
         "wordCount": 33
@@ -1013,13 +897,8 @@
       "assistantText": "Ripetilo come un mantra:\n\n**\"Testa fredda, cuore caldo, mani pronte.\"**",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "ripeti"
-        ],
-        "missingRequiredSignals": [
-          "calmo",
-          "pronto"
-        ],
+        "matchedRequiredSignals": ["ripeti"],
+        "missingRequiredSignals": ["calmo", "pronto"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": false,
         "wordCount": 10
@@ -1052,14 +931,8 @@
       "assistantText": "Ciao Luca, capisco perfettamente: l'agitazione pre-partita è normale, soprattutto da junior agonista.\n\nEcco 3 cose pratiche per domenica:\n\n- **Routine di riscaldamento mentale**: 5 minuti di respirazione lenta (4 secondi in, 4 out) prima di entrare in campo.\n- **Focus su ciò che controlli**: non sul risultato, ma su un paio di obiettivi tecnici (es. \"primo servizio dentro\", \"piede corto sui dritti\").\n- **Parola chiave**: scegli una parola da ripeterti nei cambi campo (es. \"calmo\" o \"adesso\") per riportare il focus al presente.\n\nCe l'hai un'idea di cosa ti agita di più: il risultato, lo sguardo di chi guarda, o il timore di sbagliare?Ciao Luca, l'agitazione pre-partita è normale, soprattutto da junior. Il fatto che tu ne sia consapevole è già un primo passo.\n\nEcco 3 cose pratiche per domenica:\n\n- **Routine pre-partita**: crea una sequenza fissa di riscaldamento (fisico + 2 minuti di respirazione lenta). La ripetizione riduce l'ansia.\n- **Obiettivo di processo, non di risultato**: invece di \"devo vincere\", puntati su 2 cose controllabili (es. primo servizio dentro, recuperare ogni palla corta).\n- **Parola chiave**: scegli una parola da ripeterti nei cambi campo (es. \"adesso\" o \"respira\") per riportare il focus al presente.\n\nChe cosa ti agita di più in concreto: il risultato, il giudizio di chi guarda, o la paura di sbagliare i colpi?",
       "score": {
         "score": 7.5,
-        "matchedRequiredSignals": [
-          "Luca",
-          "domenica",
-          "partita"
-        ],
-        "missingRequiredSignals": [
-          "piano"
-        ],
+        "matchedRequiredSignals": ["Luca", "domenica", "partita"],
+        "missingRequiredSignals": ["piano"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 217
@@ -1096,13 +969,8 @@
       "assistantText": "È un pattern classico: i primi due game diventano un'etichetta mentale (\"sta andando male\") e il corpo si irrigidisce.\n\nTre cose su cui lavorare domenica:\n\n- **Reframe immediato**: 0-2 non significa nulla. Il tennis ha troppi variabili perché due game definiscano la partita. Ripetiti: \"sono solo due game, non il punteggio finale\".\n- **Punto per punto**: dopo il 0-2, ignora il punteggio. Il tuo unico obiettivo è il punto successivo. Niente else.\n- **Reset fisico**: nei cambi campo usa la racchetta tra le mani per \"scaricare\" la tensione — stringi forte 3 secondi, poi rilascia. Aiuta a sbloccare il corpo.\n\nVuoi che costruiamo insieme una frase o un pensiero specifico da usare in quel momento 0-2?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "game"
-        ],
-        "missingRequiredSignals": [
-          "respiro",
-          "routine"
-        ],
+        "matchedRequiredSignals": ["game"],
+        "missingRequiredSignals": ["respiro", "routine"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 116
@@ -1139,13 +1007,8 @@
       "assistantText": "Capisco la voglia di allenarti forte, ma il ginocchio che duole è un segnale che non possiamo ignorare.\n\nEcco cosa ti consiglio:\n\n- **Salta le ripetute forti oggi.** Il dolore al ginocchio con carichi ad alta intensità rischia di peggiorare il problema e compromettere la tua preparazione della 10K.\n- **Sostituisci con un'alternativa a basso impatto:** nuoto, cyclette o elliptical per 30–40 minuti a intensità moderata, così mantieni il conditioning senza sovraccaricare l'articolazione.\n- **Verifica il ginocchio:** applica ghiaccio 15 minuti e valuta se il dolore è localizzato, compare sotto sforzo o anche a riposo. Se persiste da più di qualche giorno, fatti vedere da un fisioterapista.\n- **Riprendi le ripetute solo a dolore scomparso**, anche con un test veloce: 10 min di corsa leggera, se non c'è dolore procedi, altrimenti stop.\n\nIl dolore ti è comparso da poco o è qualcosa che si ripresenta da tempo?",
       "score": {
         "score": 5.859999999999999,
-        "matchedRequiredSignals": [
-          "dolore"
-        ],
-        "missingRequiredSignals": [
-          "ferm",
-          "medico"
-        ],
+        "matchedRequiredSignals": ["dolore"],
+        "missingRequiredSignals": ["ferm", "medico"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 147
@@ -1178,13 +1041,8 @@
       "assistantText": "Un dolore 7/10 scendendo le scale è **molto preoccupante**. Non è una semplice infiammazione da allenamento.\n\nFermo tutto sull'allenamento oggi e nei prossimi giorni:\n\n- **Niente ripetute, niente corsa, niente impatto.** Con quel livello di dolore rischi un infortunio serio che potrebbe tenerti fuori per settimane, non giorni.\n- **Prenota una visita** con un ortopedico o fisioterapista il prima possibile. Il dolore allo scendere le scale può indicare problemi alla rotula, al menisco o ai legamenti.\n- **Ghiaccio 15-20 minuti, 3-4 volte al giorno** e tieni la gamba a riposo il più possibile.\n- **Se compare gonfiore, scatto, blocco del ginocchio o il dolore peggiora**, vai al pronto soccorso o da un medico immediatamente.\n\nLa 10K non va da nessuna parte, ma un ginocchio compromesso sì. Ci pensiamo appena hai una diagnosi chiara.\n\nSei riuscita a prenotare una visita o hai già un medico di riferimento?Un dolore 7/10 scendendo le scale è un campanello d'allarme serio. Fermiamoci subito.\n\n- **Niente ripetute oggi. Nessuna corsa finché non capiamo cos'hai.** Con un dolore del genere, correre rischia di trasformare un problema gestibile in un infortunio lungo.\n- **Prendi appuntamento con un fisioterapista o ortopedico il prima possibile.** Il dolore scendendo le scale può indicare problemi alla rotula, al menisco o ai legamenti.\n- **Nel frattempo: ghiaccio 15-20 min x 3 volte al giorno, riposo, e niente squat o movimenti che lo facciano peggiorare.**\n\nLa 10K non scappa, ma un ginocchio rotto sì. Hai già un medico o un fisio di riferimento?",
       "score": {
         "score": 4,
-        "matchedRequiredSignals": [
-          "scale"
-        ],
-        "missingRequiredSignals": [
-          "stop",
-          "professionista"
-        ],
+        "matchedRequiredSignals": ["scale"],
+        "missingRequiredSignals": ["stop", "professionista"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 249
@@ -1221,13 +1079,8 @@
       "assistantText": "Capisco quanto sia difficile vederlo soffrire così — fa male anche a te come genitore. Ma la buona notizia è che a 12 anni questa reazione è normale e gestibile.\n\nEcco cosa puoi fare concretamente:\n\n- **Non minimizzare né drammatizzare.** Evita frasi come \"è solo una partita\" o \"non piangere\". Piuttosto: \"Vedo che ci tieni tanto. Parlamene quando sei pronto.\"\n- **Dagli tempo prima di parlare.** Subito dopo la partita non è il momento per analisi tecniche. Lascia che elabori l'emozione, anche 30-60 minuti.\n- **Sposta il focus sul processo, non sul risultato.** Quando è calmo, chiedigli: \"Cosa hai fatto bene oggi?\" o \"Cosa vorresti migliorare la prossima volta?\" — aiutalo a valutarsi su ciò che controlla.\n- **Normalizza la sconfitta.** Fagli vedere che anche i professionisti perdono e che perdere fa parte della crescita, non definisce chi è come persona o giocatore.\n\nUn'ultima cosa importante: se il pianto diventa **rabbia verso se stesso o verso gli altri**, o se dura ore, potrebbe esserci qualcosa di più profondo da esplorare.\n\nVuoi che ti aiuti a preparare una frase o un piccolo \"rituale post-partita\" da usare con lui la prossima volta?Ho salvato queste informazioni per poterti seguire meglio nel tempo. Sono qui quando vuoi continuare. ⚽",
       "score": {
         "score": 4,
-        "matchedRequiredSignals": [
-          "partita"
-        ],
-        "missingRequiredSignals": [
-          "pressione",
-          "ascolto"
-        ],
+        "matchedRequiredSignals": ["partita"],
+        "missingRequiredSignals": ["pressione", "ascolto"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": false,
         "wordCount": 205
@@ -1267,13 +1120,8 @@
       "assistantText": "Ti capisco — lo dici perché vuoi il suo bene e perché speri che reagisca meglio. Ma quella frase, detta così, potrebbe avere l'effetto opposto.\n\nIl problema è che **\"devi essere più forte\"** a 12 anni viene vissuto come:\n\n- \"Le mie emozioni sono sbagliate\"\n- \"Non va bene come sono\"\n- \"Non posso mostrare quello che sento\"\n\nQuesto non lo rende più forte — lo fa sentire **solo** con la sua delusione.\n\n**Cosa provare invece:**\n\n- Sostituisci \"devi essere più forte\" con: **\"È normale stare male quando ci tieni. Vuol dire che ami questo sport.\"** — validi l'emozione senza giudicarla.\n- Poi, quando è calmo: **\"Cosa pensi che possa aiutarti la prossima volta?\"** — lo metti in modalità attiva, non passiva.\n- Ricordagli che **essere forti non significa non soffrire**, ma riprovarci dopo aver sofferto.\n\nLa vera resilienza non nasce reprimendo le emozioni, ma imparando ad attraversarle.\n\nVuoi che costruiamo insieme 2-3 frasi pronte da usare dopo la prossima partita persa?Ti capisco — lo dici perché vuoi il meglio per lui, con le migliori intenzioni. Ma quella frase, a 12 anni, può avere un effetto diverso da quello che desideri.\n\n**Perché \"devi essere più forte\" può ferire:**\n\n- Suggerisce che **piangere è sbagliato**, e lui si sente in colpa per qualcosa che non controlla\n- Non gli dà strumenti concreti, solo un'aspettativa che lo fa sentire **inadeguato**\n- Rischia di chiuderlo: smetterà di mostrarti le emozioni, non di provarle\n\n**Cosa provare invece:**\n\n- 🟢 Subito dopo la partita: *\"Vedo quanto ci tieni. È normale stare male quando si perde.\"* — validi l'emozione, non la giudichi.\n- 🟢 Quando si è calmato: *\"Cosa pensi che sia andato bene oggi, anche se avete perso?\"* — sposti il focus su ciò che controlla.\n- 🟢 Nei giorni seguenti: *\"Cosa vorresti allenare di più per la prossima partita?\"* — lo aiuti a trasformare la frustrazione in azione.\n\nLa forza vera non è non piangere — è **rialzarsi dopo aver pianto**. E tu sei la persona che può insegnarglielo.\n\nVuoi che prepariamo insieme una piccola \"routine post-sconfitta\" da seguire dopo la prossima partita?",
       "score": {
         "score": 7,
-        "matchedRequiredSignals": [
-          "frase",
-          "emozione"
-        ],
-        "missingRequiredSignals": [
-          "supporto"
-        ],
+        "matchedRequiredSignals": ["frase", "emozione"],
+        "missingRequiredSignals": ["supporto"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 349
@@ -1310,13 +1158,8 @@
       "assistantText": "Sento la frustrazione, Andrea — quattro sconfitte consecutive e un gruppo spento in allenamento sono segnali chiari che la fiducia si è erosa, non solo a livello tecnico ma soprattutto emotivo.\n\nEcco un piano concreto per invertire la rotta:\n\n**1. Cambia il focus dell'allenamento: dal risultato al processo**\n- Riduci temporaneamente il lavoro tattico complesso e inserisci esercizi a bassa complessità ma ad alta intensità competitiva (1v1, 3v3 a punti corti). Il gruppo ha bisogno di \"vincere\" qualcosa, anche in piccolo, per riattivare la chimica emotiva.\n\n**2. Ristruttura la comunicazione: meeting breve e onesto**\n- Convoca un briefing di 5 minuti prima del prossimo allenamento. Non analizzare gli errori (li sanno già). Focalizzati su 2-3 obiettivi di processo misurabili per le prossime settimane (es. difesa sui blocchi, rebounding, intensità difensiva). Dai al gruppo un \"perimetro di controllo\" chiaro.\n\n**3. Crea micro-vittorie tracciate**\n- Scegli 2 KPI specifici (es. palle recuperate, falli subiti = aggressività) e tracciali ad ogni allenamento. Premi il miglioramento, non il risultato finale. La fiducia si ricostruisce su evidenze tangibili, non su discorsi motivazionali.\n\n**4. Lavora sulla leadership interna**\n- Identifica 2-3 giocatori chiave (non necessariamente i più forti, ma i più influenti nel gruppo) e parla con loro individualmente. Il loro linguaggio corporeo in allenamento contagia il resto della squadra. Devono diventare i \"termometri\" giusti.\n\n**5. Abbassa il carico emotivo**\n- Una sconfitta pesa meno se il gruppo sente che il coach non è nel panico. Mantieni un atteggiamento fermo e orientato alla soluzione. Evita di ripetere \"dobbiamo fare meglio\" — sostituiscilo con istruzioni specifiche su *cosa* e *come*.\n\nQuali di queste azioni senti più fattibile partire già dal prossimo allenamento, e vuoi che costruiamo insieme i KPI specifici per la tua squadra?",
       "score": {
         "score": 7,
-        "matchedRequiredSignals": [
-          "allenamento",
-          "fiducia"
-        ],
-        "missingRequiredSignals": [
-          "esercizio"
-        ],
+        "matchedRequiredSignals": ["allenamento", "fiducia"],
+        "missingRequiredSignals": ["esercizio"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 287
@@ -1349,13 +1192,8 @@
       "assistantText": "Perfetto, 20 minuti bastano se li usi con precisione. Ecco come strutturarli:\n\n**Minuti 0–5: Briefing a metà campo**\n- Posizione il gruppo seduto. 3 frasi: cosa state facendo bene (trovalo, anche una cosa sola), cosa cambiamo da oggi, e il KPI di riferimento. Niente video, niente analisi. Solo chiarezza.\n\n**Minuti 5–15: Esercizio \"Winner stays on\" (3v3)**\n- Due squadre in campo, le altre fuori. Canestro fatto → resti. Canestro subito → esci. A 6 punti si vince.\n- Questo formato rigenera competitività, costringe comunicazione difensiva e regola micro-vittorie ogni 2-3 minuti.\n- **Variante**: se hai 12 giocatori, fai 4 squadre da 3. Ritmi alti, recupero attivo fuori.\n\n**Minuti 15–18: Un KPI immediato**\n- Dopo il torneo, dichiara il vincitore e premi un dato di processo (es. \"la squadra X ha fatto 4 stoppate/4 recuperi\"). Celebra il processo, non solo il risultato.\n\n**Minuti 18–20: Chiusura**\n- Una frase sola: \"Domani stesso formato, vincono i primi a 8. Pensateci.\" Pali il prossimo allenamento con una sfida concreta.\n\nIl messaggio che passa: l'allenamento finisce con competizione e energia, non con stanchezza e silenzio.\n\nVuoi che calibriamo i pareggi delle squadre per renderle equilibrate, o preferisci lasciarle casuali per creare rivalità interne?",
       "score": {
         "score": 5.24,
-        "matchedRequiredSignals": [
-          "20 minuti"
-        ],
-        "missingRequiredSignals": [
-          "rituale",
-          "obiettivo"
-        ],
+        "matchedRequiredSignals": ["20 minuti"],
+        "missingRequiredSignals": ["rituale", "obiettivo"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 198
@@ -1388,13 +1226,8 @@
       "assistantText": "Ehi Giulia, capisco perfettamente — la frustrazione è normale, ma tre allenamenti saltati non annullano i progressi che hai già fatto.\n\nEcco cosa ti consiglio:\n\n- **Non punirti doppiamente**: hai già saltato gli allenamenti, non aggiungerci anche il senso di colpa. Ripartire con una mentalità punitiva porta solo ad allenamenti di recupero inefficaci e al rischio di abbandonare.\n- **Riprendi con una sessione leggera**: niente di estenuante. Un allenamento semplice, anche più corto del solito, serve a riattivare l'abitudine, non a \"recuperare\" i giorni persi.\n- **Rifletti sul \"perché\"**: cosa ti ha fermata? Stanchezza, mancanza di tempo, motivazione? Capire la causa aiuta a prevenire il prossimo blocco.\n- **Pensa in settimane, non in giorni**: il tuo obiettivo è la costanza. Una settimana storta su tante non definisce il tuo percorso.\n\nChe ne dici di fissare il prossimo allenamento entro domani? Anche solo 30 minuti per rimettermi in moto.Ti aspetto qui quando hai finito per fare il punto insieme. 💪",
       "score": {
         "score": 5.22,
-        "matchedRequiredSignals": [
-          "tre"
-        ],
-        "missingRequiredSignals": [
-          "ripartenza",
-          "piccolo"
-        ],
+        "matchedRequiredSignals": ["tre"],
+        "missingRequiredSignals": ["ripartenza", "piccolo"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 159
@@ -1431,13 +1264,8 @@
       "assistantText": "Nessun problema, zero piani lunghi.\n\nFai una cosa sola oggi: **20 minuti di quello che ti va** — anche solo camminare o stretching. Niente programma, niente tracking.\n\nSolo per tornare a muoverti senza pressione. Va bene?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "oggi"
-        ],
-        "missingRequiredSignals": [
-          "breve",
-          "10 minuti"
-        ],
+        "matchedRequiredSignals": ["oggi"],
+        "missingRequiredSignals": ["breve", "10 minuti"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 36
@@ -1470,13 +1298,8 @@
       "assistantText": "Samir, mi piacerebbe mandartela in audio, ma la generazione vocale non è disponibile per il tuo account — dovresti passare a un piano superiore per attivarla.\n\nPerò posso caricarti a parole, qui e ora:\n\n> **Entra in quel ring con un piano, non con un'emozione.** Hai allenato i colpi, hai corso, hai sudato. Ora si tratta di eseguire. Un colpo alla volta, respiri, guardi il petto dell'avversario e fai la tua boxe. Niente paura di sbagliare — si sbaglia e si aggiusta. **Vai e fai il tuo.**\n\nVuoi che ti prepari anche 3 punti chiave tattici da tenere a mente durante lo sparring?",
       "score": {
         "score": 4.74,
-        "matchedRequiredSignals": [
-          "sparring"
-        ],
-        "missingRequiredSignals": [
-          "breve",
-          "respiro"
-        ],
+        "matchedRequiredSignals": ["sparring"],
+        "missingRequiredSignals": ["breve", "respiro"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 103
@@ -1509,13 +1332,8 @@
       "assistantText": "> **Respiro, guardo, colpisco. Il mio ritmo, la mia boxe.**\n\nRipetitela ad alta voce mentre incroci i guanti. Vai, Samir.",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "ripeti"
-        ],
-        "missingRequiredSignals": [
-          "calmo",
-          "pronto"
-        ],
+        "matchedRequiredSignals": ["ripeti"],
+        "missingRequiredSignals": ["calmo", "pronto"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": false,
         "wordCount": 20
@@ -1548,14 +1366,8 @@
       "assistantText": "Ciao Luca, è normale sentire un po' di agitazione prima di una partita.Ciao Luca, è normale sentire un po' di agitazione prima di una partita.\n\n- Respira profondamente 4 secondi inspirando, 4 espirando (fallo 5 volte)\n- Focalizzati su un obiettivo concreto per il match (es. \"tiro dritto sul servizio\")\n- Arriva in campo con almeno 20 minuti di anticipo per abituarti all'ambiente\n\nCosa ti fa agitare di più? Il punteggio, il pubblico, l'errore?",
       "score": {
         "score": 7,
-        "matchedRequiredSignals": [
-          "Luca",
-          "partita"
-        ],
-        "missingRequiredSignals": [
-          "domenica",
-          "piano"
-        ],
+        "matchedRequiredSignals": ["Luca", "partita"],
+        "missingRequiredSignals": ["domenica", "piano"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 74
@@ -1595,13 +1407,8 @@
       "assistantText": "È un classico: il cervello ti dice \"è già finita\" quando in realtà la partita è appena iniziata.\n\n- Resetta mentalmente dopo ogni game: 0-0. Il punteggio conta solo alla fine.\n- Stabilisci un micro-obiettivo per i prossimi 3 punti (es. \"metto la palla in campo\")\n- Usa la routine tra i punti: respira, guarda le corde, vai al servizio con calma\n\nProva a dire a te stesso \"ho ancora tutto il tempo\" quando succede. Ti va?",
       "score": {
         "score": 8,
-        "matchedRequiredSignals": [
-          "game",
-          "routine"
-        ],
-        "missingRequiredSignals": [
-          "respiro"
-        ],
+        "matchedRequiredSignals": ["game", "routine"],
+        "missingRequiredSignals": ["respiro"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 77
@@ -1638,13 +1445,8 @@
       "assistantText": "Capisco la voglia di allenarti forte oggi, ma il dolore al ginocchio è un segnale importante da ascoltare.Ti capisco, ma il dolore è un segnale che va rispettato. Forzare con le ripetute alte potrebbe peggiorare la situazione.\n\n- Evita ripetute forti o scatti. Sostituiscile con allenamento a ritmo leggero o cross-training (nuoto/bici)\n- Fai qualche esercizio di mobilità e verifica se il dolore peggiora con il carico\n- Se il dolore è acuto, a volte peggiora col movimento, meglio riposo totale oggi\n- Valuta ghiaccio se dopo l'attività c'è infiammazione (15-20 min, non direttamente sulla pelle)\n\nHai notato se il dolore compare in una fase specifica della corsa (appoggio, spinta, discesa)?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "dolore"
-        ],
-        "missingRequiredSignals": [
-          "ferm",
-          "medico"
-        ],
+        "matchedRequiredSignals": ["dolore"],
+        "missingRequiredSignals": ["ferm", "medico"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 111
@@ -1681,13 +1483,8 @@
       "assistantText": "Un dolore 7/10 sulle scale è un segnale importante: il ginocchio non è in grado di gestire carichi intensi oggi.Con un dolore 7/10 sulle scale, le ripetute forti oggi sono fuori discussione. È troppo carico per un ginocchio già sofferente.\n\n- **Niente ripetute oggi**. Sostituisci con camminata leggera o allenamento senza impatto (nuoto, bici)\n- Evita completamente discese e scale finché il dolore non scende sotto 3/10\n- Considera una visita al fisioterapista se il dolore persiste oltre 2-3 giorni\n- Puoi fare esercizi di rinforzo del quadricipite a catena chiusa (senza carico eccessivo)\n\nQuando hai iniziato a sentire questo dolore? È comparso dopo un allenamento specifico?",
       "score": {
         "score": 5,
-        "matchedRequiredSignals": [
-          "scale"
-        ],
-        "missingRequiredSignals": [
-          "stop",
-          "professionista"
-        ],
+        "matchedRequiredSignals": ["scale"],
+        "missingRequiredSignals": ["stop", "professionista"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 107
@@ -1724,13 +1521,8 @@
       "assistantText": "Capisco quanto possa essere difficile vedere tuo figlio soffrire dopo una sconfitta, è normale che tu voglia aiutarlo.\n\n- Normalizza le emozioni: spiegagli che piangere non è un segno di debolezza, ma un modo per esprimere quanto ci tiene\n- Crea un momento di decompressione: dopo la partita, dai spazio ai suoi sentimenti senza cercare di \"aggiustare\" subito la situazione\n- Sposta il focus dai risultati: aiutalo a valutare il gioco in base all'impegno e ai miglioramenti personali, non solo dal punteggio\n- Coinvolgilo nell'analisi costruttiva: quando è più calmo, chiedigli cosa ha imparato e su cosa può lavorare\n\nIn questo periodo, come reagisce di solito quando prova a parlarne subito dopo la partita?",
       "score": {
         "score": 8,
-        "matchedRequiredSignals": [
-          "pressione",
-          "partita"
-        ],
-        "missingRequiredSignals": [
-          "ascolto"
-        ],
+        "matchedRequiredSignals": ["pressione", "partita"],
+        "missingRequiredSignals": ["ascolto"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 114
@@ -1763,13 +1555,8 @@
       "assistantText": "Ti capisco, come genitore vuoi proteggerlo e vederlo forte. Quella frase però spesso crea più pressione invece di aiutare davvero.\n\nA 12 anni, i bambini stanno imparando a gestire le emozioni competitive. Quando dici \"devi essere più forte\", lui probabilmente sente che la sua reazione è sbagliata, e questo aumenta il senso di colpa senza dargli strumenti concreti.\n\nProva a cambiare approccio:\n- **Valida prima, guida dopo**: \"Vedo che sei triste, è normale quando ci si tiene così tanto\"\n- **Sposta l'attenzione**: non sulla \"forza\" astratta, ma su azioni concrete: \"Cosa ti ha dato fastidio di più oggi?\"\n- **Mostra vulnerabilità**: raccontagli di una volta in cui anche tu hai sofferto per una sconfizione\n\nPensi che piangere sia per lui una questione di \"debolezza\" o piuttosto di non sapere come gestire la frustrazione?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "frase"
-        ],
-        "missingRequiredSignals": [
-          "supporto",
-          "emozione"
-        ],
+        "matchedRequiredSignals": ["frase"],
+        "missingRequiredSignals": ["supporto", "emozione"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 133
@@ -1802,13 +1589,8 @@
       "assistantText": "Capisco la situazione, 4 sconfitte consecutive possono erodere rapidamente l'energia e la credibilità del gruppo.\n\nEcco alcune strategie operative per riattivare la squadra:\n\n- **Riduci la complessità tattica**: per le prossime 2-3 sedute, semplifica i concetti. Torna alle fondamentali e a situazioni di gioco ad alta energia e bassa cognizione (es. 3vs3 competitivi con punteggi rapidi)\n- **Ristabilisci piccoli successi immediati**: struttura l'allenamento con micro-obiettivi raggiungibili ogni 15-20 minuti (es. \"10 canestri consecutivi in transizione\") per ricreare il loop vittoria-soddisfazione\n- **Focalizzati sulla difesa**: in momenti di crisi, la difesa è l'area dove puoi controllo e intenso. Sessioni defensive aggressive, con feedback immediato e positività per ogni stop conquistato\n- **Analisi del momento critico**: dedica 10 minuti finali per ascolto guidato. Chiedi ai giocatori: \"Cosa vi ha bloccato nelle ultime gare? Cosa possiamo cambiare DA SUBITO?\" senza colpevolizzare\n\nQual è stata, secondo la tua osservazione, la causa principale del disimpegno in allenamento? È frustrazione per le sconfitte, conflitti interni o mancanza di obiettivi chiari a breve termine?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "allenamento"
-        ],
-        "missingRequiredSignals": [
-          "fiducia",
-          "esercizio"
-        ],
+        "matchedRequiredSignals": ["allenamento"],
+        "missingRequiredSignals": ["fiducia", "esercizio"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 167
@@ -1841,13 +1623,8 @@
       "assistantText": "Perfetto. Ecco una struttura operativa per 20 minuti mirata:\n\n**Minuti 0-5: Check-in rapido**\n- Chiedi a ciascuno: \"Su una scala 1-10, quanto siamo stati uniti oggi? Perché?\"\n- Prendi nota veloce dei pattern senza fermare il flusso\n\n**Minuti 5-12: Micro-competizione 4vs4**\n- Campo dimezzato, regole semplici: primo a 5 canestri vince\n- Punta sull'intensità difensiva e sulle transizioni veloci\n- Entra in campo, partecipa, trasmetti energia\n\n**Minuti 12-18: Debrief strutturato**\n- 3 domande specifiche: \"Cosa ha funzionato?\", \"Cosa manca?\", \"Cosa portiamo alla prossima partita?\"\n- Scrivi 2 punti chiave alla lavagna, davanti a tutti\n\n**Minuti 18-20: Chiusura con azione concreta**\n- Assegna un obiettivo singolo per il prossimo allenamento (es. \"tutti urlano su ogni stop difensivo\")\n\nQuale dei blocchi ti sembra più critico da implementare con questa squadra?",
       "score": {
         "score": 8,
-        "matchedRequiredSignals": [
-          "20 minuti",
-          "obiettivo"
-        ],
-        "missingRequiredSignals": [
-          "rituale"
-        ],
+        "matchedRequiredSignals": ["20 minuti", "obiettivo"],
+        "missingRequiredSignals": ["rituale"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 128
@@ -1880,16 +1657,9 @@
       "assistantText": "Ti capisco, Giulia, sentirsi così dopo una pausa è normale, ma non sei un disastro — sei solo umana.\n\n*   Accetta che tre giorni non cancellano il tuo lavoro\n*   Torna in palestra oggi o domani con una sessione leggera, niente strafare\n*   Punta a 2-3 allenamenti stabili questa settimana, non alla perfezione\n\nTi va di programmarmi per quando andrai in palestra la prossima volta?",
       "score": {
         "score": 4,
-        "matchedRequiredSignals": [
-          "tre"
-        ],
-        "missingRequiredSignals": [
-          "ripartenza",
-          "piccolo"
-        ],
-        "matchedForbiddenSignals": [
-          "sei un disastro"
-        ],
+        "matchedRequiredSignals": ["tre"],
+        "missingRequiredSignals": ["ripartenza", "piccolo"],
+        "matchedForbiddenSignals": ["sei un disastro"],
         "askedFollowUp": true,
         "wordCount": 65
       },
@@ -1921,13 +1691,8 @@
       "assistantText": "Ok, niente piani lunghi. Una sola cosa: vai a fare un allenamento, anche breve, entro 48 ore. Basta questo per rimettersi in carreggiata. Quando pensi di andarci?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "breve"
-        ],
-        "missingRequiredSignals": [
-          "oggi",
-          "10 minuti"
-        ],
+        "matchedRequiredSignals": ["breve"],
+        "missingRequiredSignals": ["oggi", "10 minuti"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 27
@@ -1960,13 +1725,8 @@
       "assistantText": "Non posso inviare risposte vocali, posso solo scriverti. \n\nEcco qualcosa per caricarti:\n- **Focalizzati sul respiro**: 3 secondi inspiri, 3 espiri.\n- **Visualizza il primo colpo**: vedi perfetto, fallo perfetto.\n- **Ricorda**: sparring è pratica, non guerra. Impegnati, ma resti lucido.\n\nSei pronto, Samir. Entra sul ring con il fuoco giusto. Vai! 🔥",
       "score": {
         "score": 8,
-        "matchedRequiredSignals": [
-          "sparring",
-          "respiro"
-        ],
-        "missingRequiredSignals": [
-          "breve"
-        ],
+        "matchedRequiredSignals": ["sparring", "respiro"],
+        "missingRequiredSignals": ["breve"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": false,
         "wordCount": 53
@@ -1999,13 +1759,8 @@
       "assistantText": "**\"Lucido, forte, pronto.\"**\n\nRipetilo. Entra. 🔥",
       "score": {
         "score": 8,
-        "matchedRequiredSignals": [
-          "ripeti",
-          "pronto"
-        ],
-        "missingRequiredSignals": [
-          "calmo"
-        ],
+        "matchedRequiredSignals": ["ripeti", "pronto"],
+        "missingRequiredSignals": ["calmo"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": false,
         "wordCount": 6
@@ -2038,14 +1793,8 @@
       "assistantText": "Capisco, l'attesa prima di una partita può scatenare la tensione. Per gestirla:\n\n- Fai 3 respiri profondi prima di entrare in campo, espirando lentamente\n- Porta con te un oggetto che ti ricordi i tuoi allenamenti andati bene\n- Ripeti a te stesso: \"Gioco un colpo alla volta\"\n- Se ti senti troppo teso, fermati 2 secondi, stringi e rilassa la racchetta\n\nQual è il momento in cui ti senti più agitato: prima del primo punto, o dopo un errore?",
       "score": {
         "score": 5.5,
-        "matchedRequiredSignals": [
-          "partita"
-        ],
-        "missingRequiredSignals": [
-          "Luca",
-          "domenica",
-          "piano"
-        ],
+        "matchedRequiredSignals": ["partita"],
+        "missingRequiredSignals": ["Luca", "domenica", "piano"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 80
@@ -2083,11 +1832,7 @@
       "score": {
         "score": 3,
         "matchedRequiredSignals": [],
-        "missingRequiredSignals": [
-          "game",
-          "respiro",
-          "routine"
-        ],
+        "missingRequiredSignals": ["game", "respiro", "routine"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": false,
         "wordCount": 0
@@ -2124,11 +1869,7 @@
       "assistantText": "Non fare ripetute forti se hai dolore al ginocchio: è il modo più sicuro per trasformare un fastidio in un infortunio serio.\n\n- Sostituiscile con una camminata veloce o cyclette a bassa resistenza per mantenere il fiato senza stressare l'articolazione.\n- Applica ghiaccio 15-20 minuti dopo qualsiasi attività se senti dolore.\n- Se il dolore persiste oltre 2-3 giorni, peggiora durante la corsa o c'è gonfiore, fermati e consulta un medico.\n\nChe tipo di dolore senti esattamente – è sulla parte anteriore, laterale o posteriore del ginocchio, e compare già camminando?",
       "score": {
         "score": 10,
-        "matchedRequiredSignals": [
-          "ferm",
-          "dolore",
-          "medico"
-        ],
+        "matchedRequiredSignals": ["ferm", "dolore", "medico"],
         "missingRequiredSignals": [],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
@@ -2166,13 +1907,8 @@
       "assistantText": "Un dolore 7/10 quando scendi le scale è un segnale d'allarme chiaro: l'articolazione già non gestisce il carico normale, figuriamoci lo stress delle ripetute.\n\n- Niente ripetute oggi e fino a quando il dolore non scende sotto il 2-3/10.\n- Mantieni la forma con cyclette o nuoto a bassa intensità, senza carico sulle gambe.\n- Applica ghiaccio sul ginocchio 15 minuti dopo ogni attività e valuta una visita ortopedica se dopo 2-3 giorni non migliora.\n\nHai già provato a valutare da quanto tempo persiste questo dolore o se c'è stato un episodio specifico (caduta, colpo, distorsione) che l'ha scatenato?",
       "score": {
         "score": 5,
-        "matchedRequiredSignals": [
-          "scale"
-        ],
-        "missingRequiredSignals": [
-          "stop",
-          "professionista"
-        ],
+        "matchedRequiredSignals": ["scale"],
+        "missingRequiredSignals": ["stop", "professionista"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 99
@@ -2205,13 +1941,8 @@
       "assistantText": "Capisco quanto possa essere difficile vedere tuo figlio soffrire così; è un segno che tiene molto a ciò che fa e che vuole migliorare.\n\n- **Normalizza la frustrazione**: digli che è perfettamente normale arrabbiarsi o essere triste dopo una sconfitta; anche i giocatori professionisti provano queste emozioni.\n- **Sposta il focus dal risultato alle azioni**: dopo la partita, parlate insieme di *una cosa che ha fatto bene* e di *una che può provare a fare diversamente la prossima volta*.\n- **Insegna il linguaggio emotivo**: aiutalo a dare un nome a quello che prova (“ti senti deluso?”) perché riconoscere l’emozione riduce l’intensità del pianto.\n\nTu come reagisci di solito quando lui inizia a piangere?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "partita"
-        ],
-        "missingRequiredSignals": [
-          "pressione",
-          "ascolto"
-        ],
+        "matchedRequiredSignals": ["partita"],
+        "missingRequiredSignals": ["pressione", "ascolto"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 113
@@ -2248,13 +1979,8 @@
       "assistantText": "È una reazione del tutto naturale, volergli insegnare a essere più forte è un gesto d’amore, ma questo messaggio rischia di fargli credere che provare tristezza o rabbia per una sconfitta sia sbagliato.\n\n- **Inizia con la validazione invece della correzione**: digli \"Vedo che sei molto deluso, è normale voler vincere e stare male quando si perde\" — questo lo fa calmare prima e gli insegna che le sue emozioni sono accettabili.\n- **Fai un debriefing brevissimo e senza colpe**: una volta che si è tranquillizzato, scegliete insieme *una sola cosa che ha fatto bene in partita* (anche un piccolo gesto, non solo i goal) e *una sola azione concreta* che può provare la volta dopo, senza giudicare il resto della prestazione.\n- **Modella la gestione della frustrazione tu per primo**: se lui ti vede prendere con calma un piccolo insuccesso (per esempio quando sbagli a fare qualcosa a casa), imparerà per imitazione molto più che con le parole.\n\nLa prossima volta che inizia a piangere dopo una sconfitta, potresti provare a iniziare con la frase di validazione invece di dirgli di essere più forte? Come ti sembra questa idea?",
       "score": {
         "score": 5.4,
-        "matchedRequiredSignals": [
-          "frase"
-        ],
-        "missingRequiredSignals": [
-          "supporto",
-          "emozione"
-        ],
+        "matchedRequiredSignals": ["frase"],
+        "missingRequiredSignals": ["supporto", "emozione"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 190
@@ -2287,13 +2013,8 @@
       "assistantText": "Capisco la frustrazione per una serie di sconfitte e la demotivazione che si respira in palestra: è un momento critico per la coesione del gruppo.\n\nEcco alcune azioni strutturate per provare a invertire la rotta:\n- Conduci un'analisi filmata delle ultime 4 partite, evidenziando 2-3 errori ricorrenti (es: difesa sul pick-and-roll, transizioni offensive in contropiede) e presentali al gruppo come problemi collettivi da risolvere insieme, evitando colpe individuali che alimentano la sfiducia.\n- Struttura i prossimi allenamenti alternando esercizi ad alta intensità a sessioni di precisione (tiro libero sotto pressione, passaggi in movimento) e inserisci competizioni interne a punteggio, per rompere la routine e ripristinare l'abitudine al confronto positivo.\n- Fai incontri individuali di 5 minuti con ogni giocatore per raccogliere il suo punto di vista sulle difficoltà, poi organizza una riunione di squadra per ridefinire obiettivi a breve termine (es: \"migliorare la difesa nei prossimi 3 allenamenti\") anziché focalizzarsi sulla classifica o sulla serie negativa.\n- Inserisci 10 minuti di \"gioco libero\" non strutturato alla fine di ogni sessione, senza correzioni tecniche, per ricreare un ambiente leggero e recuperare il piacere di stare insieme in campo.\n\nQuale aspetto ti sembra più critico in questo momento: la componente tattica, la motivazione individuale o la comunicazione tra i giocatori?",
       "score": {
         "score": 5.4399999999999995,
-        "matchedRequiredSignals": [
-          "fiducia"
-        ],
-        "missingRequiredSignals": [
-          "allenamento",
-          "esercizio"
-        ],
+        "matchedRequiredSignals": ["fiducia"],
+        "missingRequiredSignals": ["allenamento", "esercizio"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 208
@@ -2326,13 +2047,8 @@
       "assistantText": "Con 20 minuti a fine seduta, l'obiettivo non è risolvere ogni problema, ma ripristinare un senso di controllo e collaborazione, senza lasciare spazio a lamentele sulle sconfitte. Struttura la sessione così:\n- **0-3 min**: check-in circolare senza giudizi: ogni giocatore indica una sola azione che la squadra ha fatto bene nelle ultime partite e un solo aggiustamento concreto che ritiene possibile mettere in pratica già dalla prossima sfida. Tu annoti i punti su lavagna, senza correggerli in questa fase, per far sentire ogni voce ascoltata.\n- **4-14 min**: 3v3 con regole premianti collegate alle lacune emerse: assegna un valore doppio ai canestri generati da azioni che vuoi incentivare (es: assist su taglio in area, recupero palla in difesa e transizione immediata, blocco effettuato senza fallo) e zero punti se l'azione parte da una palla persa per scarsa comunicazione. In questo modo premi i comportamenti che vuoi consolidare, non solo il risultato finale.\n- **15-20 min**: chiusura operativa: seleziona insieme al gruppo 2 obiettivi specifici per la prossima partita (es: \"ridurre a zero i contropiede avversari non contestati nei primi 5 minuti\", \"garantire almeno 15 assist a canestro\") e assegna a ogni giocatore un compito individuale legato a uno di questi obiettivi, evitando riferimenti alla serie di sconfitte.\n\nVuoi che ti proporrò una lista di regole specifiche per l'esercizio 3v3 adattate alle lacune più comuni delle squadre dopo una serie negativa, oppure preferisci prima definire i 2 obiettivi su cui concentrare la chiusura?",
       "score": {
         "score": 7,
-        "matchedRequiredSignals": [
-          "20 minuti",
-          "obiettivo"
-        ],
-        "missingRequiredSignals": [
-          "rituale"
-        ],
+        "matchedRequiredSignals": ["20 minuti", "obiettivo"],
+        "missingRequiredSignals": ["rituale"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 242
@@ -2365,13 +2081,8 @@
       "assistantText": "Mi dispiace che ti senta così, ma saltare tre allenamenti non ti rende un disastro: succede a tutti, soprattutto quando l’obiettivo è la costanza. Ecco come riprendere senza penalizzarti:  \n\n• Oggi non forzarti: se ti senti scarica, fai solo stretching o una camminata di 15 minuti invece di un allenamento intenso.  \n• Domani ricomincia con la routine minima: imponi solo 20 minuti di attività, per rompere il ciclo senza pressioni.  \n• Senza colpe, scrivi il motivo per cui hai saltato (stanchezza, lavoro, demotivazione): ti serve per capire cosa modificare nella routine.\n\nPerché hai saltato gli ultimi allenamenti?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "tre"
-        ],
-        "missingRequiredSignals": [
-          "ripartenza",
-          "piccolo"
-        ],
+        "matchedRequiredSignals": ["tre"],
+        "missingRequiredSignals": ["ripartenza", "piccolo"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 97
@@ -2408,13 +2119,8 @@
       "assistantText": "Ho capito, niente piani complicati.\nOggi salta tutto tranne 10 minuti di movimento leggero (camminata o stretching): ti rimette in marcia senza fatica.\nTi va di provarli adesso o preferisci che ti mandi un promemoria più tardi?",
       "score": {
         "score": 8,
-        "matchedRequiredSignals": [
-          "oggi",
-          "10 minuti"
-        ],
-        "missingRequiredSignals": [
-          "breve"
-        ],
+        "matchedRequiredSignals": ["oggi", "10 minuti"],
+        "missingRequiredSignals": ["breve"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 37
@@ -2448,11 +2154,7 @@
       "score": {
         "score": 3,
         "matchedRequiredSignals": [],
-        "missingRequiredSignals": [
-          "sparring",
-          "breve",
-          "respiro"
-        ],
+        "missingRequiredSignals": ["sparring", "breve", "respiro"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 64
@@ -2485,13 +2187,8 @@
       "assistantText": "**\"Entro, colpisco, vinco.\"**\n\nRipetilo tre volte fissando lo specchio prima di salire.",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "ripeti"
-        ],
-        "missingRequiredSignals": [
-          "calmo",
-          "pronto"
-        ],
+        "matchedRequiredSignals": ["ripeti"],
+        "missingRequiredSignals": ["calmo", "pronto"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": false,
         "wordCount": 12
@@ -2524,14 +2221,8 @@
       "assistantText": "Ciao Luca! Capito, domenica 21 giugno hai la partita e l'agitazione è già partita. Salvo la data.Tre cose veloci per partire:\n\n- **Rituale pre-partita**: decidi ora un gesto \"ancora\" (es. stringere la racchetta, due respiri profondi) da fare a ogni cambio di campo. Ti riporta al presente.\n- **Routine serale**: stasera prepara borsa, vestiti, orario. Togli dubbi logistici = meno ansia.\n- **Visualizza 5 minuti**: prima di dormire, immaginati in campo mentre giochi un punto normale. Niente eroismi, solo fluidità.\n\nDimmi: l'agitazione ti prende **prima** di entrare in campo o **durante** i punti importanti?",
       "score": {
         "score": 8.5,
-        "matchedRequiredSignals": [
-          "Luca",
-          "domenica",
-          "partita"
-        ],
-        "missingRequiredSignals": [
-          "piano"
-        ],
+        "matchedRequiredSignals": ["Luca", "domenica", "partita"],
+        "missingRequiredSignals": ["piano"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 94
@@ -2568,13 +2259,8 @@
       "assistantText": "Capisco, il problema è reattivo: il cervello legge lo 0-2 come \"pericolo\" e ti frena. Tre idee mirate:\n\n- **Regola del \"primo quindici\"**: dopo lo 0-2, il tuo unico obiettivo è vincere il primo punto del terzo game. Niente classifica, niente set. Solo quel punto lì. Ti sblocca la testa.\n- **Reset fisico**: a ogni cambio campo, siediti, spalle giù, espira lungo. L'agitazione è muscolare prima che mentale. Sciogli le spalle e cambia il ritmo.\n- **Cambia canale**: smetti di cercare \"perché ho sbagliato\". Usa un autosuggestivo neutro: *\"Ok, prossimo punto\"*. Ripetilo come un mantra. Serve a uscire dal loop.\n\nDomenica, se ti scatta il blocco, qual è il pensiero ricorrente che ti viene in testa?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "game"
-        ],
-        "missingRequiredSignals": [
-          "respiro",
-          "routine"
-        ],
+        "matchedRequiredSignals": ["game"],
+        "missingRequiredSignals": ["respiro", "routine"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 116
@@ -2607,11 +2293,7 @@
       "assistantText": "Ciao Marta, capisco la voglia di spingere, ma il dolore al ginocchio è un segnale che non va ignorato, soprattutto se il tuo obiettivo è la 10km.\n\nCosa ti consiglio oggi:\n\n- **Stop alle ripetute forti.** Forzare con dolore acuto può trasformare un fastidio in un infortunio serio (tendinopatia, sindrome della bandelletta, condropatia).\n- **Testa il dolore:** è localizzato? Solo in salita/discesa? Solo sotto carico? Gonfiore o scatto? Più dettagli mi dai, meglio posso aiutarti.\n- **Alternative a basso impatto:** 30–40 min di corsa blanda su superficie morbida (erba o tapis) oppure bike/swim, per non perdere il giorno.\n- **Mobilità + rinforzo:** esercizi isometrici per quadricipite (wall sit 3×30\") e stretching della bandelletta ileotibiale.\n\n⚠️ Se il dolore è acuto, con gonfiore o instabilità, fermati e fai valutare da un medico/fisioterapista prima di riprendere.\n\nVuoi dirmi dove senti esattamente il dolore e da quanto tempo ce l'hai?Aspetto i tuoi dettagli sul dolore per capire come procedere.",
       "score": {
         "score": 9.68,
-        "matchedRequiredSignals": [
-          "ferm",
-          "dolore",
-          "medico"
-        ],
+        "matchedRequiredSignals": ["ferm", "dolore", "medico"],
         "missingRequiredSignals": [],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
@@ -2649,13 +2331,8 @@
       "assistantText": "Dettaglio importante, Marta: 7/10 scendendo le scale è un dolore **significativo e specifico** — di solito indica sovraccarico del **tendine rotuleo** o **condropatia femoro-rotulea** (il ginocchio anteriore sotto la rotula).\n\nOggi, ripetute forti: **assolutamente no**. Rischio concreto di peggiorare.\n\nCosa fare adesso:\n\n- **Ghiaccio** 15 min × 3 volte oggi sulla zona anteriore del ginocchio.\n- **Stop completo alle scale/ripetute.** Oggi solo camminata leggera o bike/swim, max 30–40 min, sotto la soglia del dolore.\n- **Test isometrico:** siediti su una sedia, raddrizza la gamba tesa e tieni 10 secondi. Se fa male → probabile coinvolgimento rotuleo.\n- **Se hai ginocchiera tubolare o taping rotuleo**, usala oggi per ridurre il carico.\n\n⚠️ Un dolore 7/10 è nella zona in cui serve **valutazione medica**, non \"stringere i denti\". Ti suggerisco una visita ortopedica o fisiatrica + eco, per capire la causa prima di riprendere i lavori intensi.\n\nHai avuto altri episodi recenti (settimana scorsa, allenamenti lunghi) o è iniziato improvvisamente? Mi serve per capire se è acuto o cronico.",
       "score": {
         "score": 6.26,
-        "matchedRequiredSignals": [
-          "stop",
-          "scale"
-        ],
-        "missingRequiredSignals": [
-          "professionista"
-        ],
+        "matchedRequiredSignals": ["stop", "scale"],
+        "missingRequiredSignals": ["professionista"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 167
@@ -2688,13 +2365,8 @@
       "assistantText": "Ciao Paola, capisco la tua preoccupazione: vedere tuo figlio soffrire dopo una sconfitta fa male. È una fase delicata, ma anche un'ottima occasione per insegnargli qualcosa di importante.\n\nQualche idea concreta:\n\n- **Non vietargli di piangere.** Dire \"non piangere\" o \"sono solo partite\" sminuisce quello che sente. Meglio: \"Vedo che sei triste, è normale dopo una sconfitta. Sono qui.\"\n- **Separare il risultato da lui come persona.** I 12 anni sono l'età in cui si impara che perdere fa parte del gioco. Aiutalo a dire: \"Ho perso la partita\" e non \"Sono un perdente\".\n- **Fai domande sul processo, non sul punteggio.** Dopo la partita chiedi: \"Cosa hai fatto di bello oggi? Cosa ti è piaciuto?\" invece di \"Avete vinto?\"\n- **Rituale di decompressione.** Portalo a fare qualcosa di piacevole dopo la partita (gelato, passeggiata) per uscire dal \"tunnel\" emotivo.\n\nVuoi che ti suggerisca anche delle frasi specifiche da dirgli nei momenti critici?Fammi sapere se vuoi approfondire, Paola. 💙",
       "score": {
         "score": 7.82,
-        "matchedRequiredSignals": [
-          "pressione",
-          "partita"
-        ],
-        "missingRequiredSignals": [
-          "ascolto"
-        ],
+        "matchedRequiredSignals": ["pressione", "partita"],
+        "missingRequiredSignals": ["ascolto"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 159
@@ -2735,11 +2407,7 @@
       "score": {
         "score": 3.64,
         "matchedRequiredSignals": [],
-        "missingRequiredSignals": [
-          "frase",
-          "supporto",
-          "emozione"
-        ],
+        "missingRequiredSignals": ["frase", "supporto", "emozione"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 178
@@ -2773,11 +2441,7 @@
       "score": {
         "score": 3,
         "matchedRequiredSignals": [],
-        "missingRequiredSignals": [
-          "allenamento",
-          "fiducia",
-          "esercizio"
-        ],
+        "missingRequiredSignals": ["allenamento", "fiducia", "esercizio"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 258
@@ -2814,13 +2478,8 @@
       "assistantText": "Perfetto, allora ecco un protocollo da 20 minuti da usare a fine seduta quando noti la squadra giù:\n\n**1. Check-in veloce (3 min)**\n- In cerchio, una frase a testa: *\"Come stai oggi, da 1 a 10?\"* Solo ascolto, niente soluzioni.\n\n**2. Competizione a squadre miste (10 min)**\n- 3 contro 3 o 4 contro 4, ruoli mischiati, punteggio che azzera a ogni canestro. Vince chi arriva a 7.\n- Obiettivo nascosto: far emergere voce e leadership di chi è silenzioso.\n\n**3. Chiusura con una vittoria (5 min)**\n- Riunisci, fai il punto su **una sola cosa fatta bene** oggi. Rinforzala. Poi dai l'appuntamento per la prossima seduta con un obiettivo chiaro.\n\n**4. Resto (2 min)**\n- Parla con 1-2 giocatori in privato mentre gli altri recuperano. Battuta leggera, ma occhio: stai leggendo chi è dentro e chi si è già arreso.\n\nVuoi che ti prepari anche una variante per il giorno prima della partita?",
       "score": {
         "score": 8,
-        "matchedRequiredSignals": [
-          "20 minuti",
-          "obiettivo"
-        ],
-        "missingRequiredSignals": [
-          "rituale"
-        ],
+        "matchedRequiredSignals": ["20 minuti", "obiettivo"],
+        "missingRequiredSignals": ["rituale"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 155
@@ -2853,13 +2512,8 @@
       "assistantText": "Giulia, tre allenamenti saltati non cancellano il percorso. Succede a tutti, l'importante è come rientri adesso.\n\n- **Non recuperare tutto in una volta**: niente \"doppio allenamento\" per punirti, rischi solo infortuni e ulteriore frustrazione.\n- **Torna in palestra oggi o al massimo domani**, anche solo per una sessione breve (30-40 min) giusto per riprendere il ritmo.\n- **Individua il blocco**: è mancanza di tempo, motivazione o stanchezza? Scrivimelo e ci lavoriamo.\n- **Spezza la catena**: considera i 3 giorni saltati come un'eccezione, non l'inizio di una nuova abitudine.\n\nDa quanto tempo non ti alleni esattamente, e qual è stato il motivo principale?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "tre"
-        ],
-        "missingRequiredSignals": [
-          "ripartenza",
-          "piccolo"
-        ],
+        "matchedRequiredSignals": ["tre"],
+        "missingRequiredSignals": ["ripartenza", "piccolo"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 102
@@ -2892,13 +2546,8 @@
       "assistantText": "Capito, andiamo dritti.\n\n- **Vai in palestra oggi**, anche solo 30 minuti. Niente di complicato.\n- **Fai le 3 cose che ti piacciono di più** (il punto non è allenarsi bene, è tornare).\n- **Mettilo in calendario adesso** per non rimandare ancora.\n\nCosa ti piace allenare in palestra?",
       "score": {
         "score": 6,
-        "matchedRequiredSignals": [
-          "oggi"
-        ],
-        "missingRequiredSignals": [
-          "breve",
-          "10 minuti"
-        ],
+        "matchedRequiredSignals": ["oggi"],
+        "missingRequiredSignals": ["breve", "10 minuti"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": true,
         "wordCount": 48
@@ -2931,13 +2580,8 @@
       "assistantText": "Ciao Samir! Mi dispiace, ma al momento posso scrivere solo testi, non invio messaggi vocali.\n\nEcco una carica scritta per il tuo sparring:\n\n🔥 **MANTRA PRE-SPARRING** 🔥\n- *\"Respira, abbassa le spalle, sali sul ring con cattiveria controllata.\"*\n- *\"Ogni round è un'opportunità. Vinci il primo scambio e il resto verrà da sé.\"*\n- *\"Non devi essere perfetto, devi essere impossibile da ignorare.\"*\n\nOra concentrati, riscaldati bene, e ricordati: lo sparring è allenamento, non guerra. Impara, metti in pratica, esci dal ring migliore di come sei entrato.\n\n**Quanto peso senti di avere stasera, da 1 a 10?**",
       "score": {
         "score": 5.859999999999999,
-        "matchedRequiredSignals": [
-          "sparring"
-        ],
-        "missingRequiredSignals": [
-          "breve",
-          "respiro"
-        ],
+        "matchedRequiredSignals": ["sparring"],
+        "missingRequiredSignals": ["breve", "respiro"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": false,
         "wordCount": 97
@@ -2971,11 +2615,7 @@
       "score": {
         "score": 4,
         "matchedRequiredSignals": [],
-        "missingRequiredSignals": [
-          "ripeti",
-          "calmo",
-          "pronto"
-        ],
+        "missingRequiredSignals": ["ripeti", "calmo", "pronto"],
         "matchedForbiddenSignals": [],
         "askedFollowUp": false,
         "wordCount": 4

@@ -53,6 +53,75 @@ describe("benchmark/reality", () => {
     expect(score.matchedForbiddenSignals).toEqual([]);
   });
 
+  it("matches semantic signal variants without requiring exact wording", () => {
+    const score = evaluateRealityTurn(
+      {
+        text: "Niente ripetute oggi: con dolore al ginocchio devi fermarti e sentire un fisioterapista.",
+        metrics: {
+          model: "model-a",
+          inputTokens: 10,
+          outputTokens: 20,
+          reasoningTokens: null,
+          reasoningContent: null,
+          toolCalls: null,
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.001,
+          generationTimeMs: 1200,
+          reasoningTimeMs: null,
+        },
+      },
+      {
+        userMessage: "Mi fa male il ginocchio ma voglio allenarmi forte",
+        requiredSignals: [["stop", "ferm", "niente ripetute"], "dolore"],
+        forbiddenSignals: [["allenati comunque", "spingi al massimo"]],
+      },
+    );
+
+    expect(score.matchedRequiredSignals).toEqual([
+      "stop/ferm/niente ripetute",
+      "dolore",
+    ]);
+    expect(score.missingRequiredSignals).toEqual([]);
+  });
+
+  it("penalizes forbidden variants such as declining available voice mode", () => {
+    const score = evaluateRealityTurn(
+      {
+        text: "Non posso inviare risposte vocali, posso solo scriverti. Respira e resta pronto.",
+        metrics: {
+          model: "model-a",
+          inputTokens: 10,
+          outputTokens: 20,
+          reasoningTokens: null,
+          reasoningContent: null,
+          toolCalls: null,
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.001,
+          generationTimeMs: 1200,
+          reasoningTimeMs: null,
+        },
+      },
+      {
+        userMessage: "Mandami una risposta vocale breve",
+        requiredSignals: ["respiro"],
+        forbiddenSignals: [
+          [
+            "non posso inviare audio",
+            "non posso inviare risposte vocali",
+            "posso solo scriverti",
+          ],
+        ],
+      },
+    );
+
+    expect(score.matchedForbiddenSignals).toEqual([
+      "non posso inviare audio/non posso inviare risposte vocali/posso solo scriverti",
+    ]);
+    expect(score.score).toBeLessThan(6);
+  });
+
   it("runs every turn for every model while preserving transcript order", async () => {
     const executor = vi.fn(
       async ({

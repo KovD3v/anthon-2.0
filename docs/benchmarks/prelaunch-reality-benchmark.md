@@ -28,6 +28,17 @@ Code:
 - `src/lib/benchmark/reality.test.ts`
 - `src/lib/benchmark/reality-orchestrator.test.ts`
 
+Scoring:
+
+- Required and forbidden signals can be either exact strings or groups of
+  equivalent variants.
+- A grouped signal counts once when any variant appears. This keeps the
+  benchmark from overfitting to one wording such as `medico` when
+  `fisioterapista` or `professionista` is equivalent for the scenario.
+- The score is still an operational heuristic, not a public leaderboard. Review
+  missing signals, forbidden signals, and the worst turns before trusting a
+  model ranking.
+
 Dataset:
 
 - `PRELAUNCH_REALITY_SCENARIOS`
