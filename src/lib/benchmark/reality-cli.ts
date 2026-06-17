@@ -1,4 +1,8 @@
 import type { RealityBenchmarkSummary, RealityScenario } from "./reality";
+import {
+  assertTwoJudgeModels,
+  DEFAULT_REALITY_JUDGE_MODELS,
+} from "./reality-judge";
 
 export const REALITY_BENCHMARK_DB_MUTATION_ENV =
   "REALITY_BENCHMARK_ALLOW_DB_MUTATION";
@@ -20,6 +24,9 @@ export type RealityBenchmarkCliConfig = {
   scenarioIds: string[];
   allowDbMutation: boolean;
   keepData: boolean;
+  judge: boolean;
+  judgeModels: string[];
+  judgeExistingPath: string | null;
 };
 
 type Env = Record<string, string | undefined>;
@@ -36,6 +43,9 @@ export function parseRealityBenchmarkArgs(
     scenarioIds: [],
     allowDbMutation: false,
     keepData: false,
+    judge: false,
+    judgeModels: [...DEFAULT_REALITY_JUDGE_MODELS],
+    judgeExistingPath: null,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -53,6 +63,41 @@ export function parseRealityBenchmarkArgs(
 
     if (arg === "--keep-data") {
       config.keepData = true;
+      continue;
+    }
+
+    if (arg === "--judge") {
+      config.judge = true;
+      continue;
+    }
+
+    if (arg.startsWith("--judge-models=")) {
+      config.judgeModels = parseList(
+        arg.slice("--judge-models=".length),
+        "--judge-models",
+      );
+      config.judge = true;
+      continue;
+    }
+
+    if (arg === "--judge-models") {
+      config.judgeModels = parseList(readNextValue(argv, ++i, arg), arg);
+      config.judge = true;
+      continue;
+    }
+
+    if (arg.startsWith("--judge-existing=")) {
+      config.judgeExistingPath = parseValue(
+        arg.slice("--judge-existing=".length),
+        "--judge-existing",
+      );
+      config.judge = true;
+      continue;
+    }
+
+    if (arg === "--judge-existing") {
+      config.judgeExistingPath = parseValue(readNextValue(argv, ++i, arg), arg);
+      config.judge = true;
       continue;
     }
 
@@ -112,14 +157,25 @@ export function parseRealityBenchmarkArgs(
     throw new Error("At least one model is required.");
   }
 
+  if (config.judge) {
+    assertTwoJudgeModels(config.judgeModels);
+  }
+
   return config;
 }
 
 export function assertRealityBenchmarkDbMutationAllowed(
-  config: Pick<RealityBenchmarkCliConfig, "allowDbMutation" | "help">,
+  config: Pick<
+    RealityBenchmarkCliConfig,
+    "allowDbMutation" | "help" | "judgeExistingPath"
+  >,
   env: Env = process.env,
 ) {
   if (config.help) {
+    return;
+  }
+
+  if (config.judgeExistingPath) {
     return;
   }
 
@@ -170,10 +226,29 @@ export function serializeRealityBenchmarkSummary(
   };
 }
 
+export function deserializeRealityBenchmarkSummary(
+  value: ReturnType<typeof serializeRealityBenchmarkSummary>,
+): RealityBenchmarkSummary {
+  return {
+    ...value,
+    startedAt: new Date(value.startedAt),
+    endedAt: new Date(value.endedAt),
+  };
+}
+
 export function formatRealityBenchmarkReport(
   summary: RealityBenchmarkSummary,
   options: { runLabel: string; scenarioCount: number },
 ) {
+  const hasJudgeScores = summary.models.some(
+    (model) => model.avgJudgeScore !== undefined,
+  );
+  const rankingColumns = hasJudgeScores
+    ? "| Rank | Model | Blended score | Judge score | Heuristic score | Judge flags | Avg latency | Avg cost | Total cost | Safety failures |"
+    : "| Rank | Model | Avg score | Avg latency | Avg cost | Total cost | Safety failures |";
+  const rankingDivider = hasJudgeScores
+    ? "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+    : "| ---: | --- | ---: | ---: | ---: | ---: | ---: |";
   const lines = [
     "# Reality Benchmark Run",
     "",
@@ -186,22 +261,69 @@ export function formatRealityBenchmarkReport(
     `- Scenarios: ${options.scenarioCount}`,
     `- Turns: ${summary.results.length}`,
     "",
-    "| Rank | Model | Avg score | Avg latency | Avg cost | Total cost | Safety failures |",
-    "| ---: | --- | ---: | ---: | ---: | ---: | ---: |",
+    rankingColumns,
+    rankingDivider,
   ];
 
   for (const [index, model] of summary.models.entries()) {
+    if (hasJudgeScores) {
+      lines.push(
+        `${[
+          `| ${index + 1}`,
+          model.modelId,
+          formatNumber(model.avgBlendedScore ?? model.avgScore, 2),
+          formatNumber(model.avgJudgeScore ?? 0, 2),
+          formatNumber(model.avgScore, 2),
+          String(model.judgeFlags ?? 0),
+          `${Math.round(model.avgLatencyMs)} ms`,
+          `$${formatNumber(model.avgCostUsd, 6)}`,
+          `$${formatNumber(model.totalCostUsd, 6)}`,
+          String(model.safetyFailures),
+        ].join(" | ")} |`,
+      );
+    } else {
+      lines.push(
+        `${[
+          `| ${index + 1}`,
+          model.modelId,
+          formatNumber(model.avgScore, 2),
+          `${Math.round(model.avgLatencyMs)} ms`,
+          `$${formatNumber(model.avgCostUsd, 6)}`,
+          `$${formatNumber(model.totalCostUsd, 6)}`,
+          String(model.safetyFailures),
+        ].join(" | ")} |`,
+      );
+    }
+  }
+
+  if (hasJudgeScores) {
     lines.push(
-      `${[
-        `| ${index + 1}`,
-        model.modelId,
-        formatNumber(model.avgScore, 2),
-        `${Math.round(model.avgLatencyMs)} ms`,
-        `$${formatNumber(model.avgCostUsd, 6)}`,
-        `$${formatNumber(model.totalCostUsd, 6)}`,
-        String(model.safetyFailures),
-      ].join(" | ")} |`,
+      "",
+      "## Judge Turn Diagnostics",
+      "",
+      "| Model | Scenario | Turn | Heuristic | Judge | Disagreement | Flagged | Forbidden | Key weakness |",
+      "| --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- |",
     );
+
+    for (const result of summary.results) {
+      const judge = result.judge;
+      if (!judge) continue;
+      const firstWeakness =
+        judge.judges.flatMap((modelJudge) => modelJudge.weaknesses)[0] ?? "";
+      lines.push(
+        `${[
+          `| ${result.modelId}`,
+          result.scenarioId,
+          String(result.turnIndex + 1),
+          formatNumber(result.score.score, 2),
+          formatNumber(judge.consensusScore, 2),
+          formatNumber(judge.disagreement, 2),
+          judge.flaggedForReview ? "yes" : "no",
+          result.score.matchedForbiddenSignals.join(", "),
+          firstWeakness.replace(/\|/g, "/"),
+        ].join(" | ")} |`,
+      );
+    }
   }
 
   lines.push("");
@@ -233,6 +355,9 @@ Options:
   --run-label <label>        Label used in DB metadata and output filenames.
   --output-dir <path>        Directory for JSON and Markdown reports.
   --scenarios <ids>          Comma-separated scenario ids for a partial run.
+  --judge                    Add LLM-as-a-judge scoring after candidate run.
+  --judge-existing <path>    Add judge scores to an existing JSON run without DB mutation.
+  --judge-models <ids>       Exactly two comma-separated judge model ids.
   --allow-db-mutation        Required unless ${REALITY_BENCHMARK_DB_MUTATION_ENV}=1.
   --keep-data                Do not delete benchmark users/chats after the run.
   --help                     Show this help.

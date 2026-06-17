@@ -25,6 +25,7 @@ traffic exists.
 Code:
 
 - `src/lib/benchmark/reality.ts`
+- `src/lib/benchmark/reality-judge.ts`
 - `src/lib/benchmark/reality.test.ts`
 - `src/lib/benchmark/reality-orchestrator.test.ts`
 
@@ -38,6 +39,19 @@ Scoring:
 - The score is still an operational heuristic, not a public leaderboard. Review
   missing signals, forbidden signals, and the worst turns before trusting a
   model ranking.
+- The optional LLM-as-a-judge layer uses curated low/high anchors per turn,
+  then blends semantic judge consensus with heuristic score:
+  `0.7 * judgeConsensusScore + 0.3 * heuristicScore`.
+- Judge disagreement above 2 points is flagged for review.
+
+Default judge models:
+
+- `anthropic/claude-opus-4.6`
+- `openai/gpt-5.5`
+
+These defaults come from Judgemark v4 ranking plus OpenRouter availability.
+They are intentionally not candidate defaults, to reduce self/family bias when
+judging candidate model outputs.
 
 Dataset:
 
@@ -52,6 +66,7 @@ Runner:
 - `evaluateRealityTurn`
 - `createStreamChatRealityExecutor`
 - `createDatabaseBackedRealityExecutor`
+- `judgeRealityBenchmarkSummary`
 - `scripts/run-reality-benchmark.ts`
 
 The runner is intentionally executor-based. Tests can use a fake executor; real
@@ -84,6 +99,18 @@ It refuses to run unless DB mutation is explicitly approved:
 bun run scripts/run-reality-benchmark.ts --allow-db-mutation
 ```
 
+To add LLM-as-a-judge scoring to a new DB-backed run:
+
+```bash
+bun run scripts/run-reality-benchmark.ts --allow-db-mutation --judge
+```
+
+To judge an existing JSON run without DB mutation:
+
+```bash
+bun run scripts/run-reality-benchmark.ts --judge-existing docs/benchmarks/runs/reality-2026-06-17-model-comparison.json
+```
+
 Current candidate-model default:
 
 - `openai/gpt-chat-latest`
@@ -99,4 +126,7 @@ Useful flags:
 - `--run-label reality-2026-06-17-model-comparison`
 - `--output-dir docs/benchmarks/runs`
 - `--scenarios prelaunch-knee-pain-safety`
+- `--judge`
+- `--judge-existing docs/benchmarks/runs/run.json`
+- `--judge-models anthropic/claude-opus-4.6,openai/gpt-5.5`
 - `--keep-data`

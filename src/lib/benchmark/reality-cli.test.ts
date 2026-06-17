@@ -28,6 +28,9 @@ describe("benchmark/reality-cli", () => {
       "--output-dir",
       "tmp/benchmarks",
       "--scenarios=scenario-a,scenario-b",
+      "--judge",
+      "--judge-models",
+      "judge-a, judge-b",
       "--allow-db-mutation",
       "--keep-data",
     ]);
@@ -37,9 +40,35 @@ describe("benchmark/reality-cli", () => {
       runLabel: "launch-check",
       outputDir: "tmp/benchmarks",
       scenarioIds: ["scenario-a", "scenario-b"],
+      judge: true,
+      judgeModels: ["judge-a", "judge-b"],
       allowDbMutation: true,
       keepData: true,
     });
+  });
+
+  it("parses judge-existing without requiring DB mutation approval", () => {
+    const config = parseRealityBenchmarkArgs([
+      "--judge-existing",
+      "docs/benchmarks/runs/run.json",
+    ]);
+
+    expect(config).toMatchObject({
+      judge: true,
+      judgeExistingPath: "docs/benchmarks/runs/run.json",
+    });
+    expect(() =>
+      assertRealityBenchmarkDbMutationAllowed(config, {}),
+    ).not.toThrow();
+  });
+
+  it("requires exactly two judge models", () => {
+    expect(() =>
+      parseRealityBenchmarkArgs(["--judge-models", "judge-a"]),
+    ).toThrow(/exactly two/);
+    expect(() =>
+      parseRealityBenchmarkArgs(["--judge-models", "judge-a,judge-b,judge-c"]),
+    ).toThrow(/exactly two/);
   });
 
   it("requires explicit DB mutation approval", () => {

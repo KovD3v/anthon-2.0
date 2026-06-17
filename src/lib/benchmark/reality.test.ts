@@ -20,6 +20,11 @@ describe("benchmark/reality", () => {
     expect(
       PRELAUNCH_REALITY_SCENARIOS.some((s) => s.tags.includes("parent")),
     ).toBe(true);
+    expect(
+      PRELAUNCH_REALITY_SCENARIOS.flatMap((scenario) => scenario.turns).every(
+        (turn) => turn.lowAnchorResponse && turn.highAnchorResponse,
+      ),
+    ).toBe(true);
   });
 
   it("scores required signals, forbidden signals, and follow-up behavior", () => {
