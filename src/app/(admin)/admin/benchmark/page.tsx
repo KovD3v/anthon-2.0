@@ -422,7 +422,8 @@ export default function BenchmarkPage() {
     return [...filtered].sort((a, b) => {
       if (sortBy === "SCORE")
         return (
-          (b.finalScore ?? b.overallScore) - (a.finalScore ?? a.overallScore)
+          (b.finalScore ?? b.consensusScore ?? b.overallScore) -
+          (a.finalScore ?? a.consensusScore ?? a.overallScore)
         );
       if (sortBy === "LATENCY") return a.inferenceTimeMs - b.inferenceTimeMs;
       if (sortBy === "COST") return (b.costUsd || 0) - (a.costUsd || 0);
@@ -940,13 +941,13 @@ export default function BenchmarkPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="flex gap-3 overflow-x-auto pb-2">
-                      {modelScores
+                      {[...modelScores]
                         .sort((a, b) => {
                           if (leaderboardMetric === "SPEED")
                             return a.avgInferenceTimeMs - b.avgInferenceTimeMs;
                           if (leaderboardMetric === "COST")
                             return a.avgCostUsd - b.avgCostUsd;
-                          return b.avgOverallScore - a.avgOverallScore;
+                          return b.benchmarkScore - a.benchmarkScore;
                         })
                         .map((score, i) => (
                           <div
@@ -971,10 +972,10 @@ export default function BenchmarkPage() {
                                 <>
                                   <div className="flex items-end justify-between">
                                     <span className="text-2xl font-bold">
-                                      {score.avgOverallScore.toFixed(1)}
+                                      {score.benchmarkScore.toFixed(1)}
                                     </span>
                                     <span className="text-[10px] text-muted-foreground mb-1 uppercase tracking-tighter">
-                                      Avg Score
+                                      Benchmark
                                     </span>
                                   </div>
                                   <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
@@ -983,13 +984,13 @@ export default function BenchmarkPage() {
                                         width: 0,
                                       }}
                                       animate={{
-                                        width: `${score.avgOverallScore * 10}%`,
+                                        width: `${score.benchmarkScore * 10}%`,
                                       }}
                                       className={cn(
                                         "h-full",
-                                        score.avgOverallScore >= 8
+                                        score.benchmarkScore >= 8
                                           ? "bg-emerald-500"
-                                          : score.avgOverallScore >= 6
+                                          : score.benchmarkScore >= 6
                                             ? "bg-amber-500"
                                             : "bg-red-500",
                                       )}
@@ -1079,6 +1080,20 @@ export default function BenchmarkPage() {
                               </div>
                               <div className="font-mono text-purple-400">
                                 {score.avgJudge2Score?.toFixed(1) ?? "—"}
+                              </div>
+
+                              <div className="text-muted-foreground">
+                                Quality:
+                              </div>
+                              <div className="font-mono">
+                                {score.qualityScore.toFixed(1)}
+                              </div>
+
+                              <div className="text-muted-foreground">
+                                Stability:
+                              </div>
+                              <div className="font-mono">
+                                {score.stabilityScore.toFixed(1)}
                               </div>
 
                               <div className="text-muted-foreground">
@@ -1323,7 +1338,9 @@ export default function BenchmarkPage() {
                               <TableCell className="p-2 text-center">
                                 <ScoreBadge
                                   score={
-                                    result.finalScore ?? result.overallScore
+                                    result.finalScore ??
+                                    result.consensusScore ??
+                                    result.overallScore
                                   }
                                   large
                                 />

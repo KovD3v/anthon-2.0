@@ -1050,6 +1050,14 @@ export async function getModelScores(runId: string) {
     }
   >();
 
+  const clampScore = (value: number) => Math.min(10, Math.max(0, value));
+
+  const finiteNumber = (value: number | null | undefined, fallback = 0) =>
+    typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+  const finiteScore = (value: number | null | undefined) =>
+    clampScore(finiteNumber(value));
+
   for (const r of results) {
     if (!byModel.has(r.modelId)) {
       byModel.set(r.modelId, {
@@ -1072,52 +1080,65 @@ export async function getModelScores(runId: string) {
     const m = byModel.get(r.modelId);
     if (m) {
       // Priority: finalScore (admin-weighted) > consensusScore (multi-judge) > overallScore (Judge 1)
-      const effectiveScore = r.finalScore ?? r.consensusScore ?? r.overallScore;
+      const effectiveScore = finiteScore(
+        r.finalScore ?? r.consensusScore ?? r.overallScore,
+      );
       m.scores.push(effectiveScore);
 
       // Track individual judge scores
-      m.judge1Scores.push(r.overallScore);
+      m.judge1Scores.push(finiteScore(r.overallScore));
       if (r.judge2OverallScore !== null) {
-        m.judge2Scores.push(r.judge2OverallScore);
+        m.judge2Scores.push(finiteScore(r.judge2OverallScore));
       }
       if (r.consensusScore !== null) {
-        m.consensusScores.push(r.consensusScore);
+        m.consensusScores.push(finiteScore(r.consensusScore));
       }
       if (r.flaggedForReview) {
         m.flaggedCount++;
       }
 
-      m.times.push(r.inferenceTimeMs);
-      if (r.ttftMs !== null) m.ttfts.push(r.ttftMs);
-      m.costs.push(r.costUsd);
-      m.inputTokens += r.inputTokens;
-      m.outputTokens += r.outputTokens;
-      m.reasoningTokens += r.reasoningTokens ?? 0;
+      m.times.push(finiteNumber(r.inferenceTimeMs));
+      if (r.ttftMs !== null) m.ttfts.push(finiteNumber(r.ttftMs));
+      m.costs.push(finiteNumber(r.costUsd));
+      m.inputTokens += finiteNumber(r.inputTokens);
+      m.outputTokens += finiteNumber(r.outputTokens);
+      m.reasoningTokens += finiteNumber(r.reasoningTokens);
 
       if (r.toolUsageScore !== null) {
-        m.toolScores.push(r.toolUsageScore);
+        m.toolScores.push(finiteScore(r.toolUsageScore));
       }
       if (r.writingQualityScore !== null) {
-        m.writingScores.push(r.writingQualityScore);
+        m.writingScores.push(finiteScore(r.writingQualityScore));
       }
     }
   }
 
-  const avg = (arr: number[]) =>
-    arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+  const avg = (arr: number[]) => {
+    const finiteValues = arr.filter(Number.isFinite);
+    return finiteValues.length > 0
+      ? finiteValues.reduce((a, b) => a + b, 0) / finiteValues.length
+      : 0;
+  };
 
   const stdDev = (arr: number[]) => {
-    if (arr.length <= 1) return 0;
-    const mean = avg(arr);
-    const variance = arr.reduce((a, b) => a + (b - mean) ** 2, 0) / arr.length;
+    const finiteValues = arr.filter(Number.isFinite);
+    if (finiteValues.length <= 1) return 0;
+    const mean = avg(finiteValues);
+    const variance =
+      finiteValues.reduce((a, b) => a + (b - mean) ** 2, 0) /
+      finiteValues.length;
     return Math.sqrt(variance);
   };
 
-  return Array.from(byModel.entries()).map(([modelId, data]) => {
+  const summaries = Array.from(byModel.entries()).map(([modelId, data]) => {
     const overallAvg = avg(data.scores);
     const reliability =
-      data.scores.filter((s) => s > 0).length / data.scores.length;
+      data.scores.length > 0
+        ? data.scores.filter((s) => s > 0).length / data.scores.length
+        : 0;
     const variance = stdDev(data.scores);
+    const flaggedRate =
+      data.scores.length > 0 ? data.flaggedCount / data.scores.length : 0;
 
     // Reasoning Efficiency: reasoning tokens / output tokens
     const reasoningEfficiency =
@@ -1134,6 +1155,10 @@ export async function getModelScores(runId: string) {
     return {
       modelId,
       testCount: data.scores.length,
+      qualityScore: overallAvg,
+      stabilityScore: clampScore(
+        reliability * 10 - Math.min(3, variance * 0.75) - flaggedRate * 3,
+      ),
       avgOverallScore: overallAvg, // Now uses consensus score when available
       avgJudge1Score: avg(data.judge1Scores),
       avgJudge2Score:
@@ -1157,4 +1182,49 @@ export async function getModelScores(runId: string) {
       totalCostUsd: data.costs.reduce((a, b) => a + b, 0),
     };
   });
+
+  const lowerIsBetterScore = (value: number | null, values: number[]) => {
+    const finiteValues = values.filter(Number.isFinite);
+    if (value === null || !Number.isFinite(value)) return 0;
+    if (finiteValues.length === 0) return 10;
+
+    const min = Math.min(...finiteValues);
+    const max = Math.max(...finiteValues);
+    if (min === max) return 10;
+
+    return clampScore(((max - value) / (max - min)) * 10);
+  };
+
+  const latencyValues = summaries.map((summary) => summary.avgInferenceTimeMs);
+  const ttftValues = summaries
+    .map((summary) => summary.avgTtftMs)
+    .filter((value): value is number => value !== null);
+  const costValues = summaries.map((summary) => summary.avgCostUsd);
+
+  return summaries
+    .map((summary) => {
+      const latencyScore = lowerIsBetterScore(
+        summary.avgInferenceTimeMs,
+        latencyValues,
+      );
+      const ttftScore =
+        summary.avgTtftMs === null
+          ? latencyScore
+          : lowerIsBetterScore(summary.avgTtftMs, ttftValues);
+      const speedScore = latencyScore * 0.6 + ttftScore * 0.4;
+      const costScore = lowerIsBetterScore(summary.avgCostUsd, costValues);
+      const benchmarkScore =
+        summary.qualityScore * 0.6 +
+        summary.stabilityScore * 0.15 +
+        speedScore * 0.15 +
+        costScore * 0.1;
+
+      return {
+        ...summary,
+        benchmarkScore,
+        speedScore,
+        costScore,
+      };
+    })
+    .sort((a, b) => b.benchmarkScore - a.benchmarkScore);
 }

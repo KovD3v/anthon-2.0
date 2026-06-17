@@ -242,7 +242,11 @@ export default function ResultDetailPage() {
               </div>
               <div className="p-4 bg-primary/10 rounded-lg text-center border border-primary/20">
                 <div className="text-3xl font-bold text-primary">
-                  {(result.finalScore ?? result.overallScore).toFixed(1)}
+                  {(
+                    result.finalScore ??
+                    result.consensusScore ??
+                    result.overallScore
+                  ).toFixed(1)}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
                   Final Score

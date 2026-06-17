@@ -40,6 +40,11 @@ export interface BenchmarkRun {
 export interface ModelScore {
   modelId: string;
   testCount: number;
+  benchmarkScore: number;
+  qualityScore: number;
+  speedScore: number;
+  costScore: number;
+  stabilityScore: number;
   avgOverallScore: number;
   avgJudge1Score: number;
   avgJudge2Score: number | null;

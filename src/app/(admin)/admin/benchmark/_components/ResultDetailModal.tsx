@@ -108,7 +108,11 @@ export function ResultDetailModal({
                   </div>
                   <div className="p-3 bg-primary/10 rounded-lg text-center border border-primary/20">
                     <div className="text-2xl font-bold text-primary">
-                      {(result.finalScore ?? result.overallScore).toFixed(1)}
+                      {(
+                        result.finalScore ??
+                        result.consensusScore ??
+                        result.overallScore
+                      ).toFixed(1)}
                     </div>
                     <div className="text-[10px] text-muted-foreground">
                       Final Score

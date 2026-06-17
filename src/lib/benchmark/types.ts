@@ -163,6 +163,11 @@ export interface BenchmarkRunnerOptions {
 export interface ModelAggregatedScores {
   modelId: string;
   testCount: number;
+  benchmarkScore: number;
+  qualityScore: number;
+  speedScore: number;
+  costScore: number;
+  stabilityScore: number;
   avgInferenceTimeMs: number;
   avgTtftMs: number | null;
   avgCostUsd: number;

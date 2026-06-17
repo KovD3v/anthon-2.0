@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   benchmarkRunFindUnique: vi.fn(),
   benchmarkRunUpdate: vi.fn(),
   benchmarkResultCreate: vi.fn(),
+  benchmarkResultFindMany: vi.fn(),
   benchmarkTestCaseFindMany: vi.fn(),
   evaluateResultWithConsensus: vi.fn(),
   openrouter: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("@/lib/db", () => ({
     },
     benchmarkResult: {
       create: mocks.benchmarkResultCreate,
+      findMany: mocks.benchmarkResultFindMany,
     },
     benchmarkTestCase: {
       findMany: mocks.benchmarkTestCaseFindMany,
@@ -61,12 +63,14 @@ describe("benchmark runner", () => {
     mocks.benchmarkRunFindUnique.mockReset();
     mocks.benchmarkRunUpdate.mockReset();
     mocks.benchmarkResultCreate.mockReset();
+    mocks.benchmarkResultFindMany.mockReset();
     mocks.benchmarkTestCaseFindMany.mockReset();
     mocks.evaluateResultWithConsensus.mockReset();
     mocks.openrouter.mockReset();
 
     mocks.benchmarkRunFindUnique.mockResolvedValue(existingRun);
     mocks.benchmarkRunUpdate.mockResolvedValue(existingRun);
+    mocks.benchmarkResultFindMany.mockResolvedValue([]);
     mocks.benchmarkTestCaseFindMany.mockResolvedValue([]);
   });
 
@@ -115,6 +119,55 @@ describe("benchmark runner", () => {
       expect.objectContaining({
         data: expect.objectContaining({ status: "COMPLETED" }),
       }),
+    );
+  });
+
+  it("ranks models by composite benchmark score instead of raw quality alone", async () => {
+    const { getModelScores } = await import("./runner");
+
+    mocks.benchmarkResultFindMany.mockResolvedValue([
+      {
+        modelId: "quality-only",
+        finalScore: null,
+        consensusScore: 8.5,
+        overallScore: 8.5,
+        judge2OverallScore: 8.5,
+        flaggedForReview: false,
+        inferenceTimeMs: 60_000,
+        ttftMs: 50_000,
+        costUsd: 0.1,
+        inputTokens: 1000,
+        outputTokens: 400,
+        reasoningTokens: null,
+        toolUsageScore: 8.5,
+        writingQualityScore: null,
+      },
+      {
+        modelId: "balanced",
+        finalScore: null,
+        consensusScore: 8,
+        overallScore: 8,
+        judge2OverallScore: 8,
+        flaggedForReview: false,
+        inferenceTimeMs: 1_000,
+        ttftMs: 500,
+        costUsd: 0.001,
+        inputTokens: 1000,
+        outputTokens: 300,
+        reasoningTokens: null,
+        toolUsageScore: 8,
+        writingQualityScore: null,
+      },
+    ]);
+
+    const scores = await getModelScores("run-1");
+
+    expect(scores[0]?.modelId).toBe("balanced");
+    expect(scores[0]?.benchmarkScore).toBeGreaterThan(
+      scores[1]?.benchmarkScore ?? 0,
+    );
+    expect(scores[1]?.avgOverallScore).toBeGreaterThan(
+      scores[0]?.avgOverallScore ?? 0,
     );
   });
 });
