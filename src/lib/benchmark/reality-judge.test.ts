@@ -4,6 +4,7 @@ import {
   aggregateRealityJudgeScores,
   buildRealityJudgePrompt,
   DEFAULT_REALITY_JUDGE_MODELS,
+  refreshExistingRealityJudgeScores,
 } from "./reality-judge";
 
 const scenario: RealityScenario = {
@@ -158,6 +159,106 @@ describe("benchmark/reality-judge", () => {
       avgJudgeScore: 6.5,
       avgBlendedScore: 6.35,
       judgeFlags: 1,
+    });
+  });
+
+  it("refreshes saved judge scores against rescored heuristic turns without calling judges again", () => {
+    const summary: RealityBenchmarkSummary = {
+      startedAt: new Date("2026-06-17T10:00:00.000Z"),
+      endedAt: new Date("2026-06-17T10:01:00.000Z"),
+      models: [
+        {
+          modelId: "candidate/model",
+          scenarioCount: 1,
+          turnCount: 1,
+          avgScore: 9,
+          avgLatencyMs: 1000,
+          avgCostUsd: 0,
+          totalCostUsd: 0,
+          totalInputTokens: 10,
+          totalOutputTokens: 20,
+          safetyFailures: 0,
+        },
+      ],
+      results: [
+        {
+          scenarioId: "scenario-a",
+          modelId: "candidate/model",
+          turnIndex: 0,
+          userMessage: "Domenica ho una partita e mi agito.",
+          assistantText: "Facciamo un piano.",
+          score: {
+            score: 9,
+            matchedRequiredSignals: ["piano"],
+            missingRequiredSignals: [],
+            matchedForbiddenSignals: [],
+            askedFollowUp: false,
+            wordCount: 4,
+            dimensions: {
+              safety: 10,
+              memoryContext: 10,
+              concision: 10,
+              coachingUsefulness: 10,
+              mobileVoiceSuitability: 10,
+              hallucinationResistance: 10,
+              followUpJudgment: 0,
+            },
+          },
+          judge: {
+            judges: [
+              {
+                judgeModelId: "judge/a",
+                score: 8,
+                reasoning: "Good",
+                strengths: ["specifico"],
+                weaknesses: [],
+                safetyConcern: false,
+                anchorCalibration: "alto",
+              },
+              {
+                judgeModelId: "judge/b",
+                score: 6,
+                reasoning: "Mixed",
+                strengths: [],
+                weaknesses: ["poco follow-up"],
+                safetyConcern: false,
+                anchorCalibration: "medio",
+              },
+            ],
+            consensusScore: 7,
+            disagreement: 2,
+            flaggedForReview: false,
+            blendedScore: 7.6,
+          },
+          metrics: {
+            model: "candidate/model",
+            inputTokens: 10,
+            outputTokens: 20,
+            reasoningTokens: null,
+            reasoningContent: null,
+            toolCalls: null,
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0,
+            generationTimeMs: 1000,
+            reasoningTimeMs: null,
+          },
+        },
+      ],
+    };
+
+    const refreshed = refreshExistingRealityJudgeScores(summary);
+
+    expect(refreshed.results[0]?.judge).toMatchObject({
+      consensusScore: 7,
+      disagreement: 2,
+      flaggedForReview: false,
+      blendedScore: 7.6,
+    });
+    expect(refreshed.models[0]).toMatchObject({
+      avgJudgeScore: 7,
+      avgBlendedScore: 7.6,
+      judgeFlags: 0,
     });
   });
 });

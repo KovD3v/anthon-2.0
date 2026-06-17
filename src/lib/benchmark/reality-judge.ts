@@ -298,6 +298,60 @@ export function aggregateRealityJudgeScores(
   };
 }
 
+export function refreshExistingRealityJudgeScores(
+  summary: RealityBenchmarkSummary,
+): RealityBenchmarkSummary {
+  const results = summary.results.map((result) => ({
+    ...result,
+    ...(result.judge
+      ? {
+          judge: summarizeJudgeTurnForResult(
+            {
+              scenarioId: result.scenarioId,
+              modelId: result.modelId,
+              turnIndex: result.turnIndex,
+              judges: result.judge.judges,
+            },
+            result.score.score,
+          ),
+        }
+      : {}),
+  }));
+
+  const models = summary.models.map((model) => {
+    const modelResults = results.filter(
+      (result) => result.modelId === model.modelId,
+    );
+    const judgedResults = modelResults.filter((result) => result.judge);
+    if (judgedResults.length === 0) {
+      return model;
+    }
+
+    return {
+      ...model,
+      avgJudgeScore: average(
+        judgedResults.map((result) => result.judge?.consensusScore ?? 0),
+      ),
+      avgBlendedScore: average(
+        judgedResults.map((result) => result.judge?.blendedScore ?? 0),
+      ),
+      judgeFlags: judgedResults.filter(
+        (result) => result.judge?.flaggedForReview,
+      ).length,
+    };
+  });
+
+  return {
+    ...summary,
+    results,
+    models: models.sort((a, b) => {
+      const aScore = a.avgBlendedScore ?? a.avgScore;
+      const bScore = b.avgBlendedScore ?? b.avgScore;
+      return bScore - aScore;
+    }),
+  };
+}
+
 export function assertTwoJudgeModels(judgeModels: string[]) {
   if (judgeModels.length !== 2) {
     throw new Error(

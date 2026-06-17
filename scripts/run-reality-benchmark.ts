@@ -19,7 +19,10 @@ import {
   selectRealityScenarios,
   serializeRealityBenchmarkSummary,
 } from "../src/lib/benchmark/reality-cli";
-import { judgeRealityBenchmarkSummary } from "../src/lib/benchmark/reality-judge";
+import {
+  judgeRealityBenchmarkSummary,
+  refreshExistingRealityJudgeScores,
+} from "../src/lib/benchmark/reality-judge";
 
 async function main() {
   const config = parseRealityBenchmarkArgs(process.argv.slice(2));
@@ -158,14 +161,22 @@ async function judgeExistingRun({
         scenarios,
       )
     : deserializeRealityBenchmarkSummary(input);
-  const judgedSummary = await judgeRealityBenchmarkSummary({
-    summary,
-    scenarios,
-    judgeModels,
-    onProgress: logJudgeProgress,
-  });
+  const judgedSummary = hasCompleteJudgeScores(summary)
+    ? refreshExistingRealityJudgeScores(summary)
+    : await judgeRealityBenchmarkSummary({
+        summary,
+        scenarios,
+        judgeModels,
+        onProgress: logJudgeProgress,
+      });
+  if (hasCompleteJudgeScores(summary)) {
+    console.log("Reused existing judge scores from input JSON");
+  }
   const inputBase = path.basename(inputPath, path.extname(inputPath));
-  const outputBase = `${sanitizeFileSegment(inputBase)}-judged`;
+  const sanitizedInputBase = sanitizeFileSegment(inputBase);
+  const outputBase = sanitizedInputBase.endsWith("-judged")
+    ? sanitizedInputBase
+    : `${sanitizedInputBase}-judged`;
   const jsonPath = path.join(outputDir, `${outputBase}.json`);
   const markdownPath = path.join(outputDir, `${outputBase}.md`);
 
@@ -179,7 +190,7 @@ async function judgeExistingRun({
     markdownPath,
     formatRealityBenchmarkReport(judgedSummary, {
       runLabel: outputBase,
-      scenarioCount: scenarios.length,
+      scenarioCount: countSummaryScenarios(judgedSummary),
     }),
     "utf8",
   );
@@ -195,6 +206,21 @@ async function judgeExistingRun({
   }
   console.log(`JSON report: ${jsonPath}`);
   console.log(`Markdown report: ${markdownPath}`);
+}
+
+function hasCompleteJudgeScores(summary: {
+  results: Array<{ judge?: unknown }>;
+}) {
+  return (
+    summary.results.length > 0 &&
+    summary.results.every((result) => result.judge)
+  );
+}
+
+function countSummaryScenarios(summary: {
+  results: Array<{ scenarioId: string }>;
+}) {
+  return new Set(summary.results.map((result) => result.scenarioId)).size;
 }
 
 function formatDatabaseTarget(

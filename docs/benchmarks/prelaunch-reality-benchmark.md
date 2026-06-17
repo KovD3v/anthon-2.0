@@ -63,7 +63,7 @@ judging candidate model outputs.
 Dataset:
 
 - `PRELAUNCH_REALITY_SCENARIOS`
-- 20 curated scenarios.
+- 22 curated scenarios.
 - At least 2 turns per scenario.
 - Coverage: onboarding, memory, safety, parent, coach, motivation, voice,
   mobile brevity, false capability claims, uncertainty, recovery/load, and
