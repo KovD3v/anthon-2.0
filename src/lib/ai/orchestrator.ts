@@ -8,6 +8,7 @@ import {
 } from "ai";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
 import {
+  getModelById,
   getModelForUser,
   getModelIdForPlan,
 } from "@/lib/ai/providers/openrouter";
@@ -183,6 +184,7 @@ interface StreamChatOptions {
   responseMode?: "text" | "voice";
   effectiveEntitlements?: EffectiveEntitlements;
   skipConversationHistory?: boolean;
+  benchmarkModelId?: string;
 }
 
 /**
@@ -405,6 +407,7 @@ export async function streamChat({
   responseMode = "text",
   effectiveEntitlements: prefetchedEntitlements,
   skipConversationHistory = false,
+  benchmarkModelId,
 }: StreamChatOptions) {
   // Record start time for performance tracking
   const startTime = Date.now();
@@ -421,20 +424,24 @@ export async function streamChat({
 
   // Get the appropriate model based on user's subscription plan
   // All Gemini models support vision, so we just use the orchestrator model
-  const baseModel = getModelForUser(
-    planId,
-    userRole,
-    "orchestrator",
-    effectiveEntitlements.modelTier,
-    subscriptionStatus,
-  );
-  const modelId = getModelIdForPlan(
-    planId,
-    userRole,
-    "orchestrator",
-    effectiveEntitlements.modelTier,
-    subscriptionStatus,
-  );
+  const baseModel = benchmarkModelId
+    ? getModelById(benchmarkModelId)
+    : getModelForUser(
+        planId,
+        userRole,
+        "orchestrator",
+        effectiveEntitlements.modelTier,
+        subscriptionStatus,
+      );
+  const modelId =
+    benchmarkModelId ??
+    getModelIdForPlan(
+      planId,
+      userRole,
+      "orchestrator",
+      effectiveEntitlements.modelTier,
+      subscriptionStatus,
+    );
 
   // Wrap model with PostHog tracing for LLM analytics
   const model = withTracing(baseModel, getPostHogClient(), {

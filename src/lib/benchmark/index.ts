@@ -16,6 +16,7 @@ export {
   evaluateResultWithConsensus,
   reEvaluateRun,
 } from "./judge";
+export * from "./reality";
 export {
   getBenchmarkRun,
   getModelScores,

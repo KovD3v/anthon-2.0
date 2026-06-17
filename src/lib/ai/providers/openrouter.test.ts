@@ -179,4 +179,15 @@ describe("ai/providers/openrouter", () => {
       modelId: "z-ai/glm-4.7",
     });
   });
+
+  it("builds a raw provider model for an explicit benchmark model id", async () => {
+    const { getModelById } = await import("./openrouter");
+
+    mocks.provider.mockClear();
+
+    const model = getModelById("candidate/model");
+
+    expect(mocks.provider).toHaveBeenCalledWith("candidate/model");
+    expect(model).toEqual({ modelId: "candidate/model" });
+  });
 });

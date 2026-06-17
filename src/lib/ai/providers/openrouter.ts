@@ -74,6 +74,15 @@ export function getModelForUser(
 }
 
 /**
+ * Build a model directly from an explicit provider id.
+ * Intended for internal benchmark/reality-evaluation flows where the runtime
+ * routing table must stay unchanged while candidate models are compared.
+ */
+export function getModelById(modelId: string) {
+  return withDevTools(openrouter(modelId));
+}
+
+/**
  * Get model ID string for a given user context (useful for logging/tracking)
  */
 export function getModelIdForPlan(

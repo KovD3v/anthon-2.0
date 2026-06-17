@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   streamText: vi.fn(),
   extractAIMetrics: vi.fn(),
   getModelForUser: vi.fn(),
+  getModelById: vi.fn(),
   getModelIdForPlan: vi.fn(),
   getRagContext: vi.fn(),
   shouldUseRag: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock("@/lib/ai/cost-calculator", () => ({
 
 vi.mock("@/lib/ai/providers/openrouter", () => ({
   getModelForUser: mocks.getModelForUser,
+  getModelById: mocks.getModelById,
   getModelIdForPlan: mocks.getModelIdForPlan,
 }));
 
@@ -105,6 +107,7 @@ describe("ai/orchestrator", () => {
     mocks.streamText.mockReset();
     mocks.extractAIMetrics.mockReset();
     mocks.getModelForUser.mockReset();
+    mocks.getModelById.mockReset();
     mocks.getModelIdForPlan.mockReset();
     mocks.getRagContext.mockReset();
     mocks.shouldUseRag.mockReset();
@@ -131,6 +134,7 @@ describe("ai/orchestrator", () => {
     );
     mocks.stepCountIs.mockReturnValue("stop-5");
     mocks.getModelForUser.mockReturnValue("base-model");
+    mocks.getModelById.mockReturnValue("candidate-model");
     mocks.getModelIdForPlan.mockReturnValue("google/gemini-test");
     mocks.getPostHogClient.mockReturnValue("posthog-client");
     mocks.withTracing.mockReturnValue("traced-model");
@@ -246,6 +250,48 @@ describe("ai/orchestrator", () => {
         "No RAG documents available at this time.",
       ),
     ).toBe(1);
+  });
+
+  it("uses an explicit benchmark model id without changing runtime plan routing", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-1",
+      userMessage: "same message",
+      benchmarkModelId: "candidate/model",
+      onFinish: vi.fn(),
+    });
+
+    expect(mocks.getModelById).toHaveBeenCalledWith("candidate/model");
+    expect(mocks.getModelForUser).not.toHaveBeenCalled();
+    expect(mocks.getModelIdForPlan).not.toHaveBeenCalled();
+    expect(mocks.withTracing).toHaveBeenCalledWith(
+      "candidate-model",
+      "posthog-client",
+      expect.objectContaining({
+        posthogProperties: expect.objectContaining({
+          modelId: "candidate/model",
+        }),
+      }),
+    );
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      onFinish?: (input: {
+        text: string;
+        usage?: { inputTokens?: number; outputTokens?: number };
+        providerMetadata?: Record<string, unknown>;
+      }) => Promise<void>;
+    };
+    await streamInput.onFinish?.({
+      text: "assistant",
+      usage: { inputTokens: 1, outputTokens: 2 },
+      providerMetadata: {},
+    });
+
+    expect(mocks.extractAIMetrics).toHaveBeenCalledWith(
+      "candidate/model",
+      expect.any(Number),
+      expect.objectContaining({ text: "assistant" }),
+    );
   });
 
   it("enables Tavily only for time-sensitive requests", async () => {
