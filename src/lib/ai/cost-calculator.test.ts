@@ -97,6 +97,26 @@ describe("ai/cost-calculator", () => {
     expect(result.reasoningTokens).toBe(4);
   });
 
+  it("uses OpenRouter pricing fallback for newer model ids missing from TokenLens", () => {
+    mocks.calculateCost.mockReturnValue({
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      model: "deepseek/deepseek-v4-flash",
+    });
+
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+    const result = extractAIMetrics("deepseek/deepseek-v4-flash", startTime, {
+      text: "done",
+      usage: {
+        promptTokens: 1000,
+        completionTokens: 500,
+      },
+    });
+
+    expect(result.costUsd).toBeCloseTo(0.00018);
+  });
+
   it("reads AI SDK v5 input and output usage fields", () => {
     mocks.calculateCost.mockReturnValue({
       inputCost: 0.1,

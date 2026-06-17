@@ -1,5 +1,6 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
+import { extractAIMetrics } from "@/lib/ai/cost-calculator";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import type {
   RealityBenchmarkSummary,
@@ -253,7 +254,8 @@ export async function judgeRealityTurn({
     candidateAnswer,
   });
 
-  const { output } = await retryJudgeCall(async () => {
+  const judgeStartTime = Date.now();
+  const judgeResult = await retryJudgeCall(async () => {
     const abortController = new AbortController();
     const timeout = setTimeout(
       () => abortController.abort(),
@@ -274,6 +276,14 @@ export async function judgeRealityTurn({
       clearTimeout(timeout);
     }
   }, judgeModelId);
+  const { output } = judgeResult;
+  const metrics = extractAIMetrics(judgeModelId, judgeStartTime, {
+    text: "",
+    usage: judgeResult.usage,
+    providerMetadata: judgeResult.providerMetadata as
+      | Record<string, unknown>
+      | undefined,
+  });
 
   return {
     judgeModelId,
@@ -284,6 +294,10 @@ export async function judgeRealityTurn({
     safetyConcern: output?.safetyConcern ?? false,
     anchorCalibration:
       output?.anchorCalibration ?? "Judge failed to return calibration.",
+    inputTokens: metrics.inputTokens,
+    outputTokens: metrics.outputTokens,
+    costUsd: metrics.costUsd,
+    generationTimeMs: metrics.generationTimeMs,
   };
 }
 
@@ -339,6 +353,10 @@ export function aggregateRealityJudgeScores(
     if (judgedResults.length === 0) {
       return model;
     }
+    const judgeCosts = judgedResults.flatMap((result) =>
+      (result.judge?.judges ?? []).map((judge) => judge.costUsd ?? 0),
+    );
+    const totalJudgeCostUsd = sum(judgeCosts);
 
     return {
       ...model,
@@ -351,6 +369,9 @@ export function aggregateRealityJudgeScores(
       judgeFlags: judgedResults.filter(
         (result) => result.judge?.flaggedForReview,
       ).length,
+      avgJudgeCostUsd: average(judgeCosts),
+      totalJudgeCostUsd,
+      totalRunCostUsd: model.totalCostUsd + totalJudgeCostUsd,
     };
   });
 
@@ -393,6 +414,10 @@ export function refreshExistingRealityJudgeScores(
     if (judgedResults.length === 0) {
       return model;
     }
+    const judgeCosts = judgedResults.flatMap((result) =>
+      (result.judge?.judges ?? []).map((judge) => judge.costUsd ?? 0),
+    );
+    const totalJudgeCostUsd = sum(judgeCosts);
 
     return {
       ...model,
@@ -405,6 +430,9 @@ export function refreshExistingRealityJudgeScores(
       judgeFlags: judgedResults.filter(
         (result) => result.judge?.flaggedForReview,
       ).length,
+      avgJudgeCostUsd: average(judgeCosts),
+      totalJudgeCostUsd,
+      totalRunCostUsd: model.totalCostUsd + totalJudgeCostUsd,
     };
   });
 
@@ -501,6 +529,12 @@ function average(values: number[]) {
     finiteValues.reduce((total, value) => total + value, 0) /
       finiteValues.length,
   );
+}
+
+function sum(values: number[]) {
+  return values
+    .filter(Number.isFinite)
+    .reduce((total, value) => total + value, 0);
 }
 
 function roundScore(value: number) {

@@ -18,7 +18,42 @@ function calculateCost(
   _reasoningTokens?: number, // Kept for API compatibility
 ): number {
   const result = tokenlensCost(modelId, inputTokens, outputTokens);
-  return result.totalCost;
+  if (result.totalCost > 0) {
+    return result.totalCost;
+  }
+
+  return calculateOpenRouterFallbackCost(modelId, inputTokens, outputTokens);
+}
+
+const OPENROUTER_PRICE_FALLBACKS: Record<
+  string,
+  { prompt: number; completion: number }
+> = {
+  "anthropic/claude-haiku-4.5": { prompt: 0.000001, completion: 0.000005 },
+  "deepseek/deepseek-v4-flash": {
+    prompt: 0.00000009,
+    completion: 0.00000018,
+  },
+  "moonshotai/kimi-k2.7-code": {
+    prompt: 0.00000074,
+    completion: 0.0000035,
+  },
+  "openai/gpt-5.4-nano": { prompt: 0.0000002, completion: 0.00000125 },
+  "openai/gpt-chat-latest": { prompt: 0.000005, completion: 0.00003 },
+  "z-ai/glm-5.2": { prompt: 0.0000014, completion: 0.0000044 },
+};
+
+function calculateOpenRouterFallbackCost(
+  modelId: string,
+  inputTokens: number,
+  outputTokens: number,
+) {
+  const pricing = OPENROUTER_PRICE_FALLBACKS[modelId];
+  if (!pricing) {
+    return 0;
+  }
+
+  return inputTokens * pricing.prompt + outputTokens * pricing.completion;
 }
 
 /**
@@ -158,9 +193,16 @@ export function extractAIMetrics(
 }
 
 function asNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value)
-    ? value
-    : undefined;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
 }
 
 function getUsageTokens(

@@ -127,6 +127,10 @@ export type RealityJudgeModelScore = {
   weaknesses: string[];
   safetyConcern: boolean;
   anchorCalibration: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd?: number;
+  generationTimeMs?: number;
 };
 
 export type RealityJudgeTurnScore = {
@@ -152,6 +156,9 @@ export type RealityBenchmarkModelSummary = {
   avgJudgeScore?: number;
   avgBlendedScore?: number;
   judgeFlags?: number;
+  avgJudgeCostUsd?: number;
+  totalJudgeCostUsd?: number;
+  totalRunCostUsd?: number;
 };
 
 export type RealityBenchmarkSummary = {

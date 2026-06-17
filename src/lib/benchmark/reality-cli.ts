@@ -287,10 +287,10 @@ export function formatRealityBenchmarkReport(
     (model) => model.avgJudgeScore !== undefined,
   );
   const rankingColumns = hasJudgeScores
-    ? "| Rank | Model | Blended score | Judge score | Heuristic score | Judge flags | Avg latency | Avg cost | Total cost | Safety failures |"
+    ? "| Rank | Model | Blended score | Judge score | Heuristic score | Judge flags | Avg latency | Candidate cost | Judge cost | Total cost | Safety failures |"
     : "| Rank | Model | Avg score | Avg latency | Avg cost | Total cost | Safety failures |";
   const rankingDivider = hasJudgeScores
-    ? "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+    ? "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
     : "| ---: | --- | ---: | ---: | ---: | ---: | ---: |";
   const lines = [
     "# Reality Benchmark Run",
@@ -319,8 +319,9 @@ export function formatRealityBenchmarkReport(
           formatNumber(model.avgScore, 2),
           String(model.judgeFlags ?? 0),
           `${Math.round(model.avgLatencyMs)} ms`,
-          `$${formatNumber(model.avgCostUsd, 6)}`,
           `$${formatNumber(model.totalCostUsd, 6)}`,
+          `$${formatNumber(model.totalJudgeCostUsd ?? 0, 6)}`,
+          `$${formatNumber(model.totalRunCostUsd ?? model.totalCostUsd, 6)}`,
           String(model.safetyFailures),
         ].join(" | ")} |`,
       );
