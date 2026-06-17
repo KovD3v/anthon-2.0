@@ -307,4 +307,38 @@ describe("benchmark/reality", () => {
       turnCount: 2,
     });
   });
+
+  it("records a benchmark error turn when a candidate call times out", async () => {
+    const summary = await runRealityBenchmark({
+      models: ["model-a"],
+      scenarios: [
+        {
+          id: "scenario-timeout",
+          title: "Scenario timeout",
+          persona: "Atleta",
+          tags: ["safety"],
+          setup: {},
+          turns: [
+            {
+              userMessage: "Aiutami",
+              requiredSignals: ["piano"],
+              lowAnchorResponse: "Boh.",
+              highAnchorResponse: "Facciamo un piano.",
+            },
+          ],
+        },
+      ],
+      turnTimeoutMs: 1,
+      executor: () => new Promise(() => {}),
+    });
+
+    expect(summary.results[0]).toMatchObject({
+      modelId: "model-a",
+      assistantText: expect.stringContaining("BENCHMARK_ERROR"),
+      metadata: {
+        benchmarkError: true,
+      },
+    });
+    expect(summary.models[0]?.turnCount).toBe(1);
+  });
 });

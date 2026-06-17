@@ -161,6 +161,8 @@ export type RealityBenchmarkSummary = {
   results: RealityBenchmarkTurnResult[];
 };
 
+export const DEFAULT_REALITY_TURN_TIMEOUT_MS = 180_000;
+
 export const PRELAUNCH_REALITY_SCENARIOS: RealityScenario[] = [
   {
     id: "prelaunch-onboarding-tennis-goal",
@@ -1239,10 +1241,12 @@ export async function runRealityBenchmark({
   models,
   scenarios = PRELAUNCH_REALITY_SCENARIOS,
   executor,
+  turnTimeoutMs = DEFAULT_REALITY_TURN_TIMEOUT_MS,
 }: {
   models: string[];
   scenarios?: RealityScenario[];
   executor: RealityBenchmarkExecutor;
+  turnTimeoutMs?: number;
 }): Promise<RealityBenchmarkSummary> {
   const startedAt = new Date();
   const results: RealityBenchmarkTurnResult[] = [];
@@ -1253,7 +1257,9 @@ export async function runRealityBenchmark({
 
       for (let turnIndex = 0; turnIndex < scenario.turns.length; turnIndex++) {
         const turn = scenario.turns[turnIndex];
-        const execution = await executor({
+        const execution = await executeRealityTurnWithTimeout({
+          executor,
+          timeoutMs: turnTimeoutMs,
           modelId,
           scenario,
           turn,
@@ -1285,6 +1291,58 @@ export async function runRealityBenchmark({
     models: summarizeRealityResults(results, scenarios),
     results,
   };
+}
+
+async function executeRealityTurnWithTimeout({
+  executor,
+  timeoutMs,
+  modelId,
+  scenario,
+  turn,
+  turnIndex,
+  transcript,
+}: {
+  executor: RealityBenchmarkExecutor;
+  timeoutMs: number;
+  modelId: string;
+  scenario: RealityScenario;
+  turn: RealityScenarioTurn;
+  turnIndex: number;
+  transcript: RealityTranscriptMessage[];
+}): Promise<RealityTurnExecution> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      executor({
+        modelId,
+        scenario,
+        turn,
+        turnIndex,
+        transcript,
+      }),
+      new Promise<RealityTurnExecution>((_, reject) => {
+        timeout = setTimeout(() => {
+          reject(
+            new Error(`Reality benchmark turn timed out after ${timeoutMs}ms`),
+          );
+        }, timeoutMs);
+      }),
+    ]);
+  } catch (error) {
+    return {
+      text: `BENCHMARK_ERROR: ${formatBenchmarkError(error)}`,
+      metrics: fallbackMetrics(modelId),
+      metadata: {
+        benchmarkError: true,
+        errorMessage: formatBenchmarkError(error),
+      },
+    };
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
 }
 
 export function createStreamChatRealityExecutor(
@@ -1621,6 +1679,14 @@ function sum(values: number[]) {
 
 function clampScore(value: number) {
   return Math.min(10, Math.max(0, value));
+}
+
+function formatBenchmarkError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
 }
 
 function toProfileCreateInput(setup: RealityScenarioSetup) {
