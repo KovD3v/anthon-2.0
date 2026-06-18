@@ -139,7 +139,7 @@ export async function runChannelFlow(
       metrics: finalMetrics,
       persistence,
       streamResult: {
-        ...(streamResult as RunChannelFlowResult["streamResult"]),
+        textStream: streamResult.textStream,
         toUIMessageStreamResponse: () =>
           streamResult.toUIMessageStreamResponse({
             messageMetadata: ({ part }: { part: unknown }) => {
