@@ -1,12 +1,8 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { Brain, Loader2, Sparkles } from "lucide-react";
-import { type FormEvent, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Brain } from "lucide-react";
 import { PageWrapper } from "@/components/ui/page-wrapper";
-import { ChatInput } from "../components/ChatInput";
-import { getCreateChatButtonState } from "./create-chat-ui";
 import { useChatContext } from "./layout-client";
 
 /**
@@ -16,34 +12,12 @@ import { useChatContext } from "./layout-client";
  */
 export default function ChatPage() {
   const { user } = useUser();
-  const { createChat, chats, isCreatingChat, isGuest } = useChatContext();
-  const [initialInput, setInitialInput] = useState("");
-
-  const handleNewChat = async () => {
-    await createChat();
-  };
-
-  const handleInitialSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    const initialMessage = initialInput.trim();
-    if (!initialMessage || isCreatingChat) {
-      return;
-    }
-
-    const chatId = await createChat({ initialMessage });
-    if (chatId) {
-      setInitialInput("");
-    }
-  };
+  const { chats, isGuest } = useChatContext();
 
   // Determine greeting based on auth state
   const greeting = isGuest
     ? "Benvenuto!"
     : `Ciao${user?.firstName ? `, ${user.firstName}` : ""}!`;
-  const createChatButton = getCreateChatButtonState({
-    isCreating: isCreatingChat,
-    idleLabel: "Inizia una nuova conversazione",
-  });
 
   return (
     <PageWrapper className="flex flex-1 flex-col">
@@ -57,31 +31,6 @@ export default function ChatPage() {
               Sono Anthon, il tuo coach AI personale. Come posso aiutarti oggi?
             </p>
           </div>
-
-          <ChatInput
-            input={initialInput}
-            setInput={setInitialInput}
-            onSubmit={handleInitialSubmit}
-            isLoading={isCreatingChat}
-            onStop={() => {}}
-            disableAttachments
-          />
-
-          <Button
-            onClick={handleNewChat}
-            size="sm"
-            variant="ghost"
-            className="mt-1 gap-2 text-muted-foreground"
-            disabled={createChatButton.isDisabled}
-            aria-busy={isCreatingChat}
-          >
-            {createChatButton.icon === "loading" ? (
-              <Loader2 className="size-5 animate-spin" />
-            ) : (
-              <Sparkles className="size-5" />
-            )}
-            {createChatButton.label}
-          </Button>
 
           {/* Recent Chats Shortcut */}
           {chats.length > 0 && (

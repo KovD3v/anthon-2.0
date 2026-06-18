@@ -174,7 +174,7 @@ describe("chat mobile viewport layout", () => {
     expect(chatInput).toContain("min-w-0 flex-1");
   });
 
-  it("keeps first-message handoff local to the chat layout state", () => {
+  it("keeps the new-chat landing free of composer-only controls", () => {
     const chatPage = readFileSync("src/app/(chat)/chat/page.tsx", "utf8");
     const layoutClient = readFileSync(
       "src/app/(chat)/chat/layout-client.tsx",
@@ -185,8 +185,9 @@ describe("chat mobile viewport layout", () => {
       "utf8",
     );
 
-    expect(chatPage).toContain("<ChatInput");
-    expect(chatPage).toContain("createChat({ initialMessage");
+    expect(chatPage).not.toContain("<ChatInput");
+    expect(chatPage).not.toContain("Inizia una nuova conversazione");
+    expect(chatPage).not.toContain("createChat({ initialMessage");
     expect(layoutClient).toContain("pendingInitialMessagesRef");
     expect(layoutClient).toContain("consumePendingInitialMessage");
     expect(conversationClient).toContain(
