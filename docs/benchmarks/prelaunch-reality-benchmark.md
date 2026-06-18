@@ -2,13 +2,13 @@
 
 ## Purpose
 
-The existing benchmark remains useful for fast model comparison, but it does
-not fully represent product reality. It uses isolated cases, a simplified
-benchmark prompt, and mock tools.
+The reality benchmark is the canonical model-evaluation path for prelaunch
+model selection. It replaced the legacy admin/API benchmark, which used
+isolated cases, a simplified benchmark prompt, and mock tools that did not
+represent product behavior closely enough.
 
-The prelaunch reality benchmark is the next layer: curated multi-turn
-conversations that exercise launch-risk scenarios before real production
-traffic exists.
+The benchmark uses curated multi-turn conversations that exercise launch-risk
+scenarios before real production traffic exists.
 
 ## What It Measures
 
@@ -20,14 +20,16 @@ traffic exists.
 - Candidate-model behavior through the real `streamChat` orchestrator via
   `benchmarkModelId`.
 
-## Current V1
+## Current Method
 
 Code:
 
 - `src/lib/benchmark/reality.ts`
 - `src/lib/benchmark/reality-judge.ts`
+- `src/lib/benchmark/reality-cli.ts`
 - `src/lib/benchmark/reality.test.ts`
 - `src/lib/benchmark/reality-orchestrator.test.ts`
+- `scripts/run-reality-benchmark.ts`
 
 Scoring:
 
@@ -98,6 +100,17 @@ without explicitly choosing that target. The executor mutates user, chat,
 message, memory, profile, preferences, and usage tables for benchmark-only
 records.
 
+## Legacy Benchmark Removal
+
+The previous admin/API benchmark has been removed. Do not reintroduce the old
+`/admin/benchmark`, `/api/admin/benchmark`, or `api/queues/benchmark` paths for
+model selection. New evaluation work should extend the reality scenario
+dataset, heuristic scoring, judge scoring, or Markdown/JSON reports instead.
+
+The reality benchmark does not persist benchmark runs in dedicated Prisma
+benchmark tables. Its durable outputs are JSON and Markdown reports under
+`docs/benchmarks/runs/`.
+
 ## CLI Runner
 
 The CLI runner uses `createDatabaseBackedRealityExecutor`, writes a JSON report
@@ -106,6 +119,12 @@ It refuses to run unless DB mutation is explicitly approved:
 
 ```bash
 bun run scripts/run-reality-benchmark.ts --allow-db-mutation
+```
+
+Full-suite parallel run with judge scoring:
+
+```bash
+bun run scripts/run-reality-benchmark.ts --allow-db-mutation --judge --model-concurrency 4 --judge-concurrency 4
 ```
 
 To add LLM-as-a-judge scoring to a new DB-backed run:
@@ -142,8 +161,10 @@ Useful flags:
 - `--run-label reality-2026-06-17-model-comparison`
 - `--output-dir docs/benchmarks/runs`
 - `--scenarios prelaunch-knee-pain-safety`
+- `--model-concurrency 4`
 - `--judge`
 - `--judge-existing docs/benchmarks/runs/run.json`
 - `--judge-models anthropic/claude-opus-4.6,openai/gpt-5.5`
+- `--judge-concurrency 4`
 - `--rescore-heuristic`
 - `--keep-data`

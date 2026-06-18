@@ -155,23 +155,6 @@ Notes:
 | `GET` | `/api/admin/organizations/[organizationId]/audit` | Paginated organization audit events. |
 | `GET` | `/api/admin/elevenlabs/stats` | Voice generation statistics. |
 
-### Benchmark endpoints
-
-| Method | Path | Description |
-| ------ | ---- | ----------- |
-| `GET` | `/api/admin/benchmark` | List benchmark runs. |
-| `POST` | `/api/admin/benchmark` | Create/start benchmark run. |
-| `PATCH` | `/api/admin/benchmark` | Update benchmark run state. |
-| `DELETE` | `/api/admin/benchmark` | Delete benchmark run. |
-| `GET` | `/api/admin/benchmark/progress` | Current run progress. |
-| `GET` | `/api/admin/benchmark/export` | Export benchmark results. |
-| `GET` | `/api/admin/benchmark/test-cases` | List test cases. |
-| `POST` | `/api/admin/benchmark/test-cases` | Create test case. |
-| `DELETE` | `/api/admin/benchmark/test-cases` | Delete test case. |
-| `GET` | `/api/admin/benchmark/adversarial` | List adversarial benchmark items. |
-| `POST` | `/api/admin/benchmark/adversarial` | Create/run adversarial benchmark job. |
-| `PATCH` | `/api/admin/benchmark/adversarial` | Update adversarial benchmark state. |
-
 ## Operations and Maintenance API
 
 | Method | Path | Description |
