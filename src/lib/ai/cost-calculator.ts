@@ -34,6 +34,18 @@ const OPENROUTER_PRICE_FALLBACKS: Record<
     prompt: 0.00000009,
     completion: 0.00000018,
   },
+  "google/gemini-2.5-flash-lite": {
+    prompt: 0.0000001,
+    completion: 0.0000004,
+  },
+  "google/gemini-3-flash-preview": {
+    prompt: 0.0000005,
+    completion: 0.000003,
+  },
+  "google/gemini-3.1-flash-lite": {
+    prompt: 0.00000025,
+    completion: 0.0000015,
+  },
   "moonshotai/kimi-k2.7-code": {
     prompt: 0.00000074,
     completion: 0.0000035,

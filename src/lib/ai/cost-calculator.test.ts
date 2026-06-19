@@ -137,6 +137,56 @@ describe("ai/cost-calculator", () => {
     expect(result.costUsd).toBeCloseTo(0.000196);
   });
 
+  it("uses Gemini OpenRouter pricing fallbacks", () => {
+    mocks.calculateCost.mockReturnValue({
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      model: "google/gemini-3.1-flash-lite",
+    });
+
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+    const flashLite31 = extractAIMetrics(
+      "google/gemini-3.1-flash-lite",
+      startTime,
+      {
+        text: "done",
+        usage: {
+          promptTokens: 1000,
+          completionTokens: 500,
+        },
+      },
+    );
+
+    const flash3 = extractAIMetrics(
+      "google/gemini-3-flash-preview",
+      startTime,
+      {
+        text: "done",
+        usage: {
+          promptTokens: 1000,
+          completionTokens: 500,
+        },
+      },
+    );
+
+    const flashLite25 = extractAIMetrics(
+      "google/gemini-2.5-flash-lite",
+      startTime,
+      {
+        text: "done",
+        usage: {
+          promptTokens: 1000,
+          completionTokens: 500,
+        },
+      },
+    );
+
+    expect(flashLite31.costUsd).toBeCloseTo(0.001);
+    expect(flash3.costUsd).toBeCloseTo(0.002);
+    expect(flashLite25.costUsd).toBeCloseTo(0.0003);
+  });
+
   it("reads AI SDK v5 input and output usage fields", () => {
     mocks.calculateCost.mockReturnValue({
       inputCost: 0.1,
