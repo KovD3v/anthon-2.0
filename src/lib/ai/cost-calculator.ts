@@ -40,6 +40,7 @@ const OPENROUTER_PRICE_FALLBACKS: Record<
   },
   "openai/gpt-5.4-nano": { prompt: 0.0000002, completion: 0.00000125 },
   "openai/gpt-chat-latest": { prompt: 0.000005, completion: 0.00003 },
+  "tencent/hy3-preview": { prompt: 0.000000066, completion: 0.00000026 },
   "z-ai/glm-5.2": { prompt: 0.0000014, completion: 0.0000044 },
 };
 

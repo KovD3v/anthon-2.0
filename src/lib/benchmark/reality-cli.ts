@@ -14,6 +14,7 @@ export const DEFAULT_REALITY_BENCHMARK_MODELS = [
   "z-ai/glm-4.7",
   "stepfun/step-3.7-flash",
   "minimax/minimax-m3",
+  "tencent/hy3-preview",
 ];
 
 export type RealityBenchmarkCliConfig = {

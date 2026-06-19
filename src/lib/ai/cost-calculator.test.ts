@@ -117,6 +117,26 @@ describe("ai/cost-calculator", () => {
     expect(result.costUsd).toBeCloseTo(0.00018);
   });
 
+  it("uses Tencent Hy3 OpenRouter pricing fallback", () => {
+    mocks.calculateCost.mockReturnValue({
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      model: "tencent/hy3-preview",
+    });
+
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+    const result = extractAIMetrics("tencent/hy3-preview", startTime, {
+      text: "done",
+      usage: {
+        promptTokens: 1000,
+        completionTokens: 500,
+      },
+    });
+
+    expect(result.costUsd).toBeCloseTo(0.000196);
+  });
+
   it("reads AI SDK v5 input and output usage fields", () => {
     mocks.calculateCost.mockReturnValue({
       inputCost: 0.1,

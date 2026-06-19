@@ -154,6 +154,7 @@ Current candidate-model default:
 - `z-ai/glm-4.7`
 - `stepfun/step-3.7-flash`
 - `minimax/minimax-m3`
+- `tencent/hy3-preview`
 
 Useful flags:
 
