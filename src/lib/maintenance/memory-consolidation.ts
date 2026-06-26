@@ -4,6 +4,7 @@ import {
   MAINTENANCE_MODEL_ID,
   maintenanceModel,
 } from "@/lib/ai/providers/openrouter";
+import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { invalidateMemoriesForPromptCache } from "@/lib/ai/tools/memory";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
@@ -58,6 +59,9 @@ export async function consolidateMemories(userId: string): Promise<void> {
     const result = await generateText({
       model: maintenanceModel,
       output: Output.object({ schema: ConsolidatedMemoriesSchema }),
+      providerOptions: {
+        openrouter: getOpenRouterProviderOptionsForModel(MAINTENANCE_MODEL_ID),
+      },
       system: `Sei un sistema di gestione della memoria a lungo termine.
 Il tuo compito è analizzare una lista di fatti (memorie) e consolidarli AGGRESSIVAMENTE.
 

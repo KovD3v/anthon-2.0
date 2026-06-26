@@ -1,6 +1,7 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { openrouter } from "@/lib/ai/providers/openrouter";
+import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
@@ -75,6 +76,11 @@ export async function decideWebVoiceMode(
       temperature: 0,
       maxOutputTokens: 80,
       timeout: { totalMs: params.timeoutMs ?? DEFAULT_PREFLIGHT_TIMEOUT_MS },
+      providerOptions: {
+        openrouter: getOpenRouterProviderOptionsForModel(
+          DEFAULT_PREFLIGHT_MODEL,
+        ),
+      },
       prompt: `Decide whether Anthon should answer the next WEB chat turn as TEXT or VOICE.
 
 Return VOICE only when a short spoken reply would feel natural, useful, and not surprising.

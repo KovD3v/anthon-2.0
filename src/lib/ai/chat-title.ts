@@ -1,5 +1,6 @@
 import { generateText } from "ai";
 import { openrouter } from "@/lib/ai/providers/openrouter";
+import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { createLogger } from "@/lib/logger";
 
@@ -25,6 +26,11 @@ export async function generateChatTitle(
   Title (no quotes, no punctuation at end):`,
       maxOutputTokens: 20,
       temperature: 0.7,
+      providerOptions: {
+        openrouter: getOpenRouterProviderOptionsForModel(
+          SUMMARIZATION_MODEL_ID,
+        ),
+      },
     });
 
     if (options?.userId) {

@@ -2,6 +2,7 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { extractAIMetrics } from "@/lib/ai/cost-calculator";
 import { openrouter } from "@/lib/ai/providers/openrouter";
+import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import type {
   RealityBenchmarkSummary,
   RealityBenchmarkTurnResult,
@@ -271,6 +272,9 @@ export async function judgeRealityTurn({
         prompt,
         temperature: 0,
         abortSignal: abortController.signal,
+        providerOptions: {
+          openrouter: getOpenRouterProviderOptionsForModel(judgeModelId),
+        },
       });
     } finally {
       clearTimeout(timeout);

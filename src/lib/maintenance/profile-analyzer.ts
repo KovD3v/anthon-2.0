@@ -4,6 +4,7 @@ import {
   MAINTENANCE_MODEL_ID,
   maintenanceModel,
 } from "@/lib/ai/providers/openrouter";
+import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
@@ -59,6 +60,9 @@ export async function analyzeUserProfile(userId: string): Promise<void> {
     const result = await generateText({
       model: maintenanceModel,
       output: Output.object({ schema: ProfileAnalysisSchema }),
+      providerOptions: {
+        openrouter: getOpenRouterProviderOptionsForModel(MAINTENANCE_MODEL_ID),
+      },
       system: `Analizza lo stile di comunicazione e gli obiettivi dell'utente dai messaggi recenti.
 Cerca di estrarre:
 - Tono: (calm, energetic, professional, friendly, direct)

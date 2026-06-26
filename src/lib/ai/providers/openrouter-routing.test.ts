@@ -1,0 +1,123 @@
+import { describe, expect, it } from "vitest";
+import {
+  getOpenRouterProviderOptions,
+  getOpenRouterProviderOptionsForModel,
+  getOpenRouterProviderRouting,
+} from "./openrouter-routing";
+
+describe("ai/providers/openrouter-routing", () => {
+  it("returns no provider routing when env is unset", () => {
+    expect(getOpenRouterProviderRouting({})).toBeUndefined();
+    expect(getOpenRouterProviderOptions({})).toEqual({});
+  });
+
+  it("builds provider routing from environment variables", () => {
+    expect(
+      getOpenRouterProviderRouting({
+        OPENROUTER_PROVIDER_SORT: "latency",
+        OPENROUTER_PROVIDER_ORDER: "fireworks, novita",
+        OPENROUTER_PROVIDER_ONLY: "fireworks",
+        OPENROUTER_PROVIDER_IGNORE: "slow-provider",
+        OPENROUTER_PROVIDER_ALLOW_FALLBACKS: "false",
+        OPENROUTER_PROVIDER_REQUIRE_PARAMETERS: "true",
+        OPENROUTER_PROVIDER_DATA_COLLECTION: "deny",
+      }),
+    ).toEqual({
+      sort: "latency",
+      order: ["fireworks", "novita"],
+      only: ["fireworks"],
+      ignore: ["slow-provider"],
+      allow_fallbacks: false,
+      require_parameters: true,
+      data_collection: "deny",
+    });
+  });
+
+  it("wraps provider routing for AI SDK OpenRouter provider options", () => {
+    expect(
+      getOpenRouterProviderOptions({
+        OPENROUTER_PROVIDER_SORT: "e2e-latency",
+        OPENROUTER_PROVIDER_E2E_METRICS:
+          "wafer/fast:1.32:78:6.08,fireworks/fast:1.07:107:5.48,wandb/fp8:2.00:80:5.78",
+        OPENROUTER_PROVIDER_COST_METRICS:
+          "fireworks/fast:0.0000021:0.0000066,wandb/fp8:0.00000139:0.0000044,wafer/fast:0.000003:0.00001025",
+        OPENROUTER_PROVIDER_E2E_INPUT_TOKENS: "2500",
+        OPENROUTER_PROVIDER_E2E_OUTPUT_TOKENS: "300",
+        OPENROUTER_PROVIDER_E2E_MAX_SECONDS: "10",
+        OPENROUTER_PROVIDER_E2E_COST_WEIGHT: "150",
+      }),
+    ).toEqual({
+      provider: {
+        order: ["wandb/fp8", "fireworks/fast", "wafer/fast"],
+        only: ["wandb/fp8", "fireworks/fast", "wafer/fast"],
+      },
+    });
+  });
+
+  it("estimates e2e latency from latency and throughput when e2e is omitted", () => {
+    expect(
+      getOpenRouterProviderOptions({
+        OPENROUTER_PROVIDER_SORT: "e2e-latency",
+        OPENROUTER_PROVIDER_E2E_OUTPUT_TOKENS: "200",
+        OPENROUTER_PROVIDER_E2E_METRICS:
+          "slow-first-fast-throughput:3:200,fast-first-slow-throughput:1:20",
+      }),
+    ).toEqual({
+      provider: {
+        order: ["slow-first-fast-throughput", "fast-first-slow-throughput"],
+      },
+    });
+  });
+
+  it("uses model-specific provider metrics before global fallback rows", () => {
+    const env = {
+      OPENROUTER_PROVIDER_SORT: "e2e-latency",
+      OPENROUTER_PROVIDER_E2E_METRICS:
+        "global-fast:4,z-ai/glm-5.2=wandb/fp8:5.78,z-ai/glm-5.2=fireworks/fast:5.48,google/gemini-2.5-flash=gemini-provider:2",
+      OPENROUTER_PROVIDER_COST_METRICS:
+        "global-fast:0.000001:0.000001,z-ai/glm-5.2=wandb/fp8:0.00000139:0.0000044,z-ai/glm-5.2=fireworks/fast:0.0000021:0.0000066,google/gemini-2.5-flash=gemini-provider:0.0000005:0.000001",
+      OPENROUTER_PROVIDER_E2E_INPUT_TOKENS: "2500",
+      OPENROUTER_PROVIDER_E2E_OUTPUT_TOKENS: "300",
+      OPENROUTER_PROVIDER_E2E_COST_WEIGHT: "150",
+    };
+
+    expect(getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", env)).toEqual({
+      provider: {
+        order: ["global-fast", "wandb/fp8", "fireworks/fast"],
+      },
+    });
+    expect(
+      getOpenRouterProviderOptionsForModel("google/gemini-2.5-flash", env),
+    ).toEqual({
+      provider: {
+        order: ["gemini-provider", "global-fast"],
+      },
+    });
+  });
+
+  it("rejects invalid booleans and data collection values", () => {
+    expect(() =>
+      getOpenRouterProviderRouting({
+        OPENROUTER_PROVIDER_ALLOW_FALLBACKS: "maybe",
+      }),
+    ).toThrow(/true or false/);
+
+    expect(() =>
+      getOpenRouterProviderRouting({
+        OPENROUTER_PROVIDER_DATA_COLLECTION: "unknown",
+      }),
+    ).toThrow(/allow.*deny/);
+
+    expect(() =>
+      getOpenRouterProviderRouting({
+        OPENROUTER_PROVIDER_SORT: "ttft",
+      }),
+    ).toThrow(/e2e-latency/);
+
+    expect(() =>
+      getOpenRouterProviderRouting({
+        OPENROUTER_PROVIDER_SORT: "e2e-latency",
+      }),
+    ).toThrow(/OPENROUTER_PROVIDER_E2E_METRICS/);
+  });
+});

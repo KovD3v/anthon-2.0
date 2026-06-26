@@ -12,6 +12,7 @@ import {
   getModelForUser,
   getModelIdForPlan,
 } from "@/lib/ai/providers/openrouter";
+import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { getRagContext, shouldUseRag } from "@/lib/ai/rag";
 import { buildConversationContext } from "@/lib/ai/session-manager";
 import {
@@ -705,7 +706,10 @@ export async function streamChat({
     messages,
     tools,
     providerOptions: {
-      openrouter: { promptCaching: true },
+      openrouter: {
+        promptCaching: true,
+        ...getOpenRouterProviderOptionsForModel(modelId),
+      },
     },
     stopWhen: stepCountIs(5), // Allow multi-step tool execution
     onFinish: onFinish

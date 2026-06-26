@@ -5,6 +5,7 @@ import {
   SUB_AGENT_MODEL_ID,
   subAgentModel,
 } from "@/lib/ai/providers/openrouter";
+import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { invalidateMemoriesForPromptCache } from "@/lib/ai/tools/memory";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
@@ -69,6 +70,9 @@ export async function extractAndSaveMemories(
       model: subAgentModel,
       temperature: 0,
       maxOutputTokens: 500,
+      providerOptions: {
+        openrouter: getOpenRouterProviderOptionsForModel(SUB_AGENT_MODEL_ID),
+      },
       system: `Sei un assistente che estrae informazioni importanti dalle conversazioni.
 Analizza lo scambio tra utente e assistente e estrai fatti persistenti sull'utente.
 

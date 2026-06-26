@@ -127,6 +127,46 @@ Full-suite parallel run with judge scoring:
 bun run scripts/run-reality-benchmark.ts --allow-db-mutation --judge --model-concurrency 4 --judge-concurrency 4
 ```
 
+OpenRouter provider routing can be pinned for benchmark processes and is shared
+by all OpenRouter calls in that process, including candidate models, judge
+models, maintenance calls, RAG classifiers, voice checks, and the chat
+orchestrator. For European model selection, prefer provider measurements from
+Frankfurt or Paris, use total E2E latency when OpenRouter exposes it, and fall
+back to `latencySeconds + expectedOutputTokens / throughputTokensPerSecond`
+when it does not.
+
+Cost-aware E2E routing:
+
+```bash
+bun run scripts/run-reality-benchmark.ts \
+  --allow-db-mutation \
+  --judge \
+  --openrouter-provider-sort e2e-latency \
+  --openrouter-provider-e2e-metrics model/id=provider-a:5.78,model/id=provider-b:1.07:107:5.48 \
+  --openrouter-provider-cost-metrics model/id=provider-a:0.00000139:0.0000044,model/id=provider-b:0.0000021:0.0000066 \
+  --openrouter-provider-e2e-input-tokens 2500 \
+  --openrouter-provider-e2e-output-tokens 300 \
+  --openrouter-provider-e2e-max-seconds 10 \
+  --openrouter-provider-e2e-cost-weight 150 \
+  --openrouter-provider-allow-fallbacks true
+```
+
+The `e2e-latency` strategy filters out providers above
+`--openrouter-provider-e2e-max-seconds` when at least one provider remains. It
+then ranks the remaining providers by:
+
+```text
+e2eLatencySeconds + estimatedRequestCostUsd * e2eCostWeight
+```
+
+This deliberately allows a slightly slower provider to win when it is materially
+cheaper and still under the E2E latency cap.
+
+Metric rows can be global (`provider:...`) or scoped to one model
+(`model/id=provider:...`). Scoped rows are used only for that model, which lets
+one multi-model benchmark process route each candidate and judge through its own
+best European provider.
+
 To add LLM-as-a-judge scoring to a new DB-backed run:
 
 ```bash
@@ -168,4 +208,9 @@ Useful flags:
 - `--judge-models anthropic/claude-opus-4.6,openai/gpt-5.5`
 - `--judge-concurrency 4`
 - `--rescore-heuristic`
+- `--openrouter-provider-sort e2e-latency`
+- `--openrouter-provider-e2e-metrics provider:e2eLatencySeconds`
+- `--openrouter-provider-cost-metrics provider:inputCostPerToken:outputCostPerToken`
+- `--openrouter-provider-e2e-max-seconds 10`
+- `--openrouter-provider-e2e-cost-weight 150`
 - `--keep-data`

@@ -14,6 +14,7 @@ import {
   MAINTENANCE_MODEL_ID,
   maintenanceModel,
 } from "@/lib/ai/providers/openrouter";
+import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
@@ -246,6 +247,10 @@ async function checkLevel3Semantic(
           output: Output.object({
             schema: semanticSchema,
           }),
+          providerOptions: {
+            openrouter:
+              getOpenRouterProviderOptionsForModel(MAINTENANCE_MODEL_ID),
+          },
           prompt: `Decidi se questa risposta dovrebbe essere inviata come AUDIO vocale o come TESTO scritto.
 
 ## Regole di priorità:

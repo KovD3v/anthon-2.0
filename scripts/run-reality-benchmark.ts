@@ -9,6 +9,7 @@ import {
   runRealityBenchmark,
 } from "../src/lib/benchmark/reality";
 import {
+  applyOpenRouterProviderRoutingEnv,
   assertRealityBenchmarkDbMutationAllowed,
   describeDatabaseTargets,
   deserializeRealityBenchmarkSummary,
@@ -26,6 +27,7 @@ import {
 
 async function main() {
   const config = parseRealityBenchmarkArgs(process.argv.slice(2));
+  applyOpenRouterProviderRoutingEnv(config);
 
   if (config.help) {
     console.log(REALITY_BENCHMARK_USAGE);
@@ -66,6 +68,7 @@ async function main() {
     console.log(`Judge models: ${config.judgeModels.join(", ")}`);
     console.log(`Judge concurrency: ${config.judgeConcurrency}`);
   }
+  logOpenRouterProviderRouting(config);
   console.log(`Output: ${jsonPath}`);
   console.log(`DATABASE_URL: ${formatDatabaseTarget(dbTargets.databaseUrl)}`);
   console.log(
@@ -136,6 +139,46 @@ async function main() {
       await benchmark.cleanup();
       console.log("Cleaned up benchmark DB records.");
     }
+  }
+}
+
+function logOpenRouterProviderRouting(
+  config: ReturnType<typeof parseRealityBenchmarkArgs>,
+) {
+  const entries = [
+    config.openRouterProviderSort
+      ? `sort=${config.openRouterProviderSort}`
+      : null,
+    config.openRouterProviderOrder.length > 0
+      ? `order=${config.openRouterProviderOrder.join(",")}`
+      : null,
+    config.openRouterProviderOnly.length > 0
+      ? `only=${config.openRouterProviderOnly.join(",")}`
+      : null,
+    config.openRouterProviderIgnore.length > 0
+      ? `ignore=${config.openRouterProviderIgnore.join(",")}`
+      : null,
+    config.openRouterProviderAllowFallbacks !== null
+      ? `allow_fallbacks=${config.openRouterProviderAllowFallbacks}`
+      : null,
+    config.openRouterProviderE2eMetrics ? "e2e_metrics=configured" : null,
+    config.openRouterProviderCostMetrics ? "cost_metrics=configured" : null,
+    config.openRouterProviderE2eInputTokens !== null
+      ? `e2e_input_tokens=${config.openRouterProviderE2eInputTokens}`
+      : null,
+    config.openRouterProviderE2eOutputTokens !== null
+      ? `e2e_output_tokens=${config.openRouterProviderE2eOutputTokens}`
+      : null,
+    config.openRouterProviderE2eMaxSeconds !== null
+      ? `e2e_max_seconds=${config.openRouterProviderE2eMaxSeconds}`
+      : null,
+    config.openRouterProviderE2eCostWeight !== null
+      ? `e2e_cost_weight=${config.openRouterProviderE2eCostWeight}`
+      : null,
+  ].filter(Boolean);
+
+  if (entries.length > 0) {
+    console.log(`OpenRouter provider routing: ${entries.join(" ")}`);
   }
 }
 

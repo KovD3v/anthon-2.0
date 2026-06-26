@@ -5,6 +5,7 @@ import {
   SUB_AGENT_MODEL_ID,
   subAgentModel,
 } from "@/lib/ai/providers/openrouter";
+import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { cacheSummary, getCachedSummary } from "@/lib/ai/session-cache";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
@@ -94,6 +95,9 @@ Estrai i punti chiave, le richieste dell'utente, le risposte importanti e qualsi
 Il riassunto deve essere in italiano e non superare 200 parole.
 Mantieni il contesto importante per continuare la conversazione.`,
     prompt: `Riassumi questa conversazione:\n\n${conversationText}`,
+    providerOptions: {
+      openrouter: getOpenRouterProviderOptionsForModel(SUB_AGENT_MODEL_ID),
+    },
   });
   const { text } = result;
 

@@ -8,6 +8,7 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { RAG, RAG_KEYWORDS, RAG_NEGATIVE_KEYWORDS } from "@/lib/ai/constants";
 import { openrouter } from "@/lib/ai/providers/openrouter";
+import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
@@ -679,6 +680,11 @@ export async function shouldUseRag(
           model: ragClassifierModel, // ⚡ Faster model!
           temperature: 0,
           maxOutputTokens: 120,
+          providerOptions: {
+            openrouter: getOpenRouterProviderOptionsForModel(
+              RAG_CLASSIFIER_MODEL_ID,
+            ),
+          },
           output: Output.object({
             schema: z.object({
               needsRag: z

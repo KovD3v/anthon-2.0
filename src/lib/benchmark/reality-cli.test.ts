@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RealityScenario } from "./reality";
 import {
+  applyOpenRouterProviderRoutingEnv,
   assertRealityBenchmarkDbMutationAllowed,
   DEFAULT_REALITY_BENCHMARK_MODELS,
   formatRealityBenchmarkReport,
@@ -50,6 +51,60 @@ describe("benchmark/reality-cli", () => {
       judgeConcurrency: 4,
       allowDbMutation: true,
       keepData: true,
+    });
+  });
+
+  it("parses and applies OpenRouter provider routing options", () => {
+    const config = parseRealityBenchmarkArgs([
+      "--openrouter-provider-sort",
+      "e2e-latency",
+      "--openrouter-provider-order=fireworks,novita",
+      "--openrouter-provider-only",
+      "fireworks",
+      "--openrouter-provider-ignore=slow-provider",
+      "--openrouter-provider-allow-fallbacks=false",
+      "--openrouter-provider-e2e-metrics",
+      "fireworks/fast:1.07:107:5.48,wafer/fast:1.32:78:6.08",
+      "--openrouter-provider-cost-metrics",
+      "fireworks/fast:0.0000021:0.0000066,wafer/fast:0.000003:0.00001025",
+      "--openrouter-provider-e2e-input-tokens=2500",
+      "--openrouter-provider-e2e-output-tokens=200",
+      "--openrouter-provider-e2e-max-seconds=10",
+      "--openrouter-provider-e2e-cost-weight=120",
+    ]);
+    const env: Record<string, string | undefined> = {};
+
+    applyOpenRouterProviderRoutingEnv(config, env);
+
+    expect(config).toMatchObject({
+      openRouterProviderSort: "e2e-latency",
+      openRouterProviderOrder: ["fireworks", "novita"],
+      openRouterProviderOnly: ["fireworks"],
+      openRouterProviderIgnore: ["slow-provider"],
+      openRouterProviderAllowFallbacks: false,
+      openRouterProviderE2eMetrics:
+        "fireworks/fast:1.07:107:5.48,wafer/fast:1.32:78:6.08",
+      openRouterProviderCostMetrics:
+        "fireworks/fast:0.0000021:0.0000066,wafer/fast:0.000003:0.00001025",
+      openRouterProviderE2eInputTokens: 2500,
+      openRouterProviderE2eOutputTokens: 200,
+      openRouterProviderE2eMaxSeconds: 10,
+      openRouterProviderE2eCostWeight: 120,
+    });
+    expect(env).toMatchObject({
+      OPENROUTER_PROVIDER_SORT: "e2e-latency",
+      OPENROUTER_PROVIDER_ORDER: "fireworks,novita",
+      OPENROUTER_PROVIDER_ONLY: "fireworks",
+      OPENROUTER_PROVIDER_IGNORE: "slow-provider",
+      OPENROUTER_PROVIDER_ALLOW_FALLBACKS: "false",
+      OPENROUTER_PROVIDER_E2E_METRICS:
+        "fireworks/fast:1.07:107:5.48,wafer/fast:1.32:78:6.08",
+      OPENROUTER_PROVIDER_COST_METRICS:
+        "fireworks/fast:0.0000021:0.0000066,wafer/fast:0.000003:0.00001025",
+      OPENROUTER_PROVIDER_E2E_INPUT_TOKENS: "2500",
+      OPENROUTER_PROVIDER_E2E_OUTPUT_TOKENS: "200",
+      OPENROUTER_PROVIDER_E2E_MAX_SECONDS: "10",
+      OPENROUTER_PROVIDER_E2E_COST_WEIGHT: "120",
     });
   });
 

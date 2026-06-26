@@ -5,6 +5,7 @@ import {
   MAINTENANCE_MODEL_ID,
   maintenanceModel,
 } from "@/lib/ai/providers/openrouter";
+import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
@@ -104,6 +105,9 @@ export async function archiveOldSessions(
 
     const result = await generateText({
       model: maintenanceModel,
+      providerOptions: {
+        openrouter: getOpenRouterProviderOptionsForModel(MAINTENANCE_MODEL_ID),
+      },
       system: `Sei un archivista. Riassumi questa vecchia conversazione per conservare il contesto a lungo termine.
 Includi: argomenti trattati, decisioni prese, fatti importanti.
 Ignora: saluti, chiacchiere inutili.
