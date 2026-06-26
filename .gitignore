@@ -53,6 +53,7 @@ CLAUDE.md
 # Claude Code
 .claude/
 .superpowers/
+.worktrees/
 
 # Local script artifacts
 /scripts/Quantum_Strategies_Categories_Fixed/
