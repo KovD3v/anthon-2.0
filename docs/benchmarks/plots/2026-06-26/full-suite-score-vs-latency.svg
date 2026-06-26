@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="680" viewBox="0 0 1040 680" role="img" aria-label="Full-suite quality versus latency">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <text x="24" y="32" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="700" fill="#111827">Full-suite quality versus latency</text>
+  
+  <line x1="86" x2="1008" y1="58" y2="58" stroke="#e5e7eb"/><line x1="86" x2="1008" y1="195.5" y2="195.5" stroke="#e5e7eb"/><line x1="86" x2="1008" y1="333" y2="333" stroke="#e5e7eb"/><line x1="86" x2="1008" y1="470.5" y2="470.5" stroke="#e5e7eb"/><line x1="86" x2="1008" y1="608" y2="608" stroke="#e5e7eb"/>
+  <line x1="86" x2="1008" y1="608" y2="608" stroke="#334155"/>
+  <line x1="86" x2="86" y1="58" y2="608" stroke="#334155"/>
+  <text x="547" y="656" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">Average latency, ms</text>
+  <text x="22" y="333" transform="rotate(-90 22 333)" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">Average blended score</text>
+  <text x="86" y="632" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">Bubble size = number of full-suite runs; amber = safety failures observed.</text>
+  
+  <circle cx="203.37061794962614" cy="107.13081269013469" r="12" fill="#d97706" opacity="0.9"/>
+  <text x="213.37061794962614" y="99.13081269013469" font-family="Inter, Arial, sans-serif" font-size="12" fill="#111827">gpt-chat-latest</text>
+  <text x="213.37061794962614" y="115.13081269013469" font-family="Inter, Arial, sans-serif" font-size="10" fill="#6b7280">3r, 2s</text>
+  <circle cx="552.7061408788766" cy="126.41590612777031" r="14" fill="#d97706" opacity="0.9"/>
+  <text x="562.7061408788766" y="118.41590612777031" font-family="Inter, Arial, sans-serif" font-size="12" fill="#111827">kimi-k2.7-code</text>
+  <text x="562.7061408788766" y="134.4159061277703" font-family="Inter, Arial, sans-serif" font-size="10" fill="#6b7280">4r, 1s</text>
+  <circle cx="426.68800458295067" cy="181.8265971316817" r="14" fill="#d97706" opacity="0.9"/>
+  <text x="436.68800458295067" y="173.8265971316817" font-family="Inter, Arial, sans-serif" font-size="12" fill="#111827">deepseek-v4-flash</text>
+  <text x="436.68800458295067" y="189.8265971316817" font-family="Inter, Arial, sans-serif" font-size="10" fill="#6b7280">4r, 6s</text>
+  <circle cx="934.164711383584" cy="198.12385919165553" r="14" fill="#d97706" opacity="0.9"/>
+  <text x="944.164711383584" y="190.12385919165553" font-family="Inter, Arial, sans-serif" font-size="12" fill="#111827">glm-5.2</text>
+  <text x="944.164711383584" y="206.12385919165553" font-family="Inter, Arial, sans-serif" font-size="10" fill="#6b7280">4r, 4s</text>
+  <circle cx="507.5274129511911" cy="204.64276401564524" r="14" fill="#d97706" opacity="0.9"/>
+  <text x="517.5274129511911" y="196.64276401564524" font-family="Inter, Arial, sans-serif" font-size="12" fill="#111827">hy3-preview</text>
+  <text x="517.5274129511911" y="212.64276401564524" font-family="Inter, Arial, sans-serif" font-size="10" fill="#6b7280">4r, 5s</text>
+  <circle cx="765.3271287882224" cy="216.86571056062564" r="8" fill="#d97706" opacity="0.9"/>
+  <text x="775.3271287882224" y="208.86571056062564" font-family="Inter, Arial, sans-serif" font-size="12" fill="#111827">minimax/minimax-m3</text>
+  <text x="775.3271287882224" y="224.86571056062564" font-family="Inter, Arial, sans-serif" font-size="10" fill="#6b7280">1r, 1s</text>
+  <circle cx="152.64079716837176" cy="251.63320295523692" r="12" fill="#d97706" opacity="0.9"/>
+  <text x="162.64079716837176" y="243.63320295523692" font-family="Inter, Arial, sans-serif" font-size="12" fill="#111827">gemini-3.1-flash-lite</text>
+  <text x="162.64079716837176" y="259.6332029552369" font-family="Inter, Arial, sans-serif" font-size="10" fill="#6b7280">3r, 2s</text>
+  <circle cx="171.61090877196057" cy="288.5736636245108" r="8" fill="#d97706" opacity="0.9"/>
+  <text x="181.61090877196057" y="280.5736636245108" font-family="Inter, Arial, sans-serif" font-size="12" fill="#111827">gemini-3-flash-preview</text>
+  <text x="181.61090877196057" y="296.5736636245108" font-family="Inter, Arial, sans-serif" font-size="10" fill="#6b7280">1r, 1s</text>
+  <circle cx="171.46518653966095" cy="386.35723598435465" r="8" fill="#d97706" opacity="0.9"/>
+  <text x="181.46518653966095" y="378.35723598435465" font-family="Inter, Arial, sans-serif" font-size="12" fill="#111827">glm-4.7</text>
+  <text x="181.46518653966095" y="394.35723598435465" font-family="Inter, Arial, sans-serif" font-size="10" fill="#6b7280">1r, 1s</text>
+  <circle cx="720.0681246750443" cy="389.61668839634933" r="8" fill="#d97706" opacity="0.9"/>
+  <text x="730.0681246750443" y="381.61668839634933" font-family="Inter, Arial, sans-serif" font-size="12" fill="#111827">stepfun/step-3.7-flash</text>
+  <text x="730.0681246750443" y="397.61668839634933" font-family="Inter, Arial, sans-serif" font-size="10" fill="#6b7280">1r, 1s</text>
+  <circle cx="115.99659912456725" cy="409.17340286831796" r="8" fill="#d97706" opacity="0.9"/>
+  <text x="125.99659912456725" y="401.17340286831796" font-family="Inter, Arial, sans-serif" font-size="12" fill="#111827">gemini-2.5-flash</text>
+  <text x="125.99659912456725" y="417.17340286831796" font-family="Inter, Arial, sans-serif" font-size="10" fill="#6b7280">1r, 1s</text>
+  <circle cx="94.30848848017962" cy="451.54628422425014" r="8" fill="#d97706" opacity="0.9"/>
+  <text x="104.30848848017962" y="443.54628422425014" font-family="Inter, Arial, sans-serif" font-size="12" fill="#111827">gemini-2.5-flash-lite</text>
+  <text x="104.30848848017962" y="459.54628422425014" font-family="Inter, Arial, sans-serif" font-size="10" fill="#6b7280">1r, 1s</text>
+</svg>
