@@ -11,6 +11,7 @@ interface PlanCatalogEntry {
   attachmentRetentionDays: number;
   modelRouting: {
     orchestrator: string;
+    orchestratorFallbacks?: string[];
     subAgent: string;
     maintenance: string;
   };
@@ -18,7 +19,8 @@ interface PlanCatalogEntry {
 }
 
 const MAINTENANCE_MODEL_ID = "google/gemini-2.5-flash-lite";
-const ORCHESTRATOR_MODEL_ID = "moonshotai/kimi-k2.7-code";
+const ORCHESTRATOR_MODEL_ID = "z-ai/glm-5.2";
+const ORCHESTRATOR_FALLBACK_MODEL_IDS = ["deepseek/deepseek-v4-flash"];
 
 export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
   GUEST: {
@@ -33,6 +35,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     attachmentRetentionDays: 1,
     modelRouting: {
       orchestrator: ORCHESTRATOR_MODEL_ID,
+      orchestratorFallbacks: ORCHESTRATOR_FALLBACK_MODEL_IDS,
       subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },
@@ -56,6 +59,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     attachmentRetentionDays: 7,
     modelRouting: {
       orchestrator: ORCHESTRATOR_MODEL_ID,
+      orchestratorFallbacks: ORCHESTRATOR_FALLBACK_MODEL_IDS,
       subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },
@@ -79,6 +83,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     attachmentRetentionDays: 30,
     modelRouting: {
       orchestrator: ORCHESTRATOR_MODEL_ID,
+      orchestratorFallbacks: ORCHESTRATOR_FALLBACK_MODEL_IDS,
       subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },
@@ -102,6 +107,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     attachmentRetentionDays: 60,
     modelRouting: {
       orchestrator: ORCHESTRATOR_MODEL_ID,
+      orchestratorFallbacks: ORCHESTRATOR_FALLBACK_MODEL_IDS,
       subAgent: "google/gemini-2.5-flash",
       maintenance: MAINTENANCE_MODEL_ID,
     },
@@ -125,6 +131,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     attachmentRetentionDays: 180,
     modelRouting: {
       orchestrator: ORCHESTRATOR_MODEL_ID,
+      orchestratorFallbacks: ORCHESTRATOR_FALLBACK_MODEL_IDS,
       subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },
@@ -148,6 +155,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     attachmentRetentionDays: 365 * 10,
     modelRouting: {
       orchestrator: ORCHESTRATOR_MODEL_ID,
+      orchestratorFallbacks: ORCHESTRATOR_FALLBACK_MODEL_IDS,
       subAgent: "google/gemini-2.5-flash-lite",
       maintenance: MAINTENANCE_MODEL_ID,
     },

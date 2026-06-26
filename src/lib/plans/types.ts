@@ -45,6 +45,7 @@ export interface ResolvedEntitlements {
 export interface ResolvedPlanPolicies {
   modelRouting: {
     orchestrator: string;
+    orchestratorFallbacks?: string[];
     subAgent: string;
     maintenance: string;
   };

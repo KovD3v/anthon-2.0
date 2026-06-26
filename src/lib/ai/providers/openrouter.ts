@@ -4,6 +4,7 @@ import type { LanguageModel } from "ai";
 import { wrapLanguageModel } from "ai";
 import type { OrganizationModelTier } from "@/lib/organizations/types";
 import { resolvePlanSnapshot } from "@/lib/plans";
+import type { ResolvedPlanPolicies } from "@/lib/plans/types";
 
 // Create OpenRouter provider instance with API key from environment.
 // The double cast is required because @openrouter/ai-sdk-provider bundles its own copy of
@@ -44,13 +45,35 @@ function resolveModelRouting(
   }).policies.modelRouting;
 }
 
+function getOpenRouterModelSettings(
+  routing: ResolvedPlanPolicies["modelRouting"],
+  modelType: ModelType,
+) {
+  if (modelType !== "orchestrator" || !routing.orchestratorFallbacks?.length) {
+    return undefined;
+  }
+
+  return { models: routing.orchestratorFallbacks };
+}
+
+function getOpenRouterModel(
+  routing: ResolvedPlanPolicies["modelRouting"],
+  modelType: ModelType,
+) {
+  const modelId = routing[modelType];
+  const settings = getOpenRouterModelSettings(routing, modelType);
+  return settings ? openrouter(modelId, settings) : openrouter(modelId);
+}
+
 const trialRouting = resolveModelRouting("TRIAL");
 export const ORCHESTRATOR_MODEL_ID = trialRouting.orchestrator;
 export const SUB_AGENT_MODEL_ID = trialRouting.subAgent;
 export const MAINTENANCE_MODEL_ID = trialRouting.maintenance;
 
 // Default models (for backward compatibility - uses trial tier)
-const _orchestratorModel = withDevTools(openrouter(trialRouting.orchestrator));
+const _orchestratorModel = withDevTools(
+  getOpenRouterModel(trialRouting, "orchestrator"),
+);
 export const subAgentModel = withDevTools(openrouter(trialRouting.subAgent));
 
 /**
@@ -70,7 +93,7 @@ export function getModelForUser(
     modelTier,
   );
 
-  return withDevTools(openrouter(routing[modelType]));
+  return withDevTools(getOpenRouterModel(routing, modelType));
 }
 
 /**

@@ -60,7 +60,7 @@ describe("ai/providers/openrouter", () => {
     const { getModelIdForPlan } = await import("./openrouter");
 
     expect(getModelIdForPlan(null, undefined, "orchestrator")).toBe(
-      "moonshotai/kimi-k2.7-code",
+      "z-ai/glm-5.2",
     );
     expect(
       getModelIdForPlan(
@@ -70,7 +70,7 @@ describe("ai/providers/openrouter", () => {
         undefined,
         "ACTIVE",
       ),
-    ).toBe("moonshotai/kimi-k2.7-code");
+    ).toBe("z-ai/glm-5.2");
     expect(
       getModelIdForPlan(
         "my-basic_plus-plan",
@@ -88,7 +88,7 @@ describe("ai/providers/openrouter", () => {
         undefined,
         "ACTIVE",
       ),
-    ).toBe("moonshotai/kimi-k2.7-code");
+    ).toBe("z-ai/glm-5.2");
     expect(
       getModelIdForPlan(
         "my-pro-plan",
@@ -97,7 +97,7 @@ describe("ai/providers/openrouter", () => {
         undefined,
         "ACTIVE",
       ),
-    ).toBe("moonshotai/kimi-k2.7-code");
+    ).toBe("z-ai/glm-5.2");
     expect(
       getModelIdForPlan(
         "my-pro-plan",
@@ -106,7 +106,7 @@ describe("ai/providers/openrouter", () => {
         "BASIC",
         "ACTIVE",
       ),
-    ).toBe("moonshotai/kimi-k2.7-code");
+    ).toBe("z-ai/glm-5.2");
     expect(
       getModelIdForPlan(
         "my-basic-plan",
@@ -115,7 +115,42 @@ describe("ai/providers/openrouter", () => {
         "PRO",
         "ACTIVE",
       ),
-    ).toBe("moonshotai/kimi-k2.7-code");
+    ).toBe("z-ai/glm-5.2");
+  });
+
+  it("passes orchestrator fallback models to OpenRouter", async () => {
+    const { getModelForUser } = await import("./openrouter");
+
+    mocks.provider.mockClear();
+
+    const model = getModelForUser(
+      "my-pro-plan",
+      undefined,
+      "orchestrator",
+      undefined,
+      "ACTIVE",
+    );
+
+    expect(mocks.provider).toHaveBeenCalledWith("z-ai/glm-5.2", {
+      models: ["deepseek/deepseek-v4-flash"],
+    });
+    expect(model).toEqual({ modelId: "z-ai/glm-5.2" });
+  });
+
+  it("does not attach orchestrator fallback models to sub-agent routing", async () => {
+    const { getModelForUser } = await import("./openrouter");
+
+    mocks.provider.mockClear();
+
+    getModelForUser(
+      "my-basic_plus-plan",
+      undefined,
+      "subAgent",
+      undefined,
+      "ACTIVE",
+    );
+
+    expect(mocks.provider).toHaveBeenCalledWith("google/gemini-2.5-flash");
   });
 
   it("throws when active subscription has invalid planId", async () => {
@@ -173,10 +208,12 @@ describe("ai/providers/openrouter", () => {
       "ACTIVE",
     );
 
-    expect(mocks.provider).toHaveBeenCalledWith("moonshotai/kimi-k2.7-code");
+    expect(mocks.provider).toHaveBeenCalledWith("z-ai/glm-5.2", {
+      models: ["deepseek/deepseek-v4-flash"],
+    });
     expect(mocks.wrapLanguageModel).not.toHaveBeenCalled();
     expect(model).toEqual({
-      modelId: "moonshotai/kimi-k2.7-code",
+      modelId: "z-ai/glm-5.2",
     });
   });
 
