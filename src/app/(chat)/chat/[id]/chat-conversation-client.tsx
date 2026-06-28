@@ -309,12 +309,15 @@ export function ChatConversationClient({
     }
 
     submitInFlightRef.current = true;
+    const submittedInput = input;
 
     try {
       await maybeActivateClerkTrial();
 
       const parts: UIMessage["parts"] = [];
-      if (input.trim()) parts.push({ type: "text", text: input });
+      if (submittedInput.trim()) {
+        parts.push({ type: "text", text: submittedInput });
+      }
       if (attachments) {
         attachments.forEach((att: AttachmentData) => {
           const isAudio = att.contentType.startsWith("audio/");
@@ -329,8 +332,12 @@ export function ChatConversationClient({
           } as any);
         });
       }
-      await sendMessage({ role: "user", parts: parts as UIMessage["parts"] });
       setInput("");
+      await sendMessage({ role: "user", parts: parts as UIMessage["parts"] });
+    } catch (error) {
+      setInput(submittedInput);
+      console.error("Failed to send chat message:", error);
+      toast.error("Invio messaggio fallito");
     } finally {
       submitInFlightRef.current = false;
     }

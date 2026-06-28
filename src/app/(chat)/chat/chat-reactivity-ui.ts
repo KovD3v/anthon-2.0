@@ -60,6 +60,46 @@ export function getAssistantPendingLabel({
   return CHAT_REACTIVITY_COPY.assistantPreparing;
 }
 
+export type AssistantMessageLifecycle = "content" | "pending" | "hidden";
+
+export function getAssistantMessageLifecycle({
+  message,
+  isLatest,
+  pendingLabel,
+  hasRenderableAttachment = false,
+}: {
+  message: UIMessage;
+  isLatest: boolean;
+  pendingLabel: string | null;
+  hasRenderableAttachment?: boolean;
+}): AssistantMessageLifecycle {
+  if (message.role !== "assistant") {
+    return "content";
+  }
+
+  const hasText = getMessageText(message).trim().length > 0;
+  const hasFilePart = message.parts?.some((part) => part.type === "file");
+  if (hasText || hasFilePart || hasRenderableAttachment) {
+    return "content";
+  }
+
+  if (isLatest && pendingLabel) {
+    return "pending";
+  }
+
+  return "hidden";
+}
+
+export function shouldRenderAssistantPendingRow({
+  pendingLabel,
+  latestMessage,
+}: {
+  pendingLabel: string | null;
+  latestMessage: UIMessage | undefined;
+}) {
+  return Boolean(pendingLabel) && latestMessage?.role !== "assistant";
+}
+
 export function getAudioRecorderStatusLabel({
   state,
   duration,

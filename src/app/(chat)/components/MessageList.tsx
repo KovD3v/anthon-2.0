@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
@@ -27,8 +27,10 @@ import {
   ASSISTANT_READING_MAX_MS,
   CHAT_REACTIVITY_COPY,
   type ChatRequestStatus,
+  getAssistantMessageLifecycle,
   getAssistantPendingLabel,
   getMessageText,
+  shouldRenderAssistantPendingRow,
 } from "../chat/chat-reactivity-ui";
 import { AttachmentPreview } from "./Attachments";
 import { AudioPlayer } from "./AudioPlayer";
@@ -38,6 +40,10 @@ import { MemoizedMarkdown } from "./MemoizedMarkdown";
 // Extended UIMessage type that includes database fields
 type ExtendedMessage = UIMessage & {
   createdAt?: string | Date;
+  attachments?: Array<{
+    contentType: string;
+    blobUrl: string;
+  }>;
 };
 
 interface MessageListProps {
@@ -59,6 +65,14 @@ interface MessageListProps {
   onLoadMore?: () => void;
 }
 
+function hasPersistedAudioAttachment(message: ExtendedMessage) {
+  return (
+    message.attachments?.some((attachment) =>
+      attachment.contentType.startsWith("audio/"),
+    ) ?? false
+  );
+}
+
 export function MessageList({
   messages,
   status,
@@ -76,7 +90,6 @@ export function MessageList({
   isLoadingMore = false,
   onLoadMore,
 }: MessageListProps) {
-  const { parentRef, rowVirtualizer } = useMessageVirtualizer(messages.length);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const { copy, copied } = useCopyToClipboard();
@@ -84,11 +97,32 @@ export function MessageList({
     {},
   );
   const [submittedElapsedMs, setSubmittedElapsedMs] = useState(0);
+  const latestMessage = messages[messages.length - 1];
   const assistantPendingLabel = getAssistantPendingLabel({
     status,
-    latestMessage: messages[messages.length - 1],
+    latestMessage,
     submittedElapsedMs,
   });
+  const visibleMessages = useMemo(
+    () =>
+      messages.filter(
+        (message, index) =>
+          getAssistantMessageLifecycle({
+            message,
+            isLatest: index === messages.length - 1,
+            pendingLabel: assistantPendingLabel,
+            hasRenderableAttachment: hasPersistedAudioAttachment(message),
+          }) !== "hidden",
+      ),
+    [messages, assistantPendingLabel],
+  );
+  const shouldShowPendingRow = shouldRenderAssistantPendingRow({
+    pendingLabel: assistantPendingLabel,
+    latestMessage,
+  });
+  const { parentRef, rowVirtualizer } = useMessageVirtualizer(
+    visibleMessages.length,
+  );
 
   useEffect(() => {
     if (status !== "submitted") {
@@ -207,13 +241,19 @@ export function MessageList({
             }}
           >
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const message = messages[virtualRow.index];
+              const message = visibleMessages[virtualRow.index];
               const isEditing = editingMessageId === message.id;
               const messageText = getMessageText(message);
               const isLastAssistant =
                 message.role === "assistant" &&
-                virtualRow.index === messages.length - 1;
+                message.id === visibleMessages[visibleMessages.length - 1]?.id;
               const isUser = message.role === "user";
+              const assistantLifecycle = getAssistantMessageLifecycle({
+                message,
+                isLatest: message.id === latestMessage?.id,
+                pendingLabel: assistantPendingLabel,
+                hasRenderableAttachment: hasPersistedAudioAttachment(message),
+              });
 
               const hasAttachments = message.parts?.some(
                 (part) => part.type === "file",
@@ -222,14 +262,9 @@ export function MessageList({
               const isAttachmentOnly = hasAttachments && !hasText;
 
               // Voice message state from persisted DB attachments.
-              const dbVoiceAttachment = (
-                message as unknown as {
-                  attachments?: Array<{
-                    contentType: string;
-                    blobUrl: string;
-                  }>;
-                }
-              ).attachments?.find((a) => a.contentType.startsWith("audio/"));
+              const dbVoiceAttachment = message.attachments?.find((a) =>
+                a.contentType.startsWith("audio/"),
+              );
 
               const isVoiceMessage = !!dbVoiceAttachment;
               const voiceAudioSrc = dbVoiceAttachment?.blobUrl;
@@ -342,6 +377,23 @@ export function MessageList({
                                 name="Messaggio vocale"
                                 mimeType="audio/mpeg"
                               />
+                            ) : assistantLifecycle === "pending" ? (
+                              <div
+                                className="flex items-center gap-2 text-muted-foreground"
+                                aria-live="polite"
+                              >
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-foreground/85">
+                                    {assistantPendingLabel}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground/70">
+                                    {
+                                      CHAT_REACTIVITY_COPY.assistantWorkingDetail
+                                    }
+                                  </span>
+                                </div>
+                              </div>
                             ) : (
                               /* Text message: show markdown */
                               <MemoizedMarkdown content={messageText} />
@@ -557,7 +609,7 @@ export function MessageList({
             })}
           </div>
 
-          {assistantPendingLabel && (
+          {shouldShowPendingRow && (
             <m.output
               variants={fadeUp}
               initial="hidden"

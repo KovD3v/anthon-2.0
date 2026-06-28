@@ -204,6 +204,19 @@ describe("chat mobile viewport layout", () => {
     expect(audioRecorder).toContain('"uploading"');
   });
 
+  it("clears submitted composer text before awaiting the assistant response", () => {
+    const conversationClient = readFileSync(
+      "src/app/(chat)/chat/[id]/chat-conversation-client.tsx",
+      "utf8",
+    );
+
+    expect(conversationClient).toContain("const submittedInput = input;");
+    expect(conversationClient.indexOf('setInput("");')).toBeLessThan(
+      conversationClient.indexOf("await sendMessage"),
+    );
+    expect(conversationClient).toContain("setInput(submittedInput);");
+  });
+
   it("keeps the new-chat landing free of composer-only controls", () => {
     const chatPage = readFileSync("src/app/(chat)/chat/page.tsx", "utf8");
     const layoutClient = readFileSync(

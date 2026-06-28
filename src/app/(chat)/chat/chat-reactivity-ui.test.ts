@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   CHAT_REACTIVITY_COPY,
+  getAssistantMessageLifecycle,
   getAssistantPendingLabel,
   getAudioRecorderStatusLabel,
+  shouldRenderAssistantPendingRow,
 } from "./chat-reactivity-ui";
 
 describe("getAssistantPendingLabel", () => {
@@ -57,6 +59,42 @@ describe("getAssistantPendingLabel", () => {
         },
       }),
     ).toBeNull();
+  });
+
+  it("uses the latest empty assistant message as the pending box", () => {
+    const latestMessage = {
+      id: "assistant-1",
+      role: "assistant" as const,
+      parts: [{ type: "text" as const, text: "" }],
+    };
+
+    expect(
+      getAssistantMessageLifecycle({
+        message: latestMessage,
+        isLatest: true,
+        pendingLabel: CHAT_REACTIVITY_COPY.assistantPreparing,
+      }),
+    ).toBe("pending");
+    expect(
+      shouldRenderAssistantPendingRow({
+        pendingLabel: CHAT_REACTIVITY_COPY.assistantPreparing,
+        latestMessage,
+      }),
+    ).toBe(false);
+  });
+
+  it("hides stale empty assistant messages without pending feedback", () => {
+    expect(
+      getAssistantMessageLifecycle({
+        message: {
+          id: "assistant-1",
+          role: "assistant",
+          parts: [{ type: "text", text: "" }],
+        },
+        isLatest: false,
+        pendingLabel: null,
+      }),
+    ).toBe("hidden");
   });
 });
 
