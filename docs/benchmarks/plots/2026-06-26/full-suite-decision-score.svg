@@ -2,52 +2,52 @@
   <rect width="100%" height="100%" fill="#ffffff"/>
   <text x="24" y="32" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="700" fill="#111827">Full-suite risk/cost-adjusted decision score</text>
   
-  <text x="24" y="82" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">kimi-k2.7-code</text>
+  <text x="24" y="82" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">minimax/minimax-m3</text>
   <rect x="300" y="64" width="844" height="22" rx="3" fill="#059669"/>
-  <text x="1152" y="80" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">7.1</text>
-  <text x="300" y="100" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">4 runs | cost $0.383 | 9.5s</text>
+  <text x="1152" y="80" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">7.11</text>
+  <text x="300" y="100" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">2 runs | cost $0.206 | 11.6s</text>
   <text x="24" y="126" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">gpt-chat-latest</text>
-  <rect x="300" y="108" width="838.1541981801142" height="22" rx="3" fill="#059669"/>
-  <text x="1146.1541981801142" y="124" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">7.09</text>
+  <rect x="300" y="108" width="832.5642791348835" height="22" rx="3" fill="#059669"/>
+  <text x="1140.5642791348835" y="124" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">7.09</text>
   <text x="300" y="144" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">3 runs | cost $1.009 | 3.4s</text>
-  <text x="24" y="170" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">minimax/minimax-m3</text>
-  <rect x="300" y="152" width="755.4238307748085" height="22" rx="3" fill="#059669"/>
-  <text x="1063.4238307748085" y="168" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.99</text>
-  <text x="300" y="188" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">1 run | cost n/a | 13.3s</text>
-  <text x="24" y="214" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">gemini-3-flash-preview</text>
-  <rect x="300" y="196" width="591.4308365554547" height="22" rx="3" fill="#059669"/>
-  <text x="899.4308365554547" y="212" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.77</text>
-  <text x="300" y="232" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">1 run | cost $0.288 | 2.8s</text>
-  <text x="24" y="258" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">gemini-3.1-flash-lite</text>
-  <rect x="300" y="240" width="455.88458219246456" height="22" rx="3" fill="#059669"/>
-  <text x="763.8845821924646" y="256" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.59</text>
-  <text x="300" y="276" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">3 runs | cost $0.23 | 2.5s</text>
-  <text x="24" y="302" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">glm-5.2</text>
-  <rect x="300" y="284" width="389.3010134000232" height="22" rx="3" fill="#059669"/>
-  <text x="697.3010134000232" y="300" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.51</text>
-  <text x="300" y="320" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">4 runs | cost $0.526 | 16.3s</text>
-  <text x="24" y="346" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">stepfun/step-3.7-flash</text>
-  <rect x="300" y="328" width="383.4638734897503" height="22" rx="3" fill="#059669"/>
-  <text x="691.4638734897503" y="344" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.5</text>
-  <text x="300" y="364" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">1 run | cost n/a | 12.5s</text>
-  <text x="24" y="390" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">glm-4.7</text>
-  <rect x="300" y="372" width="356.6214023454677" height="22" rx="3" fill="#059669"/>
-  <text x="664.6214023454677" y="388" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.47</text>
-  <text x="300" y="408" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">1 run | cost n/a | 2.8s</text>
-  <text x="24" y="434" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">hy3-preview</text>
-  <rect x="300" y="416" width="314.43772404417837" height="22" rx="3" fill="#059669"/>
-  <text x="622.4377240441784" y="432" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.41</text>
-  <text x="300" y="452" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">4 runs | cost $0.216 | 8.7s</text>
-  <text x="24" y="478" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">gemini-2.5-flash</text>
-  <rect x="300" y="460" width="266.9839196706028" height="22" rx="3" fill="#059669"/>
-  <text x="574.9839196706027" y="476" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.35</text>
-  <text x="300" y="496" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">1 run | cost $0.23 | 1.8s</text>
-  <text x="24" y="522" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">deepseek-v4-flash</text>
-  <rect x="300" y="504" width="261.67711668914404" height="22" rx="3" fill="#059669"/>
-  <text x="569.677116689144" y="520" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.34</text>
-  <text x="300" y="540" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">4 runs | cost $0.222 | 7.3s</text>
-  <text x="24" y="566" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">gemini-2.5-flash-lite</text>
-  <rect x="300" y="548" width="204.89113034160385" height="22" rx="3" fill="#059669"/>
-  <text x="512.8911303416039" y="564" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.27</text>
-  <text x="300" y="584" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">1 run | cost $0.201 | 1.5s</text>
+  <text x="24" y="170" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">glm-5.2</text>
+  <rect x="300" y="152" width="761.99964657639" height="22" rx="3" fill="#059669"/>
+  <text x="1069.99964657639" y="168" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">7</text>
+  <text x="300" y="188" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">2 runs | cost $0.492 | 4.1s</text>
+  <text x="24" y="214" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">deepseek-v4-pro</text>
+  <rect x="300" y="196" width="755.5391534271894" height="22" rx="3" fill="#059669"/>
+  <text x="1063.5391534271894" y="212" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.99</text>
+  <text x="300" y="232" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">1 run | cost $0.204 | 18.2s</text>
+  <text x="24" y="258" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">kimi-k2.7-code</text>
+  <rect x="300" y="240" width="730.592803980668" height="22" rx="3" fill="#059669"/>
+  <text x="1038.5928039806681" y="256" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.96</text>
+  <text x="300" y="276" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">5 runs | cost $0.376 | 9.3s</text>
+  <text x="24" y="302" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">gemini-3-flash-preview</text>
+  <rect x="300" y="284" width="587.4863947040905" height="22" rx="3" fill="#059669"/>
+  <text x="895.4863947040905" y="300" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.77</text>
+  <text x="300" y="320" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">1 run | cost $0.288 | 2.8s</text>
+  <text x="24" y="346" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">deepseek-v3.2</text>
+  <rect x="300" y="328" width="504.04515517691607" height="22" rx="3" fill="#059669"/>
+  <text x="812.0451551769161" y="344" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.66</text>
+  <text x="300" y="364" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">1 run | cost $0.205 | 17.4s</text>
+  <text x="24" y="390" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">gemini-3.1-flash-lite</text>
+  <rect x="300" y="372" width="452.84414176520426" height="22" rx="3" fill="#059669"/>
+  <text x="760.8441417652043" y="388" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.59</text>
+  <text x="300" y="408" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">3 runs | cost $0.23 | 2.5s</text>
+  <text x="24" y="434" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">stepfun/step-3.7-flash</text>
+  <rect x="300" y="416" width="380.9064299856402" height="22" rx="3" fill="#059669"/>
+  <text x="688.9064299856402" y="432" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.5</text>
+  <text x="300" y="452" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">1 run | cost n/a | 12.5s</text>
+  <text x="24" y="478" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">glm-4.7</text>
+  <rect x="300" y="460" width="332.70352314971694" height="22" rx="3" fill="#059669"/>
+  <text x="640.703523149717" y="476" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.44</text>
+  <text x="300" y="496" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">2 runs | cost $0.195 | 2.4s</text>
+  <text x="24" y="522" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">gemini-2.5-flash</text>
+  <rect x="300" y="504" width="265.2033183199473" height="22" rx="3" fill="#059669"/>
+  <text x="573.2033183199474" y="520" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.35</text>
+  <text x="300" y="540" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">1 run | cost $0.23 | 1.8s</text>
+  <text x="24" y="566" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">hy3-preview</text>
+  <rect x="300" y="548" width="217.6671811560059" height="22" rx="3" fill="#059669"/>
+  <text x="525.6671811560059" y="564" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">6.29</text>
+  <text x="300" y="584" font-family="Inter, Arial, sans-serif" font-size="11" fill="#6b7280">5 runs | cost $0.215 | 8.4s</text>
 </svg>

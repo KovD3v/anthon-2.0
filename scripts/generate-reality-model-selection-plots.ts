@@ -38,6 +38,13 @@ type RunPoint = {
   judgeFlags: number;
 };
 
+type ExcludedRunPoint = Pick<
+  RunPoint,
+  "file" | "suite" | "modelId" | "blended" | "latencyMs" | "runCostUsd"
+> & {
+  reason: string;
+};
+
 type Aggregate = {
   modelId: string;
   suite: "full" | "reduced";
@@ -68,6 +75,10 @@ const csvPath = join(
   process.cwd(),
   "docs/benchmarks/model-selection-2026-06-26.csv",
 );
+
+const CURRENT_GLM_PROVIDER_ROUTING_LABEL = "eu-e2e-cost";
+const LEGACY_GLM_PROVIDER_ROUTING_REASON =
+  "legacy/uncontrolled-provider-routing";
 
 const palette = {
   blue: "#2563eb",
@@ -125,8 +136,19 @@ function labelModel(modelId: string) {
     .replace("z-ai/", "");
 }
 
-function readRunPoints(): RunPoint[] {
+function shouldExcludeFromCurrentDecisionRanking(point: RunPoint) {
+  return (
+    point.modelId === "z-ai/glm-5.2" &&
+    !point.file.includes(CURRENT_GLM_PROVIDER_ROUTING_LABEL)
+  );
+}
+
+function readRunPoints(): {
+  included: RunPoint[];
+  excluded: ExcludedRunPoint[];
+} {
   const points: RunPoint[] = [];
+  const excluded: ExcludedRunPoint[] = [];
   for (const file of readdirSync(runsDir).filter((name) =>
     name.endsWith(".json"),
   )) {
@@ -161,7 +183,7 @@ function readRunPoints(): RunPoint[] {
           : hasCandidateCost || hasJudgeCost
             ? (candidateCostUsd ?? 0) + (judgeCostUsd ?? 0)
             : null;
-      points.push({
+      const point = {
         file: basename(file),
         suite,
         modelId: model.modelId,
@@ -176,10 +198,25 @@ function readRunPoints(): RunPoint[] {
         judgeCostUsd,
         safetyFailures: model.safetyFailures ?? 0,
         judgeFlags: model.judgeFlags ?? 0,
-      });
+      };
+
+      if (shouldExcludeFromCurrentDecisionRanking(point)) {
+        excluded.push({
+          file: point.file,
+          suite: point.suite,
+          modelId: point.modelId,
+          blended: point.blended,
+          latencyMs: point.latencyMs,
+          runCostUsd: point.runCostUsd,
+          reason: LEGACY_GLM_PROVIDER_ROUTING_REASON,
+        });
+        continue;
+      }
+
+      points.push(point);
     }
   }
-  return points;
+  return { included: points, excluded };
 }
 
 function aggregate(points: RunPoint[], suite: "full" | "reduced"): Aggregate[] {
@@ -393,8 +430,9 @@ function formatNullable(value: number | null, digits: number) {
   return value === null ? "n/a" : round(value, digits);
 }
 
-function writeCsv(aggregates: Aggregate[]) {
+function writeCsv(aggregates: Aggregate[], excluded: ExcludedRunPoint[]) {
   const header = [
+    "status",
     "suite",
     "rank_by_blended",
     "model",
@@ -413,6 +451,7 @@ function writeCsv(aggregates: Aggregate[]) {
   ];
 
   const rows = aggregates.map((item, index) => [
+    "included",
     item.suite,
     index + 1,
     item.modelId,
@@ -430,9 +469,30 @@ function writeCsv(aggregates: Aggregate[]) {
     round(item.decisionScore, 3),
   ]);
 
+  const excludedRows = excluded.map((item) => [
+    "excluded",
+    item.suite,
+    "n/a",
+    item.modelId,
+    1,
+    round(item.blended, 3),
+    "n/a",
+    "n/a",
+    "n/a",
+    round(item.latencyMs / 1000, 2),
+    formatNullable(item.runCostUsd, 6),
+    formatNullable(item.runCostUsd, 6),
+    "n/a",
+    "n/a",
+    "n/a",
+    item.reason,
+  ]);
+
   writeFileSync(
     csvPath,
-    [header, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n"),
+    [header, ...rows, ...excludedRows]
+      .map((row) => row.map(csvEscape).join(","))
+      .join("\n"),
   );
 }
 
@@ -451,7 +511,28 @@ function table(items: Aggregate[], limit = items.length) {
   ].join("\n");
 }
 
-function writeMarkdown(full: Aggregate[], reduced: Aggregate[]) {
+function excludedTable(items: ExcludedRunPoint[]) {
+  if (items.length === 0) {
+    return "No runs excluded.";
+  }
+
+  const rows = items.map(
+    (item) =>
+      `| \`${item.modelId}\` | ${item.suite} | \`${item.file}\` | ${round(item.blended, 2)} | ${round(item.latencyMs / 1000, 1)}s | ${item.runCostUsd === null ? "n/a" : `$${round(item.runCostUsd, 3)}`} | ${item.reason} |`,
+  );
+
+  return [
+    "| Model | Suite | File | Blended | Latency | Cost | Reason |",
+    "|---|---|---|---:|---:|---:|---|",
+    ...rows,
+  ].join("\n");
+}
+
+function writeMarkdown(
+  full: Aggregate[],
+  reduced: Aggregate[],
+  excluded: ExcludedRunPoint[],
+) {
   const bestQuality = full[0];
   const bestDecision = [...full].sort(
     (a, b) => b.decisionScore - a.decisionScore,
@@ -465,6 +546,8 @@ function writeMarkdown(full: Aggregate[], reduced: Aggregate[]) {
 Generated on 2026-06-26 from judged JSON reports in \`docs/benchmarks/runs\`.
 
 Primary selection uses full-suite runs only: \`22\` scenarios and \`44\` turns. Reduced-suite runs are listed separately as screening evidence.
+
+\`z-ai/glm-5.2\` runs produced before explicit EU E2E/cost-aware OpenRouter routing are kept as historical evidence but excluded from the current decision ranking because provider routing was uncontrolled.
 
 ## Recommendation
 
@@ -494,6 +577,10 @@ These are not directly comparable with the full-suite table, but they indicate w
 
 ${table(reduced)}
 
+## Excluded Historical Runs
+
+${excludedTable(excluded)}
+
 ## Generated Artifacts
 
 - \`docs/benchmarks/model-selection-2026-06-26.csv\`
@@ -508,9 +595,9 @@ ${table(reduced)}
 
 mkdirSync(outputDir, { recursive: true });
 
-const points = readRunPoints();
-const full = aggregate(points, "full");
-const reduced = aggregate(points, "reduced");
+const { included, excluded } = readRunPoints();
+const full = aggregate(included, "full");
+const reduced = aggregate(included, "reduced");
 
 barChart(
   full,
@@ -544,8 +631,8 @@ scatterPlot(
   "Average latency, ms",
   "Average blended score",
 );
-writeCsv([...full, ...reduced]);
-writeMarkdown(full, reduced);
+writeCsv([...full, ...reduced], excluded);
+writeMarkdown(full, reduced, excluded);
 
 console.log(`Wrote ${reportPath}`);
 console.log(`Wrote ${csvPath}`);
