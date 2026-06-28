@@ -28,7 +28,7 @@ describe("ai/chat-title", () => {
     mocks.openrouter.mockReturnValue("title-model");
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
     mocks.generateText.mockResolvedValue({
-      text: "Match Prep Plan.",
+      text: "Piano Preparazione Partita.",
       usage: { inputTokens: 40, outputTokens: 5 },
     });
   });
@@ -38,12 +38,27 @@ describe("ai/chat-title", () => {
       userId: "user-1",
     });
 
-    expect(title).toBe("Match Prep Plan");
+    expect(title).toBe("Piano Preparazione Partita");
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
       userId: "user-1",
       modelId: "google/gemini-2.5-flash-lite",
       usage: { inputTokens: 40, outputTokens: 5 },
       providerMetadata: undefined,
     });
+  });
+
+  it("instructs the model to generate Italian chat titles", async () => {
+    await generateChatTitle("USER: help me prepare");
+
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("titolo in italiano"),
+      }),
+    );
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("Non usare inglese"),
+      }),
+    );
   });
 });

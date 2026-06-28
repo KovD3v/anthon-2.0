@@ -19,11 +19,12 @@ export async function generateChatTitle(
   try {
     const result = await generateText({
       model: SUMMARIZATION_MODEL,
-      prompt: `Generate a short, descriptive title (3-6 words) for a conversation based on these messages:
+      prompt: `Genera un titolo in italiano, breve e descrittivo (3-6 parole), per una conversazione basata su questi messaggi.
+Non usare inglese, a meno che una parola inglese sia un nome proprio, un prodotto, una tecnologia o un termine citato dall'utente.
   
   "${context.slice(0, 1000)}"
   
-  Title (no quotes, no punctuation at end):`,
+  Titolo in italiano, senza virgolette e senza punteggiatura finale:`,
       maxOutputTokens: 20,
       temperature: 0.7,
       providerOptions: {
