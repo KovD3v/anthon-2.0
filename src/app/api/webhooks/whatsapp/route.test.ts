@@ -1282,7 +1282,10 @@ describe("/api/webhooks/whatsapp", () => {
     });
 
     const payload = buildImagePayload("");
-    payload.entry[0].changes[0].value.messages[0].image.caption = undefined;
+    const image = payload.entry[0].changes[0].value.messages[0].image as {
+      caption?: string;
+    };
+    delete image.caption;
 
     const response = await POST(
       new Request("http://localhost/api/webhooks/whatsapp", {

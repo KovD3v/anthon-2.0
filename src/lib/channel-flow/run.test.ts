@@ -15,6 +15,10 @@ vi.mock("./persistence", () => ({
 
 import { runChannelFlow } from "./run";
 
+type StreamResponseOptions = {
+  messageMetadata?: (input: { part: unknown }) => unknown;
+};
+
 describe("channel-flow/run", () => {
   beforeEach(() => {
     mocks.streamChat.mockReset();
@@ -22,7 +26,9 @@ describe("channel-flow/run", () => {
   });
 
   it("returns stream result in stream mode", async () => {
-    const toUIMessageStreamResponse = vi.fn(() => Response.json({ ok: true }));
+    const toUIMessageStreamResponse = vi.fn((_?: StreamResponseOptions) =>
+      Response.json({ ok: true }),
+    );
     const streamResult = {
       toUIMessageStreamResponse,
       textStream: (async function* () {
@@ -94,7 +100,9 @@ describe("channel-flow/run", () => {
           };
         }) => Promise<void>)
       | undefined;
-    const toUIMessageStreamResponse = vi.fn(() => Response.json({ ok: true }));
+    const toUIMessageStreamResponse = vi.fn((_?: StreamResponseOptions) =>
+      Response.json({ ok: true }),
+    );
     mocks.streamChat.mockImplementation(async (input) => {
       onFinish = input.onFinish;
       return {
@@ -142,13 +150,14 @@ describe("channel-flow/run", () => {
     });
     result.streamResult?.toUIMessageStreamResponse();
 
-    const metadata =
-      toUIMessageStreamResponse.mock.calls[0]?.[0]?.messageMetadata({
-        part: {
-          type: "finish",
-          totalUsage: { inputTokens: 1, outputTokens: 2 },
-        },
-      });
+    const messageMetadata =
+      toUIMessageStreamResponse.mock.calls[0]?.[0]?.messageMetadata;
+    const metadata = messageMetadata?.({
+      part: {
+        type: "finish",
+        totalUsage: { inputTokens: 1, outputTokens: 2 },
+      },
+    });
 
     expect(metadata).toEqual({
       inputTokens: 123,

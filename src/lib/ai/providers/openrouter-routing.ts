@@ -1,3 +1,4 @@
+import type { JSONObject } from "@ai-sdk/provider";
 import {
   type ProviderHealthSnapshot,
   rankProviderRoutes,
@@ -55,7 +56,7 @@ const RECENT_ERROR_COOLDOWN_THRESHOLD = 3;
 
 export function getOpenRouterProviderOptions(
   env: Env = process.env,
-): Record<string, unknown> {
+): JSONObject {
   const provider = getOpenRouterProviderRouting(env);
   return provider ? { provider } : {};
 }
@@ -63,7 +64,7 @@ export function getOpenRouterProviderOptions(
 export function getOpenRouterProviderOptionsForModel(
   modelId: string,
   env: Env = process.env,
-): Record<string, unknown> {
+): JSONObject {
   const provider = getOpenRouterProviderRouting(env, modelId);
   return provider ? { provider } : {};
 }
