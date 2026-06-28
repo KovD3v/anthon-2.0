@@ -13,6 +13,7 @@
     "test:coverage:unit": "vitest run --coverage",
     "test:coverage:integration": "vitest run -c vitest.integration.config.ts --coverage",
     "test:integration": "vitest run -c vitest.integration.config.ts",
+    "test:performance": "RUN_LIVE_PERFORMANCE=true vitest run -c vitest.performance.config.ts",
     "test:all": "bun run test && bun run test:integration && bun run test:coverage",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
