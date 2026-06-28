@@ -473,10 +473,10 @@ describe("ai/orchestrator", () => {
     expect(streamInput.system).toContain(
       "Persistent profile, preferences, and memory are unavailable",
     );
-    expect(streamInput.system).toContain("80 to 120 words");
+    expect(streamInput.system).toContain("60 to 90 words");
     expect(streamInput.system).not.toContain("SAVING DATA");
     expect(streamInput.tools).toEqual({});
-    expect(streamInput.maxOutputTokens).toBe(300);
+    expect(streamInput.maxOutputTokens).toBe(220);
   });
 
   it("skips conversation history lookup when the caller knows this is the first message", async () => {

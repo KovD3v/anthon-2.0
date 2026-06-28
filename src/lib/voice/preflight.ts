@@ -39,6 +39,8 @@ const explicitVoiceRegex =
   /\b(vocale|audio|nota vocale|messaggio vocale|mandamelo a voce|rispondimi a voce)\b/i;
 const explicitTextRegex =
   /\b(scrivi|scritto|testo|lista|schema|tabella|link|codice|markdown)\b/i;
+const voiceCandidateRegex =
+  /\b(ansia|ansioso|calma|calmo|calmarmi|teso|tensione|stress|paura|panico|motiv|carica|incoraggia|respiro|respira|supporto|conforto|colpa|giù|male)\b/i;
 
 const classifierSchema = z.object({
   mode: z.enum(["TEXT", "VOICE"]),
@@ -204,6 +206,14 @@ async function runDeterministicPreflight(
     return {
       mode: "VOICE",
       reason: "User explicitly requested voice",
+      source: "deterministic",
+    };
+  }
+
+  if (!voiceCandidateRegex.test(userMessage)) {
+    return {
+      mode: "TEXT",
+      reason: "No voice intent detected",
       source: "deterministic",
     };
   }

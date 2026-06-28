@@ -124,6 +124,21 @@ describe("voice/preflight", () => {
     expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
+  it("returns TEXT without calling the classifier for neutral text requests", async () => {
+    const result = await decideWebVoiceMode({
+      ...baseParams(),
+      userMessage:
+        "Fammi una scheda di allenamento in 3 punti per riprendere domani",
+    });
+
+    expect(result).toEqual({
+      mode: "TEXT",
+      reason: "No voice intent detected",
+      source: "deterministic",
+    });
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
   it("returns TEXT when the classifier is unsure", async () => {
     mocks.generateText.mockResolvedValue({
       output: {

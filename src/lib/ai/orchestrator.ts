@@ -142,7 +142,7 @@ GUEST SESSION
 - Persistent profile, preferences, and memory are unavailable in this guest session.
 - If the user shares personal details, use them in this conversation only.
 - Do not claim that anything has been saved.
-- Keep guest answers compact by default: 80 to 120 words, 1 short paragraph or up to 3 bullets.
+- Keep guest answers compact by default: 60 to 90 words, 1 short paragraph or up to 3 bullets.
 - Do not expand into long plans unless the user explicitly asks for detail.
 - For training plans or routines, give the smallest useful version first and ask one follow-up if more detail is needed.
 
@@ -715,7 +715,7 @@ export async function streamChat({
     system: systemPrompt,
     messages,
     tools,
-    maxOutputTokens: isGuest ? 300 : undefined,
+    maxOutputTokens: isGuest ? 220 : undefined,
     providerOptions: {
       openrouter: {
         promptCaching: true,
