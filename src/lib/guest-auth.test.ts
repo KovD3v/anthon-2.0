@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   cookies: vi.fn(),
   userFindFirst: vi.fn(),
   userCreate: vi.fn(),
+  chatCreate: vi.fn(),
   cookieGet: vi.fn(),
   cookieSet: vi.fn(),
   cookieDelete: vi.fn(),
@@ -20,6 +21,9 @@ vi.mock("@/lib/db", () => ({
       findFirst: mocks.userFindFirst,
       create: mocks.userCreate,
     },
+    chat: {
+      create: mocks.chatCreate,
+    },
   },
 }));
 
@@ -32,6 +36,7 @@ vi.mock("@/lib/latency-logger", () => ({
 import {
   authenticateGuest,
   clearGuestCookie,
+  createGuestChatForSession,
   getGuestTokenFromCookies,
   hashGuestToken,
 } from "./guest-auth";
@@ -41,6 +46,7 @@ describe("lib/guest-auth", () => {
     mocks.cookies.mockReset();
     mocks.userFindFirst.mockReset();
     mocks.userCreate.mockReset();
+    mocks.chatCreate.mockReset();
     mocks.cookieGet.mockReset();
     mocks.cookieSet.mockReset();
     mocks.cookieDelete.mockReset();
@@ -165,5 +171,96 @@ describe("lib/guest-auth", () => {
     expect(result.isNew).toBe(true);
     expect(result.token).not.toBe("stale-token");
     expect(mocks.cookieSet).toHaveBeenCalledTimes(1);
+  });
+
+  it("createGuestChatForSession creates a first guest and chat in one nested write", async () => {
+    mocks.cookieGet.mockReturnValue(undefined);
+    mocks.chatCreate.mockResolvedValue({
+      id: "chat-new",
+      title: "Performance check",
+      visibility: "PRIVATE",
+      createdAt: new Date("2026-02-16T12:00:00.000Z"),
+      updatedAt: new Date("2026-02-16T12:00:00.000Z"),
+      user: {
+        id: "guest-new",
+        isGuest: true,
+        role: "USER",
+        subscription: null,
+      },
+    });
+
+    const result = await createGuestChatForSession({
+      title: "Performance check",
+    });
+
+    expect(result.user.id).toBe("guest-new");
+    expect(result.isNew).toBe(true);
+    expect(result.chat.id).toBe("chat-new");
+    expect(mocks.userCreate).not.toHaveBeenCalled();
+    expect(mocks.userFindFirst).not.toHaveBeenCalled();
+    expect(mocks.chatCreate).toHaveBeenCalledWith({
+      data: {
+        title: "Performance check",
+        customTitle: true,
+        visibility: "PRIVATE",
+        user: {
+          create: {
+            isGuest: true,
+            guestAbuseIdHash: expect.any(String),
+          },
+        },
+      },
+      select: expect.objectContaining({
+        id: true,
+        user: expect.any(Object),
+      }),
+    });
+    expect(mocks.cookieSet).toHaveBeenCalledWith(
+      "anthon_guest_token",
+      result.token,
+      expect.objectContaining({ httpOnly: true }),
+    );
+    expect(mocks.latencyMeasure).toHaveBeenCalledWith(
+      "Guest Chats: Create guest user and chat",
+      expect.any(Function),
+    );
+  });
+
+  it("createGuestChatForSession reuses an existing guest before creating the chat", async () => {
+    mocks.cookieGet.mockReturnValue({ value: "existing-token" });
+    mocks.userFindFirst.mockResolvedValue({
+      id: "guest-1",
+      isGuest: true,
+      role: "USER",
+      subscription: null,
+    });
+    mocks.chatCreate.mockResolvedValue({
+      id: "chat-existing",
+      title: null,
+      visibility: "PRIVATE",
+      createdAt: new Date("2026-02-16T12:00:00.000Z"),
+      updatedAt: new Date("2026-02-16T12:00:00.000Z"),
+    });
+
+    const result = await createGuestChatForSession({});
+
+    expect(result).toMatchObject({
+      user: { id: "guest-1" },
+      token: "existing-token",
+      isNew: false,
+      chat: { id: "chat-existing" },
+    });
+    expect(mocks.chatCreate).toHaveBeenCalledWith({
+      data: {
+        userId: "guest-1",
+        title: undefined,
+        customTitle: false,
+        visibility: "PRIVATE",
+      },
+      select: expect.objectContaining({
+        id: true,
+      }),
+    });
+    expect(mocks.cookieSet).not.toHaveBeenCalled();
   });
 });

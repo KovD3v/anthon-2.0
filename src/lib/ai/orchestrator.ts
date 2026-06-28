@@ -142,6 +142,9 @@ GUEST SESSION
 - Persistent profile, preferences, and memory are unavailable in this guest session.
 - If the user shares personal details, use them in this conversation only.
 - Do not claim that anything has been saved.
+- Keep guest answers compact by default: 80 to 120 words, 1 short paragraph or up to 3 bullets.
+- Do not expand into long plans unless the user explicitly asks for detail.
+- For training plans or routines, give the smallest useful version first and ask one follow-up if more detail is needed.
 
 SAFETY
 - Do not make medical or clinical diagnoses.
@@ -509,32 +512,39 @@ export async function streamChat({
     day: "numeric",
   });
 
-  const ragPromise = (async () => {
-    let ragContext: string | undefined;
-    let ragUsed = false;
-    let ragChunksCount = 0;
-    try {
-      const needsRag = await LatencyLogger.measure(
-        "📚 RAG: Check if needed",
-        () => shouldUseRag(userMessage, { userId }),
-      );
-      if (needsRag) {
-        ragContext = await LatencyLogger.measure("📚 RAG: Get context", () =>
-          getRagContext(userMessage),
-        );
-        ragUsed = true;
-        // Count chunks by counting "**" which marks each document title
-        ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || []).length;
-      }
-    } catch (error) {
-      aiLogger.error("ai.rag.error", "RAG enrichment failed", {
-        error,
-        userId,
-      });
-    }
+  const ragPromise = isGuest
+    ? Promise.resolve({
+        ragContext: undefined,
+        ragUsed: false,
+        ragChunksCount: 0,
+      })
+    : (async () => {
+        let ragContext: string | undefined;
+        let ragUsed = false;
+        let ragChunksCount = 0;
+        try {
+          const needsRag = await LatencyLogger.measure(
+            "📚 RAG: Check if needed",
+            () => shouldUseRag(userMessage, { userId }),
+          );
+          if (needsRag) {
+            ragContext = await LatencyLogger.measure(
+              "📚 RAG: Get context",
+              () => getRagContext(userMessage),
+            );
+            ragUsed = true;
+            // Count chunks by counting "**" which marks each document title
+            ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || []).length;
+          }
+        } catch (error) {
+          aiLogger.error("ai.rag.error", "RAG enrichment failed", {
+            error,
+            userId,
+          });
+        }
 
-    return { ragContext, ragUsed, ragChunksCount };
-  })();
+        return { ragContext, ragUsed, ragChunksCount };
+      })();
 
   const [{ ragContext, ragUsed, ragChunksCount }, conversationHistory] =
     await Promise.all([ragPromise, conversationHistoryPromise]);
@@ -705,6 +715,7 @@ export async function streamChat({
     system: systemPrompt,
     messages,
     tools,
+    maxOutputTokens: isGuest ? 300 : undefined,
     providerOptions: {
       openrouter: {
         promptCaching: true,

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   authenticateGuest: vi.fn(),
+  createGuestChatForSession: vi.fn(),
   chatFindMany: vi.fn(),
   chatCreate: vi.fn(),
   latencyMeasure: vi.fn(),
@@ -9,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/guest-auth", () => ({
   authenticateGuest: mocks.authenticateGuest,
+  createGuestChatForSession: mocks.createGuestChatForSession,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -31,12 +33,25 @@ import { GET, POST } from "./route";
 describe("/api/guest/chats route", () => {
   beforeEach(() => {
     mocks.authenticateGuest.mockReset();
+    mocks.createGuestChatForSession.mockReset();
     mocks.chatFindMany.mockReset();
     mocks.chatCreate.mockReset();
     mocks.latencyMeasure.mockReset();
 
     mocks.authenticateGuest.mockResolvedValue({
       user: { id: "guest-1", isGuest: true },
+    });
+    mocks.createGuestChatForSession.mockResolvedValue({
+      user: { id: "guest-1", isGuest: true },
+      token: "guest-token",
+      isNew: false,
+      chat: {
+        id: "chat-new",
+        title: "Hello",
+        visibility: "PRIVATE",
+        createdAt: new Date("2026-02-16T12:00:00.000Z"),
+        updatedAt: new Date("2026-02-16T12:00:00.000Z"),
+      },
     });
     mocks.latencyMeasure.mockImplementation(
       async (_name: string, fn: () => Promise<unknown>) => await fn(),
@@ -133,29 +148,10 @@ describe("/api/guest/chats route", () => {
     );
 
     expect(response.status).toBe(201);
-    expect(mocks.chatCreate).toHaveBeenCalledWith({
-      data: {
-        userId: "guest-1",
-        title: "Planning",
-        customTitle: true,
-        visibility: "PRIVATE",
-      },
-      select: {
-        id: true,
-        title: true,
-        visibility: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    expect(mocks.createGuestChatForSession).toHaveBeenCalledWith({
+      title: "Planning",
     });
-    expect(mocks.latencyMeasure).toHaveBeenCalledWith(
-      "Guest Chats: Authenticate guest",
-      expect.any(Function),
-    );
-    expect(mocks.latencyMeasure).toHaveBeenCalledWith(
-      "Guest Chats: Create chat row",
-      expect.any(Function),
-    );
+    expect(mocks.chatCreate).not.toHaveBeenCalled();
   });
 
   it("POST returns 400 when title is not a string", async () => {
@@ -171,16 +167,23 @@ describe("/api/guest/chats route", () => {
     await expect(response.json()).resolves.toEqual({
       error: "title must be a string",
     });
+    expect(mocks.authenticateGuest).not.toHaveBeenCalled();
+    expect(mocks.createGuestChatForSession).not.toHaveBeenCalled();
     expect(mocks.chatCreate).not.toHaveBeenCalled();
   });
 
   it("POST allows empty body and falls back to default title", async () => {
-    mocks.chatCreate.mockResolvedValue({
-      id: "chat-new",
-      title: null,
-      visibility: "PRIVATE",
-      createdAt: new Date("2026-02-16T12:00:00.000Z"),
-      updatedAt: new Date("2026-02-16T12:00:00.000Z"),
+    mocks.createGuestChatForSession.mockResolvedValue({
+      user: { id: "guest-1", isGuest: true },
+      token: "guest-token",
+      isNew: false,
+      chat: {
+        id: "chat-new",
+        title: null,
+        visibility: "PRIVATE",
+        createdAt: new Date("2026-02-16T12:00:00.000Z"),
+        updatedAt: new Date("2026-02-16T12:00:00.000Z"),
+      },
     });
 
     const response = await POST(
@@ -188,20 +191,8 @@ describe("/api/guest/chats route", () => {
     );
 
     expect(response.status).toBe(201);
-    expect(mocks.chatCreate).toHaveBeenCalledWith({
-      data: {
-        userId: "guest-1",
-        title: undefined,
-        customTitle: false,
-        visibility: "PRIVATE",
-      },
-      select: {
-        id: true,
-        title: true,
-        visibility: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    expect(mocks.createGuestChatForSession).toHaveBeenCalledWith({
+      title: undefined,
     });
     await expect(response.json()).resolves.toEqual({
       id: "chat-new",
@@ -214,7 +205,7 @@ describe("/api/guest/chats route", () => {
   });
 
   it("POST returns 500 on create errors", async () => {
-    mocks.chatCreate.mockRejectedValue(new Error("db failed"));
+    mocks.createGuestChatForSession.mockRejectedValue(new Error("db failed"));
 
     const response = await POST(
       new Request("http://localhost/api/guest/chats", {

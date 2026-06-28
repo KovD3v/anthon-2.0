@@ -27,6 +27,14 @@ export interface GuestUser {
   } | null;
 }
 
+interface GuestChatRow {
+  id: string;
+  title: string | null;
+  visibility: "PRIVATE" | "PUBLIC";
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /**
  * Generate a secure random guest token.
  */
@@ -231,4 +239,133 @@ export async function authenticateGuest(): Promise<{
   );
 
   return result;
+}
+
+export async function createGuestChatForSession(input: {
+  title?: string;
+}): Promise<{
+  user: GuestUser;
+  token: string;
+  isNew: boolean;
+  chat: GuestChatRow;
+}> {
+  const existingToken = await getGuestTokenFromCookies();
+
+  if (existingToken) {
+    const tokenHash = hashGuestToken(existingToken);
+    const user = await LatencyLogger.measure(
+      "Guest Auth: Lookup existing guest user",
+      () =>
+        prisma.user.findFirst({
+          where: {
+            isGuest: true,
+            guestAbuseIdHash: tokenHash,
+            guestConvertedAt: null,
+          },
+          select: {
+            id: true,
+            isGuest: true,
+            role: true,
+            subscription: {
+              select: {
+                status: true,
+                planId: true,
+              },
+            },
+          },
+        }),
+    );
+
+    if (user?.isGuest) {
+      const chat = await LatencyLogger.measure(
+        "Guest Chats: Create chat row",
+        () =>
+          prisma.chat.create({
+            data: {
+              userId: user.id,
+              title: input.title,
+              customTitle: !!input.title,
+              visibility: "PRIVATE",
+            },
+            select: {
+              id: true,
+              title: true,
+              visibility: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          }),
+      );
+
+      authLogger.info("auth.guest_session_reused", "Guest session reused", {
+        userId: user.id,
+        tokenChanged: false,
+        hasExistingToken: true,
+      });
+
+      return {
+        user: user as GuestUser,
+        token: existingToken,
+        isNew: false,
+        chat,
+      };
+    }
+  }
+
+  const newToken = generateGuestToken();
+  const tokenHash = hashGuestToken(newToken);
+
+  const chatWithUser = await LatencyLogger.measure(
+    "Guest Chats: Create guest user and chat",
+    () =>
+      prisma.chat.create({
+        data: {
+          title: input.title,
+          customTitle: !!input.title,
+          visibility: "PRIVATE",
+          user: {
+            create: {
+              isGuest: true,
+              guestAbuseIdHash: tokenHash,
+            },
+          },
+        },
+        select: {
+          id: true,
+          title: true,
+          visibility: true,
+          createdAt: true,
+          updatedAt: true,
+          user: {
+            select: {
+              id: true,
+              isGuest: true,
+              role: true,
+              subscription: {
+                select: {
+                  status: true,
+                  planId: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+  );
+
+  await setGuestCookie(newToken);
+
+  authLogger.info("auth.guest_session_created", "Guest session created", {
+    userId: chatWithUser.user.id,
+    tokenChanged: true,
+    hasExistingToken: Boolean(existingToken),
+  });
+
+  const { user, ...chat } = chatWithUser;
+  return {
+    user: user as GuestUser,
+    token: newToken,
+    isNew: true,
+    chat,
+  };
 }

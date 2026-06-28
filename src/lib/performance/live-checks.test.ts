@@ -16,6 +16,7 @@ describe("live performance check helpers", () => {
       PERFORMANCE_CHAT_TTFB_BUDGET_MS: "3500",
       PERFORMANCE_CHAT_FIRST_CHUNK_BUDGET_MS: "5500",
       PERFORMANCE_CHAT_TOTAL_BUDGET_MS: "20000",
+      PERFORMANCE_CHAT_PROMPTS: "uno|due|tre",
     });
 
     expect(config).toEqual({
@@ -26,8 +27,7 @@ describe("live performance check helpers", () => {
       chatTtfbBudgetMs: 3500,
       chatFirstChunkBudgetMs: 5500,
       chatTotalBudgetMs: 20000,
-      chatPrompt:
-        "Rispondi in una frase: dimmi un consiglio pratico pre-allenamento.",
+      chatPrompts: ["uno", "due", "tre"],
     });
   });
 
@@ -41,6 +41,11 @@ describe("live performance check helpers", () => {
     expect(config.chatTtfbBudgetMs).toBe(5000);
     expect(config.chatFirstChunkBudgetMs).toBe(8000);
     expect(config.chatTotalBudgetMs).toBe(30000);
+    expect(config.chatPrompts).toEqual([
+      "Rispondi in una frase: dimmi un consiglio pratico pre-allenamento.",
+      "Ho saltato tre allenamenti e mi sento in colpa: cosa faccio oggi?",
+      "Sono un coach: dammi una micro-routine di 20 minuti per una squadra scarica.",
+    ]);
   });
 
   it("builds a valid guest chat payload for live streaming checks", () => {

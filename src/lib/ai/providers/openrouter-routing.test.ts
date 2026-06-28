@@ -95,6 +95,42 @@ describe("ai/providers/openrouter-routing", () => {
     });
   });
 
+  it("penalizes providers with recent errors instead of blocking them", () => {
+    expect(
+      getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", {
+        OPENROUTER_PROVIDER_SORT: "e2e-latency",
+        OPENROUTER_PROVIDER_E2E_METRICS:
+          "z-ai/glm-5.2=Parasail:4,z-ai/glm-5.2=Wafer:5,z-ai/glm-5.2=Together:6",
+        OPENROUTER_PROVIDER_E2E_MAX_SECONDS: "10",
+        OPENROUTER_PROVIDER_RECENT_ERRORS:
+          "z-ai/glm-5.2=Parasail:1, z-ai/glm-5.2=Wafer:2",
+      }),
+    ).toEqual({
+      provider: {
+        order: ["Together", "Parasail", "Wafer"],
+        only: ["Together", "Parasail", "Wafer"],
+      },
+    });
+  });
+
+  it("puts providers with three or more recent errors in cooldown when alternatives remain", () => {
+    expect(
+      getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", {
+        OPENROUTER_PROVIDER_SORT: "e2e-latency",
+        OPENROUTER_PROVIDER_E2E_METRICS:
+          "z-ai/glm-5.2=Parasail:4,z-ai/glm-5.2=Wafer:5,z-ai/glm-5.2=Together:6",
+        OPENROUTER_PROVIDER_E2E_MAX_SECONDS: "10",
+        OPENROUTER_PROVIDER_RECENT_ERRORS:
+          "z-ai/glm-5.2=Parasail:3, z-ai/glm-5.2=Wafer:2",
+      }),
+    ).toEqual({
+      provider: {
+        order: ["Together", "Wafer"],
+        only: ["Together", "Wafer"],
+      },
+    });
+  });
+
   it("rejects invalid booleans and data collection values", () => {
     expect(() =>
       getOpenRouterProviderRouting({

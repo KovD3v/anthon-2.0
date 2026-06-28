@@ -51,53 +51,57 @@ describeLive("live sitewide performance", () => {
 describeLive("live guest chat performance", () => {
   const config = getLivePerformanceConfig();
 
-  it("measures real guest chat setup, first streamed chunk, and total response time", async () => {
-    const createChat = await measureHttpExchange(
-      `${config.baseUrl}/api/guest/chats`,
-      {
-        method: "POST",
-        body: JSON.stringify({ title: "Performance check" }),
-        headers: { "Content-Type": "application/json" },
-      },
-    );
-
-    expect(createChat.status, createChat.summary).toBe(201);
-    process.stdout.write(
-      `[performance] guest chat setup: ${createChat.summary}\n`,
-    );
-
-    const chat = JSON.parse(createChat.bodyText) as { id?: string };
-    const cookieHeader = extractCookieHeader(createChat.headers);
-    expect(chat.id).toBeTruthy();
-    expect(cookieHeader, createChat.summary).toContain("anthon_guest_token=");
-
-    const chatResult = await measureHttpExchange(
-      `${config.baseUrl}/api/guest/chat`,
-      {
-        method: "POST",
-        body: JSON.stringify(
-          buildGuestChatPayload(chat.id ?? "", config.chatPrompt),
-        ),
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: cookieHeader,
+  it.each(config.chatPrompts)(
+    "measures real guest chat setup, first streamed chunk, and total response time for %#",
+    async (chatPrompt) => {
+      const createChat = await measureHttpExchange(
+        `${config.baseUrl}/api/guest/chats`,
+        {
+          method: "POST",
+          body: JSON.stringify({ title: "Performance check" }),
+          headers: { "Content-Type": "application/json" },
         },
-      },
-    );
-    process.stdout.write(
-      `[performance] guest chat stream: ${chatResult.summary}\n`,
-    );
+      );
 
-    expect(chatResult.status, chatResult.summary).toBeGreaterThanOrEqual(200);
-    expect(chatResult.status, chatResult.summary).toBeLessThan(300);
-    expect(chatResult.ttfbMs, chatResult.summary).toBeLessThanOrEqual(
-      config.chatTtfbBudgetMs,
-    );
-    expect(chatResult.firstChunkMs, chatResult.summary).toBeLessThanOrEqual(
-      config.chatFirstChunkBudgetMs,
-    );
-    expect(chatResult.totalMs, chatResult.summary).toBeLessThanOrEqual(
-      config.chatTotalBudgetMs,
-    );
-  }, 45_000);
+      expect(createChat.status, createChat.summary).toBe(201);
+      process.stdout.write(
+        `[performance] guest chat setup: ${createChat.summary}\n`,
+      );
+
+      const chat = JSON.parse(createChat.bodyText) as { id?: string };
+      const cookieHeader = extractCookieHeader(createChat.headers);
+      expect(chat.id).toBeTruthy();
+      expect(cookieHeader, createChat.summary).toContain("anthon_guest_token=");
+
+      const chatResult = await measureHttpExchange(
+        `${config.baseUrl}/api/guest/chat`,
+        {
+          method: "POST",
+          body: JSON.stringify(
+            buildGuestChatPayload(chat.id ?? "", chatPrompt),
+          ),
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: cookieHeader,
+          },
+        },
+      );
+      process.stdout.write(
+        `[performance] guest chat stream: ${chatResult.summary}\n`,
+      );
+
+      expect(chatResult.status, chatResult.summary).toBeGreaterThanOrEqual(200);
+      expect(chatResult.status, chatResult.summary).toBeLessThan(300);
+      expect(chatResult.ttfbMs, chatResult.summary).toBeLessThanOrEqual(
+        config.chatTtfbBudgetMs,
+      );
+      expect(chatResult.firstChunkMs, chatResult.summary).toBeLessThanOrEqual(
+        config.chatFirstChunkBudgetMs,
+      );
+      expect(chatResult.totalMs, chatResult.summary).toBeLessThanOrEqual(
+        config.chatTotalBudgetMs,
+      );
+    },
+    45_000,
+  );
 });

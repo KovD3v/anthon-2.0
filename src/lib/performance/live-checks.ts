@@ -6,7 +6,7 @@ export interface LivePerformanceConfig {
   chatTtfbBudgetMs: number;
   chatFirstChunkBudgetMs: number;
   chatTotalBudgetMs: number;
-  chatPrompt: string;
+  chatPrompts: string[];
 }
 
 export interface PerformanceSummary {
@@ -39,8 +39,11 @@ const defaultConfig: LivePerformanceConfig = {
   chatTtfbBudgetMs: 5000,
   chatFirstChunkBudgetMs: 8000,
   chatTotalBudgetMs: 30000,
-  chatPrompt:
+  chatPrompts: [
     "Rispondi in una frase: dimmi un consiglio pratico pre-allenamento.",
+    "Ho saltato tre allenamenti e mi sento in colpa: cosa faccio oggi?",
+    "Sono un coach: dammi una micro-routine di 20 minuti per una squadra scarica.",
+  ],
 };
 
 export function getLivePerformanceConfig(
@@ -69,7 +72,7 @@ export function getLivePerformanceConfig(
       env.PERFORMANCE_CHAT_TOTAL_BUDGET_MS,
       defaultConfig.chatTotalBudgetMs,
     ),
-    chatPrompt: env.PERFORMANCE_CHAT_PROMPT?.trim() || defaultConfig.chatPrompt,
+    chatPrompts: parseChatPrompts(env),
   };
 }
 
@@ -189,6 +192,19 @@ function parsePagePaths(value: string | undefined) {
   }
 
   return paths.map((path) => (path.startsWith("/") ? path : `/${path}`));
+}
+
+function parseChatPrompts(env: Environment) {
+  const prompts = env.PERFORMANCE_CHAT_PROMPTS?.split("|")
+    .map((prompt) => prompt.trim())
+    .filter(Boolean);
+
+  if (prompts && prompts.length > 0) {
+    return prompts;
+  }
+
+  const singlePrompt = env.PERFORMANCE_CHAT_PROMPT?.trim();
+  return singlePrompt ? [singlePrompt] : defaultConfig.chatPrompts;
 }
 
 function parsePositiveInteger(value: string | undefined, fallback: number) {

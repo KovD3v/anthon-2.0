@@ -62,6 +62,8 @@ describe("benchmark/reality-cli", () => {
       "--openrouter-provider-only",
       "fireworks",
       "--openrouter-provider-ignore=slow-provider",
+      "--openrouter-provider-recent-errors",
+      "z-ai/glm-5.2=Parasail:1,z-ai/glm-5.2=Wafer:2",
       "--openrouter-provider-allow-fallbacks=false",
       "--openrouter-provider-e2e-metrics",
       "fireworks/fast:1.07:107:5.48,wafer/fast:1.32:78:6.08",
@@ -81,6 +83,10 @@ describe("benchmark/reality-cli", () => {
       openRouterProviderOrder: ["fireworks", "novita"],
       openRouterProviderOnly: ["fireworks"],
       openRouterProviderIgnore: ["slow-provider"],
+      openRouterProviderRecentErrors: [
+        "z-ai/glm-5.2=Parasail:1",
+        "z-ai/glm-5.2=Wafer:2",
+      ],
       openRouterProviderAllowFallbacks: false,
       openRouterProviderE2eMetrics:
         "fireworks/fast:1.07:107:5.48,wafer/fast:1.32:78:6.08",
@@ -96,6 +102,8 @@ describe("benchmark/reality-cli", () => {
       OPENROUTER_PROVIDER_ORDER: "fireworks,novita",
       OPENROUTER_PROVIDER_ONLY: "fireworks",
       OPENROUTER_PROVIDER_IGNORE: "slow-provider",
+      OPENROUTER_PROVIDER_RECENT_ERRORS:
+        "z-ai/glm-5.2=Parasail:1,z-ai/glm-5.2=Wafer:2",
       OPENROUTER_PROVIDER_ALLOW_FALLBACKS: "false",
       OPENROUTER_PROVIDER_E2E_METRICS:
         "fireworks/fast:1.07:107:5.48,wafer/fast:1.32:78:6.08",

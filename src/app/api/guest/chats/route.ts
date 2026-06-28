@@ -6,7 +6,7 @@
  */
 
 import { prisma } from "@/lib/db";
-import { authenticateGuest } from "@/lib/guest-auth";
+import { authenticateGuest, createGuestChatForSession } from "@/lib/guest-auth";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 
@@ -69,11 +69,6 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { user } = await LatencyLogger.measure(
-      "Guest Chats: Authenticate guest",
-      () => authenticateGuest(),
-    );
-
     // Optional: parse body for initial title
     let title: string | undefined;
 
@@ -94,25 +89,7 @@ export async function POST(request: Request) {
       // Empty body is fine
     }
 
-    const chat = await LatencyLogger.measure(
-      "Guest Chats: Create chat row",
-      () =>
-        prisma.chat.create({
-          data: {
-            userId: user.id,
-            title,
-            customTitle: !!title,
-            visibility: "PRIVATE", // Guests always have private chats
-          },
-          select: {
-            id: true,
-            title: true,
-            visibility: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        }),
-    );
+    const { chat } = await createGuestChatForSession({ title });
 
     return Response.json(
       {

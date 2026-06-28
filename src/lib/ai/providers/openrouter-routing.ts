@@ -12,6 +12,7 @@ export const OPENROUTER_PROVIDER_ROUTING_ENV = {
   e2eOutputTokens: "OPENROUTER_PROVIDER_E2E_OUTPUT_TOKENS",
   e2eMaxSeconds: "OPENROUTER_PROVIDER_E2E_MAX_SECONDS",
   e2eCostWeight: "OPENROUTER_PROVIDER_E2E_COST_WEIGHT",
+  recentErrors: "OPENROUTER_PROVIDER_RECENT_ERRORS",
 } as const;
 
 type Env = Record<string, string | undefined>;
@@ -115,6 +116,8 @@ export function getOpenRouterProviderRouting(
     provider.data_collection = dataCollection;
   }
 
+  avoidRecentErrorProviders(provider, env, modelId);
+
   return Object.keys(provider).length > 0 ? provider : undefined;
 }
 
@@ -153,6 +156,51 @@ function parseProviderSort(value: string) {
   throw new Error(
     `${OPENROUTER_PROVIDER_ROUTING_ENV.sort} must be price, throughput, latency, or e2e-latency.`,
   );
+}
+
+function avoidRecentErrorProviders(
+  provider: OpenRouterProviderRouting,
+  env: Env,
+  modelId: string | undefined,
+) {
+  const recentErrorProviders = parseRecentErrorProviders(
+    env[OPENROUTER_PROVIDER_ROUTING_ENV.recentErrors],
+    modelId,
+  );
+  if (recentErrorProviders.length === 0) {
+    return;
+  }
+
+  const recentErrorProviderSet = new Set(recentErrorProviders);
+  provider.ignore = mergeUnique(provider.ignore ?? [], recentErrorProviders);
+  provider.order = pruneProviders(provider.order, recentErrorProviderSet);
+  provider.only = pruneProviders(provider.only, recentErrorProviderSet);
+}
+
+function parseRecentErrorProviders(
+  value: string | undefined,
+  modelId: string | undefined,
+) {
+  return filterProviderRowsByModel(parseList(value), modelId).map((row) => {
+    const { provider } = parseScopedProvider(row);
+    return provider;
+  });
+}
+
+function mergeUnique(first: string[], second: string[]) {
+  return Array.from(new Set([...first, ...second]));
+}
+
+function pruneProviders(
+  providers: string[] | undefined,
+  ignoredProviders: Set<string>,
+) {
+  const prunedProviders = providers?.filter(
+    (provider) => !ignoredProviders.has(provider),
+  );
+  return prunedProviders && prunedProviders.length > 0
+    ? prunedProviders
+    : undefined;
 }
 
 function buildE2eLatencyProviderOrder(env: Env, modelId: string | undefined) {
