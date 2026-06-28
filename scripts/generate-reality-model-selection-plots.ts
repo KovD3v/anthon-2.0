@@ -183,7 +183,7 @@ function readRunPoints(): {
           : hasCandidateCost || hasJudgeCost
             ? (candidateCostUsd ?? 0) + (judgeCostUsd ?? 0)
             : null;
-      const point = {
+      const point: RunPoint = {
         file: basename(file),
         suite,
         modelId: model.modelId,
