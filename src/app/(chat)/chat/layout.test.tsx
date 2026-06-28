@@ -174,6 +174,36 @@ describe("chat mobile viewport layout", () => {
     expect(chatInput).toContain("min-w-0 flex-1");
   });
 
+  it("keeps chat, upload, and voice progress visible in the conversation UI", () => {
+    const conversationClient = readFileSync(
+      "src/app/(chat)/chat/[id]/chat-conversation-client.tsx",
+      "utf8",
+    );
+    const messageList = readFileSync(
+      "src/app/(chat)/components/MessageList.tsx",
+      "utf8",
+    );
+    const chatInput = readFileSync(
+      "src/app/(chat)/components/ChatInput.tsx",
+      "utf8",
+    );
+    const audioRecorder = readFileSync(
+      "src/app/(chat)/components/AudioRecorder.tsx",
+      "utf8",
+    );
+
+    expect(conversationClient).toContain("status={status}");
+    expect(messageList).toContain("getAssistantPendingLabel");
+    expect(messageList).toContain("<m.output");
+    expect(chatInput).toContain("uploadingFileName");
+    expect(chatInput).toContain("CHAT_REACTIVITY_COPY.uploadUploading");
+    expect(chatInput).toContain('aria-live="polite"');
+    expect(chatInput).toContain("const cannotSubmit =");
+    expect(audioRecorder).toContain("getAudioRecorderStatusLabel");
+    expect(audioRecorder).toContain('"converting"');
+    expect(audioRecorder).toContain('"uploading"');
+  });
+
   it("keeps the new-chat landing free of composer-only controls", () => {
     const chatPage = readFileSync("src/app/(chat)/chat/page.tsx", "utf8");
     const layoutClient = readFileSync(

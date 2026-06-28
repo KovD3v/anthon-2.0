@@ -11,6 +11,7 @@ export default defineConfig({
     restoreMocks: true,
     exclude: [
       "**/node_modules/**",
+      "**/.worktrees/**",
       "**/dist/**",
       "**/.{idea,git,cache,output,temp}/**",
       "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",

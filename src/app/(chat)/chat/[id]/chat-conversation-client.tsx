@@ -499,6 +499,7 @@ export function ChatConversationClient({
       ) : (
         <MessageList
           messages={streamingMessages}
+          status={status}
           isLoading={isLoading}
           editingMessageId={editingMessageId}
           deletingMessageId={deletingMessageId}

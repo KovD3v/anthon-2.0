@@ -122,7 +122,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     return Response.json({
       id: chat.id,
-      title: chat.title ?? "New Chat",
+      title: chat.title ?? "Nuova Chat",
       visibility: chat.visibility,
       isOwner: chat.userId === user.id,
       createdAt: chat.createdAt.toISOString(),
@@ -268,7 +268,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     return Response.json({
       id: updatedChat.id,
-      title: updatedChat.title ?? "New Chat",
+      title: updatedChat.title ?? "Nuova Chat",
       visibility: updatedChat.visibility,
       updatedAt: updatedChat.updatedAt.toISOString(),
     });

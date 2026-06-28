@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useDebouncedCallback } from "@/hooks/useDebounce";
 import type { AttachmentData } from "@/types/chat";
+import { CHAT_REACTIVITY_COPY } from "../chat/chat-reactivity-ui";
 import { AttachmentButton, AttachmentPreview } from "./Attachments";
 import { AudioRecorder } from "./AudioRecorder";
 
@@ -30,6 +31,11 @@ export function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState<AttachmentData[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadingFileName, setUploadingFileName] = useState<string | null>(
+    null,
+  );
+  const cannotSubmit =
+    isUploading || isLoading || (!input.trim() && attachments.length === 0);
 
   const adjustHeight = useDebouncedCallback(() => {
     const textarea = textareaRef.current;
@@ -42,6 +48,10 @@ export function ChatInput({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+      if (cannotSubmit) {
+        return;
+      }
+
       const form = e.currentTarget.closest("form");
       if (form) {
         const submitEvent = new Event("submit", {
@@ -55,6 +65,10 @@ export function ChatInput({
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (cannotSubmit) {
+      return;
+    }
+
     onSubmit(e, attachments.length > 0 ? attachments : undefined);
     setAttachments([]); // Clear attachments after submit
   };
@@ -66,11 +80,12 @@ export function ChatInput({
     const maxSize = 10 * 1024 * 1024; // 10MB
 
     if (file.size > maxSize) {
-      toast.error("File too large. Maximum size is 10MB.");
+      toast.error(CHAT_REACTIVITY_COPY.uploadTooLarge);
       return;
     }
 
     setIsUploading(true);
+    setUploadingFileName(file.name);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -81,7 +96,7 @@ export function ChatInput({
       });
 
       if (!response.ok) {
-        throw new Error("Upload failed");
+        throw new Error(CHAT_REACTIVITY_COPY.uploadFailed);
       }
 
       const data = await response.json();
@@ -95,12 +110,13 @@ export function ChatInput({
           url: data.url,
         },
       ]);
-      toast.success("File uploaded successfully");
+      toast.success(CHAT_REACTIVITY_COPY.uploadSuccess);
     } catch (error) {
       console.error("Upload error:", error);
-      toast.error("Failed to upload file");
+      toast.error(CHAT_REACTIVITY_COPY.uploadFailed);
     } finally {
       setIsUploading(false);
+      setUploadingFileName(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -114,6 +130,10 @@ export function ChatInput({
   const handleRecordingComplete = (attachment: AttachmentData) => {
     setAttachments([...attachments, attachment]);
   };
+
+  const uploadStatus = uploadingFileName
+    ? `${CHAT_REACTIVITY_COPY.uploadUploading}: ${uploadingFileName}`
+    : `${CHAT_REACTIVITY_COPY.uploadUploading}...`;
 
   return (
     <div className="relative mx-auto w-full min-w-0 shrink-0 max-w-3xl px-3 sm:px-4 pb-6 sm:pb-8 pt-2 safe-area-bottom">
@@ -131,6 +151,16 @@ export function ChatInput({
         </div>
       )}
 
+      {isUploading && (
+        <output
+          className="mb-2 flex items-center gap-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
+          aria-live="polite"
+        >
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary" />
+          <span className="min-w-0 truncate">{uploadStatus}</span>
+        </output>
+      )}
+
       <form
         onSubmit={handleFormSubmit}
         className="relative flex items-end gap-2 rounded-4xl border border-white/10 bg-background/60 p-2 shadow-lg backdrop-blur-xl ring-1 ring-black/5 dark:bg-muted/40 dark:ring-white/10 transition-all focus-within:ring-2 focus-within:ring-primary/20"
@@ -140,6 +170,7 @@ export function ChatInput({
           ref={fileInputRef}
           type="file"
           className="sr-only"
+          aria-label="Seleziona file"
           onChange={(e) => handleFileSelect(e.target.files)}
           disabled={isUploading || isLoading}
           accept="image/*,.pdf,.doc,.docx,.txt,audio/*,.mp3,.wav,.ogg,.aac,.flac,.m4a"
@@ -177,7 +208,7 @@ export function ChatInput({
           placeholder="Scrivi un messaggio..."
           rows={1}
           className="min-w-0 flex-1 resize-none bg-transparent px-2 py-3 text-sm outline-none placeholder:text-muted-foreground/50 max-h-[200px] overflow-y-auto scrollbar-none"
-          disabled={isLoading}
+          disabled={isLoading || isUploading}
         />
         <div className="pb-1 pr-1">
           {isLoading ? (
@@ -187,6 +218,7 @@ export function ChatInput({
               variant="destructive"
               className="h-9 w-9 rounded-full shadow-sm transition-all hover:shadow-md"
               onClick={onStop}
+              aria-label="Interrompi risposta"
             >
               <Square className="h-4 w-4 fill-current" />
             </Button>
@@ -199,7 +231,8 @@ export function ChatInput({
                   ? "bg-primary text-primary-foreground shadow-md hover:shadow-lg hover:scale-105"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
-              disabled={!input.trim() && attachments.length === 0}
+              disabled={cannotSubmit}
+              aria-label="Invia messaggio"
             >
               <Send className="h-4 w-4 ml-0.5" />
             </Button>

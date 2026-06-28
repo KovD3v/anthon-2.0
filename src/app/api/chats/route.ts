@@ -99,7 +99,7 @@ export async function GET() {
     return Response.json({
       chats: chats.map((chat) => ({
         id: chat.id,
-        title: chat.title ?? "New Chat",
+        title: chat.title ?? "Nuova Chat",
         visibility: chat.visibility,
         createdAt: chat.createdAt.toISOString(),
         updatedAt: chat.updatedAt.toISOString(),
@@ -172,7 +172,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         id: chat.id,
-        title: chat.title ?? "New Chat",
+        title: chat.title ?? "Nuova Chat",
         visibility: chat.visibility,
         createdAt: chat.createdAt.toISOString(),
         updatedAt: chat.updatedAt.toISOString(),

@@ -111,7 +111,7 @@ describe("lib/chat", () => {
       },
       {
         id: "chat-1",
-        title: "New Chat",
+        title: "Nuova Chat",
         visibility: "PRIVATE",
         createdAt: "2026-02-15T09:00:00.000Z",
         updatedAt: "2026-02-15T09:30:00.000Z",
@@ -262,7 +262,7 @@ describe("lib/chat", () => {
 
     expect(result).toMatchObject({
       id: "chat-1",
-      title: "New Chat",
+      title: "Nuova Chat",
       visibility: "PRIVATE",
       isOwner: true,
       pagination: {
@@ -382,7 +382,7 @@ describe("lib/chat", () => {
     expect(mocks.messageFindMany).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       id: "guest-chat",
-      title: "New Chat",
+      title: "Nuova Chat",
       isOwner: true,
       messages: [],
       pagination: {

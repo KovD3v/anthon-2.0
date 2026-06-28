@@ -57,14 +57,14 @@ const DEFAULT_SUGGESTIONS: SuggestedAction[] = [
     prompt:
       "Puoi spiegarmelo in termini piu semplici? Vorrei comprendere meglio il concetto di base.",
     icon: "help",
-    category: "Understanding",
+    category: "Comprensione",
   },
   {
     id: "example",
     label: "Dammi un esempio",
     prompt: "Puoi farmi un esempio concreto di come funziona nella pratica?",
     icon: "lightbulb",
-    category: "Learning",
+    category: "Esempi",
   },
   {
     id: "action",
@@ -72,7 +72,7 @@ const DEFAULT_SUGGESTIONS: SuggestedAction[] = [
     prompt:
       "In base a quanto abbiamo discusso, quale azione specifica dovrei intraprendere successivamente?",
     icon: "sparkles",
-    category: "Action",
+    category: "Prossimo passo",
   },
   {
     id: "deeper",
@@ -80,7 +80,7 @@ const DEFAULT_SUGGESTIONS: SuggestedAction[] = [
     prompt:
       "Vorrei esplorare questo argomento più a fondo. Quali aspetti dovrei considerare?",
     icon: "document",
-    category: "Exploration",
+    category: "Approfondimento",
   },
 ];
 
@@ -353,7 +353,7 @@ function _WelcomeSuggestions({
       label: "Parlami di te",
       prompt: "Cosa puoi fare per me? Parlami delle tue capacità.",
       icon: "sparkles",
-      category: "Getting Started",
+      category: "Introduzione",
     },
     {
       id: "goals",
@@ -361,7 +361,7 @@ function _WelcomeSuggestions({
       prompt:
         "Vorrei aiuto per fissare e raggiungere i miei obiettivi. Da dove dovrei iniziare?",
       icon: "lightbulb",
-      category: "Goal Setting",
+      category: "Obiettivi",
     },
     {
       id: "learn",
@@ -369,7 +369,7 @@ function _WelcomeSuggestions({
       prompt:
         "Vorrei imparare qualcosa di nuovo. Quali argomenti o abilità mi consiglieresti?",
       icon: "document",
-      category: "Learning",
+      category: "Apprendimento",
     },
     {
       id: "problem",
@@ -377,7 +377,7 @@ function _WelcomeSuggestions({
       prompt:
         "Sto affrontando una sfida e potrei usare qualche consiglio su come affrontarla.",
       icon: "help",
-      category: "Problem Solving",
+      category: "Problemi",
     },
   ];
 

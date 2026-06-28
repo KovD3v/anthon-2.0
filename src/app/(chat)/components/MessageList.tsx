@@ -23,6 +23,12 @@ import { normalizeFilePartForPreview } from "@/lib/chat-client";
 import { formatRelativeTime } from "@/lib/format-time";
 import { defaultTransition, fadeUp, scaleIn } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import {
+  CHAT_REACTIVITY_COPY,
+  type ChatRequestStatus,
+  getAssistantPendingLabel,
+  getMessageText,
+} from "../chat/chat-reactivity-ui";
 import { AttachmentPreview } from "./Attachments";
 import { AudioPlayer } from "./AudioPlayer";
 import { useMessageVirtualizer } from "./hooks/useMessageVirtualizer";
@@ -35,6 +41,7 @@ type ExtendedMessage = UIMessage & {
 
 interface MessageListProps {
   messages: ExtendedMessage[];
+  status: ChatRequestStatus;
   isLoading: boolean;
   editingMessageId: string | null;
   deletingMessageId: string | null;
@@ -53,6 +60,7 @@ interface MessageListProps {
 
 export function MessageList({
   messages,
+  status,
   isLoading,
   editingMessageId,
   deletingMessageId,
@@ -74,6 +82,10 @@ export function MessageList({
   const [feedbackState, setFeedbackState] = useState<Record<string, number>>(
     {},
   );
+  const assistantPendingLabel = getAssistantPendingLabel({
+    status,
+    latestMessage: messages[messages.length - 1],
+  });
 
   async function handleFeedback(messageId: string, feedback: number) {
     const currentFeedback = feedbackState[messageId];
@@ -90,7 +102,7 @@ export function MessageList({
       });
     } catch (error) {
       console.error("Feedback error:", error);
-      toast.error("Failed to save feedback");
+      toast.error(CHAT_REACTIVITY_COPY.feedbackFailed);
     }
   }
 
@@ -136,14 +148,6 @@ export function MessageList({
     });
   }
 
-  const getMessageText = (message: UIMessage) => {
-    return (
-      message.parts
-        ?.map((part) => (part.type === "text" ? part.text : ""))
-        .join("") || ""
-    );
-  };
-
   if (messages.length === 0) {
     return <EmptyChatWelcome className="flex-1 justify-center p-8" />;
   }
@@ -160,7 +164,7 @@ export function MessageList({
             <div className="flex justify-center py-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Loading older messages...</span>
+                <span>{CHAT_REACTIVITY_COPY.olderMessagesLoading}</span>
               </div>
             </div>
           )}
@@ -174,7 +178,7 @@ export function MessageList({
                 onClick={onLoadMore}
                 className="text-muted-foreground hover:text-foreground"
               >
-                Load older messages
+                {CHAT_REACTIVITY_COPY.loadOlderMessages}
               </Button>
             </div>
           )}
@@ -536,25 +540,32 @@ export function MessageList({
             })}
           </div>
 
-          {isLoading && messages[messages.length - 1]?.role === "user" && (
-            <m.div
+          {assistantPendingLabel && (
+            <m.output
               variants={fadeUp}
               initial="hidden"
               animate="show"
               transition={defaultTransition}
-              className="flex items-start gap-2 mt-8"
+              className="group mt-8 mb-2 flex items-start gap-2"
+              aria-live="polite"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-white/10 shadow-xs">
-                <Brain className="h-5 w-5 text-primary/50 animate-pulse" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background text-primary shadow-xs ring-1 ring-inset ring-white/10">
+                <Brain className="h-5 w-5 animate-pulse" />
               </div>
-              <div className="rounded-2xl rounded-tl-sm bg-background/40 px-5 py-3.5 border border-white/5">
-                <div className="flex gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce [animation-delay:-0.3s]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce [animation-delay:-0.15s]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" />
+              <div className="flex max-w-[85%] flex-col gap-2">
+                <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-sm border border-white/10 bg-background/70 px-4 py-3 text-sm text-muted-foreground shadow-sm backdrop-blur-sm">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  <div className="flex flex-col">
+                    <span className="font-medium text-foreground/85">
+                      {assistantPendingLabel}
+                    </span>
+                    <span className="text-xs text-muted-foreground/70">
+                      {CHAT_REACTIVITY_COPY.assistantWorkingDetail}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </m.div>
+            </m.output>
           )}
           <div ref={messagesEndRef} className="h-4" />
         </div>
@@ -576,7 +587,7 @@ export function MessageList({
               onClick={scrollToBottom}
             >
               <ArrowDown className="h-3 w-3" />
-              Scroll to bottom
+              {CHAT_REACTIVITY_COPY.scrollToBottom}
             </Button>
           </m.div>
         )}
@@ -604,7 +615,7 @@ export function EmptyChatWelcome({ className }: { className?: string }) {
         transition={{ ...defaultTransition, delay: 0.15 }}
         className="mt-6 text-3xl font-semibold tracking-tight text-foreground"
       >
-        How can I help you today?
+        Come posso aiutarti oggi?
       </m.h2>
     </div>
   );

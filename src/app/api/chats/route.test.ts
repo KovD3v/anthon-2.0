@@ -114,7 +114,7 @@ describe("/api/chats route", () => {
       chats: [
         {
           id: "chat-1",
-          title: "New Chat",
+          title: "Nuova Chat",
           visibility: "PRIVATE",
           createdAt: "2026-02-16T10:00:00.000Z",
           updatedAt: "2026-02-16T11:00:00.000Z",
@@ -234,7 +234,7 @@ describe("/api/chats route", () => {
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "max");
     await expect(response.json()).resolves.toEqual({
       id: "chat-3",
-      title: "New Chat",
+      title: "Nuova Chat",
       visibility: "PRIVATE",
       createdAt: "2026-02-16T12:00:00.000Z",
       updatedAt: "2026-02-16T12:00:00.000Z",

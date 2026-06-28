@@ -5,14 +5,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { AttachmentData } from "@/types/chat";
+import {
+  CHAT_REACTIVITY_COPY,
+  getAudioRecorderStatusLabel,
+} from "../chat/chat-reactivity-ui";
 
 interface AudioRecorderProps {
   onRecordingComplete: (attachment: AttachmentData) => void;
   disabled?: boolean;
 }
 
-// Recording states for UI feedback
-type RecordingState = "idle" | "requesting" | "recording" | "processing";
+type RecordingState =
+  | "idle"
+  | "requesting"
+  | "recording"
+  | "converting"
+  | "uploading"
+  | "ready"
+  | "error";
 
 export function AudioRecorder({
   onRecordingComplete,
@@ -82,7 +92,7 @@ export function AudioRecorder({
       };
 
       mediaRecorder.onstop = async () => {
-        setRecordingState("processing");
+        setRecordingState("converting");
 
         try {
           const originalBlob = new Blob(chunksRef.current, {
@@ -101,6 +111,7 @@ export function AudioRecorder({
           const fileName = `recording_${Date.now()}.wav`;
           formData.append("file", wavBlob, fileName);
 
+          setRecordingState("uploading");
           const response = await fetch("/api/upload", {
             method: "POST",
             body: formData,
@@ -122,13 +133,15 @@ export function AudioRecorder({
             base64Data: base64Data, // Include for AI audio processing
           });
 
-          toast.success("Registrazione audio pronta");
+          setRecordingState("ready");
+          toast.success(CHAT_REACTIVITY_COPY.audioReady);
         } catch (error) {
           console.error("Error processing recording:", error);
-          toast.error("Errore durante l'elaborazione della registrazione");
+          setRecordingState("error");
+          toast.error(CHAT_REACTIVITY_COPY.audioFailed);
         } finally {
           cleanup();
-          setRecordingState("idle");
+          window.setTimeout(() => setRecordingState("idle"), 700);
         }
       };
 
@@ -136,7 +149,8 @@ export function AudioRecorder({
         console.error("MediaRecorder error:", event);
         toast.error("Errore durante la registrazione");
         cleanup();
-        setRecordingState("idle");
+        setRecordingState("error");
+        window.setTimeout(() => setRecordingState("idle"), 700);
       };
 
       // Start recording
@@ -152,9 +166,7 @@ export function AudioRecorder({
       setTimeout(() => {
         if (mediaRecorderRef.current?.state === "recording") {
           stopRecording();
-          toast.info(
-            "Registrazione terminata automaticamente (limite 2 minuti)",
-          );
+          toast.info(CHAT_REACTIVITY_COPY.audioAutoStopped);
         }
       }, 120000);
     } catch (error) {
@@ -199,16 +211,36 @@ export function AudioRecorder({
 
   const isRecording = recordingState === "recording";
   const isProcessing =
-    recordingState === "processing" || recordingState === "requesting";
+    recordingState === "converting" ||
+    recordingState === "uploading" ||
+    recordingState === "requesting";
+  const durationLabel = formatDuration(recordingDuration);
+  const statusLabel = getAudioRecorderStatusLabel({
+    state: recordingState,
+    duration: durationLabel,
+  });
+  const buttonLabel = isRecording
+    ? "Ferma registrazione"
+    : "Registra messaggio vocale";
 
   return (
-    <div className="relative flex items-center gap-2">
-      {/* Recording duration indicator */}
-      {isRecording && (
-        <div className="flex items-center gap-1.5 text-xs text-red-500 animate-pulse">
-          <span className="h-2 w-2 rounded-full bg-red-500" />
-          <span className="font-mono">{formatDuration(recordingDuration)}</span>
-        </div>
+    <div className="relative flex min-w-0 items-center gap-2">
+      {statusLabel && (
+        <output
+          className={`hidden max-w-[190px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs shadow-sm sm:flex ${
+            isRecording
+              ? "border-red-500/25 bg-red-500/10 text-red-600 dark:text-red-300"
+              : "border-primary/15 bg-primary/5 text-muted-foreground"
+          }`}
+          aria-live="polite"
+        >
+          <span
+            className={`h-2 w-2 shrink-0 rounded-full ${
+              isRecording ? "animate-pulse bg-red-500" : "bg-primary"
+            }`}
+          />
+          <span className="truncate">{statusLabel}</span>
+        </output>
       )}
 
       <Button
@@ -222,9 +254,8 @@ export function AudioRecorder({
         }`}
         onClick={handleClick}
         disabled={disabled || isProcessing}
-        title={
-          isRecording ? "Ferma registrazione" : "Registra messaggio vocale"
-        }
+        title={buttonLabel}
+        aria-label={statusLabel ?? buttonLabel}
       >
         {isProcessing ? (
           <Loader2 className="h-4 w-4 animate-spin" />
