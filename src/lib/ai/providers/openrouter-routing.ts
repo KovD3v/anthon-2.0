@@ -42,6 +42,10 @@ type ProviderCost = {
   outputCostPerToken: number;
 };
 
+const RECENT_ERROR_LIGHT_PENALTY_SECONDS = 8;
+const RECENT_ERROR_STRONG_PENALTY_SECONDS = 25;
+const RECENT_ERROR_COOLDOWN_THRESHOLD = 3;
+
 export function getOpenRouterProviderOptions(
   env: Env = process.env,
 ): Record<string, unknown> {
@@ -116,7 +120,7 @@ export function getOpenRouterProviderRouting(
     provider.data_collection = dataCollection;
   }
 
-  avoidRecentErrorProviders(provider, env, modelId);
+  penalizeRecentErrorProviders(provider, env, modelId);
 
   return Object.keys(provider).length > 0 ? provider : undefined;
 }
@@ -158,49 +162,82 @@ function parseProviderSort(value: string) {
   );
 }
 
-function avoidRecentErrorProviders(
+function penalizeRecentErrorProviders(
   provider: OpenRouterProviderRouting,
   env: Env,
   modelId: string | undefined,
 ) {
-  const recentErrorProviders = parseRecentErrorProviders(
+  const recentErrors = parseRecentErrorCounts(
     env[OPENROUTER_PROVIDER_ROUTING_ENV.recentErrors],
     modelId,
   );
-  if (recentErrorProviders.length === 0) {
+  if (recentErrors.size === 0) {
     return;
   }
 
-  const recentErrorProviderSet = new Set(recentErrorProviders);
-  provider.ignore = mergeUnique(provider.ignore ?? [], recentErrorProviders);
-  provider.order = pruneProviders(provider.order, recentErrorProviderSet);
-  provider.only = pruneProviders(provider.only, recentErrorProviderSet);
+  provider.order = rankProvidersWithRecentErrors(provider.order, recentErrors);
+  provider.only = rankProvidersWithRecentErrors(provider.only, recentErrors);
 }
 
-function parseRecentErrorProviders(
+function parseRecentErrorCounts(
   value: string | undefined,
   modelId: string | undefined,
 ) {
-  return filterProviderRowsByModel(parseList(value), modelId).map((row) => {
-    const { provider } = parseScopedProvider(row);
-    return provider;
-  });
+  const counts = new Map<string, number>();
+  for (const row of filterProviderRowsByModel(parseList(value), modelId)) {
+    const [providerWithScope, countValue] = row
+      .split(":")
+      .map((item) => item.trim());
+    const { provider } = parseScopedProvider(providerWithScope ?? "");
+    if (!provider) {
+      continue;
+    }
+    const count = countValue
+      ? parsePositiveInteger(
+          countValue,
+          OPENROUTER_PROVIDER_ROUTING_ENV.recentErrors,
+        )
+      : 1;
+    counts.set(provider, count);
+  }
+  return counts;
 }
 
-function mergeUnique(first: string[], second: string[]) {
-  return Array.from(new Set([...first, ...second]));
-}
-
-function pruneProviders(
+function rankProvidersWithRecentErrors(
   providers: string[] | undefined,
-  ignoredProviders: Set<string>,
+  recentErrors: Map<string, number>,
 ) {
-  const prunedProviders = providers?.filter(
-    (provider) => !ignoredProviders.has(provider),
+  if (!providers) {
+    return undefined;
+  }
+
+  const providersOutsideCooldown = providers.filter(
+    (provider) =>
+      (recentErrors.get(provider) ?? 0) < RECENT_ERROR_COOLDOWN_THRESHOLD,
   );
-  return prunedProviders && prunedProviders.length > 0
-    ? prunedProviders
-    : undefined;
+  const eligibleProviders =
+    providersOutsideCooldown.length > 0 ? providersOutsideCooldown : providers;
+
+  return eligibleProviders
+    .map((provider, index) => ({
+      provider,
+      score: index + getRecentErrorPenaltySeconds(recentErrors.get(provider)),
+    }))
+    .sort((a, b) => a.score - b.score)
+    .map(({ provider }) => provider);
+}
+
+function getRecentErrorPenaltySeconds(count: number | undefined) {
+  if (!count) {
+    return 0;
+  }
+  if (count === 1) {
+    return RECENT_ERROR_LIGHT_PENALTY_SECONDS;
+  }
+  if (count < RECENT_ERROR_COOLDOWN_THRESHOLD) {
+    return RECENT_ERROR_STRONG_PENALTY_SECONDS;
+  }
+  return Number.POSITIVE_INFINITY;
 }
 
 function buildE2eLatencyProviderOrder(env: Env, modelId: string | undefined) {
@@ -432,6 +469,14 @@ function parsePositiveNumber(value: string, name: string) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error(`${name} must contain positive numbers.`);
+  }
+  return parsed;
+}
+
+function parsePositiveInteger(value: string, name: string) {
+  const parsed = parsePositiveNumber(value, name);
+  if (!Number.isInteger(parsed)) {
+    throw new Error(`${name} must contain positive integers.`);
   }
   return parsed;
 }
