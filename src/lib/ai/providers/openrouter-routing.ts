@@ -1,3 +1,8 @@
+import {
+  type ProviderHealthSnapshot,
+  rankProviderRoutes,
+} from "./provider-routing-score";
+
 export const OPENROUTER_PROVIDER_ROUTING_ENV = {
   sort: "OPENROUTER_PROVIDER_SORT",
   order: "OPENROUTER_PROVIDER_ORDER",
@@ -13,6 +18,8 @@ export const OPENROUTER_PROVIDER_ROUTING_ENV = {
   e2eMaxSeconds: "OPENROUTER_PROVIDER_E2E_MAX_SECONDS",
   e2eCostWeight: "OPENROUTER_PROVIDER_E2E_COST_WEIGHT",
   recentErrors: "OPENROUTER_PROVIDER_RECENT_ERRORS",
+  providerHealth: "OPENROUTER_PROVIDER_HEALTH",
+  routingNow: "OPENROUTER_PROVIDER_ROUTING_NOW",
 } as const;
 
 type Env = Record<string, string | undefined>;
@@ -120,7 +127,9 @@ export function getOpenRouterProviderRouting(
     provider.data_collection = dataCollection;
   }
 
-  penalizeRecentErrorProviders(provider, env, modelId);
+  if (sort !== "e2e-latency") {
+    penalizeRecentErrorProviders(provider, env, modelId);
+  }
 
   return Object.keys(provider).length > 0 ? provider : undefined;
 }
@@ -272,6 +281,20 @@ function buildE2eLatencyProviderOrder(env: Env, modelId: string | undefined) {
     env[OPENROUTER_PROVIDER_ROUTING_ENV.costMetrics],
     modelId,
   );
+  const now = parseOptionalDate(
+    env[OPENROUTER_PROVIDER_ROUTING_ENV.routingNow],
+  );
+  const healthByProvider = mergeProviderHealthSnapshots(
+    parseProviderHealthSnapshots(
+      env[OPENROUTER_PROVIDER_ROUTING_ENV.providerHealth],
+      modelId,
+    ),
+    parseRecentErrorHealthSnapshots(
+      env[OPENROUTER_PROVIDER_ROUTING_ENV.recentErrors],
+      modelId,
+      now,
+    ),
+  );
   const eligibleMetrics =
     maxE2eSeconds === undefined
       ? metrics
@@ -281,21 +304,20 @@ function buildE2eLatencyProviderOrder(env: Env, modelId: string | undefined) {
         );
   const rankedMetrics = eligibleMetrics.length > 0 ? eligibleMetrics : metrics;
 
-  return rankedMetrics
-    .map((metric) => ({
+  return rankProviderRoutes(
+    rankedMetrics.map((metric) => ({
       provider: metric.provider,
-      score:
-        getE2eLatencySeconds(metric, outputTokens) +
-        estimateProviderCost(
-          metric.provider,
-          costs,
-          inputTokens,
-          outputTokens,
-        ) *
-          costWeightSecondsPerDollar,
-    }))
-    .sort((a, b) => a.score - b.score)
-    .map((metric) => metric.provider);
+      e2eLatencySeconds: getE2eLatencySeconds(metric, outputTokens),
+      estimatedCostUsd: estimateProviderCost(
+        metric.provider,
+        costs,
+        inputTokens,
+        outputTokens,
+      ),
+    })),
+    healthByProvider,
+    { costWeightSecondsPerDollar, now },
+  ).map((metric) => metric.provider);
 }
 
 function getE2eLatencySeconds(
@@ -352,6 +374,202 @@ function estimateProviderCost(
     inputTokens * cost.inputCostPerToken +
     outputTokens * cost.outputCostPerToken
   );
+}
+
+function parseProviderHealthSnapshots(
+  value: string | undefined,
+  modelId: string | undefined,
+) {
+  const healthByProvider = new Map<string, ProviderHealthSnapshot>();
+  const parsedValue = parseJsonObject(
+    value,
+    OPENROUTER_PROVIDER_ROUTING_ENV.providerHealth,
+  );
+  if (!parsedValue) {
+    return healthByProvider;
+  }
+
+  addProviderHealthEntries(healthByProvider, parsedValue);
+  if (modelId) {
+    const modelScopedValue = getRecordValue(parsedValue, modelId);
+    addProviderHealthEntries(healthByProvider, modelScopedValue);
+  }
+
+  return healthByProvider;
+}
+
+function parseRecentErrorHealthSnapshots(
+  value: string | undefined,
+  modelId: string | undefined,
+  now: Date | undefined,
+) {
+  const healthByProvider = new Map<string, ProviderHealthSnapshot>();
+  const cooldownUntil = new Date((now ?? new Date()).getTime() + 5 * 60 * 1000);
+
+  for (const row of filterProviderRowsByModel(parseList(value), modelId)) {
+    const [providerWithScope, countValue] = row
+      .split(":")
+      .map((item) => item.trim());
+    const { provider } = parseScopedProvider(providerWithScope ?? "");
+    if (!provider) {
+      continue;
+    }
+    const failureWeight = countValue
+      ? parsePositiveInteger(
+          countValue,
+          OPENROUTER_PROVIDER_ROUTING_ENV.recentErrors,
+        )
+      : 1;
+    healthByProvider.set(provider, {
+      provider,
+      failureWeight,
+      sampleCount: failureWeight,
+      consecutiveFailures: failureWeight,
+      cooldownUntil:
+        failureWeight >= RECENT_ERROR_COOLDOWN_THRESHOLD
+          ? cooldownUntil
+          : undefined,
+    });
+  }
+
+  return healthByProvider;
+}
+
+function mergeProviderHealthSnapshots(
+  ...sources: Map<string, ProviderHealthSnapshot>[]
+) {
+  const merged = new Map<string, ProviderHealthSnapshot>();
+  for (const source of sources) {
+    for (const [provider, health] of source) {
+      merged.set(provider, mergeProviderHealth(merged.get(provider), health));
+    }
+  }
+  return merged;
+}
+
+function mergeProviderHealth(
+  existing: ProviderHealthSnapshot | undefined,
+  incoming: ProviderHealthSnapshot,
+): ProviderHealthSnapshot {
+  if (!existing) {
+    return incoming;
+  }
+
+  return {
+    provider: incoming.provider,
+    successWeight:
+      (existing.successWeight ?? 0) + (incoming.successWeight ?? 0),
+    failureWeight:
+      (existing.failureWeight ?? 0) + (incoming.failureWeight ?? 0),
+    p50LatencySeconds: incoming.p50LatencySeconds ?? existing.p50LatencySeconds,
+    p95LatencySeconds: incoming.p95LatencySeconds ?? existing.p95LatencySeconds,
+    avgFailedAttemptLatencySeconds:
+      incoming.avgFailedAttemptLatencySeconds ??
+      existing.avgFailedAttemptLatencySeconds,
+    sampleCount: (existing.sampleCount ?? 0) + (incoming.sampleCount ?? 0),
+    consecutiveFailures: Math.max(
+      existing.consecutiveFailures ?? 0,
+      incoming.consecutiveFailures ?? 0,
+    ),
+    cooldownUntil: maxDateLike(existing.cooldownUntil, incoming.cooldownUntil),
+  };
+}
+
+function addProviderHealthEntries(
+  healthByProvider: Map<string, ProviderHealthSnapshot>,
+  value: unknown,
+) {
+  const record = getRecord(value);
+  if (!record) {
+    return;
+  }
+
+  for (const [provider, rawHealth] of Object.entries(record)) {
+    const healthRecord = getRecord(rawHealth);
+    if (!healthRecord || !looksLikeProviderHealth(healthRecord)) {
+      continue;
+    }
+    healthByProvider.set(provider, {
+      provider,
+      successWeight: getOptionalNumber(healthRecord.successWeight),
+      failureWeight: getOptionalNumber(healthRecord.failureWeight),
+      p50LatencySeconds: getOptionalNumber(healthRecord.p50LatencySeconds),
+      p95LatencySeconds: getOptionalNumber(healthRecord.p95LatencySeconds),
+      avgFailedAttemptLatencySeconds: getOptionalNumber(
+        healthRecord.avgFailedAttemptLatencySeconds,
+      ),
+      sampleCount: getOptionalNumber(healthRecord.sampleCount),
+      consecutiveFailures: getOptionalNumber(healthRecord.consecutiveFailures),
+      cooldownUntil: getOptionalDateLike(healthRecord.cooldownUntil),
+    });
+  }
+}
+
+function looksLikeProviderHealth(record: Record<string, unknown>) {
+  return [
+    "successWeight",
+    "failureWeight",
+    "p50LatencySeconds",
+    "p95LatencySeconds",
+    "avgFailedAttemptLatencySeconds",
+    "sampleCount",
+    "consecutiveFailures",
+    "cooldownUntil",
+  ].some((key) => key in record);
+}
+
+function parseJsonObject(value: string | undefined, name: string) {
+  const rawValue = parseValue(value);
+  if (!rawValue) {
+    return undefined;
+  }
+  try {
+    return getRecord(JSON.parse(rawValue));
+  } catch {
+    throw new Error(`${name} must be valid JSON.`);
+  }
+}
+
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function getRecordValue(record: Record<string, unknown>, key: string) {
+  return getRecord(record[key]);
+}
+
+function getOptionalNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function getOptionalDateLike(value: unknown) {
+  if (
+    value instanceof Date ||
+    typeof value === "string" ||
+    typeof value === "number"
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
+function maxDateLike(
+  first: ProviderHealthSnapshot["cooldownUntil"],
+  second: ProviderHealthSnapshot["cooldownUntil"],
+) {
+  const firstDate = parseOptionalDate(first);
+  const secondDate = parseOptionalDate(second);
+  if (!firstDate) {
+    return second;
+  }
+  if (!secondDate) {
+    return first;
+  }
+  return firstDate.getTime() >= secondDate.getTime() ? first : second;
 }
 
 function parseProviderPerformanceMetrics(
@@ -463,6 +681,14 @@ function estimateE2eLatencySeconds(
 function parseOptionalPositiveNumber(value: string | undefined, name: string) {
   const parsedValue = parseValue(value);
   return parsedValue ? parsePositiveNumber(parsedValue, name) : undefined;
+}
+
+function parseOptionalDate(value: Date | number | string | undefined) {
+  if (value === undefined) {
+    return undefined;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date : undefined;
 }
 
 function parsePositiveNumber(value: string, name: string) {

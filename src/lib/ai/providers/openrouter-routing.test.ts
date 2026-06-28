@@ -131,6 +131,95 @@ describe("ai/providers/openrouter-routing", () => {
     });
   });
 
+  it("uses provider health snapshots to avoid bad tail latency", () => {
+    expect(
+      getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", {
+        OPENROUTER_PROVIDER_SORT: "e2e-latency",
+        OPENROUTER_PROVIDER_E2E_METRICS:
+          "z-ai/glm-5.2=fast-tail-risk:4,z-ai/glm-5.2=steady:5",
+        OPENROUTER_PROVIDER_HEALTH: JSON.stringify({
+          "z-ai/glm-5.2": {
+            "fast-tail-risk": {
+              successWeight: 30,
+              failureWeight: 0,
+              p50LatencySeconds: 4,
+              p95LatencySeconds: 18,
+              sampleCount: 30,
+            },
+            steady: {
+              successWeight: 30,
+              failureWeight: 0,
+              p50LatencySeconds: 5,
+              p95LatencySeconds: 7,
+              sampleCount: 30,
+            },
+          },
+        }),
+      }),
+    ).toEqual({
+      provider: {
+        order: ["steady", "fast-tail-risk"],
+      },
+    });
+  });
+
+  it("uses provider health snapshots to price slow failed attempts before fallback", () => {
+    expect(
+      getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", {
+        OPENROUTER_PROVIDER_SORT: "e2e-latency",
+        OPENROUTER_PROVIDER_E2E_METRICS:
+          "z-ai/glm-5.2=fast-when-it-works:3,z-ai/glm-5.2=reliable:6",
+        OPENROUTER_PROVIDER_HEALTH: JSON.stringify({
+          "z-ai/glm-5.2": {
+            "fast-when-it-works": {
+              successWeight: 8,
+              failureWeight: 2,
+              p50LatencySeconds: 3,
+              p95LatencySeconds: 5,
+              avgFailedAttemptLatencySeconds: 10,
+              sampleCount: 10,
+            },
+            reliable: {
+              successWeight: 20,
+              failureWeight: 0,
+              p50LatencySeconds: 6,
+              p95LatencySeconds: 7,
+              sampleCount: 20,
+            },
+          },
+        }),
+      }),
+    ).toEqual({
+      provider: {
+        order: ["reliable", "fast-when-it-works"],
+      },
+    });
+  });
+
+  it("skips providers in cooldown only when alternatives remain", () => {
+    const now = "2026-06-28T21:00:00.000Z";
+
+    expect(
+      getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", {
+        OPENROUTER_PROVIDER_SORT: "e2e-latency",
+        OPENROUTER_PROVIDER_E2E_METRICS:
+          "z-ai/glm-5.2=cooling-down:3,z-ai/glm-5.2=available:6",
+        OPENROUTER_PROVIDER_HEALTH: JSON.stringify({
+          "z-ai/glm-5.2": {
+            "cooling-down": {
+              cooldownUntil: "2026-06-28T21:05:00.000Z",
+            },
+          },
+        }),
+        OPENROUTER_PROVIDER_ROUTING_NOW: now,
+      }),
+    ).toEqual({
+      provider: {
+        order: ["available"],
+      },
+    });
+  });
+
   it("rejects invalid booleans and data collection values", () => {
     expect(() =>
       getOpenRouterProviderRouting({

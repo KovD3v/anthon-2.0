@@ -37,6 +37,7 @@ export type RealityBenchmarkCliConfig = {
   openRouterProviderOnly: string[];
   openRouterProviderIgnore: string[];
   openRouterProviderRecentErrors: string[];
+  openRouterProviderHealth: string | null;
   openRouterProviderAllowFallbacks: boolean | null;
   openRouterProviderE2eMetrics: string | null;
   openRouterProviderCostMetrics: string | null;
@@ -71,6 +72,7 @@ export function parseRealityBenchmarkArgs(
     openRouterProviderOnly: [],
     openRouterProviderIgnore: [],
     openRouterProviderRecentErrors: [],
+    openRouterProviderHealth: null,
     openRouterProviderAllowFallbacks: null,
     openRouterProviderE2eMetrics: null,
     openRouterProviderCostMetrics: null,
@@ -214,6 +216,22 @@ export function parseRealityBenchmarkArgs(
 
     if (arg === "--openrouter-provider-recent-errors") {
       config.openRouterProviderRecentErrors = parseList(
+        readNextValue(argv, ++i, arg),
+        arg,
+      );
+      continue;
+    }
+
+    if (arg.startsWith("--openrouter-provider-health=")) {
+      config.openRouterProviderHealth = parseValue(
+        arg.slice("--openrouter-provider-health=".length),
+        "--openrouter-provider-health",
+      );
+      continue;
+    }
+
+    if (arg === "--openrouter-provider-health") {
+      config.openRouterProviderHealth = parseValue(
         readNextValue(argv, ++i, arg),
         arg,
       );
@@ -433,6 +451,7 @@ export function applyOpenRouterProviderRoutingEnv(
     | "openRouterProviderOnly"
     | "openRouterProviderIgnore"
     | "openRouterProviderRecentErrors"
+    | "openRouterProviderHealth"
     | "openRouterProviderAllowFallbacks"
     | "openRouterProviderE2eMetrics"
     | "openRouterProviderCostMetrics"
@@ -465,6 +484,11 @@ export function applyOpenRouterProviderRoutingEnv(
   if (config.openRouterProviderRecentErrors.length > 0) {
     env[OPENROUTER_PROVIDER_ROUTING_ENV.recentErrors] =
       config.openRouterProviderRecentErrors.join(",");
+  }
+
+  if (config.openRouterProviderHealth) {
+    env[OPENROUTER_PROVIDER_ROUTING_ENV.providerHealth] =
+      config.openRouterProviderHealth;
   }
 
   if (config.openRouterProviderAllowFallbacks !== null) {
@@ -743,6 +767,8 @@ Options:
                              Comma-separated ignored providers for diagnostics.
   --openrouter-provider-recent-errors <providers>
                              Comma-separated providers to avoid because recent requests failed. Supports modelId=provider rows.
+  --openrouter-provider-health <json>
+                             JSON provider health snapshot used for risk-adjusted E2E routing.
   --openrouter-provider-allow-fallbacks <bool>
                              Whether OpenRouter may fall back from requested providers.
   --openrouter-provider-e2e-metrics <rows>

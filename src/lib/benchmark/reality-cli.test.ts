@@ -64,6 +64,8 @@ describe("benchmark/reality-cli", () => {
       "--openrouter-provider-ignore=slow-provider",
       "--openrouter-provider-recent-errors",
       "z-ai/glm-5.2=Parasail:1,z-ai/glm-5.2=Wafer:2",
+      "--openrouter-provider-health",
+      '{"z-ai/glm-5.2":{"Together":{"successWeight":20,"failureWeight":0,"p50LatencySeconds":6,"p95LatencySeconds":7,"sampleCount":20}}}',
       "--openrouter-provider-allow-fallbacks=false",
       "--openrouter-provider-e2e-metrics",
       "fireworks/fast:1.07:107:5.48,wafer/fast:1.32:78:6.08",
@@ -87,6 +89,8 @@ describe("benchmark/reality-cli", () => {
         "z-ai/glm-5.2=Parasail:1",
         "z-ai/glm-5.2=Wafer:2",
       ],
+      openRouterProviderHealth:
+        '{"z-ai/glm-5.2":{"Together":{"successWeight":20,"failureWeight":0,"p50LatencySeconds":6,"p95LatencySeconds":7,"sampleCount":20}}}',
       openRouterProviderAllowFallbacks: false,
       openRouterProviderE2eMetrics:
         "fireworks/fast:1.07:107:5.48,wafer/fast:1.32:78:6.08",
@@ -104,6 +108,8 @@ describe("benchmark/reality-cli", () => {
       OPENROUTER_PROVIDER_IGNORE: "slow-provider",
       OPENROUTER_PROVIDER_RECENT_ERRORS:
         "z-ai/glm-5.2=Parasail:1,z-ai/glm-5.2=Wafer:2",
+      OPENROUTER_PROVIDER_HEALTH:
+        '{"z-ai/glm-5.2":{"Together":{"successWeight":20,"failureWeight":0,"p50LatencySeconds":6,"p95LatencySeconds":7,"sampleCount":20}}}',
       OPENROUTER_PROVIDER_ALLOW_FALLBACKS: "false",
       OPENROUTER_PROVIDER_E2E_METRICS:
         "fireworks/fast:1.07:107:5.48,wafer/fast:1.32:78:6.08",
