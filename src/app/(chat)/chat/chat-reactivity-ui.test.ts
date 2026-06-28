@@ -19,6 +19,20 @@ describe("getAssistantPendingLabel", () => {
     ).toBe(CHAT_REACTIVITY_COPY.assistantReading);
   });
 
+  it("moves past reading feedback when submitted wait becomes noticeable", () => {
+    expect(
+      getAssistantPendingLabel({
+        status: "submitted",
+        submittedElapsedMs: 700,
+        latestMessage: {
+          id: "user-1",
+          role: "user",
+          parts: [{ type: "text", text: "ciao" }],
+        },
+      }),
+    ).toBe(CHAT_REACTIVITY_COPY.assistantPreparing);
+  });
+
   it("keeps showing preparation feedback before assistant text is visible", () => {
     expect(
       getAssistantPendingLabel({

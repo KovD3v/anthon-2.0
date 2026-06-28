@@ -2,6 +2,8 @@ import type { UIMessage } from "ai";
 
 export type ChatRequestStatus = "ready" | "submitted" | "streaming" | "error";
 
+export const ASSISTANT_READING_MAX_MS = 700;
+
 export const CHAT_REACTIVITY_COPY = {
   assistantReading: "Leggo il contesto",
   assistantPreparing: "Sto preparando la risposta",
@@ -34,9 +36,11 @@ export function getMessageText(message: UIMessage | undefined) {
 export function getAssistantPendingLabel({
   status,
   latestMessage,
+  submittedElapsedMs = 0,
 }: {
   status: ChatRequestStatus;
   latestMessage: UIMessage | undefined;
+  submittedElapsedMs?: number;
 }) {
   if (status === "ready" || status === "error") {
     return null;
@@ -49,7 +53,7 @@ export function getAssistantPendingLabel({
     return null;
   }
 
-  if (status === "submitted") {
+  if (status === "submitted" && submittedElapsedMs < ASSISTANT_READING_MAX_MS) {
     return CHAT_REACTIVITY_COPY.assistantReading;
   }
 

@@ -24,6 +24,7 @@ import { formatRelativeTime } from "@/lib/format-time";
 import { defaultTransition, fadeUp, scaleIn } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import {
+  ASSISTANT_READING_MAX_MS,
   CHAT_REACTIVITY_COPY,
   type ChatRequestStatus,
   getAssistantPendingLabel,
@@ -82,10 +83,26 @@ export function MessageList({
   const [feedbackState, setFeedbackState] = useState<Record<string, number>>(
     {},
   );
+  const [submittedElapsedMs, setSubmittedElapsedMs] = useState(0);
   const assistantPendingLabel = getAssistantPendingLabel({
     status,
     latestMessage: messages[messages.length - 1],
+    submittedElapsedMs,
   });
+
+  useEffect(() => {
+    if (status !== "submitted") {
+      setSubmittedElapsedMs(0);
+      return;
+    }
+
+    setSubmittedElapsedMs(0);
+    const timeoutId = window.setTimeout(() => {
+      setSubmittedElapsedMs(ASSISTANT_READING_MAX_MS);
+    }, ASSISTANT_READING_MAX_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [status]);
 
   async function handleFeedback(messageId: string, feedback: number) {
     const currentFeedback = feedbackState[messageId];
