@@ -74,9 +74,9 @@ export function SearchDialog({ isOpen, onClose }: SearchDialogProps) {
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
       <div className="fixed left-1/2 top-1/4 -translate-x-1/2 w-full max-w-xl">
-        <div className="mx-4 rounded-2xl bg-background border border-white/10 shadow-2xl overflow-hidden">
+        <div className="mx-4 rounded-2xl bg-background border border-border/70 shadow-2xl overflow-hidden dark:border-white/10">
           {/* Search Input */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border/60 dark:border-white/10">
             <Search className="h-5 w-5 text-muted-foreground shrink-0" />
             <input
               type="text"
@@ -117,7 +117,7 @@ export function SearchDialog({ isOpen, onClose }: SearchDialogProps) {
                 type="button"
                 key={result.id}
                 onClick={() => handleResultClick(result)}
-                className="w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors border-b border-white/5 last:border-0"
+                className="w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors border-b border-border/40 last:border-0 dark:border-white/5"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />

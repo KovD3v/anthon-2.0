@@ -9,7 +9,7 @@ export default function ChatLoading() {
     <div className="relative flex min-h-0 flex-1 flex-col bg-linear-to-b from-background to-muted/20">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-primary/5 via-background/0 to-background/0" />
 
-      <header className="sticky top-0 z-10 flex h-12 items-center justify-between border-b border-white/10 bg-background/40 px-3 backdrop-blur-xl sm:h-14 sm:px-4">
+      <header className="sticky top-0 z-10 flex h-12 items-center justify-between border-b border-border/60 bg-background/40 px-3 backdrop-blur-xl sm:h-14 sm:px-4 dark:border-white/10">
         <div className="h-4 w-40 animate-pulse rounded bg-muted/40" />
         <div className="h-8 w-20 animate-pulse rounded-md bg-muted/35" />
       </header>
@@ -74,7 +74,7 @@ export default function ChatLoading() {
       </div>
 
       <div className="relative mx-auto w-full max-w-3xl px-3 pb-6 pt-2 safe-area-bottom sm:px-4 sm:pb-8">
-        <div className="flex items-end gap-2 rounded-4xl border border-white/10 bg-background/60 p-2 shadow-lg backdrop-blur-xl ring-1 ring-black/5 dark:bg-muted/40 dark:ring-white/10">
+        <div className="flex items-end gap-2 rounded-4xl border border-border/70 bg-background/60 p-2 shadow-lg backdrop-blur-xl ring-1 ring-black/5 dark:border-white/10 dark:bg-muted/40 dark:ring-white/10">
           <div className="h-9 w-9 animate-pulse rounded-full bg-muted/35" />
           <div className="h-9 w-9 animate-pulse rounded-full bg-muted/30" />
           <div className="h-10 flex-1 animate-pulse rounded-2xl bg-muted/30" />

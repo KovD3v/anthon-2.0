@@ -100,7 +100,7 @@ export default function HelpPage() {
                 initial="hidden"
                 animate="show"
                 transition={{ ...defaultTransition, delay: index * 0.08 }}
-                className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-8 hover:bg-white/10 transition-colors"
+                className="group relative overflow-hidden rounded-2xl border border-border/70 bg-background/50 p-8 hover:bg-muted/50 transition-colors dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
               >
                 <div className="flex items-start gap-4">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -125,7 +125,7 @@ export default function HelpPage() {
             initial="hidden"
             animate="show"
             transition={{ ...defaultTransition, delay: 0.3 }}
-            className="rounded-3xl border border-white/10 bg-background/50 backdrop-blur-xl p-8 sm:p-12 mb-20"
+            className="rounded-3xl border border-border/70 bg-background/50 backdrop-blur-xl p-8 sm:p-12 mb-20 dark:border-white/10"
           >
             <div className="flex items-center gap-2 mb-8">
               <Keyboard className="h-8 w-8 text-primary" />
@@ -138,7 +138,7 @@ export default function HelpPage() {
               {shortcuts.map((shortcut) => (
                 <div
                   key={shortcut.description}
-                  className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5"
+                  className="flex items-center justify-between p-4 rounded-xl bg-background/50 border border-border/50 dark:bg-white/5 dark:border-white/5"
                 >
                   <span className="text-foreground/80 font-medium">
                     {shortcut.description}
@@ -147,7 +147,7 @@ export default function HelpPage() {
                     {shortcut.keys.map((key) => (
                       <kbd
                         key={key}
-                        className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-white/10 bg-black/20 px-2 text-sm font-semibold text-muted-foreground shadow-sm"
+                        className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-border/60 bg-muted/50 px-2 text-sm font-semibold text-muted-foreground shadow-sm dark:border-white/10 dark:bg-black/20"
                       >
                         {key === "Cmd" ? (
                           <Command className="h-4 w-4" />

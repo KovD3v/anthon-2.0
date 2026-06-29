@@ -299,7 +299,7 @@ export function MessageList({
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-xs ring-1 ring-inset ${
                         isUser
                           ? "bg-primary text-primary-foreground ring-primary/20"
-                          : "bg-background text-primary ring-white/10"
+                          : "bg-background text-primary ring-border/70 dark:ring-white/10"
                       }`}
                     >
                       {isUser ? (
@@ -355,7 +355,7 @@ export function MessageList({
                               onChange={(e) =>
                                 onEditContentChange(e.target.value)
                               }
-                              className="w-full rounded-md border border-white/10 bg-black/20 p-3 outline-none focus:ring-1 focus:ring-primary/50"
+                              className="w-full rounded-md border border-border/70 bg-background/70 p-3 outline-none focus:ring-1 focus:ring-primary/50 dark:border-white/10 dark:bg-black/20"
                               rows={4}
                             />
                             <div className="flex justify-end gap-2">
@@ -618,7 +618,7 @@ export function MessageList({
               className="group mt-8 mb-2 flex items-start gap-2"
               aria-live="polite"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background text-primary shadow-xs ring-1 ring-inset ring-white/10">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background text-primary shadow-xs ring-1 ring-inset ring-border/70 dark:ring-white/10">
                 <Brain className="h-5 w-5 animate-pulse" />
               </div>
               <div className="flex max-w-[85%] flex-col gap-2">
@@ -673,7 +673,7 @@ export function EmptyChatWelcome({ className }: { className?: string }) {
         initial="hidden"
         animate="show"
         transition={defaultTransition}
-        className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-linear-to-br from-primary/10 to-transparent ring-1 ring-white/10"
+        className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-linear-to-br from-primary/10 to-transparent ring-1 ring-border/70 dark:ring-white/10"
       >
         <Brain className="h-12 w-12 text-primary/80" />
       </m.div>

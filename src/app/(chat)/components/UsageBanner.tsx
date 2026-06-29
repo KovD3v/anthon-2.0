@@ -243,7 +243,7 @@ export function UsageBanner({
     <div className="mx-2 mt-2 md:mx-4 md:mt-4">
       <div
         className={cn(
-          "flex items-center justify-between rounded-2xl border border-white/10 bg-background/60 backdrop-blur-xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-sm",
+          "flex items-center justify-between rounded-2xl border border-border/70 bg-background/60 backdrop-blur-xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-sm dark:border-white/10",
           className,
         )}
       >

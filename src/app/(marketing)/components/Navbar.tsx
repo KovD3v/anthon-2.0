@@ -54,7 +54,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full pt-[env(safe-area-inset-top)]">
-      <div className="mx-2 mt-2 md:mx-4 md:mt-4 rounded-2xl border border-white/10 bg-background/60 backdrop-blur-xl shadow-xs">
+      <div className="mx-2 mt-2 md:mx-4 md:mt-4 rounded-2xl border border-border/70 bg-background/60 backdrop-blur-xl shadow-xs dark:border-white/10">
         <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 font-bold text-xl">
             <Link href="/" className="flex items-center gap-2">
@@ -182,7 +182,7 @@ export function Navbar() {
               }}
               exit={{ opacity: 0, height: 0, marginTop: 0 }}
               transition={{ duration: duration.base, ease: ease.inOut }}
-              className="md:hidden overflow-hidden border-t border-white/10"
+              className="md:hidden overflow-hidden border-t border-border/60 dark:border-white/10"
             >
               <div className="p-4 space-y-6 bg-background/40 backdrop-blur-3xl rounded-b-2xl">
                 <nav className="flex flex-col space-y-1">
@@ -222,7 +222,7 @@ export function Navbar() {
                   />
                 </nav>
 
-                <div className="space-y-3 pt-4 border-t border-white/5">
+                <div className="space-y-3 pt-4 border-t border-border/40 dark:border-white/5">
                   {/* Mobile Theme Toggle */}
                   <Button
                     variant="ghost"
@@ -230,7 +230,7 @@ export function Navbar() {
                     onClick={() => {
                       toggleTheme();
                     }}
-                    className="justify-between gap-2 w-full h-11 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5"
+                    className="justify-between gap-2 w-full h-11 px-4 rounded-xl bg-background/50 hover:bg-muted/50 border border-border/50 dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/5"
                   >
                     <div className="flex items-center gap-3">
                       {theme === "dark" ? (
@@ -257,7 +257,7 @@ export function Navbar() {
                       <SignInButton mode="modal">
                         <Button
                           variant="ghost"
-                          className="justify-center gap-2 h-11 rounded-xl bg-white/5 border border-white/5"
+                          className="justify-center gap-2 h-11 rounded-xl bg-background/50 border border-border/50 dark:bg-white/5 dark:border-white/5"
                         >
                           <LogIn className="h-4 w-4" />
                           Accedi
@@ -273,7 +273,7 @@ export function Navbar() {
                   </SignedOut>
 
                   <SignedIn>
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-background/50 border border-border/50 dark:bg-white/5 dark:border-white/5">
                       <div className="flex items-center gap-2">
                         <UserButton />
                         <div className="flex flex-col">

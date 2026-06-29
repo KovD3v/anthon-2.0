@@ -239,7 +239,7 @@ function SuggestionCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex w-full items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4 text-left backdrop-blur-sm transition-all duration-200 hover:border-primary/30 hover:bg-white/10 active:scale-[0.98]"
+      className="group flex w-full items-start gap-3 rounded-xl border border-border/70 bg-background/50 p-4 text-left backdrop-blur-sm transition-all duration-200 hover:border-primary/30 hover:bg-muted/50 active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
     >
       <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
         {getIcon(suggestion.icon, "h-4 w-4")}

@@ -22,7 +22,7 @@ export default function ChatConversationLoading() {
         </div>
 
         <div className="mx-auto w-full max-w-3xl px-3 pb-6 pt-2 sm:px-4 sm:pb-8">
-          <div className="flex items-end gap-2 rounded-4xl border border-white/10 bg-background/60 p-2 shadow-lg ring-1 ring-black/5 backdrop-blur-xl dark:bg-muted/40 dark:ring-white/10">
+          <div className="flex items-end gap-2 rounded-4xl border border-border/70 bg-background/60 p-2 shadow-lg ring-1 ring-black/5 backdrop-blur-xl dark:border-white/10 dark:bg-muted/40 dark:ring-white/10">
             <div className="size-9 animate-pulse rounded-full bg-muted/35" />
             <div className="h-10 flex-1 animate-pulse rounded-2xl bg-muted/30" />
             <div className="size-9 animate-pulse rounded-full bg-muted/45" />
