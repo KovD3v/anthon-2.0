@@ -352,8 +352,12 @@ function createToolsWithContext(
     userMessage?: string;
   },
 ) {
+  const tavilyTools = shouldEnableWebSearchTool(options?.userMessage)
+    ? createTavilyTools()
+    : {};
+
   if (options?.isGuest) {
-    return {};
+    return tavilyTools;
   }
 
   const memoryTools =
@@ -364,9 +368,6 @@ function createToolsWithContext(
     createUserContextTools(userId),
     "getUserContext",
   );
-  const tavilyTools = shouldEnableWebSearchTool(options?.userMessage)
-    ? createTavilyTools()
-    : {};
 
   return {
     ...memoryTools,

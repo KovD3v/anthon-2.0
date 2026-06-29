@@ -370,6 +370,31 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).not.toHaveProperty("getUserContext");
   });
 
+  it("enables Tavily for guest time-sensitive requests without persistent tools", async () => {
+    mocks.buildConversationContext.mockResolvedValue([]);
+
+    await streamChat({
+      userId: "guest-1",
+      chatId: "chat-guest-news",
+      userMessage:
+        "il monza quest'anno a settembre dove giochera in quale categoria nel 2026?",
+      isGuest: true,
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        tavilySearch: "tavily-tool",
+      }),
+    );
+    expect(streamInput.tools).not.toHaveProperty("saveMemory");
+    expect(streamInput.tools).not.toHaveProperty("updateProfile");
+    expect(streamInput.tools).not.toHaveProperty("getMemories");
+    expect(streamInput.tools).not.toHaveProperty("getUserContext");
+  });
+
   it("builds audio/file content parts, strips codec suffixes, and applies voice-disabled prompt variant", async () => {
     mocks.buildConversationContext.mockResolvedValue([]);
     mocks.shouldUseRag.mockResolvedValue(true);
