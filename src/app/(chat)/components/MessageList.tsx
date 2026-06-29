@@ -27,6 +27,7 @@ import {
   ASSISTANT_READING_MAX_MS,
   CHAT_REACTIVITY_COPY,
   type ChatRequestStatus,
+  getAssistantMessageDisplayState,
   getAssistantMessageLifecycle,
   getAssistantPendingLabel,
   getMessageText,
@@ -257,6 +258,11 @@ export function MessageList({
                 pendingLabel: assistantPendingLabel,
                 hasRenderableAttachment: hasPersistedAudioAttachment(message),
               });
+              const assistantDisplayState = getAssistantMessageDisplayState({
+                message,
+                lifecycle: assistantLifecycle,
+                status,
+              });
 
               const hasAttachments = message.parts?.some(
                 (part) => part.type === "file",
@@ -346,6 +352,10 @@ export function MessageList({
                                   : "rounded-2xl rounded-tl-sm bg-[#c4cd4c] text-black"
                               }`
                             : "p-0 bg-transparent" /* Transparent for standalone attachments */
+                        } ${
+                          assistantDisplayState === "streaming"
+                            ? "min-h-[3.5rem] min-w-40 transition-[min-height,width] duration-150 ease-out"
+                            : ""
                         } ${isEditing ? "w-full min-w-75" : ""}`}
                       >
                         {isEditing ? (
@@ -380,7 +390,7 @@ export function MessageList({
                                 name="Messaggio vocale"
                                 mimeType="audio/mpeg"
                               />
-                            ) : assistantLifecycle === "pending" ? (
+                            ) : assistantDisplayState === "pending" ? (
                               <div
                                 className="flex items-center gap-2 text-black"
                                 aria-live="polite"

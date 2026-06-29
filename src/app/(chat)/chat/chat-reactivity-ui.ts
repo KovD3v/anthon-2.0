@@ -61,6 +61,9 @@ export function getAssistantPendingLabel({
 }
 
 export type AssistantMessageLifecycle = "content" | "pending" | "hidden";
+export type AssistantMessageDisplayState =
+  | AssistantMessageLifecycle
+  | "streaming";
 
 export function getAssistantMessageLifecycle({
   message,
@@ -88,6 +91,26 @@ export function getAssistantMessageLifecycle({
   }
 
   return "hidden";
+}
+
+export function getAssistantMessageDisplayState({
+  message,
+  lifecycle,
+  status,
+}: {
+  message: UIMessage;
+  lifecycle: AssistantMessageLifecycle;
+  status: ChatRequestStatus;
+}): AssistantMessageDisplayState {
+  if (lifecycle !== "content" || message.role !== "assistant") {
+    return lifecycle;
+  }
+
+  if (status !== "streaming") {
+    return lifecycle;
+  }
+
+  return getMessageText(message).trim().length > 0 ? "streaming" : lifecycle;
 }
 
 export function shouldRenderAssistantPendingRow({

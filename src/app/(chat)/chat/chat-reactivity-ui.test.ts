@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CHAT_REACTIVITY_COPY,
+  getAssistantMessageDisplayState,
   getAssistantMessageLifecycle,
   getAssistantPendingLabel,
   getAudioRecorderStatusLabel,
@@ -95,6 +96,29 @@ describe("getAssistantPendingLabel", () => {
         pendingLabel: null,
       }),
     ).toBe("hidden");
+  });
+
+  it("marks assistant text as streaming while generation is active", () => {
+    const message = {
+      id: "assistant-1",
+      role: "assistant" as const,
+      parts: [{ type: "text" as const, text: "Eccomi" }],
+    };
+
+    expect(
+      getAssistantMessageDisplayState({
+        message,
+        lifecycle: "content",
+        status: "streaming",
+      }),
+    ).toBe("streaming");
+    expect(
+      getAssistantMessageDisplayState({
+        message,
+        lifecycle: "content",
+        status: "ready",
+      }),
+    ).toBe("content");
   });
 });
 
