@@ -212,11 +212,11 @@ describe("chat mobile viewport layout", () => {
     const loading = readFileSync("src/app/(chat)/chat/loading.tsx", "utf8");
 
     expect(messageList).toContain(
-      ': "rounded-2xl rounded-tl-sm bg-[#e3b52b] text-black"',
+      ': "rounded-2xl rounded-tl-sm bg-[#c4cd4c] text-black"',
     );
     expect(messageList).toContain("assistantMarkdownClassName");
     expect(messageList).toContain("prose-p:text-black");
-    expect(loading).toContain(': "rounded-tl-sm bg-[#e3b52b]/60"');
+    expect(loading).toContain(': "rounded-tl-sm bg-[#c4cd4c]/60"');
   });
 
   it("clears submitted composer text before awaiting the assistant response", () => {
