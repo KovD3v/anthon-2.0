@@ -204,6 +204,21 @@ describe("chat mobile viewport layout", () => {
     expect(audioRecorder).toContain('"uploading"');
   });
 
+  it("styles Anthon message boxes with the yellow brand background and black text", () => {
+    const messageList = readFileSync(
+      "src/app/(chat)/components/MessageList.tsx",
+      "utf8",
+    );
+    const loading = readFileSync("src/app/(chat)/chat/loading.tsx", "utf8");
+
+    expect(messageList).toContain(
+      ': "rounded-2xl rounded-tl-sm bg-yellow-400 text-black"',
+    );
+    expect(messageList).toContain("assistantMarkdownClassName");
+    expect(messageList).toContain("prose-p:text-black");
+    expect(loading).toContain(': "rounded-tl-sm bg-yellow-400/60"');
+  });
+
   it("clears submitted composer text before awaiting the assistant response", () => {
     const conversationClient = readFileSync(
       "src/app/(chat)/chat/[id]/chat-conversation-client.tsx",

@@ -44,7 +44,7 @@ function ChatLayoutSkeleton() {
             <div className="mx-auto max-w-3xl space-y-6">
               <div className="flex items-start gap-2">
                 <div className="size-8 animate-pulse rounded-full bg-muted/45" />
-                <div className="space-y-2 rounded-2xl rounded-tl-sm border border-white/10 bg-background/60 px-5 py-3.5">
+                <div className="space-y-2 rounded-2xl rounded-tl-sm bg-yellow-400/60 px-5 py-3.5">
                   <div className="h-3 w-52 animate-pulse rounded bg-muted/35" />
                   <div className="h-3 w-40 animate-pulse rounded bg-muted/30" />
                 </div>

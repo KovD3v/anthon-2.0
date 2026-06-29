@@ -73,6 +73,9 @@ function hasPersistedAudioAttachment(message: ExtendedMessage) {
   );
 }
 
+const assistantMarkdownClassName =
+  "prose prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-black prose-code:text-black prose-pre:bg-black/10 prose-pre:border prose-pre:border-black/10 prose-pre:rounded-xl";
+
 export function MessageList({
   messages,
   status,
@@ -340,7 +343,7 @@ export function MessageList({
                             ? `px-5 py-3.5 shadow-sm ${
                                 isUser
                                   ? "rounded-2xl rounded-tr-sm bg-primary text-primary-foreground"
-                                  : "rounded-2xl rounded-tl-sm bg-background/60 backdrop-blur-sm border border-white/10 text-foreground"
+                                  : "rounded-2xl rounded-tl-sm bg-yellow-400 text-black"
                               }`
                             : "p-0 bg-transparent" /* Transparent for standalone attachments */
                         } ${isEditing ? "w-full min-w-75" : ""}`}
@@ -379,15 +382,15 @@ export function MessageList({
                               />
                             ) : assistantLifecycle === "pending" ? (
                               <div
-                                className="flex items-center gap-2 text-muted-foreground"
+                                className="flex items-center gap-2 text-black"
                                 aria-live="polite"
                               >
-                                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
                                 <div className="flex flex-col">
-                                  <span className="font-medium text-foreground/85">
+                                  <span className="font-medium text-black">
                                     {assistantPendingLabel}
                                   </span>
-                                  <span className="text-xs text-muted-foreground/70">
+                                  <span className="text-xs text-black/70">
                                     {
                                       CHAT_REACTIVITY_COPY.assistantWorkingDetail
                                     }
@@ -396,7 +399,10 @@ export function MessageList({
                               </div>
                             ) : (
                               /* Text message: show markdown */
-                              <MemoizedMarkdown content={messageText} />
+                              <MemoizedMarkdown
+                                className={assistantMarkdownClassName}
+                                content={messageText}
+                              />
                             )}
                           </>
                         ) : (
@@ -622,13 +628,13 @@ export function MessageList({
                 <Brain className="h-5 w-5 animate-pulse" />
               </div>
               <div className="flex max-w-[85%] flex-col gap-2">
-                <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-sm border border-white/10 bg-background/70 px-4 py-3 text-sm text-muted-foreground shadow-sm backdrop-blur-sm">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-sm bg-yellow-400 px-4 py-3 text-sm text-black shadow-sm">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
                   <div className="flex flex-col">
-                    <span className="font-medium text-foreground/85">
+                    <span className="font-medium text-black">
                       {assistantPendingLabel}
                     </span>
-                    <span className="text-xs text-muted-foreground/70">
+                    <span className="text-xs text-black/70">
                       {CHAT_REACTIVITY_COPY.assistantWorkingDetail}
                     </span>
                   </div>
