@@ -219,6 +219,16 @@ describe("chat mobile viewport layout", () => {
     expect(loading).toContain(': "rounded-tl-sm bg-[#c4cd4c]/60"');
   });
 
+  it("renders assistant usage metrics in dark gray", () => {
+    const messageList = readFileSync(
+      "src/app/(chat)/components/MessageList.tsx",
+      "utf8",
+    );
+
+    expect(messageList).toContain("text-zinc-700");
+    expect(messageList).not.toContain("text-muted-foreground/60");
+  });
+
   it("clears submitted composer text before awaiting the assistant response", () => {
     const conversationClient = readFileSync(
       "src/app/(chat)/chat/[id]/chat-conversation-client.tsx",

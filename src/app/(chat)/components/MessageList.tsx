@@ -495,23 +495,17 @@ export function MessageList({
                               (usageAnn.outputTokens || 0);
 
                             return (
-                              <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground/60 select-none">
+                              <div className="mt-3 flex items-center gap-4 text-xs text-zinc-700 select-none">
                                 <div className="flex items-center gap-1.5">
                                   <span>{totalTokens} tokens</span>
-                                  <span className="text-muted-foreground/30">
-                                    •
-                                  </span>
+                                  <span className="text-zinc-600">•</span>
                                   <span>{usageAnn.inputTokens || 0} in</span>
-                                  <span className="text-muted-foreground/30">
-                                    /
-                                  </span>
+                                  <span className="text-zinc-600">/</span>
                                   <span>{usageAnn.outputTokens || 0} out</span>
                                 </div>
                                 {timeInSeconds && (
                                   <>
-                                    <span className="text-muted-foreground/30">
-                                      •
-                                    </span>
+                                    <span className="text-zinc-600">•</span>
                                     <div className="flex items-center gap-1.5">
                                       <span>{timeInSeconds}s</span>
                                     </div>
