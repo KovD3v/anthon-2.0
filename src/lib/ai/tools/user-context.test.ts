@@ -34,6 +34,7 @@ vi.mock("@/lib/db", () => ({
 
 import {
   createUserContextTools,
+  formatTinyUserSnapshotForPrompt,
   formatUserContextForPrompt,
 } from "./user-context";
 
@@ -172,5 +173,38 @@ describe("ai/tools/user-context", () => {
     await formatUserContextForPrompt(userId);
 
     expect(mocks.userFindUnique).toHaveBeenCalledTimes(2);
+  });
+
+  it("formatTinyUserSnapshotForPrompt returns compact coaching fields and caches them", async () => {
+    const userId = "user-snapshot-cache";
+    mocks.userFindUnique.mockResolvedValue({
+      id: userId,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      profile: {
+        name: "Snapshot User",
+        sport: "Tennis",
+        goal: "Serve più stabile",
+        experience: "Intermediate",
+        birthday: null,
+        notes: "Long private note that should not enter the tiny snapshot.",
+      },
+      preferences: {
+        tone: "direct",
+        mode: "concise",
+        language: "it",
+        push: true,
+      },
+    });
+
+    const first = await formatTinyUserSnapshotForPrompt(userId);
+    const second = await formatTinyUserSnapshotForPrompt(userId);
+
+    expect(first).toBe(
+      "Lingua: it\nSport: Tennis\nObiettivo: Serve più stabile\nTono: direct\nModalità: concise",
+    );
+    expect(second).toBe(first);
+    expect(first).not.toContain("Snapshot User");
+    expect(first).not.toContain("Long private note");
+    expect(mocks.userFindUnique).toHaveBeenCalledTimes(1);
   });
 });

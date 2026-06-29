@@ -9,10 +9,13 @@ type UserContextPromptCacheEntry = {
 };
 
 const USER_CONTEXT_PROMPT_CACHE_TTL_MS = 30 * 1000; // 30s
+const TINY_USER_SNAPSHOT_CACHE_TTL_MS = 2 * 60 * 1000; // 2m
 const userContextPromptCache = new Map<string, UserContextPromptCacheEntry>();
+const tinyUserSnapshotCache = new Map<string, UserContextPromptCacheEntry>();
 
 function invalidateUserContextPromptCache(userId: string) {
   userContextPromptCache.delete(userId);
+  tinyUserSnapshotCache.delete(userId);
 }
 
 /**
@@ -360,6 +363,56 @@ export async function formatUserContextForPrompt(
   userContextPromptCache.set(userId, {
     value,
     expiresAt: Date.now() + USER_CONTEXT_PROMPT_CACHE_TTL_MS,
+  });
+  return value;
+}
+
+/**
+ * Minimal profile/preferences snapshot for latency-sensitive prompts.
+ * Keep this intentionally compact: it preserves personalization without
+ * injecting long notes, full memories, or tool instructions.
+ */
+export async function formatTinyUserSnapshotForPrompt(
+  userId: string,
+): Promise<string> {
+  const cached = tinyUserSnapshotCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      profile: true,
+      preferences: true,
+    },
+  });
+
+  if (!user) {
+    return "";
+  }
+
+  const lines: string[] = [];
+  if (user.preferences?.language) {
+    lines.push(`Lingua: ${user.preferences.language}`);
+  }
+  if (user.profile?.sport) {
+    lines.push(`Sport: ${user.profile.sport}`);
+  }
+  if (user.profile?.goal) {
+    lines.push(`Obiettivo: ${user.profile.goal}`);
+  }
+  if (user.preferences?.tone) {
+    lines.push(`Tono: ${user.preferences.tone}`);
+  }
+  if (user.preferences?.mode) {
+    lines.push(`Modalità: ${user.preferences.mode}`);
+  }
+
+  const value = lines.join("\n");
+  tinyUserSnapshotCache.set(userId, {
+    value,
+    expiresAt: Date.now() + TINY_USER_SNAPSHOT_CACHE_TTL_MS,
   });
   return value;
 }
