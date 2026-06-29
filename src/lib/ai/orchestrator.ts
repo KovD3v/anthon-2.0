@@ -395,7 +395,7 @@ function omitTool<T extends Record<string, unknown>>(
 }
 
 function shouldEnableWebSearchTool(userMessage = "") {
-  return /\b(oggi|ieri|domani|recente|recenti|ultimo|ultimi|ultima|ultime|notizia|notizie|news|latest|current|live|risultato|risultati|classifica|classifiche|meteo|previsioni|orario|schedule|today|yesterday|tomorrow|202[0-9])\b/i.test(
+  return /\b(oggi|ieri|domani|recente|recenti|ultimo|ultimi|ultima|ultime|notizia|notizie|news|latest|current|live|risultato|risultati|classifica|classifiche|meteo|previsioni|orario|schedule|calendario|fixture|today|yesterday|tomorrow|202[0-9])\b|prossim[aoei]\s+(partita|partite|match|gara|gare)|quando\s+(gioca|giocher[aà]|giocheranno|giocherai|giocate)\b/i.test(
     userMessage,
   );
 }
@@ -782,13 +782,16 @@ export async function streamChat({
         for (let i = 0; i < step.toolCalls.length; i++) {
           const tc = step.toolCalls[i] as {
             toolName: string;
+            input?: unknown;
             args?: unknown;
           };
-          const tr = step.toolResults?.[i] as { result?: unknown } | undefined;
+          const tr = step.toolResults?.[i] as
+            | { output?: unknown; result?: unknown }
+            | undefined;
           collectedToolCalls.push({
             name: tc.toolName,
-            args: tc.args,
-            result: tr?.result,
+            args: tc.input ?? tc.args,
+            result: tr?.output ?? tr?.result,
           });
         }
       }

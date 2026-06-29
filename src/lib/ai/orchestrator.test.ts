@@ -379,6 +379,48 @@ describe("ai/orchestrator", () => {
     });
   });
 
+  it("repeats the Messi next-match chat with TinyFish available on the follow-up", async () => {
+    mocks.buildConversationContext.mockResolvedValue([
+      {
+        role: "user",
+        content:
+          "vorrei sapere come è andata la partita dei mondiali di ieri, non quelle a gironi però",
+      },
+      {
+        role: "assistant",
+        content:
+          "Ieri, domenica 28 giugno, è iniziata ufficialmente la fase a eliminazione diretta dei Mondiali 2026.",
+      },
+    ]);
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-messi-next-match",
+      userMessage: "quale è la prossima partita che messi giocherà?",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      messages: Array<{ role: string; content: unknown }>;
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.messages.at(-1)).toEqual({
+      role: "user",
+      content: "quale è la prossima partita che messi giocherà?",
+    });
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+        saveMemory: "memory-tool",
+      }),
+    );
+    expect(mocks.createTinyfishTools).toHaveBeenCalledWith({
+      maxSearchCalls: 3,
+      maxFetchCalls: 1,
+      maxFetchUrls: 3,
+    });
+  });
+
   it("enables TinyFish for guest time-sensitive requests without persistent tools", async () => {
     mocks.buildConversationContext.mockResolvedValue([]);
 
@@ -611,8 +653,8 @@ describe("ai/orchestrator", () => {
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       onStepFinish: (step: {
         text?: string;
-        toolCalls?: Array<{ toolName: string; args?: unknown }>;
-        toolResults?: Array<{ result?: unknown }>;
+        toolCalls?: Array<{ toolName: string; input?: unknown }>;
+        toolResults?: Array<{ output?: unknown }>;
       }) => void;
       onFinish: (step: {
         text: string;
@@ -632,14 +674,14 @@ describe("ai/orchestrator", () => {
 
     streamInput.onStepFinish({
       text: "partial",
-      toolCalls: [{ toolName: "saveMemory", args: { key: "user_goal" } }],
-      toolResults: [{ result: { saved: true } }],
+      toolCalls: [{ toolName: "saveMemory", input: { key: "user_goal" } }],
+      toolResults: [{ output: { saved: true } }],
     });
 
     expect(userOnStepFinish).toHaveBeenCalledWith({
       text: "partial",
-      toolCalls: [{ toolName: "saveMemory", args: { key: "user_goal" } }],
-      toolResults: [{ result: { saved: true } }],
+      toolCalls: [{ toolName: "saveMemory", input: { key: "user_goal" } }],
+      toolResults: [{ output: { saved: true } }],
     });
 
     await streamInput.onFinish({
