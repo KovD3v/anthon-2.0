@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   formatMemoriesForPrompt: vi.fn(),
   createTinyfishTools: vi.fn(),
   createUserContextTools: vi.fn(),
+  formatTinyUserSnapshotForPrompt: vi.fn(),
   formatUserContextForPrompt: vi.fn(),
   measure: vi.fn(),
   resolveEffectiveEntitlements: vi.fn(),
@@ -61,6 +62,7 @@ vi.mock("@/lib/ai/tools/tinyfish", () => ({
 
 vi.mock("@/lib/ai/tools/user-context", () => ({
   createUserContextTools: mocks.createUserContextTools,
+  formatTinyUserSnapshotForPrompt: mocks.formatTinyUserSnapshotForPrompt,
   formatUserContextForPrompt: mocks.formatUserContextForPrompt,
 }));
 
@@ -116,6 +118,7 @@ describe("ai/orchestrator", () => {
     mocks.formatMemoriesForPrompt.mockReset();
     mocks.createTinyfishTools.mockReset();
     mocks.createUserContextTools.mockReset();
+    mocks.formatTinyUserSnapshotForPrompt.mockReset();
     mocks.formatUserContextForPrompt.mockReset();
     mocks.measure.mockReset();
     mocks.resolveEffectiveEntitlements.mockReset();
@@ -160,6 +163,9 @@ describe("ai/orchestrator", () => {
       tinyfishSearch: "tinyfish-tool",
       tinyfishFetch: "tinyfish-fetch-tool",
     });
+    mocks.formatTinyUserSnapshotForPrompt.mockResolvedValue(
+      "Lingua: it\nSport: tennis\nObiettivo: focus pre-gara",
+    );
     mocks.resolveEffectiveEntitlements.mockResolvedValue(baseEntitlements);
     mocks.getVoicePlanConfig.mockReturnValue({ enabled: true });
     mocks.extractAIMetrics.mockReturnValue({
@@ -263,6 +269,9 @@ describe("ai/orchestrator", () => {
     });
 
     expect(mocks.shouldUseRag).not.toHaveBeenCalled();
+    expect(mocks.formatTinyUserSnapshotForPrompt).toHaveBeenCalledWith(
+      "user-1",
+    );
     expect(mocks.formatUserContextForPrompt).not.toHaveBeenCalled();
     expect(mocks.formatMemoriesForPrompt).not.toHaveBeenCalled();
     expect(mocks.createMemoryTools).not.toHaveBeenCalled();
@@ -278,6 +287,9 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).toEqual({});
     expect(streamInput.maxOutputTokens).toBe(180);
     expect(streamInput.system).toContain("Reply in the user's language");
+    expect(streamInput.system).toContain("USER SNAPSHOT");
+    expect(streamInput.system).toContain("Sport: tennis");
+    expect(streamInput.system).toContain("Obiettivo: focus pre-gara");
     expect(streamInput.system).not.toContain("SAVING DATA");
     expect(streamInput.system).not.toContain("WEB SEARCH");
     expect(streamInput.system).not.toContain("RAG CONTEXT");
@@ -296,6 +308,7 @@ describe("ai/orchestrator", () => {
 
     expect(mocks.formatUserContextForPrompt).toHaveBeenCalledWith("user-1");
     expect(mocks.formatMemoriesForPrompt).toHaveBeenCalledWith("user-1");
+    expect(mocks.formatTinyUserSnapshotForPrompt).not.toHaveBeenCalled();
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       system: string;
@@ -313,6 +326,25 @@ describe("ai/orchestrator", () => {
     expect(streamInput.system).toContain("user-context-data");
     expect(streamInput.system).toContain("user-memories-data");
     expect(streamInput.maxOutputTokens).toBeUndefined();
+  });
+
+  it("passes a stable OpenRouter session id for provider-side session caching", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-session-cache",
+      userMessage: "same message",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      providerOptions: {
+        openrouter: {
+          session_id?: string;
+        };
+      };
+    };
+    expect(streamInput.providerOptions.openrouter.session_id).toBe(
+      "chat-session-cache",
+    );
   });
 
   it("keeps RAG classification for simple wording that references documents", async () => {
@@ -342,6 +374,89 @@ describe("ai/orchestrator", () => {
       }),
     );
     expect(streamInput.maxOutputTokens).toBeUndefined();
+  });
+
+  it("routes a compact quality prompt suite without sending complex requests to simple fast mode", async () => {
+    const fastPrompts = [
+      "Ciao",
+      "Motivami prima dell'allenamento",
+      "Dammi una risposta breve: focus prima della partita",
+      "Caricami in poche parole",
+      "Consiglio veloce per restare concentrato",
+      "Reset mentale rapido",
+      "Una frase breve per non mollare",
+      "Ehi, dammi una spinta",
+      "Tranquillizzami prima della gara",
+      "Grazie, risposta breve",
+    ];
+
+    const fullPrompts = [
+      "Mi chiamo Luca e gioco a tennis",
+      "Ricordati che domenica ho una partita",
+      "Fammi un piano dettagliato per la settimana",
+      "Analizza il mio problema di concentrazione",
+      "Secondo i documenti caricati, cosa devo fare?",
+      "Usa internet e dimmi le ultime notizie sportive",
+      "Ho dolore al ginocchio, cosa faccio?",
+      "Mandami un vocale motivazionale",
+      "Confronta due strategie pre-gara in una tabella",
+      "Ho 17 anni e il mio obiettivo è migliorare il servizio",
+    ];
+
+    for (const prompt of fastPrompts) {
+      mocks.streamText.mockClear();
+      mocks.formatTinyUserSnapshotForPrompt.mockClear();
+      mocks.formatUserContextForPrompt.mockClear();
+      mocks.formatMemoriesForPrompt.mockClear();
+      mocks.shouldUseRag.mockClear();
+
+      await streamChat({
+        userId: "user-1",
+        chatId: `chat-fast-${prompt.length}`,
+        userMessage: prompt,
+      });
+
+      const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+        system: string;
+        tools: Record<string, unknown>;
+        maxOutputTokens?: number;
+      };
+      expect(streamInput.system, prompt).toContain("USER SNAPSHOT");
+      expect(streamInput.tools, prompt).toEqual({});
+      expect(streamInput.maxOutputTokens, prompt).toBe(180);
+      expect(mocks.formatTinyUserSnapshotForPrompt, prompt).toHaveBeenCalled();
+      expect(mocks.formatUserContextForPrompt, prompt).not.toHaveBeenCalled();
+      expect(mocks.formatMemoriesForPrompt, prompt).not.toHaveBeenCalled();
+    }
+
+    for (const prompt of fullPrompts) {
+      mocks.streamText.mockClear();
+      mocks.formatTinyUserSnapshotForPrompt.mockClear();
+      mocks.formatUserContextForPrompt.mockClear();
+      mocks.formatMemoriesForPrompt.mockClear();
+      mocks.shouldUseRag.mockClear();
+
+      await streamChat({
+        userId: "user-1",
+        chatId: `chat-full-${prompt.length}`,
+        userMessage: prompt,
+      });
+
+      const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+        system: string;
+        tools: Record<string, unknown>;
+        maxOutputTokens?: number;
+      };
+      expect(streamInput.system, prompt).toContain("SAVING DATA");
+      expect(streamInput.tools, prompt).not.toEqual({});
+      expect(streamInput.maxOutputTokens, prompt).toBeUndefined();
+      expect(
+        mocks.formatTinyUserSnapshotForPrompt,
+        prompt,
+      ).not.toHaveBeenCalled();
+      expect(mocks.formatUserContextForPrompt, prompt).toHaveBeenCalled();
+      expect(mocks.formatMemoriesForPrompt, prompt).toHaveBeenCalled();
+    }
   });
 
   it("uses an explicit benchmark model id without changing runtime plan routing", async () => {
