@@ -661,8 +661,17 @@ function matchesHealthRiskIntent(message: string) {
 }
 
 function shouldEnableWebSearchTool(userMessage = "") {
-  return /\b(oggi|ieri|domani|recente|recenti|ultimo|ultimi|ultima|ultime|notizia|notizie|news|latest|current|live|risultato|risultati|classifica|classifiche|meteo|previsioni|orario|schedule|calendario|fixture|today|yesterday|tomorrow|202[0-9])\b|prossim[aoei]\s+(partita|partite|match|gara|gare)|quando\s+(gioca|giocher[aà]|giocheranno|giocherai|giocate)\b/i.test(
-    userMessage,
+  const explicitSearchIntent =
+    /\b(ricerca|cerca|cercami|cercare|cercalo)\b.{0,40}\b(internet|web|online|google)\b|\b(internet|web|online|google)\b.{0,40}\b(ricerca|cerca|cercami|cercare)\b/i;
+  const liveScoreIntent =
+    /\b(punteggio|risultato|risultati|score)\b.{0,80}\b(ora|adesso|diretta|live|tempo\s+reale|in\s+corso|sta(?:nno)?\s+giocando|mondiali)\b|\b(ora|adesso|diretta|live|tempo\s+reale|in\s+corso|sta(?:nno)?\s+giocando)\b.{0,80}\b(punteggio|risultato|score|partita|match|gara|mondiali)\b/i;
+  const currentInfoIntent =
+    /\b(oggi|ieri|domani|recente|recenti|ultimo|ultimi|ultima|ultime|notizia|notizie|news|latest|current|live|risultato|risultati|classifica|classifiche|meteo|previsioni|orario|schedule|calendario|fixture|today|yesterday|tomorrow|202[0-9])\b|prossim[aoei]\s+(partita|partite|match|gara|gare)|quando\s+(gioca|giocher[aà]|giocheranno|giocherai|giocate)\b/i;
+
+  return (
+    explicitSearchIntent.test(userMessage) ||
+    liveScoreIntent.test(userMessage) ||
+    currentInfoIntent.test(userMessage)
   );
 }
 

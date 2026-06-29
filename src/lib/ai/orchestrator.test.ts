@@ -630,6 +630,45 @@ describe("ai/orchestrator", () => {
     expect(mocks.shouldUseRag).not.toHaveBeenCalled();
   });
 
+  it("enables TinyFish for live score wording and explicit internet search requests", async () => {
+    const prompts = [
+      "che punteggio è la partita dei mondiali che sta giocando ora?",
+      "fai una ricerca su internet",
+    ];
+
+    for (const prompt of prompts) {
+      mocks.streamText.mockClear();
+      mocks.createTinyfishTools.mockClear();
+      mocks.createMemoryTools.mockClear();
+      mocks.createUserContextTools.mockClear();
+
+      await streamChat({
+        userId: "user-1",
+        chatId: `chat-web-${prompt.length}`,
+        userMessage: prompt,
+      });
+
+      const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+        system: string;
+        tools: Record<string, unknown>;
+      };
+      expect(streamInput.system, prompt).toContain("WEB SEARCH");
+      expect(streamInput.tools, prompt).toEqual(
+        expect.objectContaining({
+          tinyfishSearch: "tinyfish-tool",
+          tinyfishFetch: "tinyfish-fetch-tool",
+        }),
+      );
+      expect(streamInput.tools, prompt).not.toHaveProperty("saveMemory");
+      expect(streamInput.tools, prompt).not.toHaveProperty("updateProfile");
+      expect(mocks.createTinyfishTools, prompt).toHaveBeenCalledWith({
+        maxSearchCalls: 1,
+        maxFetchCalls: 1,
+        maxFetchUrls: 3,
+      });
+    }
+  });
+
   it("repeats the Messi next-match chat with TinyFish available on the follow-up", async () => {
     mocks.buildConversationContext.mockResolvedValue([
       {
