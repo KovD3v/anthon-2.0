@@ -569,6 +569,38 @@ function matchesNonTechnicalPattern(message: string): boolean {
   return false;
 }
 
+function matchesLiveWebSearchIntent(message: string): boolean {
+  return /\b(usa internet|cerca (online|su internet|nel web)|accesso (a )?internet|web|notizia|notizie|news|latest|current|live|recente|recenti|ultimo|ultimi|ultima|ultime|risultato|risultati|classifica|classifiche|meteo|previsioni|schedule|calendario|fixture|202[0-9])\b/i.test(
+    message,
+  );
+}
+
+function matchesBriefGenericCoachingAdvice(message: string): boolean {
+  const lower = message.toLowerCase().trim();
+  const asksForAdvice =
+    /\b(consiglio|consigli|tip|suggerimento|suggerimenti|advice)\b/i.test(
+      lower,
+    );
+  const asksForMotivation =
+    /\b(motivami|motivazione|motivazionale|caricami|spronami|incoraggiami|incoraggia|encourage|motivate)\b/i.test(
+      lower,
+    );
+  const asksForBriefReply =
+    /\b(risposta|rispondi|answer|reply)\b.{0,32}\b(breve|brevissima|massimo|max|short|brief)\b|\b(brevemente|in poche parole)\b/i.test(
+      lower,
+    );
+  const asksForDocuments =
+    /\b(documenti?|rag|metodologia|metodo|manuale|fonte|fonti|knowledge base|secondo i documenti)\b/i.test(
+      lower,
+    );
+
+  return (
+    (asksForAdvice || asksForMotivation) &&
+    asksForBriefReply &&
+    !asksForDocuments
+  );
+}
+
 /**
  * Check if RAG documents exist (with caching)
  */
@@ -638,6 +670,14 @@ export async function shouldUseRag(
   // OPTIMIZATION 1: Fast local rejects before any database work, unless a
   // positive RAG keyword is present.
   if (!hasPositiveKeyword) {
+    if (matchesLiveWebSearchIntent(userMessage)) {
+      return false;
+    }
+
+    if (matchesBriefGenericCoachingAdvice(userMessage)) {
+      return false;
+    }
+
     // "ciao" alone = skip, but "ciao, mi dai un allenamento" = don't skip
     // because "allenamento" is a positive keyword.
     if (
@@ -650,6 +690,8 @@ export async function shouldUseRag(
     if (matchesNonTechnicalPattern(userMessage)) {
       return false;
     }
+  } else if (matchesBriefGenericCoachingAdvice(userMessage)) {
+    return false;
   }
 
   // OPTIMIZATION 2: Skip if no documents exist (saves LLM classification)

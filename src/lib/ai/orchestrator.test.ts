@@ -373,10 +373,11 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).not.toHaveProperty("getMemories");
     expect(streamInput.tools).not.toHaveProperty("getUserContext");
     expect(mocks.createTinyfishTools).toHaveBeenCalledWith({
-      maxSearchCalls: 3,
+      maxSearchCalls: 1,
       maxFetchCalls: 1,
       maxFetchUrls: 3,
     });
+    expect(mocks.shouldUseRag).not.toHaveBeenCalled();
   });
 
   it("repeats the Messi next-match chat with TinyFish available on the follow-up", async () => {
@@ -415,7 +416,7 @@ describe("ai/orchestrator", () => {
       }),
     );
     expect(mocks.createTinyfishTools).toHaveBeenCalledWith({
-      maxSearchCalls: 3,
+      maxSearchCalls: 1,
       maxFetchCalls: 1,
       maxFetchUrls: 3,
     });
@@ -446,7 +447,7 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).not.toHaveProperty("getMemories");
     expect(streamInput.tools).not.toHaveProperty("getUserContext");
     expect(mocks.createTinyfishTools).toHaveBeenCalledWith({
-      maxSearchCalls: 3,
+      maxSearchCalls: 1,
       maxFetchCalls: 1,
       maxFetchUrls: 3,
     });
@@ -655,6 +656,7 @@ describe("ai/orchestrator", () => {
         text?: string;
         toolCalls?: Array<{ toolName: string; input?: unknown }>;
         toolResults?: Array<{ output?: unknown }>;
+        providerMetadata?: Record<string, unknown>;
       }) => void;
       onFinish: (step: {
         text: string;
@@ -676,12 +678,22 @@ describe("ai/orchestrator", () => {
       text: "partial",
       toolCalls: [{ toolName: "saveMemory", input: { key: "user_goal" } }],
       toolResults: [{ output: { saved: true } }],
+      providerMetadata: { openrouter: { usage: { cost: 0.04 } } },
+    });
+    streamInput.onStepFinish({
+      text: "assistant response",
+      providerMetadata: { openrouter: { usage: { cost: 0.11 } } },
     });
 
     expect(userOnStepFinish).toHaveBeenCalledWith({
       text: "partial",
       toolCalls: [{ toolName: "saveMemory", input: { key: "user_goal" } }],
       toolResults: [{ output: { saved: true } }],
+    });
+    expect(userOnStepFinish).toHaveBeenCalledWith({
+      text: "assistant response",
+      toolCalls: undefined,
+      toolResults: undefined,
     });
 
     await streamInput.onFinish({
@@ -702,6 +714,7 @@ describe("ai/orchestrator", () => {
           totalTokens: 230,
         },
         preferProviderUsage: false,
+        providerCostUsd: 0.15,
         ragUsed: true,
         ragChunksCount: 2,
         collectedToolCalls: [

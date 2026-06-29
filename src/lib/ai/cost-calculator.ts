@@ -107,6 +107,7 @@ interface FinishResultInput {
    */
   preferProviderUsage?: boolean;
   providerMetadata?: Record<string, unknown>;
+  providerCostUsd?: number;
   collectedToolCalls?: Array<{
     name: string;
     args: unknown;
@@ -175,6 +176,7 @@ export function extractAIMetrics(
   // Calculate cost: prefer OpenRouter's cost if available, otherwise calculate with TokenLens
   // NOTE: We use the FULL input tokens for cost calculation before subtraction
   const costUsd =
+    finishResult.providerCostUsd ??
     costFromOpenRouter ??
     calculateCost(
       modelId,

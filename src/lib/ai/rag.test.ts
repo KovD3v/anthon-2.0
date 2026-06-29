@@ -128,6 +128,42 @@ describe("ai/rag", () => {
     expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
+  it("shouldUseRag skips simple short coaching advice even when broad RAG keywords appear", async () => {
+    const { shouldUseRag } = await loadModule();
+
+    const result = await shouldUseRag(
+      "Rispondi in massimo 45 parole: dammi un consiglio pratico pre-allenamento per restare concentrato.",
+    );
+
+    expect(result).toBe(false);
+    expect(mocks.ragDocumentCount).not.toHaveBeenCalled();
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
+  it("shouldUseRag skips brief generic motivation even when training keywords appear", async () => {
+    const { shouldUseRag } = await loadModule();
+
+    const result = await shouldUseRag(
+      "Dammi una risposta breve: motivami prima dell'allenamento.",
+    );
+
+    expect(result).toBe(false);
+    expect(mocks.ragDocumentCount).not.toHaveBeenCalled();
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
+  it("shouldUseRag skips live web-search requests without invoking the classifier", async () => {
+    const { shouldUseRag } = await loadModule();
+
+    const result = await shouldUseRag(
+      "Usa internet per verificare una notizia sportiva recente di oggi e dammi un consiglio pratico da coach collegato alla notizia.",
+    );
+
+    expect(result).toBe(false);
+    expect(mocks.ragDocumentCount).not.toHaveBeenCalled();
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
   it("shouldUseRag returns true for positive keywords when documents exist", async () => {
     mocks.ragDocumentCount.mockResolvedValue(1);
     const { shouldUseRag } = await loadModule();

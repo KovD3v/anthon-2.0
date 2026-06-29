@@ -108,7 +108,8 @@ SAVING DATA (When to use)
 WEB SEARCH (tinyfishSearch, tinyfishFetch)
 - Use only for up-to-date info or recent events (e.g. "Who won the match yesterday?"). Integrate results naturally.
 - Start with one broad, well-composed \`tinyfishSearch\` query.
-- Use up to two additional \`tinyfishSearch\` queries only if results are clearly insufficient, contradictory, or need a distinct angle.
+- For brief current-information requests, use exactly one broad \`tinyfishSearch\` query and answer from those results.
+- Do not issue extra searches unless the user explicitly asks for exhaustive comparison or the first results are unusable.
 - Do not issue multiple rephrased variations of the same search.
 - Use \`tinyfishFetch\` only when you already have specific source URLs and search snippets are insufficient.
 
@@ -359,7 +360,7 @@ function createToolsWithContext(
 ) {
   const tinyfishTools = shouldEnableWebSearchTool(options?.userMessage)
     ? createTinyfishTools({
-        maxSearchCalls: 3,
+        maxSearchCalls: 1,
         maxFetchCalls: 1,
         maxFetchUrls: 3,
       })
@@ -528,40 +529,43 @@ export async function streamChat({
     month: "long",
     day: "numeric",
   });
+  const webSearchEnabled = shouldEnableWebSearchTool(userMessage);
 
-  const ragPromise = isGuest
-    ? Promise.resolve({
-        ragContext: undefined,
-        ragUsed: false,
-        ragChunksCount: 0,
-      })
-    : (async () => {
-        let ragContext: string | undefined;
-        let ragUsed = false;
-        let ragChunksCount = 0;
-        try {
-          const needsRag = await LatencyLogger.measure(
-            "📚 RAG: Check if needed",
-            () => shouldUseRag(userMessage, { userId }),
-          );
-          if (needsRag) {
-            ragContext = await LatencyLogger.measure(
-              "📚 RAG: Get context",
-              () => getRagContext(userMessage),
+  const ragPromise =
+    isGuest || webSearchEnabled
+      ? Promise.resolve({
+          ragContext: undefined,
+          ragUsed: false,
+          ragChunksCount: 0,
+        })
+      : (async () => {
+          let ragContext: string | undefined;
+          let ragUsed = false;
+          let ragChunksCount = 0;
+          try {
+            const needsRag = await LatencyLogger.measure(
+              "📚 RAG: Check if needed",
+              () => shouldUseRag(userMessage, { userId }),
             );
-            ragUsed = true;
-            // Count chunks by counting "**" which marks each document title
-            ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || []).length;
+            if (needsRag) {
+              ragContext = await LatencyLogger.measure(
+                "📚 RAG: Get context",
+                () => getRagContext(userMessage),
+              );
+              ragUsed = true;
+              // Count chunks by counting "**" which marks each document title
+              ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || [])
+                .length;
+            }
+          } catch (error) {
+            aiLogger.error("ai.rag.error", "RAG enrichment failed", {
+              error,
+              userId,
+            });
           }
-        } catch (error) {
-          aiLogger.error("ai.rag.error", "RAG enrichment failed", {
-            error,
-            userId,
-          });
-        }
 
-        return { ragContext, ragUsed, ragChunksCount };
-      })();
+          return { ragContext, ragUsed, ragChunksCount };
+        })();
 
   const [{ ragContext, ragUsed, ragChunksCount }, conversationHistory] =
     await Promise.all([ragPromise, conversationHistoryPromise]);
@@ -725,6 +729,7 @@ export async function streamChat({
     args: unknown;
     result?: unknown;
   }> = [];
+  const collectedOpenRouterCosts: number[] = [];
 
   // Stream the response
   const result = streamText({
@@ -765,6 +770,7 @@ export async function streamChat({
             },
             providerMetadata: providerMetadata as Record<string, unknown>,
             preferProviderUsage: !totalUsage,
+            providerCostUsd: sumCosts(collectedOpenRouterCosts),
             // Pass collected tool calls
             collectedToolCalls:
               collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
@@ -777,6 +783,13 @@ export async function streamChat({
         }
       : undefined,
     onStepFinish: (step: StepResult<ToolSet>) => {
+      const stepCost = getOpenRouterCost(
+        step.providerMetadata as Record<string, unknown> | undefined,
+      );
+      if (stepCost !== undefined) {
+        collectedOpenRouterCosts.push(stepCost);
+      }
+
       // Collect tool calls from each step
       if (step.toolCalls && Array.isArray(step.toolCalls)) {
         for (let i = 0; i < step.toolCalls.length; i++) {
@@ -818,6 +831,33 @@ export async function streamChat({
     hasAudio: Boolean(hasAudio),
   });
   return result;
+}
+
+function getOpenRouterCost(
+  providerMetadata: Record<string, unknown> | undefined,
+) {
+  const usage = (
+    providerMetadata?.openrouter as { usage?: { cost?: unknown } } | undefined
+  )?.usage;
+
+  if (typeof usage?.cost === "number" && Number.isFinite(usage.cost)) {
+    return usage.cost;
+  }
+
+  if (typeof usage?.cost === "string" && usage.cost.trim()) {
+    const parsed = Number(usage.cost);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
+}
+
+function sumCosts(costs: number[]) {
+  if (costs.length === 0) {
+    return undefined;
+  }
+
+  return Number(costs.reduce((sum, value) => sum + value, 0).toFixed(12));
 }
 
 // Export types for external use

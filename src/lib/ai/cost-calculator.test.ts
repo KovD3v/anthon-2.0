@@ -273,6 +273,33 @@ describe("ai/cost-calculator", () => {
     expect(result.costUsd).toBe(0.9);
   });
 
+  it("uses caller-provided OpenRouter aggregate cost while preserving aggregate tokens", () => {
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+    const result = extractAIMetrics("model-aggregate", startTime, {
+      text: "done",
+      usage: {
+        promptTokens: 400,
+        completionTokens: 100,
+      },
+      providerMetadata: {
+        openrouter: {
+          usage: {
+            promptTokens: 40,
+            completionTokens: 10,
+            cost: 0.1,
+          },
+        },
+      },
+      providerCostUsd: 0.73,
+      preferProviderUsage: false,
+    });
+
+    expect(mocks.calculateCost).not.toHaveBeenCalled();
+    expect(result.inputTokens).toBe(400);
+    expect(result.outputTokens).toBe(100);
+    expect(result.costUsd).toBe(0.73);
+  });
+
   it("never returns negative adjusted input tokens", () => {
     mocks.calculateCost.mockReturnValue({
       inputCost: 0,
