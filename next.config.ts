@@ -1,12 +1,16 @@
 import type { NextConfig } from "next";
 
-const allowedDevOrigins = process.env.NEXT_ALLOWED_DEV_ORIGINS?.split(",")
+const additionalAllowedDevOrigins = process.env.NEXT_ALLOWED_DEV_ORIGINS?.split(
+  ",",
+)
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const allowedDevOrigins = ["**.*", ...(additionalAllowedDevOrigins ?? [])];
+
 const nextConfig: NextConfig = {
   /* config options here */
-  ...(allowedDevOrigins?.length ? { allowedDevOrigins } : {}),
+  allowedDevOrigins,
   reactCompiler: true,
   images: {
     remotePatterns: [
