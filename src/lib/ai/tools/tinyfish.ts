@@ -1,0 +1,283 @@
+import { tool } from "ai";
+import { z } from "zod";
+import { createLogger } from "@/lib/logger";
+
+const tinyfishLogger = createLogger("ai");
+const TINYFISH_SEARCH_URL = "https://api.search.tinyfish.ai";
+const TINYFISH_FETCH_URL = "https://api.fetch.tinyfish.ai";
+const MAX_RECENCY_MINUTES = 5_256_000;
+const MAX_FETCH_TIMEOUT_MS = 110_000;
+
+const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must use YYYY-MM-DD format");
+
+type TinyfishSearchResponse = {
+  query?: string;
+  results?: Array<{
+    position?: number;
+    site_name?: string;
+    title?: string;
+    snippet?: string;
+    url?: string;
+  }>;
+  total_results?: number;
+  page?: number;
+};
+
+type TinyfishFetchResponse = {
+  results?: Array<{
+    url?: string;
+    final_url?: string;
+    title?: string | null;
+    description?: string | null;
+    language?: string | null;
+    author?: string | null;
+    published_date?: string | null;
+    text?: string | object;
+    links?: string[];
+    image_links?: string[];
+    latency_ms?: number | null;
+    format?: "markdown" | "html" | "json";
+  }>;
+  errors?: Array<{
+    url?: string;
+    error?: string;
+    status?: number;
+  }>;
+};
+
+/**
+ * Creates TinyFish web search tool with strict validation.
+ */
+export function createTinyfishTools() {
+  const apiKey = process.env.TINYFISH_API_KEY;
+  if (!apiKey) {
+    throw new Error("TINYFISH_API_KEY environment variable is required");
+  }
+
+  return {
+    tinyfishSearch: tool({
+      description: `Search the web for up-to-date information.
+CRITICAL: You MUST provide a 'query' argument. NEVER call this tool with empty arguments.`,
+      inputSchema: z
+        .object({
+          query: z
+            .string()
+            .min(1, "Query cannot be empty")
+            .describe(
+              "The search query. MANDATORY. Example: 'latest Monza football news'",
+            ),
+          location: z
+            .string()
+            .length(2)
+            .optional()
+            .describe(
+              "Optional country code for geo-targeted results, e.g. IT.",
+            ),
+          language: z
+            .string()
+            .min(2)
+            .max(5)
+            .optional()
+            .describe("Optional language code for results, e.g. it or en."),
+          recencyMinutes: z
+            .number()
+            .int()
+            .min(1)
+            .max(MAX_RECENCY_MINUTES)
+            .optional()
+            .describe("Optional freshness window in minutes."),
+          afterDate: dateSchema
+            .optional()
+            .describe("Optional lower date bound in YYYY-MM-DD format."),
+          beforeDate: dateSchema
+            .optional()
+            .describe("Optional upper date bound in YYYY-MM-DD format."),
+        })
+        .refine(
+          (value) =>
+            value.recencyMinutes === undefined ||
+            (value.afterDate === undefined && value.beforeDate === undefined),
+          {
+            message:
+              "recencyMinutes cannot be combined with afterDate or beforeDate",
+          },
+        ),
+      execute: async ({
+        query,
+        location,
+        language,
+        recencyMinutes,
+        afterDate,
+        beforeDate,
+      }) => {
+        try {
+          const url = new URL(TINYFISH_SEARCH_URL);
+          url.searchParams.set("query", query);
+          if (location) {
+            url.searchParams.set("location", location);
+          }
+          if (language) {
+            url.searchParams.set("language", language);
+          }
+          if (recencyMinutes !== undefined) {
+            url.searchParams.set("recency_minutes", String(recencyMinutes));
+          }
+          if (afterDate) {
+            url.searchParams.set("after_date", afterDate);
+          }
+          if (beforeDate) {
+            url.searchParams.set("before_date", beforeDate);
+          }
+
+          const response = await fetch(url, {
+            headers: {
+              "X-API-Key": apiKey,
+              Accept: "application/json",
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(`TinyFish search failed with ${response.status}`);
+          }
+
+          const data = (await response.json()) as TinyfishSearchResponse;
+
+          return {
+            query: data.query ?? query,
+            results: (data.results ?? []).map((result) => ({
+              title: result.title ?? "",
+              url: result.url ?? "",
+              content: result.snippet ?? "",
+              siteName: result.site_name ?? "",
+              position: result.position ?? null,
+            })),
+            totalResults: data.total_results ?? 0,
+            page: data.page ?? 0,
+          };
+        } catch (error) {
+          tinyfishLogger.error("search.failed", "TinyFish search error", {
+            error,
+          });
+          return {
+            results: [],
+            error: "Failed to perform search.",
+          };
+        }
+      },
+    }),
+    tinyfishFetch: tool({
+      description: `Fetch and extract readable page content from known URLs using TinyFish.
+Use this after search when you need to read source pages. Only pass http or https URLs.`,
+      inputSchema: z.object({
+        urls: z
+          .array(z.string().url())
+          .min(1, "At least one URL is required")
+          .max(10, "TinyFish fetch supports up to 10 URLs per request")
+          .describe("HTTP or HTTPS URLs to fetch and extract."),
+        format: z
+          .enum(["markdown", "html", "json"])
+          .optional()
+          .default("markdown")
+          .describe("Output format for extracted page content."),
+        links: z
+          .boolean()
+          .optional()
+          .describe("Include resolved page links when true."),
+        imageLinks: z
+          .boolean()
+          .optional()
+          .describe("Include resolved image links when true."),
+        ttl: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe(
+            "Cache freshness tolerance in seconds. Use 0 for live fetch.",
+          ),
+        perUrlTimeoutMs: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_FETCH_TIMEOUT_MS)
+          .optional()
+          .describe("Per-URL timeout budget in milliseconds."),
+      }),
+      execute: async ({
+        urls,
+        format = "markdown",
+        links,
+        imageLinks,
+        ttl,
+        perUrlTimeoutMs,
+      }) => {
+        try {
+          const body: Record<string, unknown> = {
+            urls,
+            format,
+          };
+          if (links !== undefined) {
+            body.links = links;
+          }
+          if (imageLinks !== undefined) {
+            body.image_links = imageLinks;
+          }
+          if (ttl !== undefined) {
+            body.ttl = ttl;
+          }
+          if (perUrlTimeoutMs !== undefined) {
+            body.per_url_timeout_ms = perUrlTimeoutMs;
+          }
+
+          const response = await fetch(new URL(TINYFISH_FETCH_URL), {
+            method: "POST",
+            headers: {
+              "X-API-Key": apiKey,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify(body),
+          });
+
+          if (!response.ok) {
+            throw new Error(`TinyFish fetch failed with ${response.status}`);
+          }
+
+          const data = (await response.json()) as TinyfishFetchResponse;
+
+          return {
+            results: (data.results ?? []).map((result) => ({
+              url: result.url ?? "",
+              finalUrl: result.final_url ?? "",
+              title: result.title ?? null,
+              description: result.description ?? null,
+              language: result.language ?? null,
+              author: result.author ?? null,
+              publishedDate: result.published_date ?? null,
+              text: result.text ?? "",
+              links: result.links,
+              imageLinks: result.image_links,
+              latencyMs: result.latency_ms ?? null,
+              format: result.format ?? format,
+            })),
+            errors: data.errors ?? [],
+          };
+        } catch (error) {
+          tinyfishLogger.error("fetch.failed", "TinyFish fetch error", {
+            error,
+          });
+          return {
+            results: [],
+            errors: [
+              {
+                error: "Failed to fetch content.",
+              },
+            ],
+          };
+        }
+      },
+    }),
+  };
+}

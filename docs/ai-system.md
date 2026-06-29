@@ -52,8 +52,9 @@ The orchestrator composes tools from three factories:
   - `updateProfile`
   - `updatePreferences`
   - `addNotes`
-- `createTavilyTools()`:
-  - `tavilySearch`
+- `createTinyfishTools()`:
+  - `tinyfishSearch`
+  - `tinyfishFetch`
 
 ## Session Manager
 

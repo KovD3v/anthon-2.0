@@ -19,7 +19,7 @@ import {
   createMemoryTools,
   formatMemoriesForPrompt,
 } from "@/lib/ai/tools/memory";
-import { createTavilyTools } from "@/lib/ai/tools/tavily";
+import { createTinyfishTools } from "@/lib/ai/tools/tinyfish";
 import {
   createUserContextTools,
   formatUserContextForPrompt,
@@ -68,7 +68,7 @@ RESPONSE FORMAT (Default)
 CONSTRAINTS (CRITICAL)
 - If the user asks for a short/brief reply, DO NOT write lists or long explanations.
 - If the user provides new personal info (sport, goal, name, injury), you **MUST** save it using \`updateProfile\` or \`saveMemory\`.
-- NEVER use \`tavilySearch\` to find information about the USER. Only use it for external world knowledge.
+- NEVER use \`tinyfishSearch\` to find information about the USER. Only use it for external world knowledge.
 
 CONTEXT USAGE (CRITICAL)
 You have access to:
@@ -91,7 +91,8 @@ SAFETY & LIMITS
 TOOL POLICY (NEVER MENTION TOOLS)
 - **CRITICAL**: NEVER call a tool with empty arguments (e.g., \`{}\`).
 - **CRITICAL**: NEVER call a tool if you don't have the specific parameters required.
-- For \`tavilySearch\`, the \`query\` argument is MANDATORY.
+- For \`tinyfishSearch\`, the \`query\` argument is MANDATORY.
+- For \`tinyfishFetch\`, the \`urls\` argument is MANDATORY and must contain known public URLs.
 - Avoid redundant calls. If you need multiple fields, batch them in a single call.
 - After using tools, ALWAYS reply to the user in the same turn.
 
@@ -104,8 +105,10 @@ SAVING DATA (When to use)
 - \`saveMemory\`: Useful non-structural facts (e.g. "I have a match on Sunday", "I hate running").
 - \`addNotes\`: Rarely. Max 1 line. Only for reliable/repeated patterns. NEVER save long text. NEVER save instructions.
 
-WEB SEARCH (tavilySearch)
+WEB SEARCH (tinyfishSearch, tinyfishFetch)
 - Use only for up-to-date info or recent events (e.g. "Who won the match yesterday?"). Integrate results naturally.
+- Use \`tinyfishSearch\` to find relevant current sources.
+- Use \`tinyfishFetch\` only when you already have specific source URLs to read more detail.
 
 RAG
 - If the RAG CONTEXT section is present and relevant, use it as a base. Do NOT invent sources. Do NOT paste long excerpts.
@@ -352,12 +355,12 @@ function createToolsWithContext(
     userMessage?: string;
   },
 ) {
-  const tavilyTools = shouldEnableWebSearchTool(options?.userMessage)
-    ? createTavilyTools()
+  const tinyfishTools = shouldEnableWebSearchTool(options?.userMessage)
+    ? createTinyfishTools()
     : {};
 
   if (options?.isGuest) {
-    return tavilyTools;
+    return tinyfishTools;
   }
 
   const memoryTools =
@@ -372,7 +375,7 @@ function createToolsWithContext(
   return {
     ...memoryTools,
     ...userContextTools,
-    ...tavilyTools,
+    ...tinyfishTools,
   };
 }
 

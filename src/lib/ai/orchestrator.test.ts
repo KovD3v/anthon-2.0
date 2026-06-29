@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   buildConversationContext: vi.fn(),
   createMemoryTools: vi.fn(),
   formatMemoriesForPrompt: vi.fn(),
-  createTavilyTools: vi.fn(),
+  createTinyfishTools: vi.fn(),
   createUserContextTools: vi.fn(),
   formatUserContextForPrompt: vi.fn(),
   measure: vi.fn(),
@@ -55,8 +55,8 @@ vi.mock("@/lib/ai/tools/memory", () => ({
   formatMemoriesForPrompt: mocks.formatMemoriesForPrompt,
 }));
 
-vi.mock("@/lib/ai/tools/tavily", () => ({
-  createTavilyTools: mocks.createTavilyTools,
+vi.mock("@/lib/ai/tools/tinyfish", () => ({
+  createTinyfishTools: mocks.createTinyfishTools,
 }));
 
 vi.mock("@/lib/ai/tools/user-context", () => ({
@@ -114,7 +114,7 @@ describe("ai/orchestrator", () => {
     mocks.buildConversationContext.mockReset();
     mocks.createMemoryTools.mockReset();
     mocks.formatMemoriesForPrompt.mockReset();
-    mocks.createTavilyTools.mockReset();
+    mocks.createTinyfishTools.mockReset();
     mocks.createUserContextTools.mockReset();
     mocks.formatUserContextForPrompt.mockReset();
     mocks.measure.mockReset();
@@ -156,7 +156,10 @@ describe("ai/orchestrator", () => {
       updatePreferences: "preferences-tool",
       addNotes: "notes-tool",
     });
-    mocks.createTavilyTools.mockReturnValue({ tavilySearch: "tavily-tool" });
+    mocks.createTinyfishTools.mockReturnValue({
+      tinyfishSearch: "tinyfish-tool",
+      tinyfishFetch: "tinyfish-fetch-tool",
+    });
     mocks.resolveEffectiveEntitlements.mockResolvedValue(baseEntitlements);
     mocks.getVoicePlanConfig.mockReturnValue({ enabled: true });
     mocks.extractAIMetrics.mockReturnValue({
@@ -350,7 +353,7 @@ describe("ai/orchestrator", () => {
     expect(streamInput.providerOptions.openrouter.models).toBeUndefined();
   });
 
-  it("enables Tavily only for time-sensitive requests", async () => {
+  it("enables TinyFish only for time-sensitive requests", async () => {
     await streamChat({
       userId: "user-1",
       chatId: "chat-news",
@@ -362,7 +365,8 @@ describe("ai/orchestrator", () => {
     };
     expect(streamInput.tools).toEqual(
       expect.objectContaining({
-        tavilySearch: "tavily-tool",
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
         saveMemory: "memory-tool",
       }),
     );
@@ -370,7 +374,7 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).not.toHaveProperty("getUserContext");
   });
 
-  it("enables Tavily for guest time-sensitive requests without persistent tools", async () => {
+  it("enables TinyFish for guest time-sensitive requests without persistent tools", async () => {
     mocks.buildConversationContext.mockResolvedValue([]);
 
     await streamChat({
@@ -386,7 +390,8 @@ describe("ai/orchestrator", () => {
     };
     expect(streamInput.tools).toEqual(
       expect.objectContaining({
-        tavilySearch: "tavily-tool",
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
       }),
     );
     expect(streamInput.tools).not.toHaveProperty("saveMemory");
@@ -540,7 +545,7 @@ describe("ai/orchestrator", () => {
     expect(mocks.formatMemoriesForPrompt).not.toHaveBeenCalled();
     expect(mocks.createMemoryTools).not.toHaveBeenCalled();
     expect(mocks.createUserContextTools).not.toHaveBeenCalled();
-    expect(mocks.createTavilyTools).not.toHaveBeenCalled();
+    expect(mocks.createTinyfishTools).not.toHaveBeenCalled();
     expect(mocks.getVoicePlanConfig).not.toHaveBeenCalled();
     expect(mocks.shouldUseRag).not.toHaveBeenCalled();
     expect(mocks.getRagContext).not.toHaveBeenCalled();
