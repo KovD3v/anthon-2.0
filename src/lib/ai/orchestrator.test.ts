@@ -233,13 +233,7 @@ describe("ai/orchestrator", () => {
         model: "traced-model",
         stopWhen: "stop-5",
         messages: [{ role: "user", content: "same message" }],
-        tools: {
-          saveMemory: "memory-tool",
-          deleteMemory: "memory-delete-tool",
-          updateProfile: "profile-tool",
-          updatePreferences: "preferences-tool",
-          addNotes: "notes-tool",
-        },
+        tools: {},
       }),
     );
 
@@ -248,17 +242,11 @@ describe("ai/orchestrator", () => {
     };
     expect(streamInput.system).toContain("user-context-data");
     expect(streamInput.system).toContain("user-memories-data");
-    expect(streamInput.system).toContain(
-      "No RAG documents available at this time.",
-    );
+    expect(streamInput.system).not.toContain("SAVING DATA");
+    expect(streamInput.system).not.toContain("TOOL POLICY");
+    expect(streamInput.system).not.toContain("RAG CONTEXT");
     expect(countOccurrences(streamInput.system, "user-context-data")).toBe(1);
     expect(countOccurrences(streamInput.system, "user-memories-data")).toBe(1);
-    expect(
-      countOccurrences(
-        streamInput.system,
-        "No RAG documents available at this time.",
-      ),
-    ).toBe(1);
   });
 
   it("uses compact prompt and no tools for simple authenticated coaching messages", async () => {
@@ -299,7 +287,7 @@ describe("ai/orchestrator", () => {
     expect(streamInput.system).not.toContain("user-memories-data");
   });
 
-  it("keeps full prompt and persistent tools when the message contains profile data", async () => {
+  it("keeps full prompt and only profile tools when the message contains profile data", async () => {
     await streamChat({
       userId: "user-1",
       chatId: "chat-profile-info",
@@ -317,11 +305,11 @@ describe("ai/orchestrator", () => {
     };
     expect(streamInput.tools).toEqual(
       expect.objectContaining({
-        saveMemory: "memory-tool",
         updateProfile: "profile-tool",
-        updatePreferences: "preferences-tool",
       }),
     );
+    expect(streamInput.tools).not.toHaveProperty("saveMemory");
+    expect(streamInput.tools).not.toHaveProperty("updatePreferences");
     expect(streamInput.system).toContain("SAVING DATA");
     expect(streamInput.system).toContain("user-context-data");
     expect(streamInput.system).toContain("user-memories-data");
@@ -341,13 +329,43 @@ describe("ai/orchestrator", () => {
           session_id?: string;
         };
       };
+      headers?: Record<string, string>;
     };
     expect(streamInput.providerOptions.openrouter.session_id).toBe(
       "chat-session-cache",
     );
+    expect(streamInput.headers?.["x-session-id"]).toBe("chat-session-cache");
+  });
+
+  it("keeps complex coaching on full prompt without exposing persistent tools", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-complex-no-write",
+      userMessage: "Fammi un piano dettagliato per la settimana",
+    });
+
+    expect(mocks.formatUserContextForPrompt).toHaveBeenCalledWith("user-1");
+    expect(mocks.formatMemoriesForPrompt).toHaveBeenCalledWith("user-1");
+    expect(mocks.createMemoryTools).not.toHaveBeenCalled();
+    expect(mocks.createUserContextTools).not.toHaveBeenCalled();
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      system: string;
+      tools: Record<string, unknown>;
+      maxOutputTokens?: number;
+    };
+    expect(streamInput.tools).toEqual({});
+    expect(streamInput.system).toContain("user-context-data");
+    expect(streamInput.system).toContain("user-memories-data");
+    expect(streamInput.system).not.toContain("SAVING DATA");
+    expect(streamInput.system).not.toContain("TOOL POLICY");
+    expect(streamInput.maxOutputTokens).toBeUndefined();
   });
 
   it("keeps RAG classification for simple wording that references documents", async () => {
+    mocks.shouldUseRag.mockResolvedValue(true);
+    mocks.getRagContext.mockResolvedValue("**Doc A**\ncontext");
+
     await streamChat({
       userId: "user-1",
       chatId: "chat-rag-intent",
@@ -367,12 +385,9 @@ describe("ai/orchestrator", () => {
       maxOutputTokens?: number;
     };
     expect(streamInput.system).toContain("RAG CONTEXT");
-    expect(streamInput.tools).toEqual(
-      expect.objectContaining({
-        saveMemory: "memory-tool",
-        updateProfile: "profile-tool",
-      }),
-    );
+    expect(streamInput.tools).toEqual({});
+    expect(mocks.createMemoryTools).not.toHaveBeenCalled();
+    expect(mocks.createUserContextTools).not.toHaveBeenCalled();
     expect(streamInput.maxOutputTokens).toBeUndefined();
   });
 
@@ -391,16 +406,34 @@ describe("ai/orchestrator", () => {
     ];
 
     const fullPrompts = [
-      "Mi chiamo Luca e gioco a tennis",
-      "Ricordati che domenica ho una partita",
-      "Fammi un piano dettagliato per la settimana",
-      "Analizza il mio problema di concentrazione",
-      "Secondo i documenti caricati, cosa devo fare?",
-      "Usa internet e dimmi le ultime notizie sportive",
-      "Ho dolore al ginocchio, cosa faccio?",
-      "Mandami un vocale motivazionale",
-      "Confronta due strategie pre-gara in una tabella",
-      "Ho 17 anni e il mio obiettivo è migliorare il servizio",
+      { text: "Mi chiamo Luca e gioco a tennis", writes: true },
+      { text: "Ricordati che domenica ho una partita", writes: true },
+      {
+        text: "Fammi un piano dettagliato per la settimana",
+        writes: false,
+      },
+      {
+        text: "Analizza il mio problema di concentrazione",
+        writes: false,
+      },
+      {
+        text: "Secondo i documenti caricati, cosa devo fare?",
+        writes: false,
+      },
+      {
+        text: "Usa internet e dimmi le ultime notizie sportive",
+        writes: false,
+      },
+      { text: "Ho dolore al ginocchio, cosa faccio?", writes: false },
+      { text: "Mandami un vocale motivazionale", writes: false },
+      {
+        text: "Confronta due strategie pre-gara in una tabella",
+        writes: false,
+      },
+      {
+        text: "Ho 17 anni e il mio obiettivo è migliorare il servizio",
+        writes: true,
+      },
     ];
 
     for (const prompt of fastPrompts) {
@@ -429,7 +462,7 @@ describe("ai/orchestrator", () => {
       expect(mocks.formatMemoriesForPrompt, prompt).not.toHaveBeenCalled();
     }
 
-    for (const prompt of fullPrompts) {
+    for (const promptCase of fullPrompts) {
       mocks.streamText.mockClear();
       mocks.formatTinyUserSnapshotForPrompt.mockClear();
       mocks.formatUserContextForPrompt.mockClear();
@@ -438,8 +471,8 @@ describe("ai/orchestrator", () => {
 
       await streamChat({
         userId: "user-1",
-        chatId: `chat-full-${prompt.length}`,
-        userMessage: prompt,
+        chatId: `chat-full-${promptCase.text.length}`,
+        userMessage: promptCase.text,
       });
 
       const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
@@ -447,15 +480,27 @@ describe("ai/orchestrator", () => {
         tools: Record<string, unknown>;
         maxOutputTokens?: number;
       };
-      expect(streamInput.system, prompt).toContain("SAVING DATA");
-      expect(streamInput.tools, prompt).not.toEqual({});
-      expect(streamInput.maxOutputTokens, prompt).toBeUndefined();
+      expect(streamInput.system, promptCase.text).toContain(
+        "user-context-data",
+      );
+      if (promptCase.writes) {
+        expect(streamInput.system, promptCase.text).toContain("SAVING DATA");
+        expect(streamInput.tools, promptCase.text).not.toEqual({});
+      } else {
+        expect(streamInput.system, promptCase.text).not.toContain(
+          "SAVING DATA",
+        );
+      }
+      expect(streamInput.maxOutputTokens, promptCase.text).toBeUndefined();
       expect(
         mocks.formatTinyUserSnapshotForPrompt,
-        prompt,
+        promptCase.text,
       ).not.toHaveBeenCalled();
-      expect(mocks.formatUserContextForPrompt, prompt).toHaveBeenCalled();
-      expect(mocks.formatMemoriesForPrompt, prompt).toHaveBeenCalled();
+      expect(
+        mocks.formatUserContextForPrompt,
+        promptCase.text,
+      ).toHaveBeenCalled();
+      expect(mocks.formatMemoriesForPrompt, promptCase.text).toHaveBeenCalled();
     }
   });
 
@@ -571,9 +616,10 @@ describe("ai/orchestrator", () => {
       expect.objectContaining({
         tinyfishSearch: "tinyfish-tool",
         tinyfishFetch: "tinyfish-fetch-tool",
-        saveMemory: "memory-tool",
       }),
     );
+    expect(streamInput.tools).not.toHaveProperty("saveMemory");
+    expect(streamInput.tools).not.toHaveProperty("updateProfile");
     expect(streamInput.tools).not.toHaveProperty("getMemories");
     expect(streamInput.tools).not.toHaveProperty("getUserContext");
     expect(mocks.createTinyfishTools).toHaveBeenCalledWith({
@@ -616,9 +662,10 @@ describe("ai/orchestrator", () => {
       expect.objectContaining({
         tinyfishSearch: "tinyfish-tool",
         tinyfishFetch: "tinyfish-fetch-tool",
-        saveMemory: "memory-tool",
       }),
     );
+    expect(streamInput.tools).not.toHaveProperty("saveMemory");
+    expect(streamInput.tools).not.toHaveProperty("updateProfile");
     expect(mocks.createTinyfishTools).toHaveBeenCalledWith({
       maxSearchCalls: 1,
       maxFetchCalls: 1,
