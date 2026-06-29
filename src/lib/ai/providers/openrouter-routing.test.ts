@@ -6,9 +6,11 @@ import {
 } from "./openrouter-routing";
 
 describe("ai/providers/openrouter-routing", () => {
-  it("returns no provider routing when env is unset", () => {
-    expect(getOpenRouterProviderRouting({})).toBeUndefined();
-    expect(getOpenRouterProviderOptions({})).toEqual({});
+  it("uses latency-first provider routing when env is unset", () => {
+    expect(getOpenRouterProviderRouting({})).toEqual({ sort: "latency" });
+    expect(getOpenRouterProviderOptions({})).toEqual({
+      provider: { sort: "latency" },
+    });
   });
 
   it("builds provider routing from environment variables", () => {

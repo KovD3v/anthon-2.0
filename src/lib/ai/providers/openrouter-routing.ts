@@ -75,7 +75,8 @@ export function getOpenRouterProviderRouting(
 ): OpenRouterProviderRouting | undefined {
   const provider: OpenRouterProviderRouting = {};
 
-  const sort = parseValue(env[OPENROUTER_PROVIDER_ROUTING_ENV.sort]);
+  const sort =
+    parseValue(env[OPENROUTER_PROVIDER_ROUTING_ENV.sort]) ?? "latency";
   if (sort === "e2e-latency") {
     provider.order = buildE2eLatencyProviderOrder(env, modelId);
     if (parseValue(env[OPENROUTER_PROVIDER_ROUTING_ENV.e2eMaxSeconds])) {
