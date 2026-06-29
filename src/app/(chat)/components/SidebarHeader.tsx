@@ -15,7 +15,7 @@ export function SidebarHeader({ onCollapse }: SidebarHeaderProps) {
           <Brain className="h-5 w-5 text-primary" />
         </div>
         <span className="truncate font-semibold text-foreground/90">
-          Anthon : AI mental coach
+          AI mental coach
         </span>
       </div>
       <Button
