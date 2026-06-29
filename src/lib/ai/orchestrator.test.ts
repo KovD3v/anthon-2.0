@@ -255,6 +255,95 @@ describe("ai/orchestrator", () => {
     ).toBe(1);
   });
 
+  it("uses compact prompt and no tools for simple authenticated coaching messages", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-simple-fast",
+      userMessage: "Dammi una risposta breve: motivami prima dell'allenamento",
+    });
+
+    expect(mocks.shouldUseRag).not.toHaveBeenCalled();
+    expect(mocks.formatUserContextForPrompt).not.toHaveBeenCalled();
+    expect(mocks.formatMemoriesForPrompt).not.toHaveBeenCalled();
+    expect(mocks.createMemoryTools).not.toHaveBeenCalled();
+    expect(mocks.createUserContextTools).not.toHaveBeenCalled();
+    expect(mocks.createTinyfishTools).not.toHaveBeenCalled();
+    expect(mocks.getVoicePlanConfig).not.toHaveBeenCalled();
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      system: string;
+      tools: Record<string, unknown>;
+      maxOutputTokens?: number;
+    };
+    expect(streamInput.tools).toEqual({});
+    expect(streamInput.maxOutputTokens).toBe(180);
+    expect(streamInput.system).toContain("Reply in the user's language");
+    expect(streamInput.system).not.toContain("SAVING DATA");
+    expect(streamInput.system).not.toContain("WEB SEARCH");
+    expect(streamInput.system).not.toContain("RAG CONTEXT");
+    expect(streamInput.system).not.toContain("USER CONTEXT");
+    expect(streamInput.system).not.toContain("USER MEMORIES");
+    expect(streamInput.system).not.toContain("user-context-data");
+    expect(streamInput.system).not.toContain("user-memories-data");
+  });
+
+  it("keeps full prompt and persistent tools when the message contains profile data", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-profile-info",
+      userMessage: "Mi chiamo Luca e gioco a tennis",
+    });
+
+    expect(mocks.formatUserContextForPrompt).toHaveBeenCalledWith("user-1");
+    expect(mocks.formatMemoriesForPrompt).toHaveBeenCalledWith("user-1");
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      system: string;
+      tools: Record<string, unknown>;
+      maxOutputTokens?: number;
+    };
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        saveMemory: "memory-tool",
+        updateProfile: "profile-tool",
+        updatePreferences: "preferences-tool",
+      }),
+    );
+    expect(streamInput.system).toContain("SAVING DATA");
+    expect(streamInput.system).toContain("user-context-data");
+    expect(streamInput.system).toContain("user-memories-data");
+    expect(streamInput.maxOutputTokens).toBeUndefined();
+  });
+
+  it("keeps RAG classification for simple wording that references documents", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-rag-intent",
+      userMessage: "Dammi una risposta breve usando i documenti caricati",
+    });
+
+    expect(mocks.shouldUseRag).toHaveBeenCalledWith(
+      "Dammi una risposta breve usando i documenti caricati",
+      { userId: "user-1" },
+    );
+    expect(mocks.formatUserContextForPrompt).toHaveBeenCalledWith("user-1");
+    expect(mocks.formatMemoriesForPrompt).toHaveBeenCalledWith("user-1");
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      system: string;
+      tools: Record<string, unknown>;
+      maxOutputTokens?: number;
+    };
+    expect(streamInput.system).toContain("RAG CONTEXT");
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        saveMemory: "memory-tool",
+        updateProfile: "profile-tool",
+      }),
+    );
+    expect(streamInput.maxOutputTokens).toBeUndefined();
+  });
+
   it("uses an explicit benchmark model id without changing runtime plan routing", async () => {
     await streamChat({
       userId: "user-1",

@@ -167,6 +167,26 @@ DATE
 RAG CONTEXT
 {{RAG_CONTEXT}}`;
 
+const SIMPLE_FAST_SYSTEM_PROMPT_TEMPLATE = `You are Anthon, a digital sports performance coach.
+You help athletes improve mindset, motivation, and performance.
+
+NEVER say you are an AI or a model. You are a professional coach.
+
+FAST RESPONSE MODE
+- Reply in the user's language.
+- Be direct, practical, and concise: usually 1 short paragraph or up to 3 bullets.
+- If the user asks for a short reply, keep it under 50 words.
+- Do not mention saved memories, profile data, documents, tools, or unavailable capabilities.
+- Ask at most one useful follow-up question, only when it helps the next action.
+
+SAFETY
+- Do not make medical or clinical diagnoses.
+- For acute pain, head trauma, neurological symptoms, or serious health concerns, advise stopping and consulting a healthcare professional.
+- Refuse doping, unsafe, or illegal requests and offer lawful, safe alternatives.
+
+DATE
+{{CURRENT_DATE}}`;
+
 interface StreamChatOptions {
   userId: string;
   chatId?: string;
@@ -197,6 +217,8 @@ interface StreamChatOptions {
   skipConversationHistory?: boolean;
   benchmarkModelId?: string;
 }
+
+type PromptMode = "full" | "guest" | "simple_fast";
 
 /**
  * Builds the complete system prompt with user context and memories injected.
@@ -327,6 +349,25 @@ async function buildSystemPrompt(
   return systemPrompt;
 }
 
+function buildSimpleFastSystemPrompt({
+  currentDate,
+  userStyle,
+}: {
+  currentDate: string;
+  userStyle?: string;
+}) {
+  let systemPrompt = SIMPLE_FAST_SYSTEM_PROMPT_TEMPLATE.replaceAll(
+    "{{CURRENT_DATE}}",
+    currentDate,
+  );
+
+  if (userStyle) {
+    systemPrompt += `\n\nDETECTED USER STYLE (Mirroring):\n${userStyle}`;
+  }
+
+  return systemPrompt;
+}
+
 /**
  * Converts a base64 string to Uint8Array for the AI SDK file type.
  */
@@ -384,6 +425,85 @@ function createToolsWithContext(
     ...userContextTools,
     ...tinyfishTools,
   };
+}
+
+function shouldUseSimpleFastPath({
+  userMessage,
+  isGuest,
+  hasImages,
+  hasAudio,
+  hasFileParts,
+  responseMode,
+  webSearchEnabled,
+}: {
+  userMessage: string;
+  isGuest: boolean;
+  hasImages: boolean;
+  hasAudio: boolean;
+  hasFileParts: boolean;
+  responseMode: "text" | "voice";
+  webSearchEnabled: boolean;
+}) {
+  if (
+    isGuest ||
+    hasImages ||
+    hasAudio ||
+    hasFileParts ||
+    responseMode === "voice" ||
+    webSearchEnabled
+  ) {
+    return false;
+  }
+
+  const message = userMessage.trim();
+  if (!message || message.length > 220) {
+    return false;
+  }
+
+  return (
+    matchesSimpleFastIntent(message) &&
+    !matchesPersistentDataIntent(message) &&
+    !matchesRagIntent(message) &&
+    !matchesComplexCoachingIntent(message) &&
+    !matchesVoiceIntent(message) &&
+    !matchesHealthRiskIntent(message)
+  );
+}
+
+function matchesSimpleFastIntent(message: string) {
+  return /\b(ciao|ehi|hey|buongiorno|buonasera|grazie|motivami|motiva|caricami|incoraggiami|breve|rapido|veloce|focus|frase|spinta|calmami|tranquillizzami)\b|reset\s+mentale|consiglio\s+(veloce|rapido)/i.test(
+    message,
+  );
+}
+
+function matchesPersistentDataIntent(message: string) {
+  return /\b(mi\s+chiamo|chiamami|sono\s+(un|una|atleta|giocatore|giocatrice|coach|allenatore|allenatrice)|gioco\s+(a\s+)?(calcio|basket|tennis|pallavolo|nuoto)|pratico|faccio\s+(calcio|basket|tennis|pallavolo|nuoto|atletica|palestra)|ho\s+\d+\s+anni|il\s+mio\s+obiettivo|il\s+mio\s+goal|obiettivo\s+(e|è)|preferisco|ricordati|salva|memorizza|segnati|ho\s+(una|un)\s+(partita|gara|match)|avr[oò]\s+(una|un)\s+(partita|gara|match)|mi\s+alleno\s+(il|la|di|ogni))\b/i.test(
+    message,
+  );
+}
+
+function matchesRagIntent(message: string) {
+  return /\b(rag|document[oi]|pdf|file|fonte|fonti|materiale|dispensa|archivio|caricat[oi]|allegat[oi])\b|in\s+base\s+(al|alla|ai|alle)|secondo\s+(il|la|i|le)\s+(document|file|materiale|fonte)/i.test(
+    message,
+  );
+}
+
+function matchesComplexCoachingIntent(message: string) {
+  return /\b(piano|programma|scheda|routine|analizza|analisi|spiegami|dettagli|dettagliato|confronta|tabella|strategia|preparazione|settimana|mensile|periodizzazione|nutrizione|dieta|macrociclo|microciclo)\b/i.test(
+    message,
+  );
+}
+
+function matchesVoiceIntent(message: string) {
+  return /\b(audio|vocale|nota\s+vocale|voice\s+note|parla|registrami|mandami\s+un\s+vocale)\b/i.test(
+    message,
+  );
+}
+
+function matchesHealthRiskIntent(message: string) {
+  return /\b(dolore|male|infortun|trauma|sintom|farmac|medic|diagnosi|stiramento|frattura|commozione)\b/i.test(
+    message,
+  );
 }
 
 function omitTool<T extends Record<string, unknown>>(
@@ -465,6 +585,28 @@ export async function streamChat({
       subscriptionStatus,
     );
 
+  const currentDate = new Date().toLocaleDateString("it-IT", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const hasFileParts = messageParts?.some((p) => p.type === "file") ?? false;
+  const webSearchEnabled = shouldEnableWebSearchTool(userMessage);
+  const promptMode: PromptMode = isGuest
+    ? "guest"
+    : shouldUseSimpleFastPath({
+          userMessage,
+          isGuest,
+          hasImages,
+          hasAudio,
+          hasFileParts,
+          responseMode,
+          webSearchEnabled,
+        })
+      ? "simple_fast"
+      : "full";
+
   // Wrap model with PostHog tracing for LLM analytics
   const model = withTracing(baseModel, getPostHogClient(), {
     posthogDistinctId: userId,
@@ -476,6 +618,7 @@ export async function streamChat({
       userRole: userRole || "USER",
       isGuest: isGuest || false,
       modelId,
+      promptMode,
     },
   });
 
@@ -500,21 +643,22 @@ export async function streamChat({
         return [];
       });
 
-  const userContextPromise = isGuest
-    ? Promise.resolve("")
-    : formatUserContextForPrompt(userId).catch((error) => {
-        aiLogger.error(
-          "ai.user_context.error",
-          "User context enrichment failed",
-          {
-            error,
-            userId,
-          },
-        );
-        return "No user context available.";
-      });
+  const userContextPromise =
+    isGuest || promptMode === "simple_fast"
+      ? Promise.resolve("")
+      : formatUserContextForPrompt(userId).catch((error) => {
+          aiLogger.error(
+            "ai.user_context.error",
+            "User context enrichment failed",
+            {
+              error,
+              userId,
+            },
+          );
+          return "No user context available.";
+        });
   const userMemoriesPromise =
-    memoryEnabled === false || isGuest
+    memoryEnabled === false || isGuest || promptMode === "simple_fast"
       ? Promise.resolve("Persistent memory is disabled for this session.")
       : formatMemoriesForPrompt(userId).catch((error) => {
           aiLogger.error("ai.memories.error", "Memory enrichment failed", {
@@ -523,16 +667,9 @@ export async function streamChat({
           });
           return "No user memories available.";
         });
-  const currentDate = new Date().toLocaleDateString("it-IT", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const webSearchEnabled = shouldEnableWebSearchTool(userMessage);
 
   const ragPromise =
-    isGuest || webSearchEnabled
+    isGuest || webSearchEnabled || promptMode === "simple_fast"
       ? Promise.resolve({
           ragContext: undefined,
           ragUsed: false,
@@ -572,19 +709,20 @@ export async function streamChat({
 
   // Calculate if voice is enabled for this user/plan. Guest web chat has no
   // voice output, so avoid loading plan config on its critical path.
-  const voiceEnabledResult = isGuest
-    ? false
-    : await (async () => {
-        const { getVoicePlanConfig } = await import("@/lib/voice");
-        const planConfig = getVoicePlanConfig(
-          subscriptionStatus,
-          userRole,
-          planId,
-          isGuest,
-          effectiveEntitlements.modelTier,
-        );
-        return planConfig.enabled && (voiceEnabled ?? true);
-      })();
+  const voiceEnabledResult =
+    isGuest || promptMode === "simple_fast"
+      ? false
+      : await (async () => {
+          const { getVoicePlanConfig } = await import("@/lib/voice");
+          const planConfig = getVoicePlanConfig(
+            subscriptionStatus,
+            userRole,
+            planId,
+            isGuest,
+            effectiveEntitlements.modelTier,
+          );
+          return planConfig.enabled && (voiceEnabled ?? true);
+        })();
 
   // Analyze user style from history (heuristic)
   const userStyleInstruction = analyzeUserStyle(conversationHistory);
@@ -593,6 +731,13 @@ export async function streamChat({
   const systemPrompt = await LatencyLogger.measure(
     "🛠️ Orchestrator: Build system prompt",
     async () => {
+      if (promptMode === "simple_fast") {
+        return buildSimpleFastSystemPrompt({
+          currentDate,
+          userStyle: userStyleInstruction,
+        });
+      }
+
       const [userContext, userMemories] = await Promise.all([
         userContextPromise,
         userMemoriesPromise,
@@ -612,9 +757,6 @@ export async function streamChat({
 
   // Build the last message with proper image/audio support
   let lastMessage: ModelMessage;
-
-  // Check for any file parts to ensure we handle PDFs and other documents
-  const hasFileParts = messageParts?.some((p) => p.type === "file");
 
   if (
     (hasImages || hasAudio || hasFileParts) &&
@@ -717,11 +859,14 @@ export async function streamChat({
   const messages: ModelMessage[] = [...conversationHistory, lastMessage];
 
   // Create tools with userId context
-  const tools = createToolsWithContext(userId, {
-    memoryEnabled,
-    isGuest,
-    userMessage,
-  });
+  const tools =
+    promptMode === "simple_fast"
+      ? {}
+      : createToolsWithContext(userId, {
+          memoryEnabled,
+          isGuest,
+          userMessage,
+        });
 
   // Collect tool calls during execution
   const collectedToolCalls: Array<{
@@ -737,7 +882,11 @@ export async function streamChat({
     system: systemPrompt,
     messages,
     tools,
-    maxOutputTokens: isGuest ? 220 : undefined,
+    maxOutputTokens: isGuest
+      ? 220
+      : promptMode === "simple_fast"
+        ? 180
+        : undefined,
     providerOptions: {
       openrouter: {
         promptCaching: true,
@@ -825,6 +974,7 @@ export async function streamChat({
     userId,
     chatId,
     modelId,
+    promptMode,
     ragUsed,
     ragChunksCount,
     hasImages: Boolean(hasImages),
