@@ -31,6 +31,7 @@ import type { EffectiveEntitlements } from "@/lib/organizations/types";
 import { getPostHogClient } from "@/lib/posthog";
 
 const aiLogger = createLogger("ai");
+const MULTIMODAL_ORCHESTRATOR_MODEL_ID = "moonshotai/kimi-k2.7-code";
 
 // System prompt template
 const SYSTEM_PROMPT_TEMPLATE = `You are Anthon, a digital sports performance coach.
@@ -426,10 +427,15 @@ export async function streamChat({
       isGuest,
     }));
 
-  // Get the appropriate model based on user's subscription plan
-  // All Gemini models support vision, so we just use the orchestrator model
-  const baseModel = benchmarkModelId
-    ? getModelById(benchmarkModelId)
+  const imageModelId =
+    hasImages && !benchmarkModelId ? MULTIMODAL_ORCHESTRATOR_MODEL_ID : null;
+  const explicitModelId = benchmarkModelId ?? imageModelId;
+
+  // Get the appropriate model based on user's subscription plan.
+  // The default orchestrator can be text-only on OpenRouter, so image input
+  // uses a model that has been verified through the multimodal path.
+  const baseModel = explicitModelId
+    ? getModelById(explicitModelId)
     : getModelForUser(
         planId,
         userRole,
@@ -439,6 +445,7 @@ export async function streamChat({
       );
   const modelId =
     benchmarkModelId ??
+    imageModelId ??
     getModelIdForPlan(
       planId,
       userRole,

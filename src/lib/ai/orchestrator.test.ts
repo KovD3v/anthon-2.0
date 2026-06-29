@@ -294,6 +294,62 @@ describe("ai/orchestrator", () => {
     );
   });
 
+  it("routes image messages to the multimodal orchestrator model", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-image",
+      userMessage: "cosa vedi?",
+      hasImages: true,
+      messageParts: [
+        { type: "text", text: "cosa vedi?" },
+        {
+          type: "file",
+          data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+          mimeType: "image/jpeg",
+        },
+      ],
+    });
+
+    expect(mocks.getModelById).toHaveBeenCalledWith(
+      "moonshotai/kimi-k2.7-code",
+    );
+    expect(mocks.getModelForUser).not.toHaveBeenCalled();
+    expect(mocks.getModelIdForPlan).not.toHaveBeenCalled();
+    expect(mocks.withTracing).toHaveBeenCalledWith(
+      "candidate-model",
+      "posthog-client",
+      expect.objectContaining({
+        posthogProperties: expect.objectContaining({
+          modelId: "moonshotai/kimi-k2.7-code",
+        }),
+      }),
+    );
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      messages: Array<{ role: string; content: unknown }>;
+      providerOptions: {
+        openrouter: {
+          models?: string[];
+        };
+      };
+    };
+    expect(streamInput.messages).toEqual([
+      { role: "user", content: "same message" },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "cosa vedi?" },
+          {
+            type: "image",
+            image:
+              "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+          },
+        ],
+      },
+    ]);
+    expect(streamInput.providerOptions.openrouter.models).toBeUndefined();
+  });
+
   it("enables Tavily only for time-sensitive requests", async () => {
     await streamChat({
       userId: "user-1",
