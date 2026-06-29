@@ -204,7 +204,7 @@ describe("chat mobile viewport layout", () => {
     expect(audioRecorder).toContain('"uploading"');
   });
 
-  it("styles Anthon message boxes with the yellow brand background and black text", () => {
+  it("styles Anthon message boxes with the selected brand background and black text", () => {
     const messageList = readFileSync(
       "src/app/(chat)/components/MessageList.tsx",
       "utf8",
@@ -212,11 +212,11 @@ describe("chat mobile viewport layout", () => {
     const loading = readFileSync("src/app/(chat)/chat/loading.tsx", "utf8");
 
     expect(messageList).toContain(
-      ': "rounded-2xl rounded-tl-sm bg-yellow-400 text-black"',
+      ': "rounded-2xl rounded-tl-sm bg-[#e3b52b] text-black"',
     );
     expect(messageList).toContain("assistantMarkdownClassName");
     expect(messageList).toContain("prose-p:text-black");
-    expect(loading).toContain(': "rounded-tl-sm bg-yellow-400/60"');
+    expect(loading).toContain(': "rounded-tl-sm bg-[#e3b52b]/60"');
   });
 
   it("clears submitted composer text before awaiting the assistant response", () => {

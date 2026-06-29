@@ -343,7 +343,7 @@ export function MessageList({
                             ? `px-5 py-3.5 shadow-sm ${
                                 isUser
                                   ? "rounded-2xl rounded-tr-sm bg-primary text-primary-foreground"
-                                  : "rounded-2xl rounded-tl-sm bg-yellow-400 text-black"
+                                  : "rounded-2xl rounded-tl-sm bg-[#e3b52b] text-black"
                               }`
                             : "p-0 bg-transparent" /* Transparent for standalone attachments */
                         } ${isEditing ? "w-full min-w-75" : ""}`}
@@ -628,7 +628,7 @@ export function MessageList({
                 <Brain className="h-5 w-5 animate-pulse" />
               </div>
               <div className="flex max-w-[85%] flex-col gap-2">
-                <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-sm bg-yellow-400 px-4 py-3 text-sm text-black shadow-sm">
+                <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-sm bg-[#e3b52b] px-4 py-3 text-sm text-black shadow-sm">
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
                   <div className="flex flex-col">
                     <span className="font-medium text-black">
