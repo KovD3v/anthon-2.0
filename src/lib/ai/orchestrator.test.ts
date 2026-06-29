@@ -372,6 +372,11 @@ describe("ai/orchestrator", () => {
     );
     expect(streamInput.tools).not.toHaveProperty("getMemories");
     expect(streamInput.tools).not.toHaveProperty("getUserContext");
+    expect(mocks.createTinyfishTools).toHaveBeenCalledWith({
+      maxSearchCalls: 3,
+      maxFetchCalls: 1,
+      maxFetchUrls: 3,
+    });
   });
 
   it("enables TinyFish for guest time-sensitive requests without persistent tools", async () => {
@@ -398,6 +403,11 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).not.toHaveProperty("updateProfile");
     expect(streamInput.tools).not.toHaveProperty("getMemories");
     expect(streamInput.tools).not.toHaveProperty("getUserContext");
+    expect(mocks.createTinyfishTools).toHaveBeenCalledWith({
+      maxSearchCalls: 3,
+      maxFetchCalls: 1,
+      maxFetchUrls: 3,
+    });
   });
 
   it("builds audio/file content parts, strips codec suffixes, and applies voice-disabled prompt variant", async () => {

@@ -47,14 +47,27 @@ type TinyfishFetchResponse = {
   }>;
 };
 
+type TinyfishToolsOptions = {
+  maxSearchCalls?: number;
+  maxFetchCalls?: number;
+  maxFetchUrls?: number;
+};
+
 /**
  * Creates TinyFish web search tool with strict validation.
  */
-export function createTinyfishTools() {
+export function createTinyfishTools({
+  maxSearchCalls = Number.POSITIVE_INFINITY,
+  maxFetchCalls = Number.POSITIVE_INFINITY,
+  maxFetchUrls = 10,
+}: TinyfishToolsOptions = {}) {
   const apiKey = process.env.TINYFISH_API_KEY;
   if (!apiKey) {
     throw new Error("TINYFISH_API_KEY environment variable is required");
   }
+
+  let searchCalls = 0;
+  let fetchCalls = 0;
 
   return {
     tinyfishSearch: tool({
@@ -112,6 +125,15 @@ CRITICAL: You MUST provide a 'query' argument. NEVER call this tool with empty a
         afterDate,
         beforeDate,
       }) => {
+        searchCalls += 1;
+        if (searchCalls > maxSearchCalls) {
+          return {
+            results: [],
+            error:
+              "Search limit reached for this response. Use the existing search results instead.",
+          };
+        }
+
         try {
           const url = new URL(TINYFISH_SEARCH_URL);
           url.searchParams.set("query", query);
@@ -213,9 +235,23 @@ Use this after search when you need to read source pages. Only pass http or http
         ttl,
         perUrlTimeoutMs,
       }) => {
+        fetchCalls += 1;
+        if (fetchCalls > maxFetchCalls) {
+          return {
+            results: [],
+            errors: [
+              {
+                error:
+                  "Fetch limit reached for this response. Use the already fetched pages instead.",
+              },
+            ],
+          };
+        }
+
         try {
+          const limitedUrls = urls.slice(0, maxFetchUrls);
           const body: Record<string, unknown> = {
-            urls,
+            urls: limitedUrls,
             format,
           };
           if (links !== undefined) {

@@ -107,8 +107,10 @@ SAVING DATA (When to use)
 
 WEB SEARCH (tinyfishSearch, tinyfishFetch)
 - Use only for up-to-date info or recent events (e.g. "Who won the match yesterday?"). Integrate results naturally.
-- Use \`tinyfishSearch\` to find relevant current sources.
-- Use \`tinyfishFetch\` only when you already have specific source URLs to read more detail.
+- Start with one broad, well-composed \`tinyfishSearch\` query.
+- Use up to two additional \`tinyfishSearch\` queries only if results are clearly insufficient, contradictory, or need a distinct angle.
+- Do not issue multiple rephrased variations of the same search.
+- Use \`tinyfishFetch\` only when you already have specific source URLs and search snippets are insufficient.
 
 RAG
 - If the RAG CONTEXT section is present and relevant, use it as a base. Do NOT invent sources. Do NOT paste long excerpts.
@@ -356,7 +358,11 @@ function createToolsWithContext(
   },
 ) {
   const tinyfishTools = shouldEnableWebSearchTool(options?.userMessage)
-    ? createTinyfishTools()
+    ? createTinyfishTools({
+        maxSearchCalls: 3,
+        maxFetchCalls: 1,
+        maxFetchUrls: 3,
+      })
     : {};
 
   if (options?.isGuest) {

@@ -101,6 +101,34 @@ describe("ai/tools/tinyfish", () => {
     });
   });
 
+  it("short-circuits repeated search calls from the same response", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        query: "world cup results",
+        results: [],
+        total_results: 0,
+        page: 0,
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { createTinyfishTools } = await import("./tinyfish");
+    const tools = createTinyfishTools({ maxSearchCalls: 1 });
+
+    await tools.tinyfishSearch.execute({ query: "world cup results" });
+    const secondResult = await tools.tinyfishSearch.execute({
+      query: "world cup results June 28",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(secondResult).toEqual({
+      results: [],
+      error:
+        "Search limit reached for this response. Use the existing search results instead.",
+    });
+  });
+
   it("creates a TinyFish fetch tool that posts URLs to the Fetch API", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -174,6 +202,67 @@ describe("ai/tools/tinyfish", () => {
         },
       ],
       errors: [],
+    });
+  });
+
+  it("limits TinyFish fetch batches before posting URLs", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [],
+        errors: [],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { createTinyfishTools } = await import("./tinyfish");
+    const tools = createTinyfishTools({ maxFetchUrls: 2 });
+    await tools.tinyfishFetch.execute({
+      urls: [
+        "https://example.com/one",
+        "https://example.com/two",
+        "https://example.com/three",
+      ],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: JSON.stringify({
+          urls: ["https://example.com/one", "https://example.com/two"],
+          format: "markdown",
+        }),
+      }),
+    );
+  });
+
+  it("short-circuits repeated fetch calls from the same response", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [],
+        errors: [],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { createTinyfishTools } = await import("./tinyfish");
+    const tools = createTinyfishTools({ maxFetchCalls: 1 });
+
+    await tools.tinyfishFetch.execute({ urls: ["https://example.com/one"] });
+    const secondResult = await tools.tinyfishFetch.execute({
+      urls: ["https://example.com/two"],
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(secondResult).toEqual({
+      results: [],
+      errors: [
+        {
+          error:
+            "Fetch limit reached for this response. Use the already fetched pages instead.",
+        },
+      ],
     });
   });
 
