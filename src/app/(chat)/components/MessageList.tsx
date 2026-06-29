@@ -31,6 +31,7 @@ import {
   getAssistantMessageLifecycle,
   getAssistantPendingLabel,
   getMessageText,
+  shouldAnimateAssistantMessageMount,
   shouldRenderAssistantPendingRow,
 } from "../chat/chat-reactivity-ui";
 import { AttachmentPreview } from "./Attachments";
@@ -263,6 +264,10 @@ export function MessageList({
                 lifecycle: assistantLifecycle,
                 status,
               });
+              const shouldAnimateMount = shouldAnimateAssistantMessageMount({
+                message,
+                displayState: assistantDisplayState,
+              });
 
               const hasAttachments = message.parts?.some(
                 (part) => part.type === "file",
@@ -293,7 +298,7 @@ export function MessageList({
                 >
                   <m.div
                     variants={fadeUp}
-                    initial="hidden"
+                    initial={shouldAnimateMount ? "hidden" : false}
                     animate="show"
                     transition={defaultTransition}
                     className={`group flex items-start gap-2 mb-8 ${

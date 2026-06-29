@@ -113,6 +113,20 @@ export function getAssistantMessageDisplayState({
   return getMessageText(message).trim().length > 0 ? "streaming" : lifecycle;
 }
 
+export function shouldAnimateAssistantMessageMount({
+  message,
+  displayState,
+}: {
+  message: UIMessage;
+  displayState: AssistantMessageDisplayState;
+}) {
+  if (message.role !== "assistant") {
+    return true;
+  }
+
+  return displayState !== "pending" && displayState !== "streaming";
+}
+
 export function shouldRenderAssistantPendingRow({
   pendingLabel,
   latestMessage,

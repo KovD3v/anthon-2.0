@@ -5,6 +5,7 @@ import {
   getAssistantMessageLifecycle,
   getAssistantPendingLabel,
   getAudioRecorderStatusLabel,
+  shouldAnimateAssistantMessageMount,
   shouldRenderAssistantPendingRow,
 } from "./chat-reactivity-ui";
 
@@ -119,6 +120,36 @@ describe("getAssistantPendingLabel", () => {
         status: "ready",
       }),
     ).toBe("content");
+  });
+
+  it("does not animate active assistant messages as they enter or stream", () => {
+    const message = {
+      id: "assistant-1",
+      role: "assistant" as const,
+      parts: [{ type: "text" as const, text: "" }],
+    };
+
+    expect(
+      shouldAnimateAssistantMessageMount({
+        message,
+        displayState: "pending",
+      }),
+    ).toBe(false);
+    expect(
+      shouldAnimateAssistantMessageMount({
+        message: {
+          ...message,
+          parts: [{ type: "text" as const, text: "Eccomi" }],
+        },
+        displayState: "streaming",
+      }),
+    ).toBe(false);
+    expect(
+      shouldAnimateAssistantMessageMount({
+        message,
+        displayState: "content",
+      }),
+    ).toBe(true);
   });
 });
 
