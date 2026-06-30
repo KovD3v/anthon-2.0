@@ -618,14 +618,16 @@ describe("ai/orchestrator", () => {
     });
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      system: string;
       tools: Record<string, unknown>;
     };
     expect(streamInput.tools).toEqual(
       expect.objectContaining({
         tinyfishSearch: "tinyfish-tool",
-        tinyfishFetch: "tinyfish-fetch-tool",
       }),
     );
+    expect(streamInput.tools).not.toHaveProperty("tinyfishFetch");
+    expect(streamInput.system).not.toContain("tinyfishFetch");
     expect(streamInput.tools).not.toHaveProperty("saveMemory");
     expect(streamInput.tools).not.toHaveProperty("updateProfile");
     expect(streamInput.tools).not.toHaveProperty("getMemories");
@@ -664,9 +666,9 @@ describe("ai/orchestrator", () => {
       expect(streamInput.tools, prompt).toEqual(
         expect.objectContaining({
           tinyfishSearch: "tinyfish-tool",
-          tinyfishFetch: "tinyfish-fetch-tool",
         }),
       );
+      expect(streamInput.tools, prompt).not.toHaveProperty("tinyfishFetch");
       expect(streamInput.tools, prompt).not.toHaveProperty("saveMemory");
       expect(streamInput.tools, prompt).not.toHaveProperty("updateProfile");
       expect(mocks.createTinyfishTools, prompt).toHaveBeenCalledWith({
@@ -708,9 +710,9 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).toEqual(
       expect.objectContaining({
         tinyfishSearch: "tinyfish-tool",
-        tinyfishFetch: "tinyfish-fetch-tool",
       }),
     );
+    expect(streamInput.tools).not.toHaveProperty("tinyfishFetch");
     expect(streamInput.tools).not.toHaveProperty("saveMemory");
     expect(streamInput.tools).not.toHaveProperty("updateProfile");
     expect(mocks.createTinyfishTools).toHaveBeenCalledWith({
@@ -732,14 +734,16 @@ describe("ai/orchestrator", () => {
     });
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      system: string;
       tools: Record<string, unknown>;
     };
     expect(streamInput.tools).toEqual(
       expect.objectContaining({
         tinyfishSearch: "tinyfish-tool",
-        tinyfishFetch: "tinyfish-fetch-tool",
       }),
     );
+    expect(streamInput.tools).not.toHaveProperty("tinyfishFetch");
+    expect(streamInput.system).not.toContain("tinyfishFetch");
     expect(streamInput.tools).not.toHaveProperty("saveMemory");
     expect(streamInput.tools).not.toHaveProperty("updateProfile");
     expect(streamInput.tools).not.toHaveProperty("getMemories");
@@ -749,6 +753,26 @@ describe("ai/orchestrator", () => {
       maxFetchCalls: 1,
       maxFetchUrls: 3,
     });
+  });
+
+  it("keeps TinyFish fetch available for source and article requests", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-web-source",
+      userMessage: "Cerca online fonti affidabili e apri gli articoli sul tema",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      system: string;
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.system).toContain("tinyfishFetch");
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+      }),
+    );
   });
 
   it("builds audio/file content parts, strips codec suffixes, and applies voice-disabled prompt variant", async () => {

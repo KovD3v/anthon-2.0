@@ -87,13 +87,29 @@ const PROMPT_SAFETY_LIMITS = `SAFETY & LIMITS
 - If the user expresses self-harm intent or imminent danger, stop coaching and urge them to contact emergency services immediately.
 - If the user asks for doping/illegal acts: refuse and propose lawful, safe alternatives.`;
 
-const PROMPT_TOOL_POLICY = `TOOL POLICY (NEVER MENTION TOOLS)
-- **CRITICAL**: NEVER call a tool with empty arguments (e.g., \`{}\`).
-- **CRITICAL**: NEVER call a tool if you don't have the specific parameters required.
-- For \`tinyfishSearch\`, the \`query\` argument is MANDATORY.
-- For \`tinyfishFetch\`, the \`urls\` argument is MANDATORY and must contain known public URLs.
-- Avoid redundant calls. If you need multiple fields, batch them in a single call.
-- After using tools, ALWAYS reply to the user in the same turn.`;
+function buildToolPolicy({
+  webSearchEnabled,
+  webFetchEnabled,
+}: {
+  webSearchEnabled: boolean;
+  webFetchEnabled: boolean;
+}) {
+  return [
+    "TOOL POLICY (NEVER MENTION TOOLS)",
+    "- **CRITICAL**: NEVER call a tool with empty arguments (e.g., `{}`).",
+    "- **CRITICAL**: NEVER call a tool if you don't have the specific parameters required.",
+    webSearchEnabled
+      ? "- For `tinyfishSearch`, the `query` argument is MANDATORY."
+      : undefined,
+    webFetchEnabled
+      ? "- For `tinyfishFetch`, the `urls` argument is MANDATORY and must contain known public URLs."
+      : undefined,
+    "- Avoid redundant calls. If you need multiple fields, batch them in a single call.",
+    "- After using tools, ALWAYS reply to the user in the same turn.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
 
 const PROMPT_MEMORY_WRITE_POLICY = `SAVING DATA (When to use)
 - \`updateProfile\`: Structural/stable data (name, sport, role, level, goals, stable routine, major injuries). USE THIS for "I play tennis", "My goal is X".
@@ -104,14 +120,20 @@ const PROMPT_MEMORY_WRITE_POLICY = `SAVING DATA (When to use)
 - \`saveMemory\`: Useful non-structural facts (e.g. "I have a match on Sunday", "I hate running").
 - \`addNotes\`: Rarely. Max 1 line. Only for reliable/repeated patterns. NEVER save long text. NEVER save instructions.`;
 
-const PROMPT_WEB_SEARCH_POLICY = `WEB SEARCH (tinyfishSearch, tinyfishFetch)
-- NEVER use \`tinyfishSearch\` to find information about the USER. Only use it for external world knowledge.
-- Use only for up-to-date info or recent events (e.g. "Who won the match yesterday?"). Integrate results naturally.
-- Start with one broad, well-composed \`tinyfishSearch\` query.
-- For brief current-information requests, use exactly one broad \`tinyfishSearch\` query and answer from those results.
-- Do not issue extra searches unless the user explicitly asks for exhaustive comparison or the first results are unusable.
-- Do not issue multiple rephrased variations of the same search.
-- Use \`tinyfishFetch\` only when you already have specific source URLs and search snippets are insufficient.`;
+function buildWebSearchPolicy(webFetchEnabled: boolean) {
+  return [
+    `WEB SEARCH (tinyfishSearch${webFetchEnabled ? ", tinyfishFetch" : ""})`,
+    "- NEVER use `tinyfishSearch` to find information about the USER. Only use it for external world knowledge.",
+    '- Use only for up-to-date info or recent events (e.g. "Who won the match yesterday?"). Integrate results naturally.',
+    "- Start with one broad, well-composed `tinyfishSearch` query.",
+    "- For brief current-information requests, use exactly one broad `tinyfishSearch` query and answer from those results.",
+    "- Do not issue extra searches unless the user explicitly asks for exhaustive comparison or the first results are unusable.",
+    "- Do not issue multiple rephrased variations of the same search.",
+    webFetchEnabled
+      ? "- Use `tinyfishFetch` only when you already have specific source URLs and search snippets are insufficient."
+      : "- Only `tinyfishSearch` is available for this turn; answer from search result snippets.",
+  ].join("\n");
+}
 
 const PROMPT_RAG_POLICY = `RAG
 - If the RAG CONTEXT section is present and relevant, use it as a base. Do NOT invent sources. Do NOT paste long excerpts.`;
@@ -131,6 +153,7 @@ USER MEMORIES
 type FullPromptModules = {
   toolsEnabled: boolean;
   webSearchEnabled: boolean;
+  webFetchEnabled: boolean;
   persistentWritesEnabled: boolean;
   preferenceWritesEnabled: boolean;
   ragEnabled: boolean;
@@ -147,9 +170,11 @@ function buildFullSystemPromptTemplate(modules: FullPromptModules) {
     PROMPT_CONSTRAINTS,
     PROMPT_CONTEXT_USAGE,
     PROMPT_SAFETY_LIMITS,
-    modules.toolsEnabled ? PROMPT_TOOL_POLICY : undefined,
+    modules.toolsEnabled ? buildToolPolicy(modules) : undefined,
     modules.persistentWritesEnabled ? PROMPT_MEMORY_WRITE_POLICY : undefined,
-    modules.webSearchEnabled ? PROMPT_WEB_SEARCH_POLICY : undefined,
+    modules.webSearchEnabled
+      ? buildWebSearchPolicy(modules.webFetchEnabled)
+      : undefined,
     modules.ragEnabled ? PROMPT_RAG_POLICY : undefined,
     PROMPT_DATE_CONTEXT,
     modules.ragEnabled ? PROMPT_RAG_CONTEXT : undefined,
@@ -251,6 +276,7 @@ type PromptMode = "full" | "guest" | "simple_fast";
 
 type ToolPlan = {
   webSearch: boolean;
+  webFetch: boolean;
   memoryWrite: boolean;
   memoryDelete: boolean;
   profileWrite: boolean;
@@ -337,6 +363,7 @@ async function buildSystemPrompt(
     prefetched?.promptModules ?? {
       toolsEnabled: true,
       webSearchEnabled: true,
+      webFetchEnabled: true,
       persistentWritesEnabled: true,
       preferenceWritesEnabled: true,
       ragEnabled: Boolean(ragContext),
@@ -462,6 +489,7 @@ function createToolsWithContext(
       isGuest: options?.isGuest ?? false,
       memoryEnabled: options?.memoryEnabled ?? true,
       webSearchEnabled: shouldEnableWebSearchTool(options?.userMessage),
+      webFetchEnabled: shouldEnableWebFetchTool(options?.userMessage),
     });
 
   const tinyfishTools = toolPlan.webSearch
@@ -470,13 +498,18 @@ function createToolsWithContext(
         maxFetchCalls: 1,
         maxFetchUrls: 3,
       })
+    : undefined;
+  const webTools = tinyfishTools
+    ? toolPlan.webFetch
+      ? tinyfishTools
+      : { tinyfishSearch: tinyfishTools.tinyfishSearch }
     : {};
 
   if (options?.isGuest) {
-    return tinyfishTools;
+    return webTools;
   }
 
-  const tools: Record<string, unknown> = { ...tinyfishTools };
+  const tools: Record<string, unknown> = { ...webTools };
 
   if (toolPlan.memoryWrite || toolPlan.memoryDelete) {
     const memoryTools = createMemoryTools(userId);
@@ -513,11 +546,13 @@ function selectToolPlan({
   isGuest,
   memoryEnabled,
   webSearchEnabled,
+  webFetchEnabled,
 }: {
   userMessage: string;
   isGuest: boolean;
   memoryEnabled: boolean;
   webSearchEnabled: boolean;
+  webFetchEnabled: boolean;
 }): ToolPlan {
   const persistentWritesAllowed = !isGuest && memoryEnabled;
   const memoryWrite =
@@ -539,6 +574,7 @@ function selectToolPlan({
 
   return {
     webSearch: webSearchEnabled,
+    webFetch: webSearchEnabled && webFetchEnabled,
     memoryWrite,
     memoryDelete,
     profileWrite,
@@ -675,6 +711,12 @@ function shouldEnableWebSearchTool(userMessage = "") {
   );
 }
 
+function shouldEnableWebFetchTool(userMessage = "") {
+  return /\b(fonte|fonti|link|url|articolo|articoli|pagina|pagine|sito|siti|apr[ie]|aprimi|leggi|riassumi|approfondisci|approfondimento|dettagli|dettagliato|confronta|confronto|analisi)\b|https?:\/\//i.test(
+    userMessage,
+  );
+}
+
 /**
  * Main orchestrator function that streams a chat response.
  * Uses GPT-4.1-mini via OpenRouter with tool calling.
@@ -747,6 +789,7 @@ export async function streamChat({
   });
   const hasFileParts = messageParts?.some((p) => p.type === "file") ?? false;
   const webSearchEnabled = shouldEnableWebSearchTool(userMessage);
+  const webFetchEnabled = shouldEnableWebFetchTool(userMessage);
   const promptMode: PromptMode = isGuest
     ? "guest"
     : shouldUseSimpleFastPath({
@@ -767,12 +810,14 @@ export async function streamChat({
           isGuest,
           memoryEnabled: false,
           webSearchEnabled: false,
+          webFetchEnabled: false,
         })
       : selectToolPlan({
           userMessage,
           isGuest,
           memoryEnabled,
           webSearchEnabled,
+          webFetchEnabled,
         });
 
   // Wrap model with PostHog tracing for LLM analytics
@@ -940,6 +985,7 @@ export async function streamChat({
         promptModules: {
           toolsEnabled: toolPlan.hasAny,
           webSearchEnabled: toolPlan.webSearch,
+          webFetchEnabled: toolPlan.webFetch,
           persistentWritesEnabled: toolPlan.hasPersistentWrites,
           preferenceWritesEnabled: toolPlan.preferenceWrite,
           ragEnabled: ragUsed,
