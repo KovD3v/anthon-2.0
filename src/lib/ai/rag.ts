@@ -735,7 +735,7 @@ export async function shouldUseRag(
               reason: z.string().describe("Brief reason for the decision"),
             }),
           }),
-          system: `You are a query classifier. Determine if a user's question requires information from methodological documents about sports coaching.
+          instructions: `You are a query classifier. Determine if a user's question requires information from methodological documents about sports coaching.
 
 Answer needsRag: true if the question is about:
 - Specific training techniques

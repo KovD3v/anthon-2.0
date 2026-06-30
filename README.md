@@ -4,8 +4,9 @@ An AI-powered coaching chat application built with Next.js 16, featuring intelli
 
 ## ✨ Features
 
--   **AI Coaching Chat** - Streaming conversations via OpenRouter (Gemini 2.0 Flash family)
--   **RAG System** - Knowledge retrieval using pgvector embeddings (Gemini 2.0 Flash classification)
+-   **AI Coaching Chat** - Streaming conversations via OpenRouter with plan-based model routing, prompt caching, and provider latency routing
+-   **RAG System** - Knowledge retrieval using pgvector embeddings with intent gating to avoid unnecessary retrieval
+-   **Web Search Tools** - TinyFish search/fetch tools for current external information
 -   **Session Management** - Intelligent context building with automatic summarization
 -   **Persistent Memory** - AI remembers user preferences and important information
 -   **Automated Maintenance** - Background jobs for memory consolidation and profile analysis via QStash
@@ -55,7 +56,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 -   **Framework:** Next.js 16 (App Router)
 -   **Language:** TypeScript
 -   **Database:** PostgreSQL + Prisma + pgvector
--   **AI:** Vercel AI SDK v6 + OpenRouter
+-   **AI:** Vercel AI SDK v6 + OpenRouter + TinyFish web tools
 -   **Job Queue:** Upstash QStash
 -   **Auth:** Clerk
 -   **Styling:** Tailwind CSS + Radix UI + Framer Motion

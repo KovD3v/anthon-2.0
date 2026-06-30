@@ -212,7 +212,13 @@ describe("lib/guest-auth", () => {
       },
       select: expect.objectContaining({
         id: true,
-        user: expect.any(Object),
+        user: {
+          select: {
+            id: true,
+            isGuest: true,
+            role: true,
+          },
+        },
       }),
     });
     expect(mocks.cookieSet).toHaveBeenCalledWith(

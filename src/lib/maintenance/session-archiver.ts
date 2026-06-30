@@ -108,7 +108,7 @@ export async function archiveOldSessions(
       providerOptions: {
         openrouter: getOpenRouterProviderOptionsForModel(MAINTENANCE_MODEL_ID),
       },
-      system: `Sei un archivista. Riassumi questa vecchia conversazione per conservare il contesto a lungo termine.
+      instructions: `Sei un archivista. Riassumi questa vecchia conversazione per conservare il contesto a lungo termine.
 Includi: argomenti trattati, decisioni prese, fatti importanti.
 Ignora: saluti, chiacchiere inutili.
 Sii conciso ma completo.`,

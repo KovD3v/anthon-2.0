@@ -30,6 +30,7 @@ import {
   getAssistantMessageDisplayState,
   getAssistantMessageLifecycle,
   getAssistantPendingLabel,
+  getAssistantToolFeedback,
   getMessageText,
   shouldAnimateAssistantMessageMount,
   shouldRenderAssistantPendingRow,
@@ -264,6 +265,10 @@ export function MessageList({
                 lifecycle: assistantLifecycle,
                 status,
               });
+              const assistantToolFeedback = getAssistantToolFeedback({
+                status,
+                message,
+              });
               const shouldAnimateMount = shouldAnimateAssistantMessageMount({
                 message,
                 displayState: assistantDisplayState,
@@ -414,10 +419,27 @@ export function MessageList({
                               </div>
                             ) : (
                               /* Text message: show markdown */
-                              <MemoizedMarkdown
-                                className={assistantMarkdownClassName}
-                                content={messageText}
-                              />
+                              <>
+                                {assistantToolFeedback && (
+                                  <div
+                                    className={`mb-3 flex items-center gap-2 text-black ${
+                                      hasText
+                                        ? "border-black/10 border-b pb-3"
+                                        : ""
+                                    }`}
+                                    aria-live="polite"
+                                  >
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
+                                    <span className="font-medium text-black">
+                                      {assistantToolFeedback}
+                                    </span>
+                                  </div>
+                                )}
+                                <MemoizedMarkdown
+                                  className={assistantMarkdownClassName}
+                                  content={messageText}
+                                />
+                              </>
                             )}
                           </>
                         ) : (

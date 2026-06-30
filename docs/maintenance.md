@@ -21,7 +21,7 @@ It uses **Upstash QStash** for signed asynchronous execution.
                                                                       ▼
                                                        ┌─────────────────────────────┐
                                                        │ src/lib/maintenance/*       │
-                                                       │ + Gemini 2.0 Flash Lite     │
+                                                       │ + Gemini 2.5 Flash Lite     │
                                                        └─────────────────────────────┘
 ```
 

@@ -90,7 +90,7 @@ async function summarizeSession(
 
   const result = await generateText({
     model: subAgentModel,
-    system: `Sei un assistente che crea riassunti concisi di conversazioni. 
+    instructions: `Sei un assistente che crea riassunti concisi di conversazioni. 
 Estrai i punti chiave, le richieste dell'utente, le risposte importanti e qualsiasi informazione rilevante.
 Il riassunto deve essere in italiano e non superare 200 parole.
 Mantieni il contesto importante per continuare la conversazione.`,

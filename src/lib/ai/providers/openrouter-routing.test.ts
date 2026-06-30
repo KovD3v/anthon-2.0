@@ -35,6 +35,32 @@ describe("ai/providers/openrouter-routing", () => {
     });
   });
 
+  it("adds OpenRouter provider constraints from environment variables", () => {
+    expect(
+      getOpenRouterProviderRouting({
+        OPENROUTER_PROVIDER_SORT: "throughput",
+        OPENROUTER_PROVIDER_QUANTIZATIONS: "fp8, int8",
+        OPENROUTER_PROVIDER_MAX_PROMPT_PRICE: "0.000002",
+        OPENROUTER_PROVIDER_MAX_COMPLETION_PRICE: "0.000006",
+        OPENROUTER_PROVIDER_MAX_REQUEST_PRICE: "0.01",
+        OPENROUTER_PROVIDER_MAX_IMAGE_PRICE: "0.001",
+        OPENROUTER_PROVIDER_MAX_AUDIO_PRICE: "0.003",
+        OPENROUTER_PROVIDER_ZDR: "true",
+      }),
+    ).toEqual({
+      sort: "throughput",
+      quantizations: ["fp8", "int8"],
+      max_price: {
+        prompt: 0.000002,
+        completion: 0.000006,
+        image: 0.001,
+        audio: 0.003,
+        request: 0.01,
+      },
+      zdr: true,
+    });
+  });
+
   it("wraps provider routing for AI SDK OpenRouter provider options", () => {
     expect(
       getOpenRouterProviderOptions({
@@ -52,6 +78,41 @@ describe("ai/providers/openrouter-routing", () => {
       provider: {
         order: ["wandb/fp8", "fireworks/fast", "wafer/fast"],
         only: ["wandb/fp8", "fireworks/fast", "wafer/fast"],
+      },
+    });
+  });
+
+  it("memoizes provider options for unchanged routing inputs", () => {
+    const env = {
+      OPENROUTER_PROVIDER_SORT: "e2e-latency",
+      OPENROUTER_PROVIDER_E2E_METRICS:
+        "z-ai/glm-5.2=fast:4,google/gemini-2.5-flash=gemini:2",
+    };
+
+    const first = getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", env);
+    const second = getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", env);
+    const otherModel = getOpenRouterProviderOptionsForModel(
+      "google/gemini-2.5-flash",
+      env,
+    );
+
+    expect(second).toBe(first);
+    expect(otherModel).not.toBe(first);
+    expect(otherModel).toEqual({
+      provider: {
+        order: ["gemini"],
+      },
+    });
+
+    env.OPENROUTER_PROVIDER_E2E_METRICS =
+      "z-ai/glm-5.2=slower:6,google/gemini-2.5-flash=gemini:2";
+
+    const changed = getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", env);
+
+    expect(changed).not.toBe(first);
+    expect(changed).toEqual({
+      provider: {
+        order: ["slower"],
       },
     });
   });
@@ -240,6 +301,12 @@ describe("ai/providers/openrouter-routing", () => {
         OPENROUTER_PROVIDER_SORT: "ttft",
       }),
     ).toThrow(/e2e-latency/);
+
+    expect(() =>
+      getOpenRouterProviderRouting({
+        OPENROUTER_PROVIDER_MAX_PROMPT_PRICE: "0",
+      }),
+    ).toThrow(/OPENROUTER_PROVIDER_MAX_PROMPT_PRICE/);
 
     expect(() =>
       getOpenRouterProviderRouting({

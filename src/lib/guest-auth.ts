@@ -341,12 +341,6 @@ export async function createGuestChatForSession(input: {
               id: true,
               isGuest: true,
               role: true,
-              subscription: {
-                select: {
-                  status: true,
-                  planId: true,
-                },
-              },
             },
           },
         },

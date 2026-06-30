@@ -48,14 +48,16 @@ export async function checkRateLimit(
   planId?: string | null,
   isGuest?: boolean,
 ): Promise<RateLimitResult> {
-  const usage = await getDailyUsage(userId);
-  const entitlements = await resolveEffectiveEntitlements({
-    userId,
-    subscriptionStatus,
-    userRole,
-    planId,
-    isGuest,
-  });
+  const [usage, entitlements] = await Promise.all([
+    getDailyUsage(userId),
+    resolveEffectiveEntitlements({
+      userId,
+      subscriptionStatus,
+      userRole,
+      planId,
+      isGuest,
+    }),
+  ]);
 
   const limits: RateLimits = {
     maxRequestsPerDay: entitlements.limits.maxRequestsPerDay,

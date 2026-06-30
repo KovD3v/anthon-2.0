@@ -305,6 +305,7 @@ model Chat {
   deletedAt DateTime? // Soft delete
 
   @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, updatedAt(sort: Desc)])
   @@index([visibility])
   @@index([deletedAt])
 }
@@ -362,7 +363,9 @@ model Message {
 
   @@unique([channel, externalMessageId])
   @@index([userId, channel, createdAt])
+  @@index([userId, createdAt(sort: Desc)])
   @@index([chatId, createdAt])
+  @@index([chatId, userId, createdAt(sort: Desc)])
   @@index([externalMessageId])
   @@index([userId, role, createdAt])
   @@index([model, createdAt])

@@ -1,6 +1,10 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma";
+import { LatencyLogger } from "@/lib/latency-logger";
+import { createLogger } from "@/lib/logger";
 import { softDeleteExtension } from "./prisma-extensions";
+
+const dbLogger = createLogger("latency");
 
 const globalForPrisma = globalThis as unknown as {
   prisma: ReturnType<typeof createPrismaClient> | undefined;
@@ -36,3 +40,14 @@ if (!globalForPrisma.prisma) {
 }
 
 export const prisma = globalForPrisma.prisma;
+
+export async function warmDatabaseConnection(reason: string) {
+  try {
+    await LatencyLogger.measure("DB: Warm connection", () => prisma.$connect());
+  } catch (error) {
+    dbLogger.warn("db.warm_connection_failed", "Database warm-up failed", {
+      error,
+      reason,
+    });
+  }
+}

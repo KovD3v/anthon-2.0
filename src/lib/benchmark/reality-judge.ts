@@ -267,7 +267,7 @@ export async function judgeRealityTurn({
       return await generateText({
         model: openrouter(judgeModelId),
         output: Output.object({ schema: RealityJudgeOutputSchema }),
-        system:
+        instructions:
           "Sei un giudice severo e calibrato di risposte AI per coaching sportivo. Valuti solo la risposta candidata rispetto agli anchor e al contesto.",
         prompt,
         temperature: 0,

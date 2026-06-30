@@ -73,7 +73,7 @@ export async function extractAndSaveMemories(
       providerOptions: {
         openrouter: getOpenRouterProviderOptionsForModel(SUB_AGENT_MODEL_ID),
       },
-      system: `Sei un assistente che estrae informazioni importanti dalle conversazioni.
+      instructions: `Sei un assistente che estrae informazioni importanti dalle conversazioni.
 Analizza lo scambio tra utente e assistente e estrai fatti persistenti sull'utente.
 
 Regole:

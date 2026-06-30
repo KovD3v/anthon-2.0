@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   withTracing: vi.fn(),
-  stepCountIs: vi.fn(),
+  generateText: vi.fn(),
+  outputObject: vi.fn(),
+  isStepCount: vi.fn(),
   streamText: vi.fn(),
   extractAIMetrics: vi.fn(),
   getModelForUser: vi.fn(),
@@ -14,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   createMemoryTools: vi.fn(),
   formatMemoriesForPrompt: vi.fn(),
   createTinyfishTools: vi.fn(),
+  searchTinyfishDirect: vi.fn(),
   createUserContextTools: vi.fn(),
   formatTinyUserSnapshotForPrompt: vi.fn(),
   formatUserContextForPrompt: vi.fn(),
@@ -21,6 +24,8 @@ const mocks = vi.hoisted(() => ({
   resolveEffectiveEntitlements: vi.fn(),
   getPostHogClient: vi.fn(),
   getVoicePlanConfig: vi.fn(),
+  openrouter: vi.fn(),
+  trackSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("@posthog/ai", () => ({
@@ -28,7 +33,11 @@ vi.mock("@posthog/ai", () => ({
 }));
 
 vi.mock("ai", () => ({
-  stepCountIs: mocks.stepCountIs,
+  generateText: mocks.generateText,
+  Output: {
+    object: mocks.outputObject,
+  },
+  isStepCount: mocks.isStepCount,
   streamText: mocks.streamText,
 }));
 
@@ -40,6 +49,11 @@ vi.mock("@/lib/ai/providers/openrouter", () => ({
   getModelForUser: mocks.getModelForUser,
   getModelById: mocks.getModelById,
   getModelIdForPlan: mocks.getModelIdForPlan,
+  openrouter: mocks.openrouter,
+}));
+
+vi.mock("@/lib/ai/usage-meter", () => ({
+  trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
 
 vi.mock("@/lib/ai/rag", () => ({
@@ -58,6 +72,7 @@ vi.mock("@/lib/ai/tools/memory", () => ({
 
 vi.mock("@/lib/ai/tools/tinyfish", () => ({
   createTinyfishTools: mocks.createTinyfishTools,
+  searchTinyfishDirect: mocks.searchTinyfishDirect,
 }));
 
 vi.mock("@/lib/ai/tools/user-context", () => ({
@@ -105,7 +120,9 @@ const baseEntitlements = {
 describe("ai/orchestrator", () => {
   beforeEach(() => {
     mocks.withTracing.mockReset();
-    mocks.stepCountIs.mockReset();
+    mocks.generateText.mockReset();
+    mocks.outputObject.mockReset();
+    mocks.isStepCount.mockReset();
     mocks.streamText.mockReset();
     mocks.extractAIMetrics.mockReset();
     mocks.getModelForUser.mockReset();
@@ -117,6 +134,7 @@ describe("ai/orchestrator", () => {
     mocks.createMemoryTools.mockReset();
     mocks.formatMemoriesForPrompt.mockReset();
     mocks.createTinyfishTools.mockReset();
+    mocks.searchTinyfishDirect.mockReset();
     mocks.createUserContextTools.mockReset();
     mocks.formatTinyUserSnapshotForPrompt.mockReset();
     mocks.formatUserContextForPrompt.mockReset();
@@ -124,6 +142,8 @@ describe("ai/orchestrator", () => {
     mocks.resolveEffectiveEntitlements.mockReset();
     mocks.getPostHogClient.mockReset();
     mocks.getVoicePlanConfig.mockReset();
+    mocks.openrouter.mockReset();
+    mocks.trackSupportAiUsage.mockReset();
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-02-17T16:00:00.000Z"));
@@ -135,11 +155,18 @@ describe("ai/orchestrator", () => {
     mocks.measure.mockImplementation(
       async (_name: string, fn: () => unknown | Promise<unknown>) => await fn(),
     );
-    mocks.stepCountIs.mockReturnValue("stop-5");
+    mocks.isStepCount.mockImplementation((count: number) => `stop-${count}`);
+    mocks.outputObject.mockImplementation(
+      ({ schema }: { schema: unknown }) => ({ schema }),
+    );
     mocks.getModelForUser.mockReturnValue("base-model");
     mocks.getModelById.mockReturnValue("candidate-model");
     mocks.getModelIdForPlan.mockReturnValue("google/gemini-test");
     mocks.getPostHogClient.mockReturnValue("posthog-client");
+    mocks.openrouter.mockImplementation((modelId: string) => ({
+      modelId,
+      provider: "openrouter",
+    }));
     mocks.withTracing.mockReturnValue("traced-model");
     mocks.shouldUseRag.mockResolvedValue(false);
     mocks.getRagContext.mockResolvedValue("unused rag");
@@ -163,6 +190,20 @@ describe("ai/orchestrator", () => {
       tinyfishSearch: "tinyfish-tool",
       tinyfishFetch: "tinyfish-fetch-tool",
     });
+    mocks.searchTinyfishDirect.mockResolvedValue({
+      query: "prossima partita messi",
+      results: [
+        {
+          title: "Messi schedule",
+          url: "https://example.com/messi",
+          content: "Inter Miami will play next on Saturday.",
+          siteName: "example.com",
+          position: 1,
+        },
+      ],
+      totalResults: 1,
+      page: 0,
+    });
     mocks.formatTinyUserSnapshotForPrompt.mockResolvedValue(
       "Lingua: it\nSport: tennis\nObiettivo: focus pre-gara",
     );
@@ -180,6 +221,26 @@ describe("ai/orchestrator", () => {
       costUsd: 0.1,
       generationTimeMs: 123,
       reasoningTimeMs: null,
+    });
+    mocks.generateText.mockResolvedValue({
+      output: {
+        webSearch: "no",
+        webFetch: "no",
+        rag: "no",
+        userContext: "needed",
+        confidence: 0.5,
+        reason: "uncertain",
+      },
+      usage: {
+        inputTokens: 8,
+        outputTokens: 10,
+        totalTokens: 18,
+      },
+      providerMetadata: {
+        openrouter: {
+          cost: 0.00001,
+        },
+      },
     });
     mocks.streamText.mockReturnValue({ marker: "stream-result" });
   });
@@ -238,15 +299,19 @@ describe("ai/orchestrator", () => {
     );
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-      system: string;
+      instructions: string;
     };
-    expect(streamInput.system).toContain("user-context-data");
-    expect(streamInput.system).toContain("user-memories-data");
-    expect(streamInput.system).not.toContain("SAVING DATA");
-    expect(streamInput.system).not.toContain("TOOL POLICY");
-    expect(streamInput.system).not.toContain("RAG CONTEXT");
-    expect(countOccurrences(streamInput.system, "user-context-data")).toBe(1);
-    expect(countOccurrences(streamInput.system, "user-memories-data")).toBe(1);
+    expect(streamInput.instructions).toContain("user-context-data");
+    expect(streamInput.instructions).toContain("user-memories-data");
+    expect(streamInput.instructions).not.toContain("SAVING DATA");
+    expect(streamInput.instructions).not.toContain("TOOL POLICY");
+    expect(streamInput.instructions).not.toContain("RAG CONTEXT");
+    expect(
+      countOccurrences(streamInput.instructions, "user-context-data"),
+    ).toBe(1);
+    expect(
+      countOccurrences(streamInput.instructions, "user-memories-data"),
+    ).toBe(1);
   });
 
   it("uses compact prompt and no tools for simple authenticated coaching messages", async () => {
@@ -257,6 +322,7 @@ describe("ai/orchestrator", () => {
     });
 
     expect(mocks.shouldUseRag).not.toHaveBeenCalled();
+    expect(mocks.buildConversationContext).not.toHaveBeenCalled();
     expect(mocks.formatTinyUserSnapshotForPrompt).toHaveBeenCalledWith(
       "user-1",
     );
@@ -268,23 +334,30 @@ describe("ai/orchestrator", () => {
     expect(mocks.getVoicePlanConfig).not.toHaveBeenCalled();
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-      system: string;
+      instructions: string;
       tools: Record<string, unknown>;
       maxOutputTokens?: number;
+      messages: Array<{ role: string; content: unknown }>;
     };
     expect(streamInput.tools).toEqual({});
+    expect(streamInput.messages).toEqual([
+      {
+        role: "user",
+        content: "Dammi una risposta breve: motivami prima dell'allenamento",
+      },
+    ]);
     expect(streamInput.maxOutputTokens).toBe(180);
-    expect(streamInput.system).toContain("Reply in the user's language");
-    expect(streamInput.system).toContain("USER SNAPSHOT");
-    expect(streamInput.system).toContain("Sport: tennis");
-    expect(streamInput.system).toContain("Obiettivo: focus pre-gara");
-    expect(streamInput.system).not.toContain("SAVING DATA");
-    expect(streamInput.system).not.toContain("WEB SEARCH");
-    expect(streamInput.system).not.toContain("RAG CONTEXT");
-    expect(streamInput.system).not.toContain("USER CONTEXT");
-    expect(streamInput.system).not.toContain("USER MEMORIES");
-    expect(streamInput.system).not.toContain("user-context-data");
-    expect(streamInput.system).not.toContain("user-memories-data");
+    expect(streamInput.instructions).toContain("Reply in the user's language");
+    expect(streamInput.instructions).toContain("USER SNAPSHOT");
+    expect(streamInput.instructions).toContain("Sport: tennis");
+    expect(streamInput.instructions).toContain("Obiettivo: focus pre-gara");
+    expect(streamInput.instructions).not.toContain("SAVING DATA");
+    expect(streamInput.instructions).not.toContain("WEB SEARCH");
+    expect(streamInput.instructions).not.toContain("RAG CONTEXT");
+    expect(streamInput.instructions).not.toContain("USER CONTEXT");
+    expect(streamInput.instructions).not.toContain("USER MEMORIES");
+    expect(streamInput.instructions).not.toContain("user-context-data");
+    expect(streamInput.instructions).not.toContain("user-memories-data");
   });
 
   it("keeps full prompt and only profile tools when the message contains profile data", async () => {
@@ -299,7 +372,7 @@ describe("ai/orchestrator", () => {
     expect(mocks.formatTinyUserSnapshotForPrompt).not.toHaveBeenCalled();
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-      system: string;
+      instructions: string;
       tools: Record<string, unknown>;
       maxOutputTokens?: number;
     };
@@ -310,9 +383,9 @@ describe("ai/orchestrator", () => {
     );
     expect(streamInput.tools).not.toHaveProperty("saveMemory");
     expect(streamInput.tools).not.toHaveProperty("updatePreferences");
-    expect(streamInput.system).toContain("SAVING DATA");
-    expect(streamInput.system).toContain("user-context-data");
-    expect(streamInput.system).toContain("user-memories-data");
+    expect(streamInput.instructions).toContain("SAVING DATA");
+    expect(streamInput.instructions).toContain("user-context-data");
+    expect(streamInput.instructions).toContain("user-memories-data");
     expect(streamInput.maxOutputTokens).toBeUndefined();
   });
 
@@ -350,15 +423,15 @@ describe("ai/orchestrator", () => {
     expect(mocks.createUserContextTools).not.toHaveBeenCalled();
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-      system: string;
+      instructions: string;
       tools: Record<string, unknown>;
       maxOutputTokens?: number;
     };
     expect(streamInput.tools).toEqual({});
-    expect(streamInput.system).toContain("user-context-data");
-    expect(streamInput.system).toContain("user-memories-data");
-    expect(streamInput.system).not.toContain("SAVING DATA");
-    expect(streamInput.system).not.toContain("TOOL POLICY");
+    expect(streamInput.instructions).toContain("user-context-data");
+    expect(streamInput.instructions).toContain("user-memories-data");
+    expect(streamInput.instructions).not.toContain("SAVING DATA");
+    expect(streamInput.instructions).not.toContain("TOOL POLICY");
     expect(streamInput.maxOutputTokens).toBeUndefined();
   });
 
@@ -380,11 +453,11 @@ describe("ai/orchestrator", () => {
     expect(mocks.formatMemoriesForPrompt).toHaveBeenCalledWith("user-1");
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-      system: string;
+      instructions: string;
       tools: Record<string, unknown>;
       maxOutputTokens?: number;
     };
-    expect(streamInput.system).toContain("RAG CONTEXT");
+    expect(streamInput.instructions).toContain("RAG CONTEXT");
     expect(streamInput.tools).toEqual({});
     expect(mocks.createMemoryTools).not.toHaveBeenCalled();
     expect(mocks.createUserContextTools).not.toHaveBeenCalled();
@@ -423,6 +496,7 @@ describe("ai/orchestrator", () => {
       {
         text: "Usa internet e dimmi le ultime notizie sportive",
         writes: false,
+        web: true,
       },
       { text: "Ho dolore al ginocchio, cosa faccio?", writes: false },
       { text: "Mandami un vocale motivazionale", writes: false },
@@ -450,11 +524,11 @@ describe("ai/orchestrator", () => {
       });
 
       const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-        system: string;
+        instructions: string;
         tools: Record<string, unknown>;
         maxOutputTokens?: number;
       };
-      expect(streamInput.system, prompt).toContain("USER SNAPSHOT");
+      expect(streamInput.instructions, prompt).toContain("USER SNAPSHOT");
       expect(streamInput.tools, prompt).toEqual({});
       expect(streamInput.maxOutputTokens, prompt).toBe(180);
       expect(mocks.formatTinyUserSnapshotForPrompt, prompt).toHaveBeenCalled();
@@ -476,18 +550,32 @@ describe("ai/orchestrator", () => {
       });
 
       const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-        system: string;
+        instructions: string;
         tools: Record<string, unknown>;
         maxOutputTokens?: number;
       };
-      expect(streamInput.system, promptCase.text).toContain(
-        "user-context-data",
-      );
+      if (promptCase.web) {
+        expect(streamInput.instructions, promptCase.text).toContain(
+          "WEB SEARCH",
+        );
+        expect(streamInput.instructions, promptCase.text).not.toContain(
+          "USER CONTEXT",
+        );
+        expect(streamInput.instructions, promptCase.text).not.toContain(
+          "user-context-data",
+        );
+      } else {
+        expect(streamInput.instructions, promptCase.text).toContain(
+          "user-context-data",
+        );
+      }
       if (promptCase.writes) {
-        expect(streamInput.system, promptCase.text).toContain("SAVING DATA");
+        expect(streamInput.instructions, promptCase.text).toContain(
+          "SAVING DATA",
+        );
         expect(streamInput.tools, promptCase.text).not.toEqual({});
       } else {
-        expect(streamInput.system, promptCase.text).not.toContain(
+        expect(streamInput.instructions, promptCase.text).not.toContain(
           "SAVING DATA",
         );
       }
@@ -499,8 +587,11 @@ describe("ai/orchestrator", () => {
       expect(
         mocks.formatUserContextForPrompt,
         promptCase.text,
-      ).toHaveBeenCalled();
-      expect(mocks.formatMemoriesForPrompt, promptCase.text).toHaveBeenCalled();
+      ).toHaveBeenCalledTimes(promptCase.web ? 0 : 1);
+      expect(
+        mocks.formatMemoriesForPrompt,
+        promptCase.text,
+      ).toHaveBeenCalledTimes(promptCase.web ? 0 : 1);
     }
   });
 
@@ -527,13 +618,13 @@ describe("ai/orchestrator", () => {
     );
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-      onFinish?: (input: {
+      onEnd?: (input: {
         text: string;
         usage?: { inputTokens?: number; outputTokens?: number };
         providerMetadata?: Record<string, unknown>;
       }) => Promise<void>;
     };
-    await streamInput.onFinish?.({
+    await streamInput.onEnd?.({
       text: "assistant",
       usage: { inputTokens: 1, outputTokens: 2 },
       providerMetadata: {},
@@ -592,9 +683,11 @@ describe("ai/orchestrator", () => {
         content: [
           { type: "text", text: "cosa vedi?" },
           {
-            type: "image",
-            image:
-              "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            type: "file",
+
+            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+
+            mediaType: "image/jpeg",
           },
         ],
       },
@@ -610,30 +703,104 @@ describe("ai/orchestrator", () => {
     });
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
       tools: Record<string, unknown>;
     };
     expect(streamInput.tools).toEqual(
       expect.objectContaining({
         tinyfishSearch: "tinyfish-tool",
-        tinyfishFetch: "tinyfish-fetch-tool",
       }),
     );
+    expect(streamInput.tools).not.toHaveProperty("tinyfishFetch");
+    expect(streamInput.instructions).not.toContain("tinyfishFetch");
     expect(streamInput.tools).not.toHaveProperty("saveMemory");
     expect(streamInput.tools).not.toHaveProperty("updateProfile");
     expect(streamInput.tools).not.toHaveProperty("getMemories");
     expect(streamInput.tools).not.toHaveProperty("getUserContext");
+    expect(streamInput.instructions).not.toContain("USER CONTEXT");
+    expect(streamInput.instructions).not.toContain("USER MEMORIES");
+    expect(mocks.formatUserContextForPrompt).not.toHaveBeenCalled();
+    expect(mocks.formatMemoriesForPrompt).not.toHaveBeenCalled();
     expect(mocks.createTinyfishTools).toHaveBeenCalledWith({
       maxSearchCalls: 1,
+      maxSearchResults: 4,
+      maxSearchSnippetChars: 180,
       maxFetchCalls: 1,
       maxFetchUrls: 3,
+      defaultSearchDomainType: "news",
+      defaultFetchPerUrlTimeoutMs: 8_000,
+      defaultFetchTtl: 3600,
+      fetchRequestTimeoutMs: 12_000,
+      maxFetchTextChars: 2000,
     });
+    expect(streamInput).toEqual(
+      expect.objectContaining({ stopWhen: "stop-3" }),
+    );
     expect(mocks.shouldUseRag).not.toHaveBeenCalled();
+  });
+
+  it("prefetches TinyFish directly for brief search-only requests", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-messi-brief",
+      userMessage:
+        "Fai una ricerca su internet: qual e la prossima partita che Messi giochera? Rispondi breve.",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      prepareStep?: (input: {
+        steps: Array<{ toolCalls?: unknown[] }>;
+      }) => unknown;
+      stopWhen: unknown;
+      maxOutputTokens?: number;
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).toEqual({});
+    expect(streamInput.instructions).toContain("WEB SEARCH RESULTS");
+    expect(streamInput.instructions).toContain("Messi schedule");
+    expect(streamInput.instructions).toContain("https://example.com/messi");
+    expect(mocks.createTinyfishTools).not.toHaveBeenCalled();
+    expect(mocks.searchTinyfishDirect).toHaveBeenCalledWith({
+      query: "qual e la prossima partita che Messi giochera?",
+      language: "it",
+      defaultSearchDomainType: "news",
+      maxSearchResults: 3,
+      maxSearchSnippetChars: 160,
+    });
+    expect(mocks.getModelForUser).toHaveBeenCalledWith(
+      undefined,
+      undefined,
+      "orchestrator",
+      "BASIC",
+      undefined,
+      { parallelToolCalls: false },
+    );
+    expect(streamInput.maxOutputTokens).toBe(120);
+    expect(mocks.isStepCount).toHaveBeenCalledWith(1);
+    expect(streamInput.stopWhen).toBe("stop-1");
+    expect(streamInput.prepareStep).toBeUndefined();
   });
 
   it("enables TinyFish for live score wording and explicit internet search requests", async () => {
     const prompts = [
       "che punteggio è la partita dei mondiali che sta giocando ora?",
+      "fai una ricerca",
       "fai una ricerca su internet",
+      "cercalo online per favore",
+      "controlla sul web se è confermato",
+      "verifica online gli ultimi aggiornamenti",
+      "non riesco a cercare, puoi farlo tu?",
+      "non ho trovato online, puoi controllare tu?",
+      "qual è la classifica della Serie A oggi?",
+      "ok, sai dirmi chi gioca per la norvegia sta sera",
+      "qual è il meteo domani a Milano?",
+      "quanto costa ora il biglietto per Inter Milan?",
+      "è disponibile oggi la nuova maglia della nazionale?",
+      "a che ora parte il treno per Roma stasera?",
+      "ristoranti aperti ora vicino allo stadio",
+      "ultime notizie sulla finale dei mondiali",
+      "programma aggiornato degli eventi di questo weekend",
     ];
 
     for (const prompt of prompts) {
@@ -649,23 +816,68 @@ describe("ai/orchestrator", () => {
       });
 
       const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-        system: string;
+        instructions: string;
         tools: Record<string, unknown>;
       };
-      expect(streamInput.system, prompt).toContain("WEB SEARCH");
+      expect(streamInput.instructions, prompt).toContain("WEB SEARCH");
       expect(streamInput.tools, prompt).toEqual(
         expect.objectContaining({
           tinyfishSearch: "tinyfish-tool",
-          tinyfishFetch: "tinyfish-fetch-tool",
         }),
       );
+      expect(streamInput.tools, prompt).not.toHaveProperty("tinyfishFetch");
       expect(streamInput.tools, prompt).not.toHaveProperty("saveMemory");
       expect(streamInput.tools, prompt).not.toHaveProperty("updateProfile");
-      expect(mocks.createTinyfishTools, prompt).toHaveBeenCalledWith({
-        maxSearchCalls: 1,
-        maxFetchCalls: 1,
-        maxFetchUrls: 3,
+      expect(mocks.createTinyfishTools, prompt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxSearchCalls: 1,
+          maxSearchResults: 4,
+          maxSearchSnippetChars: 180,
+          maxFetchCalls: 1,
+          maxFetchUrls: 3,
+          defaultFetchPerUrlTimeoutMs: 8_000,
+          defaultFetchTtl: 3600,
+          fetchRequestTimeoutMs: 12_000,
+          maxFetchTextChars: 2000,
+        }),
+      );
+    }
+  });
+
+  it("does not enable TinyFish for personal planning language with dates or ranking words", async () => {
+    const prompts = [
+      "fammi un programma di allenamento per il 2026",
+      "classifica questi esercizi dal più facile al più difficile",
+      "qual è il risultato del mio allenamento di ieri?",
+      "analizza il mio ultimo microciclo senza cercare online",
+      "non fare una ricerca, rispondi con quello che sai",
+      "senza controllare online, secondo te cosa dovrei fare?",
+      "non usare internet per questa risposta",
+      "non serve cercare, voglio un consiglio rapido",
+      "rispondi senza web: come gestisco l'ansia pre gara?",
+      "programma per oggi una seduta leggera",
+    ];
+
+    for (const prompt of prompts) {
+      mocks.streamText.mockClear();
+      mocks.createTinyfishTools.mockClear();
+      mocks.createMemoryTools.mockClear();
+      mocks.createUserContextTools.mockClear();
+
+      await streamChat({
+        userId: "user-1",
+        chatId: `chat-local-${prompt.length}`,
+        userMessage: prompt,
       });
+
+      const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+        instructions: string;
+        tools: Record<string, unknown>;
+      };
+      expect(streamInput.instructions, prompt).not.toContain("WEB SEARCH");
+      expect(streamInput.tools, prompt).not.toHaveProperty("tinyfishSearch");
+      expect(streamInput.tools, prompt).not.toHaveProperty("tinyfishFetch");
+      expect(mocks.createTinyfishTools, prompt).not.toHaveBeenCalled();
     }
   });
 
@@ -689,6 +901,12 @@ describe("ai/orchestrator", () => {
       userMessage: "quale è la prossima partita che messi giocherà?",
     });
 
+    expect(mocks.buildConversationContext).toHaveBeenCalledWith(
+      "user-1",
+      4,
+      "chat-messi-next-match",
+    );
+
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       messages: Array<{ role: string; content: unknown }>;
       tools: Record<string, unknown>;
@@ -700,15 +918,22 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).toEqual(
       expect.objectContaining({
         tinyfishSearch: "tinyfish-tool",
-        tinyfishFetch: "tinyfish-fetch-tool",
       }),
     );
+    expect(streamInput.tools).not.toHaveProperty("tinyfishFetch");
     expect(streamInput.tools).not.toHaveProperty("saveMemory");
     expect(streamInput.tools).not.toHaveProperty("updateProfile");
     expect(mocks.createTinyfishTools).toHaveBeenCalledWith({
       maxSearchCalls: 1,
+      maxSearchResults: 4,
+      maxSearchSnippetChars: 180,
       maxFetchCalls: 1,
       maxFetchUrls: 3,
+      defaultSearchDomainType: "news",
+      defaultFetchPerUrlTimeoutMs: 8_000,
+      defaultFetchTtl: 3600,
+      fetchRequestTimeoutMs: 12_000,
+      maxFetchTextChars: 2000,
     });
   });
 
@@ -724,23 +949,130 @@ describe("ai/orchestrator", () => {
     });
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      prepareStep?: unknown;
       tools: Record<string, unknown>;
     };
     expect(streamInput.tools).toEqual(
       expect.objectContaining({
         tinyfishSearch: "tinyfish-tool",
-        tinyfishFetch: "tinyfish-fetch-tool",
       }),
     );
+    expect(streamInput.tools).not.toHaveProperty("tinyfishFetch");
+    expect(streamInput.instructions).not.toContain("tinyfishFetch");
     expect(streamInput.tools).not.toHaveProperty("saveMemory");
     expect(streamInput.tools).not.toHaveProperty("updateProfile");
     expect(streamInput.tools).not.toHaveProperty("getMemories");
     expect(streamInput.tools).not.toHaveProperty("getUserContext");
     expect(mocks.createTinyfishTools).toHaveBeenCalledWith({
       maxSearchCalls: 1,
+      maxSearchResults: 4,
+      maxSearchSnippetChars: 180,
       maxFetchCalls: 1,
       maxFetchUrls: 3,
+      defaultSearchDomainType: "news",
+      defaultFetchPerUrlTimeoutMs: 8_000,
+      defaultFetchTtl: 3600,
+      fetchRequestTimeoutMs: 12_000,
+      maxFetchTextChars: 2000,
     });
+  });
+
+  it("keeps TinyFish fetch available for source and article requests", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-web-source",
+      userMessage: "Cerca online fonti affidabili e apri gli articoli sul tema",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      prepareStep?: unknown;
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.instructions).toContain("tinyfishFetch");
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+      }),
+    );
+    expect(mocks.isStepCount).toHaveBeenCalledWith(4);
+    expect(streamInput.prepareStep).toBeUndefined();
+    expect(streamInput).toEqual(
+      expect.objectContaining({ stopWhen: "stop-4" }),
+    );
+  });
+
+  it("uses the prompt classifier for ambiguous current-info requests", async () => {
+    mocks.generateText.mockResolvedValueOnce({
+      output: {
+        webSearch: "yes",
+        webFetch: "no",
+        rag: "no",
+        userContext: "not_needed",
+        confidence: 0.86,
+        reason: "asks for a current sports-person status update",
+      },
+      usage: {
+        inputTokens: 22,
+        outputTokens: 12,
+        totalTokens: 34,
+      },
+      providerMetadata: {
+        openrouter: {
+          cost: 0.00002,
+        },
+      },
+    });
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-ambiguous-current-info",
+      userMessage: "Mi aggiorni sulla situazione di Messi?",
+    });
+
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: {
+          modelId: "qwen/qwen3.6-27b",
+          provider: "openrouter",
+        },
+        providerOptions: {
+          openrouter: {
+            provider: { sort: "latency" },
+          },
+        },
+        temperature: 0,
+        maxOutputTokens: 120,
+      }),
+    );
+    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      userId: "user-1",
+      modelId: "qwen/qwen3.6-27b",
+      usage: {
+        inputTokens: 22,
+        outputTokens: 12,
+        totalTokens: 34,
+      },
+      providerMetadata: {
+        openrouter: {
+          cost: 0.00002,
+        },
+      },
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        tinyfishSearch: "tinyfish-tool",
+      }),
+    );
+    expect(streamInput.instructions).toContain("WEB SEARCH");
+    expect(streamInput.instructions).not.toContain("USER CONTEXT");
   });
 
   it("builds audio/file content parts, strips codec suffixes, and applies voice-disabled prompt variant", async () => {
@@ -765,7 +1097,7 @@ describe("ai/orchestrator", () => {
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       messages: Array<{ role: string; content: unknown }>;
-      system: string;
+      instructions: string;
     };
     const content = streamInput.messages[0].content as Array<{
       type: string;
@@ -783,8 +1115,8 @@ describe("ai/orchestrator", () => {
       mediaType: "audio/webm",
     });
     expect(content[1]?.data).toBeInstanceOf(Uint8Array);
-    expect(streamInput.system).toContain("**Doc A**");
-    expect(streamInput.system).toContain("Voice generation is disabled");
+    expect(streamInput.instructions).toContain("**Doc A**");
+    expect(streamInput.instructions).toContain("Voice generation is disabled");
   });
 
   it("skips invalid non-image file data instead of failing stream setup", async () => {
@@ -824,12 +1156,12 @@ describe("ai/orchestrator", () => {
     });
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-      system: string;
+      instructions: string;
     };
 
-    expect(streamInput.system).toContain("VOICE RESPONSE MODE");
-    expect(streamInput.system).toContain("spoken audio");
-    expect(streamInput.system).toContain("Do not use markdown");
+    expect(streamInput.instructions).toContain("VOICE RESPONSE MODE");
+    expect(streamInput.instructions).toContain("spoken audio");
+    expect(streamInput.instructions).toContain("Do not use markdown");
   });
 
   it("continues streaming when memories are temporarily unavailable", async () => {
@@ -845,10 +1177,10 @@ describe("ai/orchestrator", () => {
 
     expect(result).toEqual({ marker: "stream-result" });
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-      system: string;
+      instructions: string;
     };
-    expect(streamInput.system).toContain("user-context-data");
-    expect(streamInput.system).toContain("No user memories available.");
+    expect(streamInput.instructions).toContain("user-context-data");
+    expect(streamInput.instructions).toContain("No user memories available.");
   });
 
   it("continues streaming with empty history when conversation history lookup fails", async () => {
@@ -866,13 +1198,13 @@ describe("ai/orchestrator", () => {
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       messages: Array<{ role: string; content: unknown }>;
-      system: string;
+      instructions: string;
     };
     expect(streamInput.messages).toEqual([
       { role: "user", content: "continue anyway" },
     ]);
-    expect(streamInput.system).toContain("user-context-data");
-    expect(streamInput.system).toContain("user-memories-data");
+    expect(streamInput.instructions).toContain("user-context-data");
+    expect(streamInput.instructions).toContain("user-memories-data");
   });
 
   it("uses compact prompt and skips persistent tools for guest chats", async () => {
@@ -894,16 +1226,16 @@ describe("ai/orchestrator", () => {
     expect(mocks.getRagContext).not.toHaveBeenCalled();
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-      system: string;
+      instructions: string;
       tools: Record<string, unknown>;
       maxOutputTokens?: number;
     };
-    expect(streamInput.system).toContain("GUEST SESSION");
-    expect(streamInput.system).toContain(
+    expect(streamInput.instructions).toContain("GUEST SESSION");
+    expect(streamInput.instructions).toContain(
       "Persistent profile, preferences, and memory are unavailable",
     );
-    expect(streamInput.system).toContain("60 to 90 words");
-    expect(streamInput.system).not.toContain("SAVING DATA");
+    expect(streamInput.instructions).toContain("60 to 90 words");
+    expect(streamInput.instructions).not.toContain("SAVING DATA");
     expect(streamInput.tools).toEqual({});
     expect(streamInput.maxOutputTokens).toBe(220);
   });
@@ -942,13 +1274,13 @@ describe("ai/orchestrator", () => {
     });
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-      onStepFinish: (step: {
+      onStepEnd: (step: {
         text?: string;
         toolCalls?: Array<{ toolName: string; input?: unknown }>;
         toolResults?: Array<{ output?: unknown }>;
         providerMetadata?: Record<string, unknown>;
       }) => void;
-      onFinish: (step: {
+      onEnd: (step: {
         text: string;
         usage?: {
           inputTokens?: number;
@@ -964,13 +1296,13 @@ describe("ai/orchestrator", () => {
       }) => Promise<void>;
     };
 
-    streamInput.onStepFinish({
+    streamInput.onStepEnd({
       text: "partial",
       toolCalls: [{ toolName: "saveMemory", input: { key: "user_goal" } }],
       toolResults: [{ output: { saved: true } }],
       providerMetadata: { openrouter: { usage: { cost: 0.04 } } },
     });
-    streamInput.onStepFinish({
+    streamInput.onStepEnd({
       text: "assistant response",
       providerMetadata: { openrouter: { usage: { cost: 0.11 } } },
     });
@@ -986,7 +1318,7 @@ describe("ai/orchestrator", () => {
       toolResults: undefined,
     });
 
-    await streamInput.onFinish({
+    await streamInput.onEnd({
       text: "assistant response",
       usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
       totalUsage: { inputTokens: 110, outputTokens: 120, totalTokens: 230 },
@@ -1014,6 +1346,11 @@ describe("ai/orchestrator", () => {
             result: { saved: true },
           },
         ],
+        toolTiming: {
+          firstModelStepMs: expect.any(Number),
+          toolExecutionMs: expect.any(Number),
+          finalModelStepMs: expect.any(Number),
+        },
       }),
     );
     expect(userOnFinish).toHaveBeenCalledWith({
@@ -1042,7 +1379,7 @@ describe("ai/orchestrator", () => {
     });
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-      onFinish: (step: {
+      onEnd: (step: {
         text: string;
         usage?: {
           inputTokens?: number;
@@ -1052,7 +1389,7 @@ describe("ai/orchestrator", () => {
       }) => Promise<void>;
     };
 
-    const finishPromise = streamInput.onFinish({
+    const finishPromise = streamInput.onEnd({
       text: "assistant response",
       usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
     });

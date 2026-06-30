@@ -84,6 +84,13 @@ export interface AIMetrics {
     args: unknown;
     result?: unknown;
   }> | null;
+  toolCallCount?: number;
+  toolResultChars?: number;
+  toolTiming?: {
+    firstModelStepMs?: number;
+    toolExecutionMs?: number;
+    finalModelStepMs?: number;
+  };
   ragUsed: boolean;
   ragChunksCount: number;
   costUsd: number;
@@ -99,6 +106,9 @@ interface FinishResultInput {
     completionTokens?: number;
     inputTokens?: number;
     outputTokens?: number;
+    outputTokenDetails?: {
+      reasoningTokens?: number;
+    };
   };
   /**
    * OpenRouter provider metadata is exact for single-step calls, but can describe
@@ -113,6 +123,7 @@ interface FinishResultInput {
     args: unknown;
     result?: unknown;
   }>;
+  toolTiming?: AIMetrics["toolTiming"];
   ragUsed?: boolean;
   ragChunksCount?: number;
 }
@@ -165,13 +176,29 @@ export function extractAIMetrics(
   // OpenRouter may provide this in experimental metadata
   const providerMeta = finishResult.providerMetadata;
   const openrouterMeta = providerMeta?.openrouter as
-    | { reasoningTokens?: number; reasoning?: string }
+    | {
+        outputTokenDetails?: { reasoningTokens?: number };
+        reasoningTokens?: number;
+        reasoning?: string;
+      }
     | undefined;
-  const reasoningTokens = openrouterMeta?.reasoningTokens ?? null;
+  const reasoningTokens =
+    finishResult.usage?.outputTokenDetails?.reasoningTokens ??
+    openrouterMeta?.outputTokenDetails?.reasoningTokens ??
+    openrouterMeta?.reasoningTokens ??
+    null;
   const reasoningContent = openrouterMeta?.reasoning ?? null;
 
   // Use collected tool calls
   const toolCalls = finishResult.collectedToolCalls ?? null;
+  const toolCallCount = toolCalls?.length ?? 0;
+  const toolResultChars =
+    toolCalls?.reduce((total, toolCall) => {
+      if (toolCall.result === undefined) {
+        return total;
+      }
+      return total + JSON.stringify(toolCall.result).length;
+    }, 0) ?? 0;
 
   // Calculate cost: prefer OpenRouter's cost if available, otherwise calculate with TokenLens
   // NOTE: We use the FULL input tokens for cost calculation before subtraction
@@ -199,6 +226,9 @@ export function extractAIMetrics(
     reasoningTokens,
     reasoningContent,
     toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : null,
+    toolCallCount,
+    toolResultChars,
+    toolTiming: finishResult.toolTiming,
     ragUsed: finishResult.ragUsed ?? false,
     ragChunksCount: finishResult.ragChunksCount ?? 0,
     costUsd,

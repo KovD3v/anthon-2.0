@@ -46,6 +46,7 @@ OPENROUTER_API_KEY="sk-or-..."
 Feature-specific variables:
 
 - Uploads: `BLOB_READ_WRITE_TOKEN`
+- Web search tools: `TINYFISH_API_KEY`
 - Maintenance jobs: `QSTASH_URL`, `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `CRON_SECRET`, `APP_URL`
 - Telegram channel: `TELEGRAM_*`
 - WhatsApp channel: `WHATSAPP_*`
@@ -54,6 +55,10 @@ Feature-specific variables:
 `NEXT_PUBLIC_APP_URL` is used for link generation (channel linking, embedding headers, callbacks).
 
 `TEST_DATABASE_URL` is required for `bun run test:integration` and should point to a non-production database/branch.
+
+`TINYFISH_API_KEY` enables the runtime web-search tools (`tinyfishSearch` and
+`tinyfishFetch`). Without it, current-information turns should be covered by
+tests/mocks rather than live provider calls.
 
 Neon branch mapping (required):
 

@@ -1,4 +1,5 @@
 import "dotenv/config";
+import type { ToolExecutionOptions } from "ai";
 import { describe, expect, it } from "vitest";
 import { createTinyfishTools } from "./tinyfish";
 
@@ -27,6 +28,41 @@ type GroundTruthCase = {
   location?: string;
   expected: RegExp[];
 };
+
+type TinyfishTools = ReturnType<typeof createTinyfishTools>;
+type TinyfishSearchInput = Parameters<
+  NonNullable<TinyfishTools["tinyfishSearch"]["execute"]>
+>[0];
+type TinyfishFetchInput = Parameters<
+  NonNullable<TinyfishTools["tinyfishFetch"]["execute"]>
+>[0];
+
+const toolExecutionOptions: ToolExecutionOptions<Record<string, unknown>> = {
+  toolCallId: "tinyfish-live-test-call",
+  messages: [],
+  context: {},
+};
+
+async function executeSearch(tools: TinyfishTools, input: TinyfishSearchInput) {
+  const execute = tools.tinyfishSearch.execute;
+  if (!execute) {
+    throw new Error("tinyfishSearch execute is missing");
+  }
+  return (await execute(input, toolExecutionOptions)) as {
+    results: SearchResult[];
+    error?: string;
+  };
+}
+
+async function executeFetch(tools: TinyfishTools, input: TinyfishFetchInput) {
+  const execute = tools.tinyfishFetch.execute;
+  if (!execute) {
+    throw new Error("tinyfishFetch execute is missing");
+  }
+  return (await execute(input, toolExecutionOptions)) as {
+    results: FetchResult[];
+  };
+}
 
 const groundTruthCases: GroundTruthCase[] = [
   {
@@ -104,7 +140,7 @@ describe.skipIf(!RUN_LIVE_TESTS)("TinyFish live sports ground truth", () => {
     async ({ query, language, location, expected }) => {
       const tools = createTinyfishTools();
 
-      const searchResult = await tools.tinyfishSearch.execute({
+      const searchResult = await executeSearch(tools, {
         query,
         language,
         location,
@@ -120,7 +156,7 @@ describe.skipIf(!RUN_LIVE_TESTS)("TinyFish live sports ground truth", () => {
         .slice(0, 5);
       expect(fetchUrls.length).toBeGreaterThan(0);
 
-      const fetchResult = await tools.tinyfishFetch.execute({
+      const fetchResult = await executeFetch(tools, {
         urls: fetchUrls,
         format: "markdown",
         ttl: 86_400,

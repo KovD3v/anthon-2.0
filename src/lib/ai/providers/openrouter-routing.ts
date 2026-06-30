@@ -12,6 +12,13 @@ export const OPENROUTER_PROVIDER_ROUTING_ENV = {
   allowFallbacks: "OPENROUTER_PROVIDER_ALLOW_FALLBACKS",
   requireParameters: "OPENROUTER_PROVIDER_REQUIRE_PARAMETERS",
   dataCollection: "OPENROUTER_PROVIDER_DATA_COLLECTION",
+  quantizations: "OPENROUTER_PROVIDER_QUANTIZATIONS",
+  maxPromptPrice: "OPENROUTER_PROVIDER_MAX_PROMPT_PRICE",
+  maxCompletionPrice: "OPENROUTER_PROVIDER_MAX_COMPLETION_PRICE",
+  maxImagePrice: "OPENROUTER_PROVIDER_MAX_IMAGE_PRICE",
+  maxAudioPrice: "OPENROUTER_PROVIDER_MAX_AUDIO_PRICE",
+  maxRequestPrice: "OPENROUTER_PROVIDER_MAX_REQUEST_PRICE",
+  zdr: "OPENROUTER_PROVIDER_ZDR",
   e2eMetrics: "OPENROUTER_PROVIDER_E2E_METRICS",
   costMetrics: "OPENROUTER_PROVIDER_COST_METRICS",
   e2eInputTokens: "OPENROUTER_PROVIDER_E2E_INPUT_TOKENS",
@@ -33,6 +40,15 @@ export type OpenRouterProviderRouting = {
   allow_fallbacks?: boolean;
   require_parameters?: boolean;
   data_collection?: "allow" | "deny";
+  quantizations?: string[];
+  max_price?: {
+    prompt?: number;
+    completion?: number;
+    image?: number;
+    audio?: number;
+    request?: number;
+  };
+  zdr?: boolean;
 };
 
 type ProviderPerformance = {
@@ -50,23 +66,55 @@ type ProviderCost = {
   outputCostPerToken: number;
 };
 
+const PROVIDER_OPTIONS_CACHE_MAX_ENTRIES = 200;
 const RECENT_ERROR_LIGHT_PENALTY_SECONDS = 8;
 const RECENT_ERROR_STRONG_PENALTY_SECONDS = 25;
 const RECENT_ERROR_COOLDOWN_THRESHOLD = 3;
+const providerOptionsCache = new Map<string, JSONObject>();
 
 export function getOpenRouterProviderOptions(
   env: Env = process.env,
 ): JSONObject {
-  const provider = getOpenRouterProviderRouting(env);
-  return provider ? { provider } : {};
+  return getCachedOpenRouterProviderOptions(env);
 }
 
 export function getOpenRouterProviderOptionsForModel(
   modelId: string,
   env: Env = process.env,
 ): JSONObject {
+  return getCachedOpenRouterProviderOptions(env, modelId);
+}
+
+function getCachedOpenRouterProviderOptions(
+  env: Env,
+  modelId?: string,
+): JSONObject {
+  const cacheKey = getProviderOptionsCacheKey(env, modelId);
+  const cachedOptions = providerOptionsCache.get(cacheKey);
+  if (cachedOptions) {
+    return cachedOptions;
+  }
+
   const provider = getOpenRouterProviderRouting(env, modelId);
-  return provider ? { provider } : {};
+  const options: JSONObject = provider ? { provider } : {};
+  providerOptionsCache.set(cacheKey, options);
+  if (providerOptionsCache.size > PROVIDER_OPTIONS_CACHE_MAX_ENTRIES) {
+    const oldestKey = providerOptionsCache.keys().next().value;
+    if (oldestKey) {
+      providerOptionsCache.delete(oldestKey);
+    }
+  }
+  return options;
+}
+
+function getProviderOptionsCacheKey(env: Env, modelId: string | undefined) {
+  return JSON.stringify({
+    modelId: modelId ?? null,
+    values: Object.values(OPENROUTER_PROVIDER_ROUTING_ENV).map((name) => [
+      name,
+      env[name],
+    ]),
+  });
 }
 
 export function getOpenRouterProviderRouting(
@@ -129,6 +177,26 @@ export function getOpenRouterProviderRouting(
     provider.data_collection = dataCollection;
   }
 
+  const quantizations = parseList(
+    env[OPENROUTER_PROVIDER_ROUTING_ENV.quantizations],
+  );
+  if (quantizations.length > 0) {
+    provider.quantizations = quantizations;
+  }
+
+  const maxPrice = parseMaxPrice(env);
+  if (Object.keys(maxPrice).length > 0) {
+    provider.max_price = maxPrice;
+  }
+
+  const zdr = parseBoolean(
+    env[OPENROUTER_PROVIDER_ROUTING_ENV.zdr],
+    OPENROUTER_PROVIDER_ROUTING_ENV.zdr,
+  );
+  if (zdr !== undefined) {
+    provider.zdr = zdr;
+  }
+
   if (sort !== "e2e-latency") {
     penalizeRecentErrorProviders(provider, env, modelId);
   }
@@ -171,6 +239,50 @@ function parseProviderSort(value: string) {
   throw new Error(
     `${OPENROUTER_PROVIDER_ROUTING_ENV.sort} must be price, throughput, latency, or e2e-latency.`,
   );
+}
+
+function parseMaxPrice(
+  env: Env,
+): NonNullable<OpenRouterProviderRouting["max_price"]> {
+  const maxPrice: NonNullable<OpenRouterProviderRouting["max_price"]> = {};
+  const prompt = parseOptionalPositiveNumber(
+    env[OPENROUTER_PROVIDER_ROUTING_ENV.maxPromptPrice],
+    OPENROUTER_PROVIDER_ROUTING_ENV.maxPromptPrice,
+  );
+  const completion = parseOptionalPositiveNumber(
+    env[OPENROUTER_PROVIDER_ROUTING_ENV.maxCompletionPrice],
+    OPENROUTER_PROVIDER_ROUTING_ENV.maxCompletionPrice,
+  );
+  const image = parseOptionalPositiveNumber(
+    env[OPENROUTER_PROVIDER_ROUTING_ENV.maxImagePrice],
+    OPENROUTER_PROVIDER_ROUTING_ENV.maxImagePrice,
+  );
+  const audio = parseOptionalPositiveNumber(
+    env[OPENROUTER_PROVIDER_ROUTING_ENV.maxAudioPrice],
+    OPENROUTER_PROVIDER_ROUTING_ENV.maxAudioPrice,
+  );
+  const request = parseOptionalPositiveNumber(
+    env[OPENROUTER_PROVIDER_ROUTING_ENV.maxRequestPrice],
+    OPENROUTER_PROVIDER_ROUTING_ENV.maxRequestPrice,
+  );
+
+  if (prompt !== undefined) {
+    maxPrice.prompt = prompt;
+  }
+  if (completion !== undefined) {
+    maxPrice.completion = completion;
+  }
+  if (image !== undefined) {
+    maxPrice.image = image;
+  }
+  if (audio !== undefined) {
+    maxPrice.audio = audio;
+  }
+  if (request !== undefined) {
+    maxPrice.request = request;
+  }
+
+  return maxPrice;
 }
 
 function penalizeRecentErrorProviders(

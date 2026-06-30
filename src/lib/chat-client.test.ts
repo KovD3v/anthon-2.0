@@ -84,7 +84,11 @@ describe("chat-client", () => {
   it("extracts only text from parts", () => {
     const parts = [
       { type: "text", text: "Hi " },
-      { type: "image", image: "ignored" },
+      {
+        type: "file",
+        data: "ignored",
+        mediaType: "image",
+      },
       { type: "text", text: "there" },
     ] as unknown as UIMessage["parts"];
 

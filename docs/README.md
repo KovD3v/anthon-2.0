@@ -9,7 +9,7 @@ Welcome to the Anthon 2.0 documentation. Anthon is an AI-powered coaching chat a
 | [Getting Started](./getting-started.md) | Setup + user/admin runbook (non-technical)   |
 | [Architecture](./architecture.md)       | System architecture and project structure    |
 | [Database](./database.md)               | Prisma schema and data models                |
-| [AI System](./ai-system.md)             | Orchestrator, RAG, sessions, and memory      |
+| [AI System](./ai-system.md)             | Orchestrator, routing, tools, RAG, sessions, and memory |
 | [Maintenance](./maintenance.md)         | Automated jobs, cron trigger, and QStash queues |
 | [API Reference](./api.md)               | REST API endpoints documentation             |
 | [Authentication](./authentication.md)   | Clerk integration and user roles             |
@@ -29,8 +29,9 @@ Welcome to the Anthon 2.0 documentation. Anthon is an AI-powered coaching chat a
 | **Database**       | PostgreSQL with Prisma ORM         |
 | **Vector Search**  | pgvector for RAG embeddings        |
 | **Authentication** | Clerk                              |
-| **AI Provider**    | OpenRouter (Gemini model routing)   |
+| **AI Provider**    | OpenRouter with plan-based model routing |
 | **AI SDK**         | Vercel AI SDK v6                   |
+| **Web Search**     | TinyFish search and fetch tools     |
 | **Styling**        | Tailwind CSS                       |
 | **UI Components**  | Radix UI, Framer Motion            |
 

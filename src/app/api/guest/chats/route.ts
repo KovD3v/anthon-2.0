@@ -5,7 +5,8 @@
  * POST /api/guest/chats - Create a new chat for guest user
  */
 
-import { prisma } from "@/lib/db";
+import { waitUntil } from "@vercel/functions";
+import { prisma, warmDatabaseConnection } from "@/lib/db";
 import { authenticateGuest, createGuestChatForSession } from "@/lib/guest-auth";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
     }
 
     const { chat } = await createGuestChatForSession({ title });
+    waitUntil(warmDatabaseConnection("guest_chat_created"));
 
     return Response.json(
       {
