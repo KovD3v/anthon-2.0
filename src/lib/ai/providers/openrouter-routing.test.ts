@@ -82,6 +82,41 @@ describe("ai/providers/openrouter-routing", () => {
     });
   });
 
+  it("memoizes provider options for unchanged routing inputs", () => {
+    const env = {
+      OPENROUTER_PROVIDER_SORT: "e2e-latency",
+      OPENROUTER_PROVIDER_E2E_METRICS:
+        "z-ai/glm-5.2=fast:4,google/gemini-2.5-flash=gemini:2",
+    };
+
+    const first = getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", env);
+    const second = getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", env);
+    const otherModel = getOpenRouterProviderOptionsForModel(
+      "google/gemini-2.5-flash",
+      env,
+    );
+
+    expect(second).toBe(first);
+    expect(otherModel).not.toBe(first);
+    expect(otherModel).toEqual({
+      provider: {
+        order: ["gemini"],
+      },
+    });
+
+    env.OPENROUTER_PROVIDER_E2E_METRICS =
+      "z-ai/glm-5.2=slower:6,google/gemini-2.5-flash=gemini:2";
+
+    const changed = getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", env);
+
+    expect(changed).not.toBe(first);
+    expect(changed).toEqual({
+      provider: {
+        order: ["slower"],
+      },
+    });
+  });
+
   it("estimates e2e latency from latency and throughput when e2e is omitted", () => {
     expect(
       getOpenRouterProviderOptions({

@@ -697,17 +697,36 @@ function matchesHealthRiskIntent(message: string) {
 }
 
 function shouldEnableWebSearchTool(userMessage = "") {
+  const negativeSearchIntent =
+    /\b(senza|non)\b.{0,30}\b(ricerca|cerca|cercami|cercare|internet|web|online|google)\b|\b(senza|non)\s+(usare|usa|andare)\b.{0,30}\b(internet|web|online|google)\b/i;
   const explicitSearchIntent =
     /\b(ricerca|cerca|cercami|cercare|cercalo)\b.{0,40}\b(internet|web|online|google)\b|\b(internet|web|online|google)\b.{0,40}\b(ricerca|cerca|cercami|cercare)\b/i;
   const liveScoreIntent =
     /\b(punteggio|risultato|risultati|score)\b.{0,80}\b(ora|adesso|diretta|live|tempo\s+reale|in\s+corso|sta(?:nno)?\s+giocando|mondiali)\b|\b(ora|adesso|diretta|live|tempo\s+reale|in\s+corso|sta(?:nno)?\s+giocando)\b.{0,80}\b(punteggio|risultato|score|partita|match|gara|mondiali)\b/i;
-  const currentInfoIntent =
-    /\b(oggi|ieri|domani|recente|recenti|ultimo|ultimi|ultima|ultime|notizia|notizie|news|latest|current|live|risultato|risultati|classifica|classifiche|meteo|previsioni|orario|schedule|calendario|fixture|today|yesterday|tomorrow|202[0-9])\b|prossim[aoei]\s+(partita|partite|match|gara|gare)|quando\s+(gioca|giocher[aà]|giocheranno|giocherai|giocate)\b/i;
+  const currentTerms =
+    "\\b(oggi|ieri|domani|recente|recenti|ultimo|ultimi|ultima|ultime|latest|current|today|yesterday|tomorrow|202[0-9])\\b";
+  const externalInfoObjects =
+    "\\b(partita|partite|match|gara|gare|punteggio|risultato|risultati|score|classifica|classifiche|standings|meteo|previsioni|orario|schedule|calendario|fixture|categoria|serie|campionato|league|torneo|mondiali|squadra|club|vinto|vincitore)\\b";
+  const currentInfoIntent = new RegExp(
+    [
+      `${currentTerms}.{0,80}${externalInfoObjects}`,
+      `${externalInfoObjects}.{0,80}${currentTerms}`,
+      "\\b(notizia|notizie|news)\\b",
+      "prossim[aoei]\\s+(partita|partite|match|gara|gare)",
+      "quando\\s+(gioca|giocher[aà]|giocheranno|giocherai|giocate)\\b",
+      "\\bclassifica\\b.{0,60}\\b(serie|campionato|league|nba|nfl|mlb|nhl|mondiali|torneo)\\b",
+    ].join("|"),
+    "i",
+  );
+  const personalPlanningContext =
+    /\b(mio|mia|miei|mie|questi|queste)\b.{0,60}\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b|\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b.{0,60}\b(mio|mia|miei|mie|questi|queste)\b/i;
 
   return (
-    explicitSearchIntent.test(userMessage) ||
-    liveScoreIntent.test(userMessage) ||
-    currentInfoIntent.test(userMessage)
+    !negativeSearchIntent.test(userMessage) &&
+    (explicitSearchIntent.test(userMessage) ||
+      liveScoreIntent.test(userMessage) ||
+      (currentInfoIntent.test(userMessage) &&
+        !personalPlanningContext.test(userMessage)))
   );
 }
 

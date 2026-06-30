@@ -644,6 +644,7 @@ describe("ai/orchestrator", () => {
     const prompts = [
       "che punteggio è la partita dei mondiali che sta giocando ora?",
       "fai una ricerca su internet",
+      "qual è la classifica della Serie A oggi?",
     ];
 
     for (const prompt of prompts) {
@@ -676,6 +677,37 @@ describe("ai/orchestrator", () => {
         maxFetchCalls: 1,
         maxFetchUrls: 3,
       });
+    }
+  });
+
+  it("does not enable TinyFish for personal planning language with dates or ranking words", async () => {
+    const prompts = [
+      "fammi un programma di allenamento per il 2026",
+      "classifica questi esercizi dal più facile al più difficile",
+      "qual è il risultato del mio allenamento di ieri?",
+      "analizza il mio ultimo microciclo senza cercare online",
+    ];
+
+    for (const prompt of prompts) {
+      mocks.streamText.mockClear();
+      mocks.createTinyfishTools.mockClear();
+      mocks.createMemoryTools.mockClear();
+      mocks.createUserContextTools.mockClear();
+
+      await streamChat({
+        userId: "user-1",
+        chatId: `chat-local-${prompt.length}`,
+        userMessage: prompt,
+      });
+
+      const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+        system: string;
+        tools: Record<string, unknown>;
+      };
+      expect(streamInput.system, prompt).not.toContain("WEB SEARCH");
+      expect(streamInput.tools, prompt).not.toHaveProperty("tinyfishSearch");
+      expect(streamInput.tools, prompt).not.toHaveProperty("tinyfishFetch");
+      expect(mocks.createTinyfishTools, prompt).not.toHaveBeenCalled();
     }
   });
 

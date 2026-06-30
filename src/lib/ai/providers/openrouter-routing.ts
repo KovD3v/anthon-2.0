@@ -66,23 +66,55 @@ type ProviderCost = {
   outputCostPerToken: number;
 };
 
+const PROVIDER_OPTIONS_CACHE_MAX_ENTRIES = 200;
 const RECENT_ERROR_LIGHT_PENALTY_SECONDS = 8;
 const RECENT_ERROR_STRONG_PENALTY_SECONDS = 25;
 const RECENT_ERROR_COOLDOWN_THRESHOLD = 3;
+const providerOptionsCache = new Map<string, JSONObject>();
 
 export function getOpenRouterProviderOptions(
   env: Env = process.env,
 ): JSONObject {
-  const provider = getOpenRouterProviderRouting(env);
-  return provider ? { provider } : {};
+  return getCachedOpenRouterProviderOptions(env);
 }
 
 export function getOpenRouterProviderOptionsForModel(
   modelId: string,
   env: Env = process.env,
 ): JSONObject {
+  return getCachedOpenRouterProviderOptions(env, modelId);
+}
+
+function getCachedOpenRouterProviderOptions(
+  env: Env,
+  modelId?: string,
+): JSONObject {
+  const cacheKey = getProviderOptionsCacheKey(env, modelId);
+  const cachedOptions = providerOptionsCache.get(cacheKey);
+  if (cachedOptions) {
+    return cachedOptions;
+  }
+
   const provider = getOpenRouterProviderRouting(env, modelId);
-  return provider ? { provider } : {};
+  const options: JSONObject = provider ? { provider } : {};
+  providerOptionsCache.set(cacheKey, options);
+  if (providerOptionsCache.size > PROVIDER_OPTIONS_CACHE_MAX_ENTRIES) {
+    const oldestKey = providerOptionsCache.keys().next().value;
+    if (oldestKey) {
+      providerOptionsCache.delete(oldestKey);
+    }
+  }
+  return options;
+}
+
+function getProviderOptionsCacheKey(env: Env, modelId: string | undefined) {
+  return JSON.stringify({
+    modelId: modelId ?? null,
+    values: Object.values(OPENROUTER_PROVIDER_ROUTING_ENV).map((name) => [
+      name,
+      env[name],
+    ]),
+  });
 }
 
 export function getOpenRouterProviderRouting(
