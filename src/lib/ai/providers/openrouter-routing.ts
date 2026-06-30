@@ -1,5 +1,8 @@
 import type { JSONObject } from "@ai-sdk/provider";
-import { rankProviderRoutes } from "./provider-routing-score";
+import {
+  type ProviderHealthSnapshot,
+  rankProviderRoutes,
+} from "./provider-routing-score";
 
 export const OPENROUTER_PROVIDER_ROUTING_ENV = {
   sort: "OPENROUTER_PROVIDER_SORT",
