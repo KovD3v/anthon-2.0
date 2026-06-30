@@ -257,6 +257,7 @@ describe("ai/orchestrator", () => {
     });
 
     expect(mocks.shouldUseRag).not.toHaveBeenCalled();
+    expect(mocks.buildConversationContext).not.toHaveBeenCalled();
     expect(mocks.formatTinyUserSnapshotForPrompt).toHaveBeenCalledWith(
       "user-1",
     );
@@ -271,8 +272,15 @@ describe("ai/orchestrator", () => {
       system: string;
       tools: Record<string, unknown>;
       maxOutputTokens?: number;
+      messages: Array<{ role: string; content: unknown }>;
     };
     expect(streamInput.tools).toEqual({});
+    expect(streamInput.messages).toEqual([
+      {
+        role: "user",
+        content: "Dammi una risposta breve: motivami prima dell'allenamento",
+      },
+    ]);
     expect(streamInput.maxOutputTokens).toBe(180);
     expect(streamInput.system).toContain("Reply in the user's language");
     expect(streamInput.system).toContain("USER SNAPSHOT");

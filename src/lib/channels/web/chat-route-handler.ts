@@ -239,6 +239,10 @@ export async function handleWebChatPost(request: Request) {
           );
         }
 
+        const requestConversationMessageCount = messages.filter(
+          (message) => message.role === "user" || message.role === "assistant",
+        ).length;
+
         // Check if message has images
         const hasImages = lastUserMessage.parts?.some((part) => {
           if (part.type === "file") {
@@ -371,17 +375,12 @@ export async function handleWebChatPost(request: Request) {
 
         // Auto-generate or refresh chat title if not manually set by user
         if (!chat.customTitle) {
-          const messageCount = await LatencyLogger.measure(
-            "DB: Count messages",
-            () => prisma.message.count({ where: { chatId } }),
-            "🌐 Chat API Request",
-          );
-
           const shouldRefresh =
-            messageCount === 1 ||
-            messageCount === 2 ||
-            messageCount === 4 ||
-            (messageCount > 0 && messageCount % 5 === 0);
+            requestConversationMessageCount === 1 ||
+            requestConversationMessageCount === 2 ||
+            requestConversationMessageCount === 4 ||
+            (requestConversationMessageCount > 0 &&
+              requestConversationMessageCount % 5 === 0);
 
           if (shouldRefresh) {
             // Use the last few messages for better context on refresh
@@ -483,6 +482,7 @@ export async function handleWebChatPost(request: Request) {
             hasImages,
             hasAudio: aiHasAudio,
             responseMode: "text",
+            skipConversationHistory: requestConversationMessageCount === 1,
           },
           execution: { mode: "stream" },
           persistence: {

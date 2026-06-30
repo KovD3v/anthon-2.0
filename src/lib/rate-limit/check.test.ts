@@ -96,6 +96,50 @@ describe("checkRateLimit", () => {
     expect(result.effectiveEntitlements).toEqual(baseEntitlements);
   });
 
+  it("loads usage and entitlements in parallel", async () => {
+    const calls: string[] = [];
+    let resolveUsage: (
+      usage: Awaited<ReturnType<typeof getDailyUsage>>,
+    ) => void = () => {};
+
+    const usagePromise = new Promise<Awaited<ReturnType<typeof getDailyUsage>>>(
+      (resolve) => {
+        resolveUsage = resolve;
+      },
+    );
+
+    mockGetDailyUsage.mockImplementation(() => {
+      calls.push("usage:start");
+      return usagePromise;
+    });
+    mockResolveEffectiveEntitlements.mockImplementation(async () => {
+      calls.push("entitlements:start");
+      return baseEntitlements;
+    });
+
+    const resultPromise = checkRateLimit(
+      "user-1",
+      "ACTIVE",
+      "USER",
+      "basic",
+      false,
+    );
+
+    await Promise.resolve();
+    expect(calls).toEqual(["usage:start", "entitlements:start"]);
+
+    resolveUsage({
+      requestCount: 2,
+      inputTokens: 20,
+      outputTokens: 10,
+      reasoningTokens: 0,
+      totalCostUsd: 0.1,
+      voiceCostUsd: 0,
+    });
+
+    await expect(resultPromise).resolves.toMatchObject({ allowed: true });
+  });
+
   it("blocks when request limit is reached", async () => {
     mockGetDailyUsage.mockResolvedValue({
       requestCount: 10,

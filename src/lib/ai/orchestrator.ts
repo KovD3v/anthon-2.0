@@ -794,7 +794,9 @@ export async function streamChat({
   const maxContextMessages = effectiveEntitlements.limits.maxContextMessages;
 
   // Kick off independent work ASAP to reduce end-to-end latency
-  const conversationHistoryPromise = skipConversationHistory
+  const shouldSkipConversationHistory =
+    skipConversationHistory || promptMode === "simple_fast";
+  const conversationHistoryPromise = shouldSkipConversationHistory
     ? Promise.resolve<ModelMessage[]>([])
     : LatencyLogger.measure("📋 Orchestrator: Get conversation history", () =>
         buildConversationContext(userId, maxContextMessages, chatId),

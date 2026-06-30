@@ -749,6 +749,66 @@ describe("POST /api/chat", () => {
     );
   });
 
+  it("passes first-message history skip to the AI flow", async () => {
+    let streamArgs: Record<string, unknown> | undefined;
+    mocks.streamChat.mockImplementation(
+      async (args: Record<string, unknown>) => {
+        streamArgs = args;
+        return {
+          toUIMessageStreamResponse: () =>
+            Response.json({ ok: true, stream: true }, { status: 200 }),
+        };
+      },
+    );
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [{ type: "text", text: "first prompt" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(streamArgs).toMatchObject({
+      userId: "user-1",
+      chatId: "chat-1",
+      userMessage: "first prompt",
+      skipConversationHistory: true,
+    });
+  });
+
+  it("uses request messages for title refresh without a blocking message count", async () => {
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Nuova Chat",
+      customTitle: false,
+    });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [{ type: "text", text: "first prompt" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.messageCount).not.toHaveBeenCalled();
+    expect(mocks.waitUntil).toHaveBeenCalledTimes(2);
+    expect(mocks.generateChatTitle).toHaveBeenCalledWith("USER: first prompt", {
+      userId: "user-1",
+    });
+  });
+
   it("generates a voice-first assistant response when preflight chooses voice", async () => {
     mocks.decideWebVoiceMode.mockResolvedValue({
       mode: "VOICE",
