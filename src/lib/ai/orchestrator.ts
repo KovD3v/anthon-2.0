@@ -334,6 +334,7 @@ type ToolPlan = {
   webSearch: boolean;
   webFetch: boolean;
   webSearchDomainType?: "web" | "news" | "research_paper";
+  memoryRead: boolean;
   memoryWrite: boolean;
   memoryDelete: boolean;
   profileWrite: boolean;
@@ -583,8 +584,11 @@ function createToolsWithContext(
 
   const tools: Record<string, unknown> = { ...webTools };
 
-  if (toolPlan.memoryWrite || toolPlan.memoryDelete) {
+  if (toolPlan.memoryRead || toolPlan.memoryWrite || toolPlan.memoryDelete) {
     const memoryTools = createMemoryTools(userId);
+    if (toolPlan.memoryRead) {
+      tools.getMemories = memoryTools.getMemories;
+    }
     if (toolPlan.memoryWrite) {
       tools.saveMemory = memoryTools.saveMemory;
     }
@@ -594,11 +598,15 @@ function createToolsWithContext(
   }
 
   if (
+    toolPlan.memoryRead ||
     toolPlan.profileWrite ||
     toolPlan.preferenceWrite ||
     toolPlan.notesWrite
   ) {
     const userContextTools = createUserContextTools(userId);
+    if (toolPlan.memoryRead) {
+      tools.getUserContext = userContextTools.getUserContext;
+    }
     if (toolPlan.profileWrite) {
       tools.updateProfile = userContextTools.updateProfile;
     }
@@ -662,6 +670,8 @@ function selectToolPlan({
   webFetchEnabled: boolean;
 }): ToolPlan {
   const persistentWritesAllowed = !isGuest && memoryEnabled;
+  const memoryRead =
+    !isGuest && memoryEnabled && matchesMemoryReadIntent(userMessage);
   const memoryWrite =
     persistentWritesAllowed && matchesMemoryWriteIntent(userMessage);
   const memoryDelete =
@@ -683,13 +693,14 @@ function selectToolPlan({
     webSearch: webSearchEnabled,
     webFetch: webSearchEnabled && webFetchEnabled,
     webSearchDomainType: getWebSearchDomainType(userMessage),
+    memoryRead,
     memoryWrite,
     memoryDelete,
     profileWrite,
     preferenceWrite,
     notesWrite,
     hasPersistentWrites,
-    hasAny: webSearchEnabled || hasPersistentWrites,
+    hasAny: webSearchEnabled || memoryRead || hasPersistentWrites,
   };
 }
 
@@ -894,11 +905,18 @@ function matchesBriefResponseIntent(message: string) {
 
 function matchesPersistentDataIntent(message: string) {
   return (
+    matchesMemoryReadIntent(message) ||
     matchesProfileWriteIntent(message) ||
     matchesPreferenceWriteIntent(message) ||
     matchesMemoryWriteIntent(message) ||
     matchesMemoryDeleteIntent(message) ||
     matchesNotesWriteIntent(message)
+  );
+}
+
+function matchesMemoryReadIntent(message: string) {
+  return /\b(chi\s+sono|sai\s+chi\s+sono|mi\s+conosci|ti\s+ricordi\s+di\s+me|cosa\s+sai\s+di\s+me|che\s+cosa\s+sai\s+di\s+me|cosa\s+ricordi\s+di\s+me|che\s+cosa\s+ricordi\s+di\s+me|hai\s+memoria\s+di\s+me|recupera\s+(la\s+)?memoria|guarda\s+(la\s+)?memoria|leggi\s+(la\s+)?memoria|interroga\s+(la\s+)?memoria)\b/i.test(
+    message,
   );
 }
 

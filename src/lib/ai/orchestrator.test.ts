@@ -360,6 +360,37 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).not.toContain("user-memories-data");
   });
 
+  it("uses full memory context when the user asks whether Anthon knows them", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-identity-recall",
+      userMessage: "ciao sai chi sono?",
+    });
+
+    expect(mocks.formatTinyUserSnapshotForPrompt).not.toHaveBeenCalled();
+    expect(mocks.formatUserContextForPrompt).toHaveBeenCalledWith("user-1");
+    expect(mocks.formatMemoriesForPrompt).toHaveBeenCalledWith("user-1");
+    expect(mocks.createMemoryTools).toHaveBeenCalledWith("user-1");
+    expect(mocks.createUserContextTools).toHaveBeenCalledWith("user-1");
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+      maxOutputTokens?: number;
+    };
+    expect(streamInput.instructions).toContain("USER CONTEXT");
+    expect(streamInput.instructions).toContain("USER MEMORIES");
+    expect(streamInput.instructions).toContain("user-context-data");
+    expect(streamInput.instructions).toContain("user-memories-data");
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        getMemories: "memory-read-tool",
+        getUserContext: "context-read-tool",
+      }),
+    );
+    expect(streamInput.maxOutputTokens).toBeUndefined();
+  });
+
   it("keeps full prompt and only profile tools when the message contains profile data", async () => {
     await streamChat({
       userId: "user-1",
