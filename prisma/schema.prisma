@@ -359,7 +359,8 @@ model Message {
 
   // Relationships
   attachments Attachment[]
-  artifacts   Artifact[]   @relation("MessageArtifacts")
+  artifacts   Artifact[]      @relation("MessageArtifacts")
+  metrics     MessageMetrics?
 
   @@unique([channel, externalMessageId])
   @@index([userId, channel, createdAt])
@@ -370,6 +371,41 @@ model Message {
   @@index([userId, role, createdAt])
   @@index([model, createdAt])
   @@index([deletedAt])
+}
+
+model MessageMetrics {
+  id String @id @default(cuid())
+
+  messageId String  @unique
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  model    String?
+  provider String?
+
+  inputTokens     Int?
+  outputTokens    Int?
+  totalTokens     Int?
+  reasoningTokens Int?
+
+  costUsd          Float?
+  generationTimeMs Int?
+  reasoningTimeMs  Int?
+
+  toolCallCount  Int?
+  toolResultChars Int?
+  toolTiming      Json?
+
+  ragUsed        Boolean?
+  ragChunksCount Int?
+
+  providerMetadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([model, createdAt])
+  @@index([provider, createdAt])
+  @@index([createdAt])
 }
 
 enum MessageDirection {

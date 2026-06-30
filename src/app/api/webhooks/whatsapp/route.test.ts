@@ -17,7 +17,9 @@ const mocks = vi.hoisted(() => ({
   prismaUserCreate: vi.fn(),
   prismaChannelIdentityCreate: vi.fn(),
   prismaChatUpsert: vi.fn(),
+  prismaTransaction: vi.fn(),
   prismaMessageCreate: vi.fn(),
+  prismaMessageMetricsCreate: vi.fn(),
   prismaMessageUpdate: vi.fn(),
   prismaChatUpdate: vi.fn(),
   prismaAttachmentCreate: vi.fn(),
@@ -44,10 +46,14 @@ vi.mock("@vercel/functions", () => ({
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    $transaction: mocks.prismaTransaction,
     message: {
       findFirst: mocks.prismaMessageFindFirst,
       create: mocks.prismaMessageCreate,
       update: mocks.prismaMessageUpdate,
+    },
+    messageMetrics: {
+      create: mocks.prismaMessageMetricsCreate,
     },
     channelIdentity: {
       findUnique: mocks.prismaChannelIdentityFindUnique,
@@ -312,7 +318,9 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.prismaUserCreate.mockReset();
     mocks.prismaChannelIdentityCreate.mockReset();
     mocks.prismaChatUpsert.mockReset();
+    mocks.prismaTransaction.mockReset();
     mocks.prismaMessageCreate.mockReset();
+    mocks.prismaMessageMetricsCreate.mockReset();
     mocks.prismaMessageUpdate.mockReset();
     mocks.prismaChatUpdate.mockReset();
     mocks.prismaAttachmentCreate.mockReset();
@@ -335,6 +343,19 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.waitUntil.mockImplementation(() => {});
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.prismaTransaction.mockImplementation(async (callback) =>
+      callback({
+        message: {
+          findFirst: mocks.prismaMessageFindFirst,
+          create: mocks.prismaMessageCreate,
+          update: mocks.prismaMessageUpdate,
+        },
+        messageMetrics: {
+          create: mocks.prismaMessageMetricsCreate,
+        },
+      }),
+    );
+    mocks.prismaMessageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
     mocks.prismaPreferencesFindUnique.mockResolvedValue({ voiceEnabled: true });
     mocks.prismaMessageUpdate.mockResolvedValue({});
     mocks.start.mockReturnValue({ end: vi.fn(), split: vi.fn() });

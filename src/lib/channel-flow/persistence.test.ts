@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  transaction: vi.fn(),
   messageCreate: vi.fn(),
+  messageMetricsCreate: vi.fn(),
   chatUpdate: vi.fn(),
   incrementUsage: vi.fn(),
   extractAndSaveMemories: vi.fn(),
@@ -10,8 +12,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    $transaction: mocks.transaction,
     message: {
       create: mocks.messageCreate,
+    },
+    messageMetrics: {
+      create: mocks.messageMetricsCreate,
     },
     chat: {
       update: mocks.chatUpdate,
@@ -35,13 +41,22 @@ import { persistAssistantOutput } from "./persistence";
 
 describe("channel-flow/persistence", () => {
   beforeEach(() => {
+    mocks.transaction.mockReset();
     mocks.messageCreate.mockReset();
+    mocks.messageMetricsCreate.mockReset();
     mocks.chatUpdate.mockReset();
     mocks.incrementUsage.mockReset();
     mocks.extractAndSaveMemories.mockReset();
     mocks.revalidateTag.mockReset();
 
+    mocks.transaction.mockImplementation(async (callback) =>
+      callback({
+        message: { create: mocks.messageCreate },
+        messageMetrics: { create: mocks.messageMetricsCreate },
+      }),
+    );
     mocks.messageCreate.mockResolvedValue({ id: "msg-1" });
+    mocks.messageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
     mocks.chatUpdate.mockResolvedValue({});
     mocks.incrementUsage.mockResolvedValue({});
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
@@ -148,6 +163,75 @@ describe("channel-flow/persistence", () => {
         }),
       }),
     );
+  });
+
+  it("persists normalized message metrics and the selected provider", async () => {
+    const providerMetadata = {
+      openrouter: {
+        provider: "Fireworks",
+        usage: {
+          promptTokens: 150,
+          completionTokens: 30,
+          cost: 0.003,
+        },
+      },
+    };
+
+    await persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        provider: "Fireworks",
+        providerMetadata,
+        inputTokens: 100,
+        outputTokens: 30,
+        reasoningTokens: 5,
+        reasoningContent: "reasoning",
+        toolCalls: [{ name: "tinyfishSearch", args: { query: "race" } }],
+        toolCallCount: 1,
+        toolResultChars: 123,
+        toolTiming: {
+          firstModelStepMs: 120,
+          toolExecutionMs: 340,
+          finalModelStepMs: 560,
+        },
+        ragUsed: true,
+        ragChunksCount: 4,
+        costUsd: 0.003,
+        generationTimeMs: 1000,
+        reasoningTimeMs: 50,
+      } as never,
+      allowMemoryExtraction: false,
+    });
+
+    expect(mocks.messageMetricsCreate).toHaveBeenCalledWith({
+      data: {
+        messageId: "msg-1",
+        model: "test-model",
+        provider: "Fireworks",
+        inputTokens: 100,
+        outputTokens: 30,
+        totalTokens: 130,
+        reasoningTokens: 5,
+        costUsd: 0.003,
+        generationTimeMs: 1000,
+        reasoningTimeMs: 50,
+        toolCallCount: 1,
+        toolResultChars: 123,
+        toolTiming: {
+          firstModelStepMs: 120,
+          toolExecutionMs: 340,
+          finalModelStepMs: 560,
+        },
+        ragUsed: true,
+        ragChunksCount: 4,
+        providerMetadata,
+      },
+    });
   });
 
   it("skips chat update and memory extraction when disabled", async () => {

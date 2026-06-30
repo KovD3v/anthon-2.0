@@ -7,7 +7,9 @@ const mocks = vi.hoisted(() => ({
   authenticateGuest: vi.fn(),
   chatFindFirst: vi.fn(),
   chatUpdate: vi.fn(),
+  transaction: vi.fn(),
   messageCreate: vi.fn(),
+  messageMetricsCreate: vi.fn(),
   messageCount: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock("@/lib/guest-auth", () => ({
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    $transaction: mocks.transaction,
     chat: {
       findFirst: mocks.chatFindFirst,
       update: mocks.chatUpdate,
@@ -40,6 +43,9 @@ vi.mock("@/lib/db", () => ({
     message: {
       create: mocks.messageCreate,
       count: mocks.messageCount,
+    },
+    messageMetrics: {
+      create: mocks.messageMetricsCreate,
     },
   },
 }));
@@ -143,7 +149,9 @@ describe("POST /api/guest/chat", () => {
     mocks.authenticateGuest.mockReset();
     mocks.chatFindFirst.mockReset();
     mocks.chatUpdate.mockReset();
+    mocks.transaction.mockReset();
     mocks.messageCreate.mockReset();
+    mocks.messageMetricsCreate.mockReset();
     mocks.messageCount.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
@@ -158,6 +166,17 @@ describe("POST /api/guest/chat", () => {
     mocks.measure.mockImplementation(
       async (_name: string, fn: () => unknown) => await fn(),
     );
+    mocks.transaction.mockImplementation(async (callback) =>
+      callback({
+        message: {
+          create: mocks.messageCreate,
+          count: mocks.messageCount,
+        },
+        messageMetrics: {
+          create: mocks.messageMetricsCreate,
+        },
+      }),
+    );
     mocks.waitUntil.mockImplementation(() => {});
     mocks.authenticateGuest.mockResolvedValue({
       user: guestUser,
@@ -171,6 +190,7 @@ describe("POST /api/guest/chat", () => {
       customTitle: true,
     });
     mocks.messageCreate.mockResolvedValue({ id: "msg-guest-1" });
+    mocks.messageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
     mocks.messageCount.mockResolvedValue(1);
     mocks.chatUpdate.mockResolvedValue({});
     mocks.incrementUsage.mockResolvedValue({});

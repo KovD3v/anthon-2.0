@@ -66,6 +66,35 @@ describe("ai/cost-calculator", () => {
     expect(result.generationTimeMs).toBe(10_000);
   });
 
+  it("preserves provider metadata and extracts the selected OpenRouter provider", () => {
+    mocks.calculateCost.mockReturnValue({
+      inputCost: 0.1,
+      outputCost: 0.2,
+      totalCost: 0.3,
+      model: "model-1",
+    });
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+    const providerMetadata = {
+      openrouter: {
+        provider: "Fireworks",
+        usage: {
+          promptTokens: 40,
+          completionTokens: 10,
+        },
+      },
+    };
+
+    const result = extractAIMetrics("model-1", startTime, {
+      text: "done",
+      providerMetadata,
+    });
+
+    expect(result).toMatchObject({
+      provider: "Fireworks",
+      providerMetadata,
+    });
+  });
+
   it("derives tool call count and result size metrics", () => {
     mocks.calculateCost.mockReturnValue({
       inputCost: 0.1,

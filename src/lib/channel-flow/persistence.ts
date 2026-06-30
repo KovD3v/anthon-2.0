@@ -61,6 +61,32 @@ function buildAssistantMetadata(
   } as Prisma.InputJsonValue;
 }
 
+function buildMessageMetricsData(
+  messageId: string,
+  metrics: PersistAssistantOutputInput["metrics"],
+) {
+  return {
+    messageId,
+    model: metrics.model,
+    provider: metrics.provider,
+    inputTokens: metrics.inputTokens,
+    outputTokens: metrics.outputTokens,
+    totalTokens: metrics.inputTokens + metrics.outputTokens,
+    reasoningTokens: metrics.reasoningTokens,
+    costUsd: metrics.costUsd,
+    generationTimeMs: metrics.generationTimeMs,
+    reasoningTimeMs: metrics.reasoningTimeMs,
+    toolCallCount: metrics.toolCallCount,
+    toolResultChars: metrics.toolResultChars,
+    toolTiming: metrics.toolTiming as Prisma.InputJsonValue | undefined,
+    ragUsed: metrics.ragUsed,
+    ragChunksCount: metrics.ragChunksCount,
+    providerMetadata: metrics.providerMetadata as
+      | Prisma.InputJsonValue
+      | undefined,
+  };
+}
+
 async function revalidateTags(tags: string[]) {
   if (tags.length === 0) return;
 
@@ -104,30 +130,38 @@ export async function persistAssistantOutput({
 }: PersistAssistantOutputInput) {
   const assistantMetadata = buildAssistantMetadata(metadata, metrics);
 
-  const message = await prisma.message.create({
-    data: {
-      userId,
-      ...(chatId ? { chatId } : {}),
-      channel,
-      direction: "OUTBOUND",
-      role: "ASSISTANT",
-      type: messageType,
-      parts: [{ type: "text", text }] as Prisma.InputJsonValue,
-      ...(mediaUrl ? { mediaUrl } : {}),
-      ...(mediaType ? { mediaType } : {}),
-      ...(assistantMetadata ? { metadata: assistantMetadata } : {}),
-      model: metrics.model,
-      inputTokens: metrics.inputTokens,
-      outputTokens: metrics.outputTokens,
-      reasoningTokens: metrics.reasoningTokens,
-      reasoningContent: metrics.reasoningContent,
-      toolCalls: metrics.toolCalls as Prisma.InputJsonValue | undefined,
-      ragUsed: metrics.ragUsed,
-      ragChunksCount: metrics.ragChunksCount,
-      costUsd: metrics.costUsd,
-      generationTimeMs: metrics.generationTimeMs,
-      reasoningTimeMs: metrics.reasoningTimeMs,
-    },
+  const message = await prisma.$transaction(async (tx) => {
+    const createdMessage = await tx.message.create({
+      data: {
+        userId,
+        ...(chatId ? { chatId } : {}),
+        channel,
+        direction: "OUTBOUND",
+        role: "ASSISTANT",
+        type: messageType,
+        parts: [{ type: "text", text }] as Prisma.InputJsonValue,
+        ...(mediaUrl ? { mediaUrl } : {}),
+        ...(mediaType ? { mediaType } : {}),
+        ...(assistantMetadata ? { metadata: assistantMetadata } : {}),
+        model: metrics.model,
+        inputTokens: metrics.inputTokens,
+        outputTokens: metrics.outputTokens,
+        reasoningTokens: metrics.reasoningTokens,
+        reasoningContent: metrics.reasoningContent,
+        toolCalls: metrics.toolCalls as Prisma.InputJsonValue | undefined,
+        ragUsed: metrics.ragUsed,
+        ragChunksCount: metrics.ragChunksCount,
+        costUsd: metrics.costUsd,
+        generationTimeMs: metrics.generationTimeMs,
+        reasoningTimeMs: metrics.reasoningTimeMs,
+      },
+    });
+
+    await tx.messageMetrics.create({
+      data: buildMessageMetricsData(createdMessage.id, metrics),
+    });
+
+    return createdMessage;
   });
 
   if (updateChatTimestamp && chatId) {

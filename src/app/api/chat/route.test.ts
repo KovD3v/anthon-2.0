@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   userUpsert: vi.fn(),
   chatFindFirst: vi.fn(),
   chatUpdate: vi.fn(),
+  transaction: vi.fn(),
   messageCreate: vi.fn(),
+  messageMetricsCreate: vi.fn(),
   messageCount: vi.fn(),
   attachmentFindFirst: vi.fn(),
   attachmentCreate: vi.fn(),
@@ -51,6 +53,7 @@ vi.mock("@/lib/latency-logger", () => ({
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    $transaction: mocks.transaction,
     user: {
       findUnique: mocks.userFindUnique,
       upsert: mocks.userUpsert,
@@ -62,6 +65,9 @@ vi.mock("@/lib/db", () => ({
     message: {
       create: mocks.messageCreate,
       count: mocks.messageCount,
+    },
+    messageMetrics: {
+      create: mocks.messageMetricsCreate,
     },
     attachment: {
       findFirst: mocks.attachmentFindFirst,
@@ -184,7 +190,9 @@ describe("POST /api/chat", () => {
     mocks.userUpsert.mockReset();
     mocks.chatFindFirst.mockReset();
     mocks.chatUpdate.mockReset();
+    mocks.transaction.mockReset();
     mocks.messageCreate.mockReset();
+    mocks.messageMetricsCreate.mockReset();
     mocks.messageCount.mockReset();
     mocks.attachmentFindFirst.mockReset();
     mocks.attachmentCreate.mockReset();
@@ -209,6 +217,17 @@ describe("POST /api/chat", () => {
     });
     mocks.measure.mockImplementation(
       async (_name: string, fn: () => unknown) => await fn(),
+    );
+    mocks.transaction.mockImplementation(async (callback) =>
+      callback({
+        message: {
+          create: mocks.messageCreate,
+          count: mocks.messageCount,
+        },
+        messageMetrics: {
+          create: mocks.messageMetricsCreate,
+        },
+      }),
     );
 
     mocks.auth.mockResolvedValue({ userId: "clerk_1" });
@@ -245,6 +264,7 @@ describe("POST /api/chat", () => {
       customTitle: true,
     });
     mocks.messageCreate.mockResolvedValue({ id: "msg-user-1" });
+    mocks.messageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
     mocks.messageCount.mockResolvedValue(1);
     mocks.chatUpdate.mockResolvedValue({});
     mocks.attachmentFindFirst.mockImplementation(

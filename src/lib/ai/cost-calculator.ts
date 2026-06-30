@@ -75,6 +75,8 @@ function calculateOpenRouterFallbackCost(
  */
 export interface AIMetrics {
   model: string;
+  provider?: string | null;
+  providerMetadata?: Record<string, unknown> | null;
   inputTokens: number;
   outputTokens: number;
   reasoningTokens: number | null;
@@ -221,6 +223,8 @@ export function extractAIMetrics(
 
   return {
     model: modelId,
+    provider: extractProvider(finishResult.providerMetadata),
+    providerMetadata: finishResult.providerMetadata ?? null,
     inputTokens: adjustedInputTokens,
     outputTokens,
     reasoningTokens,
@@ -235,6 +239,34 @@ export function extractAIMetrics(
     generationTimeMs,
     reasoningTimeMs: null, // Not available from OpenRouter currently
   };
+}
+
+function extractProvider(
+  providerMetadata: Record<string, unknown> | undefined,
+): string | null {
+  const openrouter = providerMetadata?.openrouter;
+  if (!openrouter || typeof openrouter !== "object") {
+    return null;
+  }
+
+  const metadata = openrouter as Record<string, unknown>;
+  return (
+    asString(metadata.provider) ??
+    asString(metadata.providerName) ??
+    asString(metadata.provider_name) ??
+    asString(metadata.selectedProvider) ??
+    asString(metadata.selected_provider) ??
+    null
+  );
+}
+
+function asString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function asNumber(value: unknown): number | undefined {
