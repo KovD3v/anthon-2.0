@@ -431,6 +431,7 @@ describe("ai/orchestrator", () => {
       {
         text: "Usa internet e dimmi le ultime notizie sportive",
         writes: false,
+        web: true,
       },
       { text: "Ho dolore al ginocchio, cosa faccio?", writes: false },
       { text: "Mandami un vocale motivazionale", writes: false },
@@ -488,9 +489,19 @@ describe("ai/orchestrator", () => {
         tools: Record<string, unknown>;
         maxOutputTokens?: number;
       };
-      expect(streamInput.system, promptCase.text).toContain(
-        "user-context-data",
-      );
+      if (promptCase.web) {
+        expect(streamInput.system, promptCase.text).toContain("WEB SEARCH");
+        expect(streamInput.system, promptCase.text).not.toContain(
+          "USER CONTEXT",
+        );
+        expect(streamInput.system, promptCase.text).not.toContain(
+          "user-context-data",
+        );
+      } else {
+        expect(streamInput.system, promptCase.text).toContain(
+          "user-context-data",
+        );
+      }
       if (promptCase.writes) {
         expect(streamInput.system, promptCase.text).toContain("SAVING DATA");
         expect(streamInput.tools, promptCase.text).not.toEqual({});
@@ -507,8 +518,11 @@ describe("ai/orchestrator", () => {
       expect(
         mocks.formatUserContextForPrompt,
         promptCase.text,
-      ).toHaveBeenCalled();
-      expect(mocks.formatMemoriesForPrompt, promptCase.text).toHaveBeenCalled();
+      ).toHaveBeenCalledTimes(promptCase.web ? 0 : 1);
+      expect(
+        mocks.formatMemoriesForPrompt,
+        promptCase.text,
+      ).toHaveBeenCalledTimes(promptCase.web ? 0 : 1);
     }
   });
 
@@ -632,6 +646,10 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).not.toHaveProperty("updateProfile");
     expect(streamInput.tools).not.toHaveProperty("getMemories");
     expect(streamInput.tools).not.toHaveProperty("getUserContext");
+    expect(streamInput.system).not.toContain("USER CONTEXT");
+    expect(streamInput.system).not.toContain("USER MEMORIES");
+    expect(mocks.formatUserContextForPrompt).not.toHaveBeenCalled();
+    expect(mocks.formatMemoriesForPrompt).not.toHaveBeenCalled();
     expect(mocks.createTinyfishTools).toHaveBeenCalledWith({
       maxSearchCalls: 1,
       maxFetchCalls: 1,

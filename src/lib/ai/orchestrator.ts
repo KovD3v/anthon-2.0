@@ -58,6 +58,10 @@ const PROMPT_LANGUAGE_RESPONSE_RULES = `LANGUAGE RULES
 - **AUTO-DETECT**: If the language is NOT defined in preferences, DETECT the language of the user's last message.
   - Reply in that same language.`;
 
+const PROMPT_LANGUAGE_AUTO_DETECT_RULES = `LANGUAGE RULES
+- DETECT the language of the user's last message.
+- Reply in that same language.`;
+
 const PROMPT_LANGUAGE_SAVE_RULES = `LANGUAGE SAVE RULES
   - **MANDATORY**: Use the \`updatePreferences\` tool to SAVE this detected language (field \`language\`).`;
 
@@ -154,6 +158,7 @@ type FullPromptModules = {
   toolsEnabled: boolean;
   webSearchEnabled: boolean;
   webFetchEnabled: boolean;
+  userContextEnabled: boolean;
   persistentWritesEnabled: boolean;
   preferenceWritesEnabled: boolean;
   ragEnabled: boolean;
@@ -164,11 +169,13 @@ function buildFullSystemPromptTemplate(modules: FullPromptModules) {
     PROMPT_IDENTITY,
     PROMPT_FULL_PRIORITIES,
     PROMPT_STYLE,
-    PROMPT_LANGUAGE_RESPONSE_RULES,
+    modules.userContextEnabled
+      ? PROMPT_LANGUAGE_RESPONSE_RULES
+      : PROMPT_LANGUAGE_AUTO_DETECT_RULES,
     modules.preferenceWritesEnabled ? PROMPT_LANGUAGE_SAVE_RULES : undefined,
     PROMPT_RESPONSE_FORMAT,
     PROMPT_CONSTRAINTS,
-    PROMPT_CONTEXT_USAGE,
+    modules.userContextEnabled ? PROMPT_CONTEXT_USAGE : undefined,
     PROMPT_SAFETY_LIMITS,
     modules.toolsEnabled ? buildToolPolicy(modules) : undefined,
     modules.persistentWritesEnabled ? PROMPT_MEMORY_WRITE_POLICY : undefined,
@@ -178,7 +185,7 @@ function buildFullSystemPromptTemplate(modules: FullPromptModules) {
     modules.ragEnabled ? PROMPT_RAG_POLICY : undefined,
     PROMPT_DATE_CONTEXT,
     modules.ragEnabled ? PROMPT_RAG_CONTEXT : undefined,
-    PROMPT_USER_CONTEXT,
+    modules.userContextEnabled ? PROMPT_USER_CONTEXT : undefined,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -364,6 +371,7 @@ async function buildSystemPrompt(
       toolsEnabled: true,
       webSearchEnabled: true,
       webFetchEnabled: true,
+      userContextEnabled: true,
       persistentWritesEnabled: true,
       preferenceWritesEnabled: true,
       ragEnabled: Boolean(ragContext),
@@ -838,6 +846,8 @@ export async function streamChat({
           webSearchEnabled,
           webFetchEnabled,
         });
+  const userContextEnabled =
+    !isGuest && (!toolPlan.webSearch || toolPlan.hasPersistentWrites);
 
   // Wrap model with PostHog tracing for LLM analytics
   const model = withTracing(baseModel, getPostHogClient(), {
@@ -878,7 +888,7 @@ export async function streamChat({
       });
 
   const userContextPromise =
-    isGuest || promptMode === "simple_fast"
+    !userContextEnabled || promptMode === "simple_fast"
       ? Promise.resolve("")
       : formatUserContextForPrompt(userId).catch((error) => {
           aiLogger.error(
@@ -892,7 +902,9 @@ export async function streamChat({
           return "No user context available.";
         });
   const userMemoriesPromise =
-    memoryEnabled === false || isGuest || promptMode === "simple_fast"
+    memoryEnabled === false ||
+    !userContextEnabled ||
+    promptMode === "simple_fast"
       ? Promise.resolve("Persistent memory is disabled for this session.")
       : formatMemoriesForPrompt(userId).catch((error) => {
           aiLogger.error("ai.memories.error", "Memory enrichment failed", {
@@ -1005,6 +1017,7 @@ export async function streamChat({
           toolsEnabled: toolPlan.hasAny,
           webSearchEnabled: toolPlan.webSearch,
           webFetchEnabled: toolPlan.webFetch,
+          userContextEnabled,
           persistentWritesEnabled: toolPlan.hasPersistentWrites,
           preferenceWritesEnabled: toolPlan.preferenceWrite,
           ragEnabled: ragUsed,
