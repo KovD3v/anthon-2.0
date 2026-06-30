@@ -13,11 +13,10 @@ describe("ai/providers/openrouter-routing", () => {
     });
   });
 
-  it("blocks repeatedly rate-limited GLM providers by default", () => {
+  it("does not hardcode model-specific providers when env is unset", () => {
     expect(getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", {})).toEqual({
       provider: {
-        order: ["Parasail"],
-        ignore: ["Wafer", "AkashML"],
+        sort: "latency",
       },
     });
   });
