@@ -1,4 +1,8 @@
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
+
+const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 const additionalAllowedDevOrigins = process.env.NEXT_ALLOWED_DEV_ORIGINS?.split(
   ",",
@@ -12,6 +16,9 @@ const nextConfig: NextConfig = {
   /* config options here */
   allowedDevOrigins,
   reactCompiler: true,
+  turbopack: {
+    root: projectRoot,
+  },
   images: {
     remotePatterns: [
       {
