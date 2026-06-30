@@ -8,8 +8,19 @@ type UserContextPromptCacheEntry = {
   expiresAt: number;
 };
 
+type CompactMemoryValue = {
+  content?: unknown;
+};
+
 const USER_CONTEXT_PROMPT_CACHE_TTL_MS = 30 * 1000; // 30s
 const TINY_USER_SNAPSHOT_CACHE_TTL_MS = 2 * 60 * 1000; // 2m
+const TINY_USER_SNAPSHOT_MEMORY_CATEGORIES = new Set([
+  "identity",
+  "sport",
+  "goal",
+  "preference",
+  "schedule",
+]);
 const userContextPromptCache = new Map<string, UserContextPromptCacheEntry>();
 const tinyUserSnapshotCache = new Map<string, UserContextPromptCacheEntry>();
 
@@ -385,6 +396,15 @@ export async function formatTinyUserSnapshotForPrompt(
     include: {
       profile: true,
       preferences: true,
+      memories: {
+        where: {
+          category: {
+            in: Array.from(TINY_USER_SNAPSHOT_MEMORY_CATEGORIES),
+          },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 4,
+      },
     },
   });
 
@@ -407,6 +427,14 @@ export async function formatTinyUserSnapshotForPrompt(
   }
   if (user.preferences?.mode) {
     lines.push(`Modalità: ${user.preferences.mode}`);
+  }
+  for (const memory of user.memories ?? []) {
+    const value = memory.value as CompactMemoryValue;
+    if (typeof value.content === "string" && value.content.trim()) {
+      lines.push(
+        `Memoria ${memory.key.replace(/_/g, " ")}: ${value.content.trim()}`,
+      );
+    }
   }
 
   const value = lines.join("\n");

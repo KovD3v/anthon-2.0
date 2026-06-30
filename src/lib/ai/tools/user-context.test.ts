@@ -207,4 +207,61 @@ describe("ai/tools/user-context", () => {
     expect(first).not.toContain("Long private note");
     expect(mocks.userFindUnique).toHaveBeenCalledTimes(1);
   });
+
+  it("formatTinyUserSnapshotForPrompt includes compact saved memories for first-turn personalization", async () => {
+    const userId = "user-snapshot-memories";
+    mocks.userFindUnique.mockResolvedValue({
+      id: userId,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      profile: null,
+      preferences: {
+        tone: null,
+        mode: null,
+        language: "it",
+        push: true,
+      },
+      memories: [
+        {
+          key: "role",
+          category: "identity",
+          value: {
+            content: "giocatore",
+            category: "identity",
+            confidence: 1,
+          },
+        },
+        {
+          key: "favorite_quote",
+          category: "other",
+          value: {
+            content: "testo troppo generico da non inserire",
+            category: "other",
+            confidence: 1,
+          },
+        },
+      ],
+    });
+
+    const snapshot = await formatTinyUserSnapshotForPrompt(userId);
+
+    expect(snapshot).toContain("Lingua: it");
+    expect(snapshot).toContain("Memoria role: giocatore");
+    expect(snapshot).not.toContain("favorite_quote");
+    expect(mocks.userFindUnique).toHaveBeenCalledWith({
+      where: { id: userId },
+      include: {
+        profile: true,
+        preferences: true,
+        memories: {
+          where: {
+            category: {
+              in: ["identity", "sport", "goal", "preference", "schedule"],
+            },
+          },
+          orderBy: { updatedAt: "desc" },
+          take: 4,
+        },
+      },
+    });
+  });
 });
