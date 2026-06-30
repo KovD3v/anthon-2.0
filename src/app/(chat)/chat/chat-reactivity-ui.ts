@@ -86,7 +86,9 @@ export function getAssistantToolFeedback({
   return topic ? `Recupero informazioni su ${topic}` : "Recupero informazioni";
 }
 
-function isActiveToolFeedbackPart(part: UIMessage["parts"][number]) {
+function isActiveToolFeedbackPart(
+  part: UIMessage["parts"][number],
+): part is UIMessage["parts"][number] & ToolFeedbackPart {
   const toolPart = part as ToolFeedbackPart;
   if (!toolPart.type?.startsWith("tool-") && toolPart.type !== "dynamic-tool") {
     return false;

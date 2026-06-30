@@ -66,6 +66,49 @@ describe("ai/cost-calculator", () => {
     expect(result.generationTimeMs).toBe(10_000);
   });
 
+  it("derives tool call count and result size metrics", () => {
+    mocks.calculateCost.mockReturnValue({
+      inputCost: 0.1,
+      outputCost: 0.2,
+      totalCost: 0.3,
+      model: "model-tools",
+    });
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+
+    const result = extractAIMetrics("model-tools", startTime, {
+      text: "done",
+      usage: {
+        promptTokens: 40,
+        completionTokens: 11,
+      },
+      collectedToolCalls: [
+        {
+          name: "tinyfishSearch",
+          args: { query: "world cup" },
+          result: { results: [{ title: "A", content: "abc" }] },
+        },
+        {
+          name: "tinyfishFetch",
+          args: { urls: ["https://example.com"] },
+          result: { results: [{ text: "long page" }] },
+        },
+      ],
+      toolTiming: {
+        firstModelStepMs: 100,
+        toolExecutionMs: 250,
+        finalModelStepMs: 500,
+      },
+    });
+
+    expect(result.toolCallCount).toBe(2);
+    expect(result.toolResultChars).toBeGreaterThan(40);
+    expect(result.toolTiming).toEqual({
+      firstModelStepMs: 100,
+      toolExecutionMs: 250,
+      finalModelStepMs: 500,
+    });
+  });
+
   it("falls back to TokenLens cost calculation without provider cost metadata", () => {
     mocks.calculateCost.mockReturnValue({
       inputCost: 0.1,

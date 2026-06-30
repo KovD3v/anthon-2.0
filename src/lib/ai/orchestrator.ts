@@ -1,16 +1,21 @@
 import { withTracing } from "@posthog/ai";
 import {
+  generateText,
+  isStepCount,
   type ModelMessage,
+  Output,
+  type PrepareStepFunction,
   type StepResult,
-  stepCountIs,
   streamText,
   type ToolSet,
 } from "ai";
+import { z } from "zod";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
 import {
   getModelById,
   getModelForUser,
   getModelIdForPlan,
+  openrouter,
 } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { getRagContext, shouldUseRag } from "@/lib/ai/rag";
@@ -19,12 +24,17 @@ import {
   createMemoryTools,
   formatMemoriesForPrompt,
 } from "@/lib/ai/tools/memory";
-import { createTinyfishTools } from "@/lib/ai/tools/tinyfish";
+import {
+  createTinyfishTools,
+  searchTinyfishDirect,
+  type TinyfishSearchToolResult,
+} from "@/lib/ai/tools/tinyfish";
 import {
   createUserContextTools,
   formatTinyUserSnapshotForPrompt,
   formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
+import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
@@ -34,6 +44,15 @@ import { getPostHogClient } from "@/lib/posthog";
 const aiLogger = createLogger("ai");
 const MULTIMODAL_ORCHESTRATOR_MODEL_ID = "moonshotai/kimi-k2.7-code";
 const WEB_SEARCH_CONTEXT_MESSAGES = 4;
+const PROMPT_MODULE_CLASSIFIER_MODEL_ID =
+  process.env.PROMPT_MODULE_CLASSIFIER_MODEL_ID || "qwen/qwen3.6-27b";
+const PROMPT_MODULE_CLASSIFIER_TIMEOUT_MS = 900;
+const PROMPT_MODULE_CLASSIFIER_MIN_CONFIDENCE = 0.7;
+const WEB_SEARCH_DEFAULT_RESULTS = 4;
+const WEB_SEARCH_DEFAULT_SNIPPET_CHARS = 180;
+const WEB_SEARCH_BRIEF_RESULTS = 3;
+const WEB_SEARCH_BRIEF_SNIPPET_CHARS = 160;
+const WEB_SEARCH_DIRECT_MAX_OUTPUT_TOKENS = 120;
 
 const PROMPT_IDENTITY = `You are Anthon, a digital sports performance coach.
 You help athletes, coaches, and parents improve mindset, technique, motivation, and performance.
@@ -132,6 +151,7 @@ function buildWebSearchPolicy(webFetchEnabled: boolean) {
     '- Use only for up-to-date info or recent events (e.g. "Who won the match yesterday?"). Integrate results naturally.',
     "- Start with one broad, well-composed `tinyfishSearch` query.",
     "- For brief current-information requests, use exactly one broad `tinyfishSearch` query and answer from those results.",
+    "- When search returns any usable results, do not search again. Answer from the available results.",
     "- Do not issue extra searches unless the user explicitly asks for exhaustive comparison or the first results are unusable.",
     "- Do not issue multiple rephrased variations of the same search.",
     webFetchEnabled
@@ -164,6 +184,34 @@ type FullPromptModules = {
   preferenceWritesEnabled: boolean;
   ragEnabled: boolean;
 };
+
+type RuleConfidence = "high" | "low";
+
+type WebSearchRuleDecision = {
+  enabled: boolean;
+  confidence: RuleConfidence;
+  reason: string;
+};
+
+type PromptModuleClassifierDecision = {
+  webSearch: boolean;
+  webFetch: boolean;
+  rag: boolean;
+  userContext: "needed" | "not_needed";
+  confidence: number;
+  reason: string;
+};
+
+type ToolTimingMetrics = NonNullable<AIMetrics["toolTiming"]>;
+
+const promptModuleClassifierSchema = z.object({
+  webSearch: z.enum(["yes", "no", "uncertain"]),
+  webFetch: z.enum(["yes", "no", "uncertain"]),
+  rag: z.enum(["yes", "no", "uncertain"]),
+  userContext: z.enum(["needed", "not_needed"]),
+  confidence: z.number().min(0).max(1),
+  reason: z.string().max(160),
+});
 
 function buildFullSystemPromptTemplate(modules: FullPromptModules) {
   return [
@@ -285,6 +333,7 @@ type PromptMode = "full" | "guest" | "simple_fast";
 type ToolPlan = {
   webSearch: boolean;
   webFetch: boolean;
+  webSearchDomainType?: "web" | "news" | "research_paper";
   memoryWrite: boolean;
   memoryDelete: boolean;
   profileWrite: boolean;
@@ -292,6 +341,12 @@ type ToolPlan = {
   notesWrite: boolean;
   hasAny: boolean;
   hasPersistentWrites: boolean;
+};
+
+type DirectWebSearchEvidence = {
+  query: string;
+  result: TinyfishSearchToolResult;
+  durationMs: number;
 };
 
 /**
@@ -504,8 +559,16 @@ function createToolsWithContext(
   const tinyfishTools = toolPlan.webSearch
     ? createTinyfishTools({
         maxSearchCalls: 1,
+        ...(toolPlan.webFetch
+          ? {}
+          : getSearchOnlyTinyfishLimits(options?.userMessage ?? "")),
         maxFetchCalls: 1,
         maxFetchUrls: 3,
+        defaultSearchDomainType: toolPlan.webSearchDomainType,
+        defaultFetchPerUrlTimeoutMs: 8_000,
+        defaultFetchTtl: 3600,
+        fetchRequestTimeoutMs: 12_000,
+        maxFetchTextChars: 2000,
       })
     : undefined;
   const webTools = tinyfishTools
@@ -550,6 +613,41 @@ function createToolsWithContext(
   return tools;
 }
 
+function instrumentToolExecutions(
+  tools: Record<string, unknown>,
+  timing: { toolExecutionMs: number },
+) {
+  return Object.fromEntries(
+    Object.entries(tools).map(([name, candidate]) => {
+      if (!candidate || typeof candidate !== "object") {
+        return [name, candidate];
+      }
+
+      const toolConfig = candidate as {
+        execute?: (...args: unknown[]) => unknown | Promise<unknown>;
+      };
+      if (typeof toolConfig.execute !== "function") {
+        return [name, candidate];
+      }
+
+      return [
+        name,
+        {
+          ...toolConfig,
+          execute: async (...args: unknown[]) => {
+            const startedAt = Date.now();
+            try {
+              return await toolConfig.execute?.(...args);
+            } finally {
+              timing.toolExecutionMs += Math.max(0, Date.now() - startedAt);
+            }
+          },
+        },
+      ];
+    }),
+  );
+}
+
 function selectToolPlan({
   userMessage,
   isGuest,
@@ -584,6 +682,7 @@ function selectToolPlan({
   return {
     webSearch: webSearchEnabled,
     webFetch: webSearchEnabled && webFetchEnabled,
+    webSearchDomainType: getWebSearchDomainType(userMessage),
     memoryWrite,
     memoryDelete,
     profileWrite,
@@ -592,6 +691,150 @@ function selectToolPlan({
     hasPersistentWrites,
     hasAny: webSearchEnabled || hasPersistentWrites,
   };
+}
+
+function getSearchOnlyTinyfishLimits(userMessage: string) {
+  if (matchesBriefResponseIntent(userMessage)) {
+    return {
+      maxSearchResults: WEB_SEARCH_BRIEF_RESULTS,
+      maxSearchSnippetChars: WEB_SEARCH_BRIEF_SNIPPET_CHARS,
+    };
+  }
+
+  return {
+    maxSearchResults: WEB_SEARCH_DEFAULT_RESULTS,
+    maxSearchSnippetChars: WEB_SEARCH_DEFAULT_SNIPPET_CHARS,
+  };
+}
+
+function getWebSearchDomainType(
+  userMessage: string,
+): "news" | "research_paper" | undefined {
+  if (
+    /\b(research paper|paper|papers|studio scientifico|studi scientifici|pubblicazione|pubblicazioni|arxiv|pubmed|citazioni|citation|journal|conferenza)\b/i.test(
+      userMessage,
+    )
+  ) {
+    return "research_paper";
+  }
+
+  if (
+    /\b(notizia|notizie|news|ultim[aeio]|latest|current|oggi|ieri|domani|ora|adesso|live|diretta|risultato|risultati|punteggio|partita|partite|match|gioca|giocher[aà]|categoria|serie|classifica|mondiali|serie\s+a|campionato|torneo|meteo|previsioni)\b/i.test(
+      userMessage,
+    )
+  ) {
+    return "news";
+  }
+
+  return undefined;
+}
+
+function getMaxToolSteps(toolPlan: ToolPlan) {
+  if (
+    toolPlan.webSearch &&
+    !toolPlan.webFetch &&
+    !toolPlan.hasPersistentWrites
+  ) {
+    return 3;
+  }
+
+  if (
+    toolPlan.webSearch &&
+    toolPlan.webFetch &&
+    !toolPlan.hasPersistentWrites
+  ) {
+    return 4;
+  }
+
+  return 5;
+}
+
+function getStreamStepLimit(toolPlan: ToolPlan, directWebSearchUsed: boolean) {
+  return directWebSearchUsed ? 1 : getMaxToolSteps(toolPlan);
+}
+
+function createToolLoopPrepareStep(
+  toolPlan: ToolPlan,
+): PrepareStepFunction<ToolSet> | undefined {
+  if (
+    !toolPlan.webSearch ||
+    toolPlan.webFetch ||
+    toolPlan.hasPersistentWrites
+  ) {
+    return undefined;
+  }
+
+  return ({ steps }) => {
+    const hasUsedTool = steps.some((step) => step.toolCalls?.length);
+    return hasUsedTool ? { activeTools: [], toolChoice: "none" } : undefined;
+  };
+}
+
+function shouldUseDirectWebSearch(userMessage: string, toolPlan: ToolPlan) {
+  return (
+    toolPlan.webSearch &&
+    !toolPlan.webFetch &&
+    !toolPlan.hasPersistentWrites &&
+    matchesBriefResponseIntent(userMessage)
+  );
+}
+
+async function prefetchDirectWebSearch({
+  userMessage,
+  toolPlan,
+}: {
+  userMessage: string;
+  toolPlan: ToolPlan;
+}): Promise<DirectWebSearchEvidence | undefined> {
+  if (!shouldUseDirectWebSearch(userMessage, toolPlan)) {
+    return undefined;
+  }
+
+  const limits = getSearchOnlyTinyfishLimits(userMessage);
+  const query = buildDirectWebSearchQuery(userMessage);
+  const startedAt = Date.now();
+  const result = await searchTinyfishDirect({
+    query,
+    language: "it",
+    defaultSearchDomainType: toolPlan.webSearchDomainType,
+    ...limits,
+  });
+  const durationMs = Math.max(0, Date.now() - startedAt);
+
+  if (result.error || result.results.length === 0) {
+    return undefined;
+  }
+
+  return { query, result, durationMs };
+}
+
+function buildDirectWebSearchQuery(userMessage: string) {
+  const stripped = userMessage
+    .replace(
+      /^\s*(?:fai|fa|fammi|cerca|controlla|verifica)\s+(?:una\s+)?(?:ricerca\s+)?(?:su\s+)?(?:internet|online|web)\s*:?\s*/i,
+      "",
+    )
+    .replace(/\b(?:rispondi|dimmi)\s+(?:breve|brevemente|in breve)\b\.?/gi, "")
+    .replace(/\b(?:in una frase|una frase|due righe)\b\.?/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return stripped || userMessage.trim();
+}
+
+function formatDirectWebSearchEvidence(evidence: DirectWebSearchEvidence) {
+  const results = evidence.result.results
+    .map((result, index) => {
+      const content = result.content ? `\nSnippet: ${result.content}` : "";
+      return `${index + 1}. ${result.title}\nURL: ${result.url}${content}`;
+    })
+    .join("\n\n");
+
+  return `WEB SEARCH RESULTS
+Query: ${evidence.query}
+Use these results to answer the user. Be brief and do not mention tools.
+
+${results}`;
 }
 
 function shouldUseSimpleFastPath({
@@ -639,6 +882,12 @@ function shouldUseSimpleFastPath({
 
 function matchesSimpleFastIntent(message: string) {
   return /\b(ciao|ehi|hey|buongiorno|buonasera|grazie|motivami|motiva|caricami|incoraggiami|breve|rapido|veloce|focus|frase|spinta|calmami|tranquillizzami)\b|reset\s+mentale|consiglio\s+(veloce|rapido)/i.test(
+    message,
+  );
+}
+
+function matchesBriefResponseIntent(message: string) {
+  return /\b(breve|brevemente|rapido|rapida|veloce|sintesi|sintetico|sintetica|riassumi|due\s+righe|una\s+frase|in\s+breve|short|brief|quick|concise)\b/i.test(
     message,
   );
 }
@@ -705,17 +954,19 @@ function matchesHealthRiskIntent(message: string) {
   );
 }
 
-function shouldEnableWebSearchTool(userMessage = "") {
+function evaluateWebSearchRule(userMessage = ""): WebSearchRuleDecision {
+  const delegatedSearchIntent =
+    /\b(non\s+(riesco|posso|trovo|ho\s+trovato|sono\s+riuscit[ao])|non\s+ho\s+(trovato|potuto\s+cercare))\b.{0,80}\b(cercare|trovare|online|web|internet|google)\b.{0,80}\b(puoi|potresti|riesci)\b.{0,50}\b(cercare|controllare|verificare|farlo|farla)\b|\b(puoi|potresti|riesci)\b.{0,50}\b(cercare|controllare|verificare|farlo|farla)\b.{0,80}\b(non\s+(riesco|posso|trovo|ho\s+trovato|sono\s+riuscit[ao])|non\s+ho\s+(trovato|potuto\s+cercare))\b/i;
   const negativeSearchIntent =
-    /\b(senza|non)\b.{0,30}\b(ricerca|cerca|cercami|cercare|internet|web|online|google)\b|\b(senza|non)\s+(usare|usa|andare)\b.{0,30}\b(internet|web|online|google)\b/i;
+    /\b(senza|evita\s+di|evitiamo\s+di|rispondi\s+senza)\b.{0,45}\b(cercare|ricerca|controllare|verificare|internet|web|online|google)\b|\b(non\s+devi|non\s+voglio|non\s+serve|non)\b.{0,45}\b(cercare|fare\s+(una\s+)?ricerca|usare\s+(internet|il\s+web|web|google)|controllare\s+online|verificare\s+online|guardare\s+(su\s+)?(internet|web|online|google))\b/i;
   const explicitSearchIntent =
-    /\b(ricerca|cerca|cercami|cercare|cercalo)\b.{0,40}\b(internet|web|online|google)\b|\b(internet|web|online|google)\b.{0,40}\b(ricerca|cerca|cercami|cercare)\b/i;
+    /\b(fai|fammi|facci|puoi\s+fare|puoi\s+farmi|prova\s+a\s+fare)\b.{0,30}\b(una\s+)?ricerca\b|\b(ricerca|cerca|cercami|cercare|cercalo|controlla|controllare|verifica|verificare|guardalo|guarda)\b.{0,55}\b(internet|web|online|google)\b|\b(internet|web|online|google)\b.{0,55}\b(ricerca|cerca|cercami|cercare|controlla|controllare|verifica|verificare|guarda)\b|\b(trova|recupera)\b.{0,45}\b(informazioni|aggiornamenti|notizie|news)\b.{0,45}\b(aggiornat[ei]?|recent[ei]?|online|web|internet)\b/i;
   const liveScoreIntent =
     /\b(punteggio|risultato|risultati|score)\b.{0,80}\b(ora|adesso|diretta|live|tempo\s+reale|in\s+corso|sta(?:nno)?\s+giocando|mondiali)\b|\b(ora|adesso|diretta|live|tempo\s+reale|in\s+corso|sta(?:nno)?\s+giocando)\b.{0,80}\b(punteggio|risultato|score|partita|match|gara|mondiali)\b/i;
   const currentTerms =
-    "\\b(oggi|ieri|domani|recente|recenti|ultimo|ultimi|ultima|ultime|latest|current|today|yesterday|tomorrow|202[0-9])\\b";
+    "\\b(oggi|ieri|domani|stasera|sta\\s+sera|ora|adesso|attuale|attuali|aggiornat[oaie]|recent[ei]|ultimo|ultimi|ultima|ultime|questa\\s+settimana|questo\\s+weekend|quest'anno|in\\s+corso|live|diretta|tempo\\s+reale|latest|current|today|yesterday|tomorrow|tonight|202[0-9])\\b";
   const externalInfoObjects =
-    "\\b(partita|partite|match|gara|gare|punteggio|risultato|risultati|score|classifica|classifiche|standings|meteo|previsioni|orario|schedule|calendario|fixture|categoria|serie|campionato|league|torneo|mondiali|squadra|club|vinto|vincitore)\\b";
+    "\\b(partita|partite|match|gara|gare|gioca|giocano|giocher[aà]|giocheranno|formazione|formazioni|convocati|punteggio|risultato|risultati|score|classifica|classifiche|standings|meteo|previsioni|orario|orari|schedule|calendario|fixture|categoria|serie|campionato|league|torneo|mondiali|squadra|club|giocatore|atleta|vinto|vincitore|prezzo|prezzi|costo|costa|disponibilit[aà]|disponibile|biglietto|biglietti|prodotto|maglia|evento|eventi|concerto|concerti|volo|voli|treno|treni|parte|partenza|ristorante|ristoranti|negozio|negozi|aperto|aperti|aperta|aperte)\\b";
   const currentInfoIntent = new RegExp(
     [
       `${currentTerms}.{0,80}${externalInfoObjects}`,
@@ -729,20 +980,173 @@ function shouldEnableWebSearchTool(userMessage = "") {
   );
   const personalPlanningContext =
     /\b(mio|mia|miei|mie|questi|queste)\b.{0,60}\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b|\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b.{0,60}\b(mio|mia|miei|mie|questi|queste)\b/i;
+  const ambiguousCurrentInfoIntent =
+    /\b(aggiornami|aggiorni|aggiornamento|aggiornamenti|novit[aà]|situazione|status|cosa\s+succede|che\s+succede)\b.{0,80}\b([A-Z][\p{L}'-]{2,}|messi|ronaldo|sinner|inter|milan|juve|juventus|napoli|roma|monza)\b|\b([A-Z][\p{L}'-]{2,}|messi|ronaldo|sinner|inter|milan|juve|juventus|napoli|roma|monza)\b.{0,80}\b(aggiornami|aggiorni|aggiornamento|aggiornamenti|novit[aà]|situazione|status|cosa\s+succede|che\s+succede)\b/iu;
 
-  return (
-    !negativeSearchIntent.test(userMessage) &&
-    (explicitSearchIntent.test(userMessage) ||
-      liveScoreIntent.test(userMessage) ||
-      (currentInfoIntent.test(userMessage) &&
-        !personalPlanningContext.test(userMessage)))
-  );
+  if (delegatedSearchIntent.test(userMessage)) {
+    return {
+      enabled: true,
+      confidence: "high",
+      reason: "delegated_web_search",
+    };
+  }
+  if (negativeSearchIntent.test(userMessage)) {
+    return {
+      enabled: false,
+      confidence: "high",
+      reason: "explicit_negative_web_search",
+    };
+  }
+  if (explicitSearchIntent.test(userMessage)) {
+    return {
+      enabled: true,
+      confidence: "high",
+      reason: "explicit_web_search",
+    };
+  }
+  if (liveScoreIntent.test(userMessage)) {
+    return {
+      enabled: true,
+      confidence: "high",
+      reason: "live_score_intent",
+    };
+  }
+  if (
+    currentInfoIntent.test(userMessage) &&
+    !personalPlanningContext.test(userMessage)
+  ) {
+    return {
+      enabled: true,
+      confidence: "high",
+      reason: "current_external_info",
+    };
+  }
+  if (
+    ambiguousCurrentInfoIntent.test(userMessage) &&
+    !personalPlanningContext.test(userMessage)
+  ) {
+    return {
+      enabled: false,
+      confidence: "low",
+      reason: "ambiguous_current_info",
+    };
+  }
+  return {
+    enabled: false,
+    confidence: "high",
+    reason: "no_web_search_intent",
+  };
+}
+
+function shouldEnableWebSearchTool(userMessage = "") {
+  return evaluateWebSearchRule(userMessage).enabled;
 }
 
 function shouldEnableWebFetchTool(userMessage = "") {
   return /\b(fonte|fonti|link|url|articolo|articoli|pagina|pagine|sito|siti|apr[ie]|aprimi|leggi|riassumi|approfondisci|approfondimento|dettagli|dettagliato|confronta|confronto|analisi)\b|https?:\/\//i.test(
     userMessage,
   );
+}
+
+async function classifyPromptModules({
+  userId,
+  userMessage,
+  webSearchRule,
+}: {
+  userId: string;
+  userMessage: string;
+  webSearchRule: WebSearchRuleDecision;
+}): Promise<PromptModuleClassifierDecision | null> {
+  if (webSearchRule.confidence === "high") {
+    return null;
+  }
+
+  try {
+    const result = await LatencyLogger.measure(
+      "🧭 Orchestrator: Prompt module classifier",
+      () =>
+        generateText({
+          model: openrouter(PROMPT_MODULE_CLASSIFIER_MODEL_ID),
+          output: Output.object({ schema: promptModuleClassifierSchema }),
+          temperature: 0,
+          maxOutputTokens: 120,
+          timeout: { totalMs: PROMPT_MODULE_CLASSIFIER_TIMEOUT_MS },
+          providerOptions: {
+            openrouter: getOpenRouterProviderOptionsForModel(
+              PROMPT_MODULE_CLASSIFIER_MODEL_ID,
+            ),
+          },
+          prompt: `Classify which optional prompt modules Anthon should enable for the next chat turn.
+
+Return webSearch=yes only when the user likely needs current, live, post-cutoff, external, or time-sensitive information.
+Return webFetch=yes only when sources, URLs, pages, articles, or detailed source reading are needed.
+Return rag=yes only when the user likely refers to uploaded documents, files, PDFs, or stored knowledge base content.
+Return userContext=needed only when personal profile, preferences, memories, or prior coaching context are materially useful.
+If unsure, use uncertain/no and lower confidence.
+
+Rule precheck:
+- web search rule reason: ${webSearchRule.reason}
+
+User message:
+${JSON.stringify(userMessage)}`,
+        }),
+    );
+
+    await trackSupportAiUsage({
+      userId,
+      modelId: PROMPT_MODULE_CLASSIFIER_MODEL_ID,
+      usage: result.usage,
+      providerMetadata: result.providerMetadata,
+    });
+
+    const output = result.output;
+    const accepted =
+      output && output.confidence >= PROMPT_MODULE_CLASSIFIER_MIN_CONFIDENCE;
+    const decision: PromptModuleClassifierDecision = {
+      webSearch: accepted && output.webSearch === "yes",
+      webFetch: accepted && output.webFetch === "yes",
+      rag: accepted && output.rag === "yes",
+      userContext: accepted ? output.userContext : "not_needed",
+      confidence: output?.confidence ?? 0,
+      reason: output?.reason ?? "no_classifier_output",
+    };
+
+    aiLogger.info(
+      "ai.prompt_modules.classifier",
+      "Prompt module classifier fallback used",
+      {
+        ruleReason: webSearchRule.reason,
+        classifierReason: decision.reason,
+        confidence: decision.confidence,
+        accepted,
+        finalModules: {
+          webSearch: decision.webSearch,
+          webFetch: decision.webFetch,
+          rag: decision.rag,
+          userContext: decision.userContext,
+        },
+        messageFeatures: {
+          hasUrl: /https?:\/\//i.test(userMessage),
+          tokenCountBucket:
+            userMessage.trim().split(/\s+/).filter(Boolean).length <= 50
+              ? "0-50"
+              : "50+",
+        },
+      },
+    );
+
+    return decision;
+  } catch (error) {
+    aiLogger.warn(
+      "ai.prompt_modules.classifier_failed",
+      "Prompt module classifier failed; using deterministic modules",
+      {
+        error,
+        ruleReason: webSearchRule.reason,
+      },
+    );
+    return null;
+  }
 }
 
 /**
@@ -786,18 +1190,6 @@ export async function streamChat({
     hasImages && !benchmarkModelId ? MULTIMODAL_ORCHESTRATOR_MODEL_ID : null;
   const explicitModelId = benchmarkModelId ?? imageModelId;
 
-  // Get the appropriate model based on user's subscription plan.
-  // The default orchestrator can be text-only on OpenRouter, so image input
-  // uses a model that has been verified through the multimodal path.
-  const baseModel = explicitModelId
-    ? getModelById(explicitModelId)
-    : getModelForUser(
-        planId,
-        userRole,
-        "orchestrator",
-        effectiveEntitlements.modelTier,
-        subscriptionStatus,
-      );
   const modelId =
     benchmarkModelId ??
     imageModelId ??
@@ -816,8 +1208,20 @@ export async function streamChat({
     day: "numeric",
   });
   const hasFileParts = messageParts?.some((p) => p.type === "file") ?? false;
-  const webSearchEnabled = shouldEnableWebSearchTool(userMessage);
-  const webFetchEnabled = shouldEnableWebFetchTool(userMessage);
+  const webSearchRule = evaluateWebSearchRule(userMessage);
+  const promptModuleClassifier = await classifyPromptModules({
+    userId,
+    userMessage,
+    webSearchRule,
+  });
+  const webSearchEnabled =
+    webSearchRule.enabled || promptModuleClassifier?.webSearch === true;
+  const webFetchEnabled =
+    webSearchEnabled &&
+    (shouldEnableWebFetchTool(userMessage) ||
+      promptModuleClassifier?.webFetch === true);
+  const classifierRagEnabled =
+    !webSearchEnabled && promptModuleClassifier?.rag === true;
   const promptMode: PromptMode = isGuest
     ? "guest"
     : shouldUseSimpleFastPath({
@@ -848,7 +1252,52 @@ export async function streamChat({
           webFetchEnabled,
         });
   const userContextEnabled =
-    !isGuest && (!toolPlan.webSearch || toolPlan.hasPersistentWrites);
+    !isGuest &&
+    (!toolPlan.webSearch ||
+      toolPlan.hasPersistentWrites ||
+      promptModuleClassifier?.userContext === "needed");
+  const directWebSearchPromise = shouldUseDirectWebSearch(userMessage, toolPlan)
+    ? LatencyLogger.measure("🌐 TinyFish: Direct search prefetch", () =>
+        prefetchDirectWebSearch({
+          userMessage,
+          toolPlan,
+        }),
+      ).catch((error) => {
+        aiLogger.error(
+          "ai.web_search_direct.error",
+          "Direct web search prefetch failed",
+          { error, userId, chatId },
+        );
+        return undefined;
+      })
+    : Promise.resolve(undefined);
+
+  const modelSettings = toolPlan.hasAny
+    ? { parallelToolCalls: false }
+    : undefined;
+  // Get the appropriate model based on user's subscription plan.
+  // The default orchestrator can be text-only on OpenRouter, so image input
+  // uses a model that has been verified through the multimodal path.
+  const baseModel = explicitModelId
+    ? modelSettings
+      ? getModelById(explicitModelId, modelSettings)
+      : getModelById(explicitModelId)
+    : modelSettings
+      ? getModelForUser(
+          planId,
+          userRole,
+          "orchestrator",
+          effectiveEntitlements.modelTier,
+          subscriptionStatus,
+          modelSettings,
+        )
+      : getModelForUser(
+          planId,
+          userRole,
+          "orchestrator",
+          effectiveEntitlements.modelTier,
+          subscriptionStatus,
+        );
 
   // Wrap model with PostHog tracing for LLM analytics
   const model = withTracing(baseModel, getPostHogClient(), {
@@ -948,7 +1397,10 @@ export async function streamChat({
           try {
             const needsRag = await LatencyLogger.measure(
               "📚 RAG: Check if needed",
-              () => shouldUseRag(userMessage, { userId }),
+              () =>
+                classifierRagEnabled
+                  ? Promise.resolve(true)
+                  : shouldUseRag(userMessage, { userId }),
             );
             if (needsRag) {
               ragContext = await LatencyLogger.measure(
@@ -970,8 +1422,15 @@ export async function streamChat({
           return { ragContext, ragUsed, ragChunksCount };
         })();
 
-  const [{ ragContext, ragUsed, ragChunksCount }, conversationHistory] =
-    await Promise.all([ragPromise, conversationHistoryPromise]);
+  const [
+    { ragContext, ragUsed, ragChunksCount },
+    conversationHistory,
+    directWebSearchEvidence,
+  ] = await Promise.all([
+    ragPromise,
+    conversationHistoryPromise,
+    directWebSearchPromise,
+  ]);
 
   // Calculate if voice is enabled for this user/plan. Guest web chat has no
   // voice output, so avoid loading plan config on its critical path.
@@ -994,7 +1453,7 @@ export async function streamChat({
   const userStyleInstruction = analyzeUserStyle(conversationHistory);
 
   // Build system prompt with user context and optional RAG
-  const systemPrompt = await LatencyLogger.measure(
+  const baseSystemPrompt = await LatencyLogger.measure(
     "🛠️ Orchestrator: Build system prompt",
     async () => {
       if (promptMode === "simple_fast") {
@@ -1031,6 +1490,9 @@ export async function streamChat({
       });
     },
   );
+  const systemPrompt = directWebSearchEvidence
+    ? `${baseSystemPrompt}\n\n${formatDirectWebSearchEvidence(directWebSearchEvidence)}`
+    : baseSystemPrompt;
 
   // Build the last message with proper image/audio support
   let lastMessage: ModelMessage;
@@ -1044,7 +1506,7 @@ export async function streamChat({
     type ContentPart =
       | { type: "text"; text: string }
       | { type: "image"; image: string }
-      | { type: "file"; data: Uint8Array; mediaType: string };
+      | { type: "file"; data: string | Uint8Array | URL; mediaType: string };
     const contentParts: ContentPart[] = [];
 
     // Track if we have any text
@@ -1060,8 +1522,9 @@ export async function streamChat({
         part.data
       ) {
         contentParts.push({
-          type: "image",
-          image: part.data, // The blob URL or base64
+          type: "file",
+          data: part.data,
+          mediaType: part.mimeType,
         });
       } else if (
         part.type === "file" &&
@@ -1136,8 +1599,8 @@ export async function streamChat({
   const messages: ModelMessage[] = [...conversationHistory, lastMessage];
 
   // Create tools with userId context
-  const tools =
-    promptMode === "simple_fast"
+  const rawTools =
+    promptMode === "simple_fast" || directWebSearchEvidence
       ? {}
       : createToolsWithContext(userId, {
           memoryEnabled,
@@ -1145,26 +1608,45 @@ export async function streamChat({
           userMessage,
           toolPlan,
         });
+  const toolTimingState = {
+    toolExecutionMs: directWebSearchEvidence?.durationMs ?? 0,
+  };
+  const tools = instrumentToolExecutions(rawTools, toolTimingState);
 
   // Collect tool calls during execution
   const collectedToolCalls: Array<{
     name: string;
     args: unknown;
     result?: unknown;
-  }> = [];
+  }> = directWebSearchEvidence
+    ? [
+        {
+          name: "tinyfishSearch",
+          args: { query: directWebSearchEvidence.query },
+          result: directWebSearchEvidence.result,
+        },
+      ]
+    : [];
   const collectedOpenRouterCosts: number[] = [];
+  const streamStartedAt = Date.now();
+  let previousStepFinishedAt = streamStartedAt;
+  let previousToolExecutionMs = 0;
+  let sawToolStep = false;
+  const toolTiming: ToolTimingMetrics = {};
 
   // Stream the response
   const result = streamText({
     model,
-    system: systemPrompt,
+    instructions: systemPrompt,
     messages,
     tools,
-    maxOutputTokens: isGuest
-      ? 220
-      : promptMode === "simple_fast"
-        ? 180
-        : undefined,
+    maxOutputTokens: directWebSearchEvidence
+      ? WEB_SEARCH_DIRECT_MAX_OUTPUT_TOKENS
+      : isGuest
+        ? 220
+        : promptMode === "simple_fast"
+          ? 180
+          : undefined,
     providerOptions: {
       openrouter: {
         promptCaching: true,
@@ -1175,8 +1657,13 @@ export async function streamChat({
     headers: {
       "x-session-id": chatId ?? userId,
     },
-    stopWhen: stepCountIs(5), // Allow multi-step tool execution
-    onFinish: onFinish
+    stopWhen: isStepCount(
+      getStreamStepLimit(toolPlan, Boolean(directWebSearchEvidence)),
+    ),
+    prepareStep: directWebSearchEvidence
+      ? undefined
+      : createToolLoopPrepareStep(toolPlan),
+    onEnd: onFinish
       ? async ({
           text,
           usage,
@@ -1205,15 +1692,42 @@ export async function streamChat({
             // Pass collected tool calls
             collectedToolCalls:
               collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
+            toolTiming:
+              collectedToolCalls.length > 0
+                ? {
+                    ...toolTiming,
+                    toolExecutionMs: toolTimingState.toolExecutionMs,
+                  }
+                : undefined,
             // RAG tracking
             ragUsed,
             ragChunksCount,
           });
 
+          if (collectedToolCalls.length > 0) {
+            aiLogger.info(
+              "ai.tool_loop.timing",
+              "AI tool loop timing captured",
+              {
+                userId,
+                chatId,
+                modelId,
+                toolCallCount: metrics.toolCallCount,
+                toolResultChars: metrics.toolResultChars,
+                toolTiming: metrics.toolTiming,
+              },
+            );
+          }
+
           await onFinish({ text, metrics });
         }
       : undefined,
-    onStepFinish: (step: StepResult<ToolSet>) => {
+    onStepEnd: (step: StepResult<ToolSet>) => {
+      const stepFinishedAt = Date.now();
+      const stepElapsedMs = Math.max(
+        0,
+        stepFinishedAt - previousStepFinishedAt,
+      );
       const stepCost = getOpenRouterCost(
         step.providerMetadata as Record<string, unknown> | undefined,
       );
@@ -1222,7 +1736,23 @@ export async function streamChat({
       }
 
       // Collect tool calls from each step
-      if (step.toolCalls && Array.isArray(step.toolCalls)) {
+      const stepHasToolCalls =
+        step.toolCalls &&
+        Array.isArray(step.toolCalls) &&
+        step.toolCalls.length > 0;
+      if (stepHasToolCalls) {
+        sawToolStep = true;
+        const currentToolExecutionMs = toolTimingState.toolExecutionMs;
+        const stepToolExecutionMs = Math.max(
+          0,
+          currentToolExecutionMs - previousToolExecutionMs,
+        );
+        previousToolExecutionMs = currentToolExecutionMs;
+        toolTiming.firstModelStepMs ??= Math.max(
+          0,
+          stepElapsedMs - stepToolExecutionMs,
+        );
+
         for (let i = 0; i < step.toolCalls.length; i++) {
           const tc = step.toolCalls[i] as {
             toolName: string;
@@ -1238,7 +1768,11 @@ export async function streamChat({
             result: tr?.output ?? tr?.result,
           });
         }
+      } else if (sawToolStep) {
+        toolTiming.finalModelStepMs =
+          (toolTiming.finalModelStepMs ?? 0) + stepElapsedMs;
       }
+      previousStepFinishedAt = stepFinishedAt;
 
       // Call user's onStepFinish if provided
       if (onStepFinish) {

@@ -37,9 +37,10 @@ type TinyfishFetchInput = Parameters<
   NonNullable<TinyfishTools["tinyfishFetch"]["execute"]>
 >[0];
 
-const toolExecutionOptions: ToolExecutionOptions = {
+const toolExecutionOptions: ToolExecutionOptions<Record<string, unknown>> = {
   toolCallId: "tinyfish-live-test-call",
   messages: [],
+  context: {},
 };
 
 async function executeSearch(tools: TinyfishTools, input: TinyfishSearchInput) {

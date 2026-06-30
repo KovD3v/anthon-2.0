@@ -22,6 +22,45 @@ function scheduleBackground(
   void task;
 }
 
+function buildAssistantMetadata(
+  metadata: Prisma.InputJsonValue | undefined,
+  metrics: PersistAssistantOutputInput["metrics"],
+): Prisma.InputJsonValue | undefined {
+  const aiMetrics = {
+    ...(metrics.toolCallCount !== undefined
+      ? { toolCallCount: metrics.toolCallCount }
+      : {}),
+    ...(metrics.toolResultChars !== undefined
+      ? { toolResultChars: metrics.toolResultChars }
+      : {}),
+    ...(metrics.toolTiming ? { toolTiming: metrics.toolTiming } : {}),
+  };
+
+  if (Object.keys(aiMetrics).length === 0) {
+    return metadata;
+  }
+
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return { ai: aiMetrics };
+  }
+
+  const metadataObject = metadata as Record<string, unknown>;
+  const existingAi =
+    metadataObject.ai &&
+    typeof metadataObject.ai === "object" &&
+    !Array.isArray(metadataObject.ai)
+      ? (metadataObject.ai as Record<string, unknown>)
+      : {};
+
+  return {
+    ...metadataObject,
+    ai: {
+      ...existingAi,
+      ...aiMetrics,
+    },
+  } as Prisma.InputJsonValue;
+}
+
 async function revalidateTags(tags: string[]) {
   if (tags.length === 0) return;
 
@@ -63,6 +102,8 @@ export async function persistAssistantOutput({
   allowMemoryExtraction = false,
   waitUntil,
 }: PersistAssistantOutputInput) {
+  const assistantMetadata = buildAssistantMetadata(metadata, metrics);
+
   const message = await prisma.message.create({
     data: {
       userId,
@@ -74,7 +115,7 @@ export async function persistAssistantOutput({
       parts: [{ type: "text", text }] as Prisma.InputJsonValue,
       ...(mediaUrl ? { mediaUrl } : {}),
       ...(mediaType ? { mediaType } : {}),
-      ...(metadata ? { metadata } : {}),
+      ...(assistantMetadata ? { metadata: assistantMetadata } : {}),
       model: metrics.model,
       inputTokens: metrics.inputTokens,
       outputTokens: metrics.outputTokens,

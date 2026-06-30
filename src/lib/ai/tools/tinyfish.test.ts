@@ -20,10 +20,16 @@ type TinyfishFetchInput = Parameters<
 >[0];
 type TinyfishFetchTestInput = Omit<TinyfishFetchInput, "format"> &
   Partial<Pick<TinyfishFetchInput, "format">>;
+type TestInputSchema = {
+  safeParse: (
+    input: unknown,
+  ) => { success: true; data: unknown } | { success: false; error: unknown };
+};
 
-const toolExecutionOptions: ToolExecutionOptions = {
+const toolExecutionOptions: ToolExecutionOptions<Record<string, unknown>> = {
   toolCallId: "tinyfish-test-call",
   messages: [],
+  context: {},
 };
 
 async function executeSearch(tools: TinyfishTools, input: TinyfishSearchInput) {
@@ -80,7 +86,7 @@ describe("ai/tools/tinyfish", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { createTinyfishTools } = await import("./tinyfish");
-    const tools = createTinyfishTools();
+    const tools = createTinyfishTools({ defaultSearchDomainType: "news" });
     const result = await executeSearch(tools, {
       query: "monza serie 2026",
       language: "it",
@@ -102,6 +108,7 @@ describe("ai/tools/tinyfish", () => {
     expect(url.searchParams.get("query")).toBe("monza serie 2026");
     expect(url.searchParams.get("language")).toBe("it");
     expect(url.searchParams.get("location")).toBe("IT");
+    expect(url.searchParams.get("domain_type")).toBe("news");
     expect(result).toEqual({
       query: "monza serie 2026",
       results: [
@@ -116,6 +123,41 @@ describe("ai/tools/tinyfish", () => {
       totalResults: 1,
       page: 0,
     });
+  });
+
+  it("keeps search domain type controlled by code instead of tool input", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        query: "world cup results",
+        results: [],
+        total_results: 0,
+        page: 0,
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { createTinyfishTools } = await import("./tinyfish");
+    const tools = createTinyfishTools({ defaultSearchDomainType: "web" });
+    const inputSchema = tools.tinyfishSearch.inputSchema as TestInputSchema;
+    const parsed = inputSchema.safeParse({
+      query: "world cup results",
+      domainType: "news",
+    });
+
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) {
+      throw new Error("Expected search input schema to parse query");
+    }
+    expect(parsed.data).toEqual({ query: "world cup results" });
+
+    await executeSearch(tools, {
+      query: "world cup results",
+      domainType: "news",
+    } as TinyfishSearchInput & { domainType: "news" });
+
+    const url = fetchMock.mock.calls[0]?.[0] as URL;
+    expect(url.searchParams.get("domain_type")).toBe("web");
   });
 
   it("returns a structured error when TinyFish search fails", async () => {
@@ -183,6 +225,46 @@ describe("ai/tools/tinyfish", () => {
     });
   });
 
+  it("limits and compacts search results when configured for search-only turns", async () => {
+    const longSnippet = `${"A".repeat(260)} trailing content that should be trimmed.`;
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        query: "world cup today",
+        results: Array.from({ length: 6 }, (_, index) => ({
+          position: index + 1,
+          site_name: `site-${index + 1}.com`,
+          title: `Result ${index + 1}`,
+          snippet: longSnippet,
+          url: `https://example.com/result-${index + 1}`,
+        })),
+        total_results: 6,
+        page: 0,
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { createTinyfishTools } = await import("./tinyfish");
+    const tools = createTinyfishTools({
+      maxSearchResults: 3,
+      maxSearchSnippetChars: 120,
+    });
+
+    const result = await executeSearch(tools, {
+      query: "world cup today",
+      language: "en",
+    });
+    const searchResult = result as Awaited<ReturnType<typeof executeSearch>> & {
+      results: Array<{ content: string }>;
+      totalResults?: number;
+    };
+
+    expect(searchResult.results).toHaveLength(3);
+    expect(searchResult.totalResults).toBe(6);
+    expect(searchResult.results[0]?.content.length).toBeLessThanOrEqual(120);
+    expect(JSON.stringify(searchResult).length).toBeLessThan(1000);
+  });
+
   it("short-circuits repeated search calls from the same response", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -212,6 +294,7 @@ describe("ai/tools/tinyfish", () => {
   });
 
   it("creates a TinyFish fetch tool that posts URLs to the Fetch API", async () => {
+    const longText = `${"A".repeat(80)} content that should be trimmed.`;
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -224,7 +307,7 @@ describe("ai/tools/tinyfish", () => {
             language: "en",
             author: "Reporter",
             published_date: "2026-06-29",
-            text: "# Article\nContent",
+            text: longText,
             links: ["https://example.com/related"],
             image_links: ["https://example.com/image.jpg"],
             latency_ms: 123,
@@ -237,7 +320,7 @@ describe("ai/tools/tinyfish", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { createTinyfishTools } = await import("./tinyfish");
-    const tools = createTinyfishTools();
+    const tools = createTinyfishTools({ maxFetchTextChars: 40 });
     const result = await executeFetch(tools, {
       urls: ["https://example.com/article"],
       links: true,
@@ -276,7 +359,7 @@ describe("ai/tools/tinyfish", () => {
           language: "en",
           author: "Reporter",
           publishedDate: "2026-06-29",
-          text: "# Article\nContent",
+          text: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
           links: ["https://example.com/related"],
           imageLinks: ["https://example.com/image.jpg"],
           latencyMs: 123,
@@ -314,6 +397,39 @@ describe("ai/tools/tinyfish", () => {
           urls: ["https://example.com/one", "https://example.com/two"],
           format: "markdown",
           per_url_timeout_ms: 15_000,
+        }),
+      }),
+    );
+  });
+
+  it("uses configured fetch defaults for interactive chat", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [],
+        errors: [],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { createTinyfishTools } = await import("./tinyfish");
+    const tools = createTinyfishTools({
+      defaultFetchTtl: 3600,
+      defaultFetchPerUrlTimeoutMs: 8_000,
+      fetchRequestTimeoutMs: 12_000,
+    });
+    await executeFetch(tools, {
+      urls: ["https://example.com/one"],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: JSON.stringify({
+          urls: ["https://example.com/one"],
+          format: "markdown",
+          ttl: 3600,
+          per_url_timeout_ms: 8_000,
         }),
       }),
     );

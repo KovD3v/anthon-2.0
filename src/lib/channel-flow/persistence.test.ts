@@ -91,6 +91,65 @@ describe("channel-flow/persistence", () => {
     expect(waitUntil).toHaveBeenCalledTimes(1);
   });
 
+  it("persists derived tool metrics in assistant metadata", async () => {
+    await persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        inputTokens: 5,
+        outputTokens: 8,
+        reasoningTokens: null,
+        reasoningContent: null,
+        toolCalls: [
+          {
+            name: "tinyfishSearch",
+            args: { query: "world cup" },
+            result: {
+              results: [{ title: "A", content: "abc" }],
+            },
+          },
+        ],
+        toolCallCount: 1,
+        toolResultChars: 45,
+        toolTiming: {
+          firstModelStepMs: 120,
+          toolExecutionMs: 340,
+          finalModelStepMs: 560,
+        },
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.02,
+        generationTimeMs: 111,
+        reasoningTimeMs: null,
+      },
+      metadata: { source: "test" },
+      allowMemoryExtraction: false,
+    });
+
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: {
+            source: "test",
+            ai: {
+              toolCallCount: 1,
+              toolResultChars: 45,
+              toolTiming: {
+                firstModelStepMs: 120,
+                toolExecutionMs: 340,
+                finalModelStepMs: 560,
+              },
+            },
+          },
+        }),
+      }),
+    );
+  });
+
   it("skips chat update and memory extraction when disabled", async () => {
     await persistAssistantOutput({
       userId: "user-1",

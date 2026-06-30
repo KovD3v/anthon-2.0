@@ -6,7 +6,7 @@ import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   MessageList,
 } from "../../../(chat)/components/MessageList";
 import { SuggestedActions } from "../../../(chat)/components/SuggestedActions";
+import { createChatInputWarmup } from "../chat-input-warmup";
 import { useChatContext } from "../layout-client";
 
 interface DeleteSnapshot {
@@ -125,6 +126,10 @@ export function ChatConversationClient({
     api: isGuest ? "/api/guest/chat" : "/api/chat",
     body: { chatId },
   });
+  const inputWarmup = useMemo(
+    () => createChatInputWarmup({ chatId }),
+    [chatId],
+  );
 
   const {
     messages: streamingMessages,
@@ -145,6 +150,8 @@ export function ChatConversationClient({
       }
     },
   });
+
+  useEffect(() => () => inputWarmup.dispose(), [inputWarmup]);
 
   useEffect(() => {
     if (pendingInitialMessageSubmittedRef.current || status !== "ready") {
@@ -566,6 +573,7 @@ export function ChatConversationClient({
       <ChatInput
         input={input}
         setInput={setInput}
+        onInputWarmup={inputWarmup.schedule}
         onSubmit={handleSubmit}
         isLoading={isLoading}
         onStop={stop}

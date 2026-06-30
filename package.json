@@ -26,8 +26,8 @@
     "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@ai-sdk/devtools": "^0.0.1",
-    "@ai-sdk/react": "^3.0.3",
+    "@ai-sdk/devtools": "^1.0.1",
+    "@ai-sdk/react": "^4.0.9",
     "@clerk/nextjs": "6.36.5",
     "@openrouter/ai-sdk-provider": "^1.2.8",
     "@posthog/ai": "^7.3.0",
@@ -46,7 +46,7 @@
     "@upstash/qstash": "^2.8.4",
     "@vercel/blob": "^2.0.0",
     "@vercel/functions": "^3.3.4",
-    "ai": "^6.0.93",
+    "ai": "^7.0.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

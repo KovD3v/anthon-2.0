@@ -63,7 +63,7 @@ export async function analyzeUserProfile(userId: string): Promise<void> {
       providerOptions: {
         openrouter: getOpenRouterProviderOptionsForModel(MAINTENANCE_MODEL_ID),
       },
-      system: `Analizza lo stile di comunicazione e gli obiettivi dell'utente dai messaggi recenti.
+      instructions: `Analizza lo stile di comunicazione e gli obiettivi dell'utente dai messaggi recenti.
 Cerca di estrarre:
 - Tono: (calm, energetic, professional, friendly, direct)
 - Modalità: (coaching, friendly, direct)

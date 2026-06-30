@@ -31,7 +31,7 @@ describe("ai/usage-meter", () => {
       usage: {
         inputTokens: 100,
         outputTokens: 20,
-        reasoningTokens: 3,
+        outputTokenDetails: { textTokens: undefined, reasoningTokens: 3 },
       },
     });
 

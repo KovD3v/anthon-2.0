@@ -137,6 +137,26 @@ describe("ai/providers/openrouter", () => {
     expect(model).toEqual({ modelId: "z-ai/glm-5.2" });
   });
 
+  it("merges OpenRouter model settings with orchestrator fallbacks", async () => {
+    const { getModelForUser } = await import("./openrouter");
+
+    mocks.provider.mockClear();
+
+    getModelForUser(
+      "my-pro-plan",
+      undefined,
+      "orchestrator",
+      undefined,
+      "ACTIVE",
+      { parallelToolCalls: false },
+    );
+
+    expect(mocks.provider).toHaveBeenCalledWith("z-ai/glm-5.2", {
+      models: ["deepseek/deepseek-v4-flash"],
+      parallelToolCalls: false,
+    });
+  });
+
   it("does not attach orchestrator fallback models to sub-agent routing", async () => {
     const { getModelForUser } = await import("./openrouter");
 

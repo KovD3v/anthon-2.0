@@ -14,6 +14,7 @@ interface ChatInputProps {
   input: string;
   isLoading: boolean;
   disableAttachments?: boolean;
+  onInputWarmup?: (value: string) => void;
   setInput: (value: string) => void;
   onSubmit: (e: React.FormEvent, attachments?: AttachmentData[]) => void;
   onStop: () => void;
@@ -23,6 +24,7 @@ export function ChatInput({
   input,
   isLoading,
   disableAttachments = false,
+  onInputWarmup,
   setInput,
   onSubmit,
   onStop,
@@ -201,7 +203,9 @@ export function ChatInput({
           ref={textareaRef}
           value={input}
           onChange={(e) => {
-            setInput(e.target.value);
+            const nextInput = e.target.value;
+            setInput(nextInput);
+            onInputWarmup?.(nextInput);
             adjustHeight();
           }}
           onKeyDown={handleKeyDown}

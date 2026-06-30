@@ -18,6 +18,7 @@ export const openrouter = createOpenRouter({
 ) => LanguageModel;
 
 type ModelType = "orchestrator" | "subAgent";
+type OpenRouterModelSettings = Record<string, unknown>;
 
 // Helper to wrap model with devtools in development
 // biome-ignore lint/suspicious/noExplicitAny: model type is internal to AI SDK wrapLanguageModel
@@ -48,20 +49,34 @@ function resolveModelRouting(
 function getOpenRouterModelSettings(
   routing: ResolvedPlanPolicies["modelRouting"],
   modelType: ModelType,
+  settings?: OpenRouterModelSettings,
 ) {
-  if (modelType !== "orchestrator" || !routing.orchestratorFallbacks?.length) {
-    return undefined;
+  const baseSettings =
+    modelType !== "orchestrator" || !routing.orchestratorFallbacks?.length
+      ? undefined
+      : { models: routing.orchestratorFallbacks };
+
+  if (!settings) {
+    return baseSettings;
   }
 
-  return { models: routing.orchestratorFallbacks };
+  return {
+    ...baseSettings,
+    ...settings,
+  };
 }
 
 function getOpenRouterModel(
   routing: ResolvedPlanPolicies["modelRouting"],
   modelType: ModelType,
+  settingsOverride?: OpenRouterModelSettings,
 ) {
   const modelId = routing[modelType];
-  const settings = getOpenRouterModelSettings(routing, modelType);
+  const settings = getOpenRouterModelSettings(
+    routing,
+    modelType,
+    settingsOverride,
+  );
   return settings ? openrouter(modelId, settings) : openrouter(modelId);
 }
 
@@ -85,6 +100,7 @@ export function getModelForUser(
   modelType: ModelType = "orchestrator",
   modelTier?: OrganizationModelTier,
   subscriptionStatus?: string,
+  settingsOverride?: OpenRouterModelSettings,
 ) {
   const routing = resolveModelRouting(
     subscriptionStatus,
@@ -93,7 +109,7 @@ export function getModelForUser(
     modelTier,
   );
 
-  return withDevTools(getOpenRouterModel(routing, modelType));
+  return withDevTools(getOpenRouterModel(routing, modelType, settingsOverride));
 }
 
 /**
@@ -101,8 +117,15 @@ export function getModelForUser(
  * Intended for internal benchmark/reality-evaluation flows where the runtime
  * routing table must stay unchanged while candidate models are compared.
  */
-export function getModelById(modelId: string) {
-  return withDevTools(openrouter(modelId));
+export function getModelById(
+  modelId: string,
+  settingsOverride?: OpenRouterModelSettings,
+) {
+  return withDevTools(
+    settingsOverride
+      ? openrouter(modelId, settingsOverride)
+      : openrouter(modelId),
+  );
 }
 
 /**

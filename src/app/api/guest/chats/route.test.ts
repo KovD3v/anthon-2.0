@@ -3,9 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   authenticateGuest: vi.fn(),
   createGuestChatForSession: vi.fn(),
+  waitUntil: vi.fn(),
+  warmDatabaseConnection: vi.fn(),
   chatFindMany: vi.fn(),
   chatCreate: vi.fn(),
   latencyMeasure: vi.fn(),
+}));
+
+vi.mock("@vercel/functions", () => ({
+  waitUntil: mocks.waitUntil,
 }));
 
 vi.mock("@/lib/guest-auth", () => ({
@@ -14,6 +20,7 @@ vi.mock("@/lib/guest-auth", () => ({
 }));
 
 vi.mock("@/lib/db", () => ({
+  warmDatabaseConnection: mocks.warmDatabaseConnection,
   prisma: {
     chat: {
       findMany: mocks.chatFindMany,
@@ -34,6 +41,8 @@ describe("/api/guest/chats route", () => {
   beforeEach(() => {
     mocks.authenticateGuest.mockReset();
     mocks.createGuestChatForSession.mockReset();
+    mocks.waitUntil.mockReset();
+    mocks.warmDatabaseConnection.mockReset();
     mocks.chatFindMany.mockReset();
     mocks.chatCreate.mockReset();
     mocks.latencyMeasure.mockReset();
@@ -56,6 +65,7 @@ describe("/api/guest/chats route", () => {
     mocks.latencyMeasure.mockImplementation(
       async (_name: string, fn: () => Promise<unknown>) => await fn(),
     );
+    mocks.warmDatabaseConnection.mockResolvedValue(undefined);
 
     mocks.chatFindMany.mockResolvedValue([
       {
@@ -151,6 +161,10 @@ describe("/api/guest/chats route", () => {
     expect(mocks.createGuestChatForSession).toHaveBeenCalledWith({
       title: "Planning",
     });
+    expect(mocks.warmDatabaseConnection).toHaveBeenCalledWith(
+      "guest_chat_created",
+    );
+    expect(mocks.waitUntil).toHaveBeenCalledWith(expect.any(Promise));
     expect(mocks.chatCreate).not.toHaveBeenCalled();
   });
 
@@ -169,6 +183,8 @@ describe("/api/guest/chats route", () => {
     });
     expect(mocks.authenticateGuest).not.toHaveBeenCalled();
     expect(mocks.createGuestChatForSession).not.toHaveBeenCalled();
+    expect(mocks.warmDatabaseConnection).not.toHaveBeenCalled();
+    expect(mocks.waitUntil).not.toHaveBeenCalled();
     expect(mocks.chatCreate).not.toHaveBeenCalled();
   });
 

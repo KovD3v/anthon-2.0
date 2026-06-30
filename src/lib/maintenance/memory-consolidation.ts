@@ -62,7 +62,7 @@ export async function consolidateMemories(userId: string): Promise<void> {
       providerOptions: {
         openrouter: getOpenRouterProviderOptionsForModel(MAINTENANCE_MODEL_ID),
       },
-      system: `Sei un sistema di gestione della memoria a lungo termine.
+      instructions: `Sei un sistema di gestione della memoria a lungo termine.
 Il tuo compito è analizzare una lista di fatti (memorie) e consolidarli AGGRESSIVAMENTE.
 
 Regole di consolidamento:

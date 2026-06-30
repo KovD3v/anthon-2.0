@@ -53,7 +53,8 @@ export async function trackSupportAiUsage({
     asNumber(usage?.outputTokens) ??
     asNumber(usage?.completionTokens) ??
     0;
-  const reasoningTokens = asNumber(usage?.reasoningTokens) ?? 0;
+  const reasoningTokens =
+    asNumber(usage?.outputTokenDetails?.reasoningTokens) ?? 0;
   const providerCostUsd = asNumber(openrouterUsage?.cost);
 
   if (

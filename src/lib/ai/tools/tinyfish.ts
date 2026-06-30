@@ -11,6 +11,8 @@ const DEFAULT_SEARCH_TIMEOUT_MS = 10_000;
 const DEFAULT_FETCH_REQUEST_TIMEOUT_MS = 25_000;
 const DEFAULT_FETCH_PER_URL_TIMEOUT_MS = 15_000;
 
+export type TinyfishSearchDomainType = "web" | "news" | "research_paper";
+
 const dateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must use YYYY-MM-DD format");
@@ -50,7 +52,7 @@ type TinyfishFetchResponse = {
   }>;
 };
 
-type TinyfishSearchToolResult = {
+export type TinyfishSearchToolResult = {
   query?: string;
   results: Array<{
     title: string;
@@ -88,8 +90,27 @@ type TinyfishFetchToolResult = {
 
 type TinyfishToolsOptions = {
   maxSearchCalls?: number;
+  maxSearchResults?: number;
+  maxSearchSnippetChars?: number;
+  defaultSearchDomainType?: TinyfishSearchDomainType;
   maxFetchCalls?: number;
   maxFetchUrls?: number;
+  maxFetchTextChars?: number;
+  defaultFetchTtl?: number;
+  defaultFetchPerUrlTimeoutMs?: number;
+  fetchRequestTimeoutMs?: number;
+};
+
+export type TinyfishDirectSearchInput = {
+  query: string;
+  location?: string;
+  language?: string;
+  recencyMinutes?: number;
+  afterDate?: string;
+  beforeDate?: string;
+  maxSearchResults?: number;
+  maxSearchSnippetChars?: number;
+  defaultSearchDomainType?: TinyfishSearchDomainType;
 };
 
 function createTimeoutSignal(timeoutMs: number) {
@@ -107,8 +128,15 @@ function createTimeoutSignal(timeoutMs: number) {
  */
 export function createTinyfishTools({
   maxSearchCalls = Number.POSITIVE_INFINITY,
+  maxSearchResults = Number.POSITIVE_INFINITY,
+  maxSearchSnippetChars = Number.POSITIVE_INFINITY,
+  defaultSearchDomainType,
   maxFetchCalls = Number.POSITIVE_INFINITY,
   maxFetchUrls = 10,
+  maxFetchTextChars = Number.POSITIVE_INFINITY,
+  defaultFetchTtl,
+  defaultFetchPerUrlTimeoutMs = DEFAULT_FETCH_PER_URL_TIMEOUT_MS,
+  fetchRequestTimeoutMs = DEFAULT_FETCH_REQUEST_TIMEOUT_MS,
 }: TinyfishToolsOptions = {}) {
   const apiKey = process.env.TINYFISH_API_KEY;
   if (!apiKey) {
@@ -183,6 +211,7 @@ CRITICAL: You MUST provide a 'query' argument. NEVER call this tool with empty a
           recencyMinutes,
           afterDate,
           beforeDate,
+          domainType: defaultSearchDomainType,
         });
         const cachedResult = searchCache.get(cacheKey);
         if (cachedResult) {
@@ -199,63 +228,18 @@ CRITICAL: You MUST provide a 'query' argument. NEVER call this tool with empty a
         }
 
         const resultPromise = (async (): Promise<TinyfishSearchToolResult> => {
-          const timeout = createTimeoutSignal(DEFAULT_SEARCH_TIMEOUT_MS);
-          try {
-            const url = new URL(TINYFISH_SEARCH_URL);
-            url.searchParams.set("query", query);
-            if (location) {
-              url.searchParams.set("location", location);
-            }
-            if (language) {
-              url.searchParams.set("language", language);
-            }
-            if (recencyMinutes !== undefined) {
-              url.searchParams.set("recency_minutes", String(recencyMinutes));
-            }
-            if (afterDate) {
-              url.searchParams.set("after_date", afterDate);
-            }
-            if (beforeDate) {
-              url.searchParams.set("before_date", beforeDate);
-            }
-
-            const response = await fetch(url, {
-              headers: {
-                "X-API-Key": apiKey,
-                Accept: "application/json",
-              },
-              signal: timeout.signal,
-            });
-
-            if (!response.ok) {
-              throw new Error(`TinyFish search failed with ${response.status}`);
-            }
-
-            const data = (await response.json()) as TinyfishSearchResponse;
-
-            return {
-              query: data.query ?? query,
-              results: (data.results ?? []).map((result) => ({
-                title: result.title ?? "",
-                url: result.url ?? "",
-                content: result.snippet ?? "",
-                siteName: result.site_name ?? "",
-                position: result.position ?? null,
-              })),
-              totalResults: data.total_results ?? 0,
-              page: data.page ?? 0,
-            };
-          } catch (error) {
-            tinyfishLogger.error("search.failed", "TinyFish search error", {
-              error,
-            });
-            return {
-              results: [],
-              error: "Failed to perform search.",
-            };
-          } finally {
-            timeout.clear();
-          }
+          return searchTinyfish({
+            apiKey,
+            query,
+            location,
+            language,
+            recencyMinutes,
+            afterDate,
+            beforeDate,
+            maxSearchResults,
+            maxSearchSnippetChars,
+            defaultSearchDomainType,
+          });
         })();
         searchCache.set(cacheKey, resultPromise);
         return resultPromise;
@@ -320,9 +304,11 @@ Use this after search when you need to read source pages. Only pass http or http
         }
         if (ttl !== undefined) {
           body.ttl = ttl;
+        } else if (defaultFetchTtl !== undefined) {
+          body.ttl = defaultFetchTtl;
         }
         body.per_url_timeout_ms =
-          perUrlTimeoutMs ?? DEFAULT_FETCH_PER_URL_TIMEOUT_MS;
+          perUrlTimeoutMs ?? defaultFetchPerUrlTimeoutMs;
 
         const cacheKey = JSON.stringify(body);
         const cachedResult = fetchCache.get(cacheKey);
@@ -344,7 +330,7 @@ Use this after search when you need to read source pages. Only pass http or http
         }
 
         const resultPromise = (async (): Promise<TinyfishFetchToolResult> => {
-          const timeout = createTimeoutSignal(DEFAULT_FETCH_REQUEST_TIMEOUT_MS);
+          const timeout = createTimeoutSignal(fetchRequestTimeoutMs);
           try {
             const response = await fetch(new URL(TINYFISH_FETCH_URL), {
               method: "POST",
@@ -372,7 +358,10 @@ Use this after search when you need to read source pages. Only pass http or http
                 language: result.language ?? null,
                 author: result.author ?? null,
                 publishedDate: result.published_date ?? null,
-                text: result.text ?? "",
+                text:
+                  typeof result.text === "string"
+                    ? compactText(result.text, maxFetchTextChars)
+                    : (result.text ?? ""),
                 links: result.links,
                 imageLinks: result.image_links,
                 latencyMs: result.latency_ms ?? null,
@@ -401,4 +390,111 @@ Use this after search when you need to read source pages. Only pass http or http
       },
     }),
   };
+}
+
+export async function searchTinyfishDirect({
+  maxSearchResults = Number.POSITIVE_INFINITY,
+  maxSearchSnippetChars = Number.POSITIVE_INFINITY,
+  ...input
+}: TinyfishDirectSearchInput): Promise<TinyfishSearchToolResult> {
+  const apiKey = process.env.TINYFISH_API_KEY;
+  if (!apiKey) {
+    throw new Error("TINYFISH_API_KEY environment variable is required");
+  }
+
+  return searchTinyfish({
+    ...input,
+    apiKey,
+    maxSearchResults,
+    maxSearchSnippetChars,
+  });
+}
+
+async function searchTinyfish({
+  apiKey,
+  query,
+  location,
+  language,
+  recencyMinutes,
+  afterDate,
+  beforeDate,
+  maxSearchResults,
+  maxSearchSnippetChars,
+  defaultSearchDomainType,
+}: TinyfishDirectSearchInput & {
+  apiKey: string;
+  maxSearchResults: number;
+  maxSearchSnippetChars: number;
+}): Promise<TinyfishSearchToolResult> {
+  const timeout = createTimeoutSignal(DEFAULT_SEARCH_TIMEOUT_MS);
+  try {
+    const url = new URL(TINYFISH_SEARCH_URL);
+    url.searchParams.set("query", query);
+    if (location) {
+      url.searchParams.set("location", location);
+    }
+    if (language) {
+      url.searchParams.set("language", language);
+    }
+    if (recencyMinutes !== undefined) {
+      url.searchParams.set("recency_minutes", String(recencyMinutes));
+    }
+    if (afterDate) {
+      url.searchParams.set("after_date", afterDate);
+    }
+    if (beforeDate) {
+      url.searchParams.set("before_date", beforeDate);
+    }
+    if (defaultSearchDomainType) {
+      url.searchParams.set("domain_type", defaultSearchDomainType);
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        "X-API-Key": apiKey,
+        Accept: "application/json",
+      },
+      signal: timeout.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`TinyFish search failed with ${response.status}`);
+    }
+
+    const data = (await response.json()) as TinyfishSearchResponse;
+
+    const compactResults = (data.results ?? [])
+      .slice(0, maxSearchResults)
+      .map((result) => ({
+        title: result.title ?? "",
+        url: result.url ?? "",
+        content: compactText(result.snippet ?? "", maxSearchSnippetChars),
+        siteName: result.site_name ?? "",
+        position: result.position ?? null,
+      }));
+
+    return {
+      query: data.query ?? query,
+      results: compactResults,
+      totalResults: data.total_results ?? 0,
+      page: data.page ?? 0,
+    };
+  } catch (error) {
+    tinyfishLogger.error("search.failed", "TinyFish search error", {
+      error,
+    });
+    return {
+      results: [],
+      error: "Failed to perform search.",
+    };
+  } finally {
+    timeout.clear();
+  }
+}
+
+function compactText(value: string, maxChars: number) {
+  if (!Number.isFinite(maxChars) || value.length <= maxChars) {
+    return value;
+  }
+  return value.slice(0, Math.max(0, maxChars)).trimEnd();
 }
