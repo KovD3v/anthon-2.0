@@ -4,6 +4,7 @@ import {
   getAssistantMessageDisplayState,
   getAssistantMessageLifecycle,
   getAssistantPendingLabel,
+  getAssistantToolFeedback,
   getAudioRecorderStatusLabel,
   shouldAnimateAssistantMessageMount,
   shouldRenderAssistantPendingRow,
@@ -167,5 +168,87 @@ describe("getAudioRecorderStatusLabel", () => {
     expect(
       getAudioRecorderStatusLabel({ state: "uploading", duration: "0:07" }),
     ).toBe("Carico l'audio");
+  });
+});
+
+describe("getAssistantToolFeedback", () => {
+  it("describes active web searches with the submitted query", () => {
+    expect(
+      getAssistantToolFeedback({
+        status: "streaming",
+        message: {
+          id: "assistant-1",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-tinyfishSearch",
+              toolCallId: "call-1",
+              state: "input-available",
+              input: { query: "prossima partita di Messi" },
+            },
+          ],
+        },
+      }),
+    ).toBe("Sto cercando prossima partita di Messi");
+  });
+
+  it("describes active site extraction with the target host", () => {
+    expect(
+      getAssistantToolFeedback({
+        status: "streaming",
+        message: {
+          id: "assistant-1",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-tinyfishFetch",
+              toolCallId: "call-1",
+              state: "input-available",
+              input: { urls: ["https://www.intermiamicf.com/news/latest"] },
+            },
+          ],
+        },
+      }),
+    ).toBe("Estraggo dal sito intermiamicf.com");
+  });
+
+  it("describes active context retrieval without leaking implementation names", () => {
+    expect(
+      getAssistantToolFeedback({
+        status: "streaming",
+        message: {
+          id: "assistant-1",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-getMemories",
+              toolCallId: "call-1",
+              state: "input-available",
+              input: { category: "sport" },
+            },
+          ],
+        },
+      }),
+    ).toBe("Recupero informazioni su sport");
+  });
+
+  it("does not show stale tool feedback after streaming completes", () => {
+    expect(
+      getAssistantToolFeedback({
+        status: "ready",
+        message: {
+          id: "assistant-1",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-tinyfishSearch",
+              toolCallId: "call-1",
+              state: "input-available",
+              input: { query: "Monza news" },
+            },
+          ],
+        },
+      }),
+    ).toBeNull();
   });
 });

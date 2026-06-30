@@ -194,6 +194,8 @@ describe("chat mobile viewport layout", () => {
 
     expect(conversationClient).toContain("status={status}");
     expect(messageList).toContain("getAssistantPendingLabel");
+    expect(messageList).toContain("getAssistantToolFeedback");
+    expect(messageList).toContain("assistantToolFeedback");
     expect(messageList).toContain("<m.output");
     expect(chatInput).toContain("uploadingFileName");
     expect(chatInput).toContain("CHAT_REACTIVITY_COPY.uploadUploading");

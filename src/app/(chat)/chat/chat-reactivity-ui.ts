@@ -33,6 +33,150 @@ export function getMessageText(message: UIMessage | undefined) {
   );
 }
 
+type ToolFeedbackPart = {
+  type?: string;
+  toolName?: string;
+  state?: string;
+  input?: unknown;
+};
+
+export function getAssistantToolFeedback({
+  status,
+  message,
+}: {
+  status: ChatRequestStatus;
+  message: UIMessage | undefined;
+}) {
+  if (status !== "submitted" && status !== "streaming") {
+    return null;
+  }
+
+  if (message?.role !== "assistant") {
+    return null;
+  }
+
+  const toolPart = [...(message.parts ?? [])]
+    .reverse()
+    .find(isActiveToolFeedbackPart);
+  if (!toolPart) {
+    return null;
+  }
+
+  const toolName = getToolName(toolPart);
+  const input = toolPart.input;
+  const topic = getToolInputTopic(input);
+  const host = getToolInputHost(input);
+
+  if (isSearchTool(toolName)) {
+    return topic ? `Sto cercando ${topic}` : "Sto cercando informazioni";
+  }
+
+  if (isFetchTool(toolName)) {
+    return host
+      ? `Estraggo dal sito ${host}`
+      : "Estraggo informazioni dal sito";
+  }
+
+  if (isContextTool(toolName)) {
+    return topic
+      ? `Recupero informazioni su ${topic}`
+      : "Recupero informazioni dal profilo";
+  }
+
+  return topic ? `Recupero informazioni su ${topic}` : "Recupero informazioni";
+}
+
+function isActiveToolFeedbackPart(part: UIMessage["parts"][number]) {
+  const toolPart = part as ToolFeedbackPart;
+  if (!toolPart.type?.startsWith("tool-") && toolPart.type !== "dynamic-tool") {
+    return false;
+  }
+
+  return (
+    toolPart.state === "input-streaming" ||
+    toolPart.state === "input-available" ||
+    toolPart.state === "approval-requested"
+  );
+}
+
+function getToolName(part: ToolFeedbackPart) {
+  if (part.type === "dynamic-tool") {
+    return part.toolName ?? "";
+  }
+
+  return part.type?.replace(/^tool-/, "") ?? "";
+}
+
+function isSearchTool(toolName: string) {
+  return /search|cerca/i.test(toolName);
+}
+
+function isFetchTool(toolName: string) {
+  return /fetch|extract|crawl|scrape|readUrl/i.test(toolName);
+}
+
+function isContextTool(toolName: string) {
+  return /context|memories|profile|preferences/i.test(toolName);
+}
+
+function getToolInputTopic(input: unknown): string | null {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const record = input as Record<string, unknown>;
+  const directTopic =
+    pickString(record.query) ??
+    pickString(record.q) ??
+    pickString(record.topic) ??
+    pickString(record.category) ??
+    pickString(record.key) ??
+    pickString(record.url);
+
+  if (directTopic) {
+    return cleanToolFeedbackValue(directTopic);
+  }
+
+  const firstUrl = pickFirstString(record.urls);
+  return firstUrl ? cleanToolFeedbackValue(firstUrl) : null;
+}
+
+function getToolInputHost(input: unknown): string | null {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const record = input as Record<string, unknown>;
+  const rawUrl = pickString(record.url) ?? pickFirstString(record.urls);
+  if (!rawUrl) {
+    return null;
+  }
+
+  try {
+    const url = new URL(rawUrl);
+    return url.hostname.replace(/^www\./, "");
+  } catch {
+    return cleanToolFeedbackValue(rawUrl);
+  }
+}
+
+function pickString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function pickFirstString(value: unknown) {
+  return Array.isArray(value)
+    ? (value.map(pickString).find(Boolean) ?? null)
+    : null;
+}
+
+function cleanToolFeedbackValue(value: string) {
+  return value
+    .trim()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "");
+}
+
 export function getAssistantPendingLabel({
   status,
   latestMessage,
