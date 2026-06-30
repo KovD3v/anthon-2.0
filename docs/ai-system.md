@@ -33,11 +33,13 @@ The AI subsystem powers chat generation, retrieval, personalization, and backgro
 
 1. Resolve effective entitlements (`resolveEffectiveEntitlements`).
 2. Select model by plan/role/tier.
-3. Build conversation context via `buildConversationContext`.
-4. Evaluate RAG need (`shouldUseRag`) and fetch context (`getRagContext`) if needed.
-5. Build system prompt with profile/preferences/memories/date.
-6. Run `streamText` with tools and callbacks.
-7. Persist usage metrics, model info, token/cost telemetry.
+3. Evaluate web-search intent and classify optional prompt modules.
+4. Choose prompt mode (`full`, `guest`, or `simple_fast`).
+5. Build conversation context via `buildConversationContext` when needed.
+6. Evaluate RAG need (`shouldUseRag`) and fetch context (`getRagContext`) if needed.
+7. Build system prompt with the selected modules.
+8. Run `streamText` with the selected tools and callbacks.
+9. Persist usage metrics, model info, token/cost telemetry, and tool timing.
 
 ### Toolset
 
@@ -55,6 +57,28 @@ The orchestrator composes tools from three factories:
 - `createTinyfishTools()`:
   - `tinyfishSearch`
   - `tinyfishFetch`
+
+The orchestrator does not expose every tool on every turn. `selectToolPlan`
+enables memory/profile writes only when the message asks for persistent changes,
+enables `tinyfishSearch` for current or explicit web-search intent, and enables
+`tinyfishFetch` only when URL/page/source reading is useful.
+
+### Prompt modes
+
+| Mode | Used for | Behavior |
+| ---- | -------- | -------- |
+| `full` | Authenticated turns that need normal context/tools | Uses conversation history, optional profile/memory context, optional RAG, optional web tools, and full response budget. |
+| `guest` | Guest chat | Uses compact guest prompt and constrained output. |
+| `simple_fast` | Simple authenticated text turns without media, voice, RAG, or web-search intent | Skips conversation history, full profile/memory enrichment, RAG, voice config, and tools; may include a tiny user snapshot. |
+
+### Current-information flow
+
+Web search is powered by TinyFish:
+
+- `tinyfishSearch` is used for current, live, post-cutoff, or explicit external web requests.
+- `tinyfishFetch` is only exposed when the user asks for source/page/link reading or the classifier marks fetch as useful.
+- Brief current-information requests should normally use one broad search query and answer from the compact result snippets.
+- Search history context is capped separately from normal chat context to keep these turns low latency.
 
 ## Session Manager
 
@@ -77,7 +101,8 @@ The orchestrator composes tools from three factories:
 
 ### Query gating (`shouldUseRag`)
 
-The decision pipeline uses layered optimization:
+RAG is skipped for guest turns, web-search turns, and `simple_fast` turns. For
+normal authenticated turns, the decision pipeline uses layered optimization:
 
 1. Document existence check (cached)
 2. Positive keyword fast-path
@@ -109,21 +134,47 @@ Tracked metrics include:
 
 ## Model Routing
 
-- File: `src/lib/ai/providers/openrouter.ts`
+- Files:
+  - `src/lib/plans/catalog.ts`
+  - `src/lib/ai/providers/openrouter.ts`
+  - `src/lib/ai/providers/openrouter-routing.ts`
 
 Plan-level defaults:
 
-| Tier | Orchestrator | Sub-agent |
-| ---- | ------------ | --------- |
-| `trial` | `z-ai/glm-4.7` | `google/gemini-2.5-flash-lite` |
-| `basic` | `z-ai/glm-4.7` | `google/gemini-2.5-flash-lite` |
-| `basic_plus` | `z-ai/glm-4.7` | `google/gemini-2.5-flash` |
-| `pro` | `z-ai/glm-4.7` | `google/gemini-2.5-flash-lite` |
-| `admin` | `z-ai/glm-4.7` | `google/gemini-2.5-flash-lite` |
+| Tier | Orchestrator | Fallback | Sub-agent |
+| ---- | ------------ | -------- | --------- |
+| `trial` | `z-ai/glm-5.2` | `deepseek/deepseek-v4-flash` | `google/gemini-2.5-flash-lite` |
+| `basic` | `z-ai/glm-5.2` | `deepseek/deepseek-v4-flash` | `google/gemini-2.5-flash-lite` |
+| `basic_plus` | `z-ai/glm-5.2` | `deepseek/deepseek-v4-flash` | `google/gemini-2.5-flash` |
+| `pro` | `z-ai/glm-5.2` | `deepseek/deepseek-v4-flash` | `google/gemini-2.5-flash-lite` |
+| `admin` | `z-ai/glm-5.2` | `deepseek/deepseek-v4-flash` | `google/gemini-2.5-flash-lite` |
+
+Image chat uses `moonshotai/kimi-k2.7-code` for the orchestrator unless an
+internal benchmark explicitly overrides the model.
 
 Maintenance model:
 
 - `google/gemini-2.5-flash-lite`
+
+OpenRouter provider routing defaults to latency sorting. Runtime provider
+options are cached per model/env combination, support price/throughput/latency
+sorting, manual order/only/ignore lists, max-price constraints, zero-data-retention
+preference, recent-error penalties, and an `e2e-latency` scorer when provider
+health and cost snapshots are supplied.
+
+`streamText` also passes `promptCaching: true` and `session_id` to OpenRouter so
+providers that support cache/session affinity can reuse prompt context.
+
+## Chat UI Feedback
+
+The chat UI surfaces live tool activity from streaming AI SDK tool parts:
+
+- search tools: `Sto cercando ...`
+- fetch tools: `Estraggo dal sito ...`
+- profile/memory/context tools: `Recupero informazioni ...`
+
+Assistant message bubbles are kept stable during streaming to avoid layout
+animation while content is arriving.
 
 ## Audio Transcription
 
