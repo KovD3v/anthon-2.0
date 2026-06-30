@@ -71,24 +71,16 @@ const RECENT_ERROR_LIGHT_PENALTY_SECONDS = 8;
 const RECENT_ERROR_STRONG_PENALTY_SECONDS = 25;
 const RECENT_ERROR_COOLDOWN_THRESHOLD = 3;
 const GLM_5_2_MODEL_ID = "z-ai/glm-5.2";
-const GLM_5_2_DEFAULT_PROVIDER_E2E_METRICS =
-  "z-ai/glm-5.2=Parasail:0.523,z-ai/glm-5.2=AkashML:1.1,z-ai/glm-5.2=Wafer:5.1";
+const GLM_5_2_DEFAULT_PROVIDER_E2E_METRICS = "z-ai/glm-5.2=Parasail:0.523";
+const DEFAULT_PROVIDER_ERROR_BLOCKLIST_BY_MODEL = {
+  [GLM_5_2_MODEL_ID]: ["Wafer", "AkashML"],
+} satisfies Record<string, string[]>;
 const GLM_5_2_DEFAULT_PROVIDER_HEALTH = {
   [GLM_5_2_MODEL_ID]: {
     Parasail: {
       successWeight: 1,
       p50LatencySeconds: 0.523,
       p95LatencySeconds: 0.523,
-      sampleCount: 1,
-    },
-    AkashML: {
-      failureWeight: 1,
-      avgFailedAttemptLatencySeconds: 1.1,
-      sampleCount: 1,
-    },
-    Wafer: {
-      failureWeight: 1,
-      avgFailedAttemptLatencySeconds: 5.1,
       sampleCount: 1,
     },
   },
@@ -147,6 +139,8 @@ function withDefaultProviderRouting(
     [OPENROUTER_PROVIDER_ROUTING_ENV.providerHealth]: JSON.stringify(
       GLM_5_2_DEFAULT_PROVIDER_HEALTH,
     ),
+    [OPENROUTER_PROVIDER_ROUTING_ENV.ignore]:
+      DEFAULT_PROVIDER_ERROR_BLOCKLIST_BY_MODEL[modelId].join(","),
   };
 }
 
