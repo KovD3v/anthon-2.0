@@ -749,6 +749,12 @@ describe("ai/orchestrator", () => {
       userMessage: "quale è la prossima partita che messi giocherà?",
     });
 
+    expect(mocks.buildConversationContext).toHaveBeenCalledWith(
+      "user-1",
+      4,
+      "chat-messi-next-match",
+    );
+
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       messages: Array<{ role: string; content: unknown }>;
       tools: Record<string, unknown>;

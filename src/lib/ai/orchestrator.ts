@@ -33,6 +33,7 @@ import { getPostHogClient } from "@/lib/posthog";
 
 const aiLogger = createLogger("ai");
 const MULTIMODAL_ORCHESTRATOR_MODEL_ID = "moonshotai/kimi-k2.7-code";
+const WEB_SEARCH_CONTEXT_MESSAGES = 4;
 
 const PROMPT_IDENTITY = `You are Anthon, a digital sports performance coach.
 You help athletes, coaches, and parents improve mindset, technique, motivation, and performance.
@@ -865,7 +866,12 @@ export async function streamChat({
   });
 
   // Get plan-based session cap
-  const maxContextMessages = effectiveEntitlements.limits.maxContextMessages;
+  const maxContextMessages = toolPlan.webSearch
+    ? Math.min(
+        effectiveEntitlements.limits.maxContextMessages,
+        WEB_SEARCH_CONTEXT_MESSAGES,
+      )
+    : effectiveEntitlements.limits.maxContextMessages;
 
   // Kick off independent work ASAP to reduce end-to-end latency
   const shouldSkipConversationHistory =
