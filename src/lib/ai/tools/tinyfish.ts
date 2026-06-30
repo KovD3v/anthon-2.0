@@ -7,6 +7,9 @@ const TINYFISH_SEARCH_URL = "https://api.search.tinyfish.ai";
 const TINYFISH_FETCH_URL = "https://api.fetch.tinyfish.ai";
 const MAX_RECENCY_MINUTES = 5_256_000;
 const MAX_FETCH_TIMEOUT_MS = 110_000;
+const DEFAULT_SEARCH_TIMEOUT_MS = 10_000;
+const DEFAULT_FETCH_REQUEST_TIMEOUT_MS = 25_000;
+const DEFAULT_FETCH_PER_URL_TIMEOUT_MS = 15_000;
 
 const dateSchema = z
   .string()
@@ -47,11 +50,57 @@ type TinyfishFetchResponse = {
   }>;
 };
 
+type TinyfishSearchToolResult = {
+  query?: string;
+  results: Array<{
+    title: string;
+    url: string;
+    content: string;
+    siteName: string;
+    position: number | null;
+  }>;
+  totalResults?: number;
+  page?: number;
+  error?: string;
+};
+
+type TinyfishFetchToolResult = {
+  results: Array<{
+    url: string;
+    finalUrl: string;
+    title: string | null;
+    description: string | null;
+    language: string | null;
+    author: string | null;
+    publishedDate: string | null;
+    text: string | object;
+    links?: string[];
+    imageLinks?: string[];
+    latencyMs: number | null;
+    format: "markdown" | "html" | "json";
+  }>;
+  errors: Array<{
+    url?: string;
+    error?: string;
+    status?: number;
+  }>;
+};
+
 type TinyfishToolsOptions = {
   maxSearchCalls?: number;
   maxFetchCalls?: number;
   maxFetchUrls?: number;
 };
+
+function createTimeoutSignal(timeoutMs: number) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timeoutId),
+  };
+}
 
 /**
  * Creates TinyFish web search tool with strict validation.
@@ -68,6 +117,8 @@ export function createTinyfishTools({
 
   let searchCalls = 0;
   let fetchCalls = 0;
+  const searchCache = new Map<string, Promise<TinyfishSearchToolResult>>();
+  const fetchCache = new Map<string, Promise<TinyfishFetchToolResult>>();
 
   return {
     tinyfishSearch: tool({
@@ -125,6 +176,19 @@ CRITICAL: You MUST provide a 'query' argument. NEVER call this tool with empty a
         afterDate,
         beforeDate,
       }) => {
+        const cacheKey = JSON.stringify({
+          query,
+          location,
+          language,
+          recencyMinutes,
+          afterDate,
+          beforeDate,
+        });
+        const cachedResult = searchCache.get(cacheKey);
+        if (cachedResult) {
+          return cachedResult;
+        }
+
         searchCalls += 1;
         if (searchCalls > maxSearchCalls) {
           return {
@@ -134,59 +198,67 @@ CRITICAL: You MUST provide a 'query' argument. NEVER call this tool with empty a
           };
         }
 
-        try {
-          const url = new URL(TINYFISH_SEARCH_URL);
-          url.searchParams.set("query", query);
-          if (location) {
-            url.searchParams.set("location", location);
-          }
-          if (language) {
-            url.searchParams.set("language", language);
-          }
-          if (recencyMinutes !== undefined) {
-            url.searchParams.set("recency_minutes", String(recencyMinutes));
-          }
-          if (afterDate) {
-            url.searchParams.set("after_date", afterDate);
-          }
-          if (beforeDate) {
-            url.searchParams.set("before_date", beforeDate);
-          }
+        const resultPromise = (async (): Promise<TinyfishSearchToolResult> => {
+          const timeout = createTimeoutSignal(DEFAULT_SEARCH_TIMEOUT_MS);
+          try {
+            const url = new URL(TINYFISH_SEARCH_URL);
+            url.searchParams.set("query", query);
+            if (location) {
+              url.searchParams.set("location", location);
+            }
+            if (language) {
+              url.searchParams.set("language", language);
+            }
+            if (recencyMinutes !== undefined) {
+              url.searchParams.set("recency_minutes", String(recencyMinutes));
+            }
+            if (afterDate) {
+              url.searchParams.set("after_date", afterDate);
+            }
+            if (beforeDate) {
+              url.searchParams.set("before_date", beforeDate);
+            }
 
-          const response = await fetch(url, {
-            headers: {
-              "X-API-Key": apiKey,
-              Accept: "application/json",
-            },
-          });
+            const response = await fetch(url, {
+              headers: {
+                "X-API-Key": apiKey,
+                Accept: "application/json",
+              },
+              signal: timeout.signal,
+            });
 
-          if (!response.ok) {
-            throw new Error(`TinyFish search failed with ${response.status}`);
+            if (!response.ok) {
+              throw new Error(`TinyFish search failed with ${response.status}`);
+            }
+
+            const data = (await response.json()) as TinyfishSearchResponse;
+
+            return {
+              query: data.query ?? query,
+              results: (data.results ?? []).map((result) => ({
+                title: result.title ?? "",
+                url: result.url ?? "",
+                content: result.snippet ?? "",
+                siteName: result.site_name ?? "",
+                position: result.position ?? null,
+              })),
+              totalResults: data.total_results ?? 0,
+              page: data.page ?? 0,
+            };
+          } catch (error) {
+            tinyfishLogger.error("search.failed", "TinyFish search error", {
+              error,
+            });
+            return {
+              results: [],
+              error: "Failed to perform search.",
+            };
+          } finally {
+            timeout.clear();
           }
-
-          const data = (await response.json()) as TinyfishSearchResponse;
-
-          return {
-            query: data.query ?? query,
-            results: (data.results ?? []).map((result) => ({
-              title: result.title ?? "",
-              url: result.url ?? "",
-              content: result.snippet ?? "",
-              siteName: result.site_name ?? "",
-              position: result.position ?? null,
-            })),
-            totalResults: data.total_results ?? 0,
-            page: data.page ?? 0,
-          };
-        } catch (error) {
-          tinyfishLogger.error("search.failed", "TinyFish search error", {
-            error,
-          });
-          return {
-            results: [],
-            error: "Failed to perform search.",
-          };
-        }
+        })();
+        searchCache.set(cacheKey, resultPromise);
+        return resultPromise;
       },
     }),
     tinyfishFetch: tool({
@@ -235,6 +307,29 @@ Use this after search when you need to read source pages. Only pass http or http
         ttl,
         perUrlTimeoutMs,
       }) => {
+        const limitedUrls = urls.slice(0, maxFetchUrls);
+        const body: Record<string, unknown> = {
+          urls: limitedUrls,
+          format,
+        };
+        if (links !== undefined) {
+          body.links = links;
+        }
+        if (imageLinks !== undefined) {
+          body.image_links = imageLinks;
+        }
+        if (ttl !== undefined) {
+          body.ttl = ttl;
+        }
+        body.per_url_timeout_ms =
+          perUrlTimeoutMs ?? DEFAULT_FETCH_PER_URL_TIMEOUT_MS;
+
+        const cacheKey = JSON.stringify(body);
+        const cachedResult = fetchCache.get(cacheKey);
+        if (cachedResult) {
+          return cachedResult;
+        }
+
         fetchCalls += 1;
         if (fetchCalls > maxFetchCalls) {
           return {
@@ -248,71 +343,61 @@ Use this after search when you need to read source pages. Only pass http or http
           };
         }
 
-        try {
-          const limitedUrls = urls.slice(0, maxFetchUrls);
-          const body: Record<string, unknown> = {
-            urls: limitedUrls,
-            format,
-          };
-          if (links !== undefined) {
-            body.links = links;
-          }
-          if (imageLinks !== undefined) {
-            body.image_links = imageLinks;
-          }
-          if (ttl !== undefined) {
-            body.ttl = ttl;
-          }
-          if (perUrlTimeoutMs !== undefined) {
-            body.per_url_timeout_ms = perUrlTimeoutMs;
-          }
-
-          const response = await fetch(new URL(TINYFISH_FETCH_URL), {
-            method: "POST",
-            headers: {
-              "X-API-Key": apiKey,
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-            body: JSON.stringify(body),
-          });
-
-          if (!response.ok) {
-            throw new Error(`TinyFish fetch failed with ${response.status}`);
-          }
-
-          const data = (await response.json()) as TinyfishFetchResponse;
-
-          return {
-            results: (data.results ?? []).map((result) => ({
-              url: result.url ?? "",
-              finalUrl: result.final_url ?? "",
-              title: result.title ?? null,
-              description: result.description ?? null,
-              language: result.language ?? null,
-              author: result.author ?? null,
-              publishedDate: result.published_date ?? null,
-              text: result.text ?? "",
-              links: result.links,
-              imageLinks: result.image_links,
-              latencyMs: result.latency_ms ?? null,
-              format: result.format ?? format,
-            })),
-            errors: data.errors ?? [],
-          };
-        } catch (error) {
-          tinyfishLogger.error("fetch.failed", "TinyFish fetch error", {
-            error,
-          });
-          return {
-            results: [],
-            errors: [
-              {
-                error: "Failed to fetch content.",
+        const resultPromise = (async (): Promise<TinyfishFetchToolResult> => {
+          const timeout = createTimeoutSignal(DEFAULT_FETCH_REQUEST_TIMEOUT_MS);
+          try {
+            const response = await fetch(new URL(TINYFISH_FETCH_URL), {
+              method: "POST",
+              headers: {
+                "X-API-Key": apiKey,
+                "Content-Type": "application/json",
+                Accept: "application/json",
               },
-            ],
-          };
-        }
+              body: JSON.stringify(body),
+              signal: timeout.signal,
+            });
+
+            if (!response.ok) {
+              throw new Error(`TinyFish fetch failed with ${response.status}`);
+            }
+
+            const data = (await response.json()) as TinyfishFetchResponse;
+
+            return {
+              results: (data.results ?? []).map((result) => ({
+                url: result.url ?? "",
+                finalUrl: result.final_url ?? "",
+                title: result.title ?? null,
+                description: result.description ?? null,
+                language: result.language ?? null,
+                author: result.author ?? null,
+                publishedDate: result.published_date ?? null,
+                text: result.text ?? "",
+                links: result.links,
+                imageLinks: result.image_links,
+                latencyMs: result.latency_ms ?? null,
+                format: result.format ?? format,
+              })),
+              errors: data.errors ?? [],
+            };
+          } catch (error) {
+            tinyfishLogger.error("fetch.failed", "TinyFish fetch error", {
+              error,
+            });
+            return {
+              results: [],
+              errors: [
+                {
+                  error: "Failed to fetch content.",
+                },
+              ],
+            };
+          } finally {
+            timeout.clear();
+          }
+        })();
+        fetchCache.set(cacheKey, resultPromise);
+        return resultPromise;
       },
     }),
   };

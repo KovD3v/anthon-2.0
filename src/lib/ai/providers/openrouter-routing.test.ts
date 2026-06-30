@@ -35,6 +35,32 @@ describe("ai/providers/openrouter-routing", () => {
     });
   });
 
+  it("adds OpenRouter provider constraints from environment variables", () => {
+    expect(
+      getOpenRouterProviderRouting({
+        OPENROUTER_PROVIDER_SORT: "throughput",
+        OPENROUTER_PROVIDER_QUANTIZATIONS: "fp8, int8",
+        OPENROUTER_PROVIDER_MAX_PROMPT_PRICE: "0.000002",
+        OPENROUTER_PROVIDER_MAX_COMPLETION_PRICE: "0.000006",
+        OPENROUTER_PROVIDER_MAX_REQUEST_PRICE: "0.01",
+        OPENROUTER_PROVIDER_MAX_IMAGE_PRICE: "0.001",
+        OPENROUTER_PROVIDER_MAX_AUDIO_PRICE: "0.003",
+        OPENROUTER_PROVIDER_ZDR: "true",
+      }),
+    ).toEqual({
+      sort: "throughput",
+      quantizations: ["fp8", "int8"],
+      max_price: {
+        prompt: 0.000002,
+        completion: 0.000006,
+        image: 0.001,
+        audio: 0.003,
+        request: 0.01,
+      },
+      zdr: true,
+    });
+  });
+
   it("wraps provider routing for AI SDK OpenRouter provider options", () => {
     expect(
       getOpenRouterProviderOptions({
@@ -240,6 +266,12 @@ describe("ai/providers/openrouter-routing", () => {
         OPENROUTER_PROVIDER_SORT: "ttft",
       }),
     ).toThrow(/e2e-latency/);
+
+    expect(() =>
+      getOpenRouterProviderRouting({
+        OPENROUTER_PROVIDER_MAX_PROMPT_PRICE: "0",
+      }),
+    ).toThrow(/OPENROUTER_PROVIDER_MAX_PROMPT_PRICE/);
 
     expect(() =>
       getOpenRouterProviderRouting({
