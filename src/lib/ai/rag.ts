@@ -41,12 +41,17 @@ async function fetchWithRetry(
     try {
       const response = await fetch(url, options);
 
-      // Success or client error (4xx) - don't retry
-      if (response.ok || (response.status >= 400 && response.status < 500)) {
+      // Success or client error (4xx, except 429 rate limits) - don't retry
+      if (
+        response.ok ||
+        (response.status >= 400 &&
+          response.status < 500 &&
+          response.status !== 429)
+      ) {
         return response;
       }
 
-      // Server error (5xx) - retry
+      // Server error (5xx) or rate limit (429) - retry
       lastError = new Error(`Server error: ${response.status}`);
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -258,6 +263,11 @@ export async function searchDocuments(
   }
 }
 
+export interface RagContext {
+  text: string;
+  chunkCount: number;
+}
+
 /**
  * Format RAG results into a context string for the system prompt.
  */
@@ -286,9 +296,12 @@ function formatRagContext(
  * Search and format RAG context for a user query.
  * This is the main function to use in the orchestrator.
  */
-export async function getRagContext(query: string): Promise<string> {
+export async function getRagContext(query: string): Promise<RagContext> {
   const results = await searchDocuments(query);
-  return formatRagContext(results);
+  return {
+    text: formatRagContext(results),
+    chunkCount: results.length,
+  };
 }
 
 /**
@@ -317,7 +330,10 @@ export async function addDocument(
     // Generate embeddings for all chunks in batch
     const embeddings = await generateEmbeddings(chunks);
 
-    // Create chunks with embeddings using raw SQL (Prisma can't handle vector type directly)
+    // Create chunks with embeddings using raw SQL (Prisma can't handle vector type directly).
+    // Batched into a single multi-row INSERT to avoid one round-trip per chunk.
+    const valueClauses: string[] = [];
+    const params: unknown[] = [];
     for (let i = 0; i < chunks.length; i++) {
       const embedding = embeddings[i];
 
@@ -330,16 +346,24 @@ export async function addDocument(
         continue;
       }
 
-      // Use raw SQL to insert with vector type
-      const embeddingStr = `[${embedding.join(",")}]`;
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO "RagChunk" (id, "documentId", content, index, embedding, "createdAt")
-         VALUES ($1, $2, $3, $4, $5::vector, NOW())`,
+      const base = params.length;
+      valueClauses.push(
+        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}::vector, NOW())`,
+      );
+      params.push(
         `chunk_${document.id}_${i}`,
         document.id,
         chunks[i],
         i,
-        embeddingStr,
+        `[${embedding.join(",")}]`,
+      );
+    }
+
+    if (valueClauses.length > 0) {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "RagChunk" (id, "documentId", content, index, embedding, "createdAt")
+         VALUES ${valueClauses.join(", ")}`,
+        ...params,
       );
     }
 
@@ -406,15 +430,16 @@ export async function updateMissingEmbeddings(): Promise<number> {
  */
 export async function deleteDocument(documentId: string): Promise<void> {
   try {
-    // Delete chunks first (foreign key constraint)
-    await prisma.ragChunk.deleteMany({
-      where: { documentId },
-    });
-
-    // Delete document
-    await prisma.ragDocument.delete({
-      where: { id: documentId },
-    });
+    // Delete chunks first (foreign key constraint), atomically with the document
+    // so a partial failure never leaves an empty document behind.
+    await prisma.$transaction([
+      prisma.ragChunk.deleteMany({
+        where: { documentId },
+      }),
+      prisma.ragDocument.delete({
+        where: { id: documentId },
+      }),
+    ]);
   } catch (error) {
     ragLogger.error("ai.rag.index.delete_failed", "Error deleting document", {
       error,
@@ -707,7 +732,6 @@ export async function shouldUseRag(
   }
 
   // OPTIMIZATION 4: Fast LLM classification (only for uncertain cases)
-  // Uses GPT-3.5-turbo instead of Gemini for faster classification (~300ms vs ~1300ms)
   try {
     const cacheKey = normalizeClassificationKey(userMessage);
     const cached = ragClassificationCache.get(cacheKey);

@@ -41,6 +41,7 @@ vi.mock("@/lib/db", () => ({
     $queryRawUnsafe: mocks.queryRawUnsafe,
     $queryRaw: mocks.queryRaw,
     $executeRawUnsafe: mocks.executeRawUnsafe,
+    $transaction: (operations: Promise<unknown>[]) => Promise.all(operations),
   },
 }));
 
@@ -267,9 +268,10 @@ describe("ai/rag", () => {
     const { getRagContext } = await loadModule();
     const context = await getRagContext("topic");
 
-    expect(context).toContain("### Documenti rilevanti:");
-    expect(context).toContain("**Doc X**");
-    expect(context).toContain("Chunk content");
+    expect(context.text).toContain("### Documenti rilevanti:");
+    expect(context.text).toContain("**Doc X**");
+    expect(context.text).toContain("Chunk content");
+    expect(context.chunkCount).toBe(1);
   });
 
   it("addDocument creates document and inserts only chunks with embeddings", async () => {

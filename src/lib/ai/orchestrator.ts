@@ -12,6 +12,26 @@ import {
 import { z } from "zod";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
 import {
+  evaluateWebSearchRule,
+  getWebSearchDomainType,
+  matchesBriefResponseIntent,
+  matchesComplexCoachingIntent,
+  matchesHealthRiskIntent,
+  matchesMemoryDeleteIntent,
+  matchesMemoryReadIntent,
+  matchesMemoryWriteIntent,
+  matchesNotesWriteIntent,
+  matchesPersistentDataIntent,
+  matchesPreferenceWriteIntent,
+  matchesProfileWriteIntent,
+  matchesRagIntent,
+  matchesSimpleFastIntent,
+  matchesVoiceIntent,
+  shouldEnableWebFetchTool,
+  shouldEnableWebSearchTool,
+  type WebSearchRuleDecision,
+} from "@/lib/ai/intent";
+import {
   getModelById,
   getModelForUser,
   getModelIdForPlan,
@@ -183,14 +203,6 @@ type FullPromptModules = {
   persistentWritesEnabled: boolean;
   preferenceWritesEnabled: boolean;
   ragEnabled: boolean;
-};
-
-type RuleConfidence = "high" | "low";
-
-type WebSearchRuleDecision = {
-  enabled: boolean;
-  confidence: RuleConfidence;
-  reason: string;
 };
 
 type PromptModuleClassifierDecision = {
@@ -718,28 +730,6 @@ function getSearchOnlyTinyfishLimits(userMessage: string) {
   };
 }
 
-function getWebSearchDomainType(
-  userMessage: string,
-): "news" | "research_paper" | undefined {
-  if (
-    /\b(research paper|paper|papers|studio scientifico|studi scientifici|pubblicazione|pubblicazioni|arxiv|pubmed|citazioni|citation|journal|conferenza)\b/i.test(
-      userMessage,
-    )
-  ) {
-    return "research_paper";
-  }
-
-  if (
-    /\b(notizia|notizie|news|ultim[aeio]|latest|current|oggi|ieri|domani|ora|adesso|live|diretta|risultato|risultati|punteggio|partita|partite|match|gioca|giocher[aà]|categoria|serie|classifica|mondiali|serie\s+a|campionato|torneo|meteo|previsioni)\b/i.test(
-      userMessage,
-    )
-  ) {
-    return "news";
-  }
-
-  return undefined;
-}
-
 function getMaxToolSteps(toolPlan: ToolPlan) {
   if (
     toolPlan.webSearch &&
@@ -891,181 +881,6 @@ function shouldUseSimpleFastPath({
   );
 }
 
-function matchesSimpleFastIntent(message: string) {
-  return /\b(ciao|ehi|hey|buongiorno|buonasera|grazie|motivami|motiva|caricami|incoraggiami|breve|rapido|veloce|focus|frase|spinta|calmami|tranquillizzami)\b|reset\s+mentale|consiglio\s+(veloce|rapido)/i.test(
-    message,
-  );
-}
-
-function matchesBriefResponseIntent(message: string) {
-  return /\b(breve|brevemente|rapido|rapida|veloce|sintesi|sintetico|sintetica|riassumi|due\s+righe|una\s+frase|in\s+breve|short|brief|quick|concise)\b/i.test(
-    message,
-  );
-}
-
-function matchesPersistentDataIntent(message: string) {
-  return (
-    matchesMemoryReadIntent(message) ||
-    matchesProfileWriteIntent(message) ||
-    matchesPreferenceWriteIntent(message) ||
-    matchesMemoryWriteIntent(message) ||
-    matchesMemoryDeleteIntent(message) ||
-    matchesNotesWriteIntent(message)
-  );
-}
-
-function matchesMemoryReadIntent(message: string) {
-  return /\b(chi\s+sono|sai\s+chi\s+sono|mi\s+conosci|ti\s+ricordi\s+di\s+me|cosa\s+sai\s+di\s+me|che\s+cosa\s+sai\s+di\s+me|cosa\s+ricordi\s+di\s+me|che\s+cosa\s+ricordi\s+di\s+me|hai\s+memoria\s+di\s+me|recupera\s+(la\s+)?memoria|guarda\s+(la\s+)?memoria|leggi\s+(la\s+)?memoria|interroga\s+(la\s+)?memoria)\b/i.test(
-    message,
-  );
-}
-
-function matchesProfileWriteIntent(message: string) {
-  return /\b(mi\s+chiamo|chiamami|sono\s+(un|una|atleta|giocatore|giocatrice|coach|allenatore|allenatrice)|gioco\s+(a\s+)?(calcio|basket|tennis|pallavolo|nuoto)|pratico|faccio\s+(calcio|basket|tennis|pallavolo|nuoto|atletica|palestra)|ho\s+\d+\s+anni|il\s+mio\s+obiettivo|il\s+mio\s+goal|obiettivo\s+(e|è))\b/i.test(
-    message,
-  );
-}
-
-function matchesPreferenceWriteIntent(message: string) {
-  return /\b(preferisco|preferirei|da\s+ora|d'ora\s+in\s+poi|rispondimi\s+sempre|parlami\s+sempre|tono\s+(diretto|empatico|tecnico|motivazionale)|modalit[aà]\s+(concisa|elaborata|sfidante|supportiva)|lingua\s+(italiana|inglese|spagnola|francese|tedesca)|usa\s+un\s+tono|sii\s+(diretto|empatico|tecnico|motivazionale|conciso|supportivo))\b/i.test(
-    message,
-  );
-}
-
-function matchesMemoryWriteIntent(message: string) {
-  return /\b(ricordati|ricorda\s+che|salva|memorizza|tieni\s+a\s+mente|ho\s+(una|un)\s+(partita|gara|match)|avr[oò]\s+(una|un)\s+(partita|gara|match)|mi\s+alleno\s+(il|la|di|ogni))\b/i.test(
-    message,
-  );
-}
-
-function matchesMemoryDeleteIntent(message: string) {
-  return /\b(dimentica|cancella|elimina|rimuovi)\b.{0,60}\b(memoria|ricordo|dato|informazione|quello|questa cosa|profilo)\b/i.test(
-    message,
-  );
-}
-
-function matchesNotesWriteIntent(message: string) {
-  return /\b(nota\s+che|prendi\s+nota|segnati)\b/i.test(message);
-}
-
-function matchesRagIntent(message: string) {
-  return /\b(rag|document[oi]|pdf|file|fonte|fonti|materiale|dispensa|archivio|caricat[oi]|allegat[oi])\b|in\s+base\s+(al|alla|ai|alle)|secondo\s+(il|la|i|le)\s+(document|file|materiale|fonte)/i.test(
-    message,
-  );
-}
-
-function matchesComplexCoachingIntent(message: string) {
-  return /\b(piano|programma|scheda|routine|analizza|analisi|spiegami|dettagli|dettagliato|confronta|tabella|strategia|preparazione|settimana|mensile|periodizzazione|nutrizione|dieta|macrociclo|microciclo)\b/i.test(
-    message,
-  );
-}
-
-function matchesVoiceIntent(message: string) {
-  return /\b(audio|vocale|nota\s+vocale|voice\s+note|parla|registrami|mandami\s+un\s+vocale)\b/i.test(
-    message,
-  );
-}
-
-function matchesHealthRiskIntent(message: string) {
-  return /\b(dolore|male|infortun|trauma|sintom|farmac|medic|diagnosi|stiramento|frattura|commozione)\b/i.test(
-    message,
-  );
-}
-
-function evaluateWebSearchRule(userMessage = ""): WebSearchRuleDecision {
-  const delegatedSearchIntent =
-    /\b(non\s+(riesco|posso|trovo|ho\s+trovato|sono\s+riuscit[ao])|non\s+ho\s+(trovato|potuto\s+cercare))\b.{0,80}\b(cercare|trovare|online|web|internet|google)\b.{0,80}\b(puoi|potresti|riesci)\b.{0,50}\b(cercare|controllare|verificare|farlo|farla)\b|\b(puoi|potresti|riesci)\b.{0,50}\b(cercare|controllare|verificare|farlo|farla)\b.{0,80}\b(non\s+(riesco|posso|trovo|ho\s+trovato|sono\s+riuscit[ao])|non\s+ho\s+(trovato|potuto\s+cercare))\b/i;
-  const negativeSearchIntent =
-    /\b(senza|evita\s+di|evitiamo\s+di|rispondi\s+senza)\b.{0,45}\b(cercare|ricerca|controllare|verificare|internet|web|online|google)\b|\b(non\s+devi|non\s+voglio|non\s+serve|non)\b.{0,45}\b(cercare|fare\s+(una\s+)?ricerca|usare\s+(internet|il\s+web|web|google)|controllare\s+online|verificare\s+online|guardare\s+(su\s+)?(internet|web|online|google))\b/i;
-  const explicitSearchIntent =
-    /\b(fai|fammi|facci|puoi\s+fare|puoi\s+farmi|prova\s+a\s+fare)\b.{0,30}\b(una\s+)?ricerca\b|\b(ricerca|cerca|cercami|cercare|cercalo|controlla|controllare|verifica|verificare|guardalo|guarda)\b.{0,55}\b(internet|web|online|google)\b|\b(internet|web|online|google)\b.{0,55}\b(ricerca|cerca|cercami|cercare|controlla|controllare|verifica|verificare|guarda)\b|\b(trova|recupera)\b.{0,45}\b(informazioni|aggiornamenti|notizie|news)\b.{0,45}\b(aggiornat[ei]?|recent[ei]?|online|web|internet)\b/i;
-  const liveScoreIntent =
-    /\b(punteggio|risultato|risultati|score)\b.{0,80}\b(ora|adesso|diretta|live|tempo\s+reale|in\s+corso|sta(?:nno)?\s+giocando|mondiali)\b|\b(ora|adesso|diretta|live|tempo\s+reale|in\s+corso|sta(?:nno)?\s+giocando)\b.{0,80}\b(punteggio|risultato|score|partita|match|gara|mondiali)\b/i;
-  const currentTerms =
-    "\\b(oggi|ieri|domani|stasera|sta\\s+sera|ora|adesso|attuale|attuali|aggiornat[oaie]|recent[ei]|ultimo|ultimi|ultima|ultime|questa\\s+settimana|questo\\s+weekend|quest'anno|in\\s+corso|live|diretta|tempo\\s+reale|latest|current|today|yesterday|tomorrow|tonight|202[0-9])\\b";
-  const externalInfoObjects =
-    "\\b(partita|partite|match|gara|gare|gioca|giocano|giocher[aà]|giocheranno|formazione|formazioni|convocati|punteggio|risultato|risultati|score|classifica|classifiche|standings|meteo|previsioni|orario|orari|schedule|calendario|fixture|categoria|serie|campionato|league|torneo|mondiali|squadra|club|giocatore|atleta|vinto|vincitore|prezzo|prezzi|costo|costa|disponibilit[aà]|disponibile|biglietto|biglietti|prodotto|maglia|evento|eventi|concerto|concerti|volo|voli|treno|treni|parte|partenza|ristorante|ristoranti|negozio|negozi|aperto|aperti|aperta|aperte)\\b";
-  const currentInfoIntent = new RegExp(
-    [
-      `${currentTerms}.{0,80}${externalInfoObjects}`,
-      `${externalInfoObjects}.{0,80}${currentTerms}`,
-      "\\b(notizia|notizie|news)\\b",
-      "prossim[aoei]\\s+(partita|partite|match|gara|gare)",
-      "quando\\s+(gioca|giocher[aà]|giocheranno|giocherai|giocate)\\b",
-      "\\bclassifica\\b.{0,60}\\b(serie|campionato|league|nba|nfl|mlb|nhl|mondiali|torneo)\\b",
-    ].join("|"),
-    "i",
-  );
-  const personalPlanningContext =
-    /\b(mio|mia|miei|mie|questi|queste)\b.{0,60}\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b|\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b.{0,60}\b(mio|mia|miei|mie|questi|queste)\b/i;
-  const ambiguousCurrentInfoIntent =
-    /\b(aggiornami|aggiorni|aggiornamento|aggiornamenti|novit[aà]|situazione|status|cosa\s+succede|che\s+succede)\b.{0,80}\b([A-Z][\p{L}'-]{2,}|messi|ronaldo|sinner|inter|milan|juve|juventus|napoli|roma|monza)\b|\b([A-Z][\p{L}'-]{2,}|messi|ronaldo|sinner|inter|milan|juve|juventus|napoli|roma|monza)\b.{0,80}\b(aggiornami|aggiorni|aggiornamento|aggiornamenti|novit[aà]|situazione|status|cosa\s+succede|che\s+succede)\b/iu;
-
-  if (delegatedSearchIntent.test(userMessage)) {
-    return {
-      enabled: true,
-      confidence: "high",
-      reason: "delegated_web_search",
-    };
-  }
-  if (negativeSearchIntent.test(userMessage)) {
-    return {
-      enabled: false,
-      confidence: "high",
-      reason: "explicit_negative_web_search",
-    };
-  }
-  if (explicitSearchIntent.test(userMessage)) {
-    return {
-      enabled: true,
-      confidence: "high",
-      reason: "explicit_web_search",
-    };
-  }
-  if (liveScoreIntent.test(userMessage)) {
-    return {
-      enabled: true,
-      confidence: "high",
-      reason: "live_score_intent",
-    };
-  }
-  if (
-    currentInfoIntent.test(userMessage) &&
-    !personalPlanningContext.test(userMessage)
-  ) {
-    return {
-      enabled: true,
-      confidence: "high",
-      reason: "current_external_info",
-    };
-  }
-  if (
-    ambiguousCurrentInfoIntent.test(userMessage) &&
-    !personalPlanningContext.test(userMessage)
-  ) {
-    return {
-      enabled: false,
-      confidence: "low",
-      reason: "ambiguous_current_info",
-    };
-  }
-  return {
-    enabled: false,
-    confidence: "high",
-    reason: "no_web_search_intent",
-  };
-}
-
-function shouldEnableWebSearchTool(userMessage = "") {
-  return evaluateWebSearchRule(userMessage).enabled;
-}
-
-function shouldEnableWebFetchTool(userMessage = "") {
-  return /\b(fonte|fonti|link|url|articolo|articoli|pagina|pagine|sito|siti|apr[ie]|aprimi|leggi|riassumi|approfondisci|approfondimento|dettagli|dettagliato|confronta|confronto|analisi)\b|https?:\/\//i.test(
-    userMessage,
-  );
-}
-
 async function classifyPromptModules({
   userId,
   userMessage,
@@ -1169,7 +984,8 @@ ${JSON.stringify(userMessage)}`,
 
 /**
  * Main orchestrator function that streams a chat response.
- * Uses GPT-4.1-mini via OpenRouter with tool calling.
+ * Uses the plan-configured OpenRouter model (see src/lib/plans/catalog.ts)
+ * with tool calling.
  */
 export async function streamChat({
   userId,
@@ -1227,53 +1043,154 @@ export async function streamChat({
   });
   const hasFileParts = messageParts?.some((p) => p.type === "file") ?? false;
   const webSearchRule = evaluateWebSearchRule(userMessage);
-  const promptModuleClassifier = await classifyPromptModules({
+  // The classifier only performs an LLM call for ambiguous messages
+  // (rule confidence "low"); high-confidence rules resolve to null instantly.
+  // Kick it off without awaiting so prefetches below run in parallel with it.
+  const classifierMayRun = webSearchRule.confidence === "low";
+  const promptModuleClassifierPromise = classifyPromptModules({
     userId,
     userMessage,
     webSearchRule,
   });
-  const webSearchEnabled =
-    webSearchRule.enabled || promptModuleClassifier?.webSearch === true;
-  const webFetchEnabled =
-    webSearchEnabled &&
-    (shouldEnableWebFetchTool(userMessage) ||
-      promptModuleClassifier?.webFetch === true);
-  const classifierRagEnabled =
-    !webSearchEnabled && promptModuleClassifier?.rag === true;
-  const promptMode: PromptMode = isGuest
-    ? "guest"
-    : shouldUseSimpleFastPath({
-          userMessage,
-          isGuest,
-          hasImages,
-          hasAudio,
-          hasFileParts,
-          responseMode,
-          webSearchEnabled,
-        })
-      ? "simple_fast"
-      : "full";
-  const toolPlan =
-    promptMode === "simple_fast"
-      ? selectToolPlan({
-          userMessage,
-          isGuest,
-          memoryEnabled: false,
-          webSearchEnabled: false,
-          webFetchEnabled: false,
-        })
-      : selectToolPlan({
-          userMessage,
-          isGuest,
-          memoryEnabled,
-          webSearchEnabled,
-          webFetchEnabled,
-        });
-  const userContextEnabled =
+
+  const resolveTurnPlan = (
+    classifier: PromptModuleClassifierDecision | null,
+  ) => {
+    const webSearchEnabled =
+      webSearchRule.enabled || classifier?.webSearch === true;
+    const webFetchEnabled =
+      webSearchEnabled &&
+      (shouldEnableWebFetchTool(userMessage) || classifier?.webFetch === true);
+    const classifierRagEnabled = !webSearchEnabled && classifier?.rag === true;
+    const promptMode: PromptMode = isGuest
+      ? "guest"
+      : shouldUseSimpleFastPath({
+            userMessage,
+            isGuest,
+            hasImages,
+            hasAudio,
+            hasFileParts,
+            responseMode,
+            webSearchEnabled,
+          })
+        ? "simple_fast"
+        : "full";
+    const toolPlan =
+      promptMode === "simple_fast"
+        ? selectToolPlan({
+            userMessage,
+            isGuest,
+            memoryEnabled: false,
+            webSearchEnabled: false,
+            webFetchEnabled: false,
+          })
+        : selectToolPlan({
+            userMessage,
+            isGuest,
+            memoryEnabled,
+            webSearchEnabled,
+            webFetchEnabled,
+          });
+    const userContextEnabled =
+      !isGuest &&
+      (!toolPlan.webSearch ||
+        toolPlan.hasPersistentWrites ||
+        classifier?.userContext === "needed");
+    return {
+      webSearchEnabled,
+      webFetchEnabled,
+      classifierRagEnabled,
+      promptMode,
+      toolPlan,
+      userContextEnabled,
+    };
+  };
+
+  // Plan the turn from the deterministic rules alone. When the classifier may
+  // still flip decisions (rare ambiguous messages), prefetch optimistically and
+  // reconcile once it resolves; the classifier can only ADD modules, never
+  // remove ones the rules enabled.
+  const provisionalPlan = resolveTurnPlan(null);
+
+  const provisionalMaxContextMessages = provisionalPlan.toolPlan.webSearch
+    ? Math.min(
+        effectiveEntitlements.limits.maxContextMessages,
+        WEB_SEARCH_CONTEXT_MESSAGES,
+      )
+    : effectiveEntitlements.limits.maxContextMessages;
+  const skipHistoryPrefetch =
+    skipConversationHistory ||
+    (!classifierMayRun && provisionalPlan.promptMode === "simple_fast");
+  const conversationHistoryPrefetch = skipHistoryPrefetch
+    ? Promise.resolve<ModelMessage[]>([])
+    : LatencyLogger.measure("📋 Orchestrator: Get conversation history", () =>
+        buildConversationContext(userId, provisionalMaxContextMessages, chatId),
+      ).catch((error) => {
+        aiLogger.error(
+          "ai.conversation_history.error",
+          "Conversation history enrichment failed",
+          {
+            error,
+            userId,
+            chatId,
+          },
+        );
+        return [];
+      });
+
+  const mayNeedUserContext =
     !isGuest &&
-    (!toolPlan.webSearch ||
-      toolPlan.hasPersistentWrites ||
-      promptModuleClassifier?.userContext === "needed");
+    (classifierMayRun ||
+      (provisionalPlan.userContextEnabled &&
+        provisionalPlan.promptMode !== "simple_fast"));
+  const userContextPrefetch = !mayNeedUserContext
+    ? Promise.resolve("")
+    : formatUserContextForPrompt(userId).catch((error) => {
+        aiLogger.error(
+          "ai.user_context.error",
+          "User context enrichment failed",
+          {
+            error,
+            userId,
+          },
+        );
+        return "No user context available.";
+      });
+  const userMemoriesPrefetch =
+    memoryEnabled === false || !mayNeedUserContext
+      ? Promise.resolve("Persistent memory is disabled for this session.")
+      : formatMemoriesForPrompt(userId).catch((error) => {
+          aiLogger.error("ai.memories.error", "Memory enrichment failed", {
+            error,
+            userId,
+          });
+          return "No user memories available.";
+        });
+  const userSnapshotPromise =
+    provisionalPlan.promptMode === "simple_fast"
+      ? formatTinyUserSnapshotForPrompt(userId).catch((error) => {
+          aiLogger.error(
+            "ai.user_snapshot.error",
+            "Tiny user snapshot enrichment failed",
+            {
+              error,
+              userId,
+            },
+          );
+          return "";
+        })
+      : Promise.resolve("");
+
+  const promptModuleClassifier = await promptModuleClassifierPromise;
+  const {
+    webSearchEnabled,
+    classifierRagEnabled,
+    promptMode,
+    toolPlan,
+    userContextEnabled,
+  } = classifierMayRun
+    ? resolveTurnPlan(promptModuleClassifier)
+    : provisionalPlan;
   const directWebSearchPromise = shouldUseDirectWebSearch(userMessage, toolPlan)
     ? LatencyLogger.measure("🌐 TinyFish: Direct search prefetch", () =>
         prefetchDirectWebSearch({
@@ -1340,66 +1257,35 @@ export async function streamChat({
       )
     : effectiveEntitlements.limits.maxContextMessages;
 
-  // Kick off independent work ASAP to reduce end-to-end latency
+  // Reconcile the optimistic prefetches with the final plan. Only the
+  // classifier path can diverge: it may have enabled web search (tighter
+  // history cap) or switched simple_fast to full mode.
   const shouldSkipConversationHistory =
     skipConversationHistory || promptMode === "simple_fast";
-  const conversationHistoryPromise = shouldSkipConversationHistory
-    ? Promise.resolve<ModelMessage[]>([])
-    : LatencyLogger.measure("📋 Orchestrator: Get conversation history", () =>
-        buildConversationContext(userId, maxContextMessages, chatId),
-      ).catch((error) => {
-        aiLogger.error(
-          "ai.conversation_history.error",
-          "Conversation history enrichment failed",
-          {
-            error,
-            userId,
-            chatId,
-          },
-        );
+  const historyNeedsWebSearchCap =
+    classifierMayRun &&
+    toolPlan.webSearch &&
+    !provisionalPlan.toolPlan.webSearch;
+  const conversationHistoryPromise = conversationHistoryPrefetch.then(
+    (history) => {
+      if (shouldSkipConversationHistory) {
         return [];
-      });
+      }
+      if (historyNeedsWebSearchCap && history.length > maxContextMessages) {
+        return history.slice(-maxContextMessages);
+      }
+      return history;
+    },
+  );
 
-  const userContextPromise =
-    !userContextEnabled || promptMode === "simple_fast"
-      ? Promise.resolve("")
-      : formatUserContextForPrompt(userId).catch((error) => {
-          aiLogger.error(
-            "ai.user_context.error",
-            "User context enrichment failed",
-            {
-              error,
-              userId,
-            },
-          );
-          return "No user context available.";
-        });
+  const userContextNeeded = userContextEnabled && promptMode !== "simple_fast";
+  const userContextPromise = userContextNeeded
+    ? userContextPrefetch
+    : Promise.resolve("");
   const userMemoriesPromise =
-    memoryEnabled === false ||
-    !userContextEnabled ||
-    promptMode === "simple_fast"
+    memoryEnabled === false || !userContextNeeded
       ? Promise.resolve("Persistent memory is disabled for this session.")
-      : formatMemoriesForPrompt(userId).catch((error) => {
-          aiLogger.error("ai.memories.error", "Memory enrichment failed", {
-            error,
-            userId,
-          });
-          return "No user memories available.";
-        });
-  const userSnapshotPromise =
-    promptMode === "simple_fast"
-      ? formatTinyUserSnapshotForPrompt(userId).catch((error) => {
-          aiLogger.error(
-            "ai.user_snapshot.error",
-            "Tiny user snapshot enrichment failed",
-            {
-              error,
-              userId,
-            },
-          );
-          return "";
-        })
-      : Promise.resolve("");
+      : userMemoriesPrefetch;
 
   const ragPromise =
     isGuest || webSearchEnabled || promptMode === "simple_fast"
@@ -1421,14 +1307,13 @@ export async function streamChat({
                   : shouldUseRag(userMessage, { userId }),
             );
             if (needsRag) {
-              ragContext = await LatencyLogger.measure(
+              const ragResult = await LatencyLogger.measure(
                 "📚 RAG: Get context",
                 () => getRagContext(userMessage),
               );
+              ragContext = ragResult.text;
               ragUsed = true;
-              // Count chunks by counting "**" which marks each document title
-              ragChunksCount = (ragContext.match(/\*\*[^*]+\*\*/g) || [])
-                .length;
+              ragChunksCount = ragResult.chunkCount;
             }
           } catch (error) {
             aiLogger.error("ai.rag.error", "RAG enrichment failed", {
@@ -1867,7 +1752,7 @@ function analyzeUserStyle(history: ModelMessage[]): string {
     const avgLength = totalChars / userMessages.length;
 
     // 2. Check for emoji usage
-    const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+    const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
     const hasEmojis = userMessages.some((m) => emojiRegex.test(m));
 
     // 3. Check for formality (very basic)

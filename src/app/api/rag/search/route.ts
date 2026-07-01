@@ -77,7 +77,7 @@ export async function POST(req: Request) {
 
     // Search for relevant documents
     const results = await searchDocuments(normalizedQuery, limit);
-    const context = getRagContext ? await getRagContext(normalizedQuery) : "";
+    const { text: context } = await getRagContext(normalizedQuery);
 
     return NextResponse.json({
       needsRag,

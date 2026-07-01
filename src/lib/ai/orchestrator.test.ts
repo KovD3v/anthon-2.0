@@ -169,7 +169,10 @@ describe("ai/orchestrator", () => {
     }));
     mocks.withTracing.mockReturnValue("traced-model");
     mocks.shouldUseRag.mockResolvedValue(false);
-    mocks.getRagContext.mockResolvedValue("unused rag");
+    mocks.getRagContext.mockResolvedValue({
+      text: "unused rag",
+      chunkCount: 1,
+    });
     mocks.buildConversationContext.mockResolvedValue([
       { role: "user", content: "same message" },
     ]);
@@ -468,7 +471,10 @@ describe("ai/orchestrator", () => {
 
   it("keeps RAG classification for simple wording that references documents", async () => {
     mocks.shouldUseRag.mockResolvedValue(true);
-    mocks.getRagContext.mockResolvedValue("**Doc A**\ncontext");
+    mocks.getRagContext.mockResolvedValue({
+      text: "**Doc A**\ncontext",
+      chunkCount: 1,
+    });
 
     await streamChat({
       userId: "user-1",
@@ -1109,7 +1115,10 @@ describe("ai/orchestrator", () => {
   it("builds audio/file content parts, strips codec suffixes, and applies voice-disabled prompt variant", async () => {
     mocks.buildConversationContext.mockResolvedValue([]);
     mocks.shouldUseRag.mockResolvedValue(true);
-    mocks.getRagContext.mockResolvedValue("**Doc A**\ncontext");
+    mocks.getRagContext.mockResolvedValue({
+      text: "**Doc A**\ncontext",
+      chunkCount: 1,
+    });
 
     await streamChat({
       userId: "user-1",
@@ -1291,7 +1300,10 @@ describe("ai/orchestrator", () => {
 
   it("collects step tool calls and forwards computed metrics through onFinish", async () => {
     mocks.shouldUseRag.mockResolvedValue(true);
-    mocks.getRagContext.mockResolvedValue("**Doc A**\n...\n**Doc B**\n...");
+    mocks.getRagContext.mockResolvedValue({
+      text: "**Doc A**\n...\n**Doc B**\n...",
+      chunkCount: 2,
+    });
 
     const userOnFinish = vi.fn();
     const userOnStepFinish = vi.fn();

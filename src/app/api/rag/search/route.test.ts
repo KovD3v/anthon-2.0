@@ -45,7 +45,10 @@ describe("POST /api/rag/search", () => {
     mocks.auth.mockResolvedValue({ userId: "clerk-1" });
     mocks.shouldUseRag.mockResolvedValue(true);
     mocks.searchDocuments.mockResolvedValue([{ id: "doc-1" }]);
-    mocks.getRagContext.mockResolvedValue("context text");
+    mocks.getRagContext.mockResolvedValue({
+      text: "context text",
+      chunkCount: 1,
+    });
   });
 
   it("returns 401 when unauthorized", async () => {
@@ -125,7 +128,7 @@ describe("POST /api/rag/search", () => {
 
   it("returns search results and context", async () => {
     mocks.searchDocuments.mockResolvedValue([{ id: "d1" }, { id: "d2" }]);
-    mocks.getRagContext.mockResolvedValue("ctx");
+    mocks.getRagContext.mockResolvedValue({ text: "ctx", chunkCount: 1 });
 
     const response = await POST(buildRequest({ query: "nutrition", limit: 2 }));
 
