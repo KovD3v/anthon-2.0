@@ -109,6 +109,14 @@ function countOccurrences(value: string, needle: string) {
   return value.split(needle).length - 1;
 }
 
+async function readTextStream(stream: AsyncIterable<string>) {
+  let text = "";
+  for await (const chunk of stream) {
+    text += chunk;
+  }
+  return text;
+}
+
 const baseEntitlements = {
   limits: {
     maxRequestsPerDay: 100,
@@ -854,6 +862,333 @@ describe("ai/orchestrator", () => {
         },
       }),
     );
+  });
+
+  it("reads OpenRouter image text from array content parts", async () => {
+    const originalApiKey = process.env.OPENROUTER_API_KEY;
+    process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    const fetchSpy = vi.fn().mockResolvedValue(
+      Response.json({
+        id: "gen-array-content",
+        model: "google/gemini-2.5-flash-lite",
+        choices: [
+          {
+            message: {
+              content: [
+                { type: "text", text: "Vedo il caricamento " },
+                { type: "text", text: "del gesto atletico." },
+              ],
+            },
+          },
+        ],
+        usage: {
+          prompt_tokens: 80,
+          completion_tokens: 9,
+          total_tokens: 89,
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    try {
+      const result = await streamChat({
+        userId: "user-1",
+        chatId: "chat-image-array-content",
+        userMessage: "cosa vedi?",
+        hasImages: true,
+        messageParts: [
+          { type: "text", text: "cosa vedi?" },
+          {
+            type: "file",
+            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            mimeType: "image/jpeg",
+          },
+        ],
+      });
+
+      await expect(readTextStream(result.textStream)).resolves.toBe(
+        "Vedo il caricamento del gesto atletico.",
+      );
+    } finally {
+      process.env.OPENROUTER_API_KEY = originalApiKey;
+    }
+
+    expect(mocks.extractAIMetrics).toHaveBeenCalledWith(
+      "google/gemini-2.5-flash-lite",
+      expect.any(Number),
+      expect.objectContaining({
+        text: "Vedo il caricamento del gesto atletico.",
+      }),
+    );
+  });
+
+  it("uses OpenRouter image reasoning when content is empty", async () => {
+    const originalApiKey = process.env.OPENROUTER_API_KEY;
+    process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json({
+          id: "gen-reasoning",
+          model: "google/gemini-2.5-flash-lite",
+          choices: [
+            {
+              message: {
+                content: "",
+                reasoning: "L'immagine mostra una postura stabile.",
+              },
+            },
+          ],
+        }),
+      ),
+    );
+
+    try {
+      const result = await streamChat({
+        userId: "user-1",
+        chatId: "chat-image-reasoning",
+        userMessage: "analizza",
+        hasImages: true,
+        messageParts: [
+          { type: "text", text: "analizza" },
+          {
+            type: "file",
+            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            mimeType: "image/jpeg",
+          },
+        ],
+      });
+
+      await expect(readTextStream(result.textStream)).resolves.toBe(
+        "L'immagine mostra una postura stabile.",
+      );
+    } finally {
+      process.env.OPENROUTER_API_KEY = originalApiKey;
+    }
+  });
+
+  it("rejects OpenRouter image responses without text and does not call onFinish", async () => {
+    const originalApiKey = process.env.OPENROUTER_API_KEY;
+    process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    const onFinish = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json({
+          id: "gen-empty",
+          choices: [
+            {
+              message: {
+                content: [],
+              },
+            },
+          ],
+        }),
+      ),
+    );
+
+    try {
+      const result = await streamChat({
+        userId: "user-1",
+        chatId: "chat-image-empty",
+        userMessage: "analizza",
+        hasImages: true,
+        onFinish,
+        messageParts: [
+          { type: "text", text: "analizza" },
+          {
+            type: "file",
+            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            mimeType: "image/jpeg",
+          },
+        ],
+      });
+
+      await expect(readTextStream(result.textStream)).rejects.toThrow(
+        "OpenRouter multimodal chat returned no text content",
+      );
+    } finally {
+      process.env.OPENROUTER_API_KEY = originalApiKey;
+    }
+
+    expect(onFinish).not.toHaveBeenCalled();
+  });
+
+  it("propagates OpenRouter image HTTP failures", async () => {
+    const originalApiKey = process.env.OPENROUTER_API_KEY;
+    const cases = [
+      { status: 429, payload: { error: { message: "rate limited" } } },
+      { status: 500, payload: { error: { message: "server error" } } },
+    ];
+
+    try {
+      for (const { status, payload } of cases) {
+        process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+        vi.stubGlobal(
+          "fetch",
+          vi.fn().mockResolvedValue(Response.json(payload, { status })),
+        );
+
+        const result = await streamChat({
+          userId: "user-1",
+          chatId: `chat-image-http-${status}`,
+          userMessage: "analizza",
+          hasImages: true,
+          messageParts: [
+            { type: "text", text: "analizza" },
+            {
+              type: "file",
+              data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+              mimeType: "image/jpeg",
+            },
+          ],
+        });
+
+        await expect(readTextStream(result.textStream)).rejects.toThrow(
+          `OpenRouter multimodal chat failed: ${status} ${JSON.stringify(
+            payload,
+          )}`,
+        );
+      }
+    } finally {
+      process.env.OPENROUTER_API_KEY = originalApiKey;
+    }
+  });
+
+  it("fails before fetch when OpenRouter image chat has no API key", async () => {
+    const originalApiKey = process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENROUTER_API_KEY;
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    try {
+      const result = await streamChat({
+        userId: "user-1",
+        chatId: "chat-image-missing-key",
+        userMessage: "analizza",
+        hasImages: true,
+        messageParts: [
+          { type: "text", text: "analizza" },
+          {
+            type: "file",
+            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            mimeType: "image/jpeg",
+          },
+        ],
+      });
+
+      await expect(readTextStream(result.textStream)).rejects.toThrow(
+        "OPENROUTER_API_KEY is required for multimodal chat",
+      );
+    } finally {
+      process.env.OPENROUTER_API_KEY = originalApiKey;
+    }
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("applies custom direct multimodal finish metadata and preserves UI event order", async () => {
+    const originalApiKey = process.env.OPENROUTER_API_KEY;
+    process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json({
+          id: "gen-ui-stream",
+          model: "google/gemini-2.5-flash-lite",
+          choices: [
+            {
+              message: {
+                content: "Assetto stabile.",
+              },
+            },
+          ],
+          usage: {
+            prompt_tokens: 70,
+            completion_tokens: 6,
+            total_tokens: 76,
+          },
+        }),
+      ),
+    );
+    const uiStreamParts: unknown[] = [];
+    let executeUIStream: Promise<void> | undefined;
+    mocks.createUIMessageStream.mockImplementationOnce(
+      ({
+        execute,
+      }: {
+        execute: (input: {
+          writer: { write: (part: unknown) => void };
+        }) => Promise<void>;
+      }) => {
+        executeUIStream = execute({
+          writer: {
+            write: (part: unknown) => uiStreamParts.push(part),
+          },
+        });
+        return new ReadableStream();
+      },
+    );
+    const messageMetadata = vi.fn(({ part }) => ({
+      custom: "finish-metadata",
+      finishReason: (part as { finishReason?: unknown }).finishReason,
+      inputTokens: (part as { usage?: { inputTokens?: unknown } }).usage
+        ?.inputTokens,
+    }));
+
+    try {
+      const result = await streamChat({
+        userId: "user-1",
+        chatId: "chat-image-ui-stream",
+        userMessage: "analizza",
+        hasImages: true,
+        messageParts: [
+          { type: "text", text: "analizza" },
+          {
+            type: "file",
+            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            mimeType: "image/jpeg",
+          },
+        ],
+      });
+
+      result.toUIMessageStreamResponse({ messageMetadata });
+      await executeUIStream;
+    } finally {
+      process.env.OPENROUTER_API_KEY = originalApiKey;
+    }
+
+    expect(messageMetadata).toHaveBeenCalledWith({
+      part: {
+        type: "finish",
+        finishReason: "stop",
+        usage: {
+          inputTokens: 10,
+          outputTokens: 20,
+        },
+        totalUsage: {
+          inputTokens: 10,
+          outputTokens: 20,
+        },
+      },
+    });
+    expect(uiStreamParts).toEqual([
+      { type: "start" },
+      { type: "start-step" },
+      { type: "text-start", id: "text-1" },
+      { type: "text-delta", id: "text-1", delta: "Assetto stabile." },
+      { type: "text-end", id: "text-1" },
+      { type: "finish-step" },
+      {
+        type: "finish",
+        finishReason: "stop",
+        messageMetadata: {
+          custom: "finish-metadata",
+          finishReason: "stop",
+          inputTokens: 10,
+        },
+      },
+    ]);
   });
 
   it("routes PDF messages through OpenRouter REST with file content", async () => {
