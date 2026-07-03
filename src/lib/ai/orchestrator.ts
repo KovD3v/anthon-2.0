@@ -1425,9 +1425,8 @@ export async function streamChat({
         part.data
       ) {
         contentParts.push({
-          type: "file",
-          data: part.data,
-          mediaType: part.mimeType,
+          type: "image",
+          image: part.data,
         });
       } else if (
         part.type === "file" &&

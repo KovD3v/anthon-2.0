@@ -720,11 +720,9 @@ describe("ai/orchestrator", () => {
         content: [
           { type: "text", text: "cosa vedi?" },
           {
-            type: "file",
-
-            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
-
-            mediaType: "image/jpeg",
+            type: "image",
+            image:
+              "https://blob.example/attachments/user-1/chat-image/photo.jpg",
           },
         ],
       },
