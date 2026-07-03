@@ -103,6 +103,18 @@ describe("GET /api/chats/search", () => {
     });
   });
 
+  it("returns 400 for whitespace-only query without running search", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/chats/search?q=%20%20%20"),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Search query must be at least 2 characters",
+    });
+    expect(mocks.queryRaw).not.toHaveBeenCalled();
+  });
+
   it("searches messages with trimmed query and maps result payload", async () => {
     const response = await GET(
       new Request("http://localhost/api/chats/search?q=%20deploy%20"),

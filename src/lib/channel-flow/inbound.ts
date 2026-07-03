@@ -31,7 +31,10 @@ export function buildExternalChannelInbound({
   } else if (normalizedTranscript) {
     userMessageText = `${transcriptPrefix}\n${normalizedTranscript}`;
   } else {
-    userMessageText = fallbackText;
+    userMessageText =
+      files.length > 0 && !files.some((file) => file.type === "text")
+        ? defaultMediaPrompt
+        : fallbackText;
   }
 
   const parts: ChannelMessagePart[] = [];

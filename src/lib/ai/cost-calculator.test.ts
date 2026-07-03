@@ -95,6 +95,60 @@ describe("ai/cost-calculator", () => {
     });
   });
 
+  it.each([
+    ["selectedProvider", "Fireworks"],
+    ["selected_provider", "Nebius"],
+  ])("extracts OpenRouter provider from %s", (field, provider) => {
+    mocks.calculateCost.mockReturnValue({
+      inputCost: 0.1,
+      outputCost: 0.2,
+      totalCost: 0.3,
+      model: "model-1",
+    });
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+
+    const result = extractAIMetrics("model-1", startTime, {
+      text: "done",
+      providerMetadata: {
+        openrouter: {
+          [field]: provider,
+        },
+      },
+    });
+
+    expect(result.provider).toBe(provider);
+  });
+
+  it("ignores nonnumeric OpenRouter cost instead of returning NaN", () => {
+    mocks.calculateCost.mockReturnValue({
+      inputCost: 0.1,
+      outputCost: 0.2,
+      totalCost: 0.3,
+      model: "model-1",
+    });
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+
+    const result = extractAIMetrics("model-1", startTime, {
+      text: "done",
+      usage: {
+        promptTokens: 20,
+        completionTokens: 10,
+      },
+      providerMetadata: {
+        openrouter: {
+          usage: {
+            promptTokens: 20,
+            completionTokens: 10,
+            cost: "not-a-number",
+          },
+        },
+      },
+    });
+
+    expect(result.costUsd).toBe(0.3);
+    expect(Number.isNaN(result.costUsd)).toBe(false);
+  });
+
   it("derives tool call count and result size metrics", () => {
     mocks.calculateCost.mockReturnValue({
       inputCost: 0.1,

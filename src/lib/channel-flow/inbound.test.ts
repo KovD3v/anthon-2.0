@@ -66,6 +66,31 @@ describe("channel-flow/inbound", () => {
     ]);
   });
 
+  it("keeps transcript text before image files", () => {
+    const result = buildExternalChannelInbound({
+      text: "nota",
+      transcribedText: "trascrizione",
+      voiceInstruction: "Usa la trascrizione del vocale.",
+      fallbackText: "Messaggio vocale",
+      defaultMediaPrompt: "L'utente ha inviato questa immagine.",
+      files: [
+        {
+          type: "file",
+          mimeType: "image/jpeg",
+          data: "image-base64",
+        },
+      ],
+    });
+
+    expect(result.parts).toEqual([
+      {
+        type: "text",
+        text: "nota\n\nUsa la trascrizione del vocale.\n\n[Trascrizione audio]\ntrascrizione",
+      },
+      { type: "file", mimeType: "image/jpeg", data: "image-base64" },
+    ]);
+  });
+
   it("adds a default prompt before media-only files", () => {
     const result = buildExternalChannelInbound({
       text: "",
@@ -82,7 +107,7 @@ describe("channel-flow/inbound", () => {
       ],
     });
 
-    expect(result.userMessageText).toBe("Messaggio vocale");
+    expect(result.userMessageText).toBe("L'utente ha inviato questa immagine.");
     expect(result.parts).toEqual([
       { type: "text", text: "L'utente ha inviato questa immagine." },
       { type: "file", mimeType: "image/png", data: "image-base64" },

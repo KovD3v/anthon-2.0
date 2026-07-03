@@ -165,6 +165,19 @@ describe("ai/rag", () => {
     expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
+  it("shouldUseRag skips live web-search requests even when documents exist", async () => {
+    mocks.ragDocumentCount.mockResolvedValue(1);
+    const { shouldUseRag } = await loadModule();
+
+    const result = await shouldUseRag(
+      "Cerca nel web le ultime notizie di oggi su Sinner",
+    );
+
+    expect(result).toBe(false);
+    expect(mocks.ragDocumentCount).not.toHaveBeenCalled();
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
   it("shouldUseRag returns true for positive keywords when documents exist", async () => {
     mocks.ragDocumentCount.mockResolvedValue(1);
     const { shouldUseRag } = await loadModule();
@@ -214,6 +227,20 @@ describe("ai/rag", () => {
   it("shouldUseRag returns false when LLM classification throws", async () => {
     mocks.ragDocumentCount.mockResolvedValue(1);
     mocks.generateText.mockRejectedValue(new Error("classifier failure"));
+    const { shouldUseRag } = await loadModule();
+
+    const result = await shouldUseRag(
+      "Please evaluate this training framework for youth athletes.",
+    );
+
+    expect(result).toBe(false);
+  });
+
+  it("shouldUseRag returns false when LLM classification output is malformed", async () => {
+    mocks.ragDocumentCount.mockResolvedValue(1);
+    mocks.generateText.mockResolvedValue({
+      output: { reason: "missing boolean" },
+    });
     const { shouldUseRag } = await loadModule();
 
     const result = await shouldUseRag(

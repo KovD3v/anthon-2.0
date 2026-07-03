@@ -136,6 +136,50 @@ describe("GET /api/chats/[id]/export", () => {
     expect(text).toContain("First answer");
   });
 
+  it("exports text parts and omits raw file payloads", async () => {
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Visione tecnica",
+      createdAt: new Date("2026-02-10T12:00:00.000Z"),
+      messages: [
+        {
+          role: "USER",
+          parts: [
+            { type: "text", text: "Analizza questa posizione" },
+            {
+              type: "file",
+              mimeType: "image/png",
+              url: "https://blob.example/attachments/user-1/chat-1/photo.png",
+            },
+          ],
+          createdAt: new Date("2026-02-10T12:01:00.000Z"),
+        },
+        {
+          role: "ASSISTANT",
+          parts: [
+            { type: "text", text: "Vedo una postura stabile." },
+            { type: "tool-call", toolName: "memory" },
+          ],
+          createdAt: new Date("2026-02-10T12:02:00.000Z"),
+        },
+      ],
+    });
+
+    const response = await GET(
+      new Request("http://localhost/api/chats/chat-1/export"),
+      {
+        params: params("chat-1"),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    expect(text).toContain("Analizza questa posizione");
+    expect(text).toContain("Vedo una postura stabile.");
+    expect(text).not.toContain("https://blob.example");
+    expect(text).not.toContain("tool-call");
+  });
+
   it("falls back to Untitled Chat when chat has no title", async () => {
     mocks.chatFindFirst.mockResolvedValue({
       id: "chat-1",

@@ -76,12 +76,37 @@ describe("ai/intent", () => {
     expect(shouldEnableWebSearchTool("Motivami per la gara")).toBe(false);
   });
 
+  it.each([
+    "Quando è la prossima partita di Messi?",
+    "Qual è la prossima partita di Sinner?",
+  ])("enables search for next-match requests: %s", (message) => {
+    expect(shouldEnableWebSearchTool(message)).toBe(true);
+  });
+
+  it("lets explicit negative internet requests win over fresh-news wording", () => {
+    const decision = evaluateWebSearchRule(
+      "Rispondi senza cercare su internet: quali sono le ultime notizie di oggi su Sinner?",
+    );
+
+    expect(decision).toEqual({
+      enabled: false,
+      confidence: "high",
+      reason: "explicit_negative_web_search",
+    });
+  });
+
   it("shouldEnableWebFetchTool detects source and URL requests", () => {
     expect(shouldEnableWebFetchTool("Leggi questo articolo e riassumilo")).toBe(
       true,
     );
     expect(shouldEnableWebFetchTool("https://example.com/pagina")).toBe(true);
     expect(shouldEnableWebFetchTool("Ciao coach")).toBe(false);
+  });
+
+  it("enables fetch when a URL is paired with a read request", () => {
+    expect(
+      shouldEnableWebFetchTool("Leggi https://example.com/pagina e riassumi"),
+    ).toBe(true);
   });
 
   it("getWebSearchDomainType classifies research and news queries", () => {

@@ -165,6 +165,53 @@ describe("channel-flow/persistence", () => {
     );
   });
 
+  it("merges assistant AI metadata without deleting channel metadata", async () => {
+    await persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WHATSAPP",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        inputTokens: 5,
+        outputTokens: 8,
+        reasoningTokens: null,
+        reasoningContent: null,
+        toolCalls: [],
+        toolCallCount: 2,
+        toolResultChars: 50,
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.02,
+        generationTimeMs: 111,
+        reasoningTimeMs: null,
+      },
+      metadata: {
+        whatsapp: { messageId: "wa-1" },
+        channel: "WHATSAPP",
+        ai: { previous: "kept" },
+      },
+      allowMemoryExtraction: false,
+    });
+
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: {
+            whatsapp: { messageId: "wa-1" },
+            channel: "WHATSAPP",
+            ai: {
+              previous: "kept",
+              toolCallCount: 2,
+              toolResultChars: 50,
+            },
+          },
+        }),
+      }),
+    );
+  });
+
   it("persists normalized message metrics and the selected provider", async () => {
     const providerMetadata = {
       openrouter: {
@@ -232,6 +279,52 @@ describe("channel-flow/persistence", () => {
         providerMetadata,
       },
     });
+  });
+
+  it("persists provider selected from normalized OpenRouter selected_provider metadata", async () => {
+    const providerMetadata = {
+      openrouter: {
+        selected_provider: "Nebius",
+        usage: {
+          promptTokens: 120,
+          completionTokens: 30,
+          cost: 0.002,
+        },
+      },
+    };
+
+    await persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        provider: "Nebius",
+        providerMetadata,
+        inputTokens: 120,
+        outputTokens: 30,
+        reasoningTokens: null,
+        reasoningContent: null,
+        toolCalls: null,
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.002,
+        generationTimeMs: 500,
+        reasoningTimeMs: null,
+      },
+      allowMemoryExtraction: false,
+    });
+
+    expect(mocks.messageMetricsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          provider: "Nebius",
+          providerMetadata,
+        }),
+      }),
+    );
   });
 
   it("skips chat update and memory extraction when disabled", async () => {

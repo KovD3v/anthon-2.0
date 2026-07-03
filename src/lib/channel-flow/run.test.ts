@@ -205,6 +205,39 @@ describe("channel-flow/run", () => {
     );
   });
 
+  it("does not require effective entitlements to stream chat", async () => {
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "";
+      })(),
+    });
+
+    await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      chatId: "chat-1",
+      userMessageText: "ciao",
+      parts: [{ type: "text", text: "ciao" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: true,
+      },
+      execution: { mode: "stream" },
+      persistence: {
+        channel: "WEB",
+        saveAssistantMessage: true,
+      },
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        effectiveEntitlements: undefined,
+      }),
+    );
+  });
+
   it("passes first-message history skip to the orchestrator", async () => {
     mocks.streamChat.mockResolvedValue({
       textStream: (async function* () {
@@ -291,6 +324,57 @@ describe("channel-flow/run", () => {
     expect(mocks.streamChat).toHaveBeenCalledWith(
       expect.objectContaining({
         messageParts: [{ type: "text", text: "caption" }],
+        hasImages: false,
+        hasAudio: false,
+      }),
+    );
+  });
+
+  it("preserves multiple text parts while stripping files when attachments are disabled", async () => {
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "";
+      })(),
+    });
+
+    await runChannelFlow({
+      channel: "WEB_GUEST",
+      userId: "guest-1",
+      chatId: "chat-1",
+      userMessageText: "caption\nextra context",
+      parts: [
+        { type: "text", text: "caption" },
+        {
+          type: "file",
+          data: "image-base64",
+          mimeType: "image/png",
+          name: "photo.png",
+        },
+        { type: "text", text: "extra context" },
+      ],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: false,
+        allowMemoryExtraction: false,
+        allowVoiceOutput: false,
+      },
+      ai: {
+        hasImages: true,
+        isGuest: true,
+      },
+      execution: { mode: "stream" },
+      persistence: {
+        channel: "WEB",
+        saveAssistantMessage: true,
+      },
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageParts: [
+          { type: "text", text: "caption" },
+          { type: "text", text: "extra context" },
+        ],
         hasImages: false,
         hasAudio: false,
       }),

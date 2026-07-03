@@ -159,6 +159,42 @@ describe("voice/preflight", () => {
     expect(mocks.voiceCount).not.toHaveBeenCalled();
   });
 
+  it("returns TEXT when the classifier throws", async () => {
+    mocks.generateText.mockRejectedValue(new Error("classifier failed"));
+
+    const result = await decideWebVoiceMode(baseParams());
+
+    expect(result).toEqual({
+      mode: "TEXT",
+      reason: "Classifier failed or timed out",
+      source: "classifier",
+    });
+  });
+
+  it("returns TEXT after a VOICE classifier result when system load is critical", async () => {
+    mocks.getSystemLoad.mockResolvedValue(0.2);
+
+    const result = await decideWebVoiceMode(baseParams());
+
+    expect(result).toEqual({
+      mode: "TEXT",
+      reason: "System load critical, pro users only",
+      source: "deterministic",
+    });
+  });
+
+  it("returns TEXT after a VOICE classifier result when the voice cap is reached", async () => {
+    mocks.voiceCount.mockResolvedValue(enabledPlanConfig.maxPerWindow);
+
+    const result = await decideWebVoiceMode(baseParams());
+
+    expect(result).toEqual({
+      mode: "TEXT",
+      reason: "Voice cap reached for window",
+      source: "deterministic",
+    });
+  });
+
   it("uses Qwen Flash as the default classifier model", async () => {
     await decideWebVoiceMode(baseParams());
 

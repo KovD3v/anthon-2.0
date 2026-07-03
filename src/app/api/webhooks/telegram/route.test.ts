@@ -783,7 +783,7 @@ describe("/api/webhooks/telegram", () => {
     expect(mocks.streamChat).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user_1",
-        userMessage: "Immagine",
+        userMessage: "L'utente ha inviato questa immagine.",
         hasImages: true,
         messageParts: [
           { type: "text", text: "L'utente ha inviato questa immagine." },

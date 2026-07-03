@@ -291,6 +291,27 @@ describe("ai/providers/openrouter-routing", () => {
     });
   });
 
+  it("keeps a single cooldown provider when no alternatives remain", () => {
+    expect(
+      getOpenRouterProviderOptionsForModel("z-ai/glm-5.2", {
+        OPENROUTER_PROVIDER_SORT: "e2e-latency",
+        OPENROUTER_PROVIDER_E2E_METRICS: "z-ai/glm-5.2=cooling-down:3",
+        OPENROUTER_PROVIDER_HEALTH: JSON.stringify({
+          "z-ai/glm-5.2": {
+            "cooling-down": {
+              cooldownUntil: "2026-06-28T21:05:00.000Z",
+            },
+          },
+        }),
+        OPENROUTER_PROVIDER_ROUTING_NOW: "2026-06-28T21:00:00.000Z",
+      }),
+    ).toEqual({
+      provider: {
+        order: ["cooling-down"],
+      },
+    });
+  });
+
   it("rejects invalid booleans and data collection values", () => {
     expect(() =>
       getOpenRouterProviderRouting({

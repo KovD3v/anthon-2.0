@@ -1468,7 +1468,7 @@ describe("/api/webhooks/whatsapp", () => {
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.streamChat).toHaveBeenCalledWith(
       expect.objectContaining({
-        userMessage: "Immagine",
+        userMessage: "L'utente ha inviato questa immagine.",
         hasImages: true,
         messageParts: [
           { type: "text", text: "L'utente ha inviato questa immagine." },

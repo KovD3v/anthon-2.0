@@ -174,6 +174,56 @@ describe("/api/chat/messages route", () => {
     await expect(response.json()).resolves.toEqual({ messages: [] });
   });
 
+  it("GET derives content from the first text part and skips non-text parts", async () => {
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "m1",
+        role: "USER",
+        parts: [
+          { type: "text", text: "Guarda questa immagine" },
+          {
+            type: "file",
+            mimeType: "image/png",
+            url: "https://blob.example/photo.png",
+          },
+          { type: "text", text: " e dimmi cosa correggere" },
+        ],
+        createdAt: new Date("2026-02-16T10:00:00.000Z"),
+        model: null,
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: null,
+        generationTimeMs: null,
+      },
+    ]);
+
+    const response = await GET(
+      new Request("http://localhost/api/chat/messages?chatId=chat-1"),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      messages: [
+        {
+          id: "m1",
+          role: "user",
+          content: "Guarda questa immagine",
+          parts: [
+            { type: "text", text: "Guarda questa immagine" },
+            {
+              type: "file",
+              mimeType: "image/png",
+              url: "https://blob.example/photo.png",
+            },
+            { type: "text", text: " e dimmi cosa correggere" },
+          ],
+          createdAt: "2026-02-16T10:00:00.000Z",
+          model: null,
+        },
+      ],
+    });
+  });
+
   it("GET returns 500 on unexpected errors", async () => {
     mocks.userFindUnique.mockRejectedValue(new Error("db failure"));
 

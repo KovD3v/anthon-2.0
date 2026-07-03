@@ -455,6 +455,54 @@ describe("POST /api/guest/chat", () => {
     );
   });
 
+  it("uses the last user message when multiple messages are submitted", async () => {
+    let streamArgs: Record<string, unknown> | undefined;
+    mocks.streamChat.mockImplementation(
+      async (args: Record<string, unknown>) => {
+        streamArgs = args;
+        return {
+          toUIMessageStreamResponse: () =>
+            Response.json({ ok: true, stream: true }, { status: 200 }),
+        };
+      },
+    );
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          { role: "user", parts: [{ type: "text", text: "first question" }] },
+          {
+            role: "assistant",
+            parts: [{ type: "text", text: "first answer" }],
+          },
+          {
+            role: "user",
+            parts: [{ type: "text", text: "second question" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.messageCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: "guest-1",
+        chatId: "chat-1",
+        role: "USER",
+        direction: "INBOUND",
+        parts: [{ type: "text", text: "second question" }],
+      }),
+    });
+    expect(streamArgs).toMatchObject({
+      userId: "guest-1",
+      chatId: "chat-1",
+      userMessage: "second question",
+      messageParts: [{ type: "text", text: "second question" }],
+      skipConversationHistory: false,
+    });
+  });
+
   it("uses request messages for title refresh without a blocking message count", async () => {
     mocks.chatFindFirst.mockResolvedValue({
       id: "chat-1",
@@ -576,5 +624,38 @@ describe("POST /api/guest/chat", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Internal server error",
     });
+  });
+
+  it("returns 500 without assistant persistence when guest streaming fails", async () => {
+    mocks.streamChat.mockRejectedValue(new Error("stream failed"));
+    mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-1" });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          { role: "user", parts: [{ type: "text", text: "hello guest" }] },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "Internal server error",
+    });
+    expect(mocks.streamChat).toHaveBeenCalledTimes(1);
+    expect(mocks.messageCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.messageCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        role: "USER",
+        direction: "INBOUND",
+        parts: [{ type: "text", text: "hello guest" }],
+      }),
+    });
+    expect(mocks.chatUpdate).not.toHaveBeenCalledWith({
+      where: { id: "chat-1" },
+      data: { updatedAt: expect.any(Date) },
+    });
+    expect(mocks.incrementUsage).not.toHaveBeenCalled();
   });
 });

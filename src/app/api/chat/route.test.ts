@@ -802,6 +802,107 @@ describe("POST /api/chat", () => {
     });
   });
 
+  it("passes image blob urls to the AI flow as image file parts", async () => {
+    let streamArgs: Record<string, unknown> | undefined;
+    mocks.streamChat.mockImplementation(
+      async (args: Record<string, unknown>) => {
+        streamArgs = args;
+        return {
+          toUIMessageStreamResponse: () =>
+            Response.json({ ok: true, stream: true }, { status: 200 }),
+        };
+      },
+    );
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [
+              { type: "text", text: "che vedi?" },
+              {
+                type: "file",
+                attachmentId: "att-image-url",
+                mimeType: "image/png",
+                name: "photo.png",
+                size: 1234,
+                url: "https://blob.example/uploads/user-1/chat-1/photo.png",
+              },
+            ],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(streamArgs).toMatchObject({
+      userMessage: "che vedi?",
+      hasImages: true,
+      hasAudio: false,
+      messageParts: [
+        { type: "text", text: "che vedi?" },
+        {
+          type: "file",
+          data: "https://blob.example/uploads/user-1/chat-1/photo.png",
+          mimeType: "image/png",
+          name: "photo.png",
+          size: 1234,
+          attachmentId: "att-image-url",
+        },
+      ],
+    });
+  });
+
+  it("keeps image data urls supported as file payloads", async () => {
+    let streamArgs: Record<string, unknown> | undefined;
+    mocks.streamChat.mockImplementation(
+      async (args: Record<string, unknown>) => {
+        streamArgs = args;
+        return {
+          toUIMessageStreamResponse: () =>
+            Response.json({ ok: true, stream: true }, { status: 200 }),
+        };
+      },
+    );
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [
+              {
+                type: "file",
+                attachmentId: "att-image-data-url",
+                mimeType: "image/jpeg",
+                name: "camera.jpg",
+                size: 4321,
+                url: "data:image/jpeg;base64,aW1hZ2UtYmFzZTY0",
+              },
+            ],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.streamChat).toHaveBeenCalledTimes(1);
+    expect(streamArgs).toMatchObject({
+      userMessage: "",
+      hasImages: true,
+      messageParts: [
+        expect.objectContaining({
+          type: "file",
+          data: "data:image/jpeg;base64,aW1hZ2UtYmFzZTY0",
+          mimeType: "image/jpeg",
+        }),
+      ],
+    });
+  });
+
   it("uses request messages for title refresh without a blocking message count", async () => {
     mocks.chatFindFirst.mockResolvedValue({
       id: "chat-1",
@@ -826,6 +927,43 @@ describe("POST /api/chat", () => {
     expect(mocks.waitUntil).toHaveBeenCalledTimes(2);
     expect(mocks.generateChatTitle).toHaveBeenCalledWith("USER: first prompt", {
       userId: "user-1",
+    });
+  });
+
+  it("keeps the response successful when title generation fails in waitUntil", async () => {
+    const scheduled: Promise<unknown>[] = [];
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Nuova Chat",
+      customTitle: false,
+    });
+    mocks.generateChatTitle.mockRejectedValue(new Error("title service down"));
+    mocks.waitUntil.mockImplementation((promise: Promise<unknown>) => {
+      scheduled.push(promise.catch((error) => error));
+    });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [{ type: "text", text: "first prompt" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, stream: true });
+    expect(mocks.generateChatTitle).toHaveBeenCalledWith("USER: first prompt", {
+      userId: "user-1",
+    });
+    expect(scheduled).toHaveLength(2);
+    await expect(scheduled[1]).resolves.toEqual(expect.any(Error));
+    expect(mocks.chatUpdate).not.toHaveBeenCalledWith({
+      where: { id: "chat-1" },
+      data: { title: expect.any(String) },
     });
   });
 
@@ -1081,6 +1219,7 @@ describe("POST /api/chat", () => {
     expect(mocks.userFindUnique).not.toHaveBeenCalled();
     expect(mocks.checkRateLimit).not.toHaveBeenCalled();
     expect(mocks.messageCreate).not.toHaveBeenCalled();
+    expect(mocks.decideWebVoiceMode).not.toHaveBeenCalled();
   });
 
   it("skips linking attachments that are not owned by the current user", async () => {

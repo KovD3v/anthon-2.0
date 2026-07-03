@@ -192,6 +192,23 @@ describe("/api/upload POST", () => {
     });
   });
 
+  it("rejects unsupported extension fallback when MIME type is empty", async () => {
+    const form = new FormData();
+    form.append("file", new File(["binary"], "payload.exe"));
+
+    const request = {
+      formData: async () => form,
+    } as unknown as Request;
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "File type not allowed: application/octet-stream",
+    });
+    expect(mocks.put).not.toHaveBeenCalled();
+  });
+
   it("accepts codec MIME values by stripping codec parameters", async () => {
     const form = new FormData();
     form.append(
