@@ -1,5 +1,7 @@
 import { withTracing } from "@posthog/ai";
 import {
+  createUIMessageStream,
+  createUIMessageStreamResponse,
   generateText,
   isStepCount,
   type ModelMessage,
@@ -62,7 +64,7 @@ import type { EffectiveEntitlements } from "@/lib/organizations/types";
 import { getPostHogClient } from "@/lib/posthog";
 
 const aiLogger = createLogger("ai");
-const MULTIMODAL_ORCHESTRATOR_MODEL_ID = "moonshotai/kimi-k2.7-code";
+const MULTIMODAL_ORCHESTRATOR_MODEL_ID = "google/gemini-2.5-flash-lite";
 const WEB_SEARCH_CONTEXT_MESSAGES = 4;
 const PROMPT_MODULE_CLASSIFIER_MODEL_ID =
   process.env.PROMPT_MODULE_CLASSIFIER_MODEL_ID || "qwen/qwen3.6-27b";
@@ -547,6 +549,19 @@ function isBase64Payload(value: string) {
   return /^[A-Za-z0-9+/]+={0,2}$/.test(normalized);
 }
 
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isDataUrl(value: string) {
+  return /^data:image\/[a-z0-9.+-]+;base64,/i.test(value);
+}
+
 /**
  * Creates all tools with the userId context injected via factory pattern.
  */
@@ -879,6 +894,301 @@ function shouldUseSimpleFastPath({
     !matchesVoiceIntent(message) &&
     !matchesHealthRiskIntent(message)
   );
+}
+
+type OpenRouterTextPart = {
+  type: "text";
+  text: string;
+};
+
+type OpenRouterImagePart = {
+  type: "image_url";
+  image_url: {
+    url: string;
+  };
+};
+
+type OpenRouterContentPart = OpenRouterTextPart | OpenRouterImagePart;
+
+type OpenRouterMessage = {
+  role: "system" | "user" | "assistant";
+  content: string | OpenRouterContentPart[];
+};
+
+type StreamResponseOptions = {
+  status?: number;
+  statusText?: string;
+  headers?: HeadersInit;
+  consumeSseStream?: (options: { stream: ReadableStream<string> }) => void;
+  messageMetadata?: (input: { part: unknown }) => unknown;
+};
+
+type DirectMultimodalCompletion = {
+  text: string;
+  metrics: AIMetrics;
+};
+
+function toOpenRouterImageUrl(data: string, mediaType?: string) {
+  if (isHttpUrl(data) || isDataUrl(data)) {
+    return data;
+  }
+
+  if (!isBase64Payload(data)) {
+    return null;
+  }
+
+  return `data:${mediaType || "image/jpeg"};base64,${data}`;
+}
+
+function toOpenRouterContentPart(part: unknown): OpenRouterContentPart | null {
+  if (!part || typeof part !== "object") {
+    return null;
+  }
+
+  const candidate = part as {
+    type?: unknown;
+    text?: unknown;
+    data?: unknown;
+    mediaType?: unknown;
+  };
+
+  if (candidate.type === "text" && typeof candidate.text === "string") {
+    return { type: "text", text: candidate.text };
+  }
+
+  if (
+    candidate.type === "file" &&
+    typeof candidate.data === "string" &&
+    typeof candidate.mediaType === "string" &&
+    candidate.mediaType.startsWith("image/")
+  ) {
+    const url = toOpenRouterImageUrl(candidate.data, candidate.mediaType);
+    return url ? { type: "image_url", image_url: { url } } : null;
+  }
+
+  return null;
+}
+
+function toOpenRouterContent(
+  content: unknown,
+): string | OpenRouterContentPart[] {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  return content
+    .map((part) => toOpenRouterContentPart(part))
+    .filter((part): part is OpenRouterContentPart => Boolean(part));
+}
+
+function toOpenRouterMessages(
+  systemPrompt: string,
+  messages: ModelMessage[],
+): OpenRouterMessage[] {
+  const openRouterMessages: OpenRouterMessage[] = [
+    { role: "system", content: systemPrompt },
+  ];
+
+  for (const message of messages) {
+    if (message.role !== "user" && message.role !== "assistant") {
+      continue;
+    }
+
+    openRouterMessages.push({
+      role: message.role,
+      content: toOpenRouterContent(message.content),
+    });
+  }
+
+  return openRouterMessages;
+}
+
+function extractOpenRouterResponseText(response: unknown) {
+  const choice = (
+    response as {
+      choices?: Array<{
+        message?: {
+          content?: unknown;
+          reasoning?: unknown;
+        };
+      }>;
+    }
+  ).choices?.[0];
+  const content = choice?.message?.content;
+
+  if (typeof content === "string" && content.trim().length > 0) {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    const text = content
+      .map((part) =>
+        part && typeof part === "object" && "text" in part
+          ? (part as { text?: unknown }).text
+          : undefined,
+      )
+      .filter((part): part is string => typeof part === "string")
+      .join("");
+    if (text.trim().length > 0) {
+      return text;
+    }
+  }
+
+  const reasoning = choice?.message?.reasoning;
+  return typeof reasoning === "string" && reasoning.trim().length > 0
+    ? reasoning
+    : "";
+}
+
+async function runOpenRouterMultimodalCompletion({
+  modelId,
+  systemPrompt,
+  messages,
+  startTime,
+  ragUsed,
+  ragChunksCount,
+  onFinish,
+}: {
+  modelId: string;
+  systemPrompt: string;
+  messages: ModelMessage[];
+  startTime: number;
+  ragUsed: boolean;
+  ragChunksCount: number;
+  onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
+}): Promise<DirectMultimodalCompletion> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY is required for image chat");
+  }
+
+  const response = await fetch(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "X-Title": "Anthon",
+        ...(process.env.NEXT_PUBLIC_APP_URL
+          ? { "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL }
+          : {}),
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: toOpenRouterMessages(systemPrompt, messages),
+        usage: { include: true },
+        provider: getOpenRouterProviderOptionsForModel(modelId).provider as
+          | Record<string, unknown>
+          | undefined,
+      }),
+    },
+  );
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      `OpenRouter image chat failed: ${response.status} ${JSON.stringify(payload)}`,
+    );
+  }
+
+  const text = extractOpenRouterResponseText(payload);
+  if (!text.trim()) {
+    throw new Error("OpenRouter image chat returned no text content");
+  }
+
+  const usage = (
+    payload as {
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+        cost?: number;
+      };
+    }
+  ).usage;
+  const providerMetadata = {
+    openrouter: {
+      id: (payload as { id?: unknown }).id,
+      model: (payload as { model?: unknown }).model,
+      usage,
+    },
+  };
+  const metrics = extractAIMetrics(modelId, startTime, {
+    text,
+    usage: {
+      promptTokens: usage?.prompt_tokens,
+      completionTokens: usage?.completion_tokens,
+      totalTokens: usage?.total_tokens,
+    },
+    providerMetadata,
+    ragUsed,
+    ragChunksCount,
+  });
+
+  await onFinish?.({ text, metrics });
+
+  return { text, metrics };
+}
+
+function createDirectMultimodalStreamResult(
+  completionPromise: Promise<DirectMultimodalCompletion>,
+) {
+  return {
+    textStream: (async function* () {
+      const { text } = await completionPromise;
+      yield text;
+    })(),
+    toUIMessageStreamResponse: (options: StreamResponseOptions = {}) => {
+      const { messageMetadata, ...responseOptions } = options;
+      const stream = createUIMessageStream({
+        execute: async ({ writer }) => {
+          const { text, metrics } = await completionPromise;
+          const textId = "text-1";
+          const finishPart = {
+            type: "finish" as const,
+            finishReason: "stop" as const,
+            usage: {
+              inputTokens: metrics.inputTokens,
+              outputTokens: metrics.outputTokens,
+            },
+            totalUsage: {
+              inputTokens: metrics.inputTokens,
+              outputTokens: metrics.outputTokens,
+            },
+          };
+          const metadata =
+            messageMetadata?.({ part: finishPart }) ??
+            ({
+              inputTokens: metrics.inputTokens,
+              outputTokens: metrics.outputTokens,
+              generationTimeMs: metrics.generationTimeMs,
+              reasoningTimeMs: metrics.reasoningTimeMs ?? undefined,
+            } satisfies Record<string, unknown>);
+          const write = writer.write as (part: unknown) => void;
+
+          write({ type: "start" });
+          write({ type: "start-step" });
+          write({ type: "text-start", id: textId });
+          write({ type: "text-delta", id: textId, delta: text });
+          write({ type: "text-end", id: textId });
+          write({ type: "finish-step" });
+          write({ ...finishPart, messageMetadata: metadata });
+        },
+        onError: (error) =>
+          error instanceof Error ? error.message : "Image chat failed.",
+      });
+
+      return createUIMessageStreamResponse({
+        ...responseOptions,
+        stream,
+      });
+    },
+  };
 }
 
 async function classifyPromptModules({
@@ -1408,8 +1718,11 @@ export async function streamChat({
     // Convert parts to AI SDK format with images and audio
     type ContentPart =
       | { type: "text"; text: string }
-      | { type: "image"; image: string }
-      | { type: "file"; data: string | Uint8Array | URL; mediaType: string };
+      | {
+          type: "file";
+          data: string | Uint8Array;
+          mediaType: string;
+        };
     const contentParts: ContentPart[] = [];
 
     // Track if we have any text
@@ -1424,9 +1737,22 @@ export async function streamChat({
         part.mimeType?.startsWith("image/") &&
         part.data
       ) {
+        if (
+          !isHttpUrl(part.data) &&
+          !isDataUrl(part.data) &&
+          !isBase64Payload(part.data)
+        ) {
+          aiLogger.warn("ai.file.invalid_image_data", "Skipping image file", {
+            userId,
+            chatId,
+            mimeType: part.mimeType,
+          });
+          continue;
+        }
         contentParts.push({
-          type: "image",
-          image: part.data,
+          type: "file",
+          data: part.data,
+          mediaType: part.mimeType,
         });
       } else if (
         part.type === "file" &&
@@ -1535,6 +1861,31 @@ export async function streamChat({
   let previousToolExecutionMs = 0;
   let sawToolStep = false;
   const toolTiming: ToolTimingMetrics = {};
+
+  if (hasImages) {
+    const completionPromise = runOpenRouterMultimodalCompletion({
+      modelId,
+      systemPrompt,
+      messages,
+      startTime,
+      ragUsed,
+      ragChunksCount,
+      onFinish,
+    });
+
+    aiLogger.info("ai.stream.started", "AI image streaming started", {
+      userId,
+      chatId,
+      modelId,
+      promptMode,
+      ragUsed,
+      ragChunksCount,
+      hasImages: true,
+      hasAudio: Boolean(hasAudio),
+    });
+
+    return createDirectMultimodalStreamResult(completionPromise);
+  }
 
   // Stream the response
   const result = streamText({

@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   withTracing: vi.fn(),
+  createUIMessageStream: vi.fn(),
+  createUIMessageStreamResponse: vi.fn(),
   generateText: vi.fn(),
   outputObject: vi.fn(),
   isStepCount: vi.fn(),
@@ -33,6 +35,8 @@ vi.mock("@posthog/ai", () => ({
 }));
 
 vi.mock("ai", () => ({
+  createUIMessageStream: mocks.createUIMessageStream,
+  createUIMessageStreamResponse: mocks.createUIMessageStreamResponse,
   generateText: mocks.generateText,
   Output: {
     object: mocks.outputObject,
@@ -120,6 +124,8 @@ const baseEntitlements = {
 describe("ai/orchestrator", () => {
   beforeEach(() => {
     mocks.withTracing.mockReset();
+    mocks.createUIMessageStream.mockReset();
+    mocks.createUIMessageStreamResponse.mockReset();
     mocks.generateText.mockReset();
     mocks.outputObject.mockReset();
     mocks.isStepCount.mockReset();
@@ -168,6 +174,26 @@ describe("ai/orchestrator", () => {
       provider: "openrouter",
     }));
     mocks.withTracing.mockReturnValue("traced-model");
+    mocks.createUIMessageStream.mockImplementation(
+      ({
+        execute,
+      }: {
+        execute: (input: {
+          writer: { write: (part: unknown) => void };
+        }) => Promise<void>;
+      }) =>
+        new ReadableStream({
+          async start(controller) {
+            await execute({
+              writer: {
+                write: (part: unknown) => controller.enqueue(part),
+              },
+            });
+            controller.close();
+          },
+        }),
+    );
+    mocks.createUIMessageStreamResponse.mockReturnValue(new Response("stream"));
     mocks.shouldUseRag.mockResolvedValue(false);
     mocks.getRagContext.mockResolvedValue({
       text: "unused rag",
@@ -674,24 +700,55 @@ describe("ai/orchestrator", () => {
     );
   });
 
-  it("routes image messages to the multimodal orchestrator model", async () => {
-    await streamChat({
-      userId: "user-1",
-      chatId: "chat-image",
-      userMessage: "cosa vedi?",
-      hasImages: true,
-      messageParts: [
-        { type: "text", text: "cosa vedi?" },
-        {
-          type: "file",
-          data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
-          mimeType: "image/jpeg",
+  it("routes image messages through OpenRouter REST with image_url content", async () => {
+    const originalApiKey = process.env.OPENROUTER_API_KEY;
+    process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    const fetchSpy = vi.fn().mockResolvedValue(
+      Response.json({
+        id: "gen-1",
+        model: "google/gemini-2.5-flash-lite",
+        choices: [
+          {
+            message: {
+              content: "Vedo una scena sportiva.",
+            },
+          },
+        ],
+        usage: {
+          prompt_tokens: 100,
+          completion_tokens: 12,
+          total_tokens: 112,
+          cost: 0.0003,
         },
-      ],
-    });
+      }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    let text = "";
+    try {
+      const result = await streamChat({
+        userId: "user-1",
+        chatId: "chat-image",
+        userMessage: "cosa vedi?",
+        hasImages: true,
+        messageParts: [
+          { type: "text", text: "cosa vedi?" },
+          {
+            type: "file",
+            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            mimeType: "image/jpeg",
+          },
+        ],
+      });
+      for await (const chunk of result.textStream) {
+        text += chunk;
+      }
+    } finally {
+      process.env.OPENROUTER_API_KEY = originalApiKey;
+    }
 
     expect(mocks.getModelById).toHaveBeenCalledWith(
-      "moonshotai/kimi-k2.7-code",
+      "google/gemini-2.5-flash-lite",
     );
     expect(mocks.getModelForUser).not.toHaveBeenCalled();
     expect(mocks.getModelIdForPlan).not.toHaveBeenCalled();
@@ -700,34 +757,67 @@ describe("ai/orchestrator", () => {
       "posthog-client",
       expect.objectContaining({
         posthogProperties: expect.objectContaining({
-          modelId: "moonshotai/kimi-k2.7-code",
+          modelId: "google/gemini-2.5-flash-lite",
+        }),
+      }),
+    );
+    expect(text).toBe("Vedo una scena sportiva.");
+    expect(mocks.streamText).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://openrouter.ai/api/v1/chat/completions",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-openrouter-key",
+          "Content-Type": "application/json",
         }),
       }),
     );
 
-    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
-      messages: Array<{ role: string; content: unknown }>;
-      providerOptions: {
-        openrouter: {
-          models?: string[];
-        };
-      };
-    };
-    expect(streamInput.messages).toEqual([
+    const requestBody = JSON.parse(
+      (fetchSpy.mock.calls[0]?.[1] as { body: string }).body,
+    );
+    expect(requestBody).toEqual(
+      expect.objectContaining({
+        model: "google/gemini-2.5-flash-lite",
+        usage: { include: true },
+      }),
+    );
+    expect(requestBody.messages).toEqual([
+      expect.objectContaining({ role: "system" }),
       { role: "user", content: "same message" },
       {
         role: "user",
         content: [
           { type: "text", text: "cosa vedi?" },
           {
-            type: "image",
-            image:
-              "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            type: "image_url",
+            image_url: {
+              url: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            },
           },
         ],
       },
     ]);
-    expect(streamInput.providerOptions.openrouter.models).toBeUndefined();
+    expect(mocks.extractAIMetrics).toHaveBeenCalledWith(
+      "google/gemini-2.5-flash-lite",
+      expect.any(Number),
+      expect.objectContaining({
+        text: "Vedo una scena sportiva.",
+        usage: {
+          promptTokens: 100,
+          completionTokens: 12,
+          totalTokens: 112,
+        },
+        providerMetadata: {
+          openrouter: expect.objectContaining({
+            id: "gen-1",
+            model: "google/gemini-2.5-flash-lite",
+            usage: expect.objectContaining({ cost: 0.0003 }),
+          }),
+        },
+      }),
+    );
   });
 
   it("enables TinyFish only for time-sensitive requests", async () => {
