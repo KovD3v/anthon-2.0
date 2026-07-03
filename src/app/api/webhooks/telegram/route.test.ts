@@ -380,6 +380,34 @@ describe("/api/webhooks/telegram", () => {
     expect(mocks.waitUntil).toHaveBeenCalledTimes(1);
   });
 
+  it("sync duplicate externalMessageId returns ok without AI side effects", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.OPENROUTER_API_KEY = "sk-test";
+
+    mocks.prismaMessageFindFirst.mockResolvedValue({ id: "existing_msg" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildTextUpdate("ciao di nuovo")),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.prismaMessageFindFirst).toHaveBeenCalledWith({
+      where: {
+        channel: "TELEGRAM",
+        externalMessageId: "100:2",
+      },
+      select: { id: true },
+    });
+    expect(mocks.prismaMessageCreate).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+  });
+
   it("sync connect command returns early when non-guest identity is already linked", async () => {
     process.env.TELEGRAM_SYNC_WEBHOOK = "true";
     process.env.TELEGRAM_DISABLE_SEND = "true";
@@ -401,6 +429,41 @@ describe("/api/webhooks/telegram", () => {
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.prismaChannelLinkTokenCreate).not.toHaveBeenCalled();
     expect(mocks.prismaMessageCreate).not.toHaveBeenCalled();
+  });
+
+  it("sync connect command creates a link token for an existing guest identity", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.TELEGRAM_DISABLE_SEND = "true";
+    process.env.NEXT_PUBLIC_APP_URL = "https://anthon.ai";
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      user: { isGuest: true },
+    });
+    mocks.prismaChannelLinkTokenCreate.mockResolvedValue({ id: "lt_guest" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildTextUpdate("/connect")),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          channel: "TELEGRAM",
+          externalId: "200",
+          chatId: "100",
+        }),
+        select: { id: true },
+      }),
+    );
+    expect(mocks.prismaMessageCreate).not.toHaveBeenCalled();
+    expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
   it("sync connect command creates a link token when identity is not linked", async () => {
@@ -641,6 +704,97 @@ describe("/api/webhooks/telegram", () => {
     );
     expect(mocks.incrementUsage).toHaveBeenCalledTimes(1);
     expect(mocks.extractAndSaveMemories).toHaveBeenCalledTimes(1);
+  });
+
+  it("sync photo without caption uses default media prompt and marks images for AI", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.TELEGRAM_DISABLE_SEND = "true";
+    process.env.OPENROUTER_API_KEY = "sk-test";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            result: { file_path: "photos/photo-large.jpg" },
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(new Response("photo-data"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      id: "ci_1",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate
+      .mockResolvedValueOnce({ id: "tg_in_1" })
+      .mockResolvedValueOnce({ id: "tg_out_1" });
+    mocks.incrementUsage.mockResolvedValue(undefined);
+    mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.isElevenLabsConfigured.mockReturnValue(false);
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "risposta immagine",
+        metrics: {
+          model: "test-model",
+          inputTokens: 10,
+          outputTokens: 20,
+          reasoningTokens: 0,
+          reasoningContent: null,
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.001,
+          generationTimeMs: 42,
+          reasoningTimeMs: 0,
+        },
+      });
+      return {
+        textStream: (async function* () {
+          yield "risposta immagine";
+        })(),
+      };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildPhotoUpdate()),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        userMessage: "Immagine",
+        hasImages: true,
+        messageParts: [
+          { type: "text", text: "L'utente ha inviato questa immagine." },
+          {
+            type: "file",
+            mimeType: "image/jpeg",
+            data: Buffer.from("photo-data").toString("base64"),
+          },
+        ],
+      }),
+    );
   });
 
   it("sync text message sends fallback when assistant persistence fails", async () => {

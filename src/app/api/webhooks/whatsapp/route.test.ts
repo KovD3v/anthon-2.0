@@ -408,6 +408,28 @@ describe("/api/webhooks/whatsapp", () => {
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
   });
 
+  it("POST accepts a valid HMAC signature when app secret is configured", async () => {
+    process.env.WHATSAPP_APP_SECRET = "app-secret";
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+
+    const body = JSON.stringify(buildPayload());
+    const signature = createHmac("sha256", "app-secret")
+      .update(body)
+      .digest("hex");
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body,
+        headers: { "x-hub-signature-256": `sha256=${signature}` },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.waitUntil).not.toHaveBeenCalled();
+  });
+
   it("POST returns 400 for invalid JSON payload", async () => {
     const response = await POST(
       new Request("http://localhost/api/webhooks/whatsapp", {
@@ -458,6 +480,78 @@ describe("/api/webhooks/whatsapp", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.waitUntil).toHaveBeenCalledTimes(1);
+  });
+
+  it("sync status update without messages is ignored without AI side effects", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify({
+          object: "whatsapp_business_account",
+          entry: [
+            {
+              id: "entry_1",
+              changes: [
+                {
+                  field: "messages",
+                  value: {
+                    messaging_product: "whatsapp",
+                    metadata: {
+                      display_phone_number: "3900000000",
+                      phone_number_id: "phone_1",
+                    },
+                    statuses: [
+                      {
+                        id: "wamid_status_1",
+                        status: "delivered",
+                        timestamp: "1700000000",
+                        recipient_id: "39333111222",
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.prismaMessageFindFirst).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageCreate).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+  });
+
+  it("sync duplicate wamid returns ok without AI side effects", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.OPENROUTER_API_KEY = "sk-test";
+
+    mocks.prismaMessageFindFirst.mockResolvedValue({ id: "existing_wa_msg" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildTextPayload("ciao di nuovo")),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.prismaMessageFindFirst).toHaveBeenCalledWith({
+      where: {
+        channel: "WHATSAPP",
+        externalMessageId: "wamid_1",
+      },
+      select: { id: true },
+    });
+    expect(mocks.prismaMessageCreate).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
   it("sync connect command returns early when non-guest identity is already linked", async () => {
@@ -600,6 +694,61 @@ describe("/api/webhooks/whatsapp", () => {
         channel: "WHATSAPP",
       }),
     );
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+  });
+
+  it("WHATSAPP_DISABLE_SEND suppresses Graph API fallback sends", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_DISABLE_SEND = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+    delete process.env.OPENROUTER_API_KEY;
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: true,
+        subscription: null,
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate.mockResolvedValue({ id: "wa_in_1" });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildTextPayload("ciao da wa")),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wa_in_1" },
+        data: {
+          metadata: expect.objectContaining({
+            whatsapp: expect.objectContaining({
+              id: "wamid_1",
+              type: "text",
+              error: expect.objectContaining({
+                kind: "ai_configuration_missing",
+              }),
+            }),
+          }),
+        },
+      }),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
@@ -1320,6 +1469,7 @@ describe("/api/webhooks/whatsapp", () => {
     expect(mocks.streamChat).toHaveBeenCalledWith(
       expect.objectContaining({
         userMessage: "Immagine",
+        hasImages: true,
         messageParts: [
           { type: "text", text: "L'utente ha inviato questa immagine." },
           {
