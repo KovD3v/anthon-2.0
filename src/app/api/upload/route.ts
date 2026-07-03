@@ -68,7 +68,16 @@ const ALLOWED_TYPES = [
   // Video
   "video/mp4",
   "video/mpeg",
+  "video/mpg",
   "video/webm",
+  "video/mov",
+  "video/quicktime",
+  "video/avi",
+  "video/x-msvideo",
+  "video/x-flv",
+  "video/wmv",
+  "video/x-ms-wmv",
+  "video/3gpp",
 ];
 
 /**
@@ -357,7 +366,14 @@ function detectFileType(filename: string): string {
     m4a: "audio/x-m4a",
     // Video
     mp4: "video/mp4",
+    mov: "video/quicktime",
+    avi: "video/x-msvideo",
+    flv: "video/x-flv",
+    mpg: "video/mpg",
     mpeg: "video/mpeg",
+    wmv: "video/x-ms-wmv",
+    "3gp": "video/3gpp",
+    "3gpp": "video/3gpp",
     // Note: webm handled above for audio
   };
 

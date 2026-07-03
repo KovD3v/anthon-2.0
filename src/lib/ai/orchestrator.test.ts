@@ -856,6 +856,207 @@ describe("ai/orchestrator", () => {
     );
   });
 
+  it("routes PDF messages through OpenRouter REST with file content", async () => {
+    const originalApiKey = process.env.OPENROUTER_API_KEY;
+    process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "https://blob.example/attachments/user-1/chat-pdf/doc.pdf") {
+        return new Response(Buffer.from("%PDF-1.7 sample"), {
+          headers: { "Content-Type": "application/pdf" },
+        });
+      }
+
+      return Response.json({
+        id: "gen-pdf",
+        model: "google/gemini-2.5-flash-lite",
+        choices: [
+          {
+            message: {
+              content: "Il PDF parla di tecnica.",
+            },
+          },
+        ],
+        usage: {
+          prompt_tokens: 90,
+          completion_tokens: 10,
+          total_tokens: 100,
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    try {
+      const result = await streamChat({
+        userId: "user-1",
+        chatId: "chat-pdf",
+        userMessage: "riassumi",
+        messageParts: [
+          { type: "text", text: "riassumi" },
+          {
+            type: "file",
+            data: "https://blob.example/attachments/user-1/chat-pdf/doc.pdf",
+            mimeType: "application/pdf",
+            name: "doc.pdf",
+          },
+        ],
+      });
+
+      let text = "";
+      for await (const chunk of result.textStream) {
+        text += chunk;
+      }
+      expect(text).toBe("Il PDF parla di tecnica.");
+    } finally {
+      process.env.OPENROUTER_API_KEY = originalApiKey;
+    }
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://blob.example/attachments/user-1/chat-pdf/doc.pdf",
+    );
+    expect(mocks.streamText).not.toHaveBeenCalled();
+
+    const openRouterCall = fetchSpy.mock.calls.find(
+      ([input]) =>
+        String(input) === "https://openrouter.ai/api/v1/chat/completions",
+    );
+    expect(openRouterCall).toBeTruthy();
+    const requestBody = JSON.parse(
+      (openRouterCall?.[1] as { body: string }).body,
+    );
+    expect(requestBody.messages.at(-1)).toEqual({
+      role: "user",
+      content: [
+        { type: "text", text: "riassumi" },
+        {
+          type: "file",
+          file: {
+            filename: "doc.pdf",
+            file_data: `data:application/pdf;base64,${Buffer.from(
+              "%PDF-1.7 sample",
+            ).toString("base64")}`,
+          },
+        },
+      ],
+    });
+  });
+
+  it("routes video messages through OpenRouter REST with file content", async () => {
+    const originalApiKey = process.env.OPENROUTER_API_KEY;
+    process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    const videoBytes = Buffer.from("video-bytes");
+    const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (
+        url === "https://blob.example/attachments/user-1/chat-video/clip.mp4"
+      ) {
+        return new Response(videoBytes, {
+          headers: { "Content-Type": "video/mp4" },
+        });
+      }
+
+      return Response.json({
+        id: "gen-video",
+        model: "google/gemini-2.5-flash-lite",
+        choices: [
+          {
+            message: {
+              content: "Nel video vedo un movimento laterale.",
+            },
+          },
+        ],
+        usage: {
+          prompt_tokens: 120,
+          completion_tokens: 15,
+          total_tokens: 135,
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    try {
+      const result = await streamChat({
+        userId: "user-1",
+        chatId: "chat-video",
+        userMessage: "analizza il movimento",
+        messageParts: [
+          { type: "text", text: "analizza il movimento" },
+          {
+            type: "file",
+            data: "https://blob.example/attachments/user-1/chat-video/clip.mp4",
+            mimeType: "video/mp4",
+            name: "clip.mp4",
+          },
+        ],
+      });
+
+      let text = "";
+      for await (const chunk of result.textStream) {
+        text += chunk;
+      }
+      expect(text).toBe("Nel video vedo un movimento laterale.");
+    } finally {
+      process.env.OPENROUTER_API_KEY = originalApiKey;
+    }
+
+    expect(mocks.streamText).not.toHaveBeenCalled();
+    const openRouterCall = fetchSpy.mock.calls.find(
+      ([input]) =>
+        String(input) === "https://openrouter.ai/api/v1/chat/completions",
+    );
+    expect(openRouterCall).toBeTruthy();
+    const requestBody = JSON.parse(
+      (openRouterCall?.[1] as { body: string }).body,
+    );
+    expect(requestBody.messages.at(-1)).toEqual({
+      role: "user",
+      content: [
+        { type: "text", text: "analizza il movimento" },
+        {
+          type: "file",
+          file: {
+            filename: "clip.mp4",
+            file_data: `data:video/mp4;base64,${videoBytes.toString("base64")}`,
+          },
+        },
+      ],
+    });
+  });
+
+  it("degrades unsupported video attachments to text when the selected model is image-only", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-image-only-video",
+      userMessage: "",
+      benchmarkModelId: "image-only/model",
+      messageParts: [
+        {
+          type: "file",
+          data: "https://blob.example/attachments/user-1/chat-video/clip.mp4",
+          mimeType: "video/mp4",
+          name: "clip.mp4",
+        },
+      ],
+    });
+
+    expect(mocks.streamText).toHaveBeenCalledTimes(1);
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    expect(streamInput.messages.at(-1)).toEqual({
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: expect.stringContaining("video/mp4"),
+        },
+      ],
+    });
+    expect(JSON.stringify(streamInput.messages.at(-1))).not.toContain(
+      "https://blob.example/attachments/user-1/chat-video/clip.mp4",
+    );
+  });
+
   it("enables TinyFish only for time-sensitive requests", async () => {
     await streamChat({
       userId: "user-1",
@@ -1292,8 +1493,9 @@ describe("ai/orchestrator", () => {
         { type: "text", text: "leggi questo file" },
         {
           type: "file",
-          data: "https://blob.example/file.pdf",
-          mimeType: "application/pdf",
+          data: "https://blob.example/file.docx",
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         },
       ],
     });

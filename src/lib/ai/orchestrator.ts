@@ -34,6 +34,17 @@ import {
   type WebSearchRuleDecision,
 } from "@/lib/ai/intent";
 import {
+  getMultimodalMediaKind,
+  hasSupportedOpenRouterMedia,
+  isBase64Payload,
+  isDataUrl,
+  isHttpUrl,
+  type MultimodalMediaKind,
+  modelSupportsMultimodalMediaKind,
+  normalizeMediaType,
+  toOpenRouterMessages,
+} from "@/lib/ai/multimodal-media";
+import {
   getModelById,
   getModelForUser,
   getModelIdForPlan,
@@ -541,27 +552,6 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
-function isBase64Payload(value: string) {
-  const normalized = value.replace(/\s/g, "");
-  if (normalized.length === 0 || normalized.length % 4 !== 0) {
-    return false;
-  }
-  return /^[A-Za-z0-9+/]+={0,2}$/.test(normalized);
-}
-
-function isHttpUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-function isDataUrl(value: string) {
-  return /^data:image\/[a-z0-9.+-]+;base64,/i.test(value);
-}
-
 /**
  * Creates all tools with the userId context injected via factory pattern.
  */
@@ -896,24 +886,23 @@ function shouldUseSimpleFastPath({
   );
 }
 
-type OpenRouterTextPart = {
-  type: "text";
-  text: string;
-};
+function buildUnsupportedMediaNotice(
+  attachments: Array<{
+    mediaKind: MultimodalMediaKind;
+    mimeType: string;
+    name?: string;
+  }>,
+) {
+  const formatted = attachments
+    .map(({ mediaKind, mimeType, name }) =>
+      name
+        ? `${name} (${mediaKind}, ${mimeType})`
+        : `${mediaKind} (${mimeType})`,
+    )
+    .join(", ");
 
-type OpenRouterImagePart = {
-  type: "image_url";
-  image_url: {
-    url: string;
-  };
-};
-
-type OpenRouterContentPart = OpenRouterTextPart | OpenRouterImagePart;
-
-type OpenRouterMessage = {
-  role: "system" | "user" | "assistant";
-  content: string | OpenRouterContentPart[];
-};
+  return `Questi allegati non sono disponibili per l'analisi diretta in questa sessione: ${formatted}. Rispondi senza inventare contenuti del file e chiedi una descrizione testuale o un'immagine se serve.`;
+}
 
 type StreamResponseOptions = {
   status?: number;
@@ -927,85 +916,6 @@ type DirectMultimodalCompletion = {
   text: string;
   metrics: AIMetrics;
 };
-
-function toOpenRouterImageUrl(data: string, mediaType?: string) {
-  if (isHttpUrl(data) || isDataUrl(data)) {
-    return data;
-  }
-
-  if (!isBase64Payload(data)) {
-    return null;
-  }
-
-  return `data:${mediaType || "image/jpeg"};base64,${data}`;
-}
-
-function toOpenRouterContentPart(part: unknown): OpenRouterContentPart | null {
-  if (!part || typeof part !== "object") {
-    return null;
-  }
-
-  const candidate = part as {
-    type?: unknown;
-    text?: unknown;
-    data?: unknown;
-    mediaType?: unknown;
-  };
-
-  if (candidate.type === "text" && typeof candidate.text === "string") {
-    return { type: "text", text: candidate.text };
-  }
-
-  if (
-    candidate.type === "file" &&
-    typeof candidate.data === "string" &&
-    typeof candidate.mediaType === "string" &&
-    candidate.mediaType.startsWith("image/")
-  ) {
-    const url = toOpenRouterImageUrl(candidate.data, candidate.mediaType);
-    return url ? { type: "image_url", image_url: { url } } : null;
-  }
-
-  return null;
-}
-
-function toOpenRouterContent(
-  content: unknown,
-): string | OpenRouterContentPart[] {
-  if (typeof content === "string") {
-    return content;
-  }
-
-  if (!Array.isArray(content)) {
-    return "";
-  }
-
-  return content
-    .map((part) => toOpenRouterContentPart(part))
-    .filter((part): part is OpenRouterContentPart => Boolean(part));
-}
-
-function toOpenRouterMessages(
-  systemPrompt: string,
-  messages: ModelMessage[],
-): OpenRouterMessage[] {
-  const openRouterMessages: OpenRouterMessage[] = [
-    { role: "system", content: systemPrompt },
-  ];
-
-  for (const message of messages) {
-    if (message.role !== "user" && message.role !== "assistant") {
-      continue;
-    }
-
-    openRouterMessages.push({
-      role: message.role,
-      content: toOpenRouterContent(message.content),
-    });
-  }
-
-  return openRouterMessages;
-}
 
 function extractOpenRouterResponseText(response: unknown) {
   const choice = (
@@ -1063,8 +973,10 @@ async function runOpenRouterMultimodalCompletion({
 }): Promise<DirectMultimodalCompletion> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    throw new Error("OPENROUTER_API_KEY is required for image chat");
+    throw new Error("OPENROUTER_API_KEY is required for multimodal chat");
   }
+
+  const openRouterMessages = await toOpenRouterMessages(systemPrompt, messages);
 
   const response = await fetch(
     "https://openrouter.ai/api/v1/chat/completions",
@@ -1080,7 +992,7 @@ async function runOpenRouterMultimodalCompletion({
       },
       body: JSON.stringify({
         model: modelId,
-        messages: toOpenRouterMessages(systemPrompt, messages),
+        messages: openRouterMessages,
         usage: { include: true },
         provider: getOpenRouterProviderOptionsForModel(modelId).provider as
           | Record<string, unknown>
@@ -1092,13 +1004,13 @@ async function runOpenRouterMultimodalCompletion({
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(
-      `OpenRouter image chat failed: ${response.status} ${JSON.stringify(payload)}`,
+      `OpenRouter multimodal chat failed: ${response.status} ${JSON.stringify(payload)}`,
     );
   }
 
   const text = extractOpenRouterResponseText(payload);
   if (!text.trim()) {
-    throw new Error("OpenRouter image chat returned no text content");
+    throw new Error("OpenRouter multimodal chat returned no text content");
   }
 
   const usage = (
@@ -1334,13 +1246,23 @@ export async function streamChat({
       isGuest,
     }));
 
-  const imageModelId =
-    hasImages && !benchmarkModelId ? MULTIMODAL_ORCHESTRATOR_MODEL_ID : null;
-  const explicitModelId = benchmarkModelId ?? imageModelId;
+  const hasMultimodalFileParts =
+    messageParts?.some(
+      (part) =>
+        part.type === "file" &&
+        getMultimodalMediaKind(
+          typeof part.mimeType === "string" ? part.mimeType : undefined,
+        ),
+    ) ?? false;
+  const multimodalModelId =
+    (hasImages || hasMultimodalFileParts) && !benchmarkModelId
+      ? MULTIMODAL_ORCHESTRATOR_MODEL_ID
+      : null;
+  const explicitModelId = benchmarkModelId ?? multimodalModelId;
 
   const modelId =
     benchmarkModelId ??
-    imageModelId ??
+    multimodalModelId ??
     getModelIdForPlan(
       planId,
       userRole,
@@ -1719,15 +1641,21 @@ export async function streamChat({
     messageParts &&
     messageParts.length > 0
   ) {
-    // Convert parts to AI SDK format with images and audio
+    // Convert parts to AI SDK format with model-scoped multimodal support.
     type ContentPart =
       | { type: "text"; text: string }
       | {
           type: "file";
           data: string | Uint8Array;
           mediaType: string;
+          name?: string;
         };
     const contentParts: ContentPart[] = [];
+    const unsupportedMediaAttachments: Array<{
+      mediaKind: MultimodalMediaKind;
+      mimeType: string;
+      name?: string;
+    }> = [];
 
     // Track if we have any text
     let hasText = false;
@@ -1736,33 +1664,56 @@ export async function streamChat({
       if (part.type === "text" && part.text) {
         contentParts.push({ type: "text", text: part.text });
         hasText = true;
-      } else if (
-        part.type === "file" &&
-        part.mimeType?.startsWith("image/") &&
-        part.data
-      ) {
+        continue;
+      }
+
+      if (part.type !== "file" || !part.data) {
+        continue;
+      }
+
+      const cleanMimeType = part.mimeType
+        ? normalizeMediaType(part.mimeType)
+        : "application/octet-stream";
+      const mediaKind = getMultimodalMediaKind(cleanMimeType);
+      const attachmentName =
+        typeof part.name === "string" && part.name.trim()
+          ? part.name
+          : undefined;
+
+      if (mediaKind) {
+        if (!modelSupportsMultimodalMediaKind(modelId, mediaKind)) {
+          unsupportedMediaAttachments.push({
+            mediaKind,
+            mimeType: cleanMimeType,
+            name: attachmentName,
+          });
+          continue;
+        }
+
         if (
           !isHttpUrl(part.data) &&
           !isDataUrl(part.data) &&
           !isBase64Payload(part.data)
         ) {
-          aiLogger.warn("ai.file.invalid_image_data", "Skipping image file", {
+          aiLogger.warn("ai.file.invalid_multimodal_data", "Skipping file", {
             userId,
             chatId,
-            mimeType: part.mimeType,
+            mimeType: cleanMimeType,
+            mediaKind,
           });
           continue;
         }
+
         contentParts.push({
           type: "file",
           data: part.data,
-          mediaType: part.mimeType,
+          mediaType: cleanMimeType,
+          name: attachmentName,
         });
-      } else if (
-        part.type === "file" &&
-        part.mimeType?.startsWith("audio/") &&
-        part.data
-      ) {
+        continue;
+      }
+
+      if (cleanMimeType.startsWith("audio/")) {
         if (!isBase64Payload(part.data)) {
           aiLogger.warn(
             "ai.file.invalid_audio_data",
@@ -1773,34 +1724,59 @@ export async function streamChat({
         }
         // Convert base64 to Uint8Array for the AI SDK file type
         const binaryData = base64ToUint8Array(part.data);
-        // Strip codec parameters from mimeType (e.g., "audio/webm;codecs=opus" -> "audio/webm")
-        const cleanMimeType = part.mimeType.split(";")[0];
         contentParts.push({
           type: "file",
           data: binaryData,
           mediaType: cleanMimeType,
         });
-      } else if (part.type === "file" && part.data) {
-        if (!isBase64Payload(part.data)) {
-          aiLogger.warn(
-            "ai.file.invalid_data",
-            "Skipping file with invalid base64 payload",
-            { userId, chatId, mimeType: part.mimeType },
-          );
-          continue;
-        }
-        // Handle other file types (PDF, text, etc.)
-        const binaryData = base64ToUint8Array(part.data);
-        contentParts.push({
-          type: "file",
-          data: binaryData,
-          mediaType: part.mimeType || "application/octet-stream",
-        });
+        continue;
       }
+
+      if (!isBase64Payload(part.data)) {
+        aiLogger.warn(
+          "ai.file.invalid_data",
+          "Skipping file with invalid base64 payload",
+          { userId, chatId, mimeType: cleanMimeType },
+        );
+        continue;
+      }
+
+      // Handle remaining AI SDK file types when provided inline.
+      const binaryData = base64ToUint8Array(part.data);
+      contentParts.push({
+        type: "file",
+        data: binaryData,
+        mediaType: cleanMimeType,
+        name: attachmentName,
+      });
     }
 
-    // Add a default prompt for audio-only messages
-    if (!hasText && hasAudio) {
+    if (unsupportedMediaAttachments.length > 0) {
+      contentParts.push({
+        type: "text",
+        text: buildUnsupportedMediaNotice(unsupportedMediaAttachments),
+      });
+      hasText = true;
+    }
+
+    const hasDirectMedia = contentParts.some((part) => {
+      if (part.type !== "file") {
+        return false;
+      }
+
+      const mediaKind = getMultimodalMediaKind(part.mediaType);
+      return mediaKind
+        ? modelSupportsMultimodalMediaKind(modelId, mediaKind)
+        : false;
+    });
+
+    // Add a default prompt for media-only messages.
+    if (!hasText && hasDirectMedia) {
+      contentParts.unshift({
+        type: "text",
+        text: "Analizza gli allegati e rispondi.",
+      });
+    } else if (!hasText && hasAudio) {
       contentParts.unshift({
         type: "text",
         text: "Ascolta questo messaggio vocale e rispondi.",
@@ -1866,7 +1842,12 @@ export async function streamChat({
   let sawToolStep = false;
   const toolTiming: ToolTimingMetrics = {};
 
-  if (hasImages) {
+  const hasDirectMultimodalMedia = hasSupportedOpenRouterMedia(
+    messages,
+    modelId,
+  );
+
+  if (hasDirectMultimodalMedia) {
     const completionPromise = runOpenRouterMultimodalCompletion({
       modelId,
       systemPrompt,
@@ -1877,15 +1858,16 @@ export async function streamChat({
       onFinish,
     });
 
-    aiLogger.info("ai.stream.started", "AI image streaming started", {
+    aiLogger.info("ai.stream.started", "AI multimodal streaming started", {
       userId,
       chatId,
       modelId,
       promptMode,
       ragUsed,
       ragChunksCount,
-      hasImages: true,
+      hasImages: Boolean(hasImages),
       hasAudio: Boolean(hasAudio),
+      hasDirectMultimodalMedia,
     });
 
     return createDirectMultimodalStreamResult(completionPromise);

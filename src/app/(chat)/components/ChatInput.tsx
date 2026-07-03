@@ -75,6 +75,14 @@ export function ChatInput({
     setAttachments([]); // Clear attachments after submit
   };
 
+  const resetFileUploadState = () => {
+    setIsUploading(false);
+    setUploadingFileName(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const handleFileSelect = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
@@ -88,41 +96,51 @@ export function ChatInput({
 
     setIsUploading(true);
     setUploadingFileName(file.name);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
 
-      const response = await fetch("/api/upload", {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    let response: Response;
+    try {
+      response = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       });
-
-      if (!response.ok) {
-        throw new Error(CHAT_REACTIVITY_COPY.uploadFailed);
-      }
-
-      const data = await response.json();
-      setAttachments([
-        ...attachments,
-        {
-          id: data.id,
-          name: data.name,
-          contentType: data.contentType,
-          size: data.size,
-          url: data.url,
-        },
-      ]);
-      toast.success(CHAT_REACTIVITY_COPY.uploadSuccess);
     } catch (error) {
       console.error("Upload error:", error);
       toast.error(CHAT_REACTIVITY_COPY.uploadFailed);
-    } finally {
-      setIsUploading(false);
-      setUploadingFileName(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      resetFileUploadState();
+      return;
     }
+
+    if (!response.ok) {
+      toast.error(CHAT_REACTIVITY_COPY.uploadFailed);
+      resetFileUploadState();
+      return;
+    }
+
+    let data: AttachmentData;
+    try {
+      data = (await response.json()) as AttachmentData;
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error(CHAT_REACTIVITY_COPY.uploadFailed);
+      resetFileUploadState();
+      return;
+    }
+
+    setAttachments([
+      ...attachments,
+      {
+        id: data.id,
+        name: data.name,
+        contentType: data.contentType,
+        size: data.size,
+        url: data.url,
+      },
+    ]);
+    toast.success(CHAT_REACTIVITY_COPY.uploadSuccess);
+    resetFileUploadState();
   };
 
   const handleRemoveAttachment = (id: string) => {
@@ -175,7 +193,7 @@ export function ChatInput({
           aria-label="Seleziona file"
           onChange={(e) => handleFileSelect(e.target.files)}
           disabled={isUploading || isLoading}
-          accept="image/*,.pdf,.doc,.docx,.txt,audio/*,.mp3,.wav,.ogg,.aac,.flac,.m4a"
+          accept="image/*,video/*,.pdf,.doc,.docx,.txt,audio/*,.mp3,.wav,.ogg,.aac,.flac,.m4a"
         />
 
         {/* Attachment button - hidden for guests */}
@@ -202,6 +220,7 @@ export function ChatInput({
         <textarea
           ref={textareaRef}
           value={input}
+          aria-label="Scrivi un messaggio"
           onChange={(e) => {
             const nextInput = e.target.value;
             setInput(nextInput);

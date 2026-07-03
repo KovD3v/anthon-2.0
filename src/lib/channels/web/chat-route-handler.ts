@@ -529,7 +529,11 @@ function normalizeFilePartData(filePart: {
     return undefined;
   }
 
-  if (filePart.mimeType?.startsWith("image/")) {
+  if (
+    filePart.mimeType?.startsWith("image/") ||
+    filePart.mimeType === "application/pdf" ||
+    filePart.mimeType?.startsWith("video/")
+  ) {
     return filePart.url;
   }
 

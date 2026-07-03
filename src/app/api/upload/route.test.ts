@@ -213,6 +213,27 @@ describe("/api/upload POST", () => {
     );
   });
 
+  it("accepts QuickTime video uploads", async () => {
+    const form = new FormData();
+    form.append(
+      "file",
+      new File(["video"], "movement.mov", {
+        type: "video/quicktime",
+      }),
+    );
+
+    const response = await POST(buildUploadRequest(form));
+
+    expect(response.status).toBe(200);
+    expect(mocks.put).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(File),
+      expect.objectContaining({
+        contentType: "video/quicktime",
+      }),
+    );
+  });
+
   it("accepts extension fallback when MIME type is empty", async () => {
     const form = new FormData();
     form.append("file", new File(["# markdown"], "guide.md"));
