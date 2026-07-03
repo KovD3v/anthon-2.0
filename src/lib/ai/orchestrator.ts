@@ -1177,7 +1177,11 @@ function createDirectMultimodalStreamResult(
           write({ type: "text-delta", id: textId, delta: text });
           write({ type: "text-end", id: textId });
           write({ type: "finish-step" });
-          write({ ...finishPart, messageMetadata: metadata });
+          write({
+            type: "finish",
+            finishReason: finishPart.finishReason,
+            messageMetadata: metadata,
+          });
         },
         onError: (error) =>
           error instanceof Error ? error.message : "Image chat failed.",

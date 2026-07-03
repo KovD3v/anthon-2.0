@@ -723,6 +723,24 @@ describe("ai/orchestrator", () => {
       }),
     );
     vi.stubGlobal("fetch", fetchSpy);
+    const uiStreamParts: unknown[] = [];
+    let executeUIStream: Promise<void> | undefined;
+    mocks.createUIMessageStream.mockImplementationOnce(
+      ({
+        execute,
+      }: {
+        execute: (input: {
+          writer: { write: (part: unknown) => void };
+        }) => Promise<void>;
+      }) => {
+        executeUIStream = execute({
+          writer: {
+            write: (part: unknown) => uiStreamParts.push(part),
+          },
+        });
+        return new ReadableStream();
+      },
+    );
 
     let text = "";
     try {
@@ -743,6 +761,8 @@ describe("ai/orchestrator", () => {
       for await (const chunk of result.textStream) {
         text += chunk;
       }
+      result.toUIMessageStreamResponse();
+      await executeUIStream;
     } finally {
       process.env.OPENROUTER_API_KEY = originalApiKey;
     }
@@ -763,6 +783,22 @@ describe("ai/orchestrator", () => {
     );
     expect(text).toBe("Vedo una scena sportiva.");
     expect(mocks.streamText).not.toHaveBeenCalled();
+    expect(
+      uiStreamParts.find(
+        (part) =>
+          Boolean(part && typeof part === "object" && "type" in part) &&
+          (part as { type?: unknown }).type === "finish",
+      ),
+    ).toEqual({
+      type: "finish",
+      finishReason: "stop",
+      messageMetadata: {
+        inputTokens: 10,
+        outputTokens: 20,
+        generationTimeMs: 123,
+        reasoningTimeMs: undefined,
+      },
+    });
     expect(fetchSpy).toHaveBeenCalledWith(
       "https://openrouter.ai/api/v1/chat/completions",
       expect.objectContaining({
