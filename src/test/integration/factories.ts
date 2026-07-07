@@ -1,3 +1,4 @@
+import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 
 let sequence = 0;
@@ -78,6 +79,7 @@ export async function createMessage(
     createdAt?: Date;
   } & Partial<{
     feedback: number | null;
+    metadata: Prisma.InputJsonValue;
   }>,
 ) {
   const role = input.role ?? "USER";
@@ -94,6 +96,7 @@ export async function createMessage(
       type: "TEXT",
       ...(input.createdAt ? { createdAt: input.createdAt } : {}),
       ...(input.feedback !== undefined ? { feedback: input.feedback } : {}),
+      ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
     },
   });
 }

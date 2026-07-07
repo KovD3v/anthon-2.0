@@ -46,6 +46,7 @@ describe("POST /api/chat/feedback", () => {
       id: "msg-1",
       userId: "user-1",
       role: "ASSISTANT",
+      metadata: { ai: { toolCallCount: 0 } },
     });
     mocks.messageUpdate.mockResolvedValue({ id: "msg-1", feedback: 1 });
   });
@@ -109,12 +110,90 @@ describe("POST /api/chat/feedback", () => {
     expect(response.status).toBe(200);
     expect(mocks.messageUpdate).toHaveBeenCalledWith({
       where: { id: "msg-1" },
-      data: { feedback: 1 },
+      data: {
+        feedback: 1,
+        metadata: {
+          ai: { toolCallCount: 0 },
+        },
+      },
     });
     await expect(response.json()).resolves.toEqual({
       success: true,
       messageId: "msg-1",
       feedback: 1,
+    });
+  });
+
+  it("stores an optional negative feedback reason in message metadata", async () => {
+    const response = await POST(
+      buildRequest({
+        messageId: "msg-1",
+        feedback: -1,
+        reason: "linguistic_error",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.messageUpdate).toHaveBeenCalledWith({
+      where: { id: "msg-1" },
+      data: {
+        feedback: -1,
+        metadata: {
+          ai: { toolCallCount: 0 },
+          feedback: {
+            reason: "linguistic_error",
+          },
+        },
+      },
+    });
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      messageId: "msg-1",
+      feedback: -1,
+      reason: "linguistic_error",
+    });
+  });
+
+  it("clears the feedback reason when feedback is reset", async () => {
+    mocks.messageFindFirst.mockResolvedValue({
+      id: "msg-1",
+      userId: "user-1",
+      role: "ASSISTANT",
+      metadata: {
+        ai: { toolCallCount: 0 },
+        feedback: { reason: "too_generic" },
+      },
+    });
+
+    const response = await POST(
+      buildRequest({ messageId: "msg-1", feedback: 0 }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.messageUpdate).toHaveBeenCalledWith({
+      where: { id: "msg-1" },
+      data: {
+        feedback: 0,
+        metadata: {
+          ai: { toolCallCount: 0 },
+        },
+      },
+    });
+  });
+
+  it("returns 400 for unsupported feedback reasons", async () => {
+    const response = await POST(
+      buildRequest({
+        messageId: "msg-1",
+        feedback: -1,
+        reason: "random_reason",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.messageUpdate).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid request body",
     });
   });
 });

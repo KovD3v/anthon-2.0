@@ -76,6 +76,56 @@ describe("integration /api/chat/feedback", () => {
     expect(updated?.feedback).toBe(-1);
   });
 
+  it("stores a negative feedback reason without dropping existing metadata", async () => {
+    const user = await createUser({ clerkId: "clerk-feedback-reason" });
+    const chat = await createChat(user.id);
+    const assistantMessage = await createMessage({
+      userId: user.id,
+      chatId: chat.id,
+      role: "ASSISTANT",
+      feedback: null,
+      metadata: { ai: { toolCallCount: 0 } },
+    });
+
+    mocks.auth.mockResolvedValue({ userId: user.clerkId });
+
+    const response = await POST(
+      new Request("http://localhost/api/chat/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messageId: assistantMessage.id,
+          feedback: -1,
+          reason: "context_missed",
+        }),
+      }),
+    );
+    const body = (await response.json()) as {
+      success: boolean;
+      messageId: string;
+      feedback: number;
+      reason: string;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      success: true,
+      messageId: assistantMessage.id,
+      feedback: -1,
+      reason: "context_missed",
+    });
+
+    const updated = await prisma.message.findFirst({
+      where: { id: assistantMessage.id },
+      select: { feedback: true, metadata: true },
+    });
+    expect(updated?.feedback).toBe(-1);
+    expect(updated?.metadata).toEqual({
+      ai: { toolCallCount: 0 },
+      feedback: { reason: "context_missed" },
+    });
+  });
+
   it("returns 404 for non-assistant messages", async () => {
     const user = await createUser({ clerkId: "clerk-feedback-2" });
     const chat = await createChat(user.id);

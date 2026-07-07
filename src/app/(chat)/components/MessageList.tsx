@@ -79,6 +79,33 @@ function hasPersistedAudioAttachment(message: ExtendedMessage) {
 const assistantMarkdownClassName =
   "prose prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-black prose-code:text-black prose-pre:bg-black/10 prose-pre:border prose-pre:border-black/10 prose-pre:rounded-xl";
 
+const FEEDBACK_REASON_OPTIONS = [
+  { value: "linguistic_error", label: "Errore linguistico" },
+  { value: "wrong_fact", label: "Fatto sbagliato" },
+  { value: "context_missed", label: "Non ha capito il contesto" },
+  { value: "too_generic", label: "Troppo generico" },
+  { value: "tool_search_problem", label: "Problema tool/search" },
+  { value: "other", label: "Altro" },
+] as const;
+
+type FeedbackReason = (typeof FEEDBACK_REASON_OPTIONS)[number]["value"];
+
+async function submitFeedback(
+  messageId: string,
+  feedback: number,
+  selectedReason?: FeedbackReason,
+) {
+  await fetch("/api/chat/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messageId,
+      feedback,
+      reason: selectedReason,
+    }),
+  });
+}
+
 export function MessageList({
   messages,
   status,
@@ -102,6 +129,11 @@ export function MessageList({
   const [feedbackState, setFeedbackState] = useState<Record<string, number>>(
     {},
   );
+  const [feedbackReasonState, setFeedbackReasonState] = useState<
+    Record<string, FeedbackReason | undefined>
+  >({});
+  const [feedbackReasonMenuMessageId, setFeedbackReasonMenuMessageId] =
+    useState<string | null>(null);
   const [submittedElapsedMs, setSubmittedElapsedMs] = useState(0);
   const latestMessage = messages[messages.length - 1];
   const assistantPendingLabel = getAssistantPendingLabel({
@@ -150,15 +182,36 @@ export function MessageList({
     const newFeedback = currentFeedback === feedback ? 0 : feedback;
 
     setFeedbackState((prev) => ({ ...prev, [messageId]: newFeedback }));
+    if (newFeedback === -1) {
+      setFeedbackReasonMenuMessageId(messageId);
+    } else {
+      setFeedbackReasonMenuMessageId(null);
+      setFeedbackReasonState((prev) => ({ ...prev, [messageId]: undefined }));
+    }
 
     try {
-      await fetch("/api/chat/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messageId, feedback: newFeedback }),
-      });
+      await submitFeedback(messageId, newFeedback);
     } catch (error) {
       console.error("Feedback error:", error);
+      toast.error(CHAT_REACTIVITY_COPY.feedbackFailed);
+    }
+  }
+
+  async function handleFeedbackReason(
+    messageId: string,
+    selectedReason: FeedbackReason,
+  ) {
+    setFeedbackState((prev) => ({ ...prev, [messageId]: -1 }));
+    setFeedbackReasonState((prev) => ({
+      ...prev,
+      [messageId]: selectedReason,
+    }));
+    setFeedbackReasonMenuMessageId(null);
+
+    try {
+      await submitFeedback(messageId, -1, selectedReason);
+    } catch (error) {
+      console.error("Feedback reason error:", error);
       toast.error(CHAT_REACTIVITY_COPY.feedbackFailed);
     }
   }
@@ -372,6 +425,7 @@ export function MessageList({
                           <div className="space-y-3">
                             <textarea
                               value={editContent}
+                              aria-label="Modifica messaggio"
                               onChange={(e) =>
                                 onEditContentChange(e.target.value)
                               }
@@ -639,6 +693,43 @@ export function MessageList({
                           </Button>
                         )}
                       </div>
+
+                      {!isUser &&
+                        feedbackState[message.id] === -1 &&
+                        feedbackReasonMenuMessageId === message.id && (
+                          <fieldset className="flex max-w-80 flex-wrap gap-1 px-1">
+                            <legend className="sr-only">
+                              Motivo feedback negativo
+                            </legend>
+                            {FEEDBACK_REASON_OPTIONS.map((option) => {
+                              const isSelected =
+                                feedbackReasonState[message.id] ===
+                                option.value;
+
+                              return (
+                                <Button
+                                  key={option.value}
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className={`h-7 rounded-md px-2 text-xs ${
+                                    isSelected
+                                      ? "bg-red-500/10 text-red-600"
+                                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                  }`}
+                                  onClick={() =>
+                                    handleFeedbackReason(
+                                      message.id,
+                                      option.value,
+                                    )
+                                  }
+                                >
+                                  {option.label}
+                                </Button>
+                              );
+                            })}
+                          </fieldset>
+                        )}
                     </div>
                   </m.div>
                 </div>

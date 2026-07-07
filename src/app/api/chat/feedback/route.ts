@@ -6,11 +6,22 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
+
+const FeedbackReasonSchema = z.enum([
+  "linguistic_error",
+  "wrong_fact",
+  "context_missed",
+  "too_generic",
+  "tool_search_problem",
+  "other",
+]);
 
 const FeedbackSchema = z.object({
   messageId: z.string().min(1),
   feedback: z.number().int().min(-1).max(1), // -1, 0, or 1
+  reason: FeedbackReasonSchema.optional(),
 });
 
 export async function POST(request: Request) {
@@ -56,14 +67,43 @@ export async function POST(request: Request) {
   }
 
   // Update feedback
+  const metadata = buildFeedbackMetadata(
+    message.metadata,
+    body.feedback,
+    body.reason,
+  );
+
   await prisma.message.update({
     where: { id: body.messageId },
-    data: { feedback: body.feedback },
+    data: {
+      feedback: body.feedback,
+      metadata,
+    },
   });
 
   return Response.json({
     success: true,
     messageId: body.messageId,
     feedback: body.feedback,
+    reason: body.reason,
   });
+}
+
+function buildFeedbackMetadata(
+  metadata: unknown,
+  feedback: number,
+  reason: z.infer<typeof FeedbackReasonSchema> | undefined,
+): Prisma.InputJsonValue {
+  const next =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? { ...(metadata as Record<string, unknown>) }
+      : {};
+
+  if (feedback === -1 && reason) {
+    next.feedback = { reason };
+  } else {
+    delete next.feedback;
+  }
+
+  return next as Prisma.InputJsonValue;
 }
