@@ -90,6 +90,11 @@ const FEEDBACK_REASON_OPTIONS = [
 
 type FeedbackReason = (typeof FEEDBACK_REASON_OPTIONS)[number]["value"];
 
+function getFeedbackReasonLabel(reason: FeedbackReason | undefined) {
+  return FEEDBACK_REASON_OPTIONS.find((option) => option.value === reason)
+    ?.label;
+}
+
 async function submitFeedback(
   messageId: string,
   feedback: number,
@@ -216,6 +221,19 @@ export function MessageList({
     }
   }
 
+  async function handleFeedbackRemoval(messageId: string) {
+    setFeedbackState((prev) => ({ ...prev, [messageId]: 0 }));
+    setFeedbackReasonState((prev) => ({ ...prev, [messageId]: undefined }));
+    setFeedbackReasonMenuMessageId(null);
+
+    try {
+      await submitFeedback(messageId, 0);
+    } catch (error) {
+      console.error("Feedback removal error:", error);
+      toast.error(CHAT_REACTIVITY_COPY.feedbackFailed);
+    }
+  }
+
   // Virtualize the message list for better performance with many messages
   // (useVirtualizer is encapsulated in useMessageVirtualizer hook)
 
@@ -332,6 +350,9 @@ export function MessageList({
               );
               const hasText = messageText.trim().length > 0;
               const isAttachmentOnly = hasAttachments && !hasText;
+              const feedbackReasonLabel = getFeedbackReasonLabel(
+                feedbackReasonState[message.id],
+              );
 
               // Voice message state from persisted DB attachments.
               const dbVoiceAttachment = message.attachments?.find((a) =>
@@ -730,6 +751,25 @@ export function MessageList({
                             })}
                           </fieldset>
                         )}
+                      {!isUser && feedbackState[message.id] === -1 && (
+                        <div className="flex max-w-full flex-wrap items-center gap-1 px-1">
+                          {feedbackReasonLabel && (
+                            <span className="rounded-md bg-red-500/10 px-2 py-1 text-xs font-medium text-red-600">
+                              {feedbackReasonLabel}
+                            </span>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                            onClick={() => handleFeedbackRemoval(message.id)}
+                          >
+                            <X className="mr-1 h-3 w-3" />
+                            Rimuovi feedback
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </m.div>
                 </div>

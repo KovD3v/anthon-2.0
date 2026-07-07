@@ -220,6 +220,8 @@ describe("chat mobile viewport layout", () => {
     expect(messageList).toContain("Problema tool/search");
     expect(messageList).toContain("Altro");
     expect(messageList).toContain("reason: selectedReason");
+    expect(messageList).toContain("handleFeedbackRemoval");
+    expect(messageList).toContain("Rimuovi feedback");
   });
 
   it("styles Anthon message boxes with the selected brand background and black text", () => {
