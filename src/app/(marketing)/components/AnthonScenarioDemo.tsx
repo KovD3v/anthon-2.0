@@ -205,8 +205,8 @@ export function AnthonScenarioDemo() {
                 onClick={() => selectScenario(index)}
                 className={`rounded-full ${
                   index === activeIndex
-                    ? "border-brand-yellow bg-brand-yellow text-[#171714] hover:bg-brand-yellow/85 hover:text-[#171714]"
-                    : "bg-background/60 text-foreground hover:border-brand-yellow/70 hover:bg-brand-yellow/10"
+                    ? "border-brand-yellow bg-brand-yellow text-[#171714] hover:bg-brand-yellow/85 hover:text-[#171714] dark:border-brand-yellow dark:bg-brand-yellow dark:text-[#171714] dark:hover:bg-brand-yellow/85 dark:hover:text-[#171714]"
+                    : "bg-background/60 text-foreground hover:border-brand-yellow/70 hover:bg-brand-yellow/10 dark:bg-background/60 dark:text-foreground dark:hover:border-brand-yellow/70 dark:hover:bg-brand-yellow/10"
                 }`}
               >
                 {scenario.label}
