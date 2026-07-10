@@ -101,8 +101,8 @@ export function Features() {
             >
               <Card className="h-full rounded-none border-0 bg-background shadow-none transition-colors hover:bg-accent/30">
                 <CardHeader>
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
-                    <feature.icon className="h-5 w-5 text-primary" />
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card">
+                    <feature.icon className="h-5 w-5 text-foreground" />
                   </div>
                   <h3 className="font-display text-2xl font-semibold uppercase leading-none">
                     {feature.title}

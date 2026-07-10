@@ -8,7 +8,7 @@ export function Footer() {
         <div className="grid grid-cols-1 gap-10 md:grid-cols-[1.3fr_0.8fr_0.8fr]">
           <div className="max-w-sm space-y-4">
             <div className="flex items-center gap-2 font-bold text-xl">
-              <Brain className="h-6 w-6 text-primary" />
+              <Brain className="h-6 w-6 text-brand-yellow" />
               <span>Anthon</span>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -18,9 +18,9 @@ export function Footer() {
             </p>
             <a
               href="mailto:anthon.chat@gmail.com"
-              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border px-4 text-sm font-semibold transition-colors hover:border-primary hover:bg-primary/10"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border px-4 text-sm font-semibold transition-colors hover:border-foreground/30 hover:bg-accent"
             >
-              <Mail className="h-4 w-4 text-primary" />
+              <Mail className="h-4 w-4" />
               anthon.chat@gmail.com
             </a>
           </div>

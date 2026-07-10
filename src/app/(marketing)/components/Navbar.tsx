@@ -62,7 +62,7 @@ export function Navbar() {
         <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 font-bold text-xl">
             <Link href="/" className="flex items-center gap-2">
-              <Brain className="h-6 w-6 text-primary" />
+              <Brain className="h-6 w-6 text-brand-yellow" />
               <span>Anthon</span>
             </Link>
           </div>
@@ -124,7 +124,7 @@ export function Navbar() {
               className={cn(
                 "relative py-2 text-muted-foreground transition-colors hover:text-foreground",
                 pathname === "/pricing" &&
-                  "text-foreground after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:bg-primary",
+                  "text-foreground after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:bg-brand-yellow",
               )}
             >
               Prezzi
@@ -163,7 +163,9 @@ export function Navbar() {
                 <Button variant="ghost">Accedi</Button>
               </SignInButton>
               <SignUpButton mode="modal">
-                <Button>Inizia gratis</Button>
+                <Button className="bg-brand-yellow text-[#171714] hover:bg-brand-yellow/85">
+                  Inizia gratis
+                </Button>
               </SignUpButton>
             </SignedOut>
             <SignedIn>
@@ -177,39 +179,65 @@ export function Navbar() {
             </SignedIn>
           </div>
 
-          {/* Mobile Menu Toggle */}
-          <button
-            type="button"
-            className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-accent md:hidden"
-            onClick={toggleMenu}
-            aria-label={isMenuOpen ? "Chiudi menu" : "Apri menu"}
-            aria-expanded={isMenuOpen}
-            aria-controls="menu-mobile"
-          >
-            <AnimatePresence mode="wait">
-              {isMenuOpen ? (
-                <m.div
-                  key="close"
-                  initial={{ opacity: 0, rotate: -90 }}
-                  animate={{ opacity: 1, rotate: 0 }}
-                  exit={{ opacity: 0, rotate: 90 }}
-                  transition={{ duration: duration.fast, ease: ease.inOut }}
-                >
-                  <X className="h-6 w-6" />
-                </m.div>
+          {/* Mobile Controls */}
+          <div className="flex items-center gap-1 md:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              className="h-11 w-11 rounded-lg"
+              aria-label={
+                mounted
+                  ? `Attiva il tema ${theme === "dark" ? "chiaro" : "scuro"}`
+                  : "Cambia tema"
+              }
+              title={
+                mounted
+                  ? `Attiva il tema ${theme === "dark" ? "chiaro" : "scuro"}`
+                  : "Cambia tema"
+              }
+            >
+              {!mounted ? (
+                <Sun className="h-4 w-4 opacity-0" />
+              ) : theme === "dark" ? (
+                <Sun className="h-4 w-4" />
               ) : (
-                <m.div
-                  key="menu"
-                  initial={{ opacity: 0, rotate: 90 }}
-                  animate={{ opacity: 1, rotate: 0 }}
-                  exit={{ opacity: 0, rotate: -90 }}
-                  transition={{ duration: duration.fast, ease: ease.inOut }}
-                >
-                  <Menu className="h-6 w-6" />
-                </m.div>
+                <Moon className="h-4 w-4" />
               )}
-            </AnimatePresence>
-          </button>
+            </Button>
+            <button
+              type="button"
+              className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-accent"
+              onClick={toggleMenu}
+              aria-label={isMenuOpen ? "Chiudi menu" : "Apri menu"}
+              aria-expanded={isMenuOpen}
+              aria-controls="menu-mobile"
+            >
+              <AnimatePresence mode="wait">
+                {isMenuOpen ? (
+                  <m.div
+                    key="close"
+                    initial={{ opacity: 0, rotate: -90 }}
+                    animate={{ opacity: 1, rotate: 0 }}
+                    exit={{ opacity: 0, rotate: 90 }}
+                    transition={{ duration: duration.fast, ease: ease.inOut }}
+                  >
+                    <X className="h-6 w-6" />
+                  </m.div>
+                ) : (
+                  <m.div
+                    key="menu"
+                    initial={{ opacity: 0, rotate: 90 }}
+                    animate={{ opacity: 1, rotate: 0 }}
+                    exit={{ opacity: 0, rotate: -90 }}
+                    transition={{ duration: duration.fast, ease: ease.inOut }}
+                  >
+                    <Menu className="h-6 w-6" />
+                  </m.div>
+                )}
+              </AnimatePresence>
+            </button>
+          </div>
         </div>
 
         {/* Mobile Menu */}
@@ -227,10 +255,10 @@ export function Navbar() {
               transition={{ duration: duration.base, ease: ease.inOut }}
               className="overflow-hidden border-t border-border md:hidden"
             >
-              <div className="space-y-6 rounded-b-2xl bg-background/95 p-4 backdrop-blur-3xl">
+              <div className="space-y-4 rounded-b-2xl bg-background/95 p-3 backdrop-blur-3xl">
                 <nav
                   aria-label="Navigazione mobile"
-                  className="flex flex-col space-y-1"
+                  className="flex flex-col gap-1"
                 >
                   <MobileNavLink
                     href="/#features"
@@ -280,49 +308,20 @@ export function Navbar() {
                   />
                 </nav>
 
-                <div className="space-y-3 pt-4 border-t border-border/40 dark:border-white/5">
-                  {/* Mobile Theme Toggle */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      toggleTheme();
-                    }}
-                    className="justify-between gap-2 w-full h-11 px-4 rounded-xl bg-background/50 hover:bg-muted/50 border border-border/50 dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/5"
-                  >
-                    <div className="flex items-center gap-3">
-                      {theme === "dark" ? (
-                        <>
-                          <Sun className="h-4 w-4 text-orange-400" />
-                          <span className="text-sm font-medium">
-                            Tema Chiaro
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <Moon className="h-4 w-4 text-blue-400" />
-                          <span className="text-sm font-medium">
-                            Tema Scuro
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
-                  </Button>
-
+                <div className="space-y-3 border-t border-border pt-3">
                   <SignedOut>
                     <div className="grid grid-cols-2 gap-2">
                       <SignInButton mode="modal">
                         <Button
                           variant="ghost"
-                          className="justify-center gap-2 h-11 rounded-xl bg-background/50 border border-border/50 dark:bg-white/5 dark:border-white/5"
+                          className="h-11 justify-center gap-2 rounded-xl border border-border bg-card hover:bg-muted"
                         >
                           <LogIn className="h-4 w-4" />
                           Accedi
                         </Button>
                       </SignInButton>
                       <SignUpButton mode="modal">
-                        <Button className="justify-center gap-2 h-11 rounded-xl shadow-lg shadow-primary/20">
+                        <Button className="h-11 justify-center gap-2 rounded-xl bg-brand-yellow text-[#171714] shadow-lg shadow-brand-yellow/20 hover:bg-brand-yellow/85">
                           <Sparkles className="h-4 w-4" />
                           Inizia ora
                         </Button>
@@ -331,7 +330,7 @@ export function Navbar() {
                   </SignedOut>
 
                   <SignedIn>
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-background/50 border border-border/50 dark:bg-white/5 dark:border-white/5">
+                    <div className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
                       <div className="flex items-center gap-2">
                         <UserButton />
                         <div className="flex flex-col">
@@ -369,15 +368,15 @@ function MobileNavLink({
     <Link
       href={href}
       onClick={onClick}
-      className="flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 hover:bg-white/5 active:scale-[0.98] group"
+      className="group flex min-h-14 items-center justify-between rounded-xl border border-transparent px-2 py-2 transition-colors hover:border-border hover:bg-muted/60"
     >
-      <div className="flex items-center gap-2">
-        <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground text-background">
           {icon}
         </div>
         <span className="text-sm font-medium">{label}</span>
       </div>
-      <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+      <ChevronRight className="h-4 w-4 text-muted-foreground/50 transition-colors group-hover:text-foreground" />
     </Link>
   );
 }

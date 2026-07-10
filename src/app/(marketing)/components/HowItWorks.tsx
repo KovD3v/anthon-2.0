@@ -67,7 +67,7 @@ export function HowItWorks() {
           className="relative grid grid-cols-1 gap-5 md:grid-cols-3"
         >
           {/* Connecting line for desktop */}
-          <div className="editorial-rule absolute left-[16%] right-[16%] top-12 -z-10 hidden h-px text-primary md:block" />
+          <div className="editorial-rule absolute left-[16%] right-[16%] top-12 -z-10 hidden h-px text-border md:block" />
 
           {steps.map((step) => (
             <m.div
@@ -76,9 +76,9 @@ export function HowItWorks() {
               transition={defaultTransition}
             >
               <Card className="flex h-full flex-col items-start rounded-2xl bg-card p-6 text-left shadow-none">
-                <div className="relative z-10 mb-8 flex h-20 w-20 items-center justify-center rounded-full border border-primary/40 bg-primary/10">
-                  <step.icon className="h-8 w-8 text-primary" />
-                  <div className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-primary font-mono text-xs font-bold text-primary-foreground">
+                <div className="relative z-10 mb-8 flex h-20 w-20 items-center justify-center rounded-full border border-border bg-card">
+                  <step.icon className="h-8 w-8 text-foreground" />
+                  <div className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-brand-yellow font-mono text-xs font-bold text-[#171714]">
                     {step.number}
                   </div>
                 </div>
