@@ -5,7 +5,7 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { defaultTransition, fadeUp, slowTransition } from "@/lib/motion";
-import { HeroProductPreview } from "./HeroProductPreview";
+import { AnthonScenarioDemo } from "./AnthonScenarioDemo";
 
 export function Hero() {
   return (
@@ -75,7 +75,7 @@ export function Hero() {
             transition={{ ...slowTransition, delay: 0.4 }}
             className="relative mx-auto mt-12 w-full lg:mt-16"
           >
-            <HeroProductPreview />
+            <AnthonScenarioDemo />
           </m.div>
         </div>
       </div>

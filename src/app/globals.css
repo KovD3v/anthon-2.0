@@ -165,6 +165,15 @@
 }
 
 @layer utilities {
+  @keyframes scenario-progress {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
   .font-display {
     font-family:
       "Barlow Condensed", "Barlow Condensed Fallback", ui-sans-serif, system-ui,
