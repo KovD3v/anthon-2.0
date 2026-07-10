@@ -55,16 +55,16 @@ const DEFAULT_SUGGESTIONS: SuggestedAction[] = [
     id: "clarify",
     label: "Aiutami a capire meglio questo concetto",
     prompt:
-      "Puoi spiegarmelo in termini piu semplici? Vorrei comprendere meglio il concetto di base.",
+      "Puoi spiegarmelo in termini più semplici? Vorrei comprendere meglio il concetto di base.",
     icon: "help",
-    category: "Understanding",
+    category: "Comprensione",
   },
   {
     id: "example",
     label: "Dammi un esempio",
     prompt: "Puoi farmi un esempio concreto di come funziona nella pratica?",
     icon: "lightbulb",
-    category: "Learning",
+    category: "Apprendimento",
   },
   {
     id: "action",
@@ -72,7 +72,7 @@ const DEFAULT_SUGGESTIONS: SuggestedAction[] = [
     prompt:
       "In base a quanto abbiamo discusso, quale azione specifica dovrei intraprendere successivamente?",
     icon: "sparkles",
-    category: "Action",
+    category: "Azione",
   },
   {
     id: "deeper",
@@ -80,7 +80,7 @@ const DEFAULT_SUGGESTIONS: SuggestedAction[] = [
     prompt:
       "Vorrei esplorare questo argomento più a fondo. Quali aspetti dovrei considerare?",
     icon: "document",
-    category: "Exploration",
+    category: "Approfondimento",
   },
 ];
 
@@ -93,7 +93,7 @@ const CODE_SUGGESTIONS: SuggestedAction[] = [
     label: "Spiega questo codice",
     prompt: "Puoi spiegarmi questo codice passo dopo passo?",
     icon: "code",
-    category: "Code",
+    category: "Codice",
   },
   {
     id: "improve-code",
@@ -101,7 +101,7 @@ const CODE_SUGGESTIONS: SuggestedAction[] = [
     prompt:
       "Quali miglioramenti o best practice potrei applicare a questo codice?",
     icon: "sparkles",
-    category: "Code",
+    category: "Codice",
   },
   {
     id: "test-code",
@@ -109,7 +109,7 @@ const CODE_SUGGESTIONS: SuggestedAction[] = [
     prompt:
       "Come dovrei testare questo codice? Quali casi di test dovrei considerare?",
     icon: "help",
-    category: "Testing",
+    category: "Test",
   },
 ];
 
@@ -189,12 +189,12 @@ export function SuggestedActions({
           {isExpanded ? (
             <>
               <ChevronUp className="mr-1 h-3 w-3" />
-              Less
+              Meno
             </>
           ) : (
             <>
               <ChevronDown className="mr-1 h-3 w-3" />
-              More
+              Altro
             </>
           )}
         </Button>
@@ -353,7 +353,7 @@ function _WelcomeSuggestions({
       label: "Parlami di te",
       prompt: "Cosa puoi fare per me? Parlami delle tue capacità.",
       icon: "sparkles",
-      category: "Getting Started",
+      category: "Per iniziare",
     },
     {
       id: "goals",
@@ -361,7 +361,7 @@ function _WelcomeSuggestions({
       prompt:
         "Vorrei aiuto per fissare e raggiungere i miei obiettivi. Da dove dovrei iniziare?",
       icon: "lightbulb",
-      category: "Goal Setting",
+      category: "Obiettivi",
     },
     {
       id: "learn",
@@ -369,7 +369,7 @@ function _WelcomeSuggestions({
       prompt:
         "Vorrei imparare qualcosa di nuovo. Quali argomenti o abilità mi consiglieresti?",
       icon: "document",
-      category: "Learning",
+      category: "Apprendimento",
     },
     {
       id: "problem",
@@ -377,7 +377,7 @@ function _WelcomeSuggestions({
       prompt:
         "Sto affrontando una sfida e potrei usare qualche consiglio su come affrontarla.",
       icon: "help",
-      category: "Problem Solving",
+      category: "Risoluzione dei problemi",
     },
   ];
 

@@ -133,7 +133,8 @@ export function AttachmentPreview({
           type="button"
           onClick={onRemove}
           className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-          title="Remove"
+          title="Rimuovi allegato"
+          aria-label={`Rimuovi ${attachment.name}`}
         >
           <X className="h-4 w-4" />
         </button>
@@ -165,7 +166,8 @@ export function AttachmentButton({
         hasAttachment && "text-primary",
         className,
       )}
-      title="Attach file"
+      title="Allega file"
+      aria-label="Allega file"
     >
       <File className="h-5 w-5" />
     </Button>

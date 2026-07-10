@@ -1,56 +1,53 @@
 "use client";
 
 import { m } from "framer-motion";
-import { Star } from "lucide-react";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import {
-  defaultTransition,
-  fadeUp,
-  scaleIn,
-  staggerContainer,
-} from "@/lib/motion";
+import { ClipboardCheck, Repeat2, Route } from "lucide-react";
+import { defaultTransition, fadeUp, staggerContainer } from "@/lib/motion";
 
-const testimonials = [
+const method = [
   {
-    id: "testimonial-sarah",
-    quote:
-      "Anthon mi ha aiutato a superare l'ansia pre-partita. Non mi sono mai sentito così concentrato e sicuro scendendo in campo.",
-    author: "Sarah J.",
-    role: "Calciatrice Professionista",
-    rating: 5,
+    id: "method-context",
+    label: "01 — Contesto",
+    title: "Parte dalla situazione reale",
+    description:
+      "Sport, momento della stagione, livello di pressione e obiettivo della prossima performance.",
+    icon: ClipboardCheck,
   },
   {
-    id: "testimonial-michael",
-    quote:
-      "Gli esercizi di visualizzazione sono una svolta. È come avere uno psicologo dello sport in tasca 24/7.",
-    author: "Michael T.",
-    role: "Giocatore di Basket Universitario",
-    rating: 5,
+    id: "method-action",
+    label: "02 — Azione",
+    title: "Trasforma il dialogo in una routine",
+    description:
+      "Esercizi brevi, istruzioni chiare e un piano utilizzabile prima, durante e dopo la gara.",
+    icon: Route,
   },
   {
-    id: "testimonial-david",
-    quote:
-      "Prima crollavo sotto pressione. Anthon mi ha insegnato come resettarmi e rimanere nella zona. Le mie statistiche sono migliorate significativamente.",
-    author: "David R.",
-    role: "Tennista",
-    rating: 5,
+    id: "method-adapt",
+    label: "03 — Adattamento",
+    title: "Impara da ciò che succede in campo",
+    description:
+      "Il feedback post-performance aggiorna il percorso e rende il lavoro successivo più specifico.",
+    icon: Repeat2,
   },
 ];
 
 export function Testimonials() {
   return (
-    <section className="py-16 md:py-24 bg-muted/30" id="testimonials">
+    <section
+      className="border-y border-border bg-[#171714] py-16 text-[#f8f5eb] md:py-24"
+      id="metodo"
+    >
       <div className="container mx-auto px-4 md:px-6">
-        <div className="text-center mb-12">
+        <div className="mb-12 grid gap-5 md:grid-cols-[1fr_0.8fr] md:items-end">
           <m.h2
             variants={fadeUp}
             initial="hidden"
             whileInView="show"
             viewport={{ once: true }}
             transition={defaultTransition}
-            className="text-3xl font-semibold tracking-tight"
+            className="font-display max-w-2xl text-4xl font-bold uppercase leading-[0.95] tracking-tight sm:text-5xl"
           >
-            Scelto dagli Atleti
+            Un metodo pratico, non frasi motivazionali
           </m.h2>
           <m.p
             variants={fadeUp}
@@ -58,10 +55,10 @@ export function Testimonials() {
             whileInView="show"
             viewport={{ once: true }}
             transition={{ ...defaultTransition, delay: 0.1 }}
-            className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto"
+            className="max-w-xl text-lg leading-relaxed text-white/60 md:justify-self-end"
           >
-            Scopri come Anthon sta aiutando atleti di diversi sport a
-            raggiungere il loro potenziale.
+            Ogni conversazione collega il vissuto dell’atleta a un’azione
+            concreta e a un ciclo di miglioramento.
           </m.p>
         </div>
 
@@ -70,46 +67,27 @@ export function Testimonials() {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+          className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 md:grid-cols-3"
         >
-          {testimonials.map((testimonial) => (
+          {method.map((item) => (
             <m.div
-              key={testimonial.id}
-              variants={scaleIn}
+              key={item.id}
+              variants={fadeUp}
               transition={defaultTransition}
+              className="bg-[#1d1d19] p-6 sm:p-8"
             >
-              <Card variant="glass" className="h-full">
-                <CardContent className="pt-6">
-                  <div className="flex mb-4">
-                    {(["★1", "★2", "★3", "★4", "★5"] as const)
-                      .slice(0, testimonial.rating)
-                      .map((starKey) => (
-                        <Star
-                          key={`${testimonial.id}-${starKey}`}
-                          className="h-4 w-4 fill-primary text-primary"
-                        />
-                      ))}
-                  </div>
-                  <p className="text-muted-foreground mb-6 italic">
-                    "{testimonial.quote}"
-                  </p>
-                </CardContent>
-                <CardFooter className="border-t pt-6">
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                      {testimonial.author.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sm">
-                        {testimonial.author}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {testimonial.role}
-                      </p>
-                    </div>
-                  </div>
-                </CardFooter>
-              </Card>
+              <div className="mb-10 flex items-center justify-between">
+                <item.icon className="h-7 w-7 text-primary" />
+                <span className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-white/40">
+                  {item.label}
+                </span>
+              </div>
+              <h3 className="font-display text-2xl font-bold uppercase leading-none">
+                {item.title}
+              </h3>
+              <p className="mt-4 leading-relaxed text-white/60">
+                {item.description}
+              </p>
             </m.div>
           ))}
         </m.div>

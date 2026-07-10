@@ -166,9 +166,9 @@ export function MessageList({
           initial="hidden"
           animate="show"
           transition={{ ...defaultTransition, delay: 0.15 }}
-          className="mt-6 text-3xl font-semibold tracking-tight text-foreground"
+          className="font-display mt-6 text-3xl font-semibold uppercase tracking-tight text-foreground"
         >
-          How can I help you today?
+          Da dove vuoi iniziare?
         </m.h2>
       </div>
     );
@@ -186,7 +186,7 @@ export function MessageList({
             <div className="flex justify-center py-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Loading older messages...</span>
+                <span>Caricamento dei messaggi precedenti…</span>
               </div>
             </div>
           )}
@@ -200,7 +200,7 @@ export function MessageList({
                 onClick={onLoadMore}
                 className="text-muted-foreground hover:text-foreground"
               >
-                Load older messages
+                Carica i messaggi precedenti
               </Button>
             </div>
           )}
@@ -508,6 +508,7 @@ export function MessageList({
                                 onEditStart(message.id, messageText)
                               }
                               disabled={isLoading}
+                              aria-label="Modifica messaggio"
                             >
                               <Pencil className="h-3 w-3" />
                             </Button>
@@ -516,6 +517,7 @@ export function MessageList({
                               size="icon"
                               className="h-6 w-6 text-muted-foreground hover:text-destructive"
                               onClick={() => onDelete(message.id)}
+                              aria-label="Elimina messaggio"
                             >
                               {deletingMessageId === message.id ? (
                                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -533,6 +535,9 @@ export function MessageList({
                               size="icon"
                               className="h-6 w-6 text-muted-foreground hover:text-foreground"
                               onClick={() => copy(messageText)}
+                              aria-label={
+                                copied ? "Messaggio copiato" : "Copia messaggio"
+                              }
                             >
                               {copied ? (
                                 <Check className="h-3 w-3" />
@@ -549,6 +554,7 @@ export function MessageList({
                                   : "text-muted-foreground hover:text-green-500"
                               }`}
                               onClick={() => handleFeedback(message.id, 1)}
+                              aria-label="Risposta utile"
                             >
                               <ThumbsUp className="h-3 w-3" />
                             </Button>
@@ -561,6 +567,7 @@ export function MessageList({
                                   : "text-muted-foreground hover:text-red-500"
                               }`}
                               onClick={() => handleFeedback(message.id, -1)}
+                              aria-label="Risposta non utile"
                             >
                               <ThumbsDown className="h-3 w-3" />
                             </Button>
@@ -573,6 +580,7 @@ export function MessageList({
                             size="icon"
                             className="h-6 w-6 text-muted-foreground hover:text-foreground"
                             onClick={onRegenerate}
+                            aria-label="Rigenera risposta"
                           >
                             <RefreshCw className="h-3 w-3" />
                           </Button>

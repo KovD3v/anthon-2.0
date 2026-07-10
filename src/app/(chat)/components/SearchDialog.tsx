@@ -72,7 +72,12 @@ export function SearchDialog({ isOpen, onClose }: SearchDialogProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Cerca nelle conversazioni"
+    >
       <div className="fixed left-1/2 top-1/4 -translate-x-1/2 w-full max-w-xl">
         <div className="mx-4 rounded-2xl bg-background border border-white/10 shadow-2xl overflow-hidden">
           {/* Search Input */}
@@ -82,7 +87,8 @@ export function SearchDialog({ isOpen, onClose }: SearchDialogProps) {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search messages..."
+              placeholder="Cerca nei messaggi…"
+              aria-label="Cerca nei messaggi"
               className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/50"
             />
             {isLoading && (
@@ -93,6 +99,7 @@ export function SearchDialog({ isOpen, onClose }: SearchDialogProps) {
               size="icon"
               className="h-8 w-8 shrink-0"
               onClick={onClose}
+              aria-label="Chiudi ricerca"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -102,13 +109,13 @@ export function SearchDialog({ isOpen, onClose }: SearchDialogProps) {
           <div className="max-h-96 overflow-y-auto">
             {results.length === 0 && query.length >= 2 && !isLoading && (
               <div className="px-4 py-8 text-center text-muted-foreground text-sm">
-                No results found for "{query}"
+                Nessun risultato per “{query}”
               </div>
             )}
 
             {results.length === 0 && query.length < 2 && (
               <div className="px-4 py-8 text-center text-muted-foreground text-sm">
-                Type at least 2 characters to search
+                Digita almeno 2 caratteri per cercare
               </div>
             )}
 
@@ -125,7 +132,7 @@ export function SearchDialog({ isOpen, onClose }: SearchDialogProps) {
                     {result.chatTitle}
                   </span>
                   <span className="text-xs text-muted-foreground/50">
-                    {result.role === "USER" ? "You" : "Anthon"}
+                    {result.role === "USER" ? "Tu" : "Anthon"}
                   </span>
                 </div>
                 <p className="text-sm text-foreground/80 line-clamp-2">

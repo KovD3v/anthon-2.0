@@ -7,7 +7,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { defaultTransition, fadeUp, staggerContainer } from "@/lib/motion";
 
@@ -28,7 +27,7 @@ const features = [
   },
   {
     id: "feature-flow",
-    title: "Continuita sotto pressione",
+    title: "Continuità sotto pressione",
     description:
       "Riduci cali di concentrazione e rientra velocemente nel tuo ritmo durante allenamento e gara.",
     icon: Zap,
@@ -37,7 +36,7 @@ const features = [
     id: "feature-stress",
     title: "Pressione gestita, non subita",
     description:
-      "Trasforma ansia e tensione in energia utile nei momenti in cui serve lucidita.",
+      "Trasforma ansia e tensione in energia utile nei momenti in cui serve lucidità.",
     icon: Shield,
   },
   {
@@ -58,16 +57,19 @@ const features = [
 
 export function Features() {
   return (
-    <section id="features" className="py-16 md:py-24 bg-muted/50">
+    <section
+      id="features"
+      className="border-y border-border bg-card py-16 md:py-24"
+    >
       <div className="container mx-auto px-4 md:px-6">
-        <div className="text-center mb-12">
+        <div className="mb-12 grid gap-5 md:grid-cols-[0.8fr_1.2fr] md:items-end">
           <m.h2
             variants={fadeUp}
             initial="hidden"
             whileInView="show"
             viewport={{ once: true }}
             transition={defaultTransition}
-            className="text-3xl font-semibold tracking-tight"
+            className="font-display text-4xl font-bold uppercase leading-none tracking-tight sm:text-5xl"
           >
             Risultati mentali concreti, in campo e in gara
           </m.h2>
@@ -77,9 +79,9 @@ export function Features() {
             whileInView="show"
             viewport={{ once: true }}
             transition={{ ...defaultTransition, delay: 0.1 }}
-            className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto"
+            className="max-w-2xl text-lg leading-relaxed text-muted-foreground md:justify-self-end"
           >
-            Ogni area e pensata per migliorare tre leve chiave: fiducia, focus e
+            Ogni area è pensata per migliorare tre leve chiave: fiducia, focus e
             gestione della pressione.
           </m.p>
         </div>
@@ -89,7 +91,7 @@ export function Features() {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-2 lg:grid-cols-3"
         >
           {features.map((feature) => (
             <m.div
@@ -97,18 +99,17 @@ export function Features() {
               variants={fadeUp}
               transition={defaultTransition}
             >
-              <Card
-                variant="glass"
-                className="h-full transition-all hover:bg-background/80"
-              >
+              <Card className="h-full rounded-none border-0 bg-background shadow-none transition-colors hover:bg-accent/30">
                 <CardHeader>
-                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                    <feature.icon className="h-6 w-6 text-primary" />
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+                    <feature.icon className="h-5 w-5 text-primary" />
                   </div>
-                  <CardTitle>{feature.title}</CardTitle>
+                  <h3 className="font-display text-2xl font-semibold uppercase leading-none">
+                    {feature.title}
+                  </h3>
                 </CardHeader>
                 <CardContent>
-                  <CardDescription className="text-sm">
+                  <CardDescription className="text-base leading-relaxed">
                     {feature.description}
                   </CardDescription>
                 </CardContent>

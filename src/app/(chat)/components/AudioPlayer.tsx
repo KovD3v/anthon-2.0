@@ -160,6 +160,7 @@ export function AudioPlayer({
         )}
         onClick={togglePlayPause}
         disabled={!isLoaded && !hasError}
+        aria-label={isPlaying ? "Metti in pausa" : "Riproduci audio"}
       >
         {isPlaying ? (
           <Pause className="h-4 w-4 fill-current" />
@@ -176,7 +177,7 @@ export function AudioPlayer({
           onClick={handleProgressClick}
           role="slider"
           tabIndex={0}
-          aria-label="Audio progress"
+          aria-label="Avanzamento audio"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={progress}

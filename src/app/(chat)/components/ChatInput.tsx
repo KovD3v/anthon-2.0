@@ -66,7 +66,7 @@ export function ChatInput({
     const maxSize = 10 * 1024 * 1024; // 10MB
 
     if (file.size > maxSize) {
-      toast.error("File too large. Maximum size is 10MB.");
+      toast.error("Il file è troppo grande. La dimensione massima è 10 MB.");
       return;
     }
 
@@ -95,10 +95,10 @@ export function ChatInput({
           url: data.url,
         },
       ]);
-      toast.success("File uploaded successfully");
+      toast.success("File caricato");
     } catch (error) {
       console.error("Upload error:", error);
-      toast.error("Failed to upload file");
+      toast.error("Caricamento del file non riuscito");
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -140,6 +140,7 @@ export function ChatInput({
           ref={fileInputRef}
           type="file"
           className="sr-only"
+          aria-label="Scegli un file da allegare"
           onChange={(e) => handleFileSelect(e.target.files)}
           disabled={isUploading || isLoading}
           accept="image/*,.pdf,.doc,.docx,.txt,audio/*,.mp3,.wav,.ogg,.aac,.flac,.m4a"
@@ -167,6 +168,7 @@ export function ChatInput({
         )}
 
         <textarea
+          id="messaggio-chat"
           ref={textareaRef}
           value={input}
           onChange={(e) => {
@@ -174,7 +176,8 @@ export function ChatInput({
             adjustHeight();
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Send a message..."
+          placeholder="Scrivi un messaggio…"
+          aria-label="Messaggio"
           rows={1}
           className="flex-1 resize-none bg-transparent px-2 py-3 text-sm outline-none placeholder:text-muted-foreground/50 max-h-[200px] overflow-y-auto scrollbar-none"
           disabled={isLoading}
@@ -187,6 +190,7 @@ export function ChatInput({
               variant="destructive"
               className="h-9 w-9 rounded-full shadow-sm transition-all hover:shadow-md"
               onClick={onStop}
+              aria-label="Interrompi la risposta"
             >
               <Square className="h-4 w-4 fill-current" />
             </Button>
@@ -200,6 +204,7 @@ export function ChatInput({
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
               disabled={!input.trim() && attachments.length === 0}
+              aria-label="Invia messaggio"
             >
               <Send className="h-4 w-4 ml-0.5" />
             </Button>

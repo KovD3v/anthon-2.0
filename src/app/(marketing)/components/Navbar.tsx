@@ -22,14 +22,17 @@ import {
   Sparkles,
   Sun,
   Tag,
+  Target,
   User,
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { duration, ease } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 
 const subscribe = () => () => {};
 const getClientSnapshot = () => true;
@@ -38,6 +41,7 @@ const getServerSnapshot = () => false;
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { theme, setTheme } = useTheme();
+  const pathname = usePathname();
   const { user } = useUser();
   const isOrgMember = (user?.organizationMemberships?.length ?? 0) > 0;
   const mounted = useSyncExternalStore(
@@ -54,7 +58,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full pt-[env(safe-area-inset-top)]">
-      <div className="mx-2 mt-2 md:mx-4 md:mt-4 rounded-2xl border border-white/10 bg-background/60 backdrop-blur-xl shadow-xs">
+      <div className="mx-2 mt-2 rounded-2xl border border-border bg-background/90 shadow-sm backdrop-blur-xl md:mx-4 md:mt-4">
         <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 font-bold text-xl">
             <Link href="/" className="flex items-center gap-2">
@@ -64,30 +68,51 @@ export function Navbar() {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
+          <nav
+            aria-label="Navigazione principale"
+            className="hidden items-center gap-6 text-sm font-medium md:flex"
+          >
+            <Link
+              href="/#features"
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Risultati
+            </Link>
+            <Link
+              href="/#how-it-works"
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Come funziona
+            </Link>
+            <Link
+              href="/#metodo"
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Metodo
+            </Link>
             <SignedIn>
               <Link
                 href="/chat"
-                className="text-muted-foreground hover:text-primary transition-colors"
+                className="text-muted-foreground transition-colors hover:text-foreground"
               >
                 Chat
               </Link>
               <Link
                 href="/profile"
-                className="text-muted-foreground hover:text-primary transition-colors"
+                className="text-muted-foreground transition-colors hover:text-foreground"
               >
                 Profilo
               </Link>
               <Link
                 href="/channels"
-                className="text-muted-foreground hover:text-primary transition-colors"
+                className="text-muted-foreground transition-colors hover:text-foreground"
               >
                 Canali
               </Link>
               {isOrgMember && (
                 <Link
                   href="/organization"
-                  className="text-muted-foreground hover:text-primary transition-colors"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
                 >
                   Organizzazione
                 </Link>
@@ -95,7 +120,12 @@ export function Navbar() {
             </SignedIn>
             <Link
               href="/pricing"
-              className="text-muted-foreground hover:text-primary transition-colors"
+              aria-current={pathname === "/pricing" ? "page" : undefined}
+              className={cn(
+                "relative py-2 text-muted-foreground transition-colors hover:text-foreground",
+                pathname === "/pricing" &&
+                  "text-foreground after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:bg-primary",
+              )}
             >
               Prezzi
             </Link>
@@ -109,10 +139,15 @@ export function Navbar() {
               size="icon"
               onClick={toggleTheme}
               className="h-9 w-9"
+              aria-label={
+                mounted
+                  ? `Attiva il tema ${theme === "dark" ? "chiaro" : "scuro"}`
+                  : "Cambia tema"
+              }
               title={
                 mounted
-                  ? `Switch to ${theme === "dark" ? "light" : "dark"} mode`
-                  : "Toggle theme"
+                  ? `Attiva il tema ${theme === "dark" ? "chiaro" : "scuro"}`
+                  : "Cambia tema"
               }
             >
               {!mounted ? (
@@ -143,7 +178,14 @@ export function Navbar() {
           </div>
 
           {/* Mobile Menu Toggle */}
-          <button type="button" className="md:hidden p-2" onClick={toggleMenu}>
+          <button
+            type="button"
+            className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-accent md:hidden"
+            onClick={toggleMenu}
+            aria-label={isMenuOpen ? "Chiudi menu" : "Apri menu"}
+            aria-expanded={isMenuOpen}
+            aria-controls="menu-mobile"
+          >
             <AnimatePresence mode="wait">
               {isMenuOpen ? (
                 <m.div
@@ -174,6 +216,7 @@ export function Navbar() {
         <AnimatePresence>
           {isMenuOpen && (
             <m.div
+              id="menu-mobile"
               initial={{ opacity: 0, height: 0, marginTop: 0 }}
               animate={{
                 opacity: 1,
@@ -182,10 +225,25 @@ export function Navbar() {
               }}
               exit={{ opacity: 0, height: 0, marginTop: 0 }}
               transition={{ duration: duration.base, ease: ease.inOut }}
-              className="md:hidden overflow-hidden border-t border-white/10"
+              className="overflow-hidden border-t border-border md:hidden"
             >
-              <div className="p-4 space-y-6 bg-background/40 backdrop-blur-3xl rounded-b-2xl">
-                <nav className="flex flex-col space-y-1">
+              <div className="space-y-6 rounded-b-2xl bg-background/95 p-4 backdrop-blur-3xl">
+                <nav
+                  aria-label="Navigazione mobile"
+                  className="flex flex-col space-y-1"
+                >
+                  <MobileNavLink
+                    href="/#features"
+                    icon={<Target className="h-4 w-4" />}
+                    label="Risultati"
+                    onClick={() => setIsMenuOpen(false)}
+                  />
+                  <MobileNavLink
+                    href="/#how-it-works"
+                    icon={<Sparkles className="h-4 w-4" />}
+                    label="Come funziona"
+                    onClick={() => setIsMenuOpen(false)}
+                  />
                   <SignedIn>
                     <MobileNavLink
                       href="/profile"

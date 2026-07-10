@@ -28,12 +28,17 @@ import { UsageBanner } from "../../(chat)/components/UsageBanner";
 // Types
 // -----------------------------------------------------
 
+interface CreateChatOptions {
+  draft?: string;
+  title?: string;
+}
+
 interface ChatContextType {
   chats: Chat[];
   isLoading: boolean;
   currentChatId: string | null;
   isGuest: boolean;
-  createChat: () => Promise<string | null>;
+  createChat: (options?: CreateChatOptions) => Promise<string | null>;
   deleteChat: (id: string) => Promise<boolean>;
   refreshChats: () => Promise<void>;
   preFetchChat: (id: string) => Promise<void>;
@@ -76,6 +81,7 @@ function GuestBanner({
               size="icon"
               className="h-8 w-8 -ml-1 shrink-0"
               onClick={onToggleSidebar}
+              aria-label="Apri la barra laterale"
             >
               <PanelLeft className="h-4 w-4" />
             </Button>
@@ -98,7 +104,7 @@ function GuestBanner({
           variant="default"
           className="gap-1.5 h-8 text-xs shrink-0 rounded-xl px-3"
         >
-          <Link href="/sign-up">
+          <Link href="/sign-up" aria-label="Registrati">
             <UserPlus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Registrati</span>
           </Link>
@@ -298,12 +304,14 @@ export function LayoutClient({
   }
 
   // Create chat
-  const createChat = async (): Promise<string | null> => {
+  const createChat = async (
+    createOptions?: CreateChatOptions,
+  ): Promise<string | null> => {
     try {
       const response = await fetch(`${apiBase}/chats`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ title: createOptions?.title }),
       });
 
       if (response.ok) {
@@ -319,11 +327,18 @@ export function LayoutClient({
         };
 
         setChats((prev) => [newChat, ...prev]);
+        if (createOptions?.draft) {
+          window.sessionStorage.setItem(
+            `chat-draft:${chat.id}`,
+            createOptions.draft,
+          );
+        }
         router.push(`/chat/${chat.id}`);
         return chat.id;
       }
     } catch (error) {
       console.error("Failed to create chat:", error);
+      toast.error("Non è stato possibile creare la conversazione");
     }
     return null;
   };
@@ -355,13 +370,13 @@ export function LayoutClient({
         return true;
       } else {
         await refreshChats();
-        toast.error("Failed to rename chat");
+        toast.error("Impossibile rinominare la conversazione");
         return false;
       }
     } catch (error) {
       console.error("Failed to rename chat:", error);
       await refreshChats();
-      toast.error("Failed to rename chat");
+      toast.error("Impossibile rinominare la conversazione");
       return false;
     }
   };
@@ -513,6 +528,7 @@ export function LayoutClient({
                     size="icon"
                     className="h-8 w-8"
                     onClick={() => setIsSidebarOpen(true)}
+                    aria-label="Apri la barra laterale"
                   >
                     <PanelLeft className="h-4 w-4" />
                   </Button>

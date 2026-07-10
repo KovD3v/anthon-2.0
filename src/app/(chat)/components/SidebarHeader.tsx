@@ -21,6 +21,7 @@ export function SidebarHeader({ onCollapse }: SidebarHeaderProps) {
         size="icon"
         className="h-8 w-8 text-muted-foreground hover:bg-accent dark:hover:bg-white/10 hover:text-foreground"
         onClick={onCollapse}
+        aria-label="Chiudi la barra laterale"
       >
         <PanelLeftClose className="h-4 w-4" />
       </Button>

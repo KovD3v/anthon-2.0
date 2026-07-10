@@ -225,6 +225,7 @@ function ChatItem({
               variant="ghost"
               size="icon"
               className="h-7 w-7 sm:h-6 sm:w-6 shrink-0 text-muted-foreground hover:bg-primary/10 hover:text-primary rounded-md"
+              aria-label={`Rinomina ${chat.title}`}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -238,6 +239,7 @@ function ChatItem({
               variant="ghost"
               size="icon"
               className="h-7 w-7 sm:h-6 sm:w-6 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-md"
+              aria-label={`Elimina ${chat.title}`}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -264,6 +266,7 @@ function ChatItem({
               size="icon"
               className="h-7 w-7 sm:h-6 sm:w-6 shrink-0 text-green-500 hover:bg-green-500/10 hover:text-green-600 rounded-md"
               disabled={isSavingRename}
+              aria-label="Salva il nuovo titolo"
               onMouseDown={(e) => e.preventDefault()}
               onClick={(e) => {
                 e.preventDefault();
@@ -282,6 +285,7 @@ function ChatItem({
               size="icon"
               className="h-7 w-7 sm:h-6 sm:w-6 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-md"
               disabled={isSavingRename}
+              aria-label="Annulla la modifica del titolo"
               onMouseDown={(e) => e.preventDefault()}
               onClick={(e) => {
                 e.preventDefault();

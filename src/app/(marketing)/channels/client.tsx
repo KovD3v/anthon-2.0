@@ -341,6 +341,7 @@ export function ChannelsPageClient({
                               className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                               onClick={() => handleDisconnect(identity)}
                               disabled={disconnecting === identity.id}
+                              aria-label={`Scollega ${config.label}`}
                             >
                               {disconnecting === identity.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />

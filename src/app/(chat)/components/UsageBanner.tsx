@@ -150,6 +150,7 @@ export function UsageBanner({
               size="icon"
               className="h-8 w-8"
               onClick={onToggleSidebar}
+              aria-label="Apri la barra laterale"
             >
               <PanelLeft className="h-4 w-4" />
             </Button>
@@ -254,6 +255,7 @@ export function UsageBanner({
               size="icon"
               className="h-8 w-8 -ml-1 shrink-0"
               onClick={onToggleSidebar}
+              aria-label="Apri la barra laterale"
             >
               <PanelLeft className="h-4 w-4" />
             </Button>
@@ -304,6 +306,7 @@ export function UsageBanner({
             size="icon"
             className="h-6 w-6"
             onClick={() => setIsDismissed(true)}
+            aria-label="Nascondi avviso utilizzo"
           >
             <X className="h-3 w-3" />
           </Button>
@@ -405,6 +408,7 @@ function _RateLimitError({
             size="icon"
             className="h-6 w-6 text-red-500"
             onClick={onDismiss}
+            aria-label="Chiudi avviso limite"
           >
             <X className="h-3 w-3" />
           </Button>
