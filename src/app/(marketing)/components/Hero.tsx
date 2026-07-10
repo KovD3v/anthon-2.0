@@ -22,8 +22,11 @@ export function Hero() {
             Più fiducia nei momenti decisivi.
             <span className="mt-1 block text-foreground">
               <span className="relative isolate inline-block px-[0.06em] dark:px-[0.12em] dark:py-[0.04em] dark:text-[#171714]">
-                <span
+                <m.span
                   aria-hidden="true"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ ...slowTransition, delay: 0.55 }}
                   className="absolute -inset-x-[0.04em] bottom-[0.04em] -z-10 h-[0.38em] -rotate-[0.6deg] bg-brand-yellow [clip-path:polygon(0_12%,100%_0,98.5%_100%,1%_88%)] dark:-inset-x-[0.08em] dark:bottom-[-0.04em] dark:top-[-0.04em] dark:h-auto"
                 />
                 Più focus quando conta.
@@ -73,7 +76,8 @@ export function Hero() {
             initial="hidden"
             animate="show"
             transition={{ ...slowTransition, delay: 0.4 }}
-            className="relative mx-auto mt-12 w-full lg:mt-16"
+            whileHover={{ y: -6, rotateX: 0.35, rotateY: -0.35 }}
+            className="relative mx-auto mt-12 w-full [perspective:1200px] lg:mt-16"
           >
             <AnthonScenarioDemo />
           </m.div>

@@ -67,17 +67,25 @@ export function HowItWorks() {
           className="relative grid grid-cols-1 gap-5 md:grid-cols-3"
         >
           {/* Connecting line for desktop */}
-          <div className="editorial-rule absolute left-[16%] right-[16%] top-12 -z-10 hidden h-px text-border md:block" />
+          <m.div
+            aria-hidden="true"
+            initial={{ scaleX: 0 }}
+            whileInView={{ scaleX: 1 }}
+            viewport={{ once: true }}
+            transition={{ ...defaultTransition, duration: 0.7, delay: 0.2 }}
+            className="editorial-rule absolute left-[16%] right-[16%] top-12 -z-10 hidden h-px origin-left text-border md:block"
+          />
 
           {steps.map((step) => (
             <m.div
               key={step.id}
               variants={fadeUp}
               transition={defaultTransition}
+              whileHover={{ y: -4 }}
             >
-              <Card className="flex h-full flex-col items-start rounded-2xl bg-card p-6 text-left shadow-none">
-                <div className="relative z-10 mb-8 flex h-20 w-20 items-center justify-center rounded-full border border-border bg-card">
-                  <step.icon className="h-8 w-8 text-foreground" />
+              <Card className="group flex h-full flex-col items-start rounded-2xl bg-card p-6 text-left shadow-none transition-[border-color,box-shadow] duration-300 hover:border-brand-yellow/60 hover:shadow-[0_20px_50px_-36px_rgba(0,0,0,0.7)]">
+                <div className="relative z-10 mb-8 flex h-20 w-20 items-center justify-center rounded-full border border-border bg-card transition-transform duration-300 group-hover:rotate-3">
+                  <step.icon className="h-8 w-8 text-foreground transition-transform duration-300 group-hover:scale-110" />
                   <div className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-brand-yellow font-mono text-xs font-bold text-[#171714]">
                     {step.number}
                   </div>

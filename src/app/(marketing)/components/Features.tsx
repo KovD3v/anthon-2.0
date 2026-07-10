@@ -98,11 +98,12 @@ export function Features() {
               key={feature.id}
               variants={fadeUp}
               transition={defaultTransition}
+              whileHover={{ y: -5 }}
             >
-              <Card className="h-full rounded-none border-0 bg-background shadow-none transition-colors hover:bg-accent/30">
+              <Card className="group h-full rounded-none border-0 bg-background shadow-none transition-[background-color,box-shadow] duration-300 hover:z-10 hover:bg-accent/30 hover:shadow-[0_18px_45px_-28px_rgba(0,0,0,0.55)]">
                 <CardHeader>
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card">
-                    <feature.icon className="h-5 w-5 text-foreground" />
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card transition-[background-color,border-color,transform] duration-300 group-hover:rotate-[-4deg] group-hover:border-brand-yellow group-hover:bg-brand-yellow">
+                    <feature.icon className="h-5 w-5 text-foreground transition-transform duration-300 group-hover:scale-110" />
                   </div>
                   <h3 className="font-display text-2xl font-semibold uppercase leading-none">
                     {feature.title}
