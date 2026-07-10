@@ -8,6 +8,8 @@ import {
   Sparkles,
   Target,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { PageWrapper } from "@/components/ui/page-wrapper";
 import { useChatContext } from "./layout-client";
@@ -46,6 +48,19 @@ const starterPrompts = [
 export default function ChatPage() {
   const { user } = useUser();
   const { createChat, chats, isGuest } = useChatContext();
+  const searchParams = useSearchParams();
+  const startedPrefilledChatRef = useRef(false);
+  const prefilledPrompt = searchParams.get("q")?.trim() ?? "";
+
+  useEffect(() => {
+    if (!prefilledPrompt || startedPrefilledChatRef.current) return;
+    startedPrefilledChatRef.current = true;
+    createChat({
+      initialMessage: prefilledPrompt,
+      title: "Percorso dalla home",
+    });
+  }, [createChat, prefilledPrompt]);
+
   const greeting = isGuest
     ? "Benvenuto!"
     : `Ciao${user?.firstName ? `, ${user.firstName}` : ""}!`;
