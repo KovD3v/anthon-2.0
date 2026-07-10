@@ -1,12 +1,12 @@
-import { Brain, Instagram, Linkedin, Twitter } from "lucide-react";
+import { ArrowUpRight, Brain, Mail } from "lucide-react";
 import Link from "next/link";
 
 export function Footer() {
   return (
-    <footer className="bg-background border-t py-12 md:py-16">
+    <footer className="border-t bg-background py-12 md:py-16">
       <div className="container mx-auto px-4 md:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-[1.3fr_0.8fr_0.8fr]">
+          <div className="max-w-sm space-y-4">
             <div className="flex items-center gap-2 font-bold text-xl">
               <Brain className="h-6 w-6 text-primary" />
               <span>Anthon</span>
@@ -16,135 +16,94 @@ export function Footer() {
               dare il massimo attraverso la resilienza mentale e la
               concentrazione.
             </p>
-            <div className="flex gap-4">
-              <Link
-                href="#"
-                className="text-muted-foreground hover:text-primary"
-              >
-                <Twitter className="h-5 w-5" />
-                <span className="sr-only">Twitter</span>
-              </Link>
-              <Link
-                href="#"
-                className="text-muted-foreground hover:text-primary"
-              >
-                <Instagram className="h-5 w-5" />
-                <span className="sr-only">Instagram</span>
-              </Link>
-              <Link
-                href="#"
-                className="text-muted-foreground hover:text-primary"
-              >
-                <Linkedin className="h-5 w-5" />
-                <span className="sr-only">LinkedIn</span>
-              </Link>
-            </div>
+            <a
+              href="mailto:anthon.chat@gmail.com"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border px-4 text-sm font-semibold transition-colors hover:border-primary hover:bg-primary/10"
+            >
+              <Mail className="h-4 w-4 text-primary" />
+              anthon.chat@gmail.com
+            </a>
           </div>
 
           <div>
-            <h3 className="font-semibold mb-4">Prodotto</h3>
+            <h3 className="font-display mb-4 text-lg font-bold uppercase tracking-wide">
+              Prodotto
+            </h3>
             <ul className="space-y-2 text-sm">
               <li>
                 <Link
-                  href="#features"
-                  className="text-muted-foreground hover:text-primary"
+                  href="/#features"
+                  className="text-muted-foreground hover:text-foreground"
                 >
                   Funzionalità
                 </Link>
               </li>
               <li>
                 <Link
-                  href="#how-it-works"
-                  className="text-muted-foreground hover:text-primary"
+                  href="/#how-it-works"
+                  className="text-muted-foreground hover:text-foreground"
                 >
                   Come funziona
                 </Link>
               </li>
               <li>
                 <Link
-                  href="#testimonials"
-                  className="text-muted-foreground hover:text-primary"
+                  href="/#metodo"
+                  className="text-muted-foreground hover:text-foreground"
                 >
-                  Testimonianze
+                  Metodo
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/pricing"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Prezzi
                 </Link>
               </li>
             </ul>
           </div>
 
           <div>
-            <h3 className="font-semibold mb-4">Azienda</h3>
+            <h3 className="font-display mb-4 text-lg font-bold uppercase tracking-wide">
+              Supporto
+            </h3>
             <ul className="space-y-2 text-sm">
               <li>
                 <Link
-                  href="#"
-                  className="text-muted-foreground hover:text-primary"
+                  href="/help"
+                  className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
                 >
-                  Chi siamo
+                  Centro assistenza <ArrowUpRight className="h-3.5 w-3.5" />
                 </Link>
               </li>
               <li>
                 <Link
-                  href="#"
-                  className="text-muted-foreground hover:text-primary"
+                  href="/channels"
+                  className="text-muted-foreground hover:text-foreground"
                 >
-                  Blog
+                  Collega i canali
                 </Link>
               </li>
               <li>
                 <Link
-                  href="#"
-                  className="text-muted-foreground hover:text-primary"
+                  href="/sign-up"
+                  className="text-muted-foreground hover:text-foreground"
                 >
-                  Lavora con noi
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="#"
-                  className="text-muted-foreground hover:text-primary"
-                >
-                  Contatti
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="font-semibold mb-4">Legale</h3>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  href="#"
-                  className="text-muted-foreground hover:text-primary"
-                >
-                  Privacy Policy
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="#"
-                  className="text-muted-foreground hover:text-primary"
-                >
-                  Termini di servizio
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="#"
-                  className="text-muted-foreground hover:text-primary"
-                >
-                  Cookie Policy
+                  Crea un account
                 </Link>
               </li>
             </ul>
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t text-center text-sm text-muted-foreground">
+        <div className="mt-12 flex flex-col gap-2 border-t pt-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>
             &copy; {new Date().getFullYear()} Anthon AI. Tutti i diritti
             riservati.
           </p>
+          <p>Costruito per la performance, progettato in Italia.</p>
         </div>
       </div>
     </footer>

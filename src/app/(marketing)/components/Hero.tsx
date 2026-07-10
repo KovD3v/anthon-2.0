@@ -1,24 +1,29 @@
 "use client";
 
 import { m } from "framer-motion";
-import { ArrowRight, Brain, Trophy } from "lucide-react";
+import { ArrowRight, Trophy } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { defaultTransition, fadeUp, slowTransition } from "@/lib/motion";
+import { HeroProductPreview } from "./HeroProductPreview";
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden bg-background pt-16 md:pt-20 lg:pt-32 pb-16 md:pb-20 lg:pb-32">
+    <section className="relative overflow-hidden bg-background pb-16 pt-12 md:pb-24 md:pt-20 lg:pt-24">
       <div className="container mx-auto px-4 md:px-6">
-        <div className="flex flex-col items-center text-center space-y-8">
+        <div className="mx-auto max-w-6xl">
           <m.div
             variants={fadeUp}
             initial="hidden"
             animate="show"
             transition={defaultTransition}
+            className="flex justify-center"
           >
-            <Badge variant="info" className="gap-1">
+            <Badge
+              variant="info"
+              className="gap-1 border-primary/30 bg-primary/10 text-foreground"
+            >
               <Trophy className="h-3 w-3" />
               <span>Mental coaching per sportivi</span>
             </Badge>
@@ -29,11 +34,12 @@ export function Hero() {
             initial="hidden"
             animate="show"
             transition={{ ...defaultTransition, delay: 0.1 }}
-            className="text-5xl font-bold tracking-tight lg:text-6xl max-w-4xl"
+            className="font-display mx-auto mt-7 max-w-5xl text-center text-[2.75rem] font-extrabold uppercase leading-[0.91] tracking-[-0.025em] sm:text-6xl md:text-7xl lg:text-[5.75rem]"
           >
-            Più fiducia nei momenti decisivi,{" "}
-            <br className="hidden sm:inline" />
-            <span className="text-primary">più focus quando conta</span>
+            Più fiducia nei momenti decisivi.
+            <span className="mt-1 block text-primary">
+              Più focus quando conta.
+            </span>
           </m.h1>
 
           <m.p
@@ -41,7 +47,7 @@ export function Hero() {
             initial="hidden"
             animate="show"
             transition={{ ...defaultTransition, delay: 0.2 }}
-            className="text-xl text-muted-foreground max-w-2xl mx-auto"
+            className="mx-auto mt-7 max-w-2xl text-center text-lg leading-relaxed text-muted-foreground sm:text-xl"
           >
             Anthon ti aiuta a gestire pressione, distrazioni e cali mentali con
             routine pratiche prima, durante e dopo gara.
@@ -52,14 +58,19 @@ export function Hero() {
             initial="hidden"
             animate="show"
             transition={{ ...defaultTransition, delay: 0.3 }}
-            className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto"
+            className="mt-8 flex w-full flex-col justify-center gap-3 sm:flex-row"
           >
-            <Button size="lg" className="gap-2" asChild>
+            <Button size="lg" className="min-h-12 gap-2 px-7" asChild>
               <Link href="/chat">
                 Inizia in chat <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-            <Button size="lg" variant="outline" asChild>
+            <Button
+              size="lg"
+              variant="outline"
+              className="min-h-12 px-7"
+              asChild
+            >
               <Link href="/pricing">Vedi i piani</Link>
             </Button>
           </m.div>
@@ -69,18 +80,13 @@ export function Hero() {
             initial="hidden"
             animate="show"
             transition={{ ...slowTransition, delay: 0.4 }}
-            className="mt-12 relative w-full max-w-5xl mx-auto"
+            className="relative mx-auto mt-12 w-full lg:mt-16"
           >
-            <div className="absolute inset-0 bg-linear-to-t from-background via-transparent to-transparent z-10" />
-            <div className="rounded-xl border border-border/70 bg-background/60 backdrop-blur-xl p-2 shadow-2xl dark:border-white/10">
-              <div className="rounded-lg bg-muted/50 aspect-video flex items-center justify-center overflow-hidden">
-                {/* Placeholder for a dashboard image or demo video */}
-                <div className="flex flex-col items-center gap-4 text-muted-foreground">
-                  <Brain className="h-16 w-16 opacity-20" />
-                  <p>Anteprima Dashboard</p>
-                </div>
-              </div>
+            <div className="mb-3 flex items-center justify-between font-mono text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">
+              <span>Un caso reale, dall’input all’azione</span>
+              <span className="hidden sm:inline">01 / Prodotto</span>
             </div>
+            <HeroProductPreview />
           </m.div>
         </div>
       </div>

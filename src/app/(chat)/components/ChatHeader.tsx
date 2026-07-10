@@ -40,10 +40,10 @@ export function ChatHeader({ chatId, title, onRename }: ChatHeaderProps) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      toast.success("Chat exported successfully");
+      toast.success("Conversazione esportata");
     } catch (error) {
       console.error("Export error:", error);
-      toast.error("Failed to export chat");
+      toast.error("Esportazione non riuscita");
     } finally {
       setIsExporting(false);
     }
@@ -84,7 +84,8 @@ export function ChatHeader({ chatId, title, onRename }: ChatHeaderProps) {
                   setIsRenaming(true);
                 }
               }}
-              title="Click to rename"
+              title="Rinomina conversazione"
+              aria-label={`Rinomina conversazione: ${title}`}
             >
               {title}
             </button>
@@ -101,7 +102,7 @@ export function ChatHeader({ chatId, title, onRename }: ChatHeaderProps) {
           disabled={isExporting}
         >
           <Download className="h-4 w-4" />
-          <span className="hidden sm:inline">Export</span>
+          <span className="hidden sm:inline">Esporta</span>
         </Button>
       </div>
     </header>

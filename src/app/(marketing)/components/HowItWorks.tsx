@@ -34,16 +34,16 @@ const steps = [
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="py-16 md:py-24 bg-background">
+    <section id="how-it-works" className="bg-background py-16 md:py-24">
       <div className="container mx-auto px-4 md:px-6">
-        <div className="text-center mb-16">
+        <div className="mb-14 text-center">
           <m.h2
             variants={fadeUp}
             initial="hidden"
             whileInView="show"
             viewport={{ once: true }}
             transition={defaultTransition}
-            className="text-3xl font-semibold tracking-tight"
+            className="font-display text-4xl font-bold uppercase tracking-tight sm:text-5xl"
           >
             Come funziona Anthon
           </m.h2>
@@ -53,7 +53,7 @@ export function HowItWorks() {
             whileInView="show"
             viewport={{ once: true }}
             transition={{ ...defaultTransition, delay: 0.1 }}
-            className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto"
+            className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground"
           >
             Il tuo viaggio verso la forza mentale in tre semplici passi.
           </m.p>
@@ -64,10 +64,10 @@ export function HowItWorks() {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-8 relative"
+          className="relative grid grid-cols-1 gap-5 md:grid-cols-3"
         >
           {/* Connecting line for desktop */}
-          <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-0.5 bg-border -z-10" />
+          <div className="editorial-rule absolute left-[16%] right-[16%] top-12 -z-10 hidden h-px text-primary md:block" />
 
           {steps.map((step) => (
             <m.div
@@ -75,18 +75,19 @@ export function HowItWorks() {
               variants={fadeUp}
               transition={defaultTransition}
             >
-              <Card
-                variant="glass"
-                className="flex flex-col items-center text-center p-6 h-full"
-              >
-                <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center mb-6 border-4 border-background relative z-10">
-                  <step.icon className="h-10 w-10 text-primary" />
-                  <div className="absolute -top-2 -right-2 h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+              <Card className="flex h-full flex-col items-start rounded-2xl bg-card p-6 text-left shadow-none">
+                <div className="relative z-10 mb-8 flex h-20 w-20 items-center justify-center rounded-full border border-primary/40 bg-primary/10">
+                  <step.icon className="h-8 w-8 text-primary" />
+                  <div className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-primary font-mono text-xs font-bold text-primary-foreground">
                     {step.number}
                   </div>
                 </div>
-                <h3 className="text-lg font-semibold mb-3">{step.title}</h3>
-                <p className="text-muted-foreground">{step.description}</p>
+                <h3 className="font-display mb-3 text-2xl font-bold uppercase leading-none">
+                  {step.title}
+                </h3>
+                <p className="leading-relaxed text-muted-foreground">
+                  {step.description}
+                </p>
               </Card>
             </m.div>
           ))}

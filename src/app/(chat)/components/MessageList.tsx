@@ -644,6 +644,7 @@ export function MessageList({
                                 onEditStart(message.id, messageText)
                               }
                               disabled={isLoading}
+                              aria-label="Modifica messaggio"
                             >
                               <Pencil className="h-3 w-3" />
                             </Button>
@@ -652,6 +653,7 @@ export function MessageList({
                               size="icon"
                               className="h-6 w-6 text-muted-foreground hover:text-destructive"
                               onClick={() => onDelete(message.id)}
+                              aria-label="Elimina messaggio"
                             >
                               {deletingMessageId === message.id ? (
                                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -669,6 +671,9 @@ export function MessageList({
                               size="icon"
                               className="h-6 w-6 text-muted-foreground hover:text-foreground"
                               onClick={() => copy(messageText)}
+                              aria-label={
+                                copied ? "Messaggio copiato" : "Copia messaggio"
+                              }
                             >
                               {copied ? (
                                 <Check className="h-3 w-3" />
@@ -685,6 +690,7 @@ export function MessageList({
                                   : "text-muted-foreground hover:text-green-500"
                               }`}
                               onClick={() => handleFeedback(message.id, 1)}
+                              aria-label="Risposta utile"
                             >
                               <ThumbsUp className="h-3 w-3" />
                             </Button>
@@ -697,6 +703,7 @@ export function MessageList({
                                   : "text-muted-foreground hover:text-red-500"
                               }`}
                               onClick={() => handleFeedback(message.id, -1)}
+                              aria-label="Risposta non utile"
                             >
                               <ThumbsDown className="h-3 w-3" />
                             </Button>
@@ -709,6 +716,7 @@ export function MessageList({
                             size="icon"
                             className="h-6 w-6 text-muted-foreground hover:text-foreground"
                             onClick={onRegenerate}
+                            aria-label="Rigenera risposta"
                           >
                             <RefreshCw className="h-3 w-3" />
                           </Button>

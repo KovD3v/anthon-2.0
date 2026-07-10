@@ -19,74 +19,74 @@ export default function HelpPage() {
   const features = [
     {
       icon: Brain,
-      title: "AI Mental Coach",
+      title: "Mental coach AI",
       description:
-        "Anthon is your personal mental coach powered by advanced AI. It helps you navigate challenges, improve productivity, and maintain mental clarity.",
+        "Anthon parte dal tuo contesto sportivo per aiutarti a gestire pressione, fiducia e concentrazione.",
     },
     {
       icon: Zap,
-      title: "Real-time Feedback",
+      title: "Feedback immediato",
       description:
-        "Get instant feedback on your thoughts and ideas. Provide thumbs up/down to help Anthon learn and serve you better.",
+        "Ricevi indicazioni operative e valuta le risposte per rendere il supporto progressivamente più utile.",
     },
     {
       icon: Search,
-      title: "Smart Search",
+      title: "Ricerca intelligente",
       description:
-        "Instantly find any past conversation or specific message with our powerful semantic search engine.",
+        "Ritrova conversazioni e messaggi passati con una ricerca pensata per il significato, non solo per le parole.",
     },
     {
       icon: Sparkles,
-      title: "Markdown Export",
+      title: "Esportazione Markdown",
       description:
-        "Export your meaningful conversations to Markdown for safekeeping or sharing with others.",
+        "Esporta le conversazioni importanti in Markdown per conservarle o condividerle.",
     },
   ];
 
   const shortcuts = [
     {
-      keys: ["Ctrl", "N"],
-      description: "Start a new chat immediately",
+      keys: ["Cmd", "N"],
+      description: "Avvia subito una nuova conversazione",
     },
     {
-      keys: ["Ctrl", "K"],
-      description: "Open message search",
+      keys: ["Cmd", "K"],
+      description: "Apri la ricerca nei messaggi",
     },
     {
-      keys: ["Ctrl", "/"],
-      description: "Toggle the sidebar",
+      keys: ["Cmd", "/"],
+      description: "Apri o chiudi la barra laterale",
     },
     {
       keys: ["Esc"],
-      description: "Close search or active modals",
+      description: "Chiudi ricerca o finestre aperte",
     },
   ];
 
   return (
     <PageWrapper>
       <div className="relative min-h-[calc(100vh-3.5rem)] overflow-hidden bg-background">
-        {/* Background Decor */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-[20%] -left-[10%] h-[600px] w-[600px] rounded-full bg-primary/5 blur-[100px]" />
-          <div className="absolute top-[40%] right-[10%] h-[500px] w-[500px] rounded-full bg-blue-500/5 blur-[100px]" />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -left-[10%] -top-[20%] h-[600px] w-[600px] rounded-full bg-primary/10 blur-[100px]" />
         </div>
 
         <div className="container relative mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8">
           {/* Header */}
-          <div className="text-center mb-20">
+          <div className="mb-16 text-center">
             <m.div
               variants={fadeUp}
               initial="hidden"
               animate="show"
               transition={defaultTransition}
             >
-              <h1 className="text-5xl font-bold tracking-tight text-foreground mb-6">
-                How to use <span className="text-primary">Anthon</span>
+              <p className="font-mono text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primary">
+                Centro assistenza
+              </p>
+              <h1 className="font-display mb-6 mt-4 text-5xl font-bold uppercase leading-none tracking-tight text-foreground sm:text-6xl">
+                Come usare <span className="text-primary">Anthon</span>
               </h1>
               <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-                Discover hidden features and master your workflow with keyboard
-                shortcuts. Anthon is designed to be fast, intuitive, and
-                powerful.
+                Scopri le funzioni principali e velocizza il tuo lavoro con le
+                scorciatoie da tastiera.
               </p>
             </m.div>
           </div>
@@ -100,7 +100,7 @@ export default function HelpPage() {
                 initial="hidden"
                 animate="show"
                 transition={{ ...defaultTransition, delay: index * 0.08 }}
-                className="group relative overflow-hidden rounded-2xl border border-border/70 bg-background/50 p-8 hover:bg-muted/50 transition-colors dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                className="group relative overflow-hidden rounded-2xl border border-border bg-card p-8 transition-colors hover:border-primary/50"
               >
                 <div className="flex items-start gap-4">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -125,12 +125,12 @@ export default function HelpPage() {
             initial="hidden"
             animate="show"
             transition={{ ...defaultTransition, delay: 0.3 }}
-            className="rounded-3xl border border-border/70 bg-background/50 backdrop-blur-xl p-8 sm:p-12 mb-20 dark:border-white/10"
+            className="mb-20 rounded-3xl border border-border bg-card p-8 sm:p-12"
           >
             <div className="flex items-center gap-2 mb-8">
               <Keyboard className="h-8 w-8 text-primary" />
               <h2 className="text-lg font-semibold text-foreground">
-                Keyboard Shortcuts
+                Scorciatoie da tastiera
               </h2>
             </div>
 
@@ -138,7 +138,7 @@ export default function HelpPage() {
               {shortcuts.map((shortcut) => (
                 <div
                   key={shortcut.description}
-                  className="flex items-center justify-between p-4 rounded-xl bg-background/50 border border-border/50 dark:bg-white/5 dark:border-white/5"
+                  className="flex items-center justify-between rounded-xl border border-border bg-background p-4"
                 >
                   <span className="text-foreground/80 font-medium">
                     {shortcut.description}
@@ -147,7 +147,7 @@ export default function HelpPage() {
                     {shortcut.keys.map((key) => (
                       <kbd
                         key={key}
-                        className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-border/60 bg-muted/50 px-2 text-sm font-semibold text-muted-foreground shadow-sm dark:border-white/10 dark:bg-black/20"
+                        className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-border bg-muted px-2 text-sm font-semibold text-muted-foreground shadow-sm"
                       >
                         {key === "Cmd" ? (
                           <Command className="h-4 w-4" />
@@ -171,7 +171,7 @@ export default function HelpPage() {
                 size="lg"
                 className="h-12 px-8 text-base gap-2 rounded-full"
               >
-                Start chatting now
+                Inizia a chattare
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>

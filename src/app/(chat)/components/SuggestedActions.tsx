@@ -55,7 +55,7 @@ const DEFAULT_SUGGESTIONS: SuggestedAction[] = [
     id: "clarify",
     label: "Aiutami a capire meglio questo concetto",
     prompt:
-      "Puoi spiegarmelo in termini piu semplici? Vorrei comprendere meglio il concetto di base.",
+      "Puoi spiegarmelo in termini più semplici? Vorrei comprendere meglio il concetto di base.",
     icon: "help",
     category: "Comprensione",
   },
@@ -93,7 +93,7 @@ const CODE_SUGGESTIONS: SuggestedAction[] = [
     label: "Spiega questo codice",
     prompt: "Puoi spiegarmi questo codice passo dopo passo?",
     icon: "code",
-    category: "Code",
+    category: "Codice",
   },
   {
     id: "improve-code",
@@ -101,7 +101,7 @@ const CODE_SUGGESTIONS: SuggestedAction[] = [
     prompt:
       "Quali miglioramenti o best practice potrei applicare a questo codice?",
     icon: "sparkles",
-    category: "Code",
+    category: "Codice",
   },
   {
     id: "test-code",
@@ -109,7 +109,7 @@ const CODE_SUGGESTIONS: SuggestedAction[] = [
     prompt:
       "Come dovrei testare questo codice? Quali casi di test dovrei considerare?",
     icon: "help",
-    category: "Testing",
+    category: "Test",
   },
 ];
 
@@ -189,12 +189,12 @@ export function SuggestedActions({
           {isExpanded ? (
             <>
               <ChevronUp className="mr-1 h-3 w-3" />
-              Less
+              Meno
             </>
           ) : (
             <>
               <ChevronDown className="mr-1 h-3 w-3" />
-              More
+              Altro
             </>
           )}
         </Button>

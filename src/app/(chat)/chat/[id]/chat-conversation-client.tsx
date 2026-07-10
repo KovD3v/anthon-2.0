@@ -116,7 +116,7 @@ export function ChatConversationClient({
       }
     } catch (err) {
       console.error("Failed to load more messages:", err);
-      toast.error("Failed to load older messages");
+      toast.error("Impossibile caricare i messaggi precedenti");
     } finally {
       setIsLoadingMore(false);
     }
@@ -187,6 +187,15 @@ export function ChatConversationClient({
     // Mark as initialized regardless - useChat handles the initial messages
     setHasInitialized(true);
   }, [chatId, hasInitialized, getCachedChat]);
+
+  useEffect(() => {
+    const draftKey = `chat-draft:${chatId}`;
+    const savedDraft = window.sessionStorage.getItem(draftKey);
+    if (savedDraft) {
+      setInput(savedDraft);
+      window.sessionStorage.removeItem(draftKey);
+    }
+  }, [chatId]);
 
   // Sync local changes back to layout cache
   useEffect(() => {
@@ -445,11 +454,11 @@ export function ChatConversationClient({
           sendMessage({ text: newContent });
         }
       } else {
-        toast.error("Failed to edit message");
+        toast.error("Impossibile modificare il messaggio");
       }
     } catch (err) {
       console.error("Edit error:", err);
-      toast.error("Failed to edit message");
+      toast.error("Impossibile modificare il messaggio");
     }
   };
 
@@ -478,7 +487,7 @@ export function ChatConversationClient({
       }
     } catch (err) {
       console.error("Regenerate error:", err);
-      toast.error("Failed to regenerate response");
+      toast.error("Impossibile rigenerare la risposta");
     }
   };
 

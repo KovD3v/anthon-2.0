@@ -29,6 +29,11 @@ import { UsageBanner } from "../../(chat)/components/UsageBanner";
 // Types
 // -----------------------------------------------------
 
+interface CreateChatOptions {
+  initialMessage?: string;
+  title?: string;
+}
+
 interface ChatContextType {
   chats: Chat[];
   isLoading: boolean;
@@ -47,10 +52,6 @@ interface ChatContextType {
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
-
-interface CreateChatOptions {
-  initialMessage?: string;
-}
 
 export function useChatContext() {
   const context = useContext(ChatContext);
@@ -83,6 +84,7 @@ function GuestBanner({
               size="icon"
               className="h-8 w-8 -ml-1 shrink-0"
               onClick={onToggleSidebar}
+              aria-label="Apri la barra laterale"
             >
               <PanelLeft className="h-4 w-4" />
             </Button>
@@ -105,7 +107,7 @@ function GuestBanner({
           variant="default"
           className="gap-1.5 h-8 text-xs shrink-0 rounded-xl px-3"
         >
-          <Link href="/sign-up">
+          <Link href="/sign-up" aria-label="Registrati">
             <UserPlus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Registrati</span>
           </Link>
@@ -347,7 +349,7 @@ export function LayoutClient({
       const response = await fetch(`${apiBase}/chats`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ title: options.title }),
       });
 
       if (response.ok) {
@@ -433,13 +435,13 @@ export function LayoutClient({
         return true;
       } else {
         await refreshChats();
-        toast.error("Failed to rename chat");
+        toast.error("Impossibile rinominare la conversazione");
         return false;
       }
     } catch (error) {
       console.error("Failed to rename chat:", error);
       await refreshChats();
-      toast.error("Failed to rename chat");
+      toast.error("Impossibile rinominare la conversazione");
       return false;
     }
   };
@@ -597,6 +599,7 @@ export function LayoutClient({
                     size="icon"
                     className="h-8 w-8"
                     onClick={() => setIsSidebarOpen(true)}
+                    aria-label="Apri la barra laterale"
                   >
                     <PanelLeft className="h-4 w-4" />
                   </Button>

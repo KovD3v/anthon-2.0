@@ -190,7 +190,7 @@ export function ChatInput({
           ref={fileInputRef}
           type="file"
           className="sr-only"
-          aria-label="Seleziona file"
+          aria-label="Scegli un file da allegare"
           onChange={(e) => handleFileSelect(e.target.files)}
           disabled={isUploading || isLoading}
           accept="image/*,video/*,.pdf,.doc,.docx,.txt,audio/*,.mp3,.wav,.ogg,.aac,.flac,.m4a"
@@ -218,6 +218,7 @@ export function ChatInput({
         )}
 
         <textarea
+          id="messaggio-chat"
           ref={textareaRef}
           value={input}
           aria-label="Scrivi un messaggio"
@@ -228,7 +229,7 @@ export function ChatInput({
             adjustHeight();
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Scrivi un messaggio..."
+          placeholder="Scrivi un messaggio…"
           rows={1}
           className="min-w-0 flex-1 resize-none bg-transparent px-2 py-3 text-sm outline-none placeholder:text-muted-foreground/50 max-h-[200px] overflow-y-auto scrollbar-none"
           disabled={isLoading || isUploading}
