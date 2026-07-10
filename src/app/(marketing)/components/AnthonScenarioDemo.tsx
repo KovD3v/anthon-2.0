@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, CirclePlay, Pause, Play } from "lucide-react";
+import { ArrowLeft, ArrowRight, CirclePlay } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -172,7 +172,7 @@ export function AnthonScenarioDemo() {
   return (
     <section
       aria-label="Scopri come può aiutarti Anthon"
-      className="relative mx-auto mt-14 w-full max-w-6xl overflow-hidden rounded-3xl border border-border/70 bg-card/80 text-left shadow-2xl shadow-brand-yellow/5 backdrop-blur-xl"
+      className="relative mx-auto mt-14 w-full max-w-6xl overflow-hidden rounded-3xl border border-border bg-card text-left shadow-xl shadow-foreground/5"
       onMouseEnter={() => setInteractionPaused(true)}
       onMouseLeave={() => setInteractionPaused(false)}
       onFocusCapture={() => setInteractionPaused(true)}
@@ -182,20 +182,15 @@ export function AnthonScenarioDemo() {
         }
       }}
     >
-      <div className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full bg-brand-yellow/15 blur-3xl" />
       <div className="grid lg:grid-cols-[0.88fr_1.12fr]">
         <div className="relative flex flex-col justify-center p-6 sm:p-9 lg:p-12">
-          <div className="mb-6 flex items-center gap-3 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-            <span className="h-2.5 w-2.5 rounded-full bg-brand-yellow ring-4 ring-brand-yellow/15" />
-            Mental coaching per sportivi
-          </div>
-
           <h2 className="max-w-md text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
-            La partita è finita. La testa no.
+            Trasforma quello che vivi in qualcosa che puoi allenare.
           </h2>
           <p className="mt-5 max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Scegli il momento che stai vivendo. Anthon ti aiuta a trasformarlo
-            in qualcosa che puoi allenare, adesso.
+            Dalla pressione prima della gara al recupero dopo un errore: scegli
+            una situazione e scopri come Anthon la traduce in un'azione
+            concreta.
           </p>
 
           <fieldset className="mt-7 flex flex-wrap gap-2 border-0 p-0">
@@ -205,17 +200,25 @@ export function AnthonScenarioDemo() {
                 key={scenario.id}
                 type="button"
                 size="sm"
-                variant={index === activeIndex ? "default" : "outline"}
+                variant="outline"
                 aria-pressed={index === activeIndex}
                 onClick={() => selectScenario(index)}
-                className="rounded-full"
+                className={`rounded-full ${
+                  index === activeIndex
+                    ? "border-brand-yellow bg-brand-yellow text-[#171714] hover:bg-brand-yellow/85 hover:text-[#171714]"
+                    : "bg-background/60 text-foreground hover:border-brand-yellow/70 hover:bg-brand-yellow/10"
+                }`}
               >
                 {scenario.label}
               </Button>
             ))}
           </fieldset>
 
-          <Button asChild size="lg" className="mt-8 w-full gap-2 sm:w-fit">
+          <Button
+            asChild
+            size="lg"
+            className="mt-8 w-full gap-2 bg-brand-yellow text-[#171714] hover:bg-brand-yellow/85 sm:w-fit"
+          >
             <Link href={`/chat?q=${encodeURIComponent(activeScenario.prompt)}`}>
               Parlane con Anthon
               <ArrowRight aria-hidden="true" />
@@ -223,13 +226,13 @@ export function AnthonScenarioDemo() {
           </Button>
         </div>
 
-        <div className="relative border-t border-border/70 bg-muted/25 p-6 sm:p-9 lg:border-l lg:border-t-0 lg:p-12">
+        <div className="relative bg-secondary p-6 text-secondary-foreground sm:p-9 lg:border-l lg:border-border lg:p-12">
           <div className="flex min-h-[28rem] flex-col justify-center">
-            <div className="min-h-28">
-              <p className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="min-h-24 sm:min-h-28">
+              <p className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-secondary-foreground/70">
                 {activeScenario.moment}
               </p>
-              <p className="text-xl font-medium leading-relaxed sm:text-2xl">
+              <p className="text-xl font-medium leading-relaxed text-secondary-foreground sm:text-2xl">
                 “{questionText}
                 {phase === "question" && !reducedMotion && (
                   <span
@@ -241,11 +244,15 @@ export function AnthonScenarioDemo() {
               </p>
             </div>
 
-            <div className="mt-8 min-h-32">
-              <p className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-brand-yellow">
+            <div className="mt-7 min-h-28 sm:min-h-32">
+              <p className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-secondary-foreground/80">
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 rounded-full bg-brand-yellow"
+                />
                 Anthon
               </p>
-              <p className="text-base leading-relaxed text-muted-foreground sm:text-lg">
+              <p className="text-base leading-relaxed text-secondary-foreground sm:text-lg">
                 {answerText}
                 {phase === "answer" && !reducedMotion && (
                   <span
@@ -257,7 +264,7 @@ export function AnthonScenarioDemo() {
             </div>
 
             <div
-              className={`mt-7 grid grid-cols-[auto_1fr] items-center gap-4 border-y border-border/70 py-5 transition-all duration-300 sm:grid-cols-[auto_1fr_auto] ${
+              className={`mt-7 grid grid-cols-[auto_1fr] items-center gap-4 rounded-2xl bg-card p-4 text-card-foreground shadow-sm transition-all duration-300 sm:grid-cols-[auto_1fr_auto] sm:p-5 ${
                 phase === "complete"
                   ? "translate-y-0 opacity-100"
                   : "translate-y-2 opacity-0"
@@ -271,11 +278,11 @@ export function AnthonScenarioDemo() {
                 <strong className="block text-sm font-semibold uppercase tracking-[0.12em]">
                   {activeScenario.routine}
                 </strong>
-                <span className="mt-1 block text-sm text-muted-foreground">
+                <span className="mt-1 block text-sm text-card-foreground/75">
                   {activeScenario.steps}
                 </span>
               </span>
-              <span className="col-start-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground sm:col-start-auto">
+              <span className="col-start-2 text-xs font-medium uppercase tracking-[0.16em] text-card-foreground/65 sm:col-start-auto">
                 {activeScenario.duration}
               </span>
             </div>
@@ -305,29 +312,13 @@ export function AnthonScenarioDemo() {
                 Prossima
                 <ArrowRight aria-hidden="true" />
               </Button>
-              {!reducedMotion && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  aria-pressed={paused}
-                  onClick={() => setPaused((value) => !value)}
-                >
-                  {paused ? (
-                    <Play aria-hidden="true" />
-                  ) : (
-                    <Pause aria-hidden="true" />
-                  )}
-                  {paused ? "Riprendi" : "Pausa"}
-                </Button>
-              )}
               <span className="ml-auto font-mono text-xs text-muted-foreground">
                 {String(activeIndex + 1).padStart(2, "0")} /{" "}
                 {String(scenarios.length).padStart(2, "0")}
               </span>
             </div>
 
-            <div className="mt-4 h-px overflow-hidden bg-border">
+            <div className="mt-4 h-0.5 overflow-hidden rounded-full bg-secondary-foreground/15">
               {phase === "complete" && !reducedMotion && (
                 <span
                   key={`${activeScenario.id}-${replayKey}`}
