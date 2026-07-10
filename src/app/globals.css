@@ -40,6 +40,7 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-brand-yellow: var(--brand-yellow);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -77,6 +78,8 @@
   --popover-foreground: oklch(0.17 0.012 82);
   --primary: oklch(0.62 0.15 92);
   --primary-foreground: oklch(0.16 0.015 82);
+  /* Brand yellow is reserved for highlights and primary actions. */
+  --brand-yellow: oklch(0.88 0.19 98);
   --secondary: oklch(0.93 0.018 88);
   --secondary-foreground: oklch(0.2 0.012 82);
   --muted: oklch(0.935 0.014 88);
@@ -111,6 +114,7 @@
   --popover-foreground: oklch(0.965 0.012 88);
   --primary: oklch(0.87 0.18 96);
   --primary-foreground: oklch(0.16 0.015 82);
+  --brand-yellow: oklch(0.87 0.18 96);
   --secondary: oklch(0.24 0.015 82);
   --secondary-foreground: oklch(0.965 0.012 88);
   --muted: oklch(0.235 0.014 82);

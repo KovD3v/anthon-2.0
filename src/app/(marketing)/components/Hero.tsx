@@ -1,9 +1,8 @@
 "use client";
 
 import { m } from "framer-motion";
-import { ArrowRight, Trophy } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { defaultTransition, fadeUp, slowTransition } from "@/lib/motion";
 import { HeroProductPreview } from "./HeroProductPreview";
@@ -13,32 +12,22 @@ export function Hero() {
     <section className="relative overflow-hidden bg-background pb-16 pt-12 md:pb-24 md:pt-20 lg:pt-24">
       <div className="container mx-auto px-4 md:px-6">
         <div className="mx-auto max-w-6xl">
-          <m.div
-            variants={fadeUp}
-            initial="hidden"
-            animate="show"
-            transition={defaultTransition}
-            className="flex justify-center"
-          >
-            <Badge
-              variant="info"
-              className="gap-1 border-primary/30 bg-primary/10 text-foreground"
-            >
-              <Trophy className="h-3 w-3" />
-              <span>Mental coaching per sportivi</span>
-            </Badge>
-          </m.div>
-
           <m.h1
             variants={fadeUp}
             initial="hidden"
             animate="show"
             transition={{ ...defaultTransition, delay: 0.1 }}
-            className="font-display mx-auto mt-7 max-w-5xl text-center text-[2.75rem] font-extrabold uppercase leading-[0.91] tracking-[-0.025em] sm:text-6xl md:text-7xl lg:text-[5.75rem]"
+            className="font-display mx-auto max-w-5xl text-center text-[2.75rem] font-extrabold uppercase leading-[0.91] tracking-[-0.025em] sm:text-6xl md:text-7xl lg:text-[5.75rem]"
           >
             Più fiducia nei momenti decisivi.
-            <span className="mt-1 block text-primary">
-              Più focus quando conta.
+            <span className="mt-1 block text-foreground">
+              <span className="relative isolate inline-block px-[0.06em] dark:px-[0.12em] dark:py-[0.04em] dark:text-[#171714]">
+                <span
+                  aria-hidden="true"
+                  className="absolute -inset-x-[0.04em] bottom-[0.04em] -z-10 h-[0.38em] -rotate-[0.6deg] bg-brand-yellow [clip-path:polygon(0_12%,100%_0,98.5%_100%,1%_88%)] dark:-inset-x-[0.08em] dark:bottom-[-0.04em] dark:top-[-0.04em] dark:h-auto"
+                />
+                Più focus quando conta.
+              </span>
             </span>
           </m.h1>
 
@@ -60,7 +49,11 @@ export function Hero() {
             transition={{ ...defaultTransition, delay: 0.3 }}
             className="mt-8 flex w-full flex-col justify-center gap-3 sm:flex-row"
           >
-            <Button size="lg" className="min-h-12 gap-2 px-7" asChild>
+            <Button
+              size="lg"
+              className="min-h-12 gap-2 bg-brand-yellow px-7 text-[#171714] hover:bg-brand-yellow/85"
+              asChild
+            >
               <Link href="/chat">
                 Inizia in chat <ArrowRight className="h-4 w-4" />
               </Link>
@@ -82,10 +75,6 @@ export function Hero() {
             transition={{ ...slowTransition, delay: 0.4 }}
             className="relative mx-auto mt-12 w-full lg:mt-16"
           >
-            <div className="mb-3 flex items-center justify-between font-mono text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">
-              <span>Un caso reale, dall’input all’azione</span>
-              <span className="hidden sm:inline">01 / Prodotto</span>
-            </div>
             <HeroProductPreview />
           </m.div>
         </div>

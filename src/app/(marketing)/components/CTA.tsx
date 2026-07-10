@@ -8,7 +8,7 @@ import { defaultTransition, scaleIn } from "@/lib/motion";
 
 export function CTA() {
   return (
-    <section className="bg-primary py-16 text-primary-foreground md:py-24">
+    <section className="bg-brand-yellow py-16 text-[#171714] md:py-24">
       <div className="container mx-auto px-4 md:px-6 text-center">
         <m.div
           variants={scaleIn}
@@ -20,7 +20,7 @@ export function CTA() {
           <h2 className="font-display mx-auto mb-6 max-w-4xl text-4xl font-bold uppercase leading-none tracking-tight sm:text-5xl">
             Porta fiducia, focus e lucidità nella tua prossima gara
           </h2>
-          <p className="text-xl text-primary-foreground/80 max-w-2xl mx-auto mb-8">
+          <p className="mx-auto mb-8 max-w-2xl text-xl text-[#171714]/75">
             Parti dalla chat, scegli il piano quando ti serve più continuità e
             coinvolgi il team quando lavori con atleti o staff.
           </p>
@@ -36,16 +36,16 @@ export function CTA() {
             </Button>
             <Button
               size="lg"
-              variant="outline"
-              className="border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10"
+              variant="ghost"
+              className="border border-[#171714] bg-[#f8f5eb] font-semibold text-[#171714] hover:bg-white hover:text-[#171714]"
               asChild
             >
               <Link href="/pricing">Confronta i piani</Link>
             </Button>
             <Button
               size="lg"
-              variant="outline"
-              className="border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10"
+              variant="ghost"
+              className="border border-[#171714] bg-[#f8f5eb] font-semibold text-[#171714] hover:bg-white hover:text-[#171714]"
               asChild
             >
               <a href="mailto:anthon.chat@gmail.com">Contatta il team</a>

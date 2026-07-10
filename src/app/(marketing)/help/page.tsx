@@ -66,7 +66,7 @@ export default function HelpPage() {
     <PageWrapper>
       <div className="relative min-h-[calc(100vh-3.5rem)] overflow-hidden bg-background">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -left-[10%] -top-[20%] h-[600px] w-[600px] rounded-full bg-primary/10 blur-[100px]" />
+          <div className="absolute -left-[10%] -top-[20%] h-[600px] w-[600px] rounded-full bg-brand-yellow/10 blur-[100px]" />
         </div>
 
         <div className="container relative mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8">
@@ -78,11 +78,14 @@ export default function HelpPage() {
               animate="show"
               transition={defaultTransition}
             >
-              <p className="font-mono text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primary">
+              <p className="font-mono text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 Centro assistenza
               </p>
               <h1 className="font-display mb-6 mt-4 text-5xl font-bold uppercase leading-none tracking-tight text-foreground sm:text-6xl">
-                Come usare <span className="text-primary">Anthon</span>
+                Come usare{" "}
+                <span className="underline decoration-brand-yellow decoration-[0.2em] underline-offset-[0.1em]">
+                  Anthon
+                </span>
               </h1>
               <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
                 Scopri le funzioni principali e velocizza il tuo lavoro con le
@@ -100,10 +103,10 @@ export default function HelpPage() {
                 initial="hidden"
                 animate="show"
                 transition={{ ...defaultTransition, delay: index * 0.08 }}
-                className="group relative overflow-hidden rounded-2xl border border-border bg-card p-8 transition-colors hover:border-primary/50"
+                className="group relative overflow-hidden rounded-2xl border border-border bg-card p-8 transition-colors hover:border-foreground/30"
               >
                 <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-yellow text-[#171714]">
                     <feature.icon className="h-6 w-6" />
                   </div>
                   <div>
@@ -128,7 +131,7 @@ export default function HelpPage() {
             className="mb-20 rounded-3xl border border-border bg-card p-8 sm:p-12"
           >
             <div className="flex items-center gap-2 mb-8">
-              <Keyboard className="h-8 w-8 text-primary" />
+              <Keyboard className="h-8 w-8 text-foreground" />
               <h2 className="text-lg font-semibold text-foreground">
                 Scorciatoie da tastiera
               </h2>

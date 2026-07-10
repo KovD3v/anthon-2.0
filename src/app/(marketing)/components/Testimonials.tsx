@@ -77,7 +77,7 @@ export function Testimonials() {
               className="bg-[#1d1d19] p-6 sm:p-8"
             >
               <div className="mb-10 flex items-center justify-between">
-                <item.icon className="h-7 w-7 text-primary" />
+                <item.icon className="h-7 w-7 text-brand-yellow" />
                 <span className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-white/40">
                   {item.label}
                 </span>
