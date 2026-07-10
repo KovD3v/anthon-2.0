@@ -4,7 +4,7 @@ Complete documentation of the Telegram Bot webhook integration, covering message
 
 ## Overview
 
-The Telegram webhook receives updates from the Telegram Bot API, processes user messages (text, voice, photos, documents), and generates AI responses using the orchestrator.
+The Telegram webhook receives updates from the Telegram Bot API, processes user messages (text, voice, photos, documents), and delegates generation/persistence to the shared `runChannelFlow()` runtime.
 
 ```mermaid
 flowchart LR
@@ -69,10 +69,10 @@ sequenceDiagram
     end
 
     WH->>DB: Save inbound message
-    WH->>AI: streamChat()
+    WH->>AI: runChannelFlow()
     AI-->>WH: Stream response
     WH->>DB: Save assistant message
-    WH->>TG: sendMessage()
+    WH->>TG: sendMessage() or sendVoice()
 ```
 
 ## Message Types
@@ -87,7 +87,7 @@ sequenceDiagram
 
     U->>WH: Text message
     WH->>WH: Extract text
-    WH->>AI: streamChat(text)
+    WH->>AI: runChannelFlow(text)
     AI-->>WH: Response
     WH->>U: Send text response
 ```
@@ -110,7 +110,7 @@ sequenceDiagram
     WH->>WH: Convert to base64
     WH->>TR: Transcribe audio
     TR-->>WH: Transcribed text
-    WH->>AI: streamChat(transcription)
+    WH->>AI: runChannelFlow(transcription)
     AI-->>WH: Response
     WH->>U: Send text response
 ```
@@ -130,7 +130,7 @@ sequenceDiagram
     WH->>TG: Download JPEG
     TG-->>WH: Image binary
     WH->>WH: Convert to base64
-    WH->>AI: streamChat(image + caption)
+    WH->>AI: runChannelFlow(image + caption)
     Note over AI: Vision model enabled
     AI-->>WH: Response about image
     WH->>U: Send text response
@@ -151,10 +151,14 @@ sequenceDiagram
     WH->>TG: Download document
     TG-->>WH: Document binary
     WH->>WH: Convert to base64
-    WH->>AI: streamChat(document + caption)
+    WH->>AI: runChannelFlow(document + caption)
     AI-->>WH: Response about document
     WH->>U: Send text response
 ```
+
+### Generated Voice Responses
+
+When ElevenLabs is configured and the personal plan/voice funnel allows it, the handler can synthesize the assistant text and send a Telegram voice response. Organization-selected entitlements are not passed to the current voice-policy call. Otherwise the handler sends text. Voice generation is separate from inbound audio transcription.
 
 ## User Management
 
@@ -237,14 +241,20 @@ type TelegramUpdate = {
 
 ## Environment Variables
 
-| Variable                  | Required | Description                      |
-| ------------------------- | -------- | -------------------------------- |
-| `TELEGRAM_BOT_TOKEN`      | Yes      | Bot token from BotFather         |
-| `TELEGRAM_WEBHOOK_SECRET` | Yes      | Secret for webhook verification  |
-| `OPENROUTER_API_KEY`      | Yes      | For AI responses & transcription |
-| `TELEGRAM_SYNC_WEBHOOK`   | No       | Run synchronously (dev mode)     |
-| `TELEGRAM_DISABLE_AI`     | No       | Disable AI responses             |
-| `TELEGRAM_DISABLE_SEND`   | No       | Disable sending messages         |
+| Variable                  | Required | Description |
+| ------------------------- | -------- | ----------- |
+| `TELEGRAM_BOT_TOKEN`      | Yes      | Bot API access and outbound delivery. |
+| `TELEGRAM_BOT_USERNAME`   | For complete linking UX | Bot deep link used after link completion. |
+| `TELEGRAM_WEBHOOK_SECRET` | Yes      | Secret-header verification. |
+| `NEXT_PUBLIC_APP_URL`     | Yes for linking | Public base URL for `/link/telegram/[token]`. |
+| `OPENROUTER_API_KEY`      | Yes for AI/media | Responses and audio transcription. |
+| `ELEVENLABS_API_KEY`      | No       | Enables eligible generated voice replies. |
+| `ELEVENLABS_VOICE_ID`     | No       | Overrides the default voice. |
+| `TELEGRAM_SYNC_WEBHOOK`   | No       | Set `true` to await processing in local debugging. |
+| `TELEGRAM_DISABLE_AI`     | No       | Set `true` to disable AI responses. |
+| `TELEGRAM_DISABLE_SEND`   | No       | Set `true` to suppress outbound calls. |
+
+Normal AI execution also requires Tavily and server-side PostHog configuration. See [Configuration](./configuration.md).
 
 ## Error Handling
 
@@ -268,9 +278,8 @@ flowchart TD
 
 ## Rate Limiting
 
--   Guest users: Stricter limits
--   Registered users: Based on subscription plan
--   When limited: Sends message asking to register
+- Guest users use the guest plan and receive registration-oriented limit messaging.
+- Registered users use the strongest personal/organization AI entitlement and receive the applicable upgrade/pricing message when limited.
 
 ## Webhook Setup
 
@@ -286,6 +295,8 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
 
 ## Related Files
 
--   `src/app/api/webhooks/telegram/route.ts` - Webhook handler
+-   `src/app/api/webhooks/telegram/route.ts` - Route wrapper
+-   `src/lib/channels/telegram/webhook-handler.ts` - Telegram adapter
+-   `src/lib/channel-flow/` - Shared generation and assistant persistence
 -   `src/lib/ai/orchestrator.ts` - AI response generation
 -   [api.md](./api.md) - API documentation

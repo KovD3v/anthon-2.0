@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   messageCount: vi.fn(),
   messageAggregate: vi.fn(),
   ragDocumentCount: vi.fn(),
-  queryRaw: vi.fn(),
+  getDetailedSystemHealth: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -20,8 +20,11 @@ vi.mock("@/lib/db", () => ({
     ragDocument: {
       count: mocks.ragDocumentCount,
     },
-    $queryRaw: mocks.queryRaw,
   },
+}));
+
+vi.mock("@/lib/system-health", () => ({
+  getSystemHealth: mocks.getDetailedSystemHealth,
 }));
 
 import { getOverviewStats, getStartDate, getSystemHealth } from "./admin";
@@ -34,7 +37,7 @@ describe("admin", () => {
     mocks.messageCount.mockReset();
     mocks.messageAggregate.mockReset();
     mocks.ragDocumentCount.mockReset();
-    mocks.queryRaw.mockReset();
+    mocks.getDetailedSystemHealth.mockReset();
   });
 
   afterEach(() => {
@@ -112,31 +115,18 @@ describe("admin", () => {
     expect(result.totalCostUsd).toBe(0);
   });
 
-  it("returns connected system health when db query succeeds", async () => {
-    mocks.queryRaw.mockResolvedValue([1]);
+  it("delegates system health to the shared live checker", async () => {
+    const health = {
+      database: { status: "connected" as const },
+      openrouter: { status: "connected" as const },
+      clerk: { status: "connected" as const },
+      vercelBlob: { status: "connected" as const },
+    };
+    mocks.getDetailedSystemHealth.mockResolvedValue(health);
 
     const result = await getSystemHealth();
 
-    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({
-      database: { status: "connected" },
-      openrouter: { status: "connected" },
-      clerk: { status: "connected" },
-      vercelBlob: { status: "connected" },
-    });
-  });
-
-  it("returns database error health when db query fails", async () => {
-    mocks.queryRaw.mockRejectedValue(new Error("db down"));
-
-    const result = await getSystemHealth();
-
-    expect(result.database).toEqual({
-      status: "error",
-      message: "Database disconnected",
-    });
-    expect(result.openrouter.status).toBe("connected");
-    expect(result.clerk.status).toBe("connected");
-    expect(result.vercelBlob.status).toBe("connected");
+    expect(result).toBe(health);
+    expect(mocks.getDetailedSystemHealth).toHaveBeenCalledTimes(1);
   });
 });

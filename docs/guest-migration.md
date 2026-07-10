@@ -20,7 +20,10 @@ When a guest user (anonymous) registers or links a channel, their data is migrat
 
 ## Migration Trigger
 
-Migration is triggered when a guest user links a channel (e.g., Telegram) to a registered account via the `/link/telegram/[token]` flow.
+Migration is triggered in two current flows:
+
+- a browser guest signs in and the authenticated client requests `GET /api/chats`;
+- a Telegram or WhatsApp guest consumes `/link/<channel>/[token]` while signed in.
 
 **File:** `src/lib/guest-migration.ts`
 
@@ -41,10 +44,10 @@ When the guest user has data that conflicts with the registered user's existing 
 | **Messages**          | All moved to registered user        |
 | **Chats**             | All moved to registered user        |
 | **Profile**           | Merge with recency priority         |
-| **Preferences**       | Merge with recency priority         |
+| **Preferences**       | Merge tone/mode/language/push with recency priority; `voiceEnabled` is currently omitted |
 | **Memories**          | Move or update based on recency     |
 | **SessionSummaries**  | All moved to registered user        |
-| **DailyUsage**        | Aggregated (counters are summed)    |
+| **DailyUsage**        | Move non-colliding dates; on date collision sum requests/input/output/total cost, but currently omit reasoning tokens and voice cost |
 | **ChannelIdentities** | Updated to point to registered user |
 
 ## Conflict Logging

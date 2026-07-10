@@ -1,5 +1,7 @@
 # Comprehensive Architectural Review: Organizations & Entitlements System
 
+> Historical review artifact. Paths and findings may refer to an earlier implementation. Use [`docs/organizations.md`](../docs/organizations.md) for current behavior and the operational runbook.
+
 **Date:** 2026-02-15  
 **Scope:** Organization management, contract-based entitlements, rate-limit integration, admin UI, Clerk sync  
 **Files reviewed:**
@@ -64,7 +66,7 @@ graph TD
 
 ### 1.4 Scalability Implications
 
-- The entitlements query in [`resolveEffectiveEntitlements()`](src/lib/organizations/entitlements.ts:207) runs on **every chat request**. It queries `OrganizationMembership` joined with `Organization` and `OrganizationContract`. With proper indexes (present in migration), this should be fast, but at scale it should be **cached** (e.g., 60-second TTL per userId).
+- The entitlements query in `resolveEffectiveEntitlements()` runs on **every chat request**. It queries `OrganizationMembership` joined with `Organization` and `OrganizationContract`. With proper indexes (present in migration), this should be fast, but at scale it should be **cached** (e.g., 60-second TTL per userId).
 - The `syncMembershipFromClerkEvent()` uses **Serializable isolation** with retry — correct for seat-limit enforcement but expensive under high webhook volume.
 
 ---
@@ -129,7 +131,7 @@ sequenceDiagram
 
 ### 2.3 Membership Sync from Clerk Webhook
 
-The [`syncMembershipFromClerkEvent()`](src/lib/organizations/service.ts:763) flow is the most complex:
+The `syncMembershipFromClerkEvent()` flow is the most complex:
 1. Resolves organization and user in parallel
 2. Runs a **Serializable transaction** with up to 3 retries
 3. Upserts membership, writes audit log
@@ -155,15 +157,15 @@ This is well-designed for consistency but the **Serializable isolation + retry**
 
 **Critical DRY violation:** Rate limit constants are defined in two places:
 
-1. [`RATE_LIMITS`](src/lib/rate-limit.ts:25) in `rate-limit.ts`
-2. [`PERSONAL_LIMITS`](src/lib/organizations/entitlements.ts:18) in `entitlements.ts`
+1. `RATE_LIMITS` in `rate-limit.ts`
+2. `PERSONAL_LIMITS` in `entitlements.ts`
 
 These are **identical maps** with the same values. The `checkRateLimit()` function now uses `resolveEffectiveEntitlements()` which reads from `PERSONAL_LIMITS`, making `RATE_LIMITS` in rate-limit.ts effectively dead code for the main flow.
 
 **Duplicated validation:** Contract input validation exists in three places:
-1. [`sanitizeContractInput()`](src/lib/organizations/service.ts:45) in service.ts
-2. [`validateContractInput()`](src/app/api/admin/organizations/route.ts:13) in the POST route
-3. [`validateContractPatch()`](src/app/api/admin/organizations/[organizationId]/route.ts:27) in the PATCH route
+1. `sanitizeContractInput()` in service.ts
+2. `validateContractInput()` in the POST route
+3. `validateContractPatch()` in the PATCH route
 
 The route-level validation is appropriate for HTTP concerns, but the service-level `sanitizeContractInput()` re-validates the same constraints. Consider having routes validate and service trust the input.
 
@@ -178,11 +180,11 @@ The route-level validation is appropriate for HTTP concerns, but the service-lev
 ### 3.4 Dead Code
 
 Several functions in `rate-limit.ts` are prefixed with `_` indicating they're unused:
-- [`_getAttachmentRetentionDays()`](src/lib/rate-limit.ts:106) — has a public constant `ATTACHMENT_RETENTION_DAYS` but the function is private/unused
-- [`_getRemainingAllowance()`](src/lib/rate-limit.ts:578) — calls `getRateLimitsForUser()` which doesn't account for org entitlements
-- [`_formatRateLimitStatus()`](src/lib/rate-limit.ts:605) — unused UI helper
+- `_getAttachmentRetentionDays()` — has a public constant `ATTACHMENT_RETENTION_DAYS` but the function is private/unused
+- `_getRemainingAllowance()` — calls `getRateLimitsForUser()` which doesn't account for org entitlements
+- `_formatRateLimitStatus()` — unused UI helper
 
-Additionally, [`getRateLimitsForUser()`](src/lib/rate-limit.ts:522) is exported but may no longer be needed since `checkRateLimit()` now uses `resolveEffectiveEntitlements()`.
+Additionally, `getRateLimitsForUser()` is exported but may no longer be needed since `checkRateLimit()` now uses `resolveEffectiveEntitlements()`.
 
 ### 3.5 Test Coverage
 
@@ -200,7 +202,7 @@ This is a significant gap.
 
 ### 4.1 Happy Path: Organization Member Chats
 
-A user belonging to an organization with an Enterprise contract gets the **higher of** their personal limits and org limits. This works correctly via [`mergeLimitVectors()`](src/lib/organizations/entitlements.ts:150) which takes `Math.max()` across all sources.
+A user belonging to an organization with an Enterprise contract gets the **higher of** their personal limits and org limits. This works correctly via `mergeLimitVectors()` which takes `Math.max()` across all sources.
 
 ### 4.2 Multi-Organization Membership
 
@@ -234,7 +236,7 @@ Owner transfer during update:
 
 ### 4.6 Documentation Drift
 
-The [`docs/rate-limiting.md`](docs/rate-limiting.md) shows different values than the code:
+The historical `docs/rate-limiting.md` snapshot showed different values than the code:
 - Doc says TRIAL has 50 requests/day, code says 3
 - Doc says basic has 200 requests/day, code says 50
 
@@ -248,7 +250,7 @@ The documentation is **stale** and doesn't mention organization-level entitlemen
 
 | # | Issue | Details | Remediation |
 |---|-------|---------|-------------|
-| 1 | **No compensation for Clerk org on DB failure** | [`createOrganizationWithContract()`](src/lib/organizations/service.ts:319) creates a Clerk org before the DB transaction. If the transaction fails, a phantom Clerk org exists. | Add try/catch around the transaction that deletes the Clerk org on failure, similar to the pattern in `updateOrganization()`. |
+| 1 | **No compensation for Clerk org on DB failure** | `createOrganizationWithContract()` creates a Clerk org before the DB transaction. If the transaction fails, a phantom Clerk org exists. | Add try/catch around the transaction that deletes the Clerk org on failure, similar to the pattern in `updateOrganization()`. |
 | 2 | **Duplicated rate limit constants** | `RATE_LIMITS` in rate-limit.ts and `PERSONAL_LIMITS` in entitlements.ts are identical. Changes to one won't propagate. | Extract a single `PLAN_LIMITS` constant in `types.ts` or a shared config, import in both modules. |
 | 3 | **No test coverage** | Zero tests for entitlements merging, seat enforcement, owner transfer, or Clerk compensation. | Add unit tests for `entitlements.ts` pure functions and integration tests for `service.ts` flows. |
 
@@ -256,10 +258,10 @@ The documentation is **stale** and doesn't mention organization-level entitlemen
 
 | # | Issue | Details | Remediation |
 |---|-------|---------|-------------|
-| 4 | **Entitlements query on every chat request** | [`resolveEffectiveEntitlements()`](src/lib/organizations/entitlements.ts:207) hits the DB on every request. For users with no org memberships, this is a wasted query. | Add a short-lived cache (e.g., `unstable_cache` or in-memory LRU with 30-60s TTL). |
-| 5 | **Documentation drift** | [`docs/rate-limiting.md`](docs/rate-limiting.md) shows incorrect limit values and doesn't mention organizations. | Update docs to reflect current values and add organization entitlements section. |
+| 4 | **Entitlements query on every chat request** | `resolveEffectiveEntitlements()` hits the DB on every request. For users with no org memberships, this is a wasted query. | Add a short-lived cache (e.g., `unstable_cache` or in-memory LRU with 30-60s TTL). |
+| 5 | **Documentation drift** | The rate-limiting document showed incorrect limit values and omitted organizations. | Update docs to reflect current values and add organization entitlements section. |
 | 6 | **Error message leakage** | Service-layer errors (e.g., "Invalid planPreset") are passed to clients in API routes. | Sanitize error messages at the API layer; log full errors server-side. |
-| 7 | **`personalPlanKeyToTier()` maps GUEST and ACTIVE to TRIAL** | In [`personalPlanKeyToTier()`](src/lib/organizations/entitlements.ts:111), both GUEST and ACTIVE fall through to the default "TRIAL" tier. ACTIVE users should map to "BASIC" at minimum. | Add explicit cases for "GUEST" → "TRIAL" and "ACTIVE" → "BASIC". |
+| 7 | **`personalPlanKeyToTier()` maps GUEST and ACTIVE to TRIAL** | In `personalPlanKeyToTier()`, both GUEST and ACTIVE fall through to the default "TRIAL" tier. ACTIVE users should map to "BASIC" at minimum. | Add explicit cases for "GUEST" → "TRIAL" and "ACTIVE" → "BASIC". |
 
 ### Priority: 🟢 Medium
 
@@ -271,15 +273,15 @@ The documentation is **stale** and doesn't mention organization-level entitlemen
 | 11 | **Inconsistent plan key casing** | Personal plans use mixed case (`basic`, `basic_plus`, `GUEST`, `TRIAL`, `ADMIN`). Org tiers use all-caps (`BASIC`, `BASIC_PLUS`). | Standardize to one convention. |
 | 12 | **`ensureUniqueSlug()` has 100 DB queries worst case** | The slug uniqueness check loops up to 100 times with individual queries. | Use a single query with `LIKE` pattern or add a random suffix on first collision. |
 | 13 | **No rate limiting on admin API routes** | Organization CRUD endpoints have auth but no rate limiting. An admin could accidentally trigger rapid-fire requests. | Add basic rate limiting or debounce on admin endpoints. |
-| 14 | **Clerk SDK abstraction is fragile** | [`callClerkMethod()`](src/lib/organizations/service.ts:121) tries multiple method names to handle SDK version differences. This is clever but brittle. | Pin the Clerk SDK version and use direct method calls, or add SDK version detection. |
+| 14 | **Clerk SDK abstraction is fragile** | `callClerkMethod()` tries multiple method names to handle SDK version differences. This is clever but brittle. | Pin the Clerk SDK version and use direct method calls, or add SDK version detection. |
 
 ### Priority: ⚪ Low
 
 | # | Issue | Details | Remediation |
 |---|-------|---------|-------------|
 | 15 | **`Infinity` in percent calculations** | When limits are `POSITIVE_INFINITY` (admin), `percentUsed` calculations produce `0` (0/Infinity), which is correct but could confuse UI consumers. | Document this behavior or return `0` explicitly for admin users. |
-| 16 | **Italian-only CTA messages** | [`getUpgradeInfo()`](src/lib/rate-limit.ts:260) has hardcoded Italian strings. | Move to i18n system if multi-language support is planned. |
-| 17 | **No pagination on organization list** | [`listOrganizations()`](src/lib/organizations/service.ts:289) fetches all orgs. Fine for now but won't scale past hundreds. | Add cursor-based pagination when needed. |
+| 16 | **Italian-only CTA messages** | `getUpgradeInfo()` has hardcoded Italian strings. | Move to i18n system if multi-language support is planned. |
+| 17 | **No pagination on organization list** | `listOrganizations()` fetches all orgs. Fine for now but won't scale past hundreds. | Add cursor-based pagination when needed. |
 
 ---
 

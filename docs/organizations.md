@@ -1,6 +1,6 @@
 # Organizations
 
-This document describes the organization (B2B) feature introduced in the latest organizations rollout commit.
+This document describes the current organization (B2B) data model, Clerk synchronization, contract policies, and operational failure modes.
 
 ## Overview
 
@@ -58,8 +58,9 @@ Contract payload fields:
 
 - Guests and admins use personal/admin limits only.
 - If the user has no active org memberships, personal limits are used.
-- If active org memberships with contracts exist, the best available organization entitlement source is used.
-- If memberships exist but no valid org contract is found, personal fallback is used.
+- If active memberships with contracts exist, those contracts are added as candidates alongside the personal source.
+- The strongest candidate across personal and organization sources is selected using model tier first, then the numeric limit vector.
+- If memberships exist but no valid organization contract is found, the personal source is returned with fallback metadata.
 
 The response carries source metadata:
 
@@ -75,7 +76,7 @@ Admin routes are protected with `requireAdmin()`.
 
 | Endpoint | Purpose |
 | -------- | ------- |
-| `GET /api/admin/organizations` | List organizations and active seat usage (`?sync=1` can backfill from Clerk). |
+| `GET /api/admin/organizations` | List organizations and active seat usage; `?sync=1` backfills organization metadata only. |
 | `POST /api/admin/organizations` | Create organization, contract, and owner assignment/invite. |
 | `GET /api/admin/organizations/[organizationId]` | Get organization detail, memberships, and effective contract. |
 | `PATCH /api/admin/organizations/[organizationId]` | Update metadata, contract, status, and/or owner transfer. |
@@ -88,7 +89,7 @@ Admin routes are protected with `requireAdmin()`.
 - Edit slug/name/status/contract in place.
 - Transfer owner by changing owner email.
 - Preview effective limits from base plan + overrides.
-- Sync organizations from Clerk manually via `sync=1`.
+- Backfill organization name/slug/status metadata from Clerk via `sync=1`.
 - Review audit events from the integrated audit panel.
 
 ## Webhook Sync
@@ -102,9 +103,10 @@ Admin routes are protected with `requireAdmin()`.
 
 Sync behavior:
 
-- Organization upsert/delete updates local organization status/metadata.
-- Membership upsert mirrors role/status and writes audit events.
-- Invitation accepted waits for real membership id before syncing activation.
+- Organization create/update events update an existing local organization; they do not create a missing local row or contract. Delete events mark an existing row `ARCHIVED`.
+- `GET /api/admin/organizations?sync=1` is the metadata-only backfill for missing/existing organization rows. It does not fetch contracts or memberships.
+- Membership events upsert local role/status and write audit events only when the local organization and contract already exist; otherwise they are skipped.
+- Invitation accepted waits for a real membership ID before syncing activation.
 
 ## Seat Limit Enforcement
 
@@ -154,15 +156,15 @@ Organization management is admin-only. Regular users cannot create organizations
 
 ## Known Fragility Points
 
-This feature is the most fragile part of the codebase. Read this section before touching it.
+This feature coordinates two systems and deserves careful failure handling. Read this section before changing it.
 
 ### 1. Dual-Write Consistency (Clerk ↔ DB)
 
-Every write touches both Clerk and the local DB. If Clerk succeeds but the DB fails (or vice versa), the state is inconsistent. The service has compensation logic (`deleteClerkOrganization`, `removeClerkMembership`) but it is **best-effort** — it can also fail. There is no saga/outbox pattern; no retry queue.
+Provisioning, Clerk metadata changes, and owner/membership operations touch both Clerk and the local DB. Contract-only/status-only patches and webhook persistence can be local-only. When a coordinated write fails between systems, compensation (`deleteClerkOrganization`, `removeClerkMembership`, or role repair) is best-effort; there is no saga/outbox pattern or durable retry queue.
 
 **Risk**: Clerk shows an org/member that the DB doesn't know about, so entitlement checks return wrong results.
 
-**Mitigation**: The `GET /api/admin/organizations?sync=1` endpoint backfills from Clerk. Run it if you suspect drift.
+**Mitigation**: `GET /api/admin/organizations?sync=1` can backfill organization metadata only. Compare contracts and memberships separately against Clerk and repair them through the supported admin/Clerk flows.
 
 ### 2. Webhook Ordering and Idempotency
 
@@ -170,21 +172,23 @@ Clerk fires webhook events for membership changes. These arrive out of order and
 
 **Risk**: If webhooks are delayed or lost, the local `organizationMembership` rows are stale. Entitlement checks use the local DB, not Clerk directly.
 
-**Mitigation**: Use `?sync=1` to force re-sync. Monitor webhook delivery in Clerk Dashboard → Webhooks.
+**Mitigation**: Monitor and replay the relevant webhook from Clerk when possible, then compare membership rows manually. `?sync=1` does not synchronize memberships or contracts.
 
-### 3. Seat Limit Race Condition
+### 3. Seat Enforcement Failure Modes
 
-Seat limit enforcement uses a `serializable` transaction that counts active members. Under high concurrency (unlikely but possible), two simultaneous invitations could both pass the seat check before either commits.
+Seat activation uses a serializable transaction and retries serialization failures up to three times. If the limit is exceeded, the local membership is marked `BLOCKED` and the Clerk membership is removed afterward.
 
-**Risk**: Organization ends up with one extra member beyond `seatLimit`.
+**Risk**: Exhausted/failed synchronization can leave a Clerk membership with no matching local state. A failure while removing an over-seat Clerk membership leaves it blocked locally but still present in Clerk.
 
-**Mitigation**: Catch it in the audit log (`MEMBERSHIP_BLOCKED_SEAT_LIMIT`). Re-sync or manually block the extra member.
+**Mitigation**: Inspect webhook errors and the `MEMBERSHIP_BLOCKED_SEAT_LIMIT` audit event, repair the Clerk membership first, then replay/synchronize the event. Do not activate a blocked row only in SQL.
 
 ### 4. Owner Transfer Partial Failure
 
-Transferring ownership requires: (1) removing old owner in Clerk, (2) adding new owner in Clerk, (3) updating DB. If the process fails mid-way, the org may have no owner or two owners in Clerk but only one in the DB.
+For an existing target user, transfer adds/promotes the new Clerk owner first, commits the local owner/membership transaction, then best-effort demotes the previous Clerk owner.
 
-**Mitigation**: Check `pendingOwnerEmail` on the `Organization` model — a non-null value means a transfer was initiated but may not have completed. Re-run the PATCH request or manually fix in Clerk Dashboard.
+**Risk**: If the final demotion fails, Clerk can show two owners while the database has one. The separate unknown-user invitation flow sets `pendingOwnerEmail`; that field is not a failure marker for an existing-user transfer.
+
+**Mitigation**: Compare Clerk owner roles with `ownerUserId` and the local `OWNER` membership, then demote/repair the stale Clerk role before retrying another transfer.
 
 ### 5. Clerk Organization Deletion
 
@@ -205,18 +209,16 @@ Clerk sets `orgId` on the session token at login. If a user is added to or remov
 
 ## Operational Runbook
 
-### Checking for Clerk/DB drift
-```bash
-# Trigger a Clerk → DB re-sync for all orgs
-curl -X GET /api/admin/organizations?sync=1 -H "Authorization: Bearer <admin-token>"
-```
+### Checking organization metadata drift
 
-### Manually unblocking a blocked member
-```sql
-UPDATE "OrganizationMembership"
-SET status = 'ACTIVE'
-WHERE "organizationId" = '<org_id>' AND "userId" = '<user_id>';
-```
+Use the sync action in `/admin/organizations` (or an authenticated `GET /api/admin/organizations?sync=1`) to backfill names, slugs, status, and missing organization rows. It does not synchronize contracts or memberships.
+
+### Restoring a blocked member
+
+1. Confirm the contract has seat capacity.
+2. Re-invite or recreate the membership in Clerk; the over-seat flow may already have removed it there.
+3. Let the membership webhook recreate/synchronize the local row.
+4. Verify the local status and audit log. Do not set the local row to `ACTIVE` without restoring the Clerk membership.
 
 ### Checking effective entitlements for a user
 ```bash
@@ -225,7 +227,7 @@ GET /api/usage  # as the target user — returns sources[] showing org vs person
 
 ### Finding inconsistencies
 ```sql
--- Members in DB not in Clerk: run ?sync=1 and compare
+-- Compare local memberships with Clerk manually; ?sync=1 does not fetch them.
 -- Orgs with no contract (will fall back to personal limits):
 SELECT o.id, o.name FROM "Organization" o
 LEFT JOIN "OrganizationContract" c ON c."organizationId" = o.id

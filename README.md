@@ -1,138 +1,131 @@
 # Anthon 2.0
 
-An AI-powered coaching chat application built with Next.js 16, featuring intelligent conversation management, RAG-based knowledge retrieval, and multi-channel support.
+Anthon is a multi-channel sports performance coaching application. It combines streaming AI chat, persistent user context, retrieval-augmented generation, guest onboarding, plan-based entitlements, and web, Telegram, and WhatsApp delivery.
 
-## ✨ Features
+## What is in the repository
 
--   **AI Coaching Chat** - Streaming conversations via OpenRouter (Gemini 2.0 Flash family)
--   **RAG System** - Knowledge retrieval using pgvector embeddings (Gemini 2.0 Flash classification)
--   **Session Management** - Intelligent context building with automatic summarization
--   **Persistent Memory** - AI remembers user preferences and important information
--   **Automated Maintenance** - Background jobs for memory consolidation and profile analysis via QStash
--   **Multi-Channel** - Web, Telegram, and WhatsApp support with unified user identity
--   **Rate Limiting** - Usage tracking with subscription tiers
--   **Authentication** - Secure auth with Clerk
+- Streaming web chat for signed-in and guest users
+- Telegram and WhatsApp webhook adapters with account linking
+- Shared AI orchestration, message persistence, usage accounting, and model routing
+- Profile, preferences, memories, session summaries, and a pgvector knowledge base
+- Personal plans plus Clerk-backed organization contracts and seat limits
+- File uploads through Vercel Blob and optional ElevenLabs voice output
+- Admin analytics, users, organizations, RAG, costs, jobs, voice, and benchmark tools
+- QStash-backed maintenance jobs and Vercel attachment cleanup
 
-## 🚀 Quick Start
+## Architecture at a glance
+
+All four chat entry points converge on the same channel runtime:
+
+```text
+Web / Guest Web / Telegram / WhatsApp
+                 |
+          channel adapters
+                 |
+          runChannelFlow()
+                 |
+     AI orchestrator + tools + RAG
+                 |
+ assistant persistence + usage tracking
+                 |
+       PostgreSQL / pgvector
+```
+
+Channel adapters own authentication, inbound media, and outbound delivery. `src/lib/channel-flow` owns the shared generation and persistence boundary. See [Architecture](./docs/architecture.md) for the full flow.
+
+## Quick start
+
+Prerequisites:
+
+- Node.js 22 LTS, version 22.12 or newer in the 22.x line. Prisma also supports Node 20.19.x and Node 24+.
+- [Bun](https://bun.sh/) as the canonical package manager
+- PostgreSQL with the `vector` extension, or a Neon branch with pgvector
+- Clerk, OpenRouter, Tavily, and PostHog project credentials for working chat
+
+Configure the environment before installing because the post-install step generates the Prisma client:
 
 ```bash
-# Install dependencies
-npm install
-
-# Setup environment variables
 cp .env.example .env
-# Edit .env with your credentials
+# Fill the core values in .env. Use a development database, never production.
 
-# Run database migrations
-npx prisma migrate dev
-
-# Start development server
-npm run dev
+bun install --frozen-lockfile
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Enable pgvector in the development database, then apply migrations:
 
-## 📚 Documentation
-
-| Document                                     | Description                                |
-| -------------------------------------------- | ------------------------------------------ |
-| [Getting Started](./docs/getting-started.md) | Setup + user/admin runbook (non-technical) |
-| [Architecture](./docs/architecture.md)       | System architecture and project structure  |
-| [Database](./docs/database.md)               | Prisma schema and data models              |
-| [AI System](./docs/ai-system.md)             | Orchestrator, RAG, sessions, and memory    |
-| [Maintenance](./docs/maintenance.md)         | Automated jobs and QStash integration      |
-| [API Reference](./docs/api.md)               | REST API endpoints documentation           |
-| [Authentication](./docs/authentication.md)   | Clerk integration and user roles           |
-| [Rate Limiting](./docs/rate-limiting.md)     | Usage limits and subscription tiers        |
-| [Organizations](./docs/organizations.md)     | B2B contracts, seats, and Clerk org sync   |
-| [Guest Migration](./docs/guest-migration.md) | Guest-to-registered migration flow          |
-| [Telegram Webhook](./docs/telegram-webhook.md) | Telegram bot webhook processing          |
-| [WhatsApp Webhook](./docs/whatsapp-webhook.md) | WhatsApp Cloud API webhook processing    |
-| [QA Test Plan](./docs/qa-test-plan.md)       | Test scope, execution flow, and bug reporting |
-
-## 🛠 Tech Stack
-
--   **Framework:** Next.js 16 (App Router)
--   **Language:** TypeScript
--   **Database:** PostgreSQL + Prisma + pgvector
--   **AI:** Vercel AI SDK v6 + OpenRouter
--   **Job Queue:** Upstash QStash
--   **Auth:** Clerk
--   **Styling:** Tailwind CSS + Radix UI + Framer Motion
-
-## 📁 Project Structure
-
-```
-anthon-2.0/
-├── src/
-│   ├── app/           # Next.js App Router pages
-│   │   ├── (marketing)/ # Public pages
-│   │   ├── (chat)/      # Chat interface
-│   │   ├── (admin)/     # Admin dashboard
-│   │   └── api/         # API routes
-│   ├── components/    # Shared UI components
-│   ├── lib/           # Core business logic
-│   │   ├── ai/        # AI orchestrator, RAG, sessions
-│   │   └── ...        # Auth, rate-limit, utils
-│   └── hooks/         # React hooks
-├── prisma/            # Database schema & migrations
-├── docs/              # Documentation
-└── public/            # Static assets
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-## 📜 Scripts
+```bash
+bunx prisma migrate dev
+bun run dev
+```
 
-| Script           | Description              |
-| ---------------- | ------------------------ |
-| `npm run dev`    | Start development server |
-| `npm run build`  | Build for production     |
-| `npm run lint`   | Run Biome linter         |
-| `npm run format` | Format code with Biome   |
-| `npm run test`   | Run unit tests (Vitest)  |
-| `npm run test:integration` | Run integration tests (real DB) |
-| `npm run test:coverage:unit` | Run unit coverage + thresholds |
-| `npm run test:coverage:integration` | Run integration coverage for `organizations` routes |
-| `npm run test:coverage` | Run unit + integration coverage |
-| `npm run test:all` | Run unit + integration + coverage |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run test:ui` | Run tests with Vitest UI |
+Open [http://localhost:3000](http://localhost:3000).
 
-Test command equivalents:
+The complete variable matrix and feature-specific integrations are in [Configuration](./docs/configuration.md).
 
-- `npm run test` (canonical)
-- `bun run test`
-- `bun run test:integration`
-- `bun run test:coverage:unit`
-- `bun run test:coverage:integration`
-- `bun run test:coverage`
-- `bun run test:all`
+## Documentation
 
-## 🪵 Logging
+| Document | Purpose |
+| --- | --- |
+| [Documentation index](./docs/README.md) | Guide to all current reference docs |
+| [Getting started](./docs/getting-started.md) | Local developer setup and first-run checks |
+| [Configuration](./docs/configuration.md) | Environment variables grouped by feature |
+| [Architecture](./docs/architecture.md) | Runtime boundaries and request/data flows |
+| [AI system](./docs/ai-system.md) | Orchestrator, RAG, tools, sessions, and model routing |
+| [Database](./docs/database.md) | Prisma models, pgvector, and environment mapping |
+| [API reference](./docs/api.md) | Route inventory, authentication, and payloads |
+| [Authentication](./docs/authentication.md) | Clerk, guest sessions, proxy, roles, and webhooks |
+| [Rate limiting](./docs/rate-limiting.md) | Plans, usage accounting, and effective entitlements |
+| [Organizations](./docs/organizations.md) | B2B contracts, memberships, seats, and audit logs |
+| [Maintenance](./docs/maintenance.md) | QStash jobs, cron endpoints, and current schedules |
+| [Deployment](./docs/deployment.md) | Database-scoped migrations and release safeguards |
+| [User guide](./docs/user-guide.md) | Web, channel-linking, and admin UI guide |
 
-Server logging is centralized in `src/lib/logger` and emits structured events.
+Telegram, WhatsApp, guest migration, and QA have dedicated references in the [documentation index](./docs/README.md).
 
-- `development` / local default level: `info`
-- `test` default level: `silent`
-- `production` default level: `error` (critical errors only)
-- `development` / local default format: `pretty`
-- `test` and `production` default format: `json`
+## Developer commands
 
-Optional env overrides:
+| Command | What it does |
+| --- | --- |
+| `bun run dev` | Start the Next.js development server. |
+| `bun run lint` | Run Biome checks. |
+| `bun run format` | Rewrite supported files with Biome. |
+| `bunx tsc --noEmit` | Run the TypeScript checker. |
+| `bun run test` | Run unit tests; integration files are excluded. |
+| `bun run test:watch` | Run unit tests in watch mode. |
+| `bun run test:ui` | Start the Vitest UI. |
+| `bun run test:integration` | Run route integration tests against `TEST_DATABASE_URL`. |
+| `bun run test:coverage` | Run unit and integration coverage suites. |
+| `bun run test:all` | Run unit/integration tests, then both coverage suites. |
+| `bun run knip` | Report unused files, exports, and dependencies. |
+| `bun run analyze` | Run the Next.js experimental bundle analyzer. |
+| `bun run build` | Generate Prisma and build Next.js without applying migrations. |
+| `bun run db:migrate:deploy` | Apply pending migrations to the configured database. |
+| `bun run start` | Start an already-built production server. |
 
-- `APP_LOG_LEVEL` = `silent|error|warn|info|debug`
-- `APP_LOG_FORMAT` = `pretty|json`
-- `APP_LOG_COLORS` = `true|false` (TTY pretty output)
-- `APP_LOG_DOMAIN_LEVELS` = `domain:level,domain:level` (example: `auth:warn,latency:error`)
-- `APP_LOG_EXCLUDE_EVENTS` = comma separated event filters, supports `*` suffix (example: `auth.authenticated,latency.*`)
-- `ENABLE_LATENCY_LOGS=true` to keep latency timing logs enabled (including prod troubleshooting)
+### Database-changing commands
 
-## Neon Branch Mapping
+- `bunx prisma migrate dev` creates/applies development migrations against the configured database.
+- `bun run db:migrate:deploy` applies pending migrations to the current environment and must be run explicitly before a compatible application release.
+- `bun run test:integration` and `bun run test:coverage:integration` create pgvector if needed and run `prisma db push` against `TEST_DATABASE_URL`.
+- `bun run test:coverage` includes the integration coverage command.
+- `bun run test:all` executes the integration suite twice: once directly and once through coverage.
 
-For safe environment separation:
+Read [Deployment and Database Safety](./docs/deployment.md) before running these commands against shared infrastructure.
 
-- Use Neon `development` branch for `TEST_DATABASE_URL` (integration tests).
-- Use Neon `production` branch for deployed `DATABASE_URL` and `DIRECT_DATABASE_URL`.
+## Main technology choices
 
-## 📄 License
+- Next.js 16 App Router, React 19, and TypeScript
+- Bun for dependency and script execution
+- PostgreSQL, Prisma 7, and pgvector
+- Vercel AI SDK 6 and OpenRouter
+- Clerk authentication, billing synchronization, and organizations
+- Tailwind CSS, Radix UI primitives, and Framer Motion
+- Upstash QStash, Vercel Blob, PostHog, Tavily, and ElevenLabs
 
-Private - All rights reserved
+## License
+
+Private - All rights reserved.

@@ -202,6 +202,7 @@ describe("ai/orchestrator", () => {
       expect.objectContaining({
         posthogDistinctId: "user-1",
         posthogTraceId: "chat-1",
+        posthogPrivacyMode: true,
       }),
     );
     expect(mocks.streamText).toHaveBeenCalledWith(

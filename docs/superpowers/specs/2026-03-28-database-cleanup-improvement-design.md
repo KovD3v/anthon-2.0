@@ -1,5 +1,7 @@
 # Database Cleanup & Improvement Design
 
+> Historical design artifact. The implemented schema and current behavior are documented in [`docs/database.md`](../../database.md); this file preserves the original proposal and may contain pre-implementation names or versions.
+
 **Date:** 2026-03-28
 **Status:** Draft
 **Scope:** Two-phase — infrastructure/cleanup first, structural improvements second

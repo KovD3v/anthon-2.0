@@ -1,102 +1,120 @@
-# Automated Maintenance System
+# Maintenance and Scheduled Jobs
 
-The maintenance subsystem runs background jobs to keep user data compact, useful, and cost-efficient.
+Anthon uses Upstash QStash for signed per-user maintenance work and Vercel Cron for attachment cleanup. Only attachment cleanup has a schedule tracked in this repository; the other jobs require a manual or external trigger.
 
-It uses **Upstash QStash** for signed asynchronous execution.
+## Execution model
 
-## Architecture
-
+```text
+admin / curl / external scheduler
+             |
+    GET /api/cron/trigger
+       CRON_SECRET check
+             |
+     one QStash message per
+        eligible user/job
+             |
+      POST /api/queues/*
+      QStash signature check
+             |
+   src/lib/maintenance/*
 ```
-┌─────────────────────┐      ┌──────────────────────────┐      ┌───────────────────┐
-│ Scheduler / Manual  │ ───► │ GET /api/cron/trigger    │ ───► │ QStash publish    │
-│ trigger (admin/curl)│      │ (CRON_SECRET protected)  │      │ per user/job      │
-└─────────────────────┘      └──────────────────────────┘      └─────────┬─────────┘
-                                                                          │
-                                                                          ▼
-                                                       ┌─────────────────────────────┐
-                                                       │ POST /api/queues/*          │
-                                                       │ (QStash signature verified) │
-                                                       └──────────────┬──────────────┘
-                                                                      │
-                                                                      ▼
-                                                       ┌─────────────────────────────┐
-                                                       │ src/lib/maintenance/*       │
-                                                       │ + Gemini 2.0 Flash Lite     │
-                                                       └─────────────────────────────┘
-```
+
+The trigger excludes guest and soft-deleted users.
 
 ## Jobs
 
-### 1. Memory Consolidation
+### Memory consolidation
 
-- File: `src/lib/maintenance/memory-consolidation.ts`
-- Queue endpoint: `POST /api/queues/consolidate`
-- Behavior:
-  1. Loads all user memories.
-  2. Skips consolidation when memories are fewer than 5.
-  3. Uses the maintenance model to propose merges/conflict resolutions.
-  4. Applies updates transactionally and invalidates memory prompt cache.
+- Library: `src/lib/maintenance/memory-consolidation.ts`
+- Consumer: `POST /api/queues/consolidate`
+- Skips users with fewer than five memories.
+- Uses the maintenance model to propose merges and conflict resolution.
+- Applies changes transactionally and invalidates memory prompt cache.
 
-### 2. Profile Analyzer
+### Session archival
 
-- File: `src/lib/maintenance/profile-analyzer.ts`
-- Queue endpoint: `POST /api/queues/analyze`
-- Behavior:
-  1. Reads the last 50 user messages (`role=USER`).
-  2. Requires at least 10 messages.
-  3. Infers `tone`, `mode`, and profile updates (`sport`, `goal`, `experience`, notes).
-  4. Persists updates with upsert logic.
+- Library: `src/lib/maintenance/session-archiver.ts`
+- Consumer: `POST /api/queues/archive`
+- Uses personal role/plan retention policy.
+- Excludes messages from the last 24 hours.
+- Groups messages with the 15-minute session-gap rule.
+- Archives only sessions whose end is older than the retention cutoff.
+- Stores `ArchivedSession`, then hard-deletes the archived raw messages.
 
-### 3. Session Archiver
+### Profile analysis
 
-- File: `src/lib/maintenance/session-archiver.ts`
-- Queue endpoint: `POST /api/queues/archive`
-- Behavior:
-  1. Computes retention days from role/plan.
-  2. Uses a 24h safety buffer (never touches very recent messages).
-  3. Groups messages into sessions (15-minute gap rule).
-  4. Archives sessions fully outside retention window to `ArchivedSession`.
-  5. Hard-deletes archived raw messages from `Message`.
+- Library: `src/lib/maintenance/profile-analyzer.ts`
+- Consumer: `POST /api/queues/analyze`
+- Reads up to the 50 most recent user messages.
+- Skips users with fewer than ten messages.
+- Infers communication preferences and selected profile fields.
+- Persists results with upserts.
 
-## Trigger and Security Model
+## Trigger semantics
 
-- `GET /api/cron/trigger?job=all|consolidate|archive|analyze`
-  - Requires `Authorization: Bearer $CRON_SECRET`.
-  - Selects non-guest active users and publishes queue tasks.
-- `POST /api/queues/consolidate|archive|analyze`
-  - Verifies `Upstash-Signature` via `verifyQStashAuth()`.
+`GET /api/cron/trigger?job=...` accepts:
 
-## Attachment Cleanup Cron
+| Value | Jobs published |
+| --- | --- |
+| `all` or omitted | Memory consolidation and session archival |
+| `consolidate` | Memory consolidation only |
+| `archive` | Session archival only |
+| `analyze` | Profile analysis only |
 
-Attachment cleanup is a separate cron flow:
+`all` does not include profile analysis.
 
-- Route: `GET|POST /api/cron/cleanup-attachments`
-- Security: `Authorization: Bearer $CRON_SECRET`
-- Purpose: deletes expired `Attachment` records and corresponding blob objects based on retention policy.
+The endpoint requires:
 
-## Environment Variables
+```text
+Authorization: Bearer $CRON_SECRET
+```
 
-Required for maintenance execution:
+Queue consumers verify `Upstash-Signature` with the configured current/next signing keys.
+
+## Attachment cleanup
+
+`GET|POST /api/cron/cleanup-attachments`:
+
+- requires `CRON_SECRET`;
+- calculates retention from each user's personal role/plan policy;
+- removes expired Vercel Blob objects;
+- deletes the corresponding `Attachment` rows;
+- returns processed/deleted/error counters.
+
+[`vercel.json`](../vercel.json) schedules this route daily at `03:00 UTC` (`0 3 * * *`).
+
+## Current scheduling status
+
+| Work | Tracked schedule |
+| --- | --- |
+| Attachment cleanup | Daily through `vercel.json` |
+| Memory consolidation | None |
+| Session archival | None |
+| Profile analysis | None |
+
+The admin page at `/admin/jobs` can invoke the general trigger. Production automation for those jobs must be configured outside this repository or added to `vercel.json`.
+
+## Configuration
 
 ```env
 QSTASH_URL="https://qstash.upstash.io/v2"
 QSTASH_TOKEN="..."
 QSTASH_CURRENT_SIGNING_KEY="..."
 QSTASH_NEXT_SIGNING_KEY="..."
-APP_URL="https://your-domain.com"
+APP_URL="https://your-domain.example"
 CRON_SECRET="..."
 ```
 
-## Manual Triggers
+`src/lib/qstash.ts` validates `QSTASH_URL` and `QSTASH_TOKEN` when imported, so missing values can fail an importing route/build before a job is invoked.
 
-From Admin UI: `/admin/jobs`
-
-From CLI:
+## Manual triggers
 
 ```bash
-curl -sS "https://your-app.com/api/cron/trigger?job=all" \
+curl -sS "https://your-app.example/api/cron/trigger?job=all" \
   -H "Authorization: Bearer $CRON_SECRET"
 
-curl -sS "https://your-app.com/api/cron/trigger?job=consolidate" \
+curl -sS "https://your-app.example/api/cron/trigger?job=analyze" \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
+
+See [Deployment](./deployment.md) for schedule and environment checks.

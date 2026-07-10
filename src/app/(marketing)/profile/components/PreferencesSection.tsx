@@ -83,7 +83,19 @@ export function PreferencesSection() {
     setDeleting(true);
     try {
       const response = await fetch("/api/user/me", { method: "DELETE" });
-      if (!response.ok) throw new Error("Failed to delete account");
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as {
+          code?: string;
+        } | null;
+        if (body?.code === "ORGANIZATION_CREATOR_DELETION_BLOCKED") {
+          toast.error(
+            "Elimina prima le organizzazioni create da questo account o contatta l'assistenza.",
+          );
+          setDeleting(false);
+          return;
+        }
+        throw new Error("Failed to delete account");
+      }
       await signOut({ redirectUrl: "/" });
       router.push("/");
     } catch {

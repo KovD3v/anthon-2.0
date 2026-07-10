@@ -6,7 +6,7 @@ Anthon 2.0 exposes REST API endpoints for chat, channels, administration, and op
 
 ### Clerk-authenticated routes
 
-Most `/api/*` routes require an authenticated Clerk session and use `getAuthUser()`.
+Most user routes require an authenticated Clerk session. Some use `getAuthUser()` to resolve the internal role/user, while the legacy RAG routes call Clerk `auth()` directly.
 
 ### Guest routes
 
@@ -26,8 +26,12 @@ Role management (`PATCH /api/admin/users`) is restricted to `SUPER_ADMIN`.
 
 - Clerk webhook: `svix-id`, `svix-timestamp`, `svix-signature`
 - Telegram webhook: `x-telegram-bot-api-secret-token`
-- WhatsApp webhook POST: `x-hub-signature-256`
+- WhatsApp webhook POST: requires `WHATSAPP_APP_SECRET` and a matching `x-hub-signature-256`. Missing configuration, missing headers, and mismatches fail closed with `401`.
 - WhatsApp webhook GET: `hub.verify_token` validation
+
+### Public routes
+
+`GET /api/health` is a public shallow liveness check and returns `{ "status": "ok" }` without contacting providers. `GET /api/health?details=1` requires an admin role and checks PostgreSQL, OpenRouter, Clerk, and Vercel Blob. Provider failures use stable, component-level messages, and the Blob check is a read-only one-item list operation.
 
 ## Shared Response Helpers
 
@@ -58,6 +62,7 @@ Routes commonly use helpers from `@/lib/api/responses`:
 | `POST` | `/api/upload` | Upload attachment to Vercel Blob and register `Attachment`. |
 | `DELETE` | `/api/upload?url=...` | Delete uploaded blob for current user. |
 | `DELETE` | `/api/channels/[id]` | Disconnect a linked channel identity. |
+| `DELETE` | `/api/user/me` | Attempt Clerk deletion, then hard-delete the local user. Cross-system cleanup is not atomic. |
 
 ### Key request payloads
 
@@ -88,6 +93,10 @@ Routes commonly use helpers from `@/lib/api/responses`:
 { messageId: string; feedback: -1 | 0 | 1 }
 ```
 
+`POST /api/upload`, admin RAG originals, and web-generated audio use public Vercel Blob access. Returned object URLs should be treated as bearer-access URLs. Database deletion does not automatically delete the corresponding Blob object.
+
+`DELETE /api/user/me` blocks while the user is the creator of an organization, gathers owned attachment and artifact-version URLs, and deletes those Blob objects before deleting Clerk and local records. Blob cleanup failure leaves the account intact so the user can retry. Clerk and PostgreSQL still cannot participate in one distributed transaction, so an infrastructure failure between those final operations remains an operational edge case.
+
 ## Guest API
 
 | Method | Path | Description |
@@ -106,6 +115,8 @@ Notes:
 - Guest limits differ from authenticated trial limits.
 
 ## RAG API
+
+These compatibility endpoints require an `ADMIN` or `SUPER_ADMIN` role because they operate on the same global corpus as `/api/admin/rag`; document mutations are not scoped by user. The admin UI uses `/api/admin/rag`.
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
@@ -147,7 +158,7 @@ Notes:
 | `GET` | `/api/admin/rag` | List all RAG documents. |
 | `POST` | `/api/admin/rag` | Upload/process RAG files (multipart `files`). |
 | `DELETE` | `/api/admin/rag?id=...` | Delete RAG document. |
-| `GET` | `/api/admin/organizations` | List organizations and seat usage (`?sync=1` supported). |
+| `GET` | `/api/admin/organizations` | List organizations and seat usage; `?sync=1` backfills organization metadata only. |
 | `POST` | `/api/admin/organizations` | Create organization, contract, owner assignment/invite. |
 | `GET` | `/api/admin/organizations/[organizationId]` | Organization detail. |
 | `PATCH` | `/api/admin/organizations/[organizationId]` | Update metadata, contract, owner transfer. |
@@ -176,7 +187,8 @@ Notes:
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| `GET` | `/api/health` | Health checks for DB, OpenRouter, Clerk, Blob. |
+| `GET` | `/api/health` | Public shallow process-liveness check. |
+| `GET` | `/api/health?details=1` | Admin-only live DB, OpenRouter, Clerk, and read-only Blob checks. |
 | `GET` | `/api/cron/trigger?job=all|consolidate|archive|analyze` | Publish maintenance jobs to QStash (`CRON_SECRET` required). |
 | `GET` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |
 | `POST` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |

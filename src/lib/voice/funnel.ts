@@ -358,17 +358,35 @@ export async function trackVoiceUsage(
   channel: "WEB" | "TELEGRAM" | "WHATSAPP" = "TELEGRAM",
   costUsd?: number,
 ): Promise<void> {
+  const resolvedCostUsd = costUsd ?? estimateVoiceCostUsd(characterCount);
+
   await prisma.voiceUsage.create({
     data: {
       userId,
       characterCount,
-      costUsd,
+      costUsd: resolvedCostUsd,
       channel,
     },
   });
 
   // Also roll cost into daily usage for rate-limiting accuracy
-  if (costUsd && costUsd > 0) {
-    await incrementVoiceUsage(userId, costUsd);
+  if (resolvedCostUsd && resolvedCostUsd > 0) {
+    await incrementVoiceUsage(userId, resolvedCostUsd);
   }
+}
+
+/**
+ * Estimate ElevenLabs cost from the configured USD price per 1,000 chars.
+ * Returns undefined when pricing is intentionally not configured.
+ */
+function estimateVoiceCostUsd(characterCount: number): number | undefined {
+  const rawRate = process.env.ELEVENLABS_COST_PER_1000_CHARS_USD;
+  if (!rawRate) return undefined;
+
+  const rate = Number(rawRate);
+  if (!Number.isFinite(rate) || rate < 0) return undefined;
+
+  return (
+    Math.round((characterCount / 1000) * rate * 1_000_000_000) / 1_000_000_000
+  );
 }

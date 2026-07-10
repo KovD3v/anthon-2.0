@@ -3,23 +3,20 @@
  * Allows testing semantic search queries.
  */
 
-import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { RAG } from "@/lib/ai/constants";
 import { getRagContext, searchDocuments, shouldUseRag } from "@/lib/ai/rag";
+import { requireAdmin } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 
 const ragLogger = createLogger("ai");
 
 // POST /api/rag/search - Search for relevant documents
 export async function POST(req: Request) {
+  const { errorResponse } = await requireAdmin();
+  if (errorResponse) return errorResponse;
+
   try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     let body: Record<string, unknown>;
     try {
       const parsedBody = await req.json();

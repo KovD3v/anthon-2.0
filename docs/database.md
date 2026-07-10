@@ -4,22 +4,23 @@ Anthon 2.0 uses PostgreSQL with Prisma ORM and pgvector for vector embeddings.
 
 ## Neon Branch Setup
 
-The project uses a single Neon project (`AnthonChat`) with two branches:
+The currently documented Neon layout uses separate production and development branches. Keep local, test, preview, and production scopes isolated even if the provider/project names change.
 
 | Branch | Role | Used by |
 |--------|------|---------|
-| `production` | Live deployed database | Vercel (`DATABASE_URL` / `DIRECT_DATABASE_URL`) |
-| `development` | Dev/test database | Integration tests (`TEST_DATABASE_URL`), local dev |
+| `production` | Live deployed database | Vercel Production only (`DATABASE_URL` / `DIRECT_DATABASE_URL`) |
+| `development` | Local development | Local `DATABASE_URL` / `DIRECT_DATABASE_URL` |
+| disposable test/preview branch | Integration tests and Vercel previews | `TEST_DATABASE_URL` or preview-scoped URLs |
 
-**Migrations run automatically** via `bun run build` → `prisma migrate deploy`.
-Set `DATABASE_URL` and `DIRECT_DATABASE_URL` in Vercel to the production branch
-connection strings — the next deploy will apply all pending migrations.
+Production-style migrations are explicit: `bun run db:migrate:deploy` runs `prisma migrate deploy`, while `bun run build` only generates Prisma Client and compiles Next.js. Run migrations against the intended environment before deploying code that depends on them. See [Deployment and Database Safety](./deployment.md).
 
 For manual production migration:
 
 ```bash
 PROD_DATABASE_URL=<pooled> PROD_DIRECT_DATABASE_URL=<direct> ./scripts/migrate-prod.sh
 ```
+
+The `deletedAt` fields and Prisma extension filter rows that have already been marked deleted. The extension does not convert `delete` operations into updates; current delete routes hard-delete unless they explicitly set `deletedAt`.
 
 **Safety:** Never point `TEST_DATABASE_URL` at the production branch. The integration
 test setup (`global-setup.ts`) will abort if `TEST_DATABASE_URL` and `DATABASE_URL`
@@ -70,7 +71,7 @@ Central identity for all user data across channels.
 | `role`      | UserRole  | USER, ADMIN, or SUPER_ADMIN |
 | `deletedAt` | DateTime? | Soft delete timestamp       |
 
-Guest support (used mainly by non-web channels like Telegram):
+Guest support is used by web chat, Telegram, and WhatsApp:
 
 - `isGuest` marks a user created before sign-up.
 - `guestAbuseIdHash` can be used to de-duplicate/abuse-protect guest identities.
@@ -99,7 +100,7 @@ Individual messages supporting text, media, and AI metadata.
 | `role`         | MessageRole      | USER, ASSISTANT, SYSTEM                          |
 | `direction`    | MessageDirection | INBOUND or OUTBOUND                              |
 | `type`         | MessageType      | TEXT, IMAGE, AUDIO, etc.                         |
-| `parts`        | Json?            | AI SDK v5 message parts — canonical content format |
+| `parts`        | Json?            | AI SDK v6 message parts — canonical content format |
 | `mediaUrl`     | String?          | Media URL (for non-web channels)                 |
 | `mediaType`    | String?          | Media MIME type                                  |
 | `externalMessageId` | String?     | External message id (unique per channel)         |
@@ -128,12 +129,13 @@ User coaching information.
 
 Communication and behavior preferences.
 
-| Field      | Type     | Description                         |
-| ---------- | -------- | ----------------------------------- |
-| `tone`     | String?  | "calm", "energetic", "professional" |
-| `mode`     | String?  | "coaching", "friendly", "direct"    |
-| `language` | String?  | "IT", "EN", etc.                    |
-| `push`     | Boolean? | Push notifications enabled          |
+| Field          | Type     | Description |
+| -------------- | -------- | ----------- |
+| `tone`         | String?  | Preferred response tone; the AI prompt standardizes values such as `direct`, `empathetic`, `technical`, and `motivational`. |
+| `mode`         | String?  | Preferred response mode such as `concise`, `elaborate`, `challenging`, or `supportive`. |
+| `language`     | String?  | Preferred language code. Existing defaults use `IT`; the orchestrator asks for lowercase ISO 639-1 when it detects a language. |
+| `push`         | Boolean? | Push notifications enabled. |
+| `voiceEnabled` | Boolean? | Voice/quiet-mode preference. |
 
 ### Memory
 
@@ -171,9 +173,7 @@ Embedded document chunks for vector search.
 | `embedding`  | vector(1536) | pgvector embedding    |
 | `index`      | Int          | Chunk sequence number |
 
-Uses HNSW index for efficient cosine similarity search.
-
-Note: embedding dimensions are defined in the Prisma schema and depend on the embedding model.
+Embedding dimensions are fixed in the Prisma schema and match the current embedding model. No HNSW/vector index is created by the tracked migrations, so do not assume indexed vector search until a raw SQL index migration is added and verified.
 
 ## Usage & Billing
 
@@ -203,6 +203,21 @@ User subscription and trial tracking.
 | `planId`         | String?            | Clerk plan ID                 |
 | `planName`       | String?            | Plan display name             |
 
+## Sessions, Voice, and Evaluation
+
+### SessionSummary and ArchivedSession
+
+- `SessionSummary` is an expiring cache for generated cross-channel session summaries.
+- `ArchivedSession` stores the date range, summary, and message count for sessions whose raw messages were removed by retention maintenance.
+
+### VoiceUsage
+
+Each generated ElevenLabs response records the user, channel, character count, optional estimated cost, and generation timestamp. The helper can roll a supplied cost into `DailyUsage`, but current generation call sites omit it, so the stored cost is normally null.
+
+### BenchmarkRun, BenchmarkResult, and BenchmarkTestCase
+
+The admin benchmark subsystem stores reusable test cases, multi-model runs, generation/cost metrics, one or two judge scores, disagreement flags, and optional admin review. These models are operational evaluation data, not end-user conversations.
+
 ## Organizations (B2B)
 
 ### Organization
@@ -215,7 +230,7 @@ Contract-bound tenant linked to Clerk Organization identity.
 | `name`                | String             | Organization display name |
 | `slug`                | String             | Unique organization slug |
 | `status`              | OrganizationStatus | ACTIVE, SUSPENDED, ARCHIVED |
-| `ownerUserId`         | String?            | Internal owner user (exactly one when active) |
+| `ownerUserId`         | String?            | Internal owner user; may be null while an invited owner is pending |
 | `pendingOwnerEmail`   | String?            | Pending owner invite email |
 
 ### OrganizationContract
@@ -227,7 +242,7 @@ Authoritative contract limits for an organization.
 | `basePlan`            | OrganizationBasePlan  | Organization base entitlement plan: BASIC, BASIC_PLUS, PRO |
 | `seatLimit`           | Int                   | Maximum active members |
 | `planLabel`           | String                | Human-readable plan name |
-| `modelTier`           | OrganizationModelTier | Optional enterprise override for model access tier (default comes from `basePlan`) |
+| `modelTier`           | OrganizationModelTier | Required stored model tier, initialized from the base plan and available as an explicit override |
 | `maxRequestsPerDay`   | Int                   | Daily request entitlement |
 | `maxInputTokensPerDay`| Int                   | Daily input token entitlement |
 | `maxOutputTokensPerDay`| Int                  | Daily output token entitlement |
@@ -239,7 +254,7 @@ Entitlement behavior:
 
 - `basePlan` defines the default limits and model tier.
 - Contract fields (`seatLimit`, numeric limits, `modelTier`) are enterprise overrides on top of that base.
-- For active organization members, organization entitlements are used; personal subscription is fallback only when organization contract data is missing/invalid.
+- For active organization members, each valid contract contributes a candidate. The resolver selects the strongest candidate across personal and organization sources; an organization does not automatically replace a stronger personal plan.
 
 ### OrganizationMembership
 

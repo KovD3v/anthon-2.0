@@ -305,6 +305,7 @@ export async function streamChat({
   const model = withTracing(baseModel, getPostHogClient(), {
     posthogDistinctId: userId,
     posthogTraceId: chatId,
+    posthogPrivacyMode: true,
     posthogProperties: {
       conversationId: chatId,
       planId: planId || "free",

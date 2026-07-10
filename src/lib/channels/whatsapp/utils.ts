@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 
@@ -6,15 +6,26 @@ const whatsappLogger = createLogger("webhook");
 
 export function verifySignature(request: Request, body: string): boolean {
   const secret = process.env.WHATSAPP_APP_SECRET;
-  if (!secret) return true;
+  if (!secret) {
+    whatsappLogger.error(
+      "signature.missing_secret",
+      "WHATSAPP_APP_SECRET is not configured",
+    );
+    return false;
+  }
 
   const signature = request.headers.get("x-hub-signature-256");
   if (!signature) return false;
 
   const hash = createHmac("sha256", secret).update(body).digest("hex");
   const expectedSignature = `sha256=${hash}`;
+  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expectedSignature);
 
-  return signature === expectedSignature;
+  return (
+    actualBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(actualBuffer, expectedBuffer)
+  );
 }
 
 export function isConnectCommand(text: string) {

@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  auth: vi.fn(),
+  requireAdmin: vi.fn(),
   shouldUseRag: vi.fn(),
   searchDocuments: vi.fn(),
   getRagContext: vi.fn(),
 }));
 
-vi.mock("@clerk/nextjs/server", () => ({
-  auth: mocks.auth,
+vi.mock("@/lib/auth", () => ({
+  requireAdmin: mocks.requireAdmin,
 }));
 
 vi.mock("@/lib/ai/rag", () => ({
@@ -37,24 +37,27 @@ function buildMalformedJsonRequest(): Request {
 
 describe("POST /api/rag/search", () => {
   beforeEach(() => {
-    mocks.auth.mockReset();
+    mocks.requireAdmin.mockReset();
     mocks.shouldUseRag.mockReset();
     mocks.searchDocuments.mockReset();
     mocks.getRagContext.mockReset();
 
-    mocks.auth.mockResolvedValue({ userId: "clerk-1" });
+    mocks.requireAdmin.mockResolvedValue({ errorResponse: null });
     mocks.shouldUseRag.mockResolvedValue(true);
     mocks.searchDocuments.mockResolvedValue([{ id: "doc-1" }]);
     mocks.getRagContext.mockResolvedValue("context text");
   });
 
-  it("returns 401 when unauthorized", async () => {
-    mocks.auth.mockResolvedValue({ userId: null });
+  it("returns the admin authorization response", async () => {
+    mocks.requireAdmin.mockResolvedValue({
+      errorResponse: Response.json({ error: "Forbidden" }, { status: 403 }),
+    });
 
     const response = await POST(buildRequest({ query: "hello" }));
 
-    expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "Forbidden" });
+    expect(mocks.searchDocuments).not.toHaveBeenCalled();
   });
 
   it("returns 400 when query is missing", async () => {

@@ -1,278 +1,132 @@
 # Getting Started
 
-This guide will help you set up and run Anthon 2.0 locally.
+This guide sets up Anthon for local development. It assumes a development database and Bun as the canonical package manager.
 
 ## Prerequisites
 
--   **Node.js** 18.17 or later
--   **PostgreSQL** 15+ with [pgvector](https://github.com/pgvector/pgvector) extension
--   **Clerk account** for authentication ([clerk.com](https://clerk.com))
--   **OpenRouter API key** for AI models ([openrouter.ai](https://openrouter.ai))
+- Node.js 22 LTS recommended, version 22.12 or newer in the 22.x line. Prisma also supports Node 20.19.x and Node 24+.
+- Bun
+- PostgreSQL 15+ with the `vector` extension, or a Neon development branch
+- Clerk application
+- OpenRouter, Tavily, and PostHog project credentials
 
-## Installation
+Vercel Blob, QStash, Telegram, WhatsApp, and ElevenLabs are only needed when working on those features, although QStash's module-level validation can affect routes/builds that import it.
 
-### 1. Clone the Repository
+## 1. Clone and configure
 
 ```bash
 git clone <repository-url>
 cd anthon-2.0
-```
-
-### 2. Install Dependencies
-
-```bash
-npm install
-# or
-bun install
-```
-
-### 3. Environment Variables
-
-Create `.env` from the template:
-
-```bash
 cp .env.example .env
 ```
 
-Minimum variables to run the web app:
+Fill at least these variables before installing:
 
 ```env
-DATABASE_URL="postgresql://user:password@host/anthon?schema=public"  # Neon production branch (pooled)
-DIRECT_DATABASE_URL="postgresql://user:password@host/anthon?schema=public"  # Neon production branch (direct)
+DATABASE_URL="<development pooled PostgreSQL URL>"
+DIRECT_DATABASE_URL="<development direct PostgreSQL URL>"
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
 CLERK_SECRET_KEY="sk_test_..."
-CLERK_WEBHOOK_SECRET="whsec_..."
 OPENROUTER_API_KEY="sk-or-..."
+TAVILY_API_KEY="tvly-..."
+POSTHOG_API_KEY="phc_..."
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ```
 
-Feature-specific variables:
+Use a development database locally. Production URLs belong only in the production deployment environment. See [Configuration](./configuration.md) for every variable and [Deployment](./deployment.md) for environment mapping.
 
-- Uploads: `BLOB_READ_WRITE_TOKEN`
-- Maintenance jobs: `QSTASH_URL`, `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `CRON_SECRET`, `APP_URL`
-- Telegram channel: `TELEGRAM_*`
-- WhatsApp channel: `WHATSAPP_*`
-- Voice generation: `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`
-
-`NEXT_PUBLIC_APP_URL` is used for link generation (channel linking, embedding headers, callbacks).
-
-`TEST_DATABASE_URL` is required for `bun run test:integration` and should point to a non-production database/branch.
-
-Neon branch mapping (required):
-
-- `TEST_DATABASE_URL` -> `development` branch (direct connection string)
-- `DATABASE_URL` -> `production` branch (pooled connection string) — used by Vercel
-- `DIRECT_DATABASE_URL` -> `production` branch (direct connection string) — used by Vercel
-
-Useful Neon CLI commands:
+## 2. Install dependencies
 
 ```bash
-neon cs development --project-id <project_id> --database-name neondb --role-name neondb_owner
-neon cs development --project-id <project_id> --database-name neondb --role-name neondb_owner --pooled
-neon cs production --project-id <project_id> --database-name neondb --role-name neondb_owner
-neon cs production --project-id <project_id> --database-name neondb --role-name neondb_owner --pooled
+bun install --frozen-lockfile
 ```
 
-### 4. Database Setup
+The `postinstall` script generates the Prisma client.
 
-Ensure PostgreSQL is running with pgvector extension:
+## 3. Prepare the database
+
+Enable pgvector in the development database:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-For **local development**, run Prisma migrations:
+Apply the migrations and regenerate the client when needed:
 
 ```bash
 bunx prisma migrate dev
-```
-
-Generate Prisma client:
-
-```bash
 bunx prisma generate
 ```
 
-For **production/Vercel**: Migrations run automatically during `bun run build`
-(→ `prisma migrate deploy`). Set `DATABASE_URL` and `DIRECT_DATABASE_URL` in Vercel
-to the production branch connection strings; the next deploy applies all pending migrations.
-
-For **manual production migration**, use:
+Optional seed data:
 
 ```bash
-PROD_DATABASE_URL=<pooled> PROD_DIRECT_DATABASE_URL=<direct> ./scripts/migrate-prod.sh
+bunx prisma db seed
 ```
 
-### 5. Seed Database (Optional)
+## 4. Start the application
 
 ```bash
-npx prisma db seed
+bun run dev
 ```
 
-## Running the Application
+Open [http://localhost:3000](http://localhost:3000). `/chat` supports both signed-in users and cookie-backed guests; guest file uploads, memory extraction, and voice output are disabled.
 
-### Development
+## 5. Verify the local baseline
+
+These checks do not intentionally change an external database:
 
 ```bash
-npm run dev
+bun run lint
+bunx tsc --noEmit
+bun run test
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+`bun run knip` audits unused code and dependencies. Standalone scripts must be configured as Knip entry points if they are intentionally retained.
 
-### Production Build
+## Integration tests
+
+Set `TEST_DATABASE_URL` to an isolated, disposable database, then run:
 
 ```bash
-npm run build
-npm start
+bun run test:integration
 ```
 
-## Available Scripts
+Warning: the bootstrap creates the `vector` extension and runs `prisma db push` against `TEST_DATABASE_URL`. It refuses to use the same database host as `DATABASE_URL`, but you must still verify the target yourself.
 
-| Script           | Description              |
-| ---------------- | ------------------------ |
-| `npm run dev`    | Start development server |
-| `npm run build`  | Build for production     |
-| `npm start`      | Start production server  |
-| `npm run lint`   | Run Biome linter         |
-| `npm run format` | Format code with Biome   |
-| `npm run test`   | Run unit tests (Vitest)  |
-| `npm run test:integration` | Run integration tests (real DB) |
-| `npm run test:coverage:unit` | Run unit coverage + thresholds |
-| `npm run test:coverage:integration` | Run integration coverage for `organizations` routes |
-| `npm run test:coverage` | Run unit + integration coverage |
-| `npm run test:all` | Run unit + integration + coverage |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run test:ui` | Run tests with Vitest UI |
+Coverage commands:
 
-Test command equivalents:
-
-- `npm run test` (canonical)
-- `bun run test`
-- `bun run test:integration`
-- `bun run test:coverage:unit`
-- `bun run test:coverage:integration`
-- `bun run test:coverage`
-- `bun run test:all`
-
-## Project Structure
-
-```
-anthon-2.0/
-├── src/
-│   ├── app/           # Next.js App Router pages
-│   ├── components/    # Shared UI components
-│   ├── lib/           # Core business logic
-│   ├── hooks/         # React hooks
-│   └── types/         # TypeScript types
-├── prisma/            # Database schema & migrations
-├── docs/              # Documentation
-└── public/            # Static assets
+```bash
+bun run test:coverage:unit
+bun run test:coverage:integration
+bun run test:coverage
 ```
 
-## Next Steps
+`test:coverage:integration` and the aggregate `test:coverage` command run the same database-mutating integration bootstrap. `bun run test:all` runs unit and integration tests first, then repeats both through the coverage commands.
 
--   [Architecture Overview](./architecture.md) - Understand the system design
--   [Database Schema](./database.md) - Learn about data models
--   [AI System](./ai-system.md) - Explore the AI components
+## Production build
 
----
+```bash
+bun run build
+bun run start
+```
 
-## User Guide (Web)
+This generates Prisma Client and compiles Next.js without changing the database. For a deployment containing migrations, verify the target URLs and run `bun run db:migrate:deploy` as an explicit release step before promoting the compatible application. Read [Deployment and Database Safety](./deployment.md) first.
 
-This section is for users/admins who are using the app UI (not for developers). Technical details stay in the dedicated docs.
+## Common setup failures
 
-### Sign in / Sign up
+| Symptom | Likely cause |
+| --- | --- |
+| `TAVILY_API_KEY environment variable is required` | Tavily is validated when the AI tool module loads. Add a real key. |
+| `POSTHOG_API_KEY is not set` when sending a chat | Server-side AI tracing is initialized for every generated response. |
+| `QStash environment variables missing` | The requested page/route imports the QStash module. Configure QStash or avoid that feature locally. |
+| PostgreSQL reports unknown type `vector` | Enable the pgvector extension before migrations. |
+| Prisma connects to the wrong database | Check both `DATABASE_URL` and `DIRECT_DATABASE_URL`; Prisma CLI prefers the direct URL. |
 
-- If you're signed out and open admin pages (`/admin`), you will be redirected away from restricted content.
-- Chat supports guest mode: signed-out users can still use `/chat` with guest limits.
-- After signing in, you should land back on the page you tried to open.
+## Next steps
 
-### Chats
-
-- Open `/chat` to see your chat list and create a new chat.
-- You can rename or delete chats from the UI.
-- You can export a chat to Markdown from the chat UI (download).
-
-### Search
-
-- Global chat search is available from the UI and returns recent matches.
-- Search requires at least 2 characters.
-
-### Feedback
-
-- You can give thumbs up/down feedback on assistant messages; it is saved for analytics and quality.
-
-### Attachments (uploads)
-
-- Max size: 10MB per file.
-- Supported types depend on server validation; common formats include images, PDF, and text documents.
-- If Vercel Blob is not configured, uploads will fail.
-
-### Daily usage limits
-
-- Usage is tracked daily and depends on your tier/role.
-- Admins have unlimited limits.
-- See [Rate Limiting](./rate-limiting.md) for the exact tiers and reset schedule.
-
----
-
-## User Guide (Telegram)
-
-If Telegram is enabled, you can chat with the bot and optionally link your Telegram identity to your Anthon account.
-
-### Linking your Telegram account
-
-1. Open the Telegram bot and send the command `/connect`.
-2. The bot replies with a one-time link.
-3. Open the link in a browser and sign in if needed.
-4. If the link is valid, Telegram gets connected to your profile.
-
-**Notes and common outcomes:**
-
-- The link expires after ~10 minutes.
-- A link can only be used once.
-- You can connect only one Telegram identity to a profile.
-- If the Telegram identity was previously attached to a guest profile, the app may migrate that guest data into your signed-in user during linking.
-
-### Managing connected channels
-
-- Open `/channels` to view connected channels.
-- You can disconnect Telegram/WhatsApp from this page.
-
----
-
-## Admin Guide
-
-Admin UI is protected by role.
-
-### Access
-
-- Admin pages live under `/admin`.
-- You need `ADMIN` or `SUPER_ADMIN` role.
-- Only `SUPER_ADMIN` can change user roles.
-
-### Dashboard & health
-
-- `/admin` shows key metrics and service health (DB, OpenRouter, Clerk, Vercel Blob).
-- If any service is misconfigured, the dashboard health cards will show an error.
-
-### Users
-
-- `/admin/users` lists users and basic stats.
-- User roles can be updated by super admins.
-
-### Organizations
-
-- `/admin/organizations` lets admins create organizations, assign/invite owners, and configure contract limits.
-- Seat limits are enforced on membership activation (accepted invites that would exceed seats are blocked).
-- Owners manage memberships/roles/invitations in Clerk UI at `/organization`.
-
-### RAG documents
-
-- `/admin/rag` lets admins upload documents to the knowledge base.
-- Supported formats include PDF, DOCX, TXT, MD.
-
-### Where to find technical details
-
-- API endpoints: [API Reference](./api.md)
-- Database models: [Database](./database.md)
-- Roles/auth: [Authentication](./authentication.md)
+- [Architecture](./architecture.md)
+- [Configuration](./configuration.md)
+- [AI System](./ai-system.md)
+- [Database](./database.md)
+- [User Guide](./user-guide.md)

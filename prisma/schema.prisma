@@ -328,7 +328,7 @@ model Message {
 
   // Message content and media
   type  MessageType @default(TEXT)
-  parts Json? // AI SDK v5 message parts format
+  parts Json? // AI SDK v6 message parts format
 
   mediaUrl  String? // Media URL: images, audio, video, documents, stickers
   mediaType String? // MIME type e.g.: image/jpeg, audio/ogg
@@ -525,8 +525,8 @@ model RagChunk {
   index     Int // Chunk sequence number within document
 
   createdAt DateTime @default(now())
-  // Note: Vector index is created via raw SQL migration (HNSW index)
-  // See: prisma/migrations/20251202120000_fix_vector_index/migration.sql
+  // No vector-specific index exists in the tracked migrations.
+  // Add and verify a raw SQL migration before relying on HNSW/IVFFlat search.
 
   @@index([documentId])
   @@index([documentId, index])

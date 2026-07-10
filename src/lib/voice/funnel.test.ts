@@ -74,7 +74,9 @@ describe("voice/funnel", () => {
     mocks.outputObject.mockReset();
     mocks.voiceCount.mockReset();
     mocks.voiceCreate.mockReset();
+    mocks.dailyUsageUpsert.mockReset();
     mocks.measure.mockReset();
+    delete process.env.ELEVENLABS_COST_PER_1000_CHARS_USD;
 
     mocks.outputObject.mockImplementation(
       ({ schema }: { schema: unknown }) => ({ schema }),
@@ -93,6 +95,7 @@ describe("voice/funnel", () => {
   });
 
   afterEach(() => {
+    delete process.env.ELEVENLABS_COST_PER_1000_CHARS_USD;
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
@@ -251,5 +254,33 @@ describe("voice/funnel", () => {
         channel: "WEB",
       },
     });
+    expect(mocks.dailyUsageUpsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("estimates voice cost from configured per-1,000-character pricing", async () => {
+    process.env.ELEVENLABS_COST_PER_1000_CHARS_USD = "0.30";
+    mocks.voiceCreate.mockResolvedValue({});
+    mocks.dailyUsageUpsert.mockResolvedValue({});
+
+    await trackVoiceUsage("user-9", 500, "WHATSAPP");
+
+    expect(mocks.voiceCreate).toHaveBeenCalledWith({
+      data: {
+        userId: "user-9",
+        characterCount: 500,
+        costUsd: 0.15,
+        channel: "WHATSAPP",
+      },
+    });
+    expect(mocks.dailyUsageUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ voiceCostUsd: 0.15 }),
+        update: expect.objectContaining({
+          voiceCostUsd: { increment: 0.15 },
+        }),
+      }),
+    );
+
+    delete process.env.ELEVENLABS_COST_PER_1000_CHARS_USD;
   });
 });

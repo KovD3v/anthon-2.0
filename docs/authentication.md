@@ -1,24 +1,8 @@
-# Authentication
+# Authentication and Authorization
 
-Anthon 2.0 uses [Clerk](https://clerk.com) for authentication and user management.
+Anthon uses Clerk for browser identity and organization/billing events, a database role for admin authorization, and an HttpOnly cookie for guest web sessions.
 
-## Overview
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Client    │────▶│    Clerk    │────▶│  Anthon DB  │
-│  (Browser)  │     │   (Auth)    │     │   (User)    │
-└─────────────┘     └─────────────┘     └─────────────┘
-       │                   │                   │
-       │   Sign In/Up      │    Webhook        │
-       └───────────────────┼───────────────────┘
-                           │
-                      User Sync
-```
-
-## Setup
-
-### 1. Environment Variables
+## Configuration
 
 ```env
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
@@ -26,139 +10,137 @@ CLERK_SECRET_KEY="sk_test_..."
 CLERK_WEBHOOK_SECRET="whsec_..."
 ```
 
-### 2. Route-Level Protection
+The webhook secret is only required when receiving Clerk events. See [Configuration](./configuration.md).
 
-This project does not rely on a global `middleware.ts` auth gate.
-Access control is enforced at layout/API level with helpers in `src/lib/auth.ts`:
+## Access-control layers
 
-- `getAuthUser()` for authenticated user resolution
-- `requireAdmin()` for admin-only access
-- `requireSuperAdmin()` for super-admin-only operations
+Authentication is intentionally layered.
 
-### 3. Webhook Configuration
+### 1. Route proxy
 
-In Clerk Dashboard, configure webhook for:
+`src/proxy.ts` uses Clerk's `clerkMiddleware` as the initial session gate for:
 
--   URL: `https://your-domain.com/api/webhooks/clerk`
--   Events: `user.created`, `user.updated`, `user.deleted`, `subscription.*`, `organization.*`, `organizationMembership.*`, `organizationInvitation.accepted`
+- `/profile(.*)`
+- `/settings(.*)`
+- `/admin(.*)`
+- `/channels(.*)`
+- `/organization(.*)`
 
-## User Roles
+`/chat` is excluded because signed-out guest chat is supported.
 
-| Role          | Permissions                                |
-| ------------- | ------------------------------------------ |
-| `USER`        | Standard user access                       |
-| `ADMIN`       | Access to admin dashboard, user management |
-| `SUPER_ADMIN` | Full system access, can manage admins      |
+The proxy only knows whether a Clerk session exists. It does not replace database role or resource-ownership checks.
 
-### Role Assignment
+### 2. Server layouts
 
-Roles are stored in the database `User.role` field.
+- The admin layout calls `requireAdmin()` and redirects non-admin users.
+- The chat layout resolves either a Clerk-backed user or a guest-cookie user.
+- Clerk organization components handle the signed-in organization page.
 
-- Admin UI and admin APIs enforce role checks.
-- Only `SUPER_ADMIN` can change roles (see admin endpoints in [API Reference](./api.md)).
+### 3. API routes
 
-If you also want to mirror roles into Clerk metadata for visibility, that is optional and not required by the app.
+Every API route enforces its own boundary:
 
-## Auth Utilities
+| Route family | Boundary |
+| --- | --- |
+| Authenticated user routes | Clerk session plus internal user lookup/ownership checks |
+| `/api/guest/*` | Guest cookie and guest-owned resources |
+| `/api/admin/*` | `requireAdmin()`; role changes require `requireSuperAdmin()` |
+| `/api/cron/*` | `Authorization: Bearer $CRON_SECRET` |
+| `/api/queues/*` | QStash signature |
+| `/api/webhooks/*` | Provider-specific signatures/secrets |
 
-**File:** `src/lib/auth.ts`
+## Internal users and roles
 
-### `getAuthUser()`
+Clerk IDs map to the local `User` model. `getAuthUser()`:
 
-Gets the authenticated user with database record:
+1. reads the Clerk session;
+2. looks up the internal user through a 60-second cache;
+3. creates the local user when absent;
+4. schedules a Clerk profile-name sync in the background.
 
-```typescript
+Database roles:
+
+| Role | Access |
+| --- | --- |
+| `USER` | Standard user and organization-member features |
+| `ADMIN` | Admin UI and admin APIs |
+| `SUPER_ADMIN` | Admin access plus user-role changes |
+
+The database role is authoritative for admin access. Mirroring it into Clerk metadata is not required by the current implementation.
+
+## Auth helpers
+
+`src/lib/auth.ts` exports the primary server helpers.
+
+```ts
 import { getAuthUser } from "@/lib/auth";
 
 const { user, error } = await getAuthUser();
-// user: internal AuthUser (id, role, etc.)
-// error: string when not authenticated or on failure
 ```
 
-### `requireAdmin()` / `requireSuperAdmin()`
-
-Use these helpers for role-gated routes:
-
-```typescript
+```ts
 import { requireAdmin } from "@/lib/auth";
 
 export async function GET() {
   const { user, errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
-  return Response.json({ ok: true, userId: user!.id });
+
+  return Response.json({ userId: user!.id });
 }
 ```
 
-## Protected Routes
+Use ownership checks in addition to authentication whenever a route accepts a chat, message, attachment, organization, or user ID.
 
-### Route Groups
+## Guest web sessions
 
-| Group         | Protection    | Purpose                |
-| ------------- | ------------- | ---------------------- |
-| `(marketing)` | Public        | Landing, pricing pages |
-| `(chat)`      | Mixed (guest + authenticated) | Chat interface |
-| `(admin)`     | ADMIN role    | Admin dashboard        |
-| `/organization` | Authenticated | Clerk Organization management |
+`src/lib/guest-auth.ts` stores a random guest token in the `anthon_guest_token` cookie:
 
-### Layout Protection
+- HttpOnly;
+- `SameSite=Lax`;
+- Secure in production;
+- 30-day maximum age.
 
-```typescript
-// src/app/(admin)/admin/layout.tsx
-import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/auth";
+Only a SHA-256 hash is stored in `User.guestAbuseIdHash`. A missing or invalid token creates a new guest user when a guest API requires authentication.
 
-export default async function AdminLayout({ children }) {
-  const { errorResponse } = await requireAdmin();
-  if (errorResponse) redirect("/");
-  return <>{children}</>;
-}
-```
+Guest chat uses separate endpoints and plan limits. It blocks attachments, memory extraction, and voice output.
 
-## User Sync
+## Guest migration
 
-When a user signs up via Clerk, a webhook creates/updates the database record and subscription tracking.
-Organization and membership webhooks are also mirrored locally for contract seat enforcement and audit logging:
+Migration can be triggered in two ways:
 
-See the handler implementation in `/api/webhooks/clerk` for the exact event mapping.
+- a guest browser signs in and requests the authenticated chat list;
+- a Telegram/WhatsApp guest consumes a channel-link token while signed in.
 
-## Client Components
+The merge runs transactionally through `migrateGuestToUser()`. See [Guest Migration](./guest-migration.md).
 
-### Sign In/Up Buttons
+## Clerk webhook synchronization
 
-```tsx
-import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+Endpoint: `POST /api/webhooks/clerk`
 
-export function Navbar() {
-	return (
-		<nav>
-			<SignInButton />
-			<SignUpButton />
-			<UserButton />
-		</nav>
-	);
-}
-```
+The route verifies Svix headers with `CLERK_WEBHOOK_SECRET` and currently handles:
 
-### Conditional Rendering
+- `user.created`
+- `user.updated`
+- `subscription.created`
+- `subscription.updated`
+- `subscription.deleted`
+- `organization.created`
+- `organization.updated`
+- `organization.deleted`
+- organization membership created/updated/deleted variants
+- organization invitation accepted variants
 
-```tsx
-import { SignedIn, SignedOut } from "@clerk/nextjs";
+`user.deleted` is not handled by the webhook switch. Self-service account deletion uses `DELETE /api/user/me`. It rejects users who still created organizations, removes owned attachment/artifact Blob objects, deletes Clerk, and then hard-deletes the local record. Blob failure happens before identity deletion so the account can retry. Clerk and PostgreSQL remain non-transactional, so failure between those final calls still requires operational reconciliation.
 
-export function Header() {
-	return (
-		<>
-			<SignedOut>
-				<SignInButton />
-			</SignedOut>
-			<SignedIn>
-				<UserButton />
-			</SignedIn>
-		</>
-	);
-}
-```
+Configure only the events the handler supports unless you also add handling for another event type.
 
-## Related Documentation
+## Channel linking
 
--   [API Reference](./api.md) - Auth in API routes
--   [Rate Limiting](./rate-limiting.md) - Limits by subscription
+Telegram and WhatsApp `/connect` commands create short-lived one-time tokens. The raw token is returned in a link; only its hash is stored. Link pages require a signed-in Clerk target account and can migrate a channel guest before attaching the identity.
+
+## Related documentation
+
+- [API Reference](./api.md)
+- [Guest Migration](./guest-migration.md)
+- [Organizations](./organizations.md)
+- [Configuration](./configuration.md)

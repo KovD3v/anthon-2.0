@@ -4,9 +4,8 @@
     "interface": true,
     "type": true
   },
-  "ignore": ["src/components/ui/**/*"],
-  "ignoreDependencies": ["@prisma/client"],
-  "ignoreBinaries": ["sleep"],
+  "ignore": ["src/components/ui/**/*", "scripts/*.ts"],
+  "ignoreDependencies": ["@prisma/client", "radix-ui"],
   "tags": ["-lintignore"],
   "ignoreMembers": ["^runtime$", "^maxDuration$"]
 }

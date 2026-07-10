@@ -122,7 +122,9 @@ Regole:
 - [ ] aprire la pagina canali
 - [ ] collegare Telegram o WhatsApp
 - [ ] inviare un messaggio di test
-- [ ] verificare che arrivi in app
+- [ ] verificare che il bot risponda nel canale esterno
+- [ ] verificare che il canale resti collegato nella pagina Canali
+- [ ] non aspettarsi il messaggio nella lista chat web: i messaggi Telegram/WhatsApp non hanno attualmente un contenitore `Chat`
 - [ ] scollegare il canale
 
 ### B) Profiles, usage, tier e accessi

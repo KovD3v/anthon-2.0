@@ -1,5 +1,7 @@
 # Database Cleanup & Improvement Implementation Plan
 
+> Historical implementation artifact. Its unchecked tasks do not represent current project status. Use [`docs/database.md`](../../database.md), the Prisma schema, and tracked migrations as the current sources of truth.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fix the empty production Neon branch, clean up orphaned test schemas, and improve the database schema with better cost tracking, an indexed Memory category column, a leaner Message table, and proper voice cost accounting.

@@ -1,53 +1,52 @@
 # Anthon 2.0 Documentation
 
-Welcome to the Anthon 2.0 documentation. Anthon is an AI-powered coaching chat application built with Next.js 16, featuring intelligent conversation management, RAG-based knowledge retrieval, and multi-channel support.
+These documents describe the current repository behavior. Start with the path that matches your task.
 
-## 📚 Documentation Index
+## Start here
 
-| Document                                | Description                                  |
-| --------------------------------------- | -------------------------------------------- |
-| [Getting Started](./getting-started.md) | Setup + user/admin runbook (non-technical)   |
-| [Architecture](./architecture.md)       | System architecture and project structure    |
-| [Database](./database.md)               | Prisma schema and data models                |
-| [AI System](./ai-system.md)             | Orchestrator, RAG, sessions, and memory      |
-| [Maintenance](./maintenance.md)         | Automated jobs, cron trigger, and QStash queues |
-| [API Reference](./api.md)               | REST API endpoints documentation             |
-| [Authentication](./authentication.md)   | Clerk integration and user roles             |
-| [Rate Limiting](./rate-limiting.md)     | Usage limits and subscription tiers          |
-| [Organizations](./organizations.md)     | B2B contracts, seats, and entitlement model  |
-| [Guest Migration](./guest-migration.md) | Guest to registered user data migration      |
-| [Telegram Webhook](./telegram-webhook.md) | Telegram bot webhook flow                  |
-| [WhatsApp Webhook](./whatsapp-webhook.md) | WhatsApp Cloud API webhook flow            |
-| [QA Test Plan](./qa-test-plan.md)       | Test checklist, execution process, and GitHub issue workflow |
+| If you want to... | Read |
+| --- | --- |
+| Run the app locally | [Getting Started](./getting-started.md) |
+| Configure an integration | [Configuration](./configuration.md) |
+| Understand the system | [Architecture](./architecture.md) |
+| Use the product or admin UI | [User Guide](./user-guide.md) |
+| Deploy or run database-changing commands | [Deployment and Database Safety](./deployment.md) |
+| Test a release manually | [QA Test Plan](./qa-test-plan.md) |
 
-## 🛠 Technology Stack
+## System references
 
-| Category           | Technology                         |
-| ------------------ | ---------------------------------- |
-| **Framework**      | Next.js 16 (App Router)            |
-| **Language**       | TypeScript                         |
-| **Database**       | PostgreSQL with Prisma ORM         |
-| **Vector Search**  | pgvector for RAG embeddings        |
-| **Authentication** | Clerk                              |
-| **AI Provider**    | OpenRouter (GPT-4.1, Gemini, Qwen) |
-| **AI SDK**         | Vercel AI SDK v6                   |
-| **Styling**        | Tailwind CSS                       |
-| **UI Components**  | Radix UI, Framer Motion            |
+| Document | Scope |
+| --- | --- |
+| [AI System](./ai-system.md) | Orchestration, tools, RAG, sessions, models, and metrics |
+| [Database](./database.md) | Prisma schema, pgvector, identities, messages, billing, and benchmarks |
+| [API Reference](./api.md) | User, guest, admin, operational, queue, and webhook routes |
+| [Authentication](./authentication.md) | Clerk sessions, guest cookies, proxy gates, roles, and sync |
+| [Rate Limiting](./rate-limiting.md) | Canonical plans, UTC usage, and entitlement selection |
+| [Organizations](./organizations.md) | Contracts, memberships, ownership, seat enforcement, and audit |
+| [Guest Migration](./guest-migration.md) | Transactional guest-to-account merge behavior |
 
-## 🚀 Quick Start
+## Operations and integrations
 
-```bash
-# Install dependencies
-npm install
+| Document | Scope |
+| --- | --- |
+| [Maintenance](./maintenance.md) | QStash consumers, cron triggers, retention, and scheduling status |
+| [Telegram Webhook](./telegram-webhook.md) | Bot ingress, media, linking, delivery, and debug flags |
+| [WhatsApp Webhook](./whatsapp-webhook.md) | Meta webhook verification, media, linking, and delivery |
+| [Deployment](./deployment.md) | Vercel builds, migrations, environment isolation, and release checks |
 
-# Setup environment variables
-cp .env.example .env
+## Sources of truth
 
-# Run database migrations
-npx prisma migrate dev
+The docs intentionally point to a small number of code-level sources of truth:
 
-# Start development server
-npm run dev
-```
+| Concern | Source |
+| --- | --- |
+| Routes | `src/app/**/page.tsx` and `src/app/api/**/route.ts` |
+| Shared channel execution | `src/lib/channel-flow/` |
+| AI behavior | `src/lib/ai/orchestrator.ts`, `src/lib/ai/constants.ts` |
+| Plans and model routing | `src/lib/plans/catalog.ts`, `src/lib/plans/resolver.ts` |
+| Data model | `prisma/schema.prisma` and `prisma/migrations/` |
+| Auth boundaries | `src/proxy.ts`, `src/lib/auth.ts`, route/layout checks |
+| Scheduled work | `vercel.json`, `src/app/api/cron/`, `src/app/api/queues/` |
+| Environment usage | `.env.example` and `process.env` references in `src/` |
 
-See [Getting Started](./getting-started.md) for detailed setup instructions.
+Files under `docs/superpowers/` and `plans/` are dated design/implementation artifacts. Treat the references above as current when historical documents disagree.

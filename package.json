@@ -2,9 +2,11 @@
   "name": "anthon-2.0",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && (PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate deploy || (sleep 2 && PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate deploy) || (sleep 5 && PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate deploy)) && next build",
+    "build": "prisma generate && next build",
+    "db:migrate:deploy": "PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate deploy",
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write",

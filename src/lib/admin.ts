@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getSystemHealth as getDetailedSystemHealth } from "@/lib/system-health";
 
 /**
  * Calculate start date from range string
@@ -65,28 +66,5 @@ export async function getOverviewStats(startDate: Date | null) {
  * System health check logic
  */
 export async function getSystemHealth() {
-  const [dbHealth, vercelBlobHealth] = await Promise.allSettled([
-    prisma.$queryRaw`SELECT 1`.then(() => ({
-      status: "connected" as const,
-    })),
-    // Basic connectivity check for other services could go here.
-    // For now, we'll return connected if we don't hit obvious errors
-    Promise.resolve({ status: "connected" as const }),
-  ]);
-
-  return {
-    database:
-      dbHealth.status === "fulfilled"
-        ? dbHealth.value
-        : {
-            status: "error" as const,
-            message: "Database disconnected",
-          },
-    openrouter: { status: "connected" as const }, // Mocked or check API
-    clerk: { status: "connected" as const },
-    vercelBlob:
-      vercelBlobHealth.status === "fulfilled"
-        ? vercelBlobHealth.value
-        : { status: "error" as const, message: "Vercel Blob error" },
-  };
+  return getDetailedSystemHealth();
 }

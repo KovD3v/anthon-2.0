@@ -4,7 +4,7 @@ Complete documentation of the WhatsApp Cloud API webhook integration, covering m
 
 ## Overview
 
-The WhatsApp webhook receives updates from the WhatsApp Cloud API, processes user messages (text, voice, photos, documents), and generates AI responses using the orchestrator.
+The WhatsApp webhook receives updates from the WhatsApp Cloud API, processes user messages (text, voice, photos, documents), and delegates generation/persistence to the shared `runChannelFlow()` runtime.
 
 ```mermaid
 flowchart LR
@@ -30,6 +30,8 @@ The webhook is authenticated in two ways:
 
 1. **Verification (GET)**: Uses `WHATSAPP_VERIFY_TOKEN` (hub.verify_token).
 2. **Updates (POST)**: Validates `X-Hub-Signature-256` using `WHATSAPP_APP_SECRET`.
+
+POST verification fails closed: an unset `WHATSAPP_APP_SECRET`, a missing signature header, or a mismatched HMAC returns `401 Unauthorized`.
 
 ## Message Flow
 
@@ -68,10 +70,10 @@ sequenceDiagram
     end
 
     WH->>DB: Save inbound message
-    WH->>AI: streamChat()
+    WH->>AI: runChannelFlow()
     AI-->>WH: Stream response
     WH->>DB: Save assistant message
-    WH->>WA: sendMessage()
+    WH->>WA: sendMessage() or sendVoice()
 ```
 
 ## Message Types
@@ -86,7 +88,7 @@ sequenceDiagram
 
     U->>WH: Text message
     WH->>WH: Extract body
-    WH->>AI: streamChat(text)
+    WH->>AI: runChannelFlow(text)
     AI-->>WH: Response
     WH->>U: Send text response
 ```
@@ -109,7 +111,7 @@ sequenceDiagram
     WH->>WH: Convert to base64
     WH->>TR: Transcribe audio
     TR-->>WH: Transcribed text
-    WH->>AI: streamChat(transcription)
+    WH->>AI: runChannelFlow(transcription)
     AI-->>WH: Response
     WH->>U: Send text response
 ```
@@ -129,11 +131,15 @@ sequenceDiagram
     WH->>WA: Download media
     WA-->>WH: Binary data
     WH->>WH: Convert to base64
-    WH->>AI: streamChat(file + caption)
+    WH->>AI: runChannelFlow(file + caption)
     Note over AI: Vision model enabled
     AI-->>WH: Response about media
     WH->>U: Send text response
 ```
+
+### Generated Voice Responses
+
+When ElevenLabs is configured and the personal plan/voice funnel allows it, the handler can synthesize the assistant text, upload the audio, and send a WhatsApp voice message. Organization-selected entitlements are not passed to the current voice-policy call. Otherwise the handler sends text.
 
 ## User Management
 
@@ -198,7 +204,7 @@ type WhatsAppPayload = {
 					from: string;
 					id: string; // WAMID
 					timestamp: string;
-					type: "text" | "image" | "audio" | "document";
+					type: "text" | "image" | "audio" | "voice" | "document" | "unknown";
 					text?: { body: string };
 					image?: { id: string; caption?: string; mime_type: string };
 					audio?: { id: string; mime_type: string };
@@ -217,15 +223,21 @@ type WhatsAppPayload = {
 
 ## Environment Variables
 
-| Variable                   | Required | Description                           |
-| -------------------------- | -------- | ------------------------------------- |
-| `WHATSAPP_PHONE_NUMBER_ID` | Yes      | Phone Number ID from Meta             |
-| `WHATSAPP_ACCESS_TOKEN`    | Yes      | System User Access Token              |
-| `WHATSAPP_APP_SECRET`      | Yes      | App Secret for signature verification |
-| `WHATSAPP_VERIFY_TOKEN`    | Yes      | Custom token for webhook verification |
-| `WHATSAPP_SYNC_WEBHOOK`    | No       | Run synchronously (dev mode)          |
-| `WHATSAPP_DISABLE_AI`      | No       | Disable AI responses                  |
-| `WHATSAPP_DISABLE_SEND`    | No       | Disable sending messages              |
+| Variable                   | Required | Description |
+| -------------------------- | -------- | ----------- |
+| `WHATSAPP_PHONE_NUMBER_ID` | Yes      | Phone-number resource used for delivery. |
+| `WHATSAPP_ACCESS_TOKEN`    | Yes      | Meta Graph API authentication. |
+| `WHATSAPP_APP_SECRET`      | Yes      | POST signature verification; never leave unset. |
+| `WHATSAPP_VERIFY_TOKEN`    | Yes      | GET subscription challenge. |
+| `NEXT_PUBLIC_APP_URL`      | Yes for linking | Public base URL for `/link/whatsapp/[token]`. |
+| `OPENROUTER_API_KEY`       | Yes for AI/media | Responses and audio transcription. |
+| `ELEVENLABS_API_KEY`       | No       | Enables eligible generated voice replies. |
+| `ELEVENLABS_VOICE_ID`      | No       | Overrides the default voice. |
+| `WHATSAPP_SYNC_WEBHOOK`    | No       | Set `true` to await processing in local debugging. |
+| `WHATSAPP_DISABLE_AI`      | No       | Set `true` to disable AI responses. |
+| `WHATSAPP_DISABLE_SEND`    | No       | Set `true` to suppress outbound calls. |
+
+Normal AI execution also requires Tavily and server-side PostHog configuration. See [Configuration](./configuration.md).
 
 ## Webhook Setup
 
@@ -234,3 +246,11 @@ type WhatsAppPayload = {
 3. Enter URL: `https://your-domain.com/api/webhooks/whatsapp`.
 4. Enter Verify Token: matches `WHATSAPP_VERIFY_TOKEN`.
 5. Subscribe to fields: `messages`.
+
+## Related Files
+
+- `src/app/api/webhooks/whatsapp/route.ts` - Route wrapper
+- `src/lib/channels/whatsapp/webhook-handler.ts` - WhatsApp adapter
+- `src/lib/channels/whatsapp/utils.ts` - Signature, media, and delivery helpers
+- `src/lib/channel-flow/` - Shared generation and assistant persistence
+- [API Reference](./api.md)

@@ -16,13 +16,6 @@ export const ease = {
   inOut: [0.4, 0.0, 0.2, 1], // bidirectional transitions
 } as const;
 
-/** Spring config for interactive elements */
-export const spring = {
-  type: "spring",
-  stiffness: 300,
-  damping: 30,
-} as const;
-
 /** Fade up: element enters from slightly below */
 export const fadeUp = {
   hidden: { opacity: 0, y: 12 },

@@ -156,10 +156,24 @@ function buildTextPayload(text: string) {
   };
 }
 
+function buildSignedPostRequest(body: string) {
+  const secret = process.env.WHATSAPP_APP_SECRET;
+  if (!secret) {
+    throw new Error("WHATSAPP_APP_SECRET must be configured for signed tests");
+  }
+
+  const signature = createHmac("sha256", secret).update(body).digest("hex");
+  return new Request("http://localhost/api/webhooks/whatsapp", {
+    method: "POST",
+    body,
+    headers: { "x-hub-signature-256": `sha256=${signature}` },
+  });
+}
+
 describe("/api/webhooks/whatsapp", () => {
   beforeEach(() => {
     process.env.WHATSAPP_VERIFY_TOKEN = "verify-token";
-    delete process.env.WHATSAPP_APP_SECRET;
+    process.env.WHATSAPP_APP_SECRET = "app-secret";
     delete process.env.WHATSAPP_SYNC_WEBHOOK;
     delete process.env.WHATSAPP_DISABLE_SEND;
     delete process.env.WHATSAPP_DISABLE_AI;
@@ -228,7 +242,19 @@ describe("/api/webhooks/whatsapp", () => {
   });
 
   it("POST returns 401 on signature mismatch when secret is configured", async () => {
-    process.env.WHATSAPP_APP_SECRET = "app-secret";
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildPayload()),
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+  });
+
+  it("POST returns 401 when the signature secret is not configured", async () => {
+    delete process.env.WHATSAPP_APP_SECRET;
 
     const response = await POST(
       new Request("http://localhost/api/webhooks/whatsapp", {
@@ -242,12 +268,7 @@ describe("/api/webhooks/whatsapp", () => {
   });
 
   it("POST returns 400 for invalid JSON payload", async () => {
-    const response = await POST(
-      new Request("http://localhost/api/webhooks/whatsapp", {
-        method: "POST",
-        body: "{ bad",
-      }),
-    );
+    const response = await POST(buildSignedPostRequest("{ bad"));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "Invalid JSON" });
@@ -255,10 +276,7 @@ describe("/api/webhooks/whatsapp", () => {
 
   it("POST returns 404 for unsupported object", async () => {
     const response = await POST(
-      new Request("http://localhost/api/webhooks/whatsapp", {
-        method: "POST",
-        body: JSON.stringify({ object: "other", entry: [] }),
-      }),
+      buildSignedPostRequest(JSON.stringify({ object: "other", entry: [] })),
     );
 
     expect(response.status).toBe(404);
@@ -269,10 +287,7 @@ describe("/api/webhooks/whatsapp", () => {
     process.env.WHATSAPP_SYNC_WEBHOOK = "true";
 
     const response = await POST(
-      new Request("http://localhost/api/webhooks/whatsapp", {
-        method: "POST",
-        body: JSON.stringify(buildPayload()),
-      }),
+      buildSignedPostRequest(JSON.stringify(buildPayload())),
     );
 
     expect(response.status).toBe(200);
@@ -282,10 +297,7 @@ describe("/api/webhooks/whatsapp", () => {
 
   it("POST enqueues async processing by default", async () => {
     const response = await POST(
-      new Request("http://localhost/api/webhooks/whatsapp", {
-        method: "POST",
-        body: JSON.stringify(buildPayload()),
-      }),
+      buildSignedPostRequest(JSON.stringify(buildPayload())),
     );
 
     expect(response.status).toBe(200);
@@ -303,10 +315,7 @@ describe("/api/webhooks/whatsapp", () => {
     });
 
     const response = await POST(
-      new Request("http://localhost/api/webhooks/whatsapp", {
-        method: "POST",
-        body: JSON.stringify(buildTextPayload("/connect")),
-      }),
+      buildSignedPostRequest(JSON.stringify(buildTextPayload("/connect"))),
     );
 
     expect(response.status).toBe(200);
@@ -324,10 +333,7 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.prismaChannelLinkTokenCreate.mockResolvedValue({ id: "wa_link_1" });
 
     const response = await POST(
-      new Request("http://localhost/api/webhooks/whatsapp", {
-        method: "POST",
-        body: JSON.stringify(buildTextPayload("collega")),
-      }),
+      buildSignedPostRequest(JSON.stringify(buildTextPayload("collega"))),
     );
 
     expect(response.status).toBe(200);
@@ -355,10 +361,7 @@ describe("/api/webhooks/whatsapp", () => {
     });
 
     const response = await POST(
-      new Request("http://localhost/api/webhooks/whatsapp", {
-        method: "POST",
-        body: JSON.stringify(buildTextPayload("ciao")),
-      }),
+      buildSignedPostRequest(JSON.stringify(buildTextPayload("ciao"))),
     );
 
     expect(response.status).toBe(200);
@@ -389,10 +392,7 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.prismaMessageCreate.mockResolvedValue({ id: "wa_in_1" });
 
     const response = await POST(
-      new Request("http://localhost/api/webhooks/whatsapp", {
-        method: "POST",
-        body: JSON.stringify(buildTextPayload("ciao da wa")),
-      }),
+      buildSignedPostRequest(JSON.stringify(buildTextPayload("ciao da wa"))),
     );
 
     expect(response.status).toBe(200);
@@ -450,10 +450,7 @@ describe("/api/webhooks/whatsapp", () => {
     });
 
     const response = await POST(
-      new Request("http://localhost/api/webhooks/whatsapp", {
-        method: "POST",
-        body: JSON.stringify(buildTextPayload("ciao wa ai")),
-      }),
+      buildSignedPostRequest(JSON.stringify(buildTextPayload("ciao wa ai"))),
     );
 
     expect(response.status).toBe(200);
@@ -479,7 +476,7 @@ describe("/api/webhooks/whatsapp", () => {
       method: "POST",
       body: "hello",
     });
-    expect(verifySignature(request, "hello")).toBe(true);
+    expect(verifySignature(request, "hello")).toBe(false);
 
     process.env.WHATSAPP_APP_SECRET = "app-secret";
     expect(verifySignature(request, "hello")).toBe(false);

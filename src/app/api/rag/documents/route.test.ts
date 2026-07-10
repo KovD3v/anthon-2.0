@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  auth: vi.fn(),
+  requireAdmin: vi.fn(),
   listDocuments: vi.fn(),
   addDocument: vi.fn(),
   deleteDocument: vi.fn(),
   updateMissingEmbeddings: vi.fn(),
 }));
 
-vi.mock("@clerk/nextjs/server", () => ({
-  auth: mocks.auth,
+vi.mock("@/lib/auth", () => ({
+  requireAdmin: mocks.requireAdmin,
 }));
 
 vi.mock("@/lib/ai/rag", () => ({
@@ -31,22 +31,25 @@ function buildJsonRequest(method: string, body: unknown): Request {
 
 describe("/api/rag/documents", () => {
   beforeEach(() => {
-    mocks.auth.mockReset();
+    mocks.requireAdmin.mockReset();
     mocks.listDocuments.mockReset();
     mocks.addDocument.mockReset();
     mocks.deleteDocument.mockReset();
     mocks.updateMissingEmbeddings.mockReset();
 
-    mocks.auth.mockResolvedValue({ userId: "clerk-1" });
+    mocks.requireAdmin.mockResolvedValue({ errorResponse: null });
   });
 
-  it("GET returns 401 when unauthorized", async () => {
-    mocks.auth.mockResolvedValue({ userId: null });
+  it("GET returns the admin authorization response", async () => {
+    mocks.requireAdmin.mockResolvedValue({
+      errorResponse: Response.json({ error: "Forbidden" }, { status: 403 }),
+    });
 
     const response = await GET();
 
-    expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "Forbidden" });
+    expect(mocks.listDocuments).not.toHaveBeenCalled();
   });
 
   it("GET returns documents list", async () => {
