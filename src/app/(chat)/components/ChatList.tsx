@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Pencil,
   Plus,
+  Search,
   Trash2,
   X,
 } from "lucide-react";
@@ -31,6 +32,7 @@ interface ChatListProps {
   onDelete: (id: string) => void;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onSearch?: () => void;
   onRename: (id: string, newTitle: string) => Promise<boolean>;
   onPreFetch: (id: string) => void;
 }
@@ -44,6 +46,7 @@ export function ChatList({
   onDelete,
   onSelect,
   onCreate,
+  onSearch,
   onRename,
   onPreFetch,
 }: ChatListProps) {
@@ -54,7 +57,7 @@ export function ChatList({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="p-3">
+      <div className="space-y-2 p-3">
         <Button
           onClick={onCreate}
           className="group w-full justify-start gap-2 bg-background/50 text-foreground/80 shadow-sm backdrop-blur-sm transition-[background-color,color,box-shadow,transform] hover:bg-background/80 hover:shadow-md active:scale-[0.98] border border-border/50 dark:border-white/10"
@@ -71,6 +74,22 @@ export function ChatList({
           </div>
           {createChatButton.label}
         </Button>
+        {onSearch && (
+          <Button
+            type="button"
+            onClick={onSearch}
+            className="w-full justify-between border-border/50 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground dark:border-white/10"
+            variant="outline"
+          >
+            <span className="flex items-center gap-2">
+              <Search className="size-4" />
+              Cerca conversazioni
+            </span>
+            <kbd className="hidden rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[0.65rem] font-normal sm:inline dark:border-white/10">
+              ⌘K
+            </kbd>
+          </Button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 pt-0">
@@ -87,22 +106,28 @@ export function ChatList({
             Nessuna conversazione ancora. Clicca su "Nuova Chat" per iniziare!
           </m.p>
         ) : (
-          <ul className="space-y-1">
-            <AnimatePresence mode="popLayout">
-              {chats.map((chat) => (
-                <ChatItem
-                  key={chat.id}
-                  chat={chat}
-                  isActive={chat.id === currentChatId}
-                  isDeleting={deletingChatId === chat.id}
-                  onDelete={() => onDelete(chat.id)}
-                  onClick={() => onSelect(chat.id)}
-                  onPreFetch={() => onPreFetch(chat.id)}
-                  onRename={(newTitle) => onRename(chat.id, newTitle)}
-                />
-              ))}
-            </AnimatePresence>
-          </ul>
+          <>
+            <div className="mb-2 flex items-center justify-between px-2 text-xs text-muted-foreground">
+              <span>Conversazioni</span>
+              <span>{chats.length}</span>
+            </div>
+            <ul className="space-y-1">
+              <AnimatePresence mode="popLayout">
+                {chats.map((chat) => (
+                  <ChatItem
+                    key={chat.id}
+                    chat={chat}
+                    isActive={chat.id === currentChatId}
+                    isDeleting={deletingChatId === chat.id}
+                    onDelete={() => onDelete(chat.id)}
+                    onClick={() => onSelect(chat.id)}
+                    onPreFetch={() => onPreFetch(chat.id)}
+                    onRename={(newTitle) => onRename(chat.id, newTitle)}
+                  />
+                ))}
+              </AnimatePresence>
+            </ul>
+          </>
         )}
       </div>
     </div>

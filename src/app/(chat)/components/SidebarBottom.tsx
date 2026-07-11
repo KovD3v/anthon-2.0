@@ -6,10 +6,13 @@ import {
   BarChart3,
   Building2,
   ChevronUp,
+  CreditCard,
   HelpCircle,
   Home,
   LogOut,
+  MessageSquare,
   Moon,
+  Radio,
   Settings,
   Sun,
   User,
@@ -36,8 +39,19 @@ export function SidebarBottom() {
         setIsOpen(false);
       }
     }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, []);
 
   const handleAction = (action: () => void) => {
@@ -49,42 +63,52 @@ export function SidebarBottom() {
 
   const menuItems = [
     {
+      icon: MessageSquare,
+      label: "Chat",
+      onClick: () => router.push("/chat"),
+    },
+    {
       icon: Settings,
-      label: "Settings",
+      label: "Profilo e impostazioni",
       onClick: () => router.push("/profile"),
     },
     {
-      icon: User,
-      label: "Profile",
-      onClick: () => router.push("/profile"),
+      icon: Radio,
+      label: "Canali",
+      onClick: () => router.push("/channels"),
     },
-    ...(isOrgMember
-      ? [
-          {
-            icon: Building2,
-            label: "Organization",
-            onClick: () => router.push("/organization"),
-          },
-        ]
-      : []),
     {
       icon: BarChart3,
       label: "Utilizzo",
       onClick: () => router.push("/chat/usage"),
     },
     {
+      icon: CreditCard,
+      label: "Prezzi",
+      onClick: () => router.push("/pricing"),
+    },
+    ...(isOrgMember
+      ? [
+          {
+            icon: Building2,
+            label: "Organizzazione",
+            onClick: () => router.push("/organization"),
+          },
+        ]
+      : []),
+    {
       icon: HelpCircle,
-      label: "Help & Support",
+      label: "Assistenza",
       onClick: () => router.push("/help"),
     },
     {
       icon: Home,
-      label: "Back to Home",
+      label: "Home",
       onClick: () => router.push("/"),
     },
     {
       icon: theme === "dark" ? Sun : Moon,
-      label: theme === "dark" ? "Light Mode" : "Dark Mode",
+      label: theme === "dark" ? "Tema chiaro" : "Tema scuro",
       onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
     },
   ];
@@ -111,6 +135,9 @@ export function SidebarBottom() {
               duration: duration.fast,
               ease: [0.23, 1, 0.32, 1],
             }}
+            id="account-navigation-menu"
+            role="menu"
+            aria-label="Navigazione account"
             className="absolute bottom-full left-0 mb-2 w-[calc(100%-16px)] mx-2 origin-bottom-left overflow-hidden rounded-xl border border-border dark:border-white/20 bg-background/95 dark:bg-black/60 backdrop-blur-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10"
           >
             <div className="flex flex-col p-1">
@@ -119,6 +146,7 @@ export function SidebarBottom() {
                   type="button"
                   key={item.label}
                   onClick={() => handleAction(item.onClick)}
+                  role="menuitem"
                   className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-primary/10 hover:text-primary active:bg-primary/20"
                 >
                   <item.icon className="h-4 w-4" />
@@ -131,10 +159,11 @@ export function SidebarBottom() {
                 onClick={() =>
                   handleAction(() => signOut({ redirectUrl: "/" }))
                 }
+                role="menuitem"
                 className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive active:bg-destructive/20"
               >
                 <LogOut className="h-4 w-4" />
-                Sign Out
+                Esci
               </button>
             </div>
           </m.div>
@@ -145,13 +174,17 @@ export function SidebarBottom() {
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
+          aria-haspopup="menu"
+          aria-expanded={isOpen}
+          aria-controls="account-navigation-menu"
+          aria-label="Apri navigazione account"
           className="group flex w-full items-center gap-2 rounded-xl bg-background/50 p-2.5 transition-[background-color,box-shadow,transform] hover:bg-background/80 hover:shadow-sm active:scale-[0.98]"
         >
           <div className="relative h-9 w-9 overflow-hidden rounded-full bg-linear-to-br from-primary/20 to-primary/10 ring-2 ring-border dark:ring-white/20 transition-[--tw-ring-color] group-hover:ring-primary/20">
             {user?.imageUrl ? (
               <Image
                 src={user.imageUrl}
-                alt={user.fullName || "User"}
+                alt={user.fullName || "Utente"}
                 fill
                 sizes="36px"
                 className="object-cover"
@@ -165,10 +198,11 @@ export function SidebarBottom() {
 
           <div className="flex flex-1 flex-col items-start overflow-hidden">
             <span className="truncate text-sm font-semibold text-foreground/90">
-              {user?.fullName || "User"}
+              {user?.fullName || "Utente"}
             </span>
             <span className="truncate text-xs text-muted-foreground/80">
-              {user?.emailAddresses?.[0]?.emailAddress || "user@example.com"}
+              {user?.emailAddresses?.[0]?.emailAddress ||
+                "Email non disponibile"}
             </span>
           </div>
 

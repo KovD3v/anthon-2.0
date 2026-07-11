@@ -557,6 +557,7 @@ export function LayoutClient({
                 }
               }}
               onCreate={createChat}
+              onSearch={user ? () => setIsSearchOpen(true) : undefined}
               onRename={renameChat}
               onPreFetch={preFetchChat}
             />
