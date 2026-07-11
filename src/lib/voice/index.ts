@@ -4,7 +4,22 @@
  * Exports all voice-related functionality.
  */
 
-export { getVoicePlanConfig, type VoicePlanConfig } from "./config";
+export {
+  getVoicePlanConfig,
+  type VoiceCadenceConfig,
+  type VoicePlanConfig,
+} from "./config";
+export {
+  decideVoiceDelivery,
+  getVoiceCapacityState,
+  type VoiceCapacityState,
+  type VoiceDecisionReason,
+  type VoiceDecisionReasonCode,
+  type VoiceDeliveryDecision,
+  type VoiceDeliveryParams,
+  type VoiceSuitability,
+  type VoiceSuitabilityHint,
+} from "./decision";
 export {
   estimateVoiceCostUsd,
   generateVoice,
@@ -30,4 +45,11 @@ export {
   decideWebVoiceMode,
   type WebVoiceMode,
   type WebVoiceModeDecision,
+  type WebVoiceModeParams,
 } from "./preflight";
+export {
+  type ClassifySuitabilityParams,
+  classifyVoiceSuitability,
+  type DeterministicSuitabilityParams,
+  getDeterministicVoiceSuitability,
+} from "./suitability";

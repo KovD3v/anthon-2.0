@@ -6,33 +6,25 @@ const mocks = vi.hoisted(() => ({
   outputObject: vi.fn(),
   openrouter: vi.fn(),
   voiceCount: vi.fn(),
+  messageFindMany: vi.fn(),
   getSystemLoad: vi.fn(),
   trackSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
   generateText: mocks.generateText,
-  Output: {
-    object: mocks.outputObject,
-  },
+  Output: { object: mocks.outputObject },
 }));
-
 vi.mock("@/lib/ai/providers/openrouter", () => ({
   openrouter: mocks.openrouter,
 }));
-
 vi.mock("@/lib/db", () => ({
   prisma: {
-    voiceUsage: {
-      count: mocks.voiceCount,
-    },
+    voiceUsage: { count: mocks.voiceCount },
+    message: { findMany: mocks.messageFindMany },
   },
 }));
-
-vi.mock("./elevenlabs", () => ({
-  getSystemLoad: mocks.getSystemLoad,
-}));
-
+vi.mock("./elevenlabs", () => ({ getSystemLoad: mocks.getSystemLoad }));
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
@@ -41,22 +33,33 @@ import { decideWebVoiceMode } from "./preflight";
 
 const enabledPlanConfig: VoicePlanConfig = {
   enabled: true,
-  baseProbability: 1,
-  decayFactor: 1,
-  capWindowMs: 10 * 60 * 1000,
+  capWindowMs: 12 * 60 * 60 * 1000,
   maxPerWindow: 10,
+  automaticBudgetRatio: 0.65,
+  cadence: {
+    strongMinTurns: 1,
+    strongCooldownMs: 5 * 60 * 1000,
+    naturalMinTurns: 3,
+    naturalCooldownMs: 15 * 60 * 1000,
+    maxAutomaticPerHour: 3,
+    maxConsecutiveAudio: 2,
+    antiDroughtTurns: 8,
+    naturalConfidence: 0.7,
+    antiDroughtConfidence: 0.6,
+  },
 };
 
 function baseParams() {
   return {
     userId: "user-1",
-    userMessage: "Puoi aiutarmi a rimanere calmo prima della gara?",
+    userMessage: "What do you think about what happened today?",
     userPreferences: { voiceEnabled: true },
     planConfig: enabledPlanConfig,
     planId: "basic-plan",
+    chatId: "chat-1",
     recentMessages: [
-      { role: "user", content: "Sono un po' teso" },
-      { role: "assistant", content: "Facciamo un reset rapido." },
+      { role: "user", content: "I had a complicated day" },
+      { role: "assistant", content: "Tell me what stood out." },
     ],
   };
 }
@@ -64,28 +67,21 @@ function baseParams() {
 describe("voice/preflight", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-05-26T18:00:00.000Z"));
-    vi.spyOn(Math, "random").mockReturnValue(0);
-
-    mocks.generateText.mockReset();
-    mocks.outputObject.mockReset();
-    mocks.openrouter.mockReset();
-    mocks.voiceCount.mockReset();
-    mocks.getSystemLoad.mockReset();
-    mocks.trackSupportAiUsage.mockReset();
-
+    vi.setSystemTime(new Date("2026-07-11T18:00:00.000Z"));
+    vi.clearAllMocks();
     mocks.outputObject.mockImplementation(
       ({ schema }: { schema: unknown }) => ({ schema }),
     );
     mocks.openrouter.mockReturnValue("preflight-model");
     mocks.voiceCount.mockResolvedValue(0);
+    mocks.messageFindMany.mockResolvedValue([]);
     mocks.getSystemLoad.mockResolvedValue(1);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
     mocks.generateText.mockResolvedValue({
       output: {
-        mode: "VOICE",
-        reason: "conversational_support",
-        confidence: 0.88,
+        category: "VOICE_NATURAL",
+        reason: "reflective_coaching",
+        confidence: 0.85,
       },
       usage: { inputTokens: 90, outputTokens: 10 },
     });
@@ -96,132 +92,100 @@ describe("voice/preflight", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns TEXT without calling the classifier when voice is disabled for the plan", async () => {
+  it("fails eligibility without classifier or provider work", async () => {
     const result = await decideWebVoiceMode({
       ...baseParams(),
       planConfig: { ...enabledPlanConfig, enabled: false },
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       mode: "TEXT",
-      reason: "Voice not enabled for plan",
+      reasonCode: "PLAN_NOT_ELIGIBLE",
       source: "deterministic",
     });
     expect(mocks.generateText).not.toHaveBeenCalled();
+    expect(mocks.getSystemLoad).not.toHaveBeenCalled();
   });
 
-  it("returns VOICE from the explicit user intent fast path", async () => {
-    const result = await decideWebVoiceMode({
-      ...baseParams(),
-      userMessage: "Mandami un vocale breve per calmarmi",
-    });
-
-    expect(result).toEqual({
-      mode: "VOICE",
-      reason: "User explicitly requested voice",
-      source: "deterministic",
-    });
-    expect(mocks.generateText).not.toHaveBeenCalled();
-  });
-
-  it("does not apply probability to an explicit English voice request", async () => {
-    vi.spyOn(Math, "random").mockReturnValue(0.99);
-
+  it("honors explicit voice without classifier inference", async () => {
     const result = await decideWebVoiceMode({
       ...baseParams(),
       userMessage: "Please send me a voice message",
     });
 
-    expect(result.mode).toBe("VOICE");
-    expect(Math.random).not.toHaveBeenCalled();
-  });
-
-  it("returns TEXT without calling the classifier for neutral text requests", async () => {
-    const result = await decideWebVoiceMode({
-      ...baseParams(),
-      userMessage:
-        "Fammi una scheda di allenamento in 3 punti per riprendere domani",
-    });
-
-    expect(result).toEqual({
-      mode: "TEXT",
-      reason: "No voice intent detected",
+    expect(result).toMatchObject({
+      mode: "VOICE",
+      category: "VOICE_REQUIRED",
+      reasonCode: "EXPLICIT_VOICE",
       source: "deterministic",
     });
     expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
-  it("returns TEXT when the classifier is unsure", async () => {
-    mocks.generateText.mockResolvedValue({
-      output: {
-        mode: "VOICE",
-        reason: "conversational_support",
-        confidence: 0.52,
-      },
+  it("classifies ordinary conversation without requiring keywords", async () => {
+    const result = await decideWebVoiceMode(baseParams());
+
+    expect(result).toMatchObject({
+      mode: "VOICE",
+      category: "VOICE_NATURAL",
+      reasonCode: "NATURAL_MOMENT",
+      source: "classifier",
     });
+    expect(mocks.openrouter).toHaveBeenCalledWith("qwen/qwen3.5-flash-02-23");
+  });
+
+  it("does not classify when provider capacity is red", async () => {
+    mocks.getSystemLoad.mockResolvedValue(0.04);
 
     const result = await decideWebVoiceMode(baseParams());
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       mode: "TEXT",
-      reason: "Classifier confidence below threshold",
-      source: "classifier",
+      capacityState: "RED",
+      reasonCode: "PROVIDER_RED",
+      source: "deterministic",
     });
-    expect(mocks.getSystemLoad).not.toHaveBeenCalled();
-    expect(mocks.voiceCount).not.toHaveBeenCalled();
+    expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
-  it("returns TEXT when the classifier throws", async () => {
-    mocks.generateText.mockRejectedValue(new Error("classifier failed"));
-
-    const result = await decideWebVoiceMode(baseParams());
-
-    expect(result).toEqual({
-      mode: "TEXT",
-      reason: "Classifier failed or timed out",
-      source: "classifier",
-    });
-  });
-
-  it("returns TEXT after a VOICE classifier result when system load is critical", async () => {
+  it("allows strong moments but suppresses natural audio in yellow state", async () => {
     mocks.getSystemLoad.mockResolvedValue(0.2);
 
-    const result = await decideWebVoiceMode(baseParams());
+    const natural = await decideWebVoiceMode(baseParams());
+    const strong = await decideWebVoiceMode({
+      ...baseParams(),
+      userMessage: "I feel anxious and need support",
+    });
 
-    expect(result).toEqual({
-      mode: "TEXT",
-      reason: "System load critical, pro users only",
-      source: "deterministic",
+    expect(natural.reasonCode).toBe("PROVIDER_YELLOW");
+    expect(strong).toMatchObject({
+      mode: "VOICE",
+      category: "VOICE_STRONG",
+      reasonCode: "STRONG_MOMENT",
     });
   });
 
-  it("returns TEXT after a VOICE classifier result when the voice cap is reached", async () => {
-    mocks.voiceCount.mockResolvedValue(enabledPlanConfig.maxPerWindow);
+  it("does not classify when the hourly anti-spam gate is reached", async () => {
+    mocks.voiceCount.mockResolvedValue(3);
 
     const result = await decideWebVoiceMode(baseParams());
 
-    expect(result).toEqual({
-      mode: "TEXT",
-      reason: "Voice cap reached for window",
-      source: "deterministic",
-    });
+    expect(result.reasonCode).toBe("ANTI_SPAM_LIMIT");
+    expect(result.source).toBe("deterministic");
+    expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
-  it("uses Qwen Flash as the default classifier model", async () => {
-    await decideWebVoiceMode(baseParams());
-
-    expect(mocks.openrouter).toHaveBeenCalledWith("qwen/qwen3.5-flash-02-23");
-    expect(mocks.generateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: "preflight-model",
-        timeout: { totalMs: 1000 },
-      }),
-    );
-    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
-      userId: "user-1",
-      modelId: "qwen/qwen3.5-flash-02-23",
-      usage: { inputTokens: 90, outputTokens: 10 },
-      providerMetadata: undefined,
+  it("keeps explicit text requests deterministic", async () => {
+    const result = await decideWebVoiceMode({
+      ...baseParams(),
+      userMessage: "Write the answer in text only",
     });
+
+    expect(result).toMatchObject({
+      mode: "TEXT",
+      category: "TEXT_REQUESTED",
+      reasonCode: "EXPLICIT_TEXT",
+    });
+    expect(mocks.getSystemLoad).not.toHaveBeenCalled();
   });
 });

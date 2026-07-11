@@ -683,6 +683,8 @@ async function handleMessage(
         userId: user.id,
         userMessage: userMessageText,
         assistantText,
+        channel: "WHATSAPP",
+        excludeMessageId: assistantMessageId,
         userPreferences: {
           voiceEnabled: preferences?.voiceEnabled ?? true,
         },
@@ -695,6 +697,18 @@ async function handleMessage(
         systemLoad: getSystemLoad,
         planId: user.subscription?.planId,
       });
+
+      whatsappLogger.info(
+        "voice.delivery_decision",
+        "Resolved WhatsApp voice delivery",
+        {
+          userId: user.id,
+          category: voiceResult.category,
+          capacityState: voiceResult.capacityState,
+          reasonCode: voiceResult.reasonCode,
+          shouldGenerateVoice: voiceResult.shouldGenerateVoice,
+        },
+      );
 
       if (voiceResult.shouldGenerateVoice) {
         try {
@@ -746,7 +760,11 @@ async function handleMessage(
             "Voice generation/send threw",
             { voiceErr },
           );
-          // Fall through to text fallback
+          if (voiceResult.explicitVoiceRequest) {
+            voiceFallbackNotice = getVoiceUnavailability(
+              "PROVIDER_UNAVAILABLE",
+            ).userMessage;
+          }
         }
       } else if (voiceResult.explicitVoiceRequest) {
         voiceFallbackNotice = voiceResult.unavailability?.userMessage;

@@ -22,6 +22,18 @@ const MAINTENANCE_MODEL_ID = "google/gemini-2.5-flash-lite";
 const ORCHESTRATOR_MODEL_ID = "z-ai/glm-5.2";
 const ORCHESTRATOR_FALLBACK_MODEL_IDS = ["deepseek/deepseek-v4-flash"];
 
+const DEFAULT_VOICE_CADENCE: VoicePlanConfig["cadence"] = {
+  strongMinTurns: 1,
+  strongCooldownMs: 5 * 60 * 1000,
+  naturalMinTurns: 3,
+  naturalCooldownMs: 15 * 60 * 1000,
+  maxAutomaticPerHour: 3,
+  maxConsecutiveAudio: 2,
+  antiDroughtTurns: 8,
+  naturalConfidence: 0.7,
+  antiDroughtConfidence: 0.6,
+};
+
 export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
   GUEST: {
     modelTier: "TRIAL",
@@ -41,10 +53,10 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     voice: {
       enabled: false,
-      baseProbability: 0,
-      decayFactor: 0,
       capWindowMs: 0,
       maxPerWindow: 0,
+      automaticBudgetRatio: 0,
+      cadence: DEFAULT_VOICE_CADENCE,
     },
   },
   TRIAL: {
@@ -65,10 +77,10 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     voice: {
       enabled: false,
-      baseProbability: 0.3,
-      decayFactor: 0.7,
       capWindowMs: 6 * 60 * 60 * 1000,
       maxPerWindow: 3,
+      automaticBudgetRatio: 0.65,
+      cadence: DEFAULT_VOICE_CADENCE,
     },
   },
   BASIC: {
@@ -89,10 +101,10 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     voice: {
       enabled: true,
-      baseProbability: 0.5,
-      decayFactor: 0.8,
       capWindowMs: 12 * 60 * 60 * 1000,
       maxPerWindow: 10,
+      automaticBudgetRatio: 0.65,
+      cadence: DEFAULT_VOICE_CADENCE,
     },
   },
   BASIC_PLUS: {
@@ -113,10 +125,10 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     voice: {
       enabled: true,
-      baseProbability: 0.6,
-      decayFactor: 0.85,
       capWindowMs: 12 * 60 * 60 * 1000,
       maxPerWindow: 20,
+      automaticBudgetRatio: 0.65,
+      cadence: DEFAULT_VOICE_CADENCE,
     },
   },
   PRO: {
@@ -137,10 +149,10 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     voice: {
       enabled: true,
-      baseProbability: 0.8,
-      decayFactor: 0.9,
       capWindowMs: 36 * 60 * 60 * 1000,
       maxPerWindow: 50,
+      automaticBudgetRatio: 0.65,
+      cadence: DEFAULT_VOICE_CADENCE,
     },
   },
   ADMIN: {
@@ -161,10 +173,10 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
     },
     voice: {
       enabled: true,
-      baseProbability: 1,
-      decayFactor: 1,
       capWindowMs: 36 * 60 * 60 * 1000,
       maxPerWindow: Number.POSITIVE_INFINITY,
+      automaticBudgetRatio: 1,
+      cadence: DEFAULT_VOICE_CADENCE,
     },
   },
 };

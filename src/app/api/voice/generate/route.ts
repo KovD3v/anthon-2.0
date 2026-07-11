@@ -155,6 +155,7 @@ export async function POST(request: Request) {
                 },
                 select: {
                   id: true,
+                  chatId: true,
                   parts: true,
                   userId: true,
                 },
@@ -179,6 +180,8 @@ export async function POST(request: Request) {
         // Run voice funnel (already instrumented internally)
         const result = await shouldGenerateVoice({
           userId: user.id,
+          chatId: message.chatId,
+          channel: "WEB",
           userMessage: body.userMessage || "",
           assistantText: messageText,
           userPreferences: {
@@ -192,6 +195,7 @@ export async function POST(request: Request) {
           ),
           systemLoad: getSystemLoad, // Pass reference, do not call here
           planId: user.subscription?.planId,
+          excludeMessageId: message.id,
         });
 
         logger.info(
@@ -229,24 +233,18 @@ export async function POST(request: Request) {
         try {
           const audio = await generateVoice(messageText);
 
-          // Upload to Vercel Blob and track usage in parallel
+          // Upload first. Usage is recorded only after the audio has been
+          // attached successfully, so a storage failure never consumes quota.
           const { put } = await import("@vercel/blob");
-          const [blobResult] = await Promise.all([
-            LatencyLogger.measure(
-              "Blob: Upload Audio",
-              async () =>
-                put(`voice/${message.id}.mp3`, audio.audioBuffer, {
-                  access: "public",
-                  contentType: "audio/mpeg",
-                }),
-              "🌐 Voice API Request",
-            ),
-            LatencyLogger.measure(
-              "DB: Track Usage",
-              async () => trackVoiceUsage(user.id, audio.characterCount, "WEB"),
-              "🌐 Voice API Request",
-            ),
-          ]);
+          const blobResult = await LatencyLogger.measure(
+            "Blob: Upload Audio",
+            async () =>
+              put(`voice/${message.id}.mp3`, audio.audioBuffer, {
+                access: "public",
+                contentType: "audio/mpeg",
+              }),
+            "🌐 Voice API Request",
+          );
 
           // Create Attachment record (needs blobResult.url)
           const attachment = await LatencyLogger.measure(
@@ -264,6 +262,24 @@ export async function POST(request: Request) {
             "🌐 Voice API Request",
           );
 
+          await LatencyLogger.measure(
+            "DB: Track Usage",
+            async () =>
+              trackVoiceUsage(
+                user.id,
+                audio.characterCount,
+                "WEB",
+                audio.costUsd,
+              ),
+            "🌐 Voice API Request",
+          ).catch((error) =>
+            logger.error(
+              "voice.web_usage_tracking_failed",
+              "Voice was delivered but usage tracking failed",
+              { error, userId: user.id, messageId: message.id },
+            ),
+          );
+
           requestTimer.end();
           logger.info(
             "voice.generation.succeeded",
@@ -275,14 +291,15 @@ export async function POST(request: Request) {
               characterCount: audio.characterCount,
             },
           );
-          // Return audio as base64 + attachmentId for persistence
+          // The provider URL stays server-side. Clients use the authenticated
+          // message proxy for subsequent playback.
           return Response.json({
             shouldGenerateVoice: true,
             audio: audio.audioBuffer.toString("base64"),
             mimeType: "audio/mpeg",
             characterCount: audio.characterCount,
             attachmentId: attachment.id,
-            blobUrl: blobResult.url,
+            audioUrl: `/api/voice/messages/${message.id}`,
           });
         } catch (error) {
           logger.error("voice.generation.failed", "Voice generation failed", {

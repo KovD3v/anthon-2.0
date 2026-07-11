@@ -1251,7 +1251,9 @@ describe("ai/orchestrator", () => {
     );
     expect(mocks.streamText).not.toHaveBeenCalled();
 
-    const openRouterCall = fetchSpy.mock.calls.find(
+    const openRouterCall = (
+      fetchSpy.mock.calls as unknown as Array<[URL | RequestInfo, RequestInit?]>
+    ).find(
       ([input]) =>
         String(input) === "https://openrouter.ai/api/v1/chat/completions",
     );
@@ -1335,7 +1337,9 @@ describe("ai/orchestrator", () => {
     }
 
     expect(mocks.streamText).not.toHaveBeenCalled();
-    const openRouterCall = fetchSpy.mock.calls.find(
+    const openRouterCall = (
+      fetchSpy.mock.calls as unknown as Array<[URL | RequestInfo, RequestInit?]>
+    ).find(
       ([input]) =>
         String(input) === "https://openrouter.ai/api/v1/chat/completions",
     );
@@ -1863,6 +1867,28 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).toContain("VOICE RESPONSE MODE");
     expect(streamInput.instructions).toContain("spoken audio");
     expect(streamInput.instructions).toContain("Do not use markdown");
+  });
+
+  it("adds the exact fallback reason when an explicit voice request is unavailable", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-voice-fallback",
+      userMessage: "Mandami un vocale",
+      voiceEnabled: false,
+      voiceUnavailableReason:
+        "Voice is temporarily unavailable, so I'm replying in text.",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+    };
+
+    expect(streamInput.instructions).toContain(
+      'Begin with this exact sentence: "Voice is temporarily unavailable, so I\'m replying in text."',
+    );
+    expect(streamInput.instructions).toContain(
+      "Do not promise that audio will follow.",
+    );
   });
 
   it("continues streaming when memories are temporarily unavailable", async () => {

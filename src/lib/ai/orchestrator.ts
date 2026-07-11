@@ -347,6 +347,7 @@ interface StreamChatOptions {
   }) => void;
   memoryEnabled?: boolean;
   voiceEnabled?: boolean;
+  voiceUnavailableReason?: string;
   responseMode?: "text" | "voice";
   effectiveEntitlements?: EffectiveEntitlements;
   skipConversationHistory?: boolean;
@@ -386,6 +387,7 @@ async function buildSystemPrompt(
     userMemories?: string;
     currentDate?: string;
     voiceEnabled?: boolean;
+    voiceUnavailableReason?: string;
     memoryEnabled?: boolean;
     userStyle?: string;
     responseMode?: "text" | "voice";
@@ -410,7 +412,12 @@ async function buildSystemPrompt(
       ragContext || "No RAG documents available at this time.",
     );
 
-    if (prefetched.voiceEnabled === false) {
+    if (prefetched.voiceUnavailableReason) {
+      guestPrompt = guestPrompt.replace(
+        "- If the user asks for audio, answer as text that can be spoken naturally.",
+        `- Voice generation is unavailable for this response. Begin with this exact sentence: ${JSON.stringify(prefetched.voiceUnavailableReason)} Then answer the user's request in text. Do not promise that audio will follow.`,
+      );
+    } else if (prefetched.voiceEnabled === false) {
       guestPrompt = guestPrompt.replace(
         "- If the user asks for audio, answer as text that can be spoken naturally.",
         "- Voice generation is disabled for this guest session. If the user asks for audio, kindly explain you can only write.",
@@ -490,7 +497,12 @@ async function buildSystemPrompt(
 
   // Dynamic voice instructions
   const voiceEnabled = prefetched?.voiceEnabled ?? true;
-  if (!voiceEnabled) {
+  if (prefetched?.voiceUnavailableReason) {
+    systemPrompt = systemPrompt.replace(
+      '- **VOICE**: If the user asks for a voice note/audio, reply as if you could speak. The system will convert your text to audio. Do NOT say "I cannot send audio".',
+      `- **VOICE**: Voice generation is unavailable for this response. Begin with this exact sentence: ${JSON.stringify(prefetched.voiceUnavailableReason)} Then answer the user's request in text. Do not promise that audio will follow.`,
+    );
+  } else if (!voiceEnabled) {
     systemPrompt = systemPrompt.replace(
       '- **VOICE**: If the user asks for a voice note/audio, reply as if you could speak. The system will convert your text to audio. Do NOT say "I cannot send audio".',
       "- **VOICE**: Voice generation is disabled for this user. If they ask for voice, kindly explain you can only write or that they need to upgrade.",
@@ -1228,6 +1240,7 @@ export async function streamChat({
   onStepFinish,
   memoryEnabled = true,
   voiceEnabled,
+  voiceUnavailableReason,
   responseMode = "text",
   effectiveEntitlements: prefetchedEntitlements,
   skipConversationHistory = false,
@@ -1614,6 +1627,7 @@ export async function streamChat({
         currentDate,
         memoryEnabled,
         voiceEnabled: voiceEnabledResult,
+        voiceUnavailableReason,
         responseMode,
         userStyle: userStyleInstruction,
         isGuest,

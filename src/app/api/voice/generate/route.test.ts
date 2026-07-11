@@ -96,6 +96,7 @@ describe("POST /api/voice/generate", () => {
     });
     mocks.messageFindFirst.mockResolvedValue({
       id: "msg-1",
+      chatId: "chat-1",
       parts: [{ type: "text", text: "Hello from assistant" }],
       userId: "user-1",
     });
@@ -111,6 +112,7 @@ describe("POST /api/voice/generate", () => {
     mocks.generateVoice.mockResolvedValue({
       audioBuffer: Buffer.from("abc"),
       characterCount: 3,
+      costUsd: 0.0003,
     });
     mocks.put.mockResolvedValue({
       url: "https://blob.example/voice/msg-1.mp3",
@@ -246,6 +248,8 @@ describe("POST /api/voice/generate", () => {
     expect(mocks.shouldGenerateVoice).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-1",
+        chatId: "chat-1",
+        channel: "WEB",
         assistantText: "Hello from assistant",
         planConfig: { enabled: true, maxCharactersPerDay: 10000 },
         systemLoad: mocks.getSystemLoad,
@@ -259,7 +263,12 @@ describe("POST /api/voice/generate", () => {
         contentType: "audio/mpeg",
       }),
     );
-    expect(mocks.trackVoiceUsage).toHaveBeenCalledWith("user-1", 3, "WEB");
+    expect(mocks.trackVoiceUsage).toHaveBeenCalledWith(
+      "user-1",
+      3,
+      "WEB",
+      0.0003,
+    );
     expect(mocks.attachmentCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -276,7 +285,21 @@ describe("POST /api/voice/generate", () => {
       mimeType: "audio/mpeg",
       characterCount: 3,
       attachmentId: "att-1",
-      blobUrl: "https://blob.example/voice/msg-1.mp3",
+      audioUrl: "/api/voice/messages/msg-1",
+    });
+  });
+
+  it("keeps delivered audio successful when usage tracking fails", async () => {
+    mocks.trackVoiceUsage.mockRejectedValue(new Error("usage write failed"));
+
+    const response = await POST(buildRequest({ messageId: "msg-1" }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.attachmentCreate).toHaveBeenCalledTimes(1);
+    await expect(response.json()).resolves.toMatchObject({
+      shouldGenerateVoice: true,
+      attachmentId: "att-1",
+      audioUrl: "/api/voice/messages/msg-1",
     });
   });
 

@@ -196,6 +196,13 @@ describe("lib/chat", () => {
             size: 321,
             blobUrl: "https://blob.test/doc.md",
           },
+          {
+            id: "att-voice",
+            name: "voice.mp3",
+            contentType: "audio/mpeg",
+            size: 456,
+            blobUrl: "https://blob.test/private-conversation.mp3",
+          },
         ],
       },
       {
@@ -282,6 +289,12 @@ describe("lib/chat", () => {
         {
           id: "att-1",
           name: "doc.md",
+          blobUrl: "https://blob.test/doc.md",
+        },
+        {
+          id: "att-voice",
+          name: "voice.mp3",
+          blobUrl: "/api/voice/messages/m2",
         },
       ],
     });

@@ -20,9 +20,13 @@ import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { transcribeAudio } from "@/lib/transcription";
-import { generateVoice, trackVoiceUsage } from "@/lib/voice";
+import {
+  decideWebVoiceMode,
+  generateVoice,
+  getVoiceUnavailability,
+  trackVoiceUsage,
+} from "@/lib/voice";
 import { getVoicePlanConfig } from "@/lib/voice/config";
-import { decideWebVoiceMode } from "@/lib/voice/preflight";
 
 const logger = createLogger("ai");
 
@@ -428,6 +432,7 @@ export async function handleWebChatPost(request: Request) {
         );
         const voiceDecision = await decideWebVoiceMode({
           userId: user.id,
+          chatId,
           userMessage: aiUserMessageText,
           recentMessages: getRecentTextMessages(messages),
           userPreferences: {
@@ -437,6 +442,20 @@ export async function handleWebChatPost(request: Request) {
           planId,
           hasAttachments: Boolean(hasAttachments),
         });
+
+        logger.info(
+          "voice.delivery.decision",
+          "Web voice delivery decision completed",
+          {
+            userId: user.id,
+            chatId,
+            mode: voiceDecision.mode,
+            source: voiceDecision.source,
+            category: voiceDecision.category,
+            capacityState: voiceDecision.capacityState,
+            reasonCode: voiceDecision.reasonCode,
+          },
+        );
 
         if (voiceDecision.mode === "VOICE") {
           const voiceResponse = await handleVoiceFirstWebResponse({
@@ -451,12 +470,16 @@ export async function handleWebChatPost(request: Request) {
             isGuest: user.isGuest,
             hasImages,
             hasAudio: aiHasAudio,
+            explicitVoiceRequest: voiceDecision.category === "VOICE_REQUIRED",
             waitUntil,
           });
 
           requestTimer.split("Voice response complete");
           return voiceResponse;
         }
+
+        const voiceUnavailableReason =
+          getExplicitVoiceUnavailableReason(voiceDecision);
 
         const flowResult = await runChannelFlow({
           channel: "WEB",
@@ -482,6 +505,8 @@ export async function handleWebChatPost(request: Request) {
             hasImages,
             hasAudio: aiHasAudio,
             responseMode: "text",
+            voiceEnabled: voiceUnavailableReason ? false : undefined,
+            voiceUnavailableReason,
             skipConversationHistory: requestConversationMessageCount === 1,
           },
           execution: { mode: "stream" },
@@ -727,6 +752,7 @@ async function handleVoiceFirstWebResponse({
   isGuest,
   hasImages,
   hasAudio,
+  explicitVoiceRequest,
   waitUntil: schedule,
 }: {
   userId: string;
@@ -740,6 +766,7 @@ async function handleVoiceFirstWebResponse({
   isGuest?: boolean;
   hasImages?: boolean;
   hasAudio?: boolean;
+  explicitVoiceRequest?: boolean;
   waitUntil?: (promise: Promise<unknown>) => void;
 }) {
   const flowResult = await runChannelFlow({
@@ -801,11 +828,14 @@ async function handleVoiceFirstWebResponse({
       chatId,
     });
 
+    const fallbackText = explicitVoiceRequest
+      ? `${getVoiceUnavailability("PROVIDER_UNAVAILABLE").userMessage}\n\n${assistantText}`
+      : assistantText;
     const fallbackMessage = await persistAssistantOutput({
       userId,
       chatId,
       channel: "WEB",
-      text: assistantText,
+      text: fallbackText,
       userMessageText,
       metrics: flowResult.metrics,
       metadata: {
@@ -822,7 +852,7 @@ async function handleVoiceFirstWebResponse({
       waitUntil: schedule,
     });
 
-    return createTextStreamResponse(fallbackMessage.id, assistantText);
+    return createTextStreamResponse(fallbackMessage.id, fallbackText);
   }
 
   const assistantMessage = await persistAssistantOutput({
@@ -881,6 +911,27 @@ async function handleVoiceFirstWebResponse({
     assistantMessage.id,
     `/api/voice/messages/${assistantMessage.id}`,
   );
+}
+
+function getExplicitVoiceUnavailableReason(
+  decision: Awaited<ReturnType<typeof decideWebVoiceMode>>,
+) {
+  if (decision.mode !== "TEXT" || decision.category !== "VOICE_REQUIRED") {
+    return undefined;
+  }
+
+  switch (decision.reasonCode) {
+    case "PLAN_NOT_ELIGIBLE":
+      return getVoiceUnavailability("PLAN_NOT_ELIGIBLE").userMessage;
+    case "QUIET_MODE":
+      return getVoiceUnavailability("QUIET_MODE").userMessage;
+    case "QUOTA_REACHED":
+      return getVoiceUnavailability("QUOTA_REACHED").userMessage;
+    case "PROVIDER_RED":
+      return getVoiceUnavailability("PROVIDER_UNAVAILABLE").userMessage;
+    default:
+      return undefined;
+  }
 }
 
 function createVoiceFileStreamResponse(messageId: string, url: string) {

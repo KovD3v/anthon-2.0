@@ -731,6 +731,8 @@ async function handleUpdate(update: TelegramUpdate) {
         userId: user.id,
         userMessage: userMessageText,
         assistantText,
+        channel: "TELEGRAM",
+        excludeMessageId: assistantMessageId,
         userPreferences: {
           voiceEnabled: preferences?.voiceEnabled ?? true,
         },
@@ -743,6 +745,18 @@ async function handleUpdate(update: TelegramUpdate) {
         systemLoad: getSystemLoad,
         planId: user.subscription?.planId,
       });
+
+      telegramLogger.info(
+        "voice.delivery_decision",
+        "Resolved Telegram voice delivery",
+        {
+          userId: user.id,
+          category: voiceResult.category,
+          capacityState: voiceResult.capacityState,
+          reasonCode: voiceResult.reasonCode,
+          shouldGenerateVoice: voiceResult.shouldGenerateVoice,
+        },
+      );
 
       if (voiceResult.shouldGenerateVoice) {
         const audio = await generateVoice(assistantText);

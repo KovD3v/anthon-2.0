@@ -88,6 +88,9 @@ export async function runChannelFlow(
       ? (ctx.ai?.responseMode ?? "text")
       : "text",
     voiceEnabled: ctx.options.allowVoiceOutput ? ctx.ai?.voiceEnabled : false,
+    voiceUnavailableReason: ctx.options.allowVoiceOutput
+      ? ctx.ai?.voiceUnavailableReason
+      : undefined,
     effectiveEntitlements: ctx.rateLimit.effectiveEntitlements,
     skipConversationHistory: ctx.ai?.skipConversationHistory,
     onFinish: async ({ text, metrics }) => {
