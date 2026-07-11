@@ -12,13 +12,13 @@ export function Hero() {
     <section className="relative overflow-hidden bg-background pb-16 pt-10 md:pb-24 md:pt-16 lg:pt-20">
       <div className="container mx-auto px-4 md:px-6">
         <div className="mx-auto max-w-6xl">
-          <div className="max-w-4xl">
+          <div className="mx-auto max-w-4xl text-center">
             <m.h1
               variants={fadeUp}
               initial="hidden"
               animate="show"
               transition={{ ...defaultTransition, delay: 0.1 }}
-              className="font-display max-w-4xl text-[3.25rem] font-extrabold uppercase leading-[0.88] tracking-[-0.025em] sm:text-6xl md:text-7xl lg:text-[5.5rem]"
+              className="font-display mx-auto max-w-4xl text-[3.25rem] font-extrabold uppercase leading-[0.88] tracking-[-0.025em] sm:text-6xl md:text-7xl lg:text-[5.5rem]"
             >
               La testa giusta,
               <span className="mt-1 block text-foreground">
@@ -35,7 +35,7 @@ export function Hero() {
               </span>
             </m.h1>
 
-            <div className="mt-7 max-w-2xl">
+            <div className="mx-auto mt-7 max-w-2xl">
               <m.p
                 variants={fadeUp}
                 initial="hidden"
@@ -52,7 +52,7 @@ export function Hero() {
                 initial="hidden"
                 animate="show"
                 transition={{ ...defaultTransition, delay: 0.3 }}
-                className="mt-7 flex w-full flex-col gap-3 sm:flex-row"
+                className="mt-7 flex w-full flex-col justify-center gap-3 sm:flex-row"
               >
                 <Button
                   size="lg"
