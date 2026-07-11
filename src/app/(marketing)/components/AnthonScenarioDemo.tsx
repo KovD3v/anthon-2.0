@@ -27,7 +27,7 @@ const scenarios = [
     question: "Domani c'è il derby e stanotte non riesco a spegnere la testa.",
     answer:
       "La mente sta provando ad anticipare ogni rischio. Riduciamo la partita a una sola cosa controllabile: il tuo primo pallone.",
-    routine: "Protocollo 4–2–6",
+    routine: "Protocollo 4-2-6",
     steps: "Respira → Visualizza → Ripeti",
     duration: "4 min",
     prompt:
@@ -220,7 +220,7 @@ export function AnthonScenarioDemo() {
             className="mt-8 w-full gap-2 bg-brand-yellow text-[#171714] hover:bg-brand-yellow/85 sm:w-fit"
           >
             <Link href={`/chat?q=${encodeURIComponent(activeScenario.prompt)}`}>
-              Parlane con Anthon
+              Inizia in chat
               <ArrowRight aria-hidden="true" />
             </Link>
           </Button>
@@ -312,10 +312,6 @@ export function AnthonScenarioDemo() {
                 Prossima
                 <ArrowRight aria-hidden="true" />
               </Button>
-              <span className="ml-auto font-mono text-xs text-muted-foreground">
-                {String(activeIndex + 1).padStart(2, "0")} /{" "}
-                {String(scenarios.length).padStart(2, "0")}
-              </span>
             </div>
 
             <div className="mt-4 h-0.5 overflow-hidden rounded-full bg-secondary-foreground/15">

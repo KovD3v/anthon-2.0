@@ -7,7 +7,7 @@ import { defaultTransition, fadeUp, staggerContainer } from "@/lib/motion";
 const method = [
   {
     id: "method-context",
-    label: "01 — Contesto",
+    label: "Contesto",
     title: "Parte dalla situazione reale",
     description:
       "Sport, momento della stagione, livello di pressione e obiettivo della prossima performance.",
@@ -15,7 +15,7 @@ const method = [
   },
   {
     id: "method-action",
-    label: "02 — Azione",
+    label: "Azione",
     title: "Trasforma il dialogo in una routine",
     description:
       "Esercizi brevi, istruzioni chiare e un piano utilizzabile prima, durante e dopo la gara.",
@@ -23,7 +23,7 @@ const method = [
   },
   {
     id: "method-adapt",
-    label: "03 — Adattamento",
+    label: "Adattamento",
     title: "Impara da ciò che succede in campo",
     description:
       "Il feedback post-performance aggiorna il percorso e rende il lavoro successivo più specifico.",
@@ -34,11 +34,11 @@ const method = [
 export function Testimonials() {
   return (
     <section
-      className="border-y border-border bg-[#171714] py-16 text-[#f8f5eb] md:py-24"
+      className="border-y border-border bg-card py-16 text-foreground md:py-24"
       id="metodo"
     >
       <div className="container mx-auto px-4 md:px-6">
-        <div className="mb-12 grid gap-5 md:grid-cols-[1fr_0.8fr] md:items-end">
+        <div className="mb-12 max-w-3xl">
           <m.h2
             variants={fadeUp}
             initial="hidden"
@@ -55,7 +55,7 @@ export function Testimonials() {
             whileInView="show"
             viewport={{ once: true }}
             transition={{ ...defaultTransition, delay: 0.1 }}
-            className="max-w-xl text-lg leading-relaxed text-white/60 md:justify-self-end"
+            className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground"
           >
             Ogni conversazione collega il vissuto dell’atleta a un’azione
             concreta e a un ciclo di miglioramento.
@@ -67,25 +67,25 @@ export function Testimonials() {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
-          className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 md:grid-cols-3"
+          className="grid grid-cols-1 gap-3 md:grid-cols-[1.15fr_0.85fr]"
         >
           {method.map((item) => (
             <m.div
               key={item.id}
               variants={fadeUp}
               transition={defaultTransition}
-              className="bg-[#1d1d19] p-6 sm:p-8"
+              className="rounded-2xl border border-border bg-background p-6 sm:p-8 first:md:row-span-2"
             >
               <div className="mb-10 flex items-center justify-between">
-                <item.icon className="h-7 w-7 text-brand-yellow" />
-                <span className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-white/40">
+                <item.icon className="h-7 w-7 text-foreground" />
+                <span className="text-sm font-semibold text-muted-foreground">
                   {item.label}
                 </span>
               </div>
               <h3 className="font-display text-2xl font-bold uppercase leading-none">
                 {item.title}
               </h3>
-              <p className="mt-4 leading-relaxed text-white/60">
+              <p className="mt-4 max-w-lg leading-relaxed text-muted-foreground">
                 {item.description}
               </p>
             </m.div>

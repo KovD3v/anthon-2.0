@@ -2,12 +2,6 @@
 
 import { m } from "framer-motion";
 import { Activity, BarChart3, Brain, Shield, Target, Zap } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-} from "@/components/ui/card";
 import { defaultTransition, fadeUp, staggerContainer } from "@/lib/motion";
 
 const features = [
@@ -62,7 +56,7 @@ export function Features() {
       className="border-y border-border bg-card py-16 md:py-24"
     >
       <div className="container mx-auto px-4 md:px-6">
-        <div className="mb-12 grid gap-5 md:grid-cols-[0.8fr_1.2fr] md:items-end">
+        <div className="mb-12 max-w-3xl">
           <m.h2
             variants={fadeUp}
             initial="hidden"
@@ -79,7 +73,7 @@ export function Features() {
             whileInView="show"
             viewport={{ once: true }}
             transition={{ ...defaultTransition, delay: 0.1 }}
-            className="max-w-2xl text-lg leading-relaxed text-muted-foreground md:justify-self-end"
+            className="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground"
           >
             Ogni area è pensata per migliorare tre leve chiave: fiducia, focus e
             gestione della pressione.
@@ -91,30 +85,34 @@ export function Features() {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
-          className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-2 lg:grid-cols-3"
+          className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-12"
         >
           {features.map((feature) => (
             <m.div
               key={feature.id}
               variants={fadeUp}
               transition={defaultTransition}
-              whileHover={{ y: -5 }}
+              whileHover={{ y: -4 }}
+              className={
+                feature.id === "feature-training" ||
+                feature.id === "feature-stress"
+                  ? "lg:col-span-7"
+                  : "lg:col-span-5"
+              }
             >
-              <Card className="group h-full rounded-none border-0 bg-background shadow-none transition-[background-color,box-shadow] duration-300 hover:z-10 hover:bg-accent/30 hover:shadow-[0_18px_45px_-28px_rgba(0,0,0,0.55)]">
-                <CardHeader>
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card transition-[background-color,border-color,transform] duration-300 group-hover:rotate-[-4deg] group-hover:border-brand-yellow group-hover:bg-brand-yellow">
-                    <feature.icon className="h-5 w-5 text-foreground transition-transform duration-300 group-hover:scale-110" />
-                  </div>
+              <article className="group flex h-full min-h-64 flex-col justify-between rounded-2xl border border-border bg-background p-6 transition-[background-color,border-color] duration-300 hover:border-brand-yellow/70 hover:bg-brand-yellow/5 sm:p-8">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-card transition-[background-color,border-color,transform] duration-300 group-hover:rotate-[-3deg] group-hover:border-brand-yellow group-hover:bg-brand-yellow">
+                  <feature.icon className="h-5 w-5 text-foreground transition-transform duration-300 group-hover:scale-110" />
+                </div>
+                <div className="mt-10 max-w-xl">
                   <h3 className="font-display text-2xl font-semibold uppercase leading-none">
                     {feature.title}
                   </h3>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription className="text-base leading-relaxed">
+                  <p className="mt-3 text-base leading-relaxed text-muted-foreground">
                     {feature.description}
-                  </CardDescription>
-                </CardContent>
-              </Card>
+                  </p>
+                </div>
+              </article>
             </m.div>
           ))}
         </m.div>

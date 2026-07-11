@@ -10,7 +10,7 @@ import { Testimonials } from "./components/Testimonials";
 export default function MarketingPage() {
   return (
     <PageWrapper>
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-[100dvh] flex-col">
         <main className="flex-1">
           <LandingMotion>
             <Hero />

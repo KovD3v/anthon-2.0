@@ -24,7 +24,7 @@ export function CTA() {
             Parti dalla chat, scegli il piano quando ti serve più continuità e
             coinvolgi il team quando lavori con atleti o staff.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
             <Button
               size="lg"
               className="gap-2 bg-[#171714] font-bold text-[#f8f5eb] hover:bg-[#252520]"
@@ -41,14 +41,6 @@ export function CTA() {
               asChild
             >
               <Link href="/pricing">Confronta i piani</Link>
-            </Button>
-            <Button
-              size="lg"
-              variant="ghost"
-              className="border border-[#171714] bg-[#f8f5eb] font-semibold text-[#171714] hover:bg-white hover:text-[#171714]"
-              asChild
-            >
-              <a href="mailto:anthon.chat@gmail.com">Contatta il team</a>
             </Button>
           </div>
         </m.div>
