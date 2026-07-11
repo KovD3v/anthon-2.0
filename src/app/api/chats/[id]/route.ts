@@ -145,7 +145,12 @@ export async function GET(request: Request, { params }: RouteParams) {
             : undefined,
         ragUsed: m.ragUsed,
         toolCalls: m.toolCalls,
-        attachments: m.attachments,
+        attachments: m.attachments.map((attachment) => ({
+          ...attachment,
+          blobUrl: attachment.contentType.startsWith("audio/")
+            ? `/api/voice/messages/${m.id}`
+            : attachment.blobUrl,
+        })),
       })),
       pagination: {
         hasMore,

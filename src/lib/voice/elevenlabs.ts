@@ -16,6 +16,7 @@ const DEFAULT_VOICE_ID =
 
 // Use Flash model for ultra-low latency (~75ms vs ~7s for multilingual_v2)
 const TTS_MODEL = "eleven_flash_v2_5";
+const DEFAULT_FLASH_COST_USD_PER_1000_CHARACTERS = 0.05;
 const voiceLogger = createLogger("voice");
 
 interface ElevenLabsSubscription {
@@ -27,6 +28,19 @@ interface ElevenLabsSubscription {
 interface GenerateVoiceResult {
   audioBuffer: Buffer;
   characterCount: number;
+  costUsd: number;
+}
+
+export function estimateVoiceCostUsd(characterCount: number): number {
+  const configuredRate = Number.parseFloat(
+    process.env.ELEVENLABS_FLASH_COST_USD_PER_1000_CHARACTERS ?? "",
+  );
+  const rate =
+    Number.isFinite(configuredRate) && configuredRate >= 0
+      ? configuredRate
+      : DEFAULT_FLASH_COST_USD_PER_1000_CHARACTERS;
+
+  return (Math.max(0, characterCount) / 1000) * rate;
 }
 
 // Subscription cache for chat (bypass for admin)
@@ -91,6 +105,7 @@ export async function generateVoice(
     return {
       audioBuffer,
       characterCount: text.length,
+      costUsd: estimateVoiceCostUsd(text.length),
     };
   });
 }

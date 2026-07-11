@@ -96,7 +96,7 @@ export async function runChannelFlow(
       if (text && text.trim().length > 0) {
         if (ctx.persistence?.saveAssistantMessage !== false) {
           try {
-            await persistAssistantOutput({
+            const message = await persistAssistantOutput({
               userId: ctx.userId,
               chatId: ctx.chatId,
               channel: ctx.persistence?.channel ?? "WEB",
@@ -109,7 +109,7 @@ export async function runChannelFlow(
               allowMemoryExtraction: ctx.options.allowMemoryExtraction,
               waitUntil: ctx.persistence?.waitUntil,
             });
-            persistence = { status: "saved" };
+            persistence = { status: "saved", messageId: message.id };
           } catch (error) {
             persistence = { status: "failed", error };
             runLogger.error(

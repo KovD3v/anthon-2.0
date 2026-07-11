@@ -6,6 +6,7 @@
 
 export { getVoicePlanConfig, type VoicePlanConfig } from "./config";
 export {
+  estimateVoiceCostUsd,
   generateVoice,
   getElevenLabsSubscription,
   getSystemLoad,
@@ -18,6 +19,13 @@ export {
   shouldGenerateVoice,
   trackVoiceUsage,
 } from "./funnel";
+export {
+  detectVoiceRequestIntent,
+  getVoiceUnavailability,
+  type VoiceRequestIntent,
+  type VoiceUnavailability,
+  type VoiceUnavailableCode,
+} from "./policy";
 export {
   decideWebVoiceMode,
   type WebVoiceMode,

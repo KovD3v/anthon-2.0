@@ -124,6 +124,18 @@ describe("voice/preflight", () => {
     expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
+  it("does not apply probability to an explicit English voice request", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+
+    const result = await decideWebVoiceMode({
+      ...baseParams(),
+      userMessage: "Please send me a voice message",
+    });
+
+    expect(result.mode).toBe("VOICE");
+    expect(Math.random).not.toHaveBeenCalled();
+  });
+
   it("returns TEXT without calling the classifier for neutral text requests", async () => {
     const result = await decideWebVoiceMode({
       ...baseParams(),

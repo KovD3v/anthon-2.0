@@ -28,9 +28,11 @@ const telegramLogger = createLogger("webhook");
 
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
+  detectVoiceRequestIntent,
   generateVoice,
   getSystemLoad,
   getVoicePlanConfig,
+  getVoiceUnavailability,
   isElevenLabsConfigured,
   shouldGenerateVoice,
   trackVoiceUsage,
@@ -599,6 +601,7 @@ async function handleUpdate(update: TelegramUpdate) {
 
   // Generate assistant response.
   let assistantText = "";
+  let assistantMessageId: string | undefined;
 
   try {
     const flowResult = await runChannelFlow({
@@ -638,6 +641,7 @@ async function handleUpdate(update: TelegramUpdate) {
       },
     });
     assistantText = flowResult.assistantText;
+    assistantMessageId = flowResult.persistence?.messageId;
     if (flowResult.persistence?.status === "failed") {
       await recordTelegramInboundError({
         inboundId: inbound.id,
@@ -714,6 +718,7 @@ async function handleUpdate(update: TelegramUpdate) {
   }
 
   // Voice generation decision
+  let voiceFallbackNotice: string | undefined;
   if (isElevenLabsConfigured()) {
     try {
       // Fetch user preferences for voice
@@ -746,10 +751,25 @@ async function handleUpdate(update: TelegramUpdate) {
           async () => sendTelegramVoice(chatId, audio.audioBuffer),
         );
         if (voiceSent) {
+          if (assistantMessageId) {
+            await prisma.message
+              .update({
+                where: { id: assistantMessageId },
+                data: { type: "AUDIO", mediaType: "audio/mpeg" },
+              })
+              .catch((error) =>
+                telegramLogger.error(
+                  "voice.persistence_update_failed",
+                  "Failed marking Telegram response as audio",
+                  { error, userId: user.id, messageId: assistantMessageId },
+                ),
+              );
+          }
           await trackVoiceUsage(
             user.id,
             audio.characterCount,
             "TELEGRAM",
+            audio.costUsd,
           ).catch((error) =>
             telegramLogger.error(
               "voice.usage_tracking_failed",
@@ -759,6 +779,13 @@ async function handleUpdate(update: TelegramUpdate) {
           );
           return;
         }
+        if (voiceResult.explicitVoiceRequest) {
+          voiceFallbackNotice = getVoiceUnavailability(
+            "PROVIDER_UNAVAILABLE",
+          ).userMessage;
+        }
+      } else if (voiceResult.explicitVoiceRequest) {
+        voiceFallbackNotice = voiceResult.unavailability?.userMessage;
       }
     } catch (err) {
       telegramLogger.error(
@@ -767,10 +794,24 @@ async function handleUpdate(update: TelegramUpdate) {
         { err },
       );
       // Fallback to text on any voice error
+      if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
+        voiceFallbackNotice = getVoiceUnavailability(
+          "PROVIDER_UNAVAILABLE",
+        ).userMessage;
+      }
     }
+  } else if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
+    voiceFallbackNotice = getVoiceUnavailability(
+      "PROVIDER_UNAVAILABLE",
+    ).userMessage;
   }
 
-  await sendTelegramMessage(chatId, assistantText);
+  await sendTelegramMessage(
+    chatId,
+    voiceFallbackNotice
+      ? `${voiceFallbackNotice}\n\n${assistantText}`
+      : assistantText,
+  );
 }
 
 async function createTelegramLinkUrl(externalId: string, chatId: string) {

@@ -66,6 +66,7 @@ export interface RunChannelFlowResult {
   metrics?: AIMetrics;
   persistence?: {
     status: "saved" | "skipped" | "failed";
+    messageId?: string;
     error?: unknown;
   };
   rateLimit?: {

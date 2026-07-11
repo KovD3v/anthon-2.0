@@ -810,7 +810,11 @@ async function handleVoiceFirstWebResponse({
       metrics: flowResult.metrics,
       metadata: {
         responseMode: "text_fallback",
-        voiceFailure: true,
+        voice: {
+          status: "failed",
+          fallback: "text",
+          reason: "generation_or_storage_failed",
+        },
       },
       updateChatTimestamp: true,
       revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
@@ -834,6 +838,10 @@ async function handleVoiceFirstWebResponse({
     metadata: {
       responseMode: "voice",
       transcript: assistantText,
+      voice: {
+        status: "ready",
+        costUsd: audio.costUsd,
+      },
     },
     updateChatTimestamp: true,
     revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
@@ -859,16 +867,20 @@ async function handleVoiceFirstWebResponse({
           { error, userId, chatId, messageId: assistantMessage.id },
         ),
       ),
-    trackVoiceUsage(userId, audio.characterCount, "WEB").catch((error) =>
-      logger.error(
-        "voice.web_usage_tracking_failed",
-        "Failed tracking web voice usage",
-        { error, userId, chatId, messageId: assistantMessage.id },
-      ),
+    trackVoiceUsage(userId, audio.characterCount, "WEB", audio.costUsd).catch(
+      (error) =>
+        logger.error(
+          "voice.web_usage_tracking_failed",
+          "Failed tracking web voice usage",
+          { error, userId, chatId, messageId: assistantMessage.id },
+        ),
     ),
   ]);
 
-  return createVoiceFileStreamResponse(assistantMessage.id, blobResult.url);
+  return createVoiceFileStreamResponse(
+    assistantMessage.id,
+    `/api/voice/messages/${assistantMessage.id}`,
+  );
 }
 
 function createVoiceFileStreamResponse(messageId: string, url: string) {

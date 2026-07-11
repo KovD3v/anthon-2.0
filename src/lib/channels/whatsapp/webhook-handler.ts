@@ -22,9 +22,11 @@ const whatsappLogger = createLogger("webhook");
 
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
+  detectVoiceRequestIntent,
   generateVoice,
   getSystemLoad,
   getVoicePlanConfig,
+  getVoiceUnavailability,
   isElevenLabsConfigured,
   shouldGenerateVoice,
   trackVoiceUsage,
@@ -568,6 +570,7 @@ async function handleMessage(
 
   // Generate Response
   let assistantText = "";
+  let assistantMessageId: string | undefined;
   try {
     const flowResult = await runChannelFlow({
       channel: "WHATSAPP",
@@ -603,6 +606,7 @@ async function handleMessage(
       },
     });
     assistantText = flowResult.assistantText;
+    assistantMessageId = flowResult.persistence?.messageId;
     if (flowResult.persistence?.status === "failed") {
       await recordWhatsAppInboundError({
         inboundId: inbound.id,
@@ -667,6 +671,7 @@ async function handleMessage(
   }
 
   // Voice output
+  let voiceFallbackNotice: string | undefined;
   if (isElevenLabsConfigured()) {
     try {
       const preferences = await prisma.preferences.findUnique({
@@ -697,10 +702,25 @@ async function handleMessage(
           const success = await sendWhatsAppVoice(from, audio.audioBuffer);
 
           if (success) {
+            if (assistantMessageId) {
+              await prisma.message
+                .update({
+                  where: { id: assistantMessageId },
+                  data: { type: "AUDIO", mediaType: "audio/mpeg" },
+                })
+                .catch((error) =>
+                  whatsappLogger.error(
+                    "voice.persistence_update_failed",
+                    "Failed marking WhatsApp response as audio",
+                    { error, userId: user.id, messageId: assistantMessageId },
+                  ),
+                );
+            }
             await trackVoiceUsage(
               user.id,
               audio.characterCount,
               "WHATSAPP",
+              audio.costUsd,
             ).catch((error) =>
               whatsappLogger.error(
                 "voice.usage_tracking_failed",
@@ -715,6 +735,11 @@ async function handleMessage(
             "voice.send_fallback",
             "Voice send returned false, falling back to text",
           );
+          if (voiceResult.explicitVoiceRequest) {
+            voiceFallbackNotice = getVoiceUnavailability(
+              "PROVIDER_UNAVAILABLE",
+            ).userMessage;
+          }
         } catch (voiceErr) {
           whatsappLogger.error(
             "voice.generation_failed",
@@ -723,6 +748,8 @@ async function handleMessage(
           );
           // Fall through to text fallback
         }
+      } else if (voiceResult.explicitVoiceRequest) {
+        voiceFallbackNotice = voiceResult.unavailability?.userMessage;
       }
     } catch (err) {
       whatsappLogger.error(
@@ -730,11 +757,25 @@ async function handleMessage(
         "Voice funnel/process failed",
         { err },
       );
+      if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
+        voiceFallbackNotice = getVoiceUnavailability(
+          "PROVIDER_UNAVAILABLE",
+        ).userMessage;
+      }
     }
+  } else if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
+    voiceFallbackNotice = getVoiceUnavailability(
+      "PROVIDER_UNAVAILABLE",
+    ).userMessage;
   }
 
   // Text fallback
-  await sendWhatsAppMessage(from, assistantText);
+  await sendWhatsAppMessage(
+    from,
+    voiceFallbackNotice
+      ? `${voiceFallbackNotice}\n\n${assistantText}`
+      : assistantText,
+  );
 }
 
 async function handleConnectCommand(from: string) {

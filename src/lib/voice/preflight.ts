@@ -8,6 +8,7 @@ import { createLogger } from "@/lib/logger";
 import { parseCanonicalPlanFromPlanId } from "@/lib/plans";
 import type { VoicePlanConfig } from "./config";
 import { getSystemLoad } from "./elevenlabs";
+import { detectVoiceRequestIntent } from "./policy";
 
 const voiceLogger = createLogger("voice");
 
@@ -35,10 +36,6 @@ const DEFAULT_PREFLIGHT_MODEL =
 const DEFAULT_PREFLIGHT_TIMEOUT_MS = 1000;
 const MIN_CLASSIFIER_CONFIDENCE = 0.65;
 
-const explicitVoiceRegex =
-  /\b(vocale|audio|nota vocale|messaggio vocale|mandamelo a voce|rispondimi a voce)\b/i;
-const explicitTextRegex =
-  /\b(scrivi|scritto|testo|lista|schema|tabella|link|codice|markdown)\b/i;
 const voiceCandidateRegex =
   /\b(ansia|ansioso|calma|calmo|calmarmi|teso|tensione|stress|paura|panico|motiv|carica|incoraggia|respiro|respira|supporto|conforto|colpa|giù|male)\b/i;
 
@@ -185,7 +182,8 @@ async function runDeterministicPreflight(
     };
   }
 
-  if (explicitTextRegex.test(userMessage)) {
+  const requestIntent = detectVoiceRequestIntent(userMessage);
+  if (requestIntent === "TEXT") {
     return {
       mode: "TEXT",
       reason: "User explicitly requested text",
@@ -193,8 +191,8 @@ async function runDeterministicPreflight(
     };
   }
 
-  if (explicitVoiceRegex.test(userMessage)) {
-    const businessResult = await checkBusinessGate(params);
+  if (requestIntent === "VOICE") {
+    const businessResult = await checkBusinessGate(params, false);
     if (!businessResult.pass) {
       return {
         mode: "TEXT",
@@ -221,7 +219,10 @@ async function runDeterministicPreflight(
   return null;
 }
 
-async function checkBusinessGate(params: WebVoiceModeParams): Promise<{
+async function checkBusinessGate(
+  params: WebVoiceModeParams,
+  applyProbability = true,
+): Promise<{
   pass: boolean;
   reason: string;
 }> {
@@ -241,6 +242,10 @@ async function checkBusinessGate(params: WebVoiceModeParams): Promise<{
 
   if (voiceCount >= params.planConfig.maxPerWindow) {
     return { pass: false, reason: "Voice cap reached for window" };
+  }
+
+  if (!applyProbability) {
+    return { pass: true, reason: "Voice business gate passed" };
   }
 
   const probability =

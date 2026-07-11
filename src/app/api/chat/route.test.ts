@@ -301,6 +301,7 @@ describe("POST /api/chat", () => {
     mocks.generateVoice.mockResolvedValue({
       audioBuffer: Buffer.from("audio"),
       characterCount: 20,
+      costUsd: 0.001,
     });
     mocks.put.mockResolvedValue({
       url: "https://blob.example/voice/msg-assistant-1.mp3",
@@ -1028,7 +1029,12 @@ describe("POST /api/chat", () => {
       Buffer.from("audio"),
       expect.objectContaining({ contentType: "audio/mpeg" }),
     );
-    expect(mocks.trackVoiceUsage).toHaveBeenCalledWith("user-1", 20, "WEB");
+    expect(mocks.trackVoiceUsage).toHaveBeenCalledWith(
+      "user-1",
+      20,
+      "WEB",
+      0.001,
+    );
   });
 
   it("does not persist a duplicate text fallback when voice side effects fail after audio persistence", async () => {

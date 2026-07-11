@@ -48,6 +48,7 @@ export function AudioPlayer({
 
     if (
       src.startsWith("http") ||
+      src.startsWith("/") ||
       src.startsWith("blob:") ||
       src.startsWith("data:")
     ) {
@@ -60,6 +61,12 @@ export function AudioPlayer({
 
   useEffect(() => {
     const audio = audioRef.current;
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsLoaded(false);
+    setHasError(!audioSrc);
+
     if (!audio || !audioSrc) return;
 
     const handleLoadedMetadata = () => {
@@ -78,7 +85,7 @@ export function AudioPlayer({
     };
 
     const handleError = () => {
-      console.error("Audio failed to load");
+      setIsPlaying(false);
       setHasError(true);
       setIsLoaded(false);
     };
@@ -103,16 +110,23 @@ export function AudioPlayer({
     };
   }, [audioSrc]);
 
-  const togglePlayPause = () => {
+  const togglePlayPause = async () => {
     const audio = audioRef.current;
     if (!audio) return;
 
     if (isPlaying) {
       audio.pause();
+      setIsPlaying(false);
     } else {
-      audio.play().catch(console.error);
+      try {
+        await audio.play();
+        setIsPlaying(true);
+      } catch {
+        setIsPlaying(false);
+        setHasError(true);
+        setIsLoaded(false);
+      }
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -140,15 +154,17 @@ export function AudioPlayer({
   // Error state
   if (hasError) {
     return (
-      <div
+      <output
         className={cn(
           "flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs",
           className,
         )}
       >
         <VolumeX className="h-4 w-4" />
-        <span>Audio non riproducibile</span>
-      </div>
+        <span>
+          Audio non disponibile. Puoi leggere la trascrizione qui sotto.
+        </span>
+      </output>
     );
   }
 

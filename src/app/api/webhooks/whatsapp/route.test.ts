@@ -99,6 +99,11 @@ vi.mock("@/lib/latency-logger", () => ({
 }));
 
 vi.mock("@/lib/voice", () => ({
+  detectVoiceRequestIntent: () => "UNSPECIFIED",
+  getVoiceUnavailability: () => ({
+    code: "PROVIDER_UNAVAILABLE",
+    userMessage: "Voice is temporarily unavailable, so I'm replying in text.",
+  }),
   isElevenLabsConfigured: mocks.isElevenLabsConfigured,
   shouldGenerateVoice: mocks.shouldGenerateVoice,
   getVoicePlanConfig: mocks.getVoicePlanConfig,
@@ -1653,6 +1658,7 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.generateVoice.mockResolvedValue({
       audioBuffer: Buffer.from("audio"),
       characterCount: 21,
+      costUsd: 0.00105,
     });
     mocks.trackVoiceUsage.mockRejectedValue(new Error("usage write failed"));
     mocks.streamChat.mockImplementation(async ({ onFinish }) => {
@@ -1701,7 +1707,12 @@ describe("/api/webhooks/whatsapp", () => {
       "user_1",
       21,
       "WHATSAPP",
+      0.00105,
     );
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith({
+      where: { id: "wa_out_1" },
+      data: { type: "AUDIO", mediaType: "audio/mpeg" },
+    });
   });
 
   it("helper signature and command/url helpers cover validation branches", () => {

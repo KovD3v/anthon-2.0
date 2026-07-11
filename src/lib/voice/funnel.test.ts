@@ -237,6 +237,42 @@ describe("voice/funnel", () => {
     expect(result.reason).toContain("Probability check failed");
   });
 
+  it("honors an explicit voice request without semantic or probability gates", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+
+    const result = await shouldGenerateVoice({
+      ...baseParams(),
+      userMessage: "Please send me a voice message",
+      assistantText: "Short",
+    });
+
+    expect(result).toEqual({
+      shouldGenerateVoice: true,
+      explicitVoiceRequest: true,
+    });
+    expect(mocks.generateText).not.toHaveBeenCalled();
+    expect(Math.random).not.toHaveBeenCalled();
+  });
+
+  it("returns a structured quota explanation for an explicit request", async () => {
+    mocks.voiceCount.mockResolvedValue(enabledPlanConfig.maxPerWindow);
+
+    const result = await shouldGenerateVoice({
+      ...baseParams(),
+      userMessage: "Mandami un vocale",
+    });
+
+    expect(result).toMatchObject({
+      shouldGenerateVoice: false,
+      explicitVoiceRequest: true,
+      unavailability: {
+        code: "QUOTA_REACHED",
+        userMessage: expect.stringContaining("limit"),
+      },
+    });
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
   it("passes all levels when semantic and business checks pass", async () => {
     mocks.voiceCount.mockResolvedValue(0);
     vi.spyOn(Math, "random").mockReturnValue(0.1);

@@ -22,6 +22,11 @@ import { createLogger } from "@/lib/logger";
 import { parseCanonicalPlanFromPlanId } from "@/lib/plans";
 import { incrementVoiceUsage } from "@/lib/rate-limit/usage";
 import type { VoicePlanConfig } from "./config";
+import {
+  detectVoiceRequestIntent,
+  getVoiceUnavailability,
+  type VoiceUnavailability,
+} from "./policy";
 
 const voiceLogger = createLogger("voice");
 
@@ -35,6 +40,8 @@ export interface FunnelResult {
   shouldGenerateVoice: boolean;
   blockedAt?: FunnelBlockedAt;
   reason?: string;
+  explicitVoiceRequest?: boolean;
+  unavailability?: VoiceUnavailability;
 }
 
 export interface FunnelParams {
@@ -70,6 +77,8 @@ export async function shouldGenerateVoice(
       systemLoad,
       planId,
     } = params;
+    const requestIntent = detectVoiceRequestIntent(userMessage);
+    const explicitVoiceRequest = requestIntent === "VOICE";
 
     // Check if voice is enabled for this plan
     if (!planConfig.enabled) {
@@ -77,6 +86,10 @@ export async function shouldGenerateVoice(
         shouldGenerateVoice: false,
         blockedAt: "L1_PREFERENCE",
         reason: "Voice not enabled for plan",
+        ...(explicitVoiceRequest && {
+          explicitVoiceRequest: true,
+          unavailability: getVoiceUnavailability("PLAN_NOT_ELIGIBLE"),
+        }),
       };
     }
 
@@ -92,7 +105,51 @@ export async function shouldGenerateVoice(
         shouldGenerateVoice: false,
         blockedAt: "L1_PREFERENCE",
         reason: l1Result.reason,
+        ...(explicitVoiceRequest && {
+          explicitVoiceRequest: true,
+          unavailability: getVoiceUnavailability("QUIET_MODE"),
+        }),
       };
+    }
+
+    if (requestIntent === "TEXT") {
+      return {
+        shouldGenerateVoice: false,
+        blockedAt: "L3_SEMANTIC",
+        reason: "User explicitly requested text",
+      };
+    }
+
+    // Explicit requests skip content heuristics and probability. They remain
+    // subject only to entitlement/preferences, capacity, and quota.
+    if (explicitVoiceRequest) {
+      const loadValue =
+        typeof systemLoad === "function"
+          ? await systemLoad()
+          : typeof systemLoad === "number"
+            ? systemLoad
+            : await systemLoad;
+      const business = await checkLevel4Business(
+        userId,
+        planConfig,
+        loadValue,
+        planId,
+        false,
+      );
+      if (!business.pass) {
+        const code =
+          business.reason === "Voice cap reached for window"
+            ? "QUOTA_REACHED"
+            : "PROVIDER_UNAVAILABLE";
+        return {
+          shouldGenerateVoice: false,
+          blockedAt: "L4_BUSINESS",
+          reason: business.reason,
+          explicitVoiceRequest: true,
+          unavailability: getVoiceUnavailability(code),
+        };
+      }
+      return { shouldGenerateVoice: true, explicitVoiceRequest: true };
     }
 
     // L2: Structural Analysis
@@ -321,6 +378,7 @@ async function checkLevel4Business(
   config: VoicePlanConfig,
   systemLoad: number,
   planId?: string | null,
+  applyProbability = true,
 ): Promise<{ pass: boolean; reason?: string }> {
   // Circuit breaker: if system load is critical, only pro users can use voice
   const isPro = parseCanonicalPlanFromPlanId(planId) === "PRO";
@@ -340,6 +398,8 @@ async function checkLevel4Business(
   if (voiceCount >= config.maxPerWindow) {
     return { pass: false, reason: "Voice cap reached for window" };
   }
+
+  if (!applyProbability) return { pass: true };
 
   // Probability calculation with decay
   // P_final = P_base × (D^N) × L

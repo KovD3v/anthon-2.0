@@ -39,6 +39,7 @@ import { AttachmentPreview } from "./Attachments";
 import { AudioPlayer } from "./AudioPlayer";
 import { useMessageVirtualizer } from "./hooks/useMessageVirtualizer";
 import { MemoizedMarkdown } from "./MemoizedMarkdown";
+import { VoiceResponse } from "./VoiceResponse";
 
 // Extended UIMessage type that includes database fields
 type ExtendedMessage = UIMessage & {
@@ -483,56 +484,51 @@ export function MessageList({
                             </div>
                           </div>
                         ) : message.role === "assistant" ? (
-                          <>
-                            {/* Voice message: show only audio player */}
-                            {isVoiceMessage && voiceAudioSrc ? (
-                              <AudioPlayer
-                                src={voiceAudioSrc}
-                                name="Messaggio vocale"
-                                mimeType="audio/mpeg"
-                              />
-                            ) : assistantDisplayState === "pending" ? (
-                              <div
-                                className="flex items-center gap-2 text-black"
-                                aria-live="polite"
-                              >
-                                <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
-                                <div className="flex flex-col">
+                          isVoiceMessage ? (
+                            <VoiceResponse
+                              audioSrc={voiceAudioSrc}
+                              transcript={messageText}
+                              messageId={message.id}
+                            />
+                          ) : assistantDisplayState === "pending" ? (
+                            <div
+                              className="flex items-center gap-2 text-black"
+                              aria-live="polite"
+                            >
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
+                              <div className="flex flex-col">
+                                <span className="font-medium text-black">
+                                  {assistantPendingLabel}
+                                </span>
+                                <span className="text-xs text-black/70">
+                                  {CHAT_REACTIVITY_COPY.assistantWorkingDetail}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Text message: show markdown */
+                            <>
+                              {assistantToolFeedback && (
+                                <div
+                                  className={`mb-3 flex items-center gap-2 text-black ${
+                                    hasText
+                                      ? "border-black/10 border-b pb-3"
+                                      : ""
+                                  }`}
+                                  aria-live="polite"
+                                >
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
                                   <span className="font-medium text-black">
-                                    {assistantPendingLabel}
-                                  </span>
-                                  <span className="text-xs text-black/70">
-                                    {
-                                      CHAT_REACTIVITY_COPY.assistantWorkingDetail
-                                    }
+                                    {assistantToolFeedback}
                                   </span>
                                 </div>
-                              </div>
-                            ) : (
-                              /* Text message: show markdown */
-                              <>
-                                {assistantToolFeedback && (
-                                  <div
-                                    className={`mb-3 flex items-center gap-2 text-black ${
-                                      hasText
-                                        ? "border-black/10 border-b pb-3"
-                                        : ""
-                                    }`}
-                                    aria-live="polite"
-                                  >
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
-                                    <span className="font-medium text-black">
-                                      {assistantToolFeedback}
-                                    </span>
-                                  </div>
-                                )}
-                                <MemoizedMarkdown
-                                  className={assistantMarkdownClassName}
-                                  content={messageText}
-                                />
-                              </>
-                            )}
-                          </>
+                              )}
+                              <MemoizedMarkdown
+                                className={assistantMarkdownClassName}
+                                content={messageText}
+                              />
+                            </>
+                          )
                         ) : (
                           <div className="whitespace-pre-wrap">
                             {messageText}
