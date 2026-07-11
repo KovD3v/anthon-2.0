@@ -74,9 +74,31 @@ Italy-to-region network leg; it must not be presented as a direct Italy result.
 - Do not promote Laguna or Hy3 to any current application role.
 - Keep Grok pending the nearest-region availability run.
 
+## Controlled Luna vs GLM rerun
+
+The same 22-scenario/44-turn suite was rerun from Italy in one process:
+
+| Model | Avg E2E latency | Total run cost | Heuristic score | Safety failures |
+|---|---:|---:|---:|---:|
+| `openai/gpt-5.6-luna` | 3.227s | $0.095376 | 6.26 | 1 |
+| `z-ai/glm-5.2` | 7.033s | $0.067234 | 6.28 | 1 |
+
+GLM retained a negligible heuristic-quality lead (0.02 points), while Luna
+was 54% faster and cost 42% more per full suite. Under the stated priority
+order, Luna is the stronger latency candidate; GLM remains the safer default
+until a complete independent judge score is available.
+
+The controlled-run artifacts are `docs/benchmarks/runs/reality-2026-07-11-luna-glm-italy.json`
+and `docs/benchmarks/runs/reality-2026-07-11-luna-glm-italy.md`.
+
+The judge retry was attempted with both the original judges and alternative
+Gemini/DeepSeek judges. Provider retries prevented either run from completing;
+no judge-derived score is treated as valid.
+
 ## Known harness issue
 
 The reality runner currently converts all-turn execution failures into a
 plausible-looking score with zero latency and zero cost, and exits successfully.
-Those outputs were discarded. Future benchmark work should make the runner fail
-when a model has no successful measured turns.
+Those outputs were discarded. The CLI now fails before writing a report when a
+requested model has no successful measured turns; library-level timeout tests
+still preserve error turns for diagnostics.
