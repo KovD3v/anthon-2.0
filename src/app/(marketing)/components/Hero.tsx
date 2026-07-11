@@ -80,8 +80,7 @@ export function Hero() {
             initial="hidden"
             animate="show"
             transition={{ ...slowTransition, delay: 0.4 }}
-            whileHover={{ y: -6, rotateX: 0.35, rotateY: -0.35 }}
-            className="relative mx-auto mt-12 w-full max-w-5xl [perspective:1200px] lg:mt-16"
+            className="relative mx-auto mt-12 w-full max-w-5xl lg:mt-16"
           >
             <AnthonScenarioDemo />
           </m.div>
