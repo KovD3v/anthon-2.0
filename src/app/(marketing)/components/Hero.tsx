@@ -12,13 +12,13 @@ export function Hero() {
     <section className="relative overflow-hidden bg-background pb-16 pt-10 md:pb-24 md:pt-16 lg:pt-20">
       <div className="container mx-auto px-4 md:px-6">
         <div className="mx-auto max-w-6xl">
-          <div className="grid items-end gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="max-w-4xl">
             <m.h1
               variants={fadeUp}
               initial="hidden"
               animate="show"
               transition={{ ...defaultTransition, delay: 0.1 }}
-              className="font-display max-w-4xl text-[3.25rem] font-extrabold uppercase leading-[0.88] tracking-[-0.025em] sm:text-6xl md:text-7xl lg:text-[5.25rem]"
+              className="font-display max-w-4xl text-[3.25rem] font-extrabold uppercase leading-[0.88] tracking-[-0.025em] sm:text-6xl md:text-7xl lg:text-[5.5rem]"
             >
               La testa giusta,
               <span className="mt-1 block text-foreground">
@@ -35,7 +35,7 @@ export function Hero() {
               </span>
             </m.h1>
 
-            <div className="lg:pb-2">
+            <div className="mt-7 max-w-2xl">
               <m.p
                 variants={fadeUp}
                 initial="hidden"
@@ -81,7 +81,7 @@ export function Hero() {
             animate="show"
             transition={{ ...slowTransition, delay: 0.4 }}
             whileHover={{ y: -6, rotateX: 0.35, rotateY: -0.35 }}
-            className="relative mx-auto mt-10 w-full [perspective:1200px] lg:mt-14"
+            className="relative mx-auto mt-12 w-full max-w-5xl [perspective:1200px] lg:mt-16"
           >
             <AnthonScenarioDemo />
           </m.div>

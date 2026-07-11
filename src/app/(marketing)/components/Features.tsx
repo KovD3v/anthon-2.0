@@ -85,7 +85,7 @@ export function Features() {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
-          className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-12"
+          className="mx-auto grid max-w-5xl grid-cols-1 gap-3 md:grid-cols-2"
         >
           {features.map((feature) => (
             <m.div
@@ -93,14 +93,8 @@ export function Features() {
               variants={fadeUp}
               transition={defaultTransition}
               whileHover={{ y: -4 }}
-              className={
-                feature.id === "feature-training" ||
-                feature.id === "feature-stress"
-                  ? "lg:col-span-7"
-                  : "lg:col-span-5"
-              }
             >
-              <article className="group flex h-full min-h-64 flex-col justify-between rounded-2xl border border-border bg-background p-6 transition-[background-color,border-color] duration-300 hover:border-brand-yellow/70 hover:bg-brand-yellow/5 sm:p-8">
+              <article className="group flex h-full min-h-72 flex-col justify-between rounded-2xl border border-border bg-background p-6 transition-[background-color,border-color] duration-300 hover:border-brand-yellow/70 hover:bg-brand-yellow/5 sm:p-8">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-card transition-[background-color,border-color,transform] duration-300 group-hover:rotate-[-3deg] group-hover:border-brand-yellow group-hover:bg-brand-yellow">
                   <feature.icon className="h-5 w-5 text-foreground transition-transform duration-300 group-hover:scale-110" />
                 </div>

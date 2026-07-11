@@ -67,27 +67,31 @@ export function Testimonials() {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
-          className="grid grid-cols-1 gap-3 md:grid-cols-[1.15fr_0.85fr]"
+          className="mx-auto grid max-w-4xl grid-cols-1 gap-3"
         >
           {method.map((item) => (
             <m.div
               key={item.id}
               variants={fadeUp}
               transition={defaultTransition}
-              className="rounded-2xl border border-border bg-background p-6 sm:p-8 first:md:row-span-2"
+              className="grid rounded-2xl border border-border bg-background p-6 sm:grid-cols-[auto_1fr] sm:gap-8 sm:p-8"
             >
-              <div className="mb-10 flex items-center justify-between">
-                <item.icon className="h-7 w-7 text-foreground" />
+              <div className="mb-8 flex items-center gap-3 sm:mb-0 sm:flex-col sm:items-start">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-yellow text-[#171714]">
+                  <item.icon className="h-6 w-6" />
+                </span>
                 <span className="text-sm font-semibold text-muted-foreground">
                   {item.label}
                 </span>
               </div>
-              <h3 className="font-display text-2xl font-bold uppercase leading-none">
-                {item.title}
-              </h3>
-              <p className="mt-4 max-w-lg leading-relaxed text-muted-foreground">
-                {item.description}
-              </p>
+              <div>
+                <h3 className="font-display text-2xl font-bold uppercase leading-none sm:text-3xl">
+                  {item.title}
+                </h3>
+                <p className="mt-4 max-w-2xl leading-relaxed text-muted-foreground">
+                  {item.description}
+                </p>
+              </div>
             </m.div>
           ))}
         </m.div>
