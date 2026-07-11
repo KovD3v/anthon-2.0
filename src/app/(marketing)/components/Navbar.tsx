@@ -59,8 +59,8 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full pt-[env(safe-area-inset-top)]">
       <div className="mx-2 mt-2 rounded-2xl border border-border bg-background/90 shadow-sm backdrop-blur-xl md:mx-4 md:mt-4">
-        <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 font-bold text-xl">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4 md:grid md:grid-cols-[1fr_auto_1fr] md:px-6">
+          <div className="flex items-center gap-2 text-xl font-bold md:justify-self-start">
             <Link href="/" className="flex items-center gap-2">
               <Brain className="h-6 w-6 text-brand-yellow" />
               <span>Anthon</span>
@@ -70,7 +70,7 @@ export function Navbar() {
           {/* Desktop Navigation */}
           <nav
             aria-label="Navigazione principale"
-            className="hidden items-center gap-6 text-sm font-medium md:flex"
+            className="hidden items-center gap-6 text-sm font-medium md:flex md:justify-self-center"
           >
             <Link
               href="/#features"
@@ -132,7 +132,7 @@ export function Navbar() {
           </nav>
 
           {/* Auth Buttons (Desktop) */}
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden items-center gap-4 md:flex md:justify-self-end">
             {/* Theme Toggle */}
             <Button
               variant="ghost"
