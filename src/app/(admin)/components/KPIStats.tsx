@@ -15,33 +15,33 @@ export async function KPIStats() {
 
   const kpiCards = [
     {
-      title: "Total Users",
+      title: "Utenti totali",
       value: stats.totalUsers.toLocaleString(),
-      subtitle: `+${stats.newUsersInPeriod} this month`,
+      subtitle: `+${stats.newUsersInPeriod} negli ultimi 30 giorni`,
       icon: Users,
     },
     {
-      title: "Total Messages",
+      title: "Messaggi totali",
       value: stats.totalMessages.toLocaleString(),
-      subtitle: `${stats.messagesInPeriod.toLocaleString()} this month`,
+      subtitle: `${stats.messagesInPeriod.toLocaleString()} negli ultimi 30 giorni`,
       icon: MessageSquare,
     },
     {
-      title: "AI Costs",
+      title: "Costi AI",
       value: `$${stats.totalCostUsd.toFixed(2)}`,
-      subtitle: `$${stats.costInPeriod.toFixed(2)} this month`,
+      subtitle: `$${stats.costInPeriod.toFixed(2)} negli ultimi 30 giorni`,
       icon: DollarSign,
     },
     {
-      title: "Avg Messages/User",
+      title: "Media messaggi per utente",
       value: stats.avgMessagesPerUser.toFixed(1),
-      subtitle: `$${stats.costPerUser.toFixed(4)} per user`,
+      subtitle: `Su ${stats.totalUsers.toLocaleString()} utenti registrati`,
       icon: BarChart3,
     },
     {
-      title: "RAG Documents",
+      title: "Documenti RAG",
       value: stats.ragDocuments.toLocaleString(),
-      subtitle: "Knowledge base",
+      subtitle: "Base di conoscenza",
       icon: FileText,
     },
   ];

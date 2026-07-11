@@ -90,8 +90,8 @@ export default function AnalyticsPage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <AnimatedPageHeader
-          title="Analytics"
-          description="Detailed usage and engagement metrics"
+          title="Analisi"
+          description="Metriche dettagliate su utilizzo e coinvolgimento"
         />
 
         <div className="flex gap-2">
@@ -107,12 +107,12 @@ export default function AnalyticsPage() {
               }`}
             >
               {r === "all"
-                ? "All Time"
+                ? "Tutto"
                 : r === "7d"
-                  ? "7 Days"
+                  ? "7 giorni"
                   : r === "30d"
-                    ? "30 Days"
-                    : "90 Days"}
+                    ? "30 giorni"
+                    : "90 giorni"}
             </button>
           ))}
         </div>

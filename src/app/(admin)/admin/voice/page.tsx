@@ -48,7 +48,6 @@ interface StatsData {
 function getLoadStatus(load: number): {
   color: string;
   label: string;
-  emoji: string;
   textColor: string;
 } {
   if (load > 0.6)
@@ -56,20 +55,17 @@ function getLoadStatus(load: number): {
       color: "bg-emerald-500/10",
       textColor: "text-emerald-500",
       label: "Ottimale",
-      emoji: "🟢",
     };
   if (load > 0.3)
     return {
       color: "bg-yellow-500/10",
       textColor: "text-yellow-500",
       label: "Moderato",
-      emoji: "🟡",
     };
   return {
     color: "bg-red-500/10",
     textColor: "text-red-500",
     label: "Critico",
-    emoji: "🔴",
   };
 }
 
@@ -100,7 +96,9 @@ export default function ElevenLabsAdminPage() {
           </CardHeader>
           <CardContent>
             <p className="text-red-400">
-              {error instanceof Error ? error.message : "Failed to fetch"}
+              {error instanceof Error
+                ? error.message
+                : "Impossibile recuperare i dati"}
             </p>
           </CardContent>
         </Card>
@@ -120,7 +118,7 @@ export default function ElevenLabsAdminPage() {
     <div className="mx-auto max-w-7xl space-y-8 p-8">
       <div className="flex items-center justify-between">
         <AnimatedPageHeader
-          title="Voice Analytics"
+          title="Analisi vocale"
           description="Monitoraggio in tempo reale della pipeline vocale"
         />
         {data.subscription && (
@@ -147,7 +145,7 @@ export default function ElevenLabsAdminPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Crediti Rimanenti
+              Crediti rimanenti
             </CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -171,7 +169,9 @@ export default function ElevenLabsAdminPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">System Load</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Carico del sistema
+            </CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -193,7 +193,7 @@ export default function ElevenLabsAdminPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Costo Oggi</CardTitle>
+            <CardTitle className="text-sm font-medium">Costo oggi</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -251,7 +251,7 @@ export default function ElevenLabsAdminPage() {
         {/* Detailed Stats Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Statistiche Periodiche</CardTitle>
+            <CardTitle>Statistiche periodiche</CardTitle>
             <CardDescription>
               Confronto giornaliero, settimanale e mensile
             </CardDescription>
@@ -265,12 +265,12 @@ export default function ElevenLabsAdminPage() {
                   color: "bg-blue-500",
                 },
                 {
-                  label: "Questa Settimana",
+                  label: "Questa settimana",
                   data: data.stats.week,
                   color: "bg-violet-500",
                 },
                 {
-                  label: "Questo Mese",
+                  label: "Questo mese",
                   data: data.stats.month,
                   color: "bg-emerald-500",
                 },

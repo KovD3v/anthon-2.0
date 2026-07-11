@@ -65,14 +65,19 @@ export async function getOverviewStats(startDate: Date | null) {
  * System health check logic
  */
 export async function getSystemHealth() {
-  const [dbHealth, vercelBlobHealth] = await Promise.allSettled([
+  const [dbHealth] = await Promise.allSettled([
     prisma.$queryRaw`SELECT 1`.then(() => ({
       status: "connected" as const,
     })),
-    // Basic connectivity check for other services could go here.
-    // For now, we'll return connected if we don't hit obvious errors
-    Promise.resolve({ status: "connected" as const }),
   ]);
+
+  const configurationStatus = (configured: boolean) =>
+    configured
+      ? { status: "configured" as const }
+      : {
+          status: "not_configured" as const,
+          message: "Configurazione mancante",
+        };
 
   return {
     database:
@@ -80,13 +85,10 @@ export async function getSystemHealth() {
         ? dbHealth.value
         : {
             status: "error" as const,
-            message: "Database disconnected",
+            message: "Database non raggiungibile",
           },
-    openrouter: { status: "connected" as const }, // Mocked or check API
-    clerk: { status: "connected" as const },
-    vercelBlob:
-      vercelBlobHealth.status === "fulfilled"
-        ? vercelBlobHealth.value
-        : { status: "error" as const, message: "Vercel Blob error" },
+    openrouter: configurationStatus(Boolean(process.env.OPENROUTER_API_KEY)),
+    clerk: configurationStatus(Boolean(process.env.CLERK_SECRET_KEY)),
+    vercelBlob: configurationStatus(Boolean(process.env.BLOB_READ_WRITE_TOKEN)),
   };
 }

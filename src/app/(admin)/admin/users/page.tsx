@@ -148,14 +148,14 @@ export default function UsersPage() {
             user: { ...selectedUser.user, role: newRole },
           });
         }
-        toast.success("Role updated successfully");
+        toast.success("Ruolo aggiornato correttamente");
       } else {
         const error = await res.json();
-        toast.error(error.error || "Failed to update role");
+        toast.error(error.error || "Impossibile aggiornare il ruolo");
       }
     } catch (error) {
       console.error("Failed to update role:", error);
-      toast.error("Failed to update role");
+      toast.error("Impossibile aggiornare il ruolo");
     } finally {
       setUpdatingRole(null);
     }
@@ -166,8 +166,8 @@ export default function UsersPage() {
       {/* Users List */}
       <div className="flex-1 space-y-6">
         <AnimatedPageHeader
-          title="Users"
-          description="Manage users and view their activity"
+          title="Utenti"
+          description="Gestisci gli utenti e consulta la loro attività"
         />
 
         {/* Filters */}
@@ -176,7 +176,7 @@ export default function UsersPage() {
             <div className="flex gap-4">
               <input
                 type="text"
-                placeholder="Search by email..."
+                placeholder="Cerca per email..."
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -192,10 +192,10 @@ export default function UsersPage() {
                 }}
                 className="rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <option value="">All Roles</option>
-                <option value="USER">User</option>
-                <option value="ADMIN">Admin</option>
-                <option value="SUPER_ADMIN">Super Admin</option>
+                <option value="">Tutti i ruoli</option>
+                <option value="USER">Utente</option>
+                <option value="ADMIN">Amministratore</option>
+                <option value="SUPER_ADMIN">Super amministratore</option>
               </select>
             </div>
           </CardContent>
@@ -213,11 +213,11 @@ export default function UsersPage() {
                 <table className="w-full text-sm text-left">
                   <thead className="bg-muted/50 text-muted-foreground border-b">
                     <tr>
-                      <th className="px-6 py-3 font-medium">User</th>
-                      <th className="px-6 py-3 font-medium">Role</th>
-                      <th className="px-6 py-3 font-medium">Messages</th>
-                      <th className="px-6 py-3 font-medium">Status</th>
-                      <th className="px-6 py-3 font-medium">Joined</th>
+                      <th className="px-6 py-3 font-medium">Utente</th>
+                      <th className="px-6 py-3 font-medium">Ruolo</th>
+                      <th className="px-6 py-3 font-medium">Messaggi</th>
+                      <th className="px-6 py-3 font-medium">Stato</th>
+                      <th className="px-6 py-3 font-medium">Iscrizione</th>
                       <th className="px-6 py-3" />
                     </tr>
                   </thead>
@@ -233,7 +233,7 @@ export default function UsersPage() {
                         <td className="px-6 py-4">
                           <div>
                             <div className="font-medium text-foreground">
-                              {user.name || "No name"}
+                              {user.name || "Nessun nome"}
                             </div>
                             <div className="text-muted-foreground">
                               {user.email}
@@ -266,12 +266,12 @@ export default function UsersPage() {
             {pagination && pagination.totalPages > 1 && (
               <div className="flex items-center justify-between border-t px-6 py-4">
                 <div className="text-sm text-muted-foreground">
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
+                  Da {(pagination.page - 1) * pagination.limit + 1} a{" "}
                   {Math.min(
                     pagination.page * pagination.limit,
                     pagination.total,
                   )}{" "}
-                  of {pagination.total}
+                  di {pagination.total}
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -280,7 +280,7 @@ export default function UsersPage() {
                     disabled={pagination.page <= 1}
                     onClick={() => setPage((p) => p - 1)}
                   >
-                    Previous
+                    Precedente
                   </Button>
                   <Button
                     variant="outline"
@@ -288,7 +288,7 @@ export default function UsersPage() {
                     disabled={pagination.page >= pagination.totalPages}
                     onClick={() => setPage((p) => p + 1)}
                   >
-                    Next
+                    Successiva
                   </Button>
                 </div>
               </div>
@@ -303,7 +303,7 @@ export default function UsersPage() {
           <Card className="sticky top-8">
             <CardHeader className="border-b space-y-0 pb-4">
               <div className="flex items-center justify-between">
-                <CardTitle>User Details</CardTitle>
+                <CardTitle>Dettagli utente</CardTitle>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -323,7 +323,7 @@ export default function UsersPage() {
                 <div className="space-y-6">
                   {/* Basic Info */}
                   <div>
-                    <h4 className="font-medium mb-2">Profile</h4>
+                    <h4 className="font-medium mb-2">Profilo</h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between py-1 border-b border-border/50 last:border-0">
                         <span className="text-muted-foreground">Email</span>
@@ -332,7 +332,7 @@ export default function UsersPage() {
                         </span>
                       </div>
                       <div className="flex justify-between py-1 border-b border-border/50 last:border-0">
-                        <span className="text-muted-foreground">Name</span>
+                        <span className="text-muted-foreground">Nome</span>
                         <span className="font-medium">
                           {selectedUser.user.profile?.name || "-"}
                         </span>
@@ -344,7 +344,7 @@ export default function UsersPage() {
                         </span>
                       </div>
                       <div className="flex justify-between items-center py-1">
-                        <span className="text-muted-foreground">Role</span>
+                        <span className="text-muted-foreground">Ruolo</span>
                         {isSuperAdmin ? (
                           <select
                             value={selectedUser.user.role}
@@ -357,9 +357,11 @@ export default function UsersPage() {
                             disabled={updatingRole === selectedUser.user.id}
                             className="rounded border bg-background px-2 py-1 text-xs focus:ring-2 focus:ring-ring focus:outline-none"
                           >
-                            <option value="USER">User</option>
-                            <option value="ADMIN">Admin</option>
-                            <option value="SUPER_ADMIN">Super Admin</option>
+                            <option value="USER">Utente</option>
+                            <option value="ADMIN">Amministratore</option>
+                            <option value="SUPER_ADMIN">
+                              Super amministratore
+                            </option>
                           </select>
                         ) : (
                           <RoleBadge role={selectedUser.user.role} />
@@ -370,11 +372,11 @@ export default function UsersPage() {
 
                   {/* Stats */}
                   <div>
-                    <h4 className="font-medium mb-3">Statistics</h4>
+                    <h4 className="font-medium mb-3">Statistiche</h4>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div className="bg-muted/50 p-2.5 rounded-lg border">
                         <div className="text-xs text-muted-foreground mb-1">
-                          Messages
+                          Messaggi
                         </div>
                         <div className="font-semibold">
                           {selectedUser.stats.totalMessages}
@@ -382,7 +384,7 @@ export default function UsersPage() {
                       </div>
                       <div className="bg-muted/50 p-2.5 rounded-lg border">
                         <div className="text-xs text-muted-foreground mb-1">
-                          Cost
+                          Costo
                         </div>
                         <div className="font-semibold">
                           ${selectedUser.stats.totalCostUsd.toFixed(4)}
@@ -390,7 +392,7 @@ export default function UsersPage() {
                       </div>
                       <div className="bg-muted/50 p-2.5 rounded-lg border">
                         <div className="text-xs text-muted-foreground mb-1">
-                          Output Tokens
+                          Token di output
                         </div>
                         <div className="font-semibold">
                           {selectedUser.stats.totalOutputTokens.toLocaleString()}
@@ -398,7 +400,7 @@ export default function UsersPage() {
                       </div>
                       <div className="bg-muted/50 p-2.5 rounded-lg border">
                         <div className="text-xs text-muted-foreground mb-1">
-                          Avg Gen Time
+                          Tempo medio
                         </div>
                         <div className="font-semibold">
                           {selectedUser.stats.avgGenerationTimeMs.toFixed(0)}
@@ -411,7 +413,7 @@ export default function UsersPage() {
                   {/* Recent Chats */}
                   <div>
                     <h4 className="font-medium mb-3">
-                      Recent Conversations ({selectedUser.channels.length})
+                      Conversazioni recenti ({selectedUser.channels.length})
                     </h4>
                     <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                       {selectedUser.channels.slice(0, 5).map((channel) => (
@@ -421,7 +423,7 @@ export default function UsersPage() {
                         >
                           <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
                             <span className="font-medium text-primary">
-                              {channel.messageCount} messages
+                              {channel.messageCount} messaggi
                             </span>
                             <span>
                               {new Date(
@@ -432,13 +434,13 @@ export default function UsersPage() {
                           <div className="text-muted-foreground/90 line-clamp-2">
                             {channel.messages[
                               channel.messages.length - 1
-                            ]?.content?.slice(0, 100) || "No content"}
+                            ]?.content?.slice(0, 100) || "Nessun contenuto"}
                           </div>
                         </div>
                       ))}
                       {selectedUser.channels.length === 0 && (
                         <div className="text-muted-foreground text-sm text-center py-4 border rounded-lg border-dashed">
-                          No conversations yet
+                          Nessuna conversazione
                         </div>
                       )}
                     </div>
@@ -465,9 +467,15 @@ function RoleBadge({ role }: { role: UserRole }) {
   const baseStyles =
     "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2";
 
+  const labels: Record<UserRole, string> = {
+    USER: "Utente",
+    ADMIN: "Amministratore",
+    SUPER_ADMIN: "Super amministratore",
+  };
+
   return (
     <span className={`${baseStyles} ${colors[role]} border-transparent`}>
-      {role.replace("_", " ")}
+      {labels[role]}
     </span>
   );
 }
@@ -481,7 +489,7 @@ function StatusBadge({ status }: { status: string | null }) {
       <span
         className={`${baseStyles} bg-secondary text-secondary-foreground hover:bg-secondary/80 border-transparent`}
       >
-        Free
+        Gratuito
       </span>
     );
   }
@@ -497,9 +505,17 @@ function StatusBadge({ status }: { status: string | null }) {
       "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-transparent",
   };
 
+  const labels: Record<string, string> = {
+    TRIAL: "Prova",
+    ACTIVE: "Attivo",
+    CANCELED: "Annullato",
+    EXPIRED: "Scaduto",
+    PAST_DUE: "Pagamento scaduto",
+  };
+
   return (
     <span className={`${baseStyles} ${colors[status] || colors.EXPIRED}`}>
-      {status}
+      {labels[status] || status}
     </span>
   );
 }

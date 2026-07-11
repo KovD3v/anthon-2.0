@@ -66,7 +66,7 @@ export default function VoiceCharts({ history }: { history: HistoryItem[] }) {
   return (
     <Card className="col-span-4">
       <CardHeader>
-        <CardTitle>Andamento Attività</CardTitle>
+        <CardTitle>Andamento attività</CardTitle>
         <CardDescription>
           Vocali generati e consumo caratteri (ultimi 14 giorni)
         </CardDescription>

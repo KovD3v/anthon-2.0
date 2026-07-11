@@ -15,7 +15,7 @@ export default function AdminDashboard() {
     <div className="space-y-8">
       <AnimatedPageHeader
         title="Dashboard"
-        description="Overview of your Anthon instance"
+        description="Panoramica operativa della tua istanza Anthon"
       />
 
       <Suspense fallback={<KPIStatsSkeleton />}>
@@ -25,7 +25,7 @@ export default function AdminDashboard() {
       <div className="grid gap-8 lg:grid-cols-2">
         <Card variant="glass">
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
+            <CardTitle>Azioni rapide</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-4">
@@ -34,28 +34,28 @@ export default function AdminDashboard() {
                 className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4 text-card-foreground transition-colors hover:bg-muted/50"
               >
                 <Users className="h-8 w-8 text-primary" />
-                <span className="font-medium">Manage Users</span>
+                <span className="font-medium">Gestisci utenti</span>
               </Link>
               <Link
                 href="/admin/rag"
                 className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4 text-card-foreground transition-colors hover:bg-muted/50"
               >
                 <FileText className="h-8 w-8 text-primary" />
-                <span className="font-medium">Upload RAG Docs</span>
+                <span className="font-medium">Carica documenti</span>
               </Link>
               <Link
                 href="/admin/analytics"
                 className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4 text-card-foreground transition-colors hover:bg-muted/50"
               >
                 <BarChart3 className="h-8 w-8 text-primary" />
-                <span className="font-medium">View Analytics</span>
+                <span className="font-medium">Vedi analisi</span>
               </Link>
               <Link
                 href="/chat"
                 className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4 text-card-foreground transition-colors hover:bg-muted/50"
               >
                 <MessageSquare className="h-8 w-8 text-primary" />
-                <span className="font-medium">Open Chat</span>
+                <span className="font-medium">Apri chat</span>
               </Link>
             </div>
           </CardContent>
@@ -63,7 +63,7 @@ export default function AdminDashboard() {
 
         <Card className="bg-background/60 backdrop-blur-xl border-white/10 shadow-xl">
           <CardHeader>
-            <CardTitle>System Status</CardTitle>
+            <CardTitle>Stato dei sistemi</CardTitle>
           </CardHeader>
           <CardContent>
             <Suspense fallback={<SystemStatusSkeleton />}>

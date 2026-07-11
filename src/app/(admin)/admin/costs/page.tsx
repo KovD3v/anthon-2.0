@@ -67,7 +67,7 @@ export default function AdminCostsPage() {
     queryKey: ["admin-costs", range],
     queryFn: () =>
       fetch(`/api/admin/costs?range=${range}`).then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch cost data");
+        if (!res.ok) throw new Error("Impossibile recuperare i dati sui costi");
         return res.json();
       }),
   });
@@ -85,10 +85,12 @@ export default function AdminCostsPage() {
       <div className="p-8">
         <Card className="border-destructive/20 bg-destructive/5">
           <CardHeader>
-            <CardTitle className="text-destructive">Error</CardTitle>
+            <CardTitle className="text-destructive">Errore</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-destructive/80">Failed to fetch cost data</p>
+            <p className="text-destructive/80">
+              Impossibile recuperare i dati sui costi
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -103,8 +105,8 @@ export default function AdminCostsPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <AnimatedPageHeader
-          title="Cost Analytics"
-          description="Detailed breakdown of AI, Voice, and Infrastructure expenses."
+          title="Analisi dei costi"
+          description="Dettaglio delle spese per IA, voce e infrastruttura"
         />
         <div className="flex items-center gap-2 rounded-lg bg-muted/50 p-1 ring-1 ring-white/10 backdrop-blur-sm">
           {["7d", "30d", "90d", "all"].map((r) => (
@@ -119,7 +121,13 @@ export default function AdminCostsPage() {
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {r.toUpperCase()}
+              {r === "all"
+                ? "Tutto"
+                : r === "7d"
+                  ? "7 giorni"
+                  : r === "30d"
+                    ? "30 giorni"
+                    : "90 giorni"}
             </button>
           ))}
         </div>
@@ -129,9 +137,9 @@ export default function AdminCostsPage() {
         {/* KPI Cards */}
         <div>
           <KPICard
-            title="Total Estimated"
+            title="Totale stimato"
             value={`$${totalCost.toFixed(2)}`}
-            description="Combined AI + Voice"
+            description="IA e voce"
             icon={DollarSign}
             color="text-rose-500"
             bgColor="bg-rose-500/10"
@@ -139,9 +147,9 @@ export default function AdminCostsPage() {
         </div>
         <div>
           <KPICard
-            title="AI Intelligence"
+            title="Intelligenza artificiale"
             value={`$${data.summary.totalAiCost.toFixed(2)}`}
-            description={`${data.summary.totalTokens.toLocaleString()} tokens`}
+            description={`${data.summary.totalTokens.toLocaleString("it-IT")} token`}
             icon={Brain}
             color="text-emerald-500"
             bgColor="bg-emerald-500/10"
@@ -149,9 +157,9 @@ export default function AdminCostsPage() {
         </div>
         <div>
           <KPICard
-            title="Vocal Synthesis"
+            title="Sintesi vocale"
             value={`$${data.summary.totalVoiceCost.toFixed(2)}`}
-            description={`${data.summary.totalVoiceCharacters.toLocaleString()} chars`}
+            description={`${data.summary.totalVoiceCharacters.toLocaleString("it-IT")} caratteri`}
             icon={Mic}
             color="text-indigo-500"
             bgColor="bg-indigo-500/10"
@@ -159,9 +167,9 @@ export default function AdminCostsPage() {
         </div>
         <div>
           <KPICard
-            title="Infrastructure"
-            value="Static"
-            description="Fixed/Tier usage"
+            title="Infrastruttura"
+            value="Fisso"
+            description="Utilizzo fisso o per fascia"
             icon={Layers}
             color="text-amber-500"
             bgColor="bg-amber-500/10"
@@ -185,7 +193,7 @@ export default function AdminCostsPage() {
           color="text-white"
         />
         <InfraCard
-          name="Neon DB"
+          name="Database Neon"
           icon={Database}
           data={
             data.infrastructure.neon as {
@@ -196,7 +204,7 @@ export default function AdminCostsPage() {
           color="text-emerald-400"
         />
         <InfraCard
-          name="Clerk Auth"
+          name="Autenticazione Clerk"
           icon={Activity}
           data={
             data.infrastructure.clerk as {
@@ -251,7 +259,7 @@ function KPICard({
           </div>
           <div className="flex items-center gap-1 text-[10px] font-medium text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">
             <TrendingUp className="h-3 w-3" />
-            Active
+            Attivo
           </div>
         </div>
         <div className="mt-4">
@@ -307,7 +315,7 @@ function InfraCard({
               <span className="text-xs text-emerald-400 font-mono">
                 ${data.current.toFixed(2)}
               </span>
-              <span className="text-[10px] text-muted-foreground">Current</span>
+              <span className="text-[10px] text-muted-foreground">Attuale</span>
             </div>
           </div>
         </div>
@@ -315,8 +323,8 @@ function InfraCard({
         {data.limit && (
           <div className="mt-4 space-y-2">
             <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>Usage Limit</span>
-              <span>Free Tier</span>
+              <span>Limite di utilizzo</span>
+              <span>Fascia gratuita</span>
             </div>
             <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
               <div className="h-full bg-linear-to-r from-primary/50 to-primary w-1/4" />
@@ -330,7 +338,7 @@ function InfraCard({
         {!data.limit && data.templateCostAvg && (
           <div className="mt-4 p-2 rounded bg-white/5 border border-white/5">
             <p className="text-[10px] text-muted-foreground">
-              Avg. Template Cost:{" "}
+              Costo medio per modello:{" "}
               <span className="text-foreground font-mono font-medium">
                 ${data.templateCostAvg}
               </span>
