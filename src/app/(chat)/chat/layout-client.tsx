@@ -519,14 +519,16 @@ export function LayoutClient({
         className="flex chat-mobile-viewport overflow-hidden"
       >
         {/* Mobile Backdrop */}
-        {isSidebarOpen && (
-          <button
-            type="button"
-            aria-label="Close sidebar"
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden cursor-default"
-            onClick={() => setIsSidebarOpen(false)}
-          />
-        )}
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          aria-hidden={!isSidebarOpen}
+          tabIndex={isSidebarOpen ? 0 : -1}
+          className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden cursor-default transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:duration-150 ${
+            isSidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
+          }`}
+          onClick={() => setIsSidebarOpen(false)}
+        />
 
         {/* Sidebar */}
         <aside
@@ -536,7 +538,7 @@ export function LayoutClient({
               : "-translate-x-full md:translate-x-0"
           } ${
             isSidebarOpen ? "md:w-72" : "md:w-0"
-          } fixed left-0 top-0 z-50 h-full w-72 shrink-0 overflow-hidden border-r border-border/50 dark:border-white/10 bg-background/80 dark:bg-muted/40 backdrop-blur-xl transition-all duration-300 ease-in-out md:relative md:z-auto`}
+          } fixed left-0 top-0 z-50 h-full w-72 shrink-0 overflow-hidden border-r border-border/50 dark:border-white/10 bg-background/80 dark:bg-muted/40 backdrop-blur-xl transition-[transform,width] duration-250 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-[width,opacity] motion-reduce:duration-150 md:relative md:z-auto`}
         >
           <div className="flex h-full w-72 flex-col pt-[env(safe-area-inset-top)]">
             <SidebarHeader onCollapse={() => setIsSidebarOpen(false)} />

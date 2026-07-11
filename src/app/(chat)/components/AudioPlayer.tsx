@@ -19,11 +19,27 @@ export function AudioPlayer({
   className,
 }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const progressTrackRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [progressTrackWidth, setProgressTrackWidth] = useState(0);
+
+  useEffect(() => {
+    const track = progressTrackRef.current;
+    if (!track) return;
+
+    const updateTrackWidth = () => setProgressTrackWidth(track.clientWidth);
+    updateTrackWidth();
+
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(updateTrackWidth);
+    observer.observe(track);
+    return () => observer.disconnect();
+  }, []);
 
   // Convert source to playable URL
   // Handles: blob URLs, data URLs, and raw base64 strings
@@ -139,7 +155,7 @@ export function AudioPlayer({
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-2 p-2 pr-4 rounded-2xl overflow-hidden transition-all duration-300",
+        "group relative flex items-center gap-2 p-2 pr-4 rounded-2xl overflow-hidden transition-[background-color,border-color,box-shadow] duration-200",
         "bg-zinc-800 border border-zinc-700 shadow-sm",
         "hover:bg-zinc-750",
         "min-w-[200px]",
@@ -154,8 +170,8 @@ export function AudioPlayer({
         type="button"
         size="icon"
         className={cn(
-          "h-10 w-10 shrink-0 rounded-full shadow-md transition-transform duration-200",
-          "bg-white text-black hover:bg-zinc-200 hover:scale-105 active:scale-95",
+          "h-10 w-10 shrink-0 rounded-full shadow-md transition-transform duration-200 motion-reduce:transition-none motion-reduce:active:scale-100",
+          "bg-white text-black hover:bg-zinc-200 [@media(hover:hover)_and_(pointer:fine)_and_(prefers-reduced-motion:no-preference)]:hover:scale-105 active:scale-95",
           "flex items-center justify-center focus-visible:ring-1 focus-visible:ring-white",
         )}
         onClick={togglePlayPause}
@@ -173,6 +189,7 @@ export function AudioPlayer({
       <div className="flex-1 min-w-0 flex flex-col justify-center gap-1.5 py-0.5">
         {/* Progress Bar Container */}
         <div
+          ref={progressTrackRef}
           className="h-4 flex items-center cursor-pointer group/progress relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full"
           onClick={handleProgressClick}
           role="slider"
@@ -198,8 +215,8 @@ export function AudioPlayer({
           <div className="w-full h-1 bg-zinc-600 rounded-full overflow-hidden">
             {/* Active Progress */}
             <div
-              className="h-full bg-white rounded-full transition-all duration-100 ease-out"
-              style={{ width: `${progress}%` }}
+              className="h-full origin-left rounded-full bg-white transition-transform duration-100 ease-out"
+              style={{ transform: `scaleX(${progress / 100})` }}
             />
           </div>
 
@@ -207,8 +224,8 @@ export function AudioPlayer({
           <div
             className="absolute h-3 w-3 bg-white rounded-full shadow-sm opacity-0 group-hover/progress:opacity-100 transition-opacity duration-200 pointer-events-none"
             style={{
-              left: `${progress}%`,
-              transform: "translateX(-50%)",
+              left: 0,
+              transform: `translateX(${Math.max(0, progressTrackWidth - 12) * (progress / 100)}px)`,
             }}
           />
         </div>

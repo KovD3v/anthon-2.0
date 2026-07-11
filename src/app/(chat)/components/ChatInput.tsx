@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, m } from "framer-motion";
 import { Send, Square } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -183,7 +184,7 @@ export function ChatInput({
 
       <form
         onSubmit={handleFormSubmit}
-        className="relative flex items-end gap-2 rounded-4xl border border-border/70 bg-background/60 p-2 shadow-lg backdrop-blur-xl ring-1 ring-black/5 dark:border-white/10 dark:bg-muted/40 dark:ring-white/10 transition-all focus-within:ring-2 focus-within:ring-primary/20"
+        className="relative flex items-end gap-2 rounded-4xl border border-border/70 bg-background/60 p-2 shadow-lg backdrop-blur-xl ring-1 ring-black/5 dark:border-white/10 dark:bg-muted/40 dark:ring-white/10 transition-[border-color,box-shadow] focus-within:ring-2 focus-within:ring-primary/20"
       >
         {/* Hidden file input */}
         <input
@@ -234,33 +235,44 @@ export function ChatInput({
           className="min-w-0 flex-1 resize-none bg-transparent px-2 py-3 text-sm outline-none placeholder:text-muted-foreground/50 max-h-[200px] overflow-y-auto scrollbar-none"
           disabled={isLoading || isUploading}
         />
-        <div className="pb-1 pr-1">
-          {isLoading ? (
-            <Button
-              type="button"
-              size="icon"
-              variant="destructive"
-              className="h-9 w-9 rounded-full shadow-sm transition-all hover:shadow-md"
-              onClick={onStop}
-              aria-label="Interrompi risposta"
+        <div className="grid pb-1 pr-1">
+          <AnimatePresence initial={false} mode="popLayout">
+            <m.div
+              key={isLoading ? "stop" : "send"}
+              className="col-start-1 row-start-1"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
             >
-              <Square className="h-4 w-4 fill-current" />
-            </Button>
-          ) : (
-            <Button
-              type="submit"
-              size="icon"
-              className={`h-9 w-9 rounded-full transition-all duration-200 ${
-                input.trim() || attachments.length > 0
-                  ? "bg-primary text-primary-foreground shadow-md hover:shadow-lg hover:scale-105"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-              disabled={cannotSubmit}
-              aria-label="Invia messaggio"
-            >
-              <Send className="h-4 w-4 ml-0.5" />
-            </Button>
-          )}
+              {isLoading ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="destructive"
+                  className="h-9 w-9 rounded-full shadow-sm transition-shadow hover:shadow-md"
+                  onClick={onStop}
+                  aria-label="Interrompi risposta"
+                >
+                  <Square className="h-4 w-4 fill-current" />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  size="icon"
+                  className={`h-9 w-9 rounded-full transition-[background-color,color,box-shadow,transform] duration-200 ${
+                    input.trim() || attachments.length > 0
+                      ? "bg-primary text-primary-foreground shadow-md hover:shadow-lg [@media(hover:hover)_and_(pointer:fine)]:hover:scale-105"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                  disabled={cannotSubmit}
+                  aria-label="Invia messaggio"
+                >
+                  <Send className="h-4 w-4 ml-0.5" />
+                </Button>
+              )}
+            </m.div>
+          </AnimatePresence>
         </div>
       </form>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, m } from "framer-motion";
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import {
   Check,
   Loader2,
@@ -13,7 +13,7 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { duration, ease } from "@/lib/motion";
+import { duration } from "@/lib/motion";
 import { getCreateChatButtonState } from "../chat/create-chat-ui";
 
 interface Chat {
@@ -57,7 +57,7 @@ export function ChatList({
       <div className="p-3">
         <Button
           onClick={onCreate}
-          className="group w-full justify-start gap-2 bg-background/50 text-foreground/80 shadow-sm backdrop-blur-sm transition-all hover:bg-background/80 hover:shadow-md active:scale-[0.98] border border-border/50 dark:border-white/10"
+          className="group w-full justify-start gap-2 bg-background/50 text-foreground/80 shadow-sm backdrop-blur-sm transition-[background-color,color,box-shadow,transform] hover:bg-background/80 hover:shadow-md active:scale-[0.98] border border-border/50 dark:border-white/10"
           variant="outline"
           disabled={createChatButton.isDisabled}
           aria-busy={isCreatingChat}
@@ -130,6 +130,7 @@ function ChatItem({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(chat.title);
   const [isSavingRename, setIsSavingRename] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   const handleMouseEnter = () => {
     setShowActions(true);
@@ -172,15 +173,16 @@ function ChatItem({
 
   return (
     <m.li
-      layout
-      initial={{ opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       exit={{
         opacity: 0,
-        x: -8,
-        transition: { duration: duration.fast, ease: ease.in },
+        transition: {
+          duration: duration.fast,
+          ease: [0.23, 1, 0.32, 1],
+        },
       }}
-      transition={{ duration: duration.base, ease: ease.out }}
+      transition={{ duration: duration.fast, ease: [0.23, 1, 0.32, 1] }}
       className="group relative list-none"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setShowActions(false)}
@@ -191,7 +193,7 @@ function ChatItem({
         href={`/chat/${chat.id}`}
         prefetch={true}
         onClick={onClick}
-        className={`flex w-full items-center gap-2 rounded-xl px-3 py-3 sm:py-2.5 text-sm transition-all active:scale-[0.98] ${
+        className={`flex w-full items-center gap-2 rounded-xl px-3 py-3 sm:py-2.5 text-sm transition-[background-color,color,box-shadow,transform] active:scale-[0.98] ${
           isActive
             ? "bg-accent dark:bg-white/10 font-medium text-foreground shadow-sm ring-1 ring-border dark:ring-white/10"
             : "text-muted-foreground hover:text-foreground hover:bg-accent dark:hover:bg-white/5"
@@ -229,10 +231,13 @@ function ChatItem({
       <AnimatePresence>
         {showActions && !isDeleting && !isRenaming && (
           <m.div
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 10 }}
-            transition={{ duration: duration.fast, ease: ease.out }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{
+              duration: duration.fast,
+              ease: [0.23, 1, 0.32, 1],
+            }}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10 bg-background/90 dark:bg-muted/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-border/50 dark:border-white/10"
           >
             <Button
@@ -270,10 +275,27 @@ function ChatItem({
       <AnimatePresence>
         {isRenaming && (
           <m.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10 bg-background/95 dark:bg-muted/95 backdrop-blur-sm rounded-lg p-0.5 shadow-md border border-border/50 dark:border-white/10"
+            initial={{
+              opacity: 0,
+              transform: shouldReduceMotion
+                ? "translateY(-50%) scale(1)"
+                : "translateY(-50%) scale(0.95)",
+            }}
+            animate={{
+              opacity: 1,
+              transform: "translateY(-50%) scale(1)",
+            }}
+            exit={{
+              opacity: 0,
+              transform: shouldReduceMotion
+                ? "translateY(-50%) scale(1)"
+                : "translateY(-50%) scale(0.95)",
+            }}
+            transition={{
+              duration: duration.fast,
+              ease: [0.23, 1, 0.32, 1],
+            }}
+            className="absolute right-1.5 top-1/2 flex items-center gap-0.5 z-10 bg-background/95 dark:bg-muted/95 backdrop-blur-sm rounded-lg p-0.5 shadow-md border border-border/50 dark:border-white/10"
           >
             <Button
               variant="ghost"

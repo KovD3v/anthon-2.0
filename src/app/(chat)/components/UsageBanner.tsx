@@ -347,14 +347,14 @@ function _UsageStats({
       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div
           className={cn(
-            "h-full transition-all duration-300",
+            "h-full origin-left transition-transform duration-200",
             requestPercent >= 90
               ? "bg-red-500"
               : requestPercent >= 70
                 ? "bg-yellow-500"
                 : "bg-primary",
           )}
-          style={{ width: `${requestPercent}%` }}
+          style={{ transform: `scaleX(${requestPercent / 100})` }}
         />
       </div>
 

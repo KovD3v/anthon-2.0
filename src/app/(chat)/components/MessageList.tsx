@@ -1,7 +1,7 @@
 "use client";
 
 import type { UIMessage } from "ai";
-import { AnimatePresence, m } from "framer-motion";
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import {
   ArrowDown,
   Brain,
@@ -128,6 +128,7 @@ export function MessageList({
   isLoadingMore = false,
   onLoadMore,
 }: MessageListProps) {
+  const shouldReduceMotion = useReducedMotion();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const { copy, copied } = useCopyToClipboard();
@@ -376,9 +377,17 @@ export function MessageList({
                   }}
                 >
                   <m.div
-                    variants={fadeUp}
-                    initial={shouldAnimateMount ? "hidden" : false}
-                    animate="show"
+                    initial={
+                      shouldAnimateMount
+                        ? {
+                            opacity: 0,
+                            transform: shouldReduceMotion
+                              ? "translateY(0)"
+                              : "translateY(12px)",
+                          }
+                        : false
+                    }
+                    animate={{ opacity: 1, transform: "translateY(0)" }}
                     transition={defaultTransition}
                     className={`group flex items-start gap-2 mb-8 ${
                       isUser ? "flex-row-reverse" : "flex-row"
@@ -426,7 +435,14 @@ export function MessageList({
                         </div>
                       )}
 
-                      <div
+                      <m.div
+                        layout={!shouldReduceMotion}
+                        transition={{
+                          layout: {
+                            duration: 0.18,
+                            ease: [0.77, 0, 0.175, 1],
+                          },
+                        }}
                         className={`relative text-sm leading-relaxed ${
                           /* Only apply bubble styling if there's text or we are editing */
                           !isAttachmentOnly || isEditing
@@ -626,7 +642,7 @@ export function MessageList({
                               </div>
                             );
                           })()}
-                      </div>
+                      </m.div>
 
                       {/* Actions Row */}
                       <div
@@ -787,9 +803,8 @@ export function MessageList({
 
           {shouldShowPendingRow && (
             <m.output
-              variants={fadeUp}
-              initial="hidden"
-              animate="show"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               transition={defaultTransition}
               className="group mt-8 mb-2 flex items-start gap-2"
               aria-live="polite"
@@ -820,10 +835,24 @@ export function MessageList({
       <AnimatePresence>
         {showScrollButton && (
           <m.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10"
+            initial={{
+              opacity: 0,
+              transform: shouldReduceMotion
+                ? "translateX(-50%) scale(1)"
+                : "translateX(-50%) scale(0.95)",
+            }}
+            animate={{
+              opacity: 1,
+              transform: "translateX(-50%) scale(1)",
+            }}
+            exit={{
+              opacity: 0,
+              transform: shouldReduceMotion
+                ? "translateX(-50%) scale(1)"
+                : "translateX(-50%) scale(0.95)",
+            }}
+            transition={defaultTransition}
+            className="absolute bottom-28 left-1/2 z-10"
           >
             <Button
               size="sm"

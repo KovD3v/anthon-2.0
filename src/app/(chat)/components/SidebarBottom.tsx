@@ -1,7 +1,7 @@
 "use client";
 
 import { useClerk, useUser } from "@clerk/nextjs";
-import { AnimatePresence, m } from "framer-motion";
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import {
   BarChart3,
   Building2,
@@ -18,7 +18,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useRef, useState } from "react";
-import { duration, ease } from "@/lib/motion";
+import { duration } from "@/lib/motion";
 
 export function SidebarBottom() {
   const { user } = useUser();
@@ -27,6 +27,7 @@ export function SidebarBottom() {
   const { theme, setTheme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const shouldReduceMotion = useReducedMotion();
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -93,11 +94,24 @@ export function SidebarBottom() {
       <AnimatePresence>
         {isOpen && (
           <m.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: duration.fast, ease: ease.out }}
-            className="absolute bottom-full left-0 mb-2 w-[calc(100%-16px)] mx-2 overflow-hidden rounded-xl border border-border dark:border-white/20 bg-background/95 dark:bg-black/60 backdrop-blur-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10"
+            initial={{
+              opacity: 0,
+              transform: shouldReduceMotion
+                ? "translateY(0) scale(1)"
+                : "translateY(10px) scale(0.95)",
+            }}
+            animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
+            exit={{
+              opacity: 0,
+              transform: shouldReduceMotion
+                ? "translateY(0) scale(1)"
+                : "translateY(10px) scale(0.95)",
+            }}
+            transition={{
+              duration: duration.fast,
+              ease: [0.23, 1, 0.32, 1],
+            }}
+            className="absolute bottom-full left-0 mb-2 w-[calc(100%-16px)] mx-2 origin-bottom-left overflow-hidden rounded-xl border border-border dark:border-white/20 bg-background/95 dark:bg-black/60 backdrop-blur-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10"
           >
             <div className="flex flex-col p-1">
               {menuItems.map((item) => (
@@ -131,9 +145,9 @@ export function SidebarBottom() {
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="group flex w-full items-center gap-2 rounded-xl bg-background/50 p-2.5 transition-all hover:bg-background/80 hover:shadow-sm active:scale-[0.98]"
+          className="group flex w-full items-center gap-2 rounded-xl bg-background/50 p-2.5 transition-[background-color,box-shadow,transform] hover:bg-background/80 hover:shadow-sm active:scale-[0.98]"
         >
-          <div className="relative h-9 w-9 overflow-hidden rounded-full bg-linear-to-br from-primary/20 to-primary/10 ring-2 ring-border dark:ring-white/20 transition-all group-hover:ring-primary/20">
+          <div className="relative h-9 w-9 overflow-hidden rounded-full bg-linear-to-br from-primary/20 to-primary/10 ring-2 ring-border dark:ring-white/20 transition-[--tw-ring-color] group-hover:ring-primary/20">
             {user?.imageUrl ? (
               <Image
                 src={user.imageUrl}
