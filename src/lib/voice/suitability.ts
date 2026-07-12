@@ -11,8 +11,8 @@ const voiceLogger = createLogger("voice");
 const DEFAULT_SUITABILITY_MODEL =
   process.env.VOICE_SUITABILITY_MODEL_ID ||
   process.env.VOICE_PREFLIGHT_MODEL_ID ||
-  "qwen/qwen3.5-flash-02-23";
-const DEFAULT_TIMEOUT_MS = 1000;
+  "google/gemini-2.5-flash-lite";
+const DEFAULT_TIMEOUT_MS = 1500;
 const CODE_BLOCK_REGEX = /```[\s\S]*?```/;
 const TABLE_REGEX = /\|[-:]+\|/;
 const DENSE_LIST_REGEX = /(?:^|\n)\s*(?:[-*]|\d+[.)])\s+/gm;
@@ -77,6 +77,22 @@ export interface VoiceClassifierDiagnostics {
 
 export interface VoiceSuitabilityClassification extends VoiceSuitabilityHint {
   classifierDiagnostics: VoiceClassifierDiagnostics;
+}
+
+function getClassifierProviderOptions(modelId: string) {
+  const providerOptions = getOpenRouterProviderOptionsForModel(modelId);
+  const provider =
+    providerOptions.provider && typeof providerOptions.provider === "object"
+      ? providerOptions.provider
+      : {};
+
+  return {
+    ...providerOptions,
+    provider: {
+      ...provider,
+      require_parameters: true,
+    },
+  };
 }
 
 const INVALID_OUTPUT_ERROR_NAMES = new Set([
@@ -276,11 +292,10 @@ export async function classifyVoiceSuitability(
       output: Output.object({ schema: suitabilitySchema }),
       temperature: 0,
       maxOutputTokens: 80,
+      maxRetries: 0,
       timeout: { totalMs: timeoutMs },
       providerOptions: {
-        openrouter: getOpenRouterProviderOptionsForModel(
-          DEFAULT_SUITABILITY_MODEL,
-        ),
+        openrouter: getClassifierProviderOptions(DEFAULT_SUITABILITY_MODEL),
       },
       prompt: `Classify the best delivery format for this coaching response.
 

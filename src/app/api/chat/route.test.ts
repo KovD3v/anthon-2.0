@@ -1102,9 +1102,9 @@ describe("POST /api/chat", () => {
       suitabilityConfidence: 0.92,
       classifierDiagnostics: {
         outcome: "success",
-        model: "qwen/qwen3.5-flash-02-23",
+        model: "google/gemini-2.5-flash-lite",
         durationMs: 184,
-        timeoutMs: 1000,
+        timeoutMs: 1500,
       },
     });
     mocks.streamChat.mockImplementation(async ({ onFinish }) => {
@@ -1167,9 +1167,9 @@ describe("POST /api/chat", () => {
               suitabilityConfidence: 0.92,
               classifierDiagnostics: {
                 outcome: "success",
-                model: "qwen/qwen3.5-flash-02-23",
+                model: "google/gemini-2.5-flash-lite",
                 durationMs: 184,
-                timeoutMs: 1000,
+                timeoutMs: 1500,
               },
             },
           }),

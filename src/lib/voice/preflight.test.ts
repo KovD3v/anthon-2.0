@@ -133,7 +133,23 @@ describe("voice/preflight", () => {
       suitabilityReason: "reflective_coaching",
       suitabilityConfidence: 0.85,
     });
-    expect(mocks.openrouter).toHaveBeenCalledWith("qwen/qwen3.5-flash-02-23");
+    expect(mocks.openrouter).toHaveBeenCalledWith(
+      "google/gemini-2.5-flash-lite",
+    );
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxRetries: 0,
+        timeout: { totalMs: 1500 },
+        providerOptions: {
+          openrouter: {
+            provider: {
+              require_parameters: true,
+              sort: "latency",
+            },
+          },
+        },
+      }),
+    );
   });
 
   it("exposes classifier failure details for persisted diagnostics", async () => {
@@ -151,9 +167,9 @@ describe("voice/preflight", () => {
       suitabilityConfidence: 0,
       classifierDiagnostics: {
         outcome: "failed",
-        model: "qwen/qwen3.5-flash-02-23",
+        model: "google/gemini-2.5-flash-lite",
         durationMs: 0,
-        timeoutMs: 1000,
+        timeoutMs: 1500,
         failureCode: "timeout",
         errorName: "TimeoutError",
       },
@@ -173,9 +189,9 @@ describe("voice/preflight", () => {
 
     expect(result.classifierDiagnostics).toEqual({
       outcome: "failed",
-      model: "qwen/qwen3.5-flash-02-23",
+      model: "google/gemini-2.5-flash-lite",
       durationMs: 0,
-      timeoutMs: 1000,
+      timeoutMs: 1500,
       failureCode: "provider_error",
       errorName: "AI_APICallError",
       statusCode: 503,
