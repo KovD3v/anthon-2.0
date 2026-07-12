@@ -77,6 +77,7 @@ export async function createMessage(
     role?: "USER" | "ASSISTANT" | "SYSTEM";
     direction?: "INBOUND" | "OUTBOUND";
     createdAt?: Date;
+    text?: string;
   } & Partial<{
     feedback: number | null;
     metadata: Prisma.InputJsonValue;
@@ -94,6 +95,13 @@ export async function createMessage(
       direction,
       channel: "WEB",
       type: "TEXT",
+      ...(input.text
+        ? {
+            parts: [
+              { type: "text", text: input.text },
+            ] as Prisma.InputJsonValue,
+          }
+        : {}),
       ...(input.createdAt ? { createdAt: input.createdAt } : {}),
       ...(input.feedback !== undefined ? { feedback: input.feedback } : {}),
       ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
