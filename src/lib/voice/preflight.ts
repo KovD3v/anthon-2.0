@@ -11,6 +11,8 @@ import { detectVoiceRequestIntent } from "./policy";
 import {
   classifyVoiceSuitability,
   getDeterministicVoiceSuitability,
+  type VoiceClassifierDiagnostics,
+  type VoiceSuitabilityClassification,
 } from "./suitability";
 
 export type WebVoiceMode = "TEXT" | "VOICE";
@@ -24,6 +26,7 @@ export interface WebVoiceModeDecision {
   reasonCode: VoiceDecisionReasonCode;
   suitabilityReason?: string;
   suitabilityConfidence?: number;
+  classifierDiagnostics?: VoiceClassifierDiagnostics;
 }
 
 export interface WebVoiceModeParams {
@@ -60,7 +63,7 @@ export async function decideWebVoiceMode(
       requestIntent,
     });
   let classifierInvoked = false;
-  let classifiedSuitability: VoiceSuitabilityHint | undefined;
+  let classifiedSuitability: VoiceSuitabilityClassification | undefined;
   const suitability =
     deterministic ??
     (async () => {
@@ -93,5 +96,6 @@ export async function decideWebVoiceMode(
     reasonCode: decision.reason.code,
     suitabilityReason: (deterministic ?? classifiedSuitability)?.reason,
     suitabilityConfidence: (deterministic ?? classifiedSuitability)?.confidence,
+    classifierDiagnostics: classifiedSuitability?.classifierDiagnostics,
   };
 }

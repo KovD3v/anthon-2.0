@@ -1100,6 +1100,12 @@ describe("POST /api/chat", () => {
       reasonCode: "TEXT_PREFERRED",
       suitabilityReason: "short_factual",
       suitabilityConfidence: 0.92,
+      classifierDiagnostics: {
+        outcome: "success",
+        model: "qwen/qwen3.5-flash-02-23",
+        durationMs: 184,
+        timeoutMs: 1000,
+      },
     });
     mocks.streamChat.mockImplementation(async ({ onFinish }) => {
       await onFinish?.({
@@ -1159,6 +1165,12 @@ describe("POST /api/chat", () => {
               source: "classifier",
               suitabilityReason: "short_factual",
               suitabilityConfidence: 0.92,
+              classifierDiagnostics: {
+                outcome: "success",
+                model: "qwen/qwen3.5-flash-02-23",
+                durationMs: 184,
+                timeoutMs: 1000,
+              },
             },
           }),
         }),

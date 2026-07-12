@@ -468,6 +468,7 @@ export async function handleWebChatPost(request: Request) {
             category: voiceDecision.category,
             capacityState: voiceDecision.capacityState,
             reasonCode: voiceDecision.reasonCode,
+            classifierDiagnostics: voiceDecision.classifierDiagnostics,
           },
         );
 
@@ -764,6 +765,9 @@ function getVoiceDecisionMetadataFields(
       : {}),
     ...(decision.suitabilityConfidence !== undefined
       ? { suitabilityConfidence: decision.suitabilityConfidence }
+      : {}),
+    ...(decision.classifierDiagnostics
+      ? { classifierDiagnostics: { ...decision.classifierDiagnostics } }
       : {}),
   };
 }

@@ -137,7 +137,9 @@ describe("voice/preflight", () => {
   });
 
   it("exposes classifier failure details for persisted diagnostics", async () => {
-    mocks.generateText.mockRejectedValue(new Error("classifier timeout"));
+    const timeoutError = new Error("request timed out");
+    timeoutError.name = "TimeoutError";
+    mocks.generateText.mockRejectedValue(timeoutError);
 
     const result = await decideWebVoiceMode(baseParams());
 
@@ -147,6 +149,91 @@ describe("voice/preflight", () => {
       source: "classifier",
       suitabilityReason: "classifier_failed",
       suitabilityConfidence: 0,
+      classifierDiagnostics: {
+        outcome: "failed",
+        model: "qwen/qwen3.5-flash-02-23",
+        durationMs: 0,
+        timeoutMs: 1000,
+        failureCode: "timeout",
+        errorName: "TimeoutError",
+      },
+    });
+  });
+
+  it("records provider failure details without persisting response content", async () => {
+    const providerError = Object.assign(new Error("provider unavailable"), {
+      name: "AI_APICallError",
+      statusCode: 503,
+      isRetryable: true,
+      responseBody: "sensitive provider response",
+    });
+    mocks.generateText.mockRejectedValue(providerError);
+
+    const result = await decideWebVoiceMode(baseParams());
+
+    expect(result.classifierDiagnostics).toEqual({
+      outcome: "failed",
+      model: "qwen/qwen3.5-flash-02-23",
+      durationMs: 0,
+      timeoutMs: 1000,
+      failureCode: "provider_error",
+      errorName: "AI_APICallError",
+      statusCode: 503,
+      retryable: true,
+    });
+    expect(result.classifierDiagnostics).not.toHaveProperty("responseBody");
+  });
+
+  it("unwraps an AI SDK retry error to record its timeout cause", async () => {
+    const timeoutCause = new Error("The operation timed out");
+    timeoutCause.name = "TimeoutError";
+    const retryError = Object.assign(new Error("Failed after 1 attempt"), {
+      name: "AI_RetryError",
+      reason: "abort",
+      lastError: timeoutCause,
+      errors: [timeoutCause],
+    });
+    mocks.generateText.mockRejectedValue(retryError);
+
+    const result = await decideWebVoiceMode(baseParams());
+
+    expect(result.classifierDiagnostics).toMatchObject({
+      outcome: "failed",
+      failureCode: "timeout",
+      errorName: "AI_RetryError",
+      causeName: "TimeoutError",
+    });
+  });
+
+  it("records invalid structured output separately from provider failures", async () => {
+    const invalidOutputError = new Error("No object generated");
+    invalidOutputError.name = "AI_NoObjectGeneratedError";
+    mocks.generateText.mockRejectedValue(invalidOutputError);
+
+    const result = await decideWebVoiceMode(baseParams());
+
+    expect(result.classifierDiagnostics).toMatchObject({
+      outcome: "failed",
+      failureCode: "invalid_output",
+      errorName: "AI_NoObjectGeneratedError",
+    });
+  });
+
+  it("records empty classifier output as an invalid-output outcome", async () => {
+    mocks.generateText.mockResolvedValue({
+      output: undefined,
+      usage: { inputTokens: 90, outputTokens: 0 },
+    });
+
+    const result = await decideWebVoiceMode(baseParams());
+
+    expect(result).toMatchObject({
+      mode: "TEXT",
+      suitabilityReason: "classifier_empty",
+      classifierDiagnostics: {
+        outcome: "empty",
+        failureCode: "invalid_output",
+      },
     });
   });
 

@@ -52,4 +52,7 @@ export {
   classifyVoiceSuitability,
   type DeterministicSuitabilityParams,
   getDeterministicVoiceSuitability,
+  type VoiceClassifierDiagnostics,
+  type VoiceClassifierFailureCode,
+  type VoiceSuitabilityClassification,
 } from "./suitability";

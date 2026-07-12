@@ -56,6 +56,156 @@ export interface ClassifySuitabilityParams {
   timeoutMs?: number;
 }
 
+export type VoiceClassifierFailureCode =
+  | "timeout"
+  | "provider_error"
+  | "invalid_output"
+  | "configuration_error"
+  | "unknown";
+
+export interface VoiceClassifierDiagnostics {
+  outcome: "success" | "empty" | "failed";
+  model: string;
+  durationMs: number;
+  timeoutMs: number;
+  failureCode?: VoiceClassifierFailureCode;
+  errorName?: string;
+  causeName?: string;
+  statusCode?: number;
+  retryable?: boolean;
+}
+
+export interface VoiceSuitabilityClassification extends VoiceSuitabilityHint {
+  classifierDiagnostics: VoiceClassifierDiagnostics;
+}
+
+const INVALID_OUTPUT_ERROR_NAMES = new Set([
+  "AI_NoObjectGeneratedError",
+  "AI_NoOutputGeneratedError",
+  "AI_JSONParseError",
+  "AI_TypeValidationError",
+  "AI_InvalidResponseDataError",
+]);
+
+const CONFIGURATION_ERROR_NAMES = new Set([
+  "AI_LoadAPIKeyError",
+  "AI_LoadSettingError",
+  "AI_NoSuchModelError",
+  "AI_NoSuchProviderError",
+]);
+
+function asErrorRecord(error: unknown): Record<string, unknown> | null {
+  return error && typeof error === "object"
+    ? (error as Record<string, unknown>)
+    : null;
+}
+
+function getErrorName(error: unknown): string | undefined {
+  const record = asErrorRecord(error);
+  return typeof record?.name === "string" ? record.name : undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+  const record = asErrorRecord(error);
+  return typeof record?.message === "string" ? record.message : "";
+}
+
+function getNestedClassifierError(error: unknown): unknown {
+  const record = asErrorRecord(error);
+  return record?.lastError ?? record?.cause;
+}
+
+function getClassifierErrorChain(error: unknown): unknown[] {
+  const chain: unknown[] = [];
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+
+  while (current && chain.length < 5 && !seen.has(current)) {
+    chain.push(current);
+    seen.add(current);
+    current = getNestedClassifierError(current);
+  }
+
+  return chain;
+}
+
+function classifyClassifierFailure(
+  errorChain: unknown[],
+): VoiceClassifierFailureCode {
+  const names = errorChain.map(getErrorName).filter(Boolean) as string[];
+  const messages = errorChain.map(getErrorMessage).join(" ").toLowerCase();
+  const records = errorChain.map(asErrorRecord).filter(Boolean) as Record<
+    string,
+    unknown
+  >[];
+  const statusCode = records.find(
+    (record) => typeof record.statusCode === "number",
+  )?.statusCode;
+  const retryReason = records.find(
+    (record) => typeof record.reason === "string",
+  )?.reason;
+
+  if (
+    names.some((name) => name === "AbortError" || name === "TimeoutError") ||
+    retryReason === "abort" ||
+    statusCode === 408 ||
+    statusCode === 504 ||
+    /timed?\s*out|timeout|aborted/.test(messages)
+  ) {
+    return "timeout";
+  }
+  if (names.some((name) => INVALID_OUTPUT_ERROR_NAMES.has(name))) {
+    return "invalid_output";
+  }
+  if (names.some((name) => CONFIGURATION_ERROR_NAMES.has(name))) {
+    return "configuration_error";
+  }
+  if (
+    typeof statusCode === "number" ||
+    names.some(
+      (name) =>
+        name === "AI_APICallError" ||
+        name.includes("Provider") ||
+        name.includes("API"),
+    )
+  ) {
+    return "provider_error";
+  }
+  return "unknown";
+}
+
+function buildFailureDiagnostics(
+  error: unknown,
+  startedAtMs: number,
+  timeoutMs: number,
+): VoiceClassifierDiagnostics {
+  const errorChain = getClassifierErrorChain(error);
+  const records = errorChain.map(asErrorRecord).filter(Boolean) as Record<
+    string,
+    unknown
+  >[];
+  const statusCode = records.find(
+    (record) => typeof record.statusCode === "number",
+  )?.statusCode;
+  const retryable = records.find(
+    (record) => typeof record.isRetryable === "boolean",
+  )?.isRetryable;
+  const errorName = getErrorName(errorChain[0]);
+  const causeName = getErrorName(errorChain[errorChain.length - 1]);
+
+  return {
+    outcome: "failed",
+    model: DEFAULT_SUITABILITY_MODEL,
+    durationMs: Math.max(0, Date.now() - startedAtMs),
+    timeoutMs,
+    failureCode: classifyClassifierFailure(errorChain),
+    ...(errorName ? { errorName } : {}),
+    ...(causeName && causeName !== errorName ? { causeName } : {}),
+    ...(typeof statusCode === "number" ? { statusCode } : {}),
+    ...(typeof retryable === "boolean" ? { retryable } : {}),
+  };
+}
+
 export function getDeterministicVoiceSuitability(
   params: DeterministicSuitabilityParams,
 ): VoiceSuitabilityHint | null {
@@ -112,7 +262,9 @@ export function getDeterministicVoiceSuitability(
 
 export async function classifyVoiceSuitability(
   params: ClassifySuitabilityParams,
-): Promise<VoiceSuitabilityHint> {
+): Promise<VoiceSuitabilityClassification> {
+  const startedAtMs = Date.now();
+  const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
     const context =
       params.conversationContext
@@ -124,7 +276,7 @@ export async function classifyVoiceSuitability(
       output: Output.object({ schema: suitabilitySchema }),
       temperature: 0,
       maxOutputTokens: 80,
-      timeout: { totalMs: params.timeoutMs ?? DEFAULT_TIMEOUT_MS },
+      timeout: { totalMs: timeoutMs },
       providerOptions: {
         openrouter: getOpenRouterProviderOptionsForModel(
           DEFAULT_SUITABILITY_MODEL,
@@ -151,23 +303,46 @@ ${params.assistantText ? `Assistant: ${params.assistantText.slice(0, 700)}` : "A
       usage: result.usage,
       providerMetadata: result.providerMetadata,
     });
-    return (
-      result.output ?? {
+    if (!result.output) {
+      return {
         category: "TEXT_PREFERRED",
         confidence: 0,
         reason: "classifier_empty",
-      }
-    );
+        classifierDiagnostics: {
+          outcome: "empty",
+          model: DEFAULT_SUITABILITY_MODEL,
+          durationMs: Math.max(0, Date.now() - startedAtMs),
+          timeoutMs,
+          failureCode: "invalid_output",
+        },
+      };
+    }
+
+    return {
+      ...result.output,
+      classifierDiagnostics: {
+        outcome: "success",
+        model: DEFAULT_SUITABILITY_MODEL,
+        durationMs: Math.max(0, Date.now() - startedAtMs),
+        timeoutMs,
+      },
+    };
   } catch (error) {
+    const classifierDiagnostics = buildFailureDiagnostics(
+      error,
+      startedAtMs,
+      timeoutMs,
+    );
     voiceLogger.warn(
       "voice.suitability.classifier_failed",
       "Voice suitability classification failed; defaulting to text",
-      { error },
+      { error, classifierDiagnostics },
     );
     return {
       category: "TEXT_PREFERRED",
       confidence: 0,
       reason: "classifier_failed",
+      classifierDiagnostics,
     };
   }
 }
