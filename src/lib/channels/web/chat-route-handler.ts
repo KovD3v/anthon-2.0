@@ -471,6 +471,7 @@ export async function handleWebChatPost(request: Request) {
             hasImages,
             hasAudio: aiHasAudio,
             explicitVoiceRequest: voiceDecision.category === "VOICE_REQUIRED",
+            voiceDecision,
             waitUntil,
           });
 
@@ -513,6 +514,7 @@ export async function handleWebChatPost(request: Request) {
           persistence: {
             channel: "WEB",
             saveAssistantMessage: true,
+            metadata: buildVoiceDecisionMetadata(voiceDecision),
             updateChatTimestamp: true,
             revalidateTags: [`chats-${user.id}`, `chat-${chatId}`],
             waitUntil,
@@ -710,6 +712,27 @@ function getRecentTextMessages(messages: UIMessage[]) {
   }));
 }
 
+function buildVoiceDecisionMetadata(
+  decision: Awaited<ReturnType<typeof decideWebVoiceMode>>,
+): Prisma.InputJsonValue {
+  return {
+    voice: getVoiceDecisionMetadataFields(decision),
+  };
+}
+
+function getVoiceDecisionMetadataFields(
+  decision: Awaited<ReturnType<typeof decideWebVoiceMode>>,
+) {
+  return {
+    mode: decision.mode,
+    reason: decision.reason,
+    reasonCode: decision.reasonCode,
+    category: decision.category,
+    capacityState: decision.capacityState,
+    source: decision.source,
+  };
+}
+
 function isValidMessageArray(value: unknown): value is UIMessage[] {
   return Array.isArray(value) && value.length > 0 && value.every(isMessageLike);
 }
@@ -753,6 +776,7 @@ async function handleVoiceFirstWebResponse({
   hasImages,
   hasAudio,
   explicitVoiceRequest,
+  voiceDecision,
   waitUntil: schedule,
 }: {
   userId: string;
@@ -767,6 +791,7 @@ async function handleVoiceFirstWebResponse({
   hasImages?: boolean;
   hasAudio?: boolean;
   explicitVoiceRequest?: boolean;
+  voiceDecision: Awaited<ReturnType<typeof decideWebVoiceMode>>;
   waitUntil?: (promise: Promise<unknown>) => void;
 }) {
   const flowResult = await runChannelFlow({
@@ -841,9 +866,10 @@ async function handleVoiceFirstWebResponse({
       metadata: {
         responseMode: "text_fallback",
         voice: {
+          ...getVoiceDecisionMetadataFields(voiceDecision),
           status: "failed",
           fallback: "text",
-          reason: "generation_or_storage_failed",
+          deliveryReason: "generation_or_storage_failed",
         },
       },
       updateChatTimestamp: true,
@@ -869,6 +895,7 @@ async function handleVoiceFirstWebResponse({
       responseMode: "voice",
       transcript: assistantText,
       voice: {
+        ...getVoiceDecisionMetadataFields(voiceDecision),
         status: "ready",
         costUsd: audio.costUsd,
       },

@@ -1092,6 +1092,31 @@ describe("POST /api/chat", () => {
       capacityState: "GREEN",
       reasonCode: "TEXT_PREFERRED",
     });
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "Sono le dieci.",
+        metrics: {
+          model: "qwen/qwen3.5-flash-02-23",
+          inputTokens: 11,
+          outputTokens: 22,
+          reasoningTokens: 0,
+          reasoningContent: "",
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.01,
+          generationTimeMs: 250,
+          reasoningTimeMs: 0,
+        },
+      });
+      return {
+        toUIMessageStreamResponse: () =>
+          Response.json({ ok: true, stream: true }, { status: 200 }),
+      };
+    });
+    mocks.messageCreate
+      .mockResolvedValueOnce({ id: "msg-user-1" })
+      .mockResolvedValueOnce({ id: "msg-assistant-1" });
 
     const response = await POST(
       buildRequest({
@@ -1112,6 +1137,22 @@ describe("POST /api/chat", () => {
     };
     expect(streamArgs.voiceEnabled).toBeUndefined();
     expect(streamArgs.voiceUnavailableReason).toBeUndefined();
+    expect(mocks.messageCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: expect.objectContaining({
+            voice: {
+              mode: "TEXT",
+              reason: "Text is the better delivery format",
+              reasonCode: "TEXT_PREFERRED",
+              category: "TEXT_PREFERRED",
+              capacityState: "GREEN",
+              source: "classifier",
+            },
+          }),
+        }),
+      }),
+    );
   });
 
   it("keeps attachments as a soft signal for an explicit voice request", async () => {
@@ -1246,6 +1287,11 @@ describe("POST /api/chat", () => {
           ],
           metadata: expect.objectContaining({
             responseMode: "text_fallback",
+            voice: expect.objectContaining({
+              reasonCode: "EXPLICIT_VOICE",
+              status: "failed",
+              deliveryReason: "generation_or_storage_failed",
+            }),
           }),
         }),
       }),
