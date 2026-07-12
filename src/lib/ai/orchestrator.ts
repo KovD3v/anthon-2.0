@@ -17,18 +17,12 @@ import {
   evaluateWebSearchRule,
   getWebSearchDomainType,
   matchesBriefResponseIntent,
-  matchesComplexCoachingIntent,
-  matchesHealthRiskIntent,
   matchesMemoryDeleteIntent,
   matchesMemoryReadIntent,
   matchesMemoryWriteIntent,
   matchesNotesWriteIntent,
-  matchesPersistentDataIntent,
   matchesPreferenceWriteIntent,
   matchesProfileWriteIntent,
-  matchesRagIntent,
-  matchesSimpleFastIntent,
-  matchesVoiceIntent,
   shouldEnableWebFetchTool,
   shouldEnableWebSearchTool,
   type WebSearchRuleDecision,
@@ -67,6 +61,7 @@ import {
   formatTinyUserSnapshotForPrompt,
   formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
+import { planLegacyTurn, planTurn, type TurnPlan } from "@/lib/ai/turn-plan";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -76,8 +71,6 @@ import { getPostHogClient } from "@/lib/posthog";
 
 const aiLogger = createLogger("ai");
 const MULTIMODAL_ORCHESTRATOR_MODEL_ID = "google/gemini-2.5-flash-lite";
-const WEB_SEARCH_CONTEXT_MESSAGES = 4;
-const SIMPLE_FAST_CONTEXT_MESSAGES = 6;
 const PROMPT_MODULE_CLASSIFIER_MODEL_ID =
   process.env.PROMPT_MODULE_CLASSIFIER_MODEL_ID || "qwen/qwen3.6-27b";
 const PROMPT_MODULE_CLASSIFIER_TIMEOUT_MS = 900;
@@ -226,6 +219,7 @@ type PromptModuleClassifierDecision = {
   userContext: "needed" | "not_needed";
   confidence: number;
   reason: string;
+  accepted: boolean;
 };
 
 type ToolTimingMetrics = NonNullable<AIMetrics["toolTiming"]>;
@@ -353,6 +347,9 @@ interface StreamChatOptions {
   responseMode?: "text" | "voice";
   effectiveEntitlements?: EffectiveEntitlements;
   skipConversationHistory?: boolean;
+  conversationThreadId?: string;
+  userMessageId?: string;
+  inputOrigin?: "text" | "transcribed_voice" | "direct_media";
   benchmarkModelId?: string;
 }
 
@@ -541,10 +538,12 @@ function buildSimpleFastSystemPrompt({
   currentDate,
   userSnapshot,
   userStyle,
+  responseMode = "text",
 }: {
   currentDate: string;
   userSnapshot?: string;
   userStyle?: string;
+  responseMode?: "text" | "voice";
 }) {
   let systemPrompt = SIMPLE_FAST_SYSTEM_PROMPT_TEMPLATE.replaceAll(
     "{{CURRENT_DATE}}",
@@ -557,6 +556,14 @@ function buildSimpleFastSystemPrompt({
 
   if (userStyle) {
     systemPrompt += `\n\nDETECTED USER STYLE (Mirroring):\n${userStyle}`;
+  }
+
+  if (responseMode === "voice") {
+    systemPrompt += `\n\nVOICE RESPONSE MODE
+- This answer will be converted directly into spoken audio.
+- Write for spoken audio, not for the screen.
+- Keep it short: 1 to 4 natural sentences.
+- Do not use markdown, bullets, numbered lists, tables, URLs, code, headings, or formatting.`;
   }
 
   return systemPrompt;
@@ -743,6 +750,35 @@ function selectToolPlan({
   };
 }
 
+function toolPlanFromTurnPlan(
+  turnPlan: TurnPlan,
+  userMessage: string,
+): ToolPlan {
+  const memoryDelete = matchesMemoryDeleteIntent(userMessage);
+  const hasPersistentWrites =
+    turnPlan.capabilities.memoryWrite ||
+    memoryDelete ||
+    turnPlan.capabilities.profileWrite ||
+    turnPlan.capabilities.preferenceWrite ||
+    turnPlan.capabilities.notesWrite;
+  return {
+    webSearch: turnPlan.capabilities.webSearch,
+    webFetch: turnPlan.capabilities.webFetch,
+    webSearchDomainType: getWebSearchDomainType(userMessage),
+    memoryRead: turnPlan.capabilities.memoryRead,
+    memoryWrite: turnPlan.capabilities.memoryWrite,
+    memoryDelete,
+    profileWrite: turnPlan.capabilities.profileWrite,
+    preferenceWrite: turnPlan.capabilities.preferenceWrite,
+    notesWrite: turnPlan.capabilities.notesWrite,
+    hasPersistentWrites,
+    hasAny:
+      turnPlan.capabilities.webSearch ||
+      turnPlan.capabilities.memoryRead ||
+      hasPersistentWrites,
+  };
+}
+
 function getSearchOnlyTinyfishLimits(userMessage: string) {
   if (matchesBriefResponseIntent(userMessage)) {
     return {
@@ -863,49 +899,6 @@ Query: ${evidence.query}
 Use these results to answer the user. Be brief and do not mention tools.
 
 ${results}`;
-}
-
-function shouldUseSimpleFastPath({
-  userMessage,
-  isGuest,
-  hasImages,
-  hasAudio,
-  hasFileParts,
-  responseMode,
-  webSearchEnabled,
-}: {
-  userMessage: string;
-  isGuest: boolean;
-  hasImages: boolean;
-  hasAudio: boolean;
-  hasFileParts: boolean;
-  responseMode: "text" | "voice";
-  webSearchEnabled: boolean;
-}) {
-  if (
-    isGuest ||
-    hasImages ||
-    hasAudio ||
-    hasFileParts ||
-    responseMode === "voice" ||
-    webSearchEnabled
-  ) {
-    return false;
-  }
-
-  const message = userMessage.trim();
-  if (!message || message.length > 220) {
-    return false;
-  }
-
-  return (
-    matchesSimpleFastIntent(message) &&
-    !matchesPersistentDataIntent(message) &&
-    !matchesRagIntent(message) &&
-    !matchesComplexCoachingIntent(message) &&
-    !matchesVoiceIntent(message) &&
-    !matchesHealthRiskIntent(message)
-  );
 }
 
 function buildUnsupportedMediaNotice(
@@ -1190,6 +1183,7 @@ ${JSON.stringify(userMessage)}`,
       userContext: accepted ? output.userContext : "not_needed",
       confidence: output?.confidence ?? 0,
       reason: output?.reason ?? "no_classifier_output",
+      accepted: Boolean(accepted),
     };
 
     aiLogger.info(
@@ -1254,6 +1248,9 @@ export async function streamChat({
   responseMode = "text",
   effectiveEntitlements: prefetchedEntitlements,
   skipConversationHistory = false,
+  conversationThreadId,
+  userMessageId,
+  inputOrigin: requestedInputOrigin,
   benchmarkModelId,
 }: StreamChatOptions) {
   // Record start time for performance tracking
@@ -1302,109 +1299,86 @@ export async function streamChat({
   });
   const hasFileParts = messageParts?.some((p) => p.type === "file") ?? false;
   const webSearchRule = evaluateWebSearchRule(userMessage);
-  // The classifier only performs an LLM call for ambiguous messages
-  // (rule confidence "low"); high-confidence rules resolve to null instantly.
-  // Kick it off without awaiting so prefetches below run in parallel with it.
-  const classifierMayRun = webSearchRule.confidence === "low";
   const promptModuleClassifierPromise = classifyPromptModules({
     userId,
     userMessage,
     webSearchRule,
   });
 
-  const resolveTurnPlan = (
-    classifier: PromptModuleClassifierDecision | null,
-  ) => {
-    const webSearchEnabled =
-      webSearchRule.enabled || classifier?.webSearch === true;
-    const webFetchEnabled =
-      webSearchEnabled &&
-      (shouldEnableWebFetchTool(userMessage) || classifier?.webFetch === true);
-    const classifierRagEnabled = !webSearchEnabled && classifier?.rag === true;
-    const promptMode: PromptMode = isGuest
-      ? "guest"
-      : shouldUseSimpleFastPath({
-            userMessage,
-            isGuest,
-            hasImages,
-            hasAudio,
-            hasFileParts,
-            responseMode,
-            webSearchEnabled,
-          })
-        ? "simple_fast"
-        : "full";
-    const toolPlan =
-      promptMode === "simple_fast"
-        ? selectToolPlan({
-            userMessage,
-            isGuest,
-            memoryEnabled: false,
-            webSearchEnabled: false,
-            webFetchEnabled: false,
-          })
-        : selectToolPlan({
-            userMessage,
-            isGuest,
-            memoryEnabled,
-            webSearchEnabled,
-            webFetchEnabled,
-          });
-    const userContextEnabled =
-      !isGuest &&
-      (!toolPlan.webSearch ||
-        toolPlan.hasPersistentWrites ||
-        classifier?.userContext === "needed");
-    return {
-      webSearchEnabled,
-      webFetchEnabled,
-      classifierRagEnabled,
-      promptMode,
-      toolPlan,
-      userContextEnabled,
-    };
+  const promptModuleClassifier = await promptModuleClassifierPromise;
+  const inputOrigin =
+    requestedInputOrigin ??
+    (hasImages || hasAudio || hasFileParts ? "direct_media" : "text");
+  const turnPlanInput = {
+    userMessage,
+    isGuest,
+    isFirstTurn: skipConversationHistory,
+    inputOrigin,
+    outputMode: responseMode,
+    webSearchEnabled: webSearchRule.enabled,
+    webFetchEnabled: shouldEnableWebFetchTool(userMessage),
+    classifier: promptModuleClassifier,
+    fullMaxRawTurns: Math.max(
+      1,
+      Math.floor(effectiveEntitlements.limits.maxContextMessages / 2),
+    ),
   };
-
-  // Plan the turn from the deterministic rules alone. When the classifier may
-  // still flip decisions (rare ambiguous messages), prefetch optimistically and
-  // reconcile once it resolves; the classifier can only ADD modules, never
-  // remove ones the rules enabled.
-  const provisionalPlan = resolveTurnPlan(null);
-
-  const provisionalMaxContextMessages = provisionalPlan.toolPlan.webSearch
-    ? Math.min(
-        effectiveEntitlements.limits.maxContextMessages,
-        WEB_SEARCH_CONTEXT_MESSAGES,
-      )
-    : effectiveEntitlements.limits.maxContextMessages;
-  const skipHistoryPrefetch = skipConversationHistory;
-  const provisionalHistoryLimit =
-    !classifierMayRun && provisionalPlan.promptMode === "simple_fast"
-      ? Math.min(provisionalMaxContextMessages, SIMPLE_FAST_CONTEXT_MESSAGES)
-      : provisionalMaxContextMessages;
-  const conversationHistoryPrefetch = skipHistoryPrefetch
-    ? Promise.resolve<ModelMessage[]>([])
-    : LatencyLogger.measure("📋 Orchestrator: Get conversation history", () =>
-        buildConversationContext(userId, provisionalHistoryLimit, chatId),
-      ).catch((error) => {
-        aiLogger.error(
-          "ai.conversation_history.error",
-          "Conversation history enrichment failed",
-          {
-            error,
-            userId,
-            chatId,
+  const turnPlan =
+    process.env.AI_TURN_PLANNER_MODE === "legacy"
+      ? planLegacyTurn(turnPlanInput)
+      : planTurn(turnPlanInput);
+  const promptMode: PromptMode =
+    turnPlan.promptProfile === "compact"
+      ? "simple_fast"
+      : turnPlan.promptProfile === "guest"
+        ? "guest"
+        : "full";
+  const toolPlan = toolPlanFromTurnPlan(turnPlan, userMessage);
+  const classifierRagEnabled = Boolean(
+    promptModuleClassifier?.accepted && promptModuleClassifier.rag,
+  );
+  const userContextEnabled = turnPlan.capabilities.userContext;
+  const conversationHistoryPromise =
+    turnPlan.history.scope === "none"
+      ? Promise.resolve<ModelMessage[]>([])
+      : LatencyLogger.measure(
+          "📋 Orchestrator: Get conversation history",
+          async () => {
+            if (conversationThreadId) {
+              const { buildThreadContext } = await import(
+                "@/lib/ai/thread-context"
+              );
+              const context = await buildThreadContext(
+                conversationThreadId,
+                {
+                  includeSummary: turnPlan.history.includeSummary,
+                  maxRawTurns: turnPlan.history.maxRawTurns,
+                  maxRawChars: turnPlan.history.maxRawChars,
+                },
+                userMessageId,
+              );
+              return context.messages;
+            }
+            return buildConversationContext(
+              userId,
+              turnPlan.history.maxRawTurns * 2,
+              chatId,
+            );
           },
-        );
-        return [];
-      });
-
-  const mayNeedUserContext =
-    !isGuest &&
-    (classifierMayRun ||
-      (provisionalPlan.userContextEnabled &&
-        provisionalPlan.promptMode !== "simple_fast"));
-  const userContextPrefetch = !mayNeedUserContext
+        ).catch((error) => {
+          aiLogger.error(
+            "ai.conversation_history.error",
+            "Conversation history enrichment failed",
+            {
+              error,
+              userId,
+              chatId,
+              conversationThreadId,
+            },
+          );
+          return [];
+        });
+  const userContextPromise = !userContextEnabled
     ? Promise.resolve("")
     : formatUserContextForPrompt(userId).catch((error) => {
         aiLogger.error(
@@ -1417,8 +1391,8 @@ export async function streamChat({
         );
         return "No user context available.";
       });
-  const userMemoriesPrefetch =
-    memoryEnabled === false || !mayNeedUserContext
+  const userMemoriesPromise =
+    memoryEnabled === false || !userContextEnabled
       ? Promise.resolve("Persistent memory is disabled for this session.")
       : formatMemoriesForPrompt(userId).catch((error) => {
           aiLogger.error("ai.memories.error", "Memory enrichment failed", {
@@ -1428,7 +1402,7 @@ export async function streamChat({
           return "No user memories available.";
         });
   const userSnapshotPromise =
-    provisionalPlan.promptMode === "simple_fast"
+    turnPlan.promptProfile === "compact"
       ? formatTinyUserSnapshotForPrompt(userId).catch((error) => {
           aiLogger.error(
             "ai.user_snapshot.error",
@@ -1441,17 +1415,6 @@ export async function streamChat({
           return "";
         })
       : Promise.resolve("");
-
-  const promptModuleClassifier = await promptModuleClassifierPromise;
-  const {
-    webSearchEnabled,
-    classifierRagEnabled,
-    promptMode,
-    toolPlan,
-    userContextEnabled,
-  } = classifierMayRun
-    ? resolveTurnPlan(promptModuleClassifier)
-    : provisionalPlan;
   const directWebSearchPromise = shouldUseDirectWebSearch(userMessage, toolPlan)
     ? LatencyLogger.measure("🌐 TinyFish: Direct search prefetch", () =>
         prefetchDirectWebSearch({
@@ -1510,51 +1473,8 @@ export async function streamChat({
     },
   });
 
-  // Get plan-based session cap
-  const maxContextMessages = toolPlan.webSearch
-    ? Math.min(
-        effectiveEntitlements.limits.maxContextMessages,
-        WEB_SEARCH_CONTEXT_MESSAGES,
-      )
-    : effectiveEntitlements.limits.maxContextMessages;
-
-  // Reconcile the optimistic prefetches with the final plan. Only the
-  // classifier path can diverge: it may have enabled web search (tighter
-  // history cap) or switched simple_fast to full mode.
-  const shouldSkipConversationHistory = skipConversationHistory;
-  const historyNeedsWebSearchCap =
-    classifierMayRun &&
-    toolPlan.webSearch &&
-    !provisionalPlan.toolPlan.webSearch;
-  const conversationHistoryPromise = conversationHistoryPrefetch.then(
-    (history) => {
-      if (shouldSkipConversationHistory) {
-        return [];
-      }
-      if (historyNeedsWebSearchCap && history.length > maxContextMessages) {
-        return history.slice(-maxContextMessages);
-      }
-      if (
-        promptMode === "simple_fast" &&
-        history.length > SIMPLE_FAST_CONTEXT_MESSAGES
-      ) {
-        return history.slice(-SIMPLE_FAST_CONTEXT_MESSAGES);
-      }
-      return history;
-    },
-  );
-
-  const userContextNeeded = userContextEnabled && promptMode !== "simple_fast";
-  const userContextPromise = userContextNeeded
-    ? userContextPrefetch
-    : Promise.resolve("");
-  const userMemoriesPromise =
-    memoryEnabled === false || !userContextNeeded
-      ? Promise.resolve("Persistent memory is disabled for this session.")
-      : userMemoriesPrefetch;
-
   const ragPromise =
-    isGuest || webSearchEnabled || promptMode === "simple_fast"
+    isGuest || !turnPlan.capabilities.rag
       ? Promise.resolve({
           ragContext: undefined,
           ragUsed: false,
@@ -1603,20 +1523,19 @@ export async function streamChat({
 
   // Calculate if voice is enabled for this user/plan. Guest web chat has no
   // voice output, so avoid loading plan config on its critical path.
-  const voiceEnabledResult =
-    isGuest || promptMode === "simple_fast"
-      ? false
-      : await (async () => {
-          const { getVoicePlanConfig } = await import("@/lib/voice");
-          const planConfig = getVoicePlanConfig(
-            subscriptionStatus,
-            userRole,
-            planId,
-            isGuest,
-            effectiveEntitlements.modelTier,
-          );
-          return planConfig.enabled && (voiceEnabled ?? true);
-        })();
+  const voiceEnabledResult = isGuest
+    ? false
+    : await (async () => {
+        const { getVoicePlanConfig } = await import("@/lib/voice");
+        const planConfig = getVoicePlanConfig(
+          subscriptionStatus,
+          userRole,
+          planId,
+          isGuest,
+          effectiveEntitlements.modelTier,
+        );
+        return planConfig.enabled && (voiceEnabled ?? true);
+      })();
 
   // Analyze user style from history (heuristic)
   const userStyleInstruction = analyzeUserStyle(conversationHistory);
@@ -1631,6 +1550,7 @@ export async function streamChat({
           currentDate,
           userSnapshot,
           userStyle: userStyleInstruction,
+          responseMode: turnPlan.outputMode,
         });
       }
 
@@ -1836,17 +1756,33 @@ export async function streamChat({
 
   // Add the new user message
   const messages: ModelMessage[] = [...conversationHistory, lastMessage];
+  const attachTurnTrace = (metrics: AIMetrics) => {
+    metrics.turnPlan = turnPlan as unknown as Record<string, unknown>;
+    metrics.tracePayload = {
+      userMessage,
+      systemPrompt,
+      messages: messages as unknown as Record<string, unknown>,
+      classifier: promptModuleClassifier,
+      history: {
+        scope: turnPlan.history.scope,
+        includedMessageCount: conversationHistory.length,
+        maxRawTurns: turnPlan.history.maxRawTurns,
+        maxRawChars: turnPlan.history.maxRawChars,
+      },
+      toolCalls: collectedToolCalls,
+    };
+    return metrics;
+  };
 
   // Create tools with userId context
-  const rawTools =
-    promptMode === "simple_fast" || directWebSearchEvidence
-      ? {}
-      : createToolsWithContext(userId, {
-          memoryEnabled,
-          isGuest,
-          userMessage,
-          toolPlan,
-        });
+  const rawTools = directWebSearchEvidence
+    ? {}
+    : createToolsWithContext(userId, {
+        memoryEnabled,
+        isGuest,
+        userMessage,
+        toolPlan,
+      });
   const toolTimingState = {
     toolExecutionMs: directWebSearchEvidence?.durationMs ?? 0,
   };
@@ -1886,7 +1822,11 @@ export async function streamChat({
       startTime,
       ragUsed,
       ragChunksCount,
-      onFinish,
+      onFinish: onFinish
+        ? async ({ text, metrics }) => {
+            await onFinish({ text, metrics: attachTurnTrace(metrics) });
+          }
+        : undefined,
     });
 
     aiLogger.info("ai.stream.started", "AI multimodal streaming started", {
@@ -1914,8 +1854,8 @@ export async function streamChat({
       ? WEB_SEARCH_DIRECT_MAX_OUTPUT_TOKENS
       : isGuest
         ? 220
-        : promptMode === "simple_fast"
-          ? 180
+        : turnPlan.responseLength === "brief"
+          ? 96
           : undefined,
     providerOptions: {
       openrouter: {
@@ -1973,6 +1913,7 @@ export async function streamChat({
             ragUsed,
             ragChunksCount,
           });
+          attachTurnTrace(metrics);
 
           if (collectedToolCalls.length > 0) {
             aiLogger.info(

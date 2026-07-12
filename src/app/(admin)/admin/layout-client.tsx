@@ -9,6 +9,7 @@ import {
   Menu,
   MessageSquare,
   Mic,
+  ShieldCheck,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -37,6 +38,7 @@ const navItems = [
   },
   { href: "/admin/rag", label: "Documenti RAG", icon: FileText },
   { href: "/admin/voice", label: "Voce", icon: Mic },
+  { href: "/admin/ai-traces", label: "Trace AI", icon: ShieldCheck },
 ];
 
 function isActiveRoute(pathname: string, href: string) {

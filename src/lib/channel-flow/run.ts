@@ -71,6 +71,8 @@ export async function runChannelFlow(
   const streamResult = await streamChat({
     userId: ctx.userId,
     chatId: ctx.chatId,
+    conversationThreadId: ctx.conversationThreadId,
+    userMessageId: ctx.userMessageId,
     userMessage: ctx.userMessageText,
     planId: ctx.ai?.planId,
     userRole: ctx.ai?.userRole,
@@ -82,6 +84,7 @@ export async function runChannelFlow(
     hasAudio: ctx.options.allowAttachments
       ? (ctx.ai?.hasAudio ?? detectAudio(policyParts))
       : false,
+    inputOrigin: ctx.ai?.inputOrigin,
     messageParts: normalizedParts,
     memoryEnabled: ctx.options.allowMemoryExtraction,
     responseMode: ctx.options.allowVoiceOutput
@@ -102,6 +105,8 @@ export async function runChannelFlow(
             const message = await persistAssistantOutput({
               userId: ctx.userId,
               chatId: ctx.chatId,
+              conversationThreadId: ctx.conversationThreadId,
+              userMessageId: ctx.userMessageId,
               channel: ctx.persistence?.channel ?? "WEB",
               text,
               userMessageText: ctx.userMessageText,

@@ -15,6 +15,7 @@ import {
 import type { ChannelMessagePart } from "@/lib/channel-flow";
 import { runChannelFlow } from "@/lib/channel-flow";
 import { persistAssistantOutput } from "@/lib/channel-flow/persistence";
+import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
@@ -191,6 +192,13 @@ export async function handleWebChatPost(request: Request) {
           );
         }
 
+        const conversationThread = await ensureConversationThread({
+          userId: user.id,
+          channel: "WEB",
+          externalThreadId: chatId,
+          chatId,
+        });
+
         const shouldSyncSubscription =
           !user.isGuest &&
           isBillingSyncStale(user.billingSyncedAt) &&
@@ -257,6 +265,9 @@ export async function handleWebChatPost(request: Request) {
         });
 
         const messageParts = buildChannelMessageParts(lastUserMessage);
+        const hadAudioAttachment = messageParts.some(
+          (part) => part.type === "file" && part.mimeType?.startsWith("audio/"),
+        );
         let aiMessageParts: ChannelMessagePart[];
         let aiUserMessageText: string;
         let aiHasAudio: boolean;
@@ -292,6 +303,7 @@ export async function handleWebChatPost(request: Request) {
               data: {
                 userId: user.id,
                 chatId,
+                conversationThreadId: conversationThread.id,
                 channel: "WEB",
                 direction: "INBOUND",
                 role: "USER",
@@ -449,6 +461,8 @@ export async function handleWebChatPost(request: Request) {
           {
             userId: user.id,
             chatId,
+            conversationThreadId: conversationThread.id,
+            userMessageId: message.id,
             mode: voiceDecision.mode,
             source: voiceDecision.source,
             category: voiceDecision.category,
@@ -461,6 +475,8 @@ export async function handleWebChatPost(request: Request) {
           const voiceResponse = await handleVoiceFirstWebResponse({
             userId: user.id,
             chatId,
+            conversationThreadId: conversationThread.id,
+            userMessageId: message.id,
             userMessageText: aiUserMessageText,
             messageParts: aiMessageParts,
             rateLimitResult,
@@ -470,6 +486,11 @@ export async function handleWebChatPost(request: Request) {
             isGuest: user.isGuest,
             hasImages,
             hasAudio: aiHasAudio,
+            inputOrigin: hadAudioAttachment
+              ? "transcribed_voice"
+              : hasImages
+                ? "direct_media"
+                : "text",
             explicitVoiceRequest: voiceDecision.category === "VOICE_REQUIRED",
             voiceDecision,
             waitUntil,
@@ -486,6 +507,8 @@ export async function handleWebChatPost(request: Request) {
           channel: "WEB",
           userId: user.id,
           chatId,
+          conversationThreadId: conversationThread.id,
+          userMessageId: message.id,
           userMessageText: aiUserMessageText,
           parts: aiMessageParts,
           rateLimit: {
@@ -505,6 +528,12 @@ export async function handleWebChatPost(request: Request) {
             isGuest: user.isGuest,
             hasImages,
             hasAudio: aiHasAudio,
+            inputOrigin: hadAudioAttachment
+              ? "transcribed_voice"
+              : hasImages
+                ? "direct_media"
+                : "text",
+            transcriptionStatus: hadAudioAttachment ? "success" : "not_needed",
             responseMode: "text",
             voiceEnabled: voiceUnavailableReason ? false : undefined,
             voiceUnavailableReason,
@@ -772,6 +801,8 @@ function isMessagePartLike(value: unknown) {
 async function handleVoiceFirstWebResponse({
   userId,
   chatId,
+  conversationThreadId,
+  userMessageId,
   userMessageText,
   messageParts,
   rateLimitResult,
@@ -781,12 +812,15 @@ async function handleVoiceFirstWebResponse({
   isGuest,
   hasImages,
   hasAudio,
+  inputOrigin,
   explicitVoiceRequest,
   voiceDecision,
   waitUntil: schedule,
 }: {
   userId: string;
   chatId: string;
+  conversationThreadId: string;
+  userMessageId: string;
   userMessageText: string;
   messageParts: ChannelMessagePart[];
   rateLimitResult: Awaited<ReturnType<typeof checkRateLimit>>;
@@ -796,6 +830,7 @@ async function handleVoiceFirstWebResponse({
   isGuest?: boolean;
   hasImages?: boolean;
   hasAudio?: boolean;
+  inputOrigin?: "text" | "transcribed_voice" | "direct_media";
   explicitVoiceRequest?: boolean;
   voiceDecision: Awaited<ReturnType<typeof decideWebVoiceMode>>;
   waitUntil?: (promise: Promise<unknown>) => void;
@@ -804,6 +839,8 @@ async function handleVoiceFirstWebResponse({
     channel: "WEB",
     userId,
     chatId,
+    conversationThreadId,
+    userMessageId,
     userMessageText,
     parts: messageParts,
     rateLimit: {
@@ -823,6 +860,9 @@ async function handleVoiceFirstWebResponse({
       isGuest,
       hasImages,
       hasAudio,
+      inputOrigin,
+      transcriptionStatus:
+        inputOrigin === "transcribed_voice" ? "success" : "not_needed",
       responseMode: "voice",
       voiceEnabled: true,
     },
@@ -857,6 +897,8 @@ async function handleVoiceFirstWebResponse({
       error,
       userId,
       chatId,
+      conversationThreadId,
+      userMessageId,
     });
 
     const fallbackText = explicitVoiceRequest
@@ -865,6 +907,8 @@ async function handleVoiceFirstWebResponse({
     const fallbackMessage = await persistAssistantOutput({
       userId,
       chatId,
+      conversationThreadId,
+      userMessageId,
       channel: "WEB",
       text: fallbackText,
       userMessageText,
@@ -890,6 +934,8 @@ async function handleVoiceFirstWebResponse({
   const assistantMessage = await persistAssistantOutput({
     userId,
     chatId,
+    conversationThreadId,
+    userMessageId,
     channel: "WEB",
     text: assistantText,
     userMessageText,

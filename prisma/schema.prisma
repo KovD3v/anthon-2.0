@@ -49,6 +49,8 @@ model User {
   memories           Memory[]
   messages           Message[]
   chats              Chat[]
+  conversationThreads ConversationThread[]
+  aiTurnTraces       AiTurnTrace[]
   dailyUsage         DailyUsage[]
   identities         ChannelIdentity[]
   consumedLinkTokens ChannelLinkToken[] @relation("ChannelLinkTokenConsumedBy")
@@ -299,6 +301,7 @@ model Chat {
 
   messages  Message[]
   artifacts Artifact[]
+  conversationThread ConversationThread?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -322,6 +325,11 @@ model Message {
   // Chat reference (for multi-chat support)
   chatId String?
   chat   Chat?   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  // Stable conversation scope. New writes must always populate this, while
+  // the nullable relation keeps legacy messages migratable.
+  conversationThreadId String?
+  conversationThread   ConversationThread? @relation(fields: [conversationThreadId], references: [id], onDelete: Cascade)
 
   channel   Channel          @default(WHATSAPP)
   direction MessageDirection
@@ -367,10 +375,106 @@ model Message {
   @@index([userId, createdAt(sort: Desc)])
   @@index([chatId, createdAt])
   @@index([chatId, userId, createdAt(sort: Desc)])
+  @@index([conversationThreadId, createdAt])
   @@index([externalMessageId])
   @@index([userId, role, createdAt])
   @@index([model, createdAt])
   @@index([deletedAt])
+}
+
+// -----------------------------------------------------
+// CONVERSATION THREAD (raw history is never cross-channel)
+// -----------------------------------------------------
+
+model ConversationThread {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  channel          Channel
+  externalThreadId String
+
+  // Web chats map one-to-one to a thread. External channels use their stable
+  // platform thread identifier and intentionally leave this empty.
+  chatId String? @unique
+  chat   Chat?   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  messages Message[]
+  summary  ConversationThreadSummary?
+  traces   AiTurnTrace[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, channel, externalThreadId])
+  @@index([userId, channel, updatedAt(sort: Desc)])
+}
+
+model ConversationThreadSummary {
+  id String @id @default(cuid())
+
+  conversationThreadId String @unique
+  conversationThread   ConversationThread @relation(fields: [conversationThreadId], references: [id], onDelete: Cascade)
+
+  summary              String   @db.Text
+  throughMessageId     String?
+  throughMessageCreatedAt DateTime?
+  version              Int      @default(1)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+enum AiTurnTraceStatus {
+  PENDING
+  COMPLETE
+  FAILED
+}
+
+model AiTurnTrace {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  conversationThreadId String
+  conversationThread   ConversationThread @relation(fields: [conversationThreadId], references: [id], onDelete: Cascade)
+
+  userMessageId      String?
+  assistantMessageId String?
+  status             AiTurnTraceStatus @default(PENDING)
+  metadata           Json
+
+  payloadCiphertext Bytes?
+  payloadIv         Bytes?
+  payloadTag        Bytes?
+  keyVersion        Int    @default(1)
+  contentCaptureStatus String @default("pending")
+
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accessAudits AiTraceAccessAudit[]
+
+  @@index([conversationThreadId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([expiresAt])
+  @@index([userMessageId])
+}
+
+model AiTraceAccessAudit {
+  id String @id @default(cuid())
+
+  traceId String
+  trace   AiTurnTrace @relation(fields: [traceId], references: [id], onDelete: Cascade)
+
+  actorUserId String
+  action      String
+  createdAt   DateTime @default(now())
+
+  @@index([traceId, createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
 }
 
 model MessageMetrics {

@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   prismaAttachmentCreate: vi.fn(),
   prismaPreferencesFindUnique: vi.fn(),
   prismaSubscriptionFindUnique: vi.fn(),
+  ensureConversationThread: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
   streamChat: vi.fn(),
@@ -122,6 +123,10 @@ vi.mock("@/lib/analytics/funnel", () => ({
 
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
+}));
+
+vi.mock("@/lib/conversations/threads", () => ({
+  ensureConversationThread: mocks.ensureConversationThread,
 }));
 
 import {
@@ -249,6 +254,7 @@ describe("/api/webhooks/telegram", () => {
     mocks.prismaAttachmentCreate.mockReset();
     mocks.prismaPreferencesFindUnique.mockReset();
     mocks.prismaSubscriptionFindUnique.mockReset();
+    mocks.ensureConversationThread.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
     mocks.streamChat.mockReset();
@@ -267,6 +273,9 @@ describe("/api/webhooks/telegram", () => {
     mocks.waitUntil.mockImplementation(() => {});
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.ensureConversationThread.mockResolvedValue({
+      id: "thread-telegram-1",
+    });
     mocks.prismaTransaction.mockImplementation(async (callback) =>
       callback({
         message: {

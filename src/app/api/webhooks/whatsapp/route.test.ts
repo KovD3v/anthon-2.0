@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   prismaChatUpdate: vi.fn(),
   prismaAttachmentCreate: vi.fn(),
   prismaPreferencesFindUnique: vi.fn(),
+  ensureConversationThread: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
   streamChat: vi.fn(),
@@ -119,6 +120,10 @@ vi.mock("@/lib/analytics/funnel", () => ({
 
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
+}));
+
+vi.mock("@/lib/conversations/threads", () => ({
+  ensureConversationThread: mocks.ensureConversationThread,
 }));
 
 import * as openRouterTranscription from "@/lib/channels/transcription/openrouter";
@@ -330,6 +335,7 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.prismaChatUpdate.mockReset();
     mocks.prismaAttachmentCreate.mockReset();
     mocks.prismaPreferencesFindUnique.mockReset();
+    mocks.ensureConversationThread.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
     mocks.streamChat.mockReset();
@@ -348,6 +354,9 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.waitUntil.mockImplementation(() => {});
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.ensureConversationThread.mockResolvedValue({
+      id: "thread-whatsapp-1",
+    });
     mocks.prismaTransaction.mockImplementation(async (callback) =>
       callback({
         message: {

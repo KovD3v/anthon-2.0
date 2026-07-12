@@ -15,6 +15,7 @@ import {
   sendWhatsAppVoice,
   verifySignature,
 } from "@/lib/channels/whatsapp/utils";
+import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 
@@ -285,6 +286,11 @@ async function handleMessage(
   const user = identity?.user
     ? identity.user
     : await createGuestUserForWhatsApp(from, context);
+  const conversationThread = await ensureConversationThread({
+    userId: user.id,
+    channel: "WHATSAPP",
+    externalThreadId: from,
+  });
 
   let messageType: "IMAGE" | "DOCUMENT" | "AUDIO" | "TEXT";
   let _defaultContent: string;
@@ -307,6 +313,7 @@ async function handleMessage(
     .create({
       data: {
         userId: user.id,
+        conversationThreadId: conversationThread.id,
         channel: "WHATSAPP",
         direction: "INBOUND",
         role: "USER",
@@ -575,6 +582,8 @@ async function handleMessage(
     const flowResult = await runChannelFlow({
       channel: "WHATSAPP",
       userId: user.id,
+      conversationThreadId: conversationThread.id,
+      userMessageId: inbound.id,
       userMessageText: userMessageText || (hasImage ? "Immagine" : "Documento"),
       parts: messageParts,
       rateLimit: {
@@ -594,6 +603,11 @@ async function handleMessage(
         isGuest: user.isGuest,
         hasAudio: false,
         hasImages: downloadedPhoto,
+        inputOrigin: transcribedText
+          ? "transcribed_voice"
+          : downloadedPhoto || hasDocument
+            ? "direct_media"
+            : "text",
       },
       execution: { mode: "text" },
       persistence: {

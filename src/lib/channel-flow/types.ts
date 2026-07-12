@@ -18,6 +18,8 @@ export interface InboundContext {
   channel: ChannelKind;
   userId: string;
   chatId?: string;
+  conversationThreadId?: string;
+  userMessageId?: string;
   externalMessageId?: string;
   userMessageText: string;
   parts: ChannelMessagePart[];
@@ -38,6 +40,8 @@ export interface InboundContext {
     isGuest?: boolean;
     hasImages?: boolean;
     hasAudio?: boolean;
+    inputOrigin?: "text" | "transcribed_voice" | "direct_media";
+    transcriptionStatus?: "not_needed" | "success" | "failed";
     responseMode?: "text" | "voice";
     voiceEnabled?: boolean;
     voiceUnavailableReason?: string;
@@ -83,6 +87,8 @@ export interface RunChannelFlowResult {
 export interface PersistAssistantOutputInput {
   userId: string;
   chatId?: string;
+  conversationThreadId?: string;
+  userMessageId?: string;
   channel: "WEB" | "TELEGRAM" | "WHATSAPP";
   text: string;
   userMessageText: string;

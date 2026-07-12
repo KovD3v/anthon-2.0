@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   generateVoice: vi.fn(),
   trackVoiceUsage: vi.fn(),
   put: vi.fn(),
+  ensureConversationThread: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -76,6 +77,10 @@ vi.mock("@/lib/db", () => ({
       update: mocks.attachmentUpdate,
     },
   },
+}));
+
+vi.mock("@/lib/conversations/threads", () => ({
+  ensureConversationThread: mocks.ensureConversationThread,
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -210,6 +215,7 @@ describe("POST /api/chat", () => {
     mocks.generateVoice.mockReset();
     mocks.trackVoiceUsage.mockReset();
     mocks.put.mockReset();
+    mocks.ensureConversationThread.mockReset();
 
     mocks.start.mockReturnValue({
       end: vi.fn(),
@@ -263,6 +269,7 @@ describe("POST /api/chat", () => {
       title: "Chat",
       customTitle: true,
     });
+    mocks.ensureConversationThread.mockResolvedValue({ id: "thread-1" });
     mocks.messageCreate.mockResolvedValue({ id: "msg-user-1" });
     mocks.messageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
     mocks.messageCount.mockResolvedValue(1);
@@ -1620,7 +1627,7 @@ describe("POST /api/chat", () => {
       "hello world",
       "Assistant reply",
     );
-    expect(mocks.waitUntil).toHaveBeenCalledTimes(2);
+    expect(mocks.waitUntil).toHaveBeenCalledTimes(3);
   });
 
   it("returns 500 when downstream streaming fails", async () => {

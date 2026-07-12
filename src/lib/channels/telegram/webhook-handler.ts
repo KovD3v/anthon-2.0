@@ -20,6 +20,7 @@ import {
   type TelegramVoice,
 } from "@/lib/channels/telegram/utils";
 import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
+import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -285,6 +286,11 @@ async function handleUpdate(update: TelegramUpdate) {
   const user = identity?.user
     ? identity.user
     : await createGuestUserForTelegramIdentity(externalId);
+  const conversationThread = await ensureConversationThread({
+    userId: user.id,
+    channel: "TELEGRAM",
+    externalThreadId: String(chatId),
+  });
 
   let messageType: "IMAGE" | "DOCUMENT" | "AUDIO" | "TEXT";
   let _defaultContent: string;
@@ -306,6 +312,7 @@ async function handleUpdate(update: TelegramUpdate) {
     .create({
       data: {
         userId: user.id,
+        conversationThreadId: conversationThread.id,
         channel: "TELEGRAM",
         direction: "INBOUND",
         role: "USER",
@@ -607,6 +614,8 @@ async function handleUpdate(update: TelegramUpdate) {
     const flowResult = await runChannelFlow({
       channel: "TELEGRAM",
       userId: user.id,
+      conversationThreadId: conversationThread.id,
+      userMessageId: inbound.id,
       userMessageText: userMessageText || (hasPhoto ? "Immagine" : "Documento"),
       parts: messageParts,
       rateLimit: {
@@ -626,6 +635,11 @@ async function handleUpdate(update: TelegramUpdate) {
         isGuest: user.isGuest,
         hasAudio: false,
         hasImages: downloadedPhoto,
+        inputOrigin: transcribedText
+          ? "transcribed_voice"
+          : downloadedPhoto || hasDocument
+            ? "direct_media"
+            : "text",
       },
       execution: { mode: "text" },
       persistence: {

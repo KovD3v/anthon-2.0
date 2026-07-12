@@ -145,9 +145,10 @@ The AI can use tools (`saveMemory`, `updateProfile`) to persist important user i
 
 ### Fast Chat Path
 
-Simple non-guest, text-only turns can use a `simple_fast` prompt mode. This
-path skips conversation history, full profile/memory enrichment, RAG, voice
-configuration, and runtime tools, while still allowing a compact user snapshot.
+Atomic non-guest, text-only turns can use the compact `TurnPlan` profile. It is
+selected independently from response brevity and uses only same-thread raw
+turns plus a rolling summary; profile, RAG, voice, and tools remain enabled
+whenever the plan requires them.
 
 ### Current-Information Tools
 

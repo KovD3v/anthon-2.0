@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   userCreate: vi.fn(),
   userDeleteMany: vi.fn(),
   chatCreate: vi.fn(),
+  conversationThreadCreate: vi.fn(),
   messageCreate: vi.fn(),
   persistAssistantOutput: vi.fn(),
 }));
@@ -21,6 +22,9 @@ vi.mock("@/lib/db", () => ({
     },
     chat: {
       create: mocks.chatCreate,
+    },
+    conversationThread: {
+      create: mocks.conversationThreadCreate,
     },
     message: {
       create: mocks.messageCreate,
@@ -43,6 +47,7 @@ describe("benchmark/reality orchestrator executor", () => {
     mocks.userCreate.mockReset();
     mocks.userDeleteMany.mockReset();
     mocks.chatCreate.mockReset();
+    mocks.conversationThreadCreate.mockReset();
     mocks.messageCreate.mockReset();
     mocks.persistAssistantOutput.mockReset();
   });
@@ -131,6 +136,7 @@ describe("benchmark/reality orchestrator executor", () => {
 
     mocks.userCreate.mockResolvedValue({ id: "user-db" });
     mocks.chatCreate.mockResolvedValue({ id: "chat-db" });
+    mocks.conversationThreadCreate.mockResolvedValue({ id: "thread-db" });
     mocks.messageCreate.mockResolvedValue({ id: "message-db" });
     mocks.persistAssistantOutput.mockResolvedValue({ id: "assistant-db" });
     mocks.userDeleteMany.mockResolvedValue({ count: 1 });
@@ -200,11 +206,21 @@ describe("benchmark/reality orchestrator executor", () => {
       }),
     );
     expect(mocks.chatCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.conversationThreadCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "user-db",
+          chatId: "chat-db",
+          channel: "WEB",
+        }),
+      }),
+    );
     expect(mocks.messageCreate).toHaveBeenCalledTimes(2);
     expect(mocks.streamChat).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-db",
         chatId: "chat-db",
+        conversationThreadId: "thread-db",
         benchmarkModelId: "candidate/model",
       }),
     );
