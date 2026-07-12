@@ -11,6 +11,7 @@ import {
   matchesProfileWriteIntent,
   matchesRagIntent,
   matchesSimpleFastIntent,
+  matchesVoiceIntent,
 } from "./intent";
 
 export type TurnPlanReasonCode =
@@ -226,6 +227,13 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
  */
 export function planLegacyTurn(input: TurnPlanInput): TurnPlan {
   const plan = planTurn(input);
+  const classifierRequiresFull = Boolean(
+    input.classifier?.accepted &&
+      (input.classifier.webSearch ||
+        input.classifier.webFetch ||
+        input.classifier.rag ||
+        input.classifier.userContext === "needed"),
+  );
   const legacyFastEligible =
     !input.isGuest &&
     matchesSimpleFastIntent(input.userMessage) &&
@@ -237,8 +245,39 @@ export function planLegacyTurn(input: TurnPlanInput): TurnPlan {
     !matchesProfileWriteIntent(input.userMessage) &&
     !matchesPreferenceWriteIntent(input.userMessage) &&
     !matchesNotesWriteIntent(input.userMessage) &&
+    !matchesVoiceIntent(input.userMessage) &&
+    input.outputMode !== "voice" &&
     input.inputOrigin !== "direct_media" &&
-    !input.webSearchEnabled;
+    !input.webSearchEnabled &&
+    !classifierRequiresFull;
+
+  if (
+    plan.promptProfile === "compact" &&
+    (input.outputMode === "voice" || matchesVoiceIntent(input.userMessage))
+  ) {
+    return {
+      ...plan,
+      promptProfile: "full",
+      history: input.isFirstTurn
+        ? {
+            scope: "none",
+            includeSummary: false,
+            maxRawTurns: 0,
+            maxRawChars: 0,
+          }
+        : {
+            scope: "thread",
+            includeSummary: true,
+            maxRawTurns: Math.max(1, input.fullMaxRawTurns),
+            maxRawChars: 12_000,
+          },
+      capabilities: {
+        ...plan.capabilities,
+        rag: true,
+        userContext: true,
+      },
+    };
+  }
 
   if (!legacyFastEligible) {
     return plan;

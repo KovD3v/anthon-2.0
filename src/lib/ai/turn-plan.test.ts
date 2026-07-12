@@ -97,4 +97,49 @@ describe("turn plan", () => {
     expect(result.promptProfile).toBe("compact");
     expect(result.history.includeSummary).toBe(false);
   });
+
+  it("does not let legacy mode remove classifier capabilities", () => {
+    const result = planLegacyTurn({
+      userMessage: "Controlla online, risposta rapida",
+      isGuest: false,
+      isFirstTurn: false,
+      inputOrigin: "text",
+      outputMode: "text",
+      webSearchEnabled: false,
+      webFetchEnabled: false,
+      classifier: { accepted: true, webSearch: true },
+      fullMaxRawTurns: 10,
+    });
+
+    expect(result.promptProfile).toBe("full");
+    expect(result.capabilities.webSearch).toBe(true);
+  });
+
+  it("keeps voice output and explicit voice requests out of legacy compact mode", () => {
+    const voiceOutput = planLegacyTurn({
+      userMessage: "Motivami",
+      isGuest: false,
+      isFirstTurn: false,
+      inputOrigin: "text",
+      outputMode: "voice",
+      webSearchEnabled: false,
+      webFetchEnabled: false,
+      fullMaxRawTurns: 10,
+    });
+    const explicitVoiceRequest = planLegacyTurn({
+      userMessage: "Mandami un vocale breve",
+      isGuest: false,
+      isFirstTurn: false,
+      inputOrigin: "text",
+      outputMode: "text",
+      webSearchEnabled: false,
+      webFetchEnabled: false,
+      fullMaxRawTurns: 10,
+    });
+
+    expect(voiceOutput.promptProfile).toBe("full");
+    expect(voiceOutput.capabilities.userContext).toBe(true);
+    expect(voiceOutput.outputMode).toBe("voice");
+    expect(explicitVoiceRequest.promptProfile).toBe("full");
+  });
 });

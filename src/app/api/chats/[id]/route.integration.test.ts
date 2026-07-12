@@ -69,6 +69,10 @@ describe("integration /api/chats/[id]", () => {
       createdAt: t3,
     });
 
+    expect(m1.conversationThreadId).toBeTruthy();
+    expect(m2.conversationThreadId).toBe(m1.conversationThreadId);
+    expect(m3.conversationThreadId).toBe(m1.conversationThreadId);
+
     mocks.getAuthUser.mockResolvedValue({
       user: toAuthUser(user),
       error: null,
