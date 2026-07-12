@@ -26,10 +26,12 @@ const mocks = vi.hoisted(() => ({
   isBillingSyncStale: vi.fn(),
   syncPersonalSubscriptionFromClerk: vi.fn(),
   decideWebVoiceMode: vi.fn(),
+  getVoiceUnavailability: vi.fn(),
   transcribeAudio: vi.fn(),
   generateVoice: vi.fn(),
   trackVoiceUsage: vi.fn(),
   put: vi.fn(),
+  ensureConversationThread: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -77,6 +79,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/conversations/threads", () => ({
+  ensureConversationThread: mocks.ensureConversationThread,
+}));
+
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: mocks.checkRateLimit,
   incrementUsage: mocks.incrementUsage,
@@ -104,16 +110,14 @@ vi.mock("@/lib/billing/personal-subscription", () => ({
   syncPersonalSubscriptionFromClerk: mocks.syncPersonalSubscriptionFromClerk,
 }));
 
-vi.mock("@/lib/voice/preflight", () => ({
-  decideWebVoiceMode: mocks.decideWebVoiceMode,
-}));
-
 vi.mock("@/lib/transcription", () => ({
   transcribeAudio: mocks.transcribeAudio,
 }));
 
 vi.mock("@/lib/voice", () => ({
+  decideWebVoiceMode: mocks.decideWebVoiceMode,
   generateVoice: mocks.generateVoice,
+  getVoiceUnavailability: mocks.getVoiceUnavailability,
   trackVoiceUsage: mocks.trackVoiceUsage,
 }));
 
@@ -206,10 +210,12 @@ describe("POST /api/chat", () => {
     mocks.isBillingSyncStale.mockReset();
     mocks.syncPersonalSubscriptionFromClerk.mockReset();
     mocks.decideWebVoiceMode.mockReset();
+    mocks.getVoiceUnavailability.mockReset();
     mocks.transcribeAudio.mockReset();
     mocks.generateVoice.mockReset();
     mocks.trackVoiceUsage.mockReset();
     mocks.put.mockReset();
+    mocks.ensureConversationThread.mockReset();
 
     mocks.start.mockReturnValue({
       end: vi.fn(),
@@ -263,6 +269,7 @@ describe("POST /api/chat", () => {
       title: "Chat",
       customTitle: true,
     });
+    mocks.ensureConversationThread.mockResolvedValue({ id: "thread-1" });
     mocks.messageCreate.mockResolvedValue({ id: "msg-user-1" });
     mocks.messageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
     mocks.messageCount.mockResolvedValue(1);
@@ -293,6 +300,13 @@ describe("POST /api/chat", () => {
       reason: "default",
       source: "classifier",
     });
+    mocks.getVoiceUnavailability.mockImplementation((code: string) => ({
+      code,
+      userMessage:
+        code === "PROVIDER_UNAVAILABLE"
+          ? "Voice is temporarily unavailable, so I'm replying in text."
+          : `Voice unavailable: ${code}`,
+    }));
     mocks.transcribeAudio.mockResolvedValue({
       text: "trascrizione del vocale",
       provider: "openrouter-gemini",
@@ -301,6 +315,7 @@ describe("POST /api/chat", () => {
     mocks.generateVoice.mockResolvedValue({
       audioBuffer: Buffer.from("audio"),
       characterCount: 20,
+      costUsd: 0.001,
     });
     mocks.put.mockResolvedValue({
       url: "https://blob.example/voice/msg-assistant-1.mp3",
@@ -1028,7 +1043,270 @@ describe("POST /api/chat", () => {
       Buffer.from("audio"),
       expect.objectContaining({ contentType: "audio/mpeg" }),
     );
-    expect(mocks.trackVoiceUsage).toHaveBeenCalledWith("user-1", 20, "WEB");
+    expect(mocks.trackVoiceUsage).toHaveBeenCalledWith(
+      "user-1",
+      20,
+      "WEB",
+      0.001,
+    );
+    expect(mocks.decideWebVoiceMode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: "chat-1",
+        hasAttachments: false,
+      }),
+    );
+  });
+
+  it("passes the exact fallback reason only for a blocked explicit voice request", async () => {
+    mocks.decideWebVoiceMode.mockResolvedValue({
+      mode: "TEXT",
+      reason: "Voice provider capacity is unavailable",
+      source: "deterministic",
+      category: "VOICE_REQUIRED",
+      capacityState: "RED",
+      reasonCode: "PROVIDER_RED",
+    });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [{ type: "text", text: "Mandami un vocale" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        responseMode: "text",
+        voiceEnabled: false,
+        voiceUnavailableReason:
+          "Voice is temporarily unavailable, so I'm replying in text.",
+      }),
+    );
+  });
+
+  it("does not explain voice policy for an ordinary text-suitable response", async () => {
+    mocks.decideWebVoiceMode.mockResolvedValue({
+      mode: "TEXT",
+      reason: "Text is the better delivery format",
+      source: "classifier",
+      category: "TEXT_PREFERRED",
+      capacityState: "GREEN",
+      reasonCode: "TEXT_PREFERRED",
+      suitabilityReason: "short_factual",
+      suitabilityConfidence: 0.92,
+    });
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "Sono le dieci.",
+        metrics: {
+          model: "qwen/qwen3.5-flash-02-23",
+          inputTokens: 11,
+          outputTokens: 22,
+          reasoningTokens: 0,
+          reasoningContent: "",
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.01,
+          generationTimeMs: 250,
+          reasoningTimeMs: 0,
+        },
+      });
+      return {
+        toUIMessageStreamResponse: () =>
+          Response.json({ ok: true, stream: true }, { status: 200 }),
+      };
+    });
+    mocks.messageCreate
+      .mockResolvedValueOnce({ id: "msg-user-1" })
+      .mockResolvedValueOnce({ id: "msg-assistant-1" });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [{ type: "text", text: "Che ore sono?" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const streamArgs = mocks.streamChat.mock.calls[0]?.[0] as {
+      voiceEnabled?: boolean;
+      voiceUnavailableReason?: string;
+    };
+    expect(streamArgs.voiceEnabled).toBeUndefined();
+    expect(streamArgs.voiceUnavailableReason).toBeUndefined();
+    expect(mocks.messageCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: expect.objectContaining({
+            voice: {
+              mode: "TEXT",
+              reason: "Text is the better delivery format",
+              reasonCode: "TEXT_PREFERRED",
+              category: "TEXT_PREFERRED",
+              capacityState: "GREEN",
+              source: "classifier",
+              suitabilityReason: "short_factual",
+              suitabilityConfidence: 0.92,
+            },
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("keeps attachments as a soft signal for an explicit voice request", async () => {
+    mocks.decideWebVoiceMode.mockResolvedValue({
+      mode: "VOICE",
+      reason: "User explicitly requested voice",
+      source: "deterministic",
+      category: "VOICE_REQUIRED",
+      capacityState: "GREEN",
+      reasonCode: "EXPLICIT_VOICE",
+    });
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "Ti descrivo a voce ciò che vedo nell'immagine.",
+        metrics: {
+          model: "qwen/qwen3.5-flash-02-23",
+          inputTokens: 11,
+          outputTokens: 22,
+          reasoningTokens: 0,
+          reasoningContent: "",
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.01,
+          generationTimeMs: 250,
+          reasoningTimeMs: 0,
+        },
+      });
+
+      return {
+        textStream: (async function* () {
+          yield "Ti descrivo a voce ciò che vedo nell'immagine.";
+        })(),
+      };
+    });
+    mocks.messageCreate
+      .mockResolvedValueOnce({ id: "msg-user-1" })
+      .mockResolvedValueOnce({ id: "msg-assistant-1" });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [
+              { type: "text", text: "Descrivimela con un messaggio vocale" },
+              {
+                type: "file",
+                attachmentId: "att-image",
+                mimeType: "image/png",
+                name: "photo.png",
+                url: "data:image/png;base64,aW1hZ2U=",
+              },
+            ],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.decideWebVoiceMode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: "chat-1",
+        hasAttachments: true,
+      }),
+    );
+    expect(mocks.generateVoice).toHaveBeenCalledWith(
+      "Ti descrivo a voce ciò che vedo nell'immagine.",
+    );
+  });
+
+  it("explains the fallback when TTS fails for an explicit voice request", async () => {
+    mocks.decideWebVoiceMode.mockResolvedValue({
+      mode: "VOICE",
+      reason: "User explicitly requested voice",
+      source: "deterministic",
+      category: "VOICE_REQUIRED",
+      capacityState: "GREEN",
+      reasonCode: "EXPLICIT_VOICE",
+    });
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "Respira lentamente e scegli una sola azione.",
+        metrics: {
+          model: "qwen/qwen3.5-flash-02-23",
+          inputTokens: 11,
+          outputTokens: 22,
+          reasoningTokens: 0,
+          reasoningContent: "",
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.01,
+          generationTimeMs: 250,
+          reasoningTimeMs: 0,
+        },
+      });
+      return {
+        textStream: (async function* () {
+          yield "Respira lentamente e scegli una sola azione.";
+        })(),
+      };
+    });
+    mocks.generateVoice.mockRejectedValue(new Error("TTS unavailable"));
+    mocks.messageCreate
+      .mockResolvedValueOnce({ id: "msg-user-1" })
+      .mockResolvedValueOnce({ id: "msg-fallback-1" });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [{ type: "text", text: "Mandami un vocale" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.messageCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "TEXT",
+          parts: [
+            {
+              type: "text",
+              text: "Voice is temporarily unavailable, so I'm replying in text.\n\nRespira lentamente e scegli una sola azione.",
+            },
+          ],
+          metadata: expect.objectContaining({
+            responseMode: "text_fallback",
+            voice: expect.objectContaining({
+              reasonCode: "EXPLICIT_VOICE",
+              status: "failed",
+              deliveryReason: "generation_or_storage_failed",
+            }),
+          }),
+        }),
+      }),
+    );
   });
 
   it("does not persist a duplicate text fallback when voice side effects fail after audio persistence", async () => {
@@ -1349,7 +1627,7 @@ describe("POST /api/chat", () => {
       "hello world",
       "Assistant reply",
     );
-    expect(mocks.waitUntil).toHaveBeenCalledTimes(2);
+    expect(mocks.waitUntil).toHaveBeenCalledTimes(3);
   });
 
   it("returns 500 when downstream streaming fails", async () => {

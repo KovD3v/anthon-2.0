@@ -1,5 +1,6 @@
 "use client";
 
+import { FileText, Inbox, Lightbulb, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
@@ -79,9 +80,9 @@ export default function RagPage() {
 
     if (invalidFiles.length > 0) {
       toast.error(
-        `Invalid file type(s): ${invalidFiles
+        `Tipo di file non valido: ${invalidFiles
           .map((f) => f.name)
-          .join(", ")}. Supported: ${validExtensions.join(", ")}`,
+          .join(", ")}. Formati supportati: ${validExtensions.join(", ")}`,
       );
       return;
     }
@@ -106,7 +107,7 @@ export default function RagPage() {
         fileArray.map((file) => ({
           fileName: file.name,
           status: "uploading",
-          message: "Processing...",
+          message: "Elaborazione in corso...",
         })),
       );
 
@@ -130,25 +131,21 @@ export default function RagPage() {
             fileName: result.fileName,
             status: result.success ? "success" : "error",
             message: result.success
-              ? `✓ ${result.document?.chunkCount} chunks`
-              : `✕ ${result.error}`,
+              ? `${result.document?.chunkCount} segmenti`
+              : result.error,
           }),
         );
         setUploadProgress(updatedProgress);
 
         // Show summary toast
         if (data.successCount > 0 && data.failureCount === 0) {
-          toast.success(
-            `Successfully uploaded ${data.successCount} file${
-              data.successCount > 1 ? "s" : ""
-            }`,
-          );
+          toast.success(`${data.successCount} file caricati correttamente`);
         } else if (data.successCount > 0 && data.failureCount > 0) {
           toast.warning(
-            `Uploaded ${data.successCount}/${data.totalFiles} files. ${data.failureCount} failed.`,
+            `Caricati ${data.successCount} file su ${data.totalFiles}. ${data.failureCount} non riusciti.`,
           );
         } else {
-          toast.error(`Failed to upload ${data.failureCount} file(s)`);
+          toast.error(`Caricamento non riuscito per ${data.failureCount} file`);
         }
 
         // Refresh documents list
@@ -162,10 +159,10 @@ export default function RagPage() {
           fileArray.map((file) => ({
             fileName: file.name,
             status: "error",
-            message: `✕ ${error.error}`,
+            message: error.error,
           })),
         );
-        toast.error(error.error || "Upload failed");
+        toast.error(error.error || "Caricamento non riuscito");
         setTimeout(() => setUploadProgress([]), 5000);
       }
     } catch (error) {
@@ -174,10 +171,10 @@ export default function RagPage() {
         fileArray.map((file) => ({
           fileName: file.name,
           status: "error",
-          message: "✕ Upload failed",
+          message: "Caricamento non riuscito",
         })),
       );
-      toast.error("Upload failed");
+      toast.error("Caricamento non riuscito");
       setTimeout(() => setUploadProgress([]), 5000);
     } finally {
       setUploading(false);
@@ -189,11 +186,11 @@ export default function RagPage() {
 
   async function handleDelete(documentId: string) {
     const confirmed = await confirm({
-      title: "Delete document?",
+      title: "Eliminare il documento?",
       description:
-        "This will permanently delete this document and all its chunks. This action cannot be undone.",
-      confirmText: "Delete",
-      cancelText: "Cancel",
+        "Il documento e tutti i suoi segmenti verranno eliminati definitivamente. Questa azione non può essere annullata.",
+      confirmText: "Elimina",
+      cancelText: "Annulla",
       variant: "destructive",
     });
 
@@ -207,14 +204,14 @@ export default function RagPage() {
 
       if (res.ok) {
         setDocuments((docs) => docs.filter((d) => d.id !== documentId));
-        toast.success("Document deleted");
+        toast.success("Documento eliminato");
       } else {
         const error = await res.json();
-        toast.error(error.error || "Failed to delete");
+        toast.error(error.error || "Eliminazione non riuscita");
       }
     } catch (error) {
       console.error("Delete failed:", error);
-      toast.error("Failed to delete");
+      toast.error("Eliminazione non riuscita");
     } finally {
       setDeleting(null);
     }
@@ -243,14 +240,14 @@ export default function RagPage() {
   return (
     <div>
       <AnimatedPageHeader
-        title="RAG Documents"
-        description="Upload documents to the knowledge base"
+        title="Documenti RAG"
+        description="Carica documenti nella base di conoscenza"
       />
 
       {/* Upload Zone */}
       <Card variant="glass" className="mb-8">
         <CardHeader>
-          <CardTitle>Upload Documents</CardTitle>
+          <CardTitle>Carica documenti</CardTitle>
         </CardHeader>
         <CardContent>
           <label
@@ -273,16 +270,15 @@ export default function RagPage() {
               className="hidden"
             />
 
-            <div className="text-4xl mb-4">📄</div>
+            <FileText className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
             <p className="text-muted-foreground mb-4">
-              Drag &amp; drop file(s) here, or{" "}
+              Trascina qui uno o più file oppure{" "}
               <span className="text-primary hover:text-primary/80 font-medium">
-                browse
+                selezionali
               </span>
             </p>
             <p className="text-sm text-muted-foreground/60">
-              Supported formats: PDF, DOCX, TXT, MD &bull; Multiple files
-              supported
+              Formati supportati: PDF, DOCX, TXT e MD. Puoi caricare più file.
             </p>
 
             {uploadProgress.length > 0 && (
@@ -304,7 +300,7 @@ export default function RagPage() {
                       </span>
                       <span className="shrink-0">
                         {progress.status === "uploading" && (
-                          <span className="inline-block animate-spin">⟳</span>
+                          <Loader2 className="inline-block h-4 w-4 animate-spin" />
                         )}
                         {progress.message}
                       </span>
@@ -320,7 +316,7 @@ export default function RagPage() {
       {/* Documents List */}
       <Card variant="glass">
         <CardHeader>
-          <CardTitle>Documents ({documents.length})</CardTitle>
+          <CardTitle>Documenti ({documents.length})</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -329,8 +325,8 @@ export default function RagPage() {
             </div>
           ) : documents.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <div className="text-4xl mb-2">📭</div>
-              <p>No documents uploaded yet</p>
+              <Inbox className="mx-auto mb-2 h-10 w-10" />
+              <p>Nessun documento caricato</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -338,16 +334,16 @@ export default function RagPage() {
                 <thead className="bg-muted/50 border-b border-border">
                   <tr>
                     <th className="text-left px-6 py-3 text-sm font-medium text-muted-foreground">
-                      Title
+                      Titolo
                     </th>
                     <th className="text-left px-6 py-3 text-sm font-medium text-muted-foreground">
-                      Source
+                      Fonte
                     </th>
                     <th className="text-left px-6 py-3 text-sm font-medium text-muted-foreground">
-                      Chunks
+                      Segmenti
                     </th>
                     <th className="text-left px-6 py-3 text-sm font-medium text-muted-foreground">
-                      Uploaded
+                      Caricato il
                     </th>
                     <th className="px-6 py-3" />
                   </tr>
@@ -369,7 +365,7 @@ export default function RagPage() {
                             rel="noopener noreferrer"
                             className="text-xs text-primary hover:underline"
                           >
-                            View original
+                            Apri originale
                           </a>
                         )}
                       </td>
@@ -378,7 +374,7 @@ export default function RagPage() {
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                          {doc.chunkCount} chunks
+                          {doc.chunkCount} segmenti
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-muted-foreground">
@@ -392,7 +388,7 @@ export default function RagPage() {
                           disabled={deleting === doc.id}
                           className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         >
-                          {deleting === doc.id ? "..." : "Delete"}
+                          {deleting === doc.id ? "..." : "Elimina"}
                         </Button>
                       </td>
                     </tr>
@@ -406,12 +402,15 @@ export default function RagPage() {
 
       {/* Help */}
       <div className="mt-8 p-4 bg-muted/30 rounded-lg border border-border">
-        <h3 className="font-medium text-foreground mb-2">💡 How RAG works</h3>
+        <h3 className="mb-2 flex items-center gap-2 font-medium text-foreground">
+          <Lightbulb className="h-4 w-4" />
+          Come funziona il RAG
+        </h3>
         <p className="text-sm text-muted-foreground">
-          Uploaded documents are automatically parsed and split into chunks.
-          Each chunk is embedded using AI and stored in the vector database.
-          When users ask questions, relevant chunks are retrieved and provided
-          as context to the AI coach.
+          I documenti caricati vengono analizzati e suddivisi in segmenti. Ogni
+          segmento viene trasformato in un embedding e salvato nel database
+          vettoriale. Quando un utente fa una domanda, i segmenti pertinenti
+          vengono recuperati e forniti come contesto al coach IA.
         </p>
       </div>
       <ConfirmDialog

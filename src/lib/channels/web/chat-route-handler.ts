@@ -15,14 +15,19 @@ import {
 import type { ChannelMessagePart } from "@/lib/channel-flow";
 import { runChannelFlow } from "@/lib/channel-flow";
 import { persistAssistantOutput } from "@/lib/channel-flow/persistence";
+import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { transcribeAudio } from "@/lib/transcription";
-import { generateVoice, trackVoiceUsage } from "@/lib/voice";
+import {
+  decideWebVoiceMode,
+  generateVoice,
+  getVoiceUnavailability,
+  trackVoiceUsage,
+} from "@/lib/voice";
 import { getVoicePlanConfig } from "@/lib/voice/config";
-import { decideWebVoiceMode } from "@/lib/voice/preflight";
 
 const logger = createLogger("ai");
 
@@ -187,6 +192,13 @@ export async function handleWebChatPost(request: Request) {
           );
         }
 
+        const conversationThread = await ensureConversationThread({
+          userId: user.id,
+          channel: "WEB",
+          externalThreadId: chatId,
+          chatId,
+        });
+
         const shouldSyncSubscription =
           !user.isGuest &&
           isBillingSyncStale(user.billingSyncedAt) &&
@@ -253,6 +265,9 @@ export async function handleWebChatPost(request: Request) {
         });
 
         const messageParts = buildChannelMessageParts(lastUserMessage);
+        const hadAudioAttachment = messageParts.some(
+          (part) => part.type === "file" && part.mimeType?.startsWith("audio/"),
+        );
         let aiMessageParts: ChannelMessagePart[];
         let aiUserMessageText: string;
         let aiHasAudio: boolean;
@@ -288,6 +303,7 @@ export async function handleWebChatPost(request: Request) {
               data: {
                 userId: user.id,
                 chatId,
+                conversationThreadId: conversationThread.id,
                 channel: "WEB",
                 direction: "INBOUND",
                 role: "USER",
@@ -428,6 +444,7 @@ export async function handleWebChatPost(request: Request) {
         );
         const voiceDecision = await decideWebVoiceMode({
           userId: user.id,
+          chatId,
           userMessage: aiUserMessageText,
           recentMessages: getRecentTextMessages(messages),
           userPreferences: {
@@ -438,10 +455,28 @@ export async function handleWebChatPost(request: Request) {
           hasAttachments: Boolean(hasAttachments),
         });
 
+        logger.info(
+          "voice.delivery.decision",
+          "Web voice delivery decision completed",
+          {
+            userId: user.id,
+            chatId,
+            conversationThreadId: conversationThread.id,
+            userMessageId: message.id,
+            mode: voiceDecision.mode,
+            source: voiceDecision.source,
+            category: voiceDecision.category,
+            capacityState: voiceDecision.capacityState,
+            reasonCode: voiceDecision.reasonCode,
+          },
+        );
+
         if (voiceDecision.mode === "VOICE") {
           const voiceResponse = await handleVoiceFirstWebResponse({
             userId: user.id,
             chatId,
+            conversationThreadId: conversationThread.id,
+            userMessageId: message.id,
             userMessageText: aiUserMessageText,
             messageParts: aiMessageParts,
             rateLimitResult,
@@ -451,6 +486,13 @@ export async function handleWebChatPost(request: Request) {
             isGuest: user.isGuest,
             hasImages,
             hasAudio: aiHasAudio,
+            inputOrigin: hadAudioAttachment
+              ? "transcribed_voice"
+              : hasImages
+                ? "direct_media"
+                : "text",
+            explicitVoiceRequest: voiceDecision.category === "VOICE_REQUIRED",
+            voiceDecision,
             waitUntil,
           });
 
@@ -458,10 +500,15 @@ export async function handleWebChatPost(request: Request) {
           return voiceResponse;
         }
 
+        const voiceUnavailableReason =
+          getExplicitVoiceUnavailableReason(voiceDecision);
+
         const flowResult = await runChannelFlow({
           channel: "WEB",
           userId: user.id,
           chatId,
+          conversationThreadId: conversationThread.id,
+          userMessageId: message.id,
           userMessageText: aiUserMessageText,
           parts: aiMessageParts,
           rateLimit: {
@@ -481,13 +528,22 @@ export async function handleWebChatPost(request: Request) {
             isGuest: user.isGuest,
             hasImages,
             hasAudio: aiHasAudio,
+            inputOrigin: hadAudioAttachment
+              ? "transcribed_voice"
+              : hasImages
+                ? "direct_media"
+                : "text",
+            transcriptionStatus: hadAudioAttachment ? "success" : "not_needed",
             responseMode: "text",
+            voiceEnabled: voiceUnavailableReason ? false : undefined,
+            voiceUnavailableReason,
             skipConversationHistory: requestConversationMessageCount === 1,
           },
           execution: { mode: "stream" },
           persistence: {
             channel: "WEB",
             saveAssistantMessage: true,
+            metadata: buildVoiceDecisionMetadata(voiceDecision),
             updateChatTimestamp: true,
             revalidateTags: [`chats-${user.id}`, `chat-${chatId}`],
             waitUntil,
@@ -685,6 +741,33 @@ function getRecentTextMessages(messages: UIMessage[]) {
   }));
 }
 
+function buildVoiceDecisionMetadata(
+  decision: Awaited<ReturnType<typeof decideWebVoiceMode>>,
+): Prisma.InputJsonValue {
+  return {
+    voice: getVoiceDecisionMetadataFields(decision),
+  };
+}
+
+function getVoiceDecisionMetadataFields(
+  decision: Awaited<ReturnType<typeof decideWebVoiceMode>>,
+) {
+  return {
+    mode: decision.mode,
+    reason: decision.reason,
+    reasonCode: decision.reasonCode,
+    category: decision.category,
+    capacityState: decision.capacityState,
+    source: decision.source,
+    ...(decision.suitabilityReason
+      ? { suitabilityReason: decision.suitabilityReason }
+      : {}),
+    ...(decision.suitabilityConfidence !== undefined
+      ? { suitabilityConfidence: decision.suitabilityConfidence }
+      : {}),
+  };
+}
+
 function isValidMessageArray(value: unknown): value is UIMessage[] {
   return Array.isArray(value) && value.length > 0 && value.every(isMessageLike);
 }
@@ -718,6 +801,8 @@ function isMessagePartLike(value: unknown) {
 async function handleVoiceFirstWebResponse({
   userId,
   chatId,
+  conversationThreadId,
+  userMessageId,
   userMessageText,
   messageParts,
   rateLimitResult,
@@ -727,10 +812,15 @@ async function handleVoiceFirstWebResponse({
   isGuest,
   hasImages,
   hasAudio,
+  inputOrigin,
+  explicitVoiceRequest,
+  voiceDecision,
   waitUntil: schedule,
 }: {
   userId: string;
   chatId: string;
+  conversationThreadId: string;
+  userMessageId: string;
   userMessageText: string;
   messageParts: ChannelMessagePart[];
   rateLimitResult: Awaited<ReturnType<typeof checkRateLimit>>;
@@ -740,12 +830,17 @@ async function handleVoiceFirstWebResponse({
   isGuest?: boolean;
   hasImages?: boolean;
   hasAudio?: boolean;
+  inputOrigin?: "text" | "transcribed_voice" | "direct_media";
+  explicitVoiceRequest?: boolean;
+  voiceDecision: Awaited<ReturnType<typeof decideWebVoiceMode>>;
   waitUntil?: (promise: Promise<unknown>) => void;
 }) {
   const flowResult = await runChannelFlow({
     channel: "WEB",
     userId,
     chatId,
+    conversationThreadId,
+    userMessageId,
     userMessageText,
     parts: messageParts,
     rateLimit: {
@@ -765,6 +860,9 @@ async function handleVoiceFirstWebResponse({
       isGuest,
       hasImages,
       hasAudio,
+      inputOrigin,
+      transcriptionStatus:
+        inputOrigin === "transcribed_voice" ? "success" : "not_needed",
       responseMode: "voice",
       voiceEnabled: true,
     },
@@ -799,18 +897,30 @@ async function handleVoiceFirstWebResponse({
       error,
       userId,
       chatId,
+      conversationThreadId,
+      userMessageId,
     });
 
+    const fallbackText = explicitVoiceRequest
+      ? `${getVoiceUnavailability("PROVIDER_UNAVAILABLE").userMessage}\n\n${assistantText}`
+      : assistantText;
     const fallbackMessage = await persistAssistantOutput({
       userId,
       chatId,
+      conversationThreadId,
+      userMessageId,
       channel: "WEB",
-      text: assistantText,
+      text: fallbackText,
       userMessageText,
       metrics: flowResult.metrics,
       metadata: {
         responseMode: "text_fallback",
-        voiceFailure: true,
+        voice: {
+          ...getVoiceDecisionMetadataFields(voiceDecision),
+          status: "failed",
+          fallback: "text",
+          deliveryReason: "generation_or_storage_failed",
+        },
       },
       updateChatTimestamp: true,
       revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
@@ -818,12 +928,14 @@ async function handleVoiceFirstWebResponse({
       waitUntil: schedule,
     });
 
-    return createTextStreamResponse(fallbackMessage.id, assistantText);
+    return createTextStreamResponse(fallbackMessage.id, fallbackText);
   }
 
   const assistantMessage = await persistAssistantOutput({
     userId,
     chatId,
+    conversationThreadId,
+    userMessageId,
     channel: "WEB",
     text: assistantText,
     userMessageText,
@@ -834,6 +946,11 @@ async function handleVoiceFirstWebResponse({
     metadata: {
       responseMode: "voice",
       transcript: assistantText,
+      voice: {
+        ...getVoiceDecisionMetadataFields(voiceDecision),
+        status: "ready",
+        costUsd: audio.costUsd,
+      },
     },
     updateChatTimestamp: true,
     revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
@@ -859,16 +976,41 @@ async function handleVoiceFirstWebResponse({
           { error, userId, chatId, messageId: assistantMessage.id },
         ),
       ),
-    trackVoiceUsage(userId, audio.characterCount, "WEB").catch((error) =>
-      logger.error(
-        "voice.web_usage_tracking_failed",
-        "Failed tracking web voice usage",
-        { error, userId, chatId, messageId: assistantMessage.id },
-      ),
+    trackVoiceUsage(userId, audio.characterCount, "WEB", audio.costUsd).catch(
+      (error) =>
+        logger.error(
+          "voice.web_usage_tracking_failed",
+          "Failed tracking web voice usage",
+          { error, userId, chatId, messageId: assistantMessage.id },
+        ),
     ),
   ]);
 
-  return createVoiceFileStreamResponse(assistantMessage.id, blobResult.url);
+  return createVoiceFileStreamResponse(
+    assistantMessage.id,
+    `/api/voice/messages/${assistantMessage.id}`,
+  );
+}
+
+function getExplicitVoiceUnavailableReason(
+  decision: Awaited<ReturnType<typeof decideWebVoiceMode>>,
+) {
+  if (decision.mode !== "TEXT" || decision.category !== "VOICE_REQUIRED") {
+    return undefined;
+  }
+
+  switch (decision.reasonCode) {
+    case "PLAN_NOT_ELIGIBLE":
+      return getVoiceUnavailability("PLAN_NOT_ELIGIBLE").userMessage;
+    case "QUIET_MODE":
+      return getVoiceUnavailability("QUIET_MODE").userMessage;
+    case "QUOTA_REACHED":
+      return getVoiceUnavailability("QUOTA_REACHED").userMessage;
+    case "PROVIDER_RED":
+      return getVoiceUnavailability("PROVIDER_UNAVAILABLE").userMessage;
+    default:
+      return undefined;
+  }
 }
 
 function createVoiceFileStreamResponse(messageId: string, url: string) {

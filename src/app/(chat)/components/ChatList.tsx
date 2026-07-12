@@ -1,19 +1,20 @@
 "use client";
 
-import { AnimatePresence, m } from "framer-motion";
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import {
   Check,
   Loader2,
   MessageSquare,
   Pencil,
   Plus,
+  Search,
   Trash2,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { duration, ease } from "@/lib/motion";
+import { duration } from "@/lib/motion";
 import { getCreateChatButtonState } from "../chat/create-chat-ui";
 
 interface Chat {
@@ -31,6 +32,7 @@ interface ChatListProps {
   onDelete: (id: string) => void;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onSearch?: () => void;
   onRename: (id: string, newTitle: string) => Promise<boolean>;
   onPreFetch: (id: string) => void;
 }
@@ -44,6 +46,7 @@ export function ChatList({
   onDelete,
   onSelect,
   onCreate,
+  onSearch,
   onRename,
   onPreFetch,
 }: ChatListProps) {
@@ -54,10 +57,10 @@ export function ChatList({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="p-3">
+      <div className="space-y-2 p-3">
         <Button
           onClick={onCreate}
-          className="group w-full justify-start gap-2 bg-background/50 text-foreground/80 shadow-sm backdrop-blur-sm transition-all hover:bg-background/80 hover:shadow-md active:scale-[0.98] border border-border/50 dark:border-white/10"
+          className="group w-full justify-start gap-2 bg-background/50 text-foreground/80 shadow-sm backdrop-blur-sm transition-[background-color,color,box-shadow,transform] hover:bg-background/80 hover:shadow-md active:scale-[0.98] border border-border/50 dark:border-white/10"
           variant="outline"
           disabled={createChatButton.isDisabled}
           aria-busy={isCreatingChat}
@@ -71,6 +74,22 @@ export function ChatList({
           </div>
           {createChatButton.label}
         </Button>
+        {onSearch && (
+          <Button
+            type="button"
+            onClick={onSearch}
+            className="w-full justify-between border-border/50 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground dark:border-white/10"
+            variant="outline"
+          >
+            <span className="flex items-center gap-2">
+              <Search className="size-4" />
+              Cerca conversazioni
+            </span>
+            <kbd className="hidden rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[0.65rem] font-normal sm:inline dark:border-white/10">
+              ⌘K
+            </kbd>
+          </Button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 pt-0">
@@ -87,22 +106,28 @@ export function ChatList({
             Nessuna conversazione ancora. Clicca su "Nuova Chat" per iniziare!
           </m.p>
         ) : (
-          <ul className="space-y-1">
-            <AnimatePresence mode="popLayout">
-              {chats.map((chat) => (
-                <ChatItem
-                  key={chat.id}
-                  chat={chat}
-                  isActive={chat.id === currentChatId}
-                  isDeleting={deletingChatId === chat.id}
-                  onDelete={() => onDelete(chat.id)}
-                  onClick={() => onSelect(chat.id)}
-                  onPreFetch={() => onPreFetch(chat.id)}
-                  onRename={(newTitle) => onRename(chat.id, newTitle)}
-                />
-              ))}
-            </AnimatePresence>
-          </ul>
+          <>
+            <div className="mb-2 flex items-center justify-between px-2 text-xs text-muted-foreground">
+              <span>Conversazioni</span>
+              <span>{chats.length}</span>
+            </div>
+            <ul className="space-y-1">
+              <AnimatePresence mode="popLayout">
+                {chats.map((chat) => (
+                  <ChatItem
+                    key={chat.id}
+                    chat={chat}
+                    isActive={chat.id === currentChatId}
+                    isDeleting={deletingChatId === chat.id}
+                    onDelete={() => onDelete(chat.id)}
+                    onClick={() => onSelect(chat.id)}
+                    onPreFetch={() => onPreFetch(chat.id)}
+                    onRename={(newTitle) => onRename(chat.id, newTitle)}
+                  />
+                ))}
+              </AnimatePresence>
+            </ul>
+          </>
         )}
       </div>
     </div>
@@ -130,6 +155,7 @@ function ChatItem({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(chat.title);
   const [isSavingRename, setIsSavingRename] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   const handleMouseEnter = () => {
     setShowActions(true);
@@ -172,15 +198,16 @@ function ChatItem({
 
   return (
     <m.li
-      layout
-      initial={{ opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       exit={{
         opacity: 0,
-        x: -8,
-        transition: { duration: duration.fast, ease: ease.in },
+        transition: {
+          duration: duration.fast,
+          ease: [0.23, 1, 0.32, 1],
+        },
       }}
-      transition={{ duration: duration.base, ease: ease.out }}
+      transition={{ duration: duration.fast, ease: [0.23, 1, 0.32, 1] }}
       className="group relative list-none"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setShowActions(false)}
@@ -191,7 +218,7 @@ function ChatItem({
         href={`/chat/${chat.id}`}
         prefetch={true}
         onClick={onClick}
-        className={`flex w-full items-center gap-2 rounded-xl px-3 py-3 sm:py-2.5 text-sm transition-all active:scale-[0.98] ${
+        className={`flex w-full items-center gap-2 rounded-xl px-3 py-3 sm:py-2.5 text-sm transition-[background-color,color,box-shadow,transform] active:scale-[0.98] ${
           isActive
             ? "bg-accent dark:bg-white/10 font-medium text-foreground shadow-sm ring-1 ring-border dark:ring-white/10"
             : "text-muted-foreground hover:text-foreground hover:bg-accent dark:hover:bg-white/5"
@@ -229,10 +256,13 @@ function ChatItem({
       <AnimatePresence>
         {showActions && !isDeleting && !isRenaming && (
           <m.div
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 10 }}
-            transition={{ duration: duration.fast, ease: ease.out }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{
+              duration: duration.fast,
+              ease: [0.23, 1, 0.32, 1],
+            }}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10 bg-background/90 dark:bg-muted/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-border/50 dark:border-white/10"
           >
             <Button
@@ -270,10 +300,27 @@ function ChatItem({
       <AnimatePresence>
         {isRenaming && (
           <m.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10 bg-background/95 dark:bg-muted/95 backdrop-blur-sm rounded-lg p-0.5 shadow-md border border-border/50 dark:border-white/10"
+            initial={{
+              opacity: 0,
+              transform: shouldReduceMotion
+                ? "translateY(-50%) scale(1)"
+                : "translateY(-50%) scale(0.95)",
+            }}
+            animate={{
+              opacity: 1,
+              transform: "translateY(-50%) scale(1)",
+            }}
+            exit={{
+              opacity: 0,
+              transform: shouldReduceMotion
+                ? "translateY(-50%) scale(1)"
+                : "translateY(-50%) scale(0.95)",
+            }}
+            transition={{
+              duration: duration.fast,
+              ease: [0.23, 1, 0.32, 1],
+            }}
+            className="absolute right-1.5 top-1/2 flex items-center gap-0.5 z-10 bg-background/95 dark:bg-muted/95 backdrop-blur-sm rounded-lg p-0.5 shadow-md border border-border/50 dark:border-white/10"
           >
             <Button
               variant="ghost"

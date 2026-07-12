@@ -11,6 +11,7 @@ import {
   Unlink,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -129,6 +130,7 @@ export function ChannelsPageClient({
   linkTokens,
   userCreatedAt,
 }: ChannelsPageClientProps) {
+  const router = useRouter();
   const [connectedChannels, setConnectedChannels] =
     useState<ChannelIdentity[]>(initialChannels);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
@@ -148,6 +150,19 @@ export function ChannelsPageClient({
 
   // Define all available channels
   const allChannels: ChannelType[] = ["WEB", "TELEGRAM", "WHATSAPP"];
+
+  const handleBack = () => {
+    const referrer = document.referrer ? new URL(document.referrer) : null;
+    const canReturnToPreviousPage =
+      referrer?.origin === window.location.origin &&
+      referrer.pathname !== window.location.pathname;
+
+    if (canReturnToPreviousPage) {
+      router.back();
+    } else {
+      router.push("/chat");
+    }
+  };
 
   const handleDisconnect = async (identity: ChannelIdentity) => {
     const config = channelConfig[identity.channel as ChannelType];
@@ -216,36 +231,37 @@ export function ChannelsPageClient({
         </div>
       )}
 
-      {/* Breadcrumb Navigation */}
-      <div className="border-b bg-muted/30">
+      {/* Contextual navigation */}
+      <nav aria-label="Navigazione dei canali" className="border-b bg-muted/30">
         <div className="mx-auto max-w-4xl px-4 py-3">
           <div className="flex items-center gap-2">
-            <Link href="/">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-2 text-muted-foreground hover:text-foreground"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Torna indietro
-              </Button>
-            </Link>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBack}
+              className="gap-2 text-muted-foreground hover:text-foreground"
+              aria-label="Torna alla pagina precedente"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Torna indietro
+            </Button>
             <span className="text-muted-foreground">/</span>
-            <Link href="/">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-2 text-muted-foreground hover:text-foreground"
-              >
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <Link href="/">
                 <Home className="h-4 w-4" />
                 Home
-              </Button>
-            </Link>
+              </Link>
+            </Button>
             <span className="text-muted-foreground">/</span>
             <span className="text-sm font-medium">Canali</span>
           </div>
         </div>
-      </div>
+      </nav>
 
       {/* Main Content */}
       <div className="mx-auto max-w-4xl px-4 py-8">

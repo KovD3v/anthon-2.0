@@ -1,5 +1,7 @@
 import type { Prisma } from "@/generated/prisma";
 import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
+import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
+import { captureAiTurnTrace } from "@/lib/ai/trace";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { incrementUsage } from "@/lib/rate-limit";
@@ -115,6 +117,8 @@ async function revalidateTags(tags: string[]) {
 export async function persistAssistantOutput({
   userId,
   chatId,
+  conversationThreadId,
+  userMessageId,
   channel,
   text,
   userMessageText,
@@ -135,6 +139,7 @@ export async function persistAssistantOutput({
       data: {
         userId,
         ...(chatId ? { chatId } : {}),
+        ...(conversationThreadId ? { conversationThreadId } : {}),
         channel,
         direction: "OUTBOUND",
         role: "ASSISTANT",
@@ -197,6 +202,38 @@ export async function persistAssistantOutput({
 
   if (tags.length > 0) {
     await revalidateTags(tags);
+  }
+
+  if (conversationThreadId) {
+    scheduleBackground(
+      waitUntil,
+      safelyRefreshConversationThreadSummary(conversationThreadId, userId),
+    );
+  }
+
+  if (conversationThreadId && metrics.tracePayload && metrics.turnPlan) {
+    scheduleBackground(
+      waitUntil,
+      captureAiTurnTrace({
+        userId,
+        conversationThreadId,
+        userMessageId,
+        assistantMessageId: message.id,
+        metadata: {
+          turnPlan: metrics.turnPlan,
+          model: metrics.model,
+          inputTokens: metrics.inputTokens,
+          outputTokens: metrics.outputTokens,
+          costUsd: metrics.costUsd,
+          generationTimeMs: metrics.generationTimeMs,
+        },
+        payload: {
+          userMessageText,
+          assistantText: text,
+          ...metrics.tracePayload,
+        },
+      }),
+    );
   }
 
   if (!allowMemoryExtraction) {

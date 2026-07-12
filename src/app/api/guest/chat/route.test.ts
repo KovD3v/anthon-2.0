@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   streamChat: vi.fn(),
   generateChatTitle: vi.fn(),
   trackInboundUserMessageFunnelProgress: vi.fn(),
+  ensureConversationThread: vi.fn(),
 }));
 
 vi.mock("@vercel/functions", () => ({
@@ -48,6 +49,10 @@ vi.mock("@/lib/db", () => ({
       create: mocks.messageMetricsCreate,
     },
   },
+}));
+
+vi.mock("@/lib/conversations/threads", () => ({
+  ensureConversationThread: mocks.ensureConversationThread,
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -158,6 +163,7 @@ describe("POST /api/guest/chat", () => {
     mocks.streamChat.mockReset();
     mocks.generateChatTitle.mockReset();
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
+    mocks.ensureConversationThread.mockReset();
 
     mocks.start.mockReturnValue({
       end: vi.fn(),
@@ -189,6 +195,7 @@ describe("POST /api/guest/chat", () => {
       title: "Guest Chat",
       customTitle: true,
     });
+    mocks.ensureConversationThread.mockResolvedValue({ id: "thread-guest-1" });
     mocks.messageCreate.mockResolvedValue({ id: "msg-guest-1" });
     mocks.messageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
     mocks.messageCount.mockResolvedValue(1);

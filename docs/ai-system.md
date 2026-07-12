@@ -34,8 +34,9 @@ The AI subsystem powers chat generation, retrieval, personalization, and backgro
 1. Resolve effective entitlements (`resolveEffectiveEntitlements`).
 2. Select model by plan/role/tier.
 3. Evaluate web-search intent and classify optional prompt modules.
-4. Choose prompt mode (`full`, `guest`, or `simple_fast`).
-5. Build conversation context via `buildConversationContext` when needed.
+4. Build an immutable `TurnPlan` that independently selects response length,
+   thread history, capabilities, and prompt profile.
+5. Build same-thread conversation context via `buildThreadContext` when needed.
 6. Evaluate RAG need (`shouldUseRag`) and fetch context (`getRagContext`) if needed.
 7. Build system prompt with the selected modules.
 8. Run `streamText` with the selected tools and callbacks.
@@ -67,9 +68,9 @@ enables `tinyfishSearch` for current or explicit web-search intent, and enables
 
 | Mode | Used for | Behavior |
 | ---- | -------- | -------- |
-| `full` | Authenticated turns that need normal context/tools | Uses conversation history, optional profile/memory context, optional RAG, optional web tools, and full response budget. |
+| `full` | Authenticated turns that need normal context/tools | Uses same-thread history, optional profile/memory context, optional RAG, optional web tools, and full response budget. |
 | `guest` | Guest chat | Uses compact guest prompt and constrained output. |
-| `simple_fast` | Simple authenticated text turns without media, voice, RAG, or web-search intent | Skips conversation history, full profile/memory enrichment, RAG, voice config, and tools; may include a tiny user snapshot. |
+| `compact` | Atomic greetings or self-contained motivation with no external capability | Uses up to three complete same-thread turns plus a rolling summary and a tiny user snapshot. Response brevity alone never selects it. |
 
 ### Current-information flow
 
@@ -101,7 +102,9 @@ Web search is powered by TinyFish:
 
 ### Query gating (`shouldUseRag`)
 
-RAG is skipped for guest turns, web-search turns, and `simple_fast` turns. For
+RAG is skipped for guest turns and web-search turns. A classifier RAG decision
+is promoted into the `TurnPlan`, so it cannot be lost because of compact
+selection. For
 normal authenticated turns, the decision pipeline uses layered optimization:
 
 1. Document existence check (cached)

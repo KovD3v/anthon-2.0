@@ -71,6 +71,8 @@ export async function runChannelFlow(
   const streamResult = await streamChat({
     userId: ctx.userId,
     chatId: ctx.chatId,
+    conversationThreadId: ctx.conversationThreadId,
+    userMessageId: ctx.userMessageId,
     userMessage: ctx.userMessageText,
     planId: ctx.ai?.planId,
     userRole: ctx.ai?.userRole,
@@ -82,12 +84,16 @@ export async function runChannelFlow(
     hasAudio: ctx.options.allowAttachments
       ? (ctx.ai?.hasAudio ?? detectAudio(policyParts))
       : false,
+    inputOrigin: ctx.ai?.inputOrigin,
     messageParts: normalizedParts,
     memoryEnabled: ctx.options.allowMemoryExtraction,
     responseMode: ctx.options.allowVoiceOutput
       ? (ctx.ai?.responseMode ?? "text")
       : "text",
     voiceEnabled: ctx.options.allowVoiceOutput ? ctx.ai?.voiceEnabled : false,
+    voiceUnavailableReason: ctx.options.allowVoiceOutput
+      ? ctx.ai?.voiceUnavailableReason
+      : undefined,
     effectiveEntitlements: ctx.rateLimit.effectiveEntitlements,
     skipConversationHistory: ctx.ai?.skipConversationHistory,
     onFinish: async ({ text, metrics }) => {
@@ -96,9 +102,11 @@ export async function runChannelFlow(
       if (text && text.trim().length > 0) {
         if (ctx.persistence?.saveAssistantMessage !== false) {
           try {
-            await persistAssistantOutput({
+            const message = await persistAssistantOutput({
               userId: ctx.userId,
               chatId: ctx.chatId,
+              conversationThreadId: ctx.conversationThreadId,
+              userMessageId: ctx.userMessageId,
               channel: ctx.persistence?.channel ?? "WEB",
               text,
               userMessageText: ctx.userMessageText,
@@ -109,7 +117,7 @@ export async function runChannelFlow(
               allowMemoryExtraction: ctx.options.allowMemoryExtraction,
               waitUntil: ctx.persistence?.waitUntil,
             });
-            persistence = { status: "saved" };
+            persistence = { status: "saved", messageId: message.id };
           } catch (error) {
             persistence = { status: "failed", error };
             runLogger.error(

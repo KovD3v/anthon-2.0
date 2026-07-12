@@ -418,6 +418,48 @@ describe("channel-flow/run", () => {
     );
   });
 
+  it("passes an explicit voice-unavailability reason to the orchestrator", async () => {
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "";
+      })(),
+    });
+
+    await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      chatId: "chat-1",
+      userMessageText: "send me a voice note",
+      parts: [{ type: "text", text: "send me a voice note" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: true,
+      },
+      ai: {
+        responseMode: "text",
+        voiceEnabled: false,
+        voiceUnavailableReason:
+          "Voice is temporarily unavailable, so I'm replying in text.",
+      },
+      execution: { mode: "stream" },
+      persistence: {
+        channel: "WEB",
+        saveAssistantMessage: true,
+      },
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        responseMode: "text",
+        voiceEnabled: false,
+        voiceUnavailableReason:
+          "Voice is temporarily unavailable, so I'm replying in text.",
+      }),
+    );
+  });
+
   it("does not call the AI or persist output when rate limit is denied", async () => {
     const result = await runChannelFlow({
       channel: "TELEGRAM",

@@ -101,6 +101,8 @@ async function main() {
       });
     }
 
+    assertAtLeastOneSuccessfulTurnPerModel(summary);
+
     await mkdir(outputDir, { recursive: true });
     await writeFile(
       jsonPath,
@@ -139,6 +141,28 @@ async function main() {
       await benchmark.cleanup();
       console.log("Cleaned up benchmark DB records.");
     }
+  }
+}
+
+function assertAtLeastOneSuccessfulTurnPerModel(
+  summary: Awaited<ReturnType<typeof runRealityBenchmark>>,
+) {
+  const failures = summary.models
+    .filter((model) => {
+      const modelResults = summary.results.filter(
+        (result) => result.modelId === model.modelId,
+      );
+      return (
+        modelResults.length === 0 ||
+        modelResults.every((result) => result.metadata?.benchmarkError === true)
+      );
+    })
+    .map((model) => model.modelId);
+
+  if (failures.length > 0) {
+    throw new Error(
+      `Reality benchmark produced no successful turns for: ${failures.join(", ")}. No report was written.`,
+    );
   }
 }
 

@@ -1,27 +1,26 @@
-/**
- * Voice Generation Funnel Pipeline
- *
- * 4-level filtering system to determine if a message should be sent as voice:
- * L1: User Preference (Quiet Mode)
- * L2: Structural Analysis (length, format)
- * L3: Semantic Classification + User Intent (LLM-based)
- * L4: Business Logic (caps, system load, probability)
- */
-
-import { generateText, Output } from "ai";
-import { z } from "zod";
-import {
-  MAINTENANCE_MODEL_ID,
-  maintenanceModel,
-} from "@/lib/ai/providers/openrouter";
-import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
-import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
+import type { Channel } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
-import { parseCanonicalPlanFromPlanId } from "@/lib/plans";
 import { incrementVoiceUsage } from "@/lib/rate-limit/usage";
 import type { VoicePlanConfig } from "./config";
+import {
+  decideVoiceDelivery,
+  type VoiceCapacityState,
+  type VoiceDecisionReasonCode,
+  type VoiceSuitability,
+  type VoiceSuitabilityHint,
+} from "./decision";
+import {
+  detectVoiceRequestIntent,
+  getVoiceUnavailability,
+  type VoiceUnavailability,
+  type VoiceUnavailableCode,
+} from "./policy";
+import {
+  classifyVoiceSuitability,
+  getDeterministicVoiceSuitability,
+} from "./suitability";
 
 const voiceLogger = createLogger("voice");
 
@@ -35,6 +34,11 @@ export interface FunnelResult {
   shouldGenerateVoice: boolean;
   blockedAt?: FunnelBlockedAt;
   reason?: string;
+  explicitVoiceRequest?: boolean;
+  unavailability?: VoiceUnavailability;
+  category: VoiceSuitability;
+  capacityState: VoiceCapacityState;
+  reasonCode: VoiceDecisionReasonCode;
 }
 
 export interface FunnelParams {
@@ -46,349 +50,132 @@ export interface FunnelParams {
   planConfig: VoicePlanConfig;
   systemLoad: number | Promise<number> | (() => Promise<number>);
   planId?: string | null;
+  channel?: Channel;
+  chatId?: string | null;
+  excludeMessageId?: string;
+  suitabilityHint?: VoiceSuitabilityHint;
 }
 
-// Structural patterns that indicate text-only content
-const CODE_BLOCK_REGEX = /```[\s\S]*?```/;
-const TABLE_REGEX = /\|[-:]+\|/;
-const URL_REGEX = /https?:\/\/[^\s]+/;
+function getLegacyBlockedAt(
+  code: VoiceDecisionReasonCode,
+): FunnelBlockedAt | undefined {
+  if (code === "PLAN_NOT_ELIGIBLE" || code === "QUIET_MODE") {
+    return "L1_PREFERENCE";
+  }
+  if (code === "TEXT_REQUIRED") return "L2_STRUCTURE";
+  if (
+    code === "EXPLICIT_TEXT" ||
+    code === "TEXT_PREFERRED" ||
+    code === "LOW_SUITABILITY_CONFIDENCE"
+  ) {
+    return "L3_SEMANTIC";
+  }
+  if (
+    code !== "EXPLICIT_VOICE" &&
+    code !== "STRONG_MOMENT" &&
+    code !== "NATURAL_MOMENT" &&
+    code !== "ANTI_DROUGHT"
+  ) {
+    return "L4_BUSINESS";
+  }
+  return undefined;
+}
 
-/**
- * Main funnel function - runs all 4 levels sequentially.
- */
+function getExplicitUnavailability(
+  code: VoiceDecisionReasonCode,
+): VoiceUnavailableCode | null {
+  if (code === "PLAN_NOT_ELIGIBLE") return "PLAN_NOT_ELIGIBLE";
+  if (code === "QUIET_MODE") return "QUIET_MODE";
+  if (code === "QUOTA_REACHED") return "QUOTA_REACHED";
+  if (code === "PROVIDER_RED") return "PROVIDER_UNAVAILABLE";
+  return null;
+}
+
 export async function shouldGenerateVoice(
   params: FunnelParams,
 ): Promise<FunnelResult> {
   return await LatencyLogger.measure("Voice: Full Funnel", async () => {
-    const {
-      userId,
-      userMessage,
-      assistantText,
-      conversationContext,
-      userPreferences,
-      planConfig,
-      systemLoad,
-      planId,
-    } = params;
-
-    // Check if voice is enabled for this plan
-    if (!planConfig.enabled) {
-      return {
-        shouldGenerateVoice: false,
-        blockedAt: "L1_PREFERENCE",
-        reason: "Voice not enabled for plan",
-      };
-    }
-
-    // L1: User Preference (Quiet Mode)
-    const l1Result = checkLevel1Preference(userPreferences);
-    if (!l1Result.pass) {
-      voiceLogger.info("voice.funnel.blocked", "Voice funnel blocked at L1", {
-        blockedAt: "L1_PREFERENCE",
-        reason: l1Result.reason,
-        userId,
+    const requestIntent = detectVoiceRequestIntent(params.userMessage);
+    const ineligibleSuitability =
+      !params.planConfig.enabled ||
+      params.userPreferences.voiceEnabled === false
+        ? ({
+            category: "TEXT_PREFERRED",
+            confidence: 1,
+            reason: "eligibility_fast_path",
+          } satisfies VoiceSuitabilityHint)
+        : null;
+    const deterministicSuitability =
+      params.suitabilityHint ??
+      ineligibleSuitability ??
+      getDeterministicVoiceSuitability({
+        userMessage: params.userMessage,
+        assistantText: params.assistantText,
+        requestIntent,
       });
-      return {
-        shouldGenerateVoice: false,
-        blockedAt: "L1_PREFERENCE",
-        reason: l1Result.reason,
-      };
-    }
-
-    // L2: Structural Analysis
-    const l2Result = checkLevel2Structure(assistantText);
-    if (!l2Result.pass) {
-      voiceLogger.info("voice.funnel.blocked", "Voice funnel blocked at L2", {
-        blockedAt: "L2_STRUCTURE",
-        reason: l2Result.reason,
-        userId,
-      });
-      return {
-        shouldGenerateVoice: false,
-        blockedAt: "L2_STRUCTURE",
-        reason: l2Result.reason,
-      };
-    }
-
-    // Start level 3 semantic check and level 4 business check in parallel
-    const [l3Result, l4Result] = await Promise.all([
-      checkLevel3Semantic(
-        userId,
-        userMessage,
-        assistantText,
-        conversationContext,
-      ),
-      (async () => {
-        const loadValue =
-          typeof systemLoad === "function"
-            ? await systemLoad()
-            : typeof systemLoad === "number"
-              ? systemLoad
-              : await systemLoad;
-
-        return checkLevel4Business(userId, planConfig, loadValue, planId);
-      })(),
-    ]);
-
-    if (!l3Result.pass) {
-      voiceLogger.info("voice.funnel.blocked", "Voice funnel blocked at L3", {
-        blockedAt: "L3_SEMANTIC",
-        reason: l3Result.reason,
-        userId,
-      });
-      return {
-        shouldGenerateVoice: false,
-        blockedAt: "L3_SEMANTIC",
-        reason: l3Result.reason,
-      };
-    }
-
-    if (!l4Result.pass) {
-      voiceLogger.info("voice.funnel.blocked", "Voice funnel blocked at L4", {
-        blockedAt: "L4_BUSINESS",
-        reason: l4Result.reason,
-        userId,
-      });
-      return {
-        shouldGenerateVoice: false,
-        blockedAt: "L4_BUSINESS",
-        reason: l4Result.reason,
-      };
-    }
-
-    voiceLogger.info("voice.funnel.allowed", "Voice funnel passed all checks", {
-      userId,
+    const suitability =
+      deterministicSuitability ??
+      (() =>
+        classifyVoiceSuitability({
+          userId: params.userId,
+          userMessage: params.userMessage,
+          assistantText: params.assistantText,
+          conversationContext: params.conversationContext,
+        }));
+    const decision = await decideVoiceDelivery({
+      userId: params.userId,
+      userPreferences: params.userPreferences,
+      planConfig: params.planConfig,
+      requestIntent,
+      suitability,
+      systemLoad: params.systemLoad,
+      channel: params.channel,
+      chatId: params.chatId,
+      excludeMessageId: params.excludeMessageId,
     });
-    return { shouldGenerateVoice: true };
-  });
-}
+    const blockedAt = getLegacyBlockedAt(decision.reason.code);
+    const unavailableCode = getExplicitUnavailability(decision.reason.code);
 
-// -----------------------------------------------------
-// L1: User Preference
-// -----------------------------------------------------
+    voiceLogger.info(
+      decision.shouldGenerateVoice
+        ? "voice.funnel.allowed"
+        : "voice.funnel.blocked",
+      decision.reason.message,
+      {
+        userId: params.userId,
+        category: decision.category,
+        capacityState: decision.capacityState,
+        reasonCode: decision.reason.code,
+      },
+    );
 
-function checkLevel1Preference(preferences: {
-  voiceEnabled?: boolean | null;
-}): { pass: boolean; reason?: string } {
-  if (preferences.voiceEnabled === false) {
-    return { pass: false, reason: "Quiet mode enabled" };
-  }
-  return { pass: true };
-}
-
-// -----------------------------------------------------
-// L2: Structural Analysis
-// -----------------------------------------------------
-
-function checkLevel2Structure(text: string): {
-  pass: boolean;
-  reason?: string;
-} {
-  // Length checks
-  if (text.length < 15) {
-    return { pass: false, reason: "Text too short" };
-  }
-  if (text.length > 2000) {
-    return { pass: false, reason: "Text too long" };
-  }
-
-  // Format checks
-  if (CODE_BLOCK_REGEX.test(text)) {
-    return { pass: false, reason: "Contains code blocks" };
-  }
-  if (TABLE_REGEX.test(text)) {
-    return { pass: false, reason: "Contains tables" };
-  }
-  if (URL_REGEX.test(text)) {
-    return { pass: false, reason: "Contains URLs" };
-  }
-
-  return { pass: true };
-}
-
-// -----------------------------------------------------
-// L3: Semantic Classification + User Intent
-// -----------------------------------------------------
-
-const semanticSchema = z.object({
-  decision: z.enum(["VOICE", "TEXT"]),
-  reason: z.enum([
-    "user_requested_voice",
-    "user_requested_text",
-    "conversational",
-    "emotional_support",
-    "storytelling",
-    "technical_list",
-    "code_or_data",
-    "step_instructions",
-  ]),
-  confidence: z.number().min(0).max(1),
-});
-
-async function checkLevel3Semantic(
-  userId: string,
-  userMessage: string,
-  assistantText: string,
-  conversationContext?: Array<{ role: string; content: string }>,
-): Promise<{ pass: boolean; reason?: string }> {
-  return await LatencyLogger.measure(
-    "Voice: L3 Semantic",
-    async () => {
-      try {
-        // Build context string from last 3 messages
-        const contextStr =
-          conversationContext
-            ?.slice(-3)
-            .map((m) => `${m.role}: ${m.content.slice(0, 100)}`)
-            .join("\n") || "";
-
-        const result = await generateText({
-          model: maintenanceModel,
-          output: Output.object({
-            schema: semanticSchema,
-          }),
-          providerOptions: {
-            openrouter:
-              getOpenRouterProviderOptionsForModel(MAINTENANCE_MODEL_ID),
-          },
-          prompt: `Decidi se questa risposta dovrebbe essere inviata come AUDIO vocale o come TESTO scritto.
-
-## Regole di priorità:
-1. Se l'utente chiede esplicitamente testo ("scrivimi", "lista", "testo"): → TEXT
-2. Se l'utente chiede esplicitamente audio ("vocale", "audio"): → VOICE
-3. Altrimenti valuta il contenuto:
-   - VOICE: spiegazioni discorsive, storytelling, supporto emotivo, sintesi
-   - TEXT: liste dense, dati tabellari, codice, istruzioni tecniche step-by-step
-
-## Contesto conversazione:
-${contextStr}
-
-## Messaggio utente:
-"${userMessage}"
-
-## Risposta da valutare:
-"${assistantText.slice(0, 500)}"`,
-        });
-        await trackSupportAiUsage({
-          userId,
-          modelId: MAINTENANCE_MODEL_ID,
-          usage: result.usage,
-          providerMetadata: result.providerMetadata,
-        });
-
-        const { decision, reason, confidence } = result.output ?? {
-          decision: "TEXT" as const,
-          reason: "code_or_data" as const,
-          confidence: 0,
-        };
-
-        // TEXT decision blocks voice
-        if (decision === "TEXT") {
-          return { pass: false, reason: `Semantic: ${reason}` };
-        }
-
-        // Low confidence defaults to text
-        if (confidence < 0.6) {
-          return {
-            pass: false,
-            reason: "Low confidence, defaulting to text",
-          };
-        }
-
-        return { pass: true };
-      } catch (error) {
-        voiceLogger.error(
-          "voice.funnel.semantic_failed",
-          "Voice semantic classification failed",
-          {
-            error,
-          },
-        );
-        // On error, default to text (conservative)
-        return { pass: false, reason: "Semantic classification error" };
-      }
-    },
-    "Voice: Full Funnel",
-  );
-}
-
-// -----------------------------------------------------
-// L4: Business Logic
-// -----------------------------------------------------
-
-async function checkLevel4Business(
-  userId: string,
-  config: VoicePlanConfig,
-  systemLoad: number,
-  planId?: string | null,
-): Promise<{ pass: boolean; reason?: string }> {
-  // Circuit breaker: if system load is critical, only pro users can use voice
-  const isPro = parseCanonicalPlanFromPlanId(planId) === "PRO";
-  if (systemLoad < 0.3 && !isPro) {
-    return { pass: false, reason: "System load critical, pro users only" };
-  }
-
-  // Hard cap check: count voice messages in the window
-  const windowStart = new Date(Date.now() - config.capWindowMs);
-  const voiceCount = await prisma.voiceUsage.count({
-    where: {
-      userId,
-      generatedAt: { gte: windowStart },
-    },
-  });
-
-  if (voiceCount >= config.maxPerWindow) {
-    return { pass: false, reason: "Voice cap reached for window" };
-  }
-
-  // Probability calculation with decay
-  // P_final = P_base × (D^N) × L
-  const pFinal =
-    config.baseProbability * config.decayFactor ** voiceCount * systemLoad;
-
-  // Entropy check for natural distribution
-  const random = Math.random();
-
-  voiceLogger.info("voice.funnel.probability", "Voice L4 probability check", {
-    base: config.baseProbability,
-    decay: config.decayFactor,
-    count: voiceCount,
-    load: systemLoad,
-    final: pFinal,
-    roll: random,
-  });
-
-  if (random >= pFinal) {
     return {
-      pass: false,
-      reason: `Probability check failed (${(pFinal * 100).toFixed(
-        1,
-      )}% vs roll ${(random * 100).toFixed(1)}%)`,
+      shouldGenerateVoice: decision.shouldGenerateVoice,
+      category: decision.category,
+      capacityState: decision.capacityState,
+      reasonCode: decision.reason.code,
+      reason: decision.reason.message,
+      ...(blockedAt && { blockedAt }),
+      ...(decision.explicitVoiceRequest && { explicitVoiceRequest: true }),
+      ...(decision.explicitVoiceRequest &&
+        !decision.shouldGenerateVoice &&
+        unavailableCode && {
+          unavailability: getVoiceUnavailability(unavailableCode),
+        }),
     };
-  }
-
-  return { pass: true };
+  });
 }
 
-/**
- * Track voice usage after successful generation.
- */
 export async function trackVoiceUsage(
   userId: string,
   characterCount: number,
-  channel: "WEB" | "TELEGRAM" | "WHATSAPP" = "TELEGRAM",
+  channel: Channel = "TELEGRAM",
   costUsd?: number,
 ): Promise<void> {
   await prisma.voiceUsage.create({
-    data: {
-      userId,
-      characterCount,
-      costUsd,
-      channel,
-    },
+    data: { userId, characterCount, costUsd, channel },
   });
 
-  // Also roll cost into daily usage for rate-limiting accuracy
   if (costUsd && costUsd > 0) {
     await incrementVoiceUsage(userId, costUsd);
   }

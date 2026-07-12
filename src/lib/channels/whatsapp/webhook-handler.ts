@@ -15,6 +15,7 @@ import {
   sendWhatsAppVoice,
   verifySignature,
 } from "@/lib/channels/whatsapp/utils";
+import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 
@@ -22,9 +23,11 @@ const whatsappLogger = createLogger("webhook");
 
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
+  detectVoiceRequestIntent,
   generateVoice,
   getSystemLoad,
   getVoicePlanConfig,
+  getVoiceUnavailability,
   isElevenLabsConfigured,
   shouldGenerateVoice,
   trackVoiceUsage,
@@ -283,6 +286,11 @@ async function handleMessage(
   const user = identity?.user
     ? identity.user
     : await createGuestUserForWhatsApp(from, context);
+  const conversationThread = await ensureConversationThread({
+    userId: user.id,
+    channel: "WHATSAPP",
+    externalThreadId: from,
+  });
 
   let messageType: "IMAGE" | "DOCUMENT" | "AUDIO" | "TEXT";
   let _defaultContent: string;
@@ -305,6 +313,7 @@ async function handleMessage(
     .create({
       data: {
         userId: user.id,
+        conversationThreadId: conversationThread.id,
         channel: "WHATSAPP",
         direction: "INBOUND",
         role: "USER",
@@ -568,10 +577,13 @@ async function handleMessage(
 
   // Generate Response
   let assistantText = "";
+  let assistantMessageId: string | undefined;
   try {
     const flowResult = await runChannelFlow({
       channel: "WHATSAPP",
       userId: user.id,
+      conversationThreadId: conversationThread.id,
+      userMessageId: inbound.id,
       userMessageText: userMessageText || (hasImage ? "Immagine" : "Documento"),
       parts: messageParts,
       rateLimit: {
@@ -591,6 +603,11 @@ async function handleMessage(
         isGuest: user.isGuest,
         hasAudio: false,
         hasImages: downloadedPhoto,
+        inputOrigin: transcribedText
+          ? "transcribed_voice"
+          : downloadedPhoto || hasDocument
+            ? "direct_media"
+            : "text",
       },
       execution: { mode: "text" },
       persistence: {
@@ -603,6 +620,7 @@ async function handleMessage(
       },
     });
     assistantText = flowResult.assistantText;
+    assistantMessageId = flowResult.persistence?.messageId;
     if (flowResult.persistence?.status === "failed") {
       await recordWhatsAppInboundError({
         inboundId: inbound.id,
@@ -667,6 +685,7 @@ async function handleMessage(
   }
 
   // Voice output
+  let voiceFallbackNotice: string | undefined;
   if (isElevenLabsConfigured()) {
     try {
       const preferences = await prisma.preferences.findUnique({
@@ -678,6 +697,8 @@ async function handleMessage(
         userId: user.id,
         userMessage: userMessageText,
         assistantText,
+        channel: "WHATSAPP",
+        excludeMessageId: assistantMessageId,
         userPreferences: {
           voiceEnabled: preferences?.voiceEnabled ?? true,
         },
@@ -691,16 +712,43 @@ async function handleMessage(
         planId: user.subscription?.planId,
       });
 
+      whatsappLogger.info(
+        "voice.delivery_decision",
+        "Resolved WhatsApp voice delivery",
+        {
+          userId: user.id,
+          category: voiceResult.category,
+          capacityState: voiceResult.capacityState,
+          reasonCode: voiceResult.reasonCode,
+          shouldGenerateVoice: voiceResult.shouldGenerateVoice,
+        },
+      );
+
       if (voiceResult.shouldGenerateVoice) {
         try {
           const audio = await generateVoice(assistantText);
           const success = await sendWhatsAppVoice(from, audio.audioBuffer);
 
           if (success) {
+            if (assistantMessageId) {
+              await prisma.message
+                .update({
+                  where: { id: assistantMessageId },
+                  data: { type: "AUDIO", mediaType: "audio/mpeg" },
+                })
+                .catch((error) =>
+                  whatsappLogger.error(
+                    "voice.persistence_update_failed",
+                    "Failed marking WhatsApp response as audio",
+                    { error, userId: user.id, messageId: assistantMessageId },
+                  ),
+                );
+            }
             await trackVoiceUsage(
               user.id,
               audio.characterCount,
               "WHATSAPP",
+              audio.costUsd,
             ).catch((error) =>
               whatsappLogger.error(
                 "voice.usage_tracking_failed",
@@ -715,14 +763,25 @@ async function handleMessage(
             "voice.send_fallback",
             "Voice send returned false, falling back to text",
           );
+          if (voiceResult.explicitVoiceRequest) {
+            voiceFallbackNotice = getVoiceUnavailability(
+              "PROVIDER_UNAVAILABLE",
+            ).userMessage;
+          }
         } catch (voiceErr) {
           whatsappLogger.error(
             "voice.generation_failed",
             "Voice generation/send threw",
             { voiceErr },
           );
-          // Fall through to text fallback
+          if (voiceResult.explicitVoiceRequest) {
+            voiceFallbackNotice = getVoiceUnavailability(
+              "PROVIDER_UNAVAILABLE",
+            ).userMessage;
+          }
         }
+      } else if (voiceResult.explicitVoiceRequest) {
+        voiceFallbackNotice = voiceResult.unavailability?.userMessage;
       }
     } catch (err) {
       whatsappLogger.error(
@@ -730,11 +789,25 @@ async function handleMessage(
         "Voice funnel/process failed",
         { err },
       );
+      if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
+        voiceFallbackNotice = getVoiceUnavailability(
+          "PROVIDER_UNAVAILABLE",
+        ).userMessage;
+      }
     }
+  } else if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
+    voiceFallbackNotice = getVoiceUnavailability(
+      "PROVIDER_UNAVAILABLE",
+    ).userMessage;
   }
 
   // Text fallback
-  await sendWhatsAppMessage(from, assistantText);
+  await sendWhatsAppMessage(
+    from,
+    voiceFallbackNotice
+      ? `${voiceFallbackNotice}\n\n${assistantText}`
+      : assistantText,
+  );
 }
 
 async function handleConnectCommand(from: string) {

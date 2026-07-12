@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
@@ -81,6 +81,20 @@ const DEFAULT_FORM: ContractFormState = {
   maxContextMessages: 15,
 };
 
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  ORGANIZATION_CREATED: "Organizzazione creata",
+  OWNER_ASSIGNED: "Proprietario assegnato",
+  OWNER_TRANSFERRED: "Proprietario trasferito",
+  CONTRACT_UPDATED: "Contratto aggiornato",
+  MEMBERSHIP_SYNCED: "Membro sincronizzato",
+  MEMBERSHIP_BLOCKED_SEAT_LIMIT: "Membro bloccato per limite posti",
+};
+
+const ACTOR_TYPE_LABELS: Record<string, string> = {
+  ADMIN: "Amministratore",
+  WEBHOOK: "Sincronizzazione automatica",
+};
+
 function toNumber(value: string, fallback = 0): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -98,6 +112,7 @@ export default function OrganizationsPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
 
   const selectedId = selectedOrganization?.id ?? null;
@@ -126,12 +141,12 @@ export default function OrganizationsPage() {
             details?: { message?: string };
           } | null;
           if (res.status === 401 || res.status === 403) {
-            throw new Error(error?.error || "Admin access required");
+            throw new Error(error?.error || "Accesso amministratore richiesto");
           }
           throw new Error(
             error?.details?.message ||
               error?.error ||
-              "Failed to fetch organizations",
+              "Impossibile caricare le organizzazioni",
           );
         }
         const data = (await res.json()) as {
@@ -147,6 +162,7 @@ export default function OrganizationsPage() {
             )
           ) {
             setAuditLogs([]);
+            setIsFormOpen(false);
             return null;
           }
           return current;
@@ -156,7 +172,7 @@ export default function OrganizationsPage() {
         const message =
           error instanceof Error
             ? error.message
-            : "Failed to load organizations";
+            : "Impossibile caricare le organizzazioni";
         setListError(message);
         toast.error(message);
         return false;
@@ -172,7 +188,7 @@ export default function OrganizationsPage() {
     try {
       const ok = await fetchOrganizations({ syncFromClerk: true });
       if (ok) {
-        toast.success("Synced organizations from Clerk");
+        toast.success("Organizzazioni sincronizzate da Clerk");
       }
     } finally {
       setSyncingFromClerk(false);
@@ -194,12 +210,16 @@ export default function OrganizationsPage() {
 
       if (!detailRes.ok) {
         const error = await detailRes.json();
-        throw new Error(error.error || "Failed to fetch organization detail");
+        throw new Error(
+          error.error || "Impossibile caricare i dettagli dell'organizzazione",
+        );
       }
 
       if (!auditRes.ok) {
         const error = await auditRes.json();
-        throw new Error(error.error || "Failed to fetch audit logs");
+        throw new Error(
+          error.error || "Impossibile caricare il registro attività",
+        );
       }
 
       const detailPayload = (await detailRes.json()) as {
@@ -210,6 +230,7 @@ export default function OrganizationsPage() {
       };
 
       setSelectedOrganization(detailPayload.organization);
+      setIsFormOpen(true);
       setAuditLogs(auditPayload.logs || []);
 
       const contract = detailPayload.organization.contract;
@@ -236,7 +257,9 @@ export default function OrganizationsPage() {
       });
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to load detail",
+        error instanceof Error
+          ? error.message
+          : "Impossibile caricare i dettagli",
       );
     } finally {
       setLoadingDetail(false);
@@ -280,11 +303,11 @@ export default function OrganizationsPage() {
 
   async function handleCreate() {
     if (!form.name.trim()) {
-      toast.error("Organization name is required");
+      toast.error("Il nome dell'organizzazione è obbligatorio");
       return;
     }
     if (!form.ownerEmail.includes("@")) {
-      toast.error("Owner email is required");
+      toast.error("L'email del proprietario è obbligatoria");
       return;
     }
 
@@ -303,11 +326,11 @@ export default function OrganizationsPage() {
 
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.error || "Failed to create organization");
+        throw new Error(error.error || "Impossibile creare l'organizzazione");
       }
 
       const data = await res.json();
-      toast.success("Organization created");
+      toast.success("Organizzazione creata");
       await fetchOrganizations();
       if (data.organization?.id) {
         await fetchOrganizationDetail(data.organization.id);
@@ -316,7 +339,7 @@ export default function OrganizationsPage() {
       toast.error(
         error instanceof Error
           ? error.message
-          : "Failed to create organization",
+          : "Impossibile creare l'organizzazione",
       );
     } finally {
       setSaving(false);
@@ -325,11 +348,11 @@ export default function OrganizationsPage() {
 
   async function handleUpdate() {
     if (!selectedId) {
-      toast.error("Select an organization first");
+      toast.error("Seleziona prima un'organizzazione");
       return;
     }
     if (!form.name.trim()) {
-      toast.error("Organization name is required");
+      toast.error("Il nome dell'organizzazione è obbligatorio");
       return;
     }
 
@@ -348,17 +371,19 @@ export default function OrganizationsPage() {
 
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.error || "Failed to update organization");
+        throw new Error(
+          error.error || "Impossibile aggiornare l'organizzazione",
+        );
       }
 
-      toast.success("Organization updated");
+      toast.success("Organizzazione aggiornata");
       await fetchOrganizations();
       await fetchOrganizationDetail(selectedId);
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "Failed to update organization",
+          : "Impossibile aggiornare l'organizzazione",
       );
     } finally {
       setSaving(false);
@@ -367,7 +392,7 @@ export default function OrganizationsPage() {
 
   function handleDeleteRequest() {
     if (!selectedId) {
-      toast.error("Select an organization first");
+      toast.error("Seleziona prima un'organizzazione");
       return;
     }
     setIsDeleteDialogOpen(true);
@@ -388,17 +413,19 @@ export default function OrganizationsPage() {
 
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.error || "Failed to delete organization");
+        throw new Error(
+          error.error || "Impossibile eliminare l'organizzazione",
+        );
       }
 
-      toast.success("Organization deleted");
+      toast.success("Organizzazione eliminata");
       resetForm();
       await fetchOrganizations();
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "Failed to delete organization",
+          : "Impossibile eliminare l'organizzazione",
       );
     } finally {
       setDeleting(false);
@@ -409,44 +436,64 @@ export default function OrganizationsPage() {
     setSelectedOrganization(null);
     setAuditLogs([]);
     setForm(DEFAULT_FORM);
+    setIsFormOpen(false);
+  }
+
+  function openCreateForm() {
+    setSelectedOrganization(null);
+    setAuditLogs([]);
+    setForm(DEFAULT_FORM);
+    setIsFormOpen(true);
+  }
+
+  function openOrganizationDetail(organizationId: string) {
+    setIsFormOpen(true);
+    void fetchOrganizationDetail(organizationId);
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <AnimatedPageHeader
-          title="Organizations"
-          description="Create and manage contracted organizations, seat limits, and owner assignment."
+          title="Organizzazioni"
+          description="Gestisci contratti, posti disponibili e assegnazione dei proprietari."
         />
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={resetForm}>
-            New Organization
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={openCreateForm} disabled={saving}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nuova organizzazione
           </Button>
           <Button
             variant="outline"
             onClick={() => fetchOrganizations()}
             disabled={loadingList}
           >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
+            {loadingList && !syncingFromClerk ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            {loadingList && !syncingFromClerk
+              ? "Aggiornamento..."
+              : "Aggiorna elenco"}
           </Button>
           <Button
             variant="outline"
             onClick={handleSyncFromClerk}
             disabled={loadingList || syncingFromClerk}
           >
-            {(loadingList || syncingFromClerk) && (
+            {syncingFromClerk && (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             )}
-            Sync from Clerk
+            {syncingFromClerk ? "Sincronizzazione..." : "Sincronizza da Clerk"}
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className={`grid gap-6 ${isFormOpen ? "lg:grid-cols-2" : ""}`}>
         <Card>
           <CardHeader>
-            <CardTitle>Organizations</CardTitle>
+            <CardTitle>Organizzazioni</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {listError && (
@@ -455,12 +502,16 @@ export default function OrganizationsPage() {
               </div>
             )}
             {loadingList ? (
-              <div className="flex items-center justify-center py-8">
+              <output className="flex items-center justify-center gap-3 py-8 text-sm text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
+                {syncingFromClerk
+                  ? "Sincronizzazione con Clerk in corso..."
+                  : "Aggiornamento dell'elenco..."}
+              </output>
             ) : organizations.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No organizations yet.
+                Non ci sono ancora organizzazioni. Usa “Nuova organizzazione”
+                per crearne una.
               </p>
             ) : (
               organizations.map((organization) => (
@@ -472,24 +523,24 @@ export default function OrganizationsPage() {
                       ? "border-primary bg-primary/10"
                       : "border-border hover:bg-muted/50"
                   }`}
-                  onClick={() => fetchOrganizationDetail(organization.id)}
+                  onClick={() => openOrganizationDetail(organization.id)}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="font-medium">{organization.name}</div>
                     <span className="text-xs text-muted-foreground">
                       {organization.activeMembers}/
-                      {organization.contract?.seatLimit ?? "?"} seats
+                      {organization.contract?.seatLimit ?? "?"} posti
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     {organization.slug} •{" "}
-                    {organization.contract?.planLabel ?? "No contract"}
+                    {organization.contract?.planLabel ?? "Nessun contratto"}
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Owner:{" "}
+                    Proprietario:{" "}
                     {organization.owner?.email ||
                       organization.pendingOwnerEmail ||
-                      "Pending"}
+                      "In attesa"}
                   </div>
                 </button>
               ))
@@ -497,22 +548,26 @@ export default function OrganizationsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className={isFormOpen ? undefined : "hidden"}>
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
             <CardTitle>
-              {selectedId ? "Update Organization" : "Create Organization"}
+              {selectedId ? "Modifica organizzazione" : "Nuova organizzazione"}
             </CardTitle>
+            <Button type="button" variant="ghost" size="sm" onClick={resetForm}>
+              Chiudi
+            </Button>
           </CardHeader>
           <CardContent className="space-y-4">
             {loadingDetail ? (
-              <div className="flex items-center justify-center py-8">
+              <div className="flex items-center justify-center gap-3 py-8 text-sm text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />
+                Caricamento dei dettagli...
               </div>
             ) : (
               <>
                 <div className="grid gap-2">
                   <label className="text-sm font-medium" htmlFor="org-name">
-                    Name
+                    Nome
                   </label>
                   <input
                     id="org-name"
@@ -546,7 +601,7 @@ export default function OrganizationsPage() {
 
                 <div className="grid gap-2">
                   <label className="text-sm font-medium" htmlFor="org-owner">
-                    Owner Email
+                    Email del proprietario
                   </label>
                   <input
                     id="org-owner"
@@ -561,10 +616,10 @@ export default function OrganizationsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="grid gap-2">
                     <label className="text-sm font-medium" htmlFor="base-plan">
-                      Base Plan
+                      Piano base
                     </label>
                     <select
                       id="base-plan"
@@ -587,7 +642,7 @@ export default function OrganizationsPage() {
                   </div>
                   <div className="grid gap-2">
                     <label className="text-sm font-medium" htmlFor="seat-limit">
-                      Seat Limit
+                      Limite posti
                     </label>
                     <input
                       id="seat-limit"
@@ -610,16 +665,16 @@ export default function OrganizationsPage() {
 
                 <details className="rounded-md border border-border bg-muted/20 px-3 py-3 text-sm">
                   <summary className="cursor-pointer font-medium">
-                    Advanced Overrides
+                    Impostazioni avanzate
                   </summary>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Leave this unchanged to use the base plan tier (
-                    {planDefaults.modelTier}). Change only when an enterprise
-                    contract requires a higher or lower model access tier.
+                    Lascia questi valori invariati per usare le impostazioni del
+                    piano {planDefaults.planLabel}. Modificali solo quando il
+                    contratto richiede limiti specifici.
                   </p>
                   <div className="mt-3 grid gap-2">
                     <label className="text-sm font-medium" htmlFor="plan-label">
-                      Plan Label Override
+                      Etichetta del piano
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -643,11 +698,11 @@ export default function OrganizationsPage() {
                           }))
                         }
                       >
-                        Default
+                        Ripristina
                       </Button>
                     </div>
                     <label className="text-sm font-medium" htmlFor="model-tier">
-                      Model Tier Override
+                      Livello modello
                     </label>
                     <div className="flex gap-2">
                       <select
@@ -678,157 +733,164 @@ export default function OrganizationsPage() {
                           }))
                         }
                       >
-                        Default
+                        Ripristina
                       </Button>
+                    </div>
+                  </div>
+                  <div className="mt-4 rounded-md border border-border bg-muted/30 px-3 py-3 text-xs">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="font-medium">
+                        Anteprima configurazione
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={applyBasePlanDefaults}
+                      >
+                        Usa valori del piano
+                      </Button>
+                    </div>
+                    <p className="text-muted-foreground">
+                      Valori del piano: {planDefaults.planLabel} /{" "}
+                      {planDefaults.modelTier}. Configurazione effettiva:{" "}
+                      {effectivePreview.modelTier},{" "}
+                      {effectivePreview.limits.maxRequestsPerDay} richieste al
+                      giorno, {effectivePreview.limits.maxInputTokensPerDay}{" "}
+                      token in ingresso al giorno.
+                    </p>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                      <label
+                        className="text-sm font-medium"
+                        htmlFor="req-limit"
+                      >
+                        Richieste massime al giorno
+                      </label>
+                      <input
+                        id="req-limit"
+                        type="number"
+                        min={1}
+                        className="rounded-md border bg-background px-3 py-2 text-sm"
+                        value={form.maxRequestsPerDay}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            maxRequestsPerDay: toNumber(
+                              event.target.value,
+                              current.maxRequestsPerDay,
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <label
+                        className="text-sm font-medium"
+                        htmlFor="cost-limit"
+                      >
+                        Costo massimo al giorno (USD)
+                      </label>
+                      <input
+                        id="cost-limit"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        className="rounded-md border bg-background px-3 py-2 text-sm"
+                        value={form.maxCostPerDay}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            maxCostPerDay: toNumber(
+                              event.target.value,
+                              current.maxCostPerDay,
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <div className="grid gap-2">
+                      <label
+                        className="text-sm font-medium"
+                        htmlFor="input-token-limit"
+                      >
+                        Token in ingresso al giorno
+                      </label>
+                      <input
+                        id="input-token-limit"
+                        type="number"
+                        min={1}
+                        className="rounded-md border bg-background px-3 py-2 text-sm"
+                        value={form.maxInputTokensPerDay}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            maxInputTokensPerDay: toNumber(
+                              event.target.value,
+                              current.maxInputTokensPerDay,
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <label
+                        className="text-sm font-medium"
+                        htmlFor="output-token-limit"
+                      >
+                        Token in uscita al giorno
+                      </label>
+                      <input
+                        id="output-token-limit"
+                        type="number"
+                        min={1}
+                        className="rounded-md border bg-background px-3 py-2 text-sm"
+                        value={form.maxOutputTokensPerDay}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            maxOutputTokensPerDay: toNumber(
+                              event.target.value,
+                              current.maxOutputTokensPerDay,
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <label
+                        className="text-sm font-medium"
+                        htmlFor="context-limit"
+                      >
+                        Messaggi massimi nel contesto
+                      </label>
+                      <input
+                        id="context-limit"
+                        type="number"
+                        min={1}
+                        className="rounded-md border bg-background px-3 py-2 text-sm"
+                        value={form.maxContextMessages}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            maxContextMessages: toNumber(
+                              event.target.value,
+                              current.maxContextMessages,
+                            ),
+                          }))
+                        }
+                      />
                     </div>
                   </div>
                 </details>
 
-                <div className="rounded-md border border-border bg-muted/30 px-3 py-3 text-xs">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="font-medium">Enterprise Overrides</span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={applyBasePlanDefaults}
-                    >
-                      Use Plan Defaults
-                    </Button>
-                  </div>
-                  <p className="text-muted-foreground">
-                    Base plan default: {planDefaults.planLabel} /{" "}
-                    {planDefaults.modelTier}. Effective currently:{" "}
-                    {effectivePreview.modelTier},{" "}
-                    {effectivePreview.limits.maxRequestsPerDay} req/day,{" "}
-                    {effectivePreview.limits.maxInputTokensPerDay} input
-                    tokens/day.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <label className="text-sm font-medium" htmlFor="req-limit">
-                      Max Requests/Day
-                    </label>
-                    <input
-                      id="req-limit"
-                      type="number"
-                      min={1}
-                      className="rounded-md border bg-background px-3 py-2 text-sm"
-                      value={form.maxRequestsPerDay}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          maxRequestsPerDay: toNumber(
-                            event.target.value,
-                            current.maxRequestsPerDay,
-                          ),
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <label className="text-sm font-medium" htmlFor="cost-limit">
-                      Max Cost/Day (USD)
-                    </label>
-                    <input
-                      id="cost-limit"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      className="rounded-md border bg-background px-3 py-2 text-sm"
-                      value={form.maxCostPerDay}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          maxCostPerDay: toNumber(
-                            event.target.value,
-                            current.maxCostPerDay,
-                          ),
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="grid gap-2">
-                    <label
-                      className="text-sm font-medium"
-                      htmlFor="input-token-limit"
-                    >
-                      Input Tokens/Day
-                    </label>
-                    <input
-                      id="input-token-limit"
-                      type="number"
-                      min={1}
-                      className="rounded-md border bg-background px-3 py-2 text-sm"
-                      value={form.maxInputTokensPerDay}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          maxInputTokensPerDay: toNumber(
-                            event.target.value,
-                            current.maxInputTokensPerDay,
-                          ),
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <label
-                      className="text-sm font-medium"
-                      htmlFor="output-token-limit"
-                    >
-                      Output Tokens/Day
-                    </label>
-                    <input
-                      id="output-token-limit"
-                      type="number"
-                      min={1}
-                      className="rounded-md border bg-background px-3 py-2 text-sm"
-                      value={form.maxOutputTokensPerDay}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          maxOutputTokensPerDay: toNumber(
-                            event.target.value,
-                            current.maxOutputTokensPerDay,
-                          ),
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <label
-                      className="text-sm font-medium"
-                      htmlFor="context-limit"
-                    >
-                      Max Context Messages
-                    </label>
-                    <input
-                      id="context-limit"
-                      type="number"
-                      min={1}
-                      className="rounded-md border bg-background px-3 py-2 text-sm"
-                      value={form.maxContextMessages}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          maxContextMessages: toNumber(
-                            event.target.value,
-                            current.maxContextMessages,
-                          ),
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-
                 {selectedId ? (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <Button
                       onClick={handleUpdate}
                       disabled={saving || deleting}
@@ -837,7 +899,7 @@ export default function OrganizationsPage() {
                       {saving && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
-                      Update Organization
+                      {saving ? "Salvataggio..." : "Salva modifiche"}
                     </Button>
                     <Button
                       variant="destructive"
@@ -850,7 +912,7 @@ export default function OrganizationsPage() {
                       ) : (
                         <Trash2 className="mr-2 h-4 w-4" />
                       )}
-                      Delete Organization
+                      {deleting ? "Eliminazione..." : "Elimina organizzazione"}
                     </Button>
                   </div>
                 ) : (
@@ -862,7 +924,7 @@ export default function OrganizationsPage() {
                     {saving && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
-                    Create Organization
+                    {saving ? "Creazione..." : "Crea organizzazione"}
                   </Button>
                 )}
 
@@ -870,10 +932,10 @@ export default function OrganizationsPage() {
                   open={isDeleteDialogOpen}
                   onOpenChange={setIsDeleteDialogOpen}
                   onConfirm={handleDeleteConfirm}
-                  title="Delete organization?"
-                  description={`This will permanently remove "${selectedOrganization?.name || "this organization"}" from Anthon and Clerk.`}
-                  confirmText="Delete"
-                  cancelText="Cancel"
+                  title="Eliminare l'organizzazione?"
+                  description={`“${selectedOrganization?.name || "Questa organizzazione"}” verrà rimossa definitivamente da Anthon e Clerk.`}
+                  confirmText="Elimina"
+                  cancelText="Annulla"
                   variant="destructive"
                 />
               </>
@@ -885,12 +947,12 @@ export default function OrganizationsPage() {
       {selectedId && (
         <Card>
           <CardHeader>
-            <CardTitle>Audit Log</CardTitle>
+            <CardTitle>Registro attività</CardTitle>
           </CardHeader>
           <CardContent>
             {auditLogs.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No audit entries yet.
+                Non ci sono ancora attività registrate.
               </p>
             ) : (
               <div className="space-y-2">
@@ -899,10 +961,13 @@ export default function OrganizationsPage() {
                     key={log.id}
                     className="rounded-md border border-border px-3 py-2 text-sm"
                   >
-                    <div className="font-medium">{log.action}</div>
+                    <div className="font-medium">
+                      {AUDIT_ACTION_LABELS[log.action] ?? log.action}
+                    </div>
                     <div className="text-xs text-muted-foreground">
-                      {new Date(log.createdAt).toLocaleString()} •{" "}
-                      {log.actorType} • {log.actorUser?.email || "system"}
+                      {new Date(log.createdAt).toLocaleString("it-IT")} •{" "}
+                      {ACTOR_TYPE_LABELS[log.actorType] ?? log.actorType} •{" "}
+                      {log.actorUser?.email || "sistema"}
                     </div>
                   </div>
                 ))}

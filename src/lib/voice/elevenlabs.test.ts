@@ -13,6 +13,8 @@ vi.mock("@/lib/latency-logger", () => ({
 const originalApiKey = process.env.ELEVENLABS_API_KEY;
 const originalVoiceId = process.env.ELEVENLABS_VOICE_ID;
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+const originalFlashCost =
+  process.env.ELEVENLABS_FLASH_COST_USD_PER_1000_CHARACTERS;
 
 describe("voice/elevenlabs", () => {
   beforeEach(() => {
@@ -26,12 +28,15 @@ describe("voice/elevenlabs", () => {
     process.env.ELEVENLABS_API_KEY = "test-elevenlabs-key";
     process.env.ELEVENLABS_VOICE_ID = "voice-test-id";
     process.env.NEXT_PUBLIC_APP_URL = "https://app.test";
+    delete process.env.ELEVENLABS_FLASH_COST_USD_PER_1000_CHARACTERS;
   });
 
   afterEach(() => {
     process.env.ELEVENLABS_API_KEY = originalApiKey;
     process.env.ELEVENLABS_VOICE_ID = originalVoiceId;
     process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
+    process.env.ELEVENLABS_FLASH_COST_USD_PER_1000_CHARACTERS =
+      originalFlashCost;
   });
 
   it("generateVoice throws when API key is missing", async () => {
@@ -65,12 +70,21 @@ describe("voice/elevenlabs", () => {
       }),
     );
     expect(result.characterCount).toBe(5);
+    expect(result.costUsd).toBe(0.00025);
     expect(result.audioBuffer).toBeInstanceOf(Buffer);
     expect(result.audioBuffer.length).toBe(3);
     expect(mocks.measure).toHaveBeenCalledWith(
       "Voice: ElevenLabs API",
       expect.any(Function),
     );
+  });
+
+  it("supports a configured Flash cost rate", async () => {
+    process.env.ELEVENLABS_FLASH_COST_USD_PER_1000_CHARACTERS = "0.08";
+    const { estimateVoiceCostUsd } = await import("./elevenlabs");
+
+    expect(estimateVoiceCostUsd(2500)).toBe(0.2);
+    expect(estimateVoiceCostUsd(-10)).toBe(0);
   });
 
   it("generateVoice throws on non-ok response", async () => {

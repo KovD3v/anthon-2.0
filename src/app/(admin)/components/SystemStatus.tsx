@@ -33,6 +33,7 @@ export async function SystemStatus() {
       {systemServices.map((service) => {
         const serviceHealth = health[service.key];
         const isConnected = serviceHealth.status === "connected";
+        const isConfigured = serviceHealth.status === "configured";
         return (
           <div key={service.key} className="flex items-center justify-between">
             <span className="flex items-center gap-2 text-sm font-medium">
@@ -40,10 +41,16 @@ export async function SystemStatus() {
               {service.name}
             </span>
             <div className="flex items-center gap-2">
-              <Badge variant={isConnected ? "success" : "error"}>
-                {isConnected ? "● Connected" : "● Error"}
+              <Badge
+                variant={isConnected || isConfigured ? "success" : "error"}
+              >
+                {isConnected
+                  ? "Verificato"
+                  : isConfigured
+                    ? "Configurato"
+                    : "Da configurare"}
               </Badge>
-              {!isConnected && serviceHealth.message && (
+              {!isConnected && !isConfigured && serviceHealth.message && (
                 <span
                   className="text-xs text-muted-foreground max-w-48 truncate"
                   title={serviceHealth.message}

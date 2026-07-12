@@ -1,7 +1,6 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, CirclePlay } from "lucide-react";
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -17,8 +16,6 @@ const scenarios = [
     routine: "Reset 3R",
     steps: "Rivedi → Riscrivi → Richiudi",
     duration: "6 min",
-    prompt:
-      "Ho sbagliato un rigore decisivo e continuo a pensarci. Mi aiuti a superarlo?",
   },
   {
     id: "ansia-pre-gara",
@@ -27,11 +24,9 @@ const scenarios = [
     question: "Domani c'è il derby e stanotte non riesco a spegnere la testa.",
     answer:
       "La mente sta provando ad anticipare ogni rischio. Riduciamo la partita a una sola cosa controllabile: il tuo primo pallone.",
-    routine: "Protocollo 4–2–6",
+    routine: "Protocollo 4-2-6",
     steps: "Respira → Visualizza → Ripeti",
     duration: "4 min",
-    prompt:
-      "Domani gioco il derby e non riesco a staccare la testa. Mi aiuti a prepararmi?",
   },
   {
     id: "rientro",
@@ -44,8 +39,6 @@ const scenarios = [
     routine: "Scala di rientro",
     steps: "Immagina → Prova → Aumenta",
     duration: "Giorno 1/5",
-    prompt:
-      "Sto rientrando da un infortunio e ho paura del primo contrasto. Come posso lavorarci?",
   },
   {
     id: "panchina",
@@ -58,8 +51,6 @@ const scenarios = [
     routine: "2 obiettivi controllabili",
     steps: "Scegli → Misura → Mostra",
     duration: "7 giorni",
-    prompt:
-      "Sono in panchina da tre giornate e sto perdendo motivazione. Mi aiuti a ritrovarla?",
   },
 ] as const;
 
@@ -213,17 +204,6 @@ export function AnthonScenarioDemo() {
               </Button>
             ))}
           </fieldset>
-
-          <Button
-            asChild
-            size="lg"
-            className="mt-8 w-full gap-2 bg-brand-yellow text-[#171714] hover:bg-brand-yellow/85 sm:w-fit"
-          >
-            <Link href={`/chat?q=${encodeURIComponent(activeScenario.prompt)}`}>
-              Parlane con Anthon
-              <ArrowRight aria-hidden="true" />
-            </Link>
-          </Button>
         </div>
 
         <div className="relative bg-secondary p-6 text-secondary-foreground sm:p-9 lg:border-l lg:border-border lg:p-12">
@@ -312,10 +292,6 @@ export function AnthonScenarioDemo() {
                 Prossima
                 <ArrowRight aria-hidden="true" />
               </Button>
-              <span className="ml-auto font-mono text-xs text-muted-foreground">
-                {String(activeIndex + 1).padStart(2, "0")} /{" "}
-                {String(scenarios.length).padStart(2, "0")}
-              </span>
             </div>
 
             <div className="mt-4 h-0.5 overflow-hidden rounded-full bg-secondary-foreground/15">

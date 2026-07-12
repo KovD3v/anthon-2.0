@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   outputObject: vi.fn(),
   voiceCount: vi.fn(),
   voiceCreate: vi.fn(),
+  messageFindMany: vi.fn(),
   dailyUsageUpsert: vi.fn(),
   measure: vi.fn(),
   trackSupportAiUsage: vi.fn(),
@@ -13,46 +14,43 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("ai", () => ({
   generateText: mocks.generateText,
-  Output: {
-    object: mocks.outputObject,
-  },
+  Output: { object: mocks.outputObject },
 }));
-
 vi.mock("@/lib/ai/providers/openrouter", () => ({
-  maintenanceModel: "mock-maintenance-model",
-  MAINTENANCE_MODEL_ID: "maintenance-model-id",
+  openrouter: vi.fn(() => "mock-suitability-model"),
 }));
-
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
-
 vi.mock("@/lib/db", () => ({
   prisma: {
-    voiceUsage: {
-      count: mocks.voiceCount,
-      create: mocks.voiceCreate,
-    },
-    dailyUsage: {
-      upsert: mocks.dailyUsageUpsert,
-    },
+    voiceUsage: { count: mocks.voiceCount, create: mocks.voiceCreate },
+    message: { findMany: mocks.messageFindMany },
+    dailyUsage: { upsert: mocks.dailyUsageUpsert },
   },
 }));
-
 vi.mock("@/lib/latency-logger", () => ({
-  LatencyLogger: {
-    measure: mocks.measure,
-  },
+  LatencyLogger: { measure: mocks.measure },
 }));
 
 import { shouldGenerateVoice, trackVoiceUsage } from "./funnel";
 
 const enabledPlanConfig: VoicePlanConfig = {
   enabled: true,
-  baseProbability: 0.5,
-  decayFactor: 1,
-  capWindowMs: 10 * 60 * 1000,
+  capWindowMs: 12 * 60 * 60 * 1000,
   maxPerWindow: 10,
+  automaticBudgetRatio: 0.65,
+  cadence: {
+    strongMinTurns: 1,
+    strongCooldownMs: 5 * 60 * 1000,
+    naturalMinTurns: 3,
+    naturalCooldownMs: 15 * 60 * 1000,
+    maxAutomaticPerHour: 3,
+    maxConsecutiveAudio: 2,
+    antiDroughtTurns: 8,
+    naturalConfidence: 0.7,
+    antiDroughtConfidence: 0.6,
+  },
 };
 
 function baseParams() {
@@ -60,29 +58,21 @@ function baseParams() {
     userId: "user-1",
     userMessage: "Puoi spiegarmelo meglio?",
     assistantText:
-      "Certo, ti spiego passo passo in modo semplice e discorsivo per aiutarti.",
-    conversationContext: [
-      { role: "user", content: "Ciao" },
-      { role: "assistant", content: "Ciao, come posso aiutarti?" },
-    ],
+      "Certo, esploriamo insieme questa situazione in modo semplice e discorsivo.",
+    conversationContext: [{ role: "user", content: "Ciao" }],
     userPreferences: { voiceEnabled: true },
     planConfig: enabledPlanConfig,
-    systemLoad: 1,
+    systemLoad: vi.fn().mockResolvedValue(1),
     planId: "my-basic-plan",
+    channel: "TELEGRAM" as const,
   };
 }
 
 describe("voice/funnel", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-02-16T12:00:00.000Z"));
-    mocks.generateText.mockReset();
-    mocks.outputObject.mockReset();
-    mocks.voiceCount.mockReset();
-    mocks.voiceCreate.mockReset();
-    mocks.measure.mockReset();
-    mocks.trackSupportAiUsage.mockReset();
-
+    vi.setSystemTime(new Date("2026-07-11T12:00:00.000Z"));
+    vi.clearAllMocks();
     mocks.outputObject.mockImplementation(
       ({ schema }: { schema: unknown }) => ({ schema }),
     );
@@ -90,172 +80,129 @@ describe("voice/funnel", () => {
       async (_name: string, fn: () => unknown | Promise<unknown>) => fn(),
     );
     mocks.voiceCount.mockResolvedValue(0);
+    mocks.messageFindMany.mockResolvedValue([]);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
     mocks.generateText.mockResolvedValue({
       output: {
-        decision: "VOICE",
-        reason: "conversational",
-        confidence: 0.9,
+        category: "VOICE_NATURAL",
+        reason: "reflective_coaching",
+        confidence: 0.85,
       },
       usage: { inputTokens: 70, outputTokens: 9 },
     });
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
-  it("blocks at L1 when plan voice is disabled", async () => {
+  it("fails eligibility without classifier, provider, or history work", async () => {
+    const params = baseParams();
     const result = await shouldGenerateVoice({
-      ...baseParams(),
+      ...params,
       planConfig: { ...enabledPlanConfig, enabled: false },
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       shouldGenerateVoice: false,
-      blockedAt: "L1_PREFERENCE",
-      reason: "Voice not enabled for plan",
+      category: "TEXT_PREFERRED",
+      reasonCode: "PLAN_NOT_ELIGIBLE",
     });
     expect(mocks.generateText).not.toHaveBeenCalled();
+    expect(params.systemLoad).not.toHaveBeenCalled();
     expect(mocks.voiceCount).not.toHaveBeenCalled();
   });
 
-  it("blocks at L1 when quiet mode is enabled", async () => {
+  it("honors explicit voice deterministically when capacity and quota allow", async () => {
     const result = await shouldGenerateVoice({
       ...baseParams(),
-      userPreferences: { voiceEnabled: false },
+      userMessage: "Please send me a voice message",
+      assistantText: "Short",
     });
 
-    expect(result).toEqual({
-      shouldGenerateVoice: false,
-      blockedAt: "L1_PREFERENCE",
-      reason: "Quiet mode enabled",
+    expect(result).toMatchObject({
+      shouldGenerateVoice: true,
+      explicitVoiceRequest: true,
+      category: "VOICE_REQUIRED",
+      capacityState: "GREEN",
+      reasonCode: "EXPLICIT_VOICE",
     });
     expect(mocks.generateText).not.toHaveBeenCalled();
-    expect(mocks.voiceCount).not.toHaveBeenCalled();
   });
 
-  it("blocks at L2 for structurally invalid text", async () => {
+  it("returns provider unavailability for an explicit request in red state", async () => {
     const result = await shouldGenerateVoice({
       ...baseParams(),
-      assistantText: "Too short",
+      userMessage: "Mandami un vocale",
+      systemLoad: 0.04,
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       shouldGenerateVoice: false,
-      blockedAt: "L2_STRUCTURE",
-      reason: "Text too short",
+      explicitVoiceRequest: true,
+      reasonCode: "PROVIDER_RED",
+      unavailability: { code: "PROVIDER_UNAVAILABLE" },
     });
-    expect(mocks.generateText).not.toHaveBeenCalled();
     expect(mocks.voiceCount).not.toHaveBeenCalled();
   });
 
-  it("blocks at L3 when semantic model returns TEXT", async () => {
-    mocks.generateText.mockResolvedValue({
-      output: {
-        decision: "TEXT",
-        reason: "technical_list",
-        confidence: 0.95,
-      },
-    });
-
-    const result = await shouldGenerateVoice(baseParams());
-
-    expect(result).toEqual({
-      shouldGenerateVoice: false,
-      blockedAt: "L3_SEMANTIC",
-      reason: "Semantic: technical_list",
-    });
-  });
-
-  it("blocks at L3 when semantic confidence is low", async () => {
-    mocks.generateText.mockResolvedValue({
-      output: {
-        decision: "VOICE",
-        reason: "conversational",
-        confidence: 0.4,
-      },
-    });
-
-    const result = await shouldGenerateVoice(baseParams());
-
-    expect(result).toEqual({
-      shouldGenerateVoice: false,
-      blockedAt: "L3_SEMANTIC",
-      reason: "Low confidence, defaulting to text",
-    });
-  });
-
-  it("blocks at L3 when semantic classification throws", async () => {
-    mocks.generateText.mockRejectedValue(new Error("semantic unavailable"));
-
-    const result = await shouldGenerateVoice(baseParams());
-
-    expect(result).toEqual({
-      shouldGenerateVoice: false,
-      blockedAt: "L3_SEMANTIC",
-      reason: "Semantic classification error",
-    });
-  });
-
-  it("blocks at L4 under critical load for non-pro plans", async () => {
+  it("rejects visually precise content before provider and classifier work", async () => {
+    const params = baseParams();
     const result = await shouldGenerateVoice({
+      ...params,
+      assistantText: "Run this exact command:\n```sh\nbun run build\n```",
+    });
+
+    expect(result).toMatchObject({
+      shouldGenerateVoice: false,
+      category: "TEXT_REQUIRED",
+      reasonCode: "TEXT_REQUIRED",
+    });
+    expect(params.systemLoad).not.toHaveBeenCalled();
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
+  it("uses a deterministic strong-moment fast path", async () => {
+    const result = await shouldGenerateVoice({
+      ...baseParams(),
+      userMessage: "I feel anxious and overwhelmed before tomorrow",
+    });
+
+    expect(result).toMatchObject({
+      shouldGenerateVoice: true,
+      category: "VOICE_STRONG",
+      reasonCode: "STRONG_MOMENT",
+    });
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
+  it("suppresses natural audio, but not strong audio, in yellow capacity", async () => {
+    const natural = await shouldGenerateVoice({
       ...baseParams(),
       systemLoad: 0.2,
-      planId: "my-basic-plan",
+    });
+    const strong = await shouldGenerateVoice({
+      ...baseParams(),
+      userMessage: "I need emotional support right now",
+      systemLoad: 0.2,
     });
 
-    expect(result).toEqual({
-      shouldGenerateVoice: false,
-      blockedAt: "L4_BUSINESS",
-      reason: "System load critical, pro users only",
-    });
-    expect(mocks.voiceCount).not.toHaveBeenCalled();
+    expect(natural.reasonCode).toBe("PROVIDER_YELLOW");
+    expect(strong.reasonCode).toBe("STRONG_MOMENT");
+    expect(strong.shouldGenerateVoice).toBe(true);
   });
 
-  it("blocks at L4 when voice cap has been reached", async () => {
-    mocks.voiceCount.mockResolvedValue(10);
+  it("does not classify when the automatic budget is already exhausted", async () => {
+    mocks.voiceCount.mockResolvedValue(6);
 
     const result = await shouldGenerateVoice(baseParams());
 
-    expect(result).toEqual({
-      shouldGenerateVoice: false,
-      blockedAt: "L4_BUSINESS",
-      reason: "Voice cap reached for window",
-    });
+    expect(result.reasonCode).toBe("AUTOMATIC_BUDGET_REACHED");
+    expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
-  it("blocks at L4 when probability check fails", async () => {
-    mocks.voiceCount.mockResolvedValue(0);
-    vi.spyOn(Math, "random").mockReturnValue(0.9);
-
-    const result = await shouldGenerateVoice(baseParams());
-
-    expect(result.shouldGenerateVoice).toBe(false);
-    expect(result.blockedAt).toBe("L4_BUSINESS");
-    expect(result.reason).toContain("Probability check failed");
-  });
-
-  it("passes all levels when semantic and business checks pass", async () => {
-    mocks.voiceCount.mockResolvedValue(0);
-    vi.spyOn(Math, "random").mockReturnValue(0.1);
-
-    const result = await shouldGenerateVoice(baseParams());
-
-    expect(result).toEqual({ shouldGenerateVoice: true });
-    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
-      userId: "user-1",
-      modelId: "maintenance-model-id",
-      usage: { inputTokens: 70, outputTokens: 9 },
-      providerMetadata: undefined,
-    });
-  });
-
-  it("tracks voice usage with the expected payload", async () => {
-    mocks.voiceCreate.mockResolvedValue({});
-    mocks.dailyUsageUpsert.mockResolvedValue({});
-
+  it("tracks voice usage and cost", async () => {
     await trackVoiceUsage("user-9", 123, "WEB", 0.12);
 
     expect(mocks.voiceCreate).toHaveBeenCalledWith({

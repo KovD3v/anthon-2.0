@@ -46,11 +46,13 @@ describe("integration /api/chats/search", () => {
       userId: owner.id,
       chatId: ownerChat.id,
       role: "USER",
+      text: "Mi serve tempo per la gara",
     });
     await createMessage({
       userId: other.id,
       chatId: otherChat.id,
       role: "USER",
+      text: "Tempo dell'altro utente",
     });
 
     mocks.auth.mockResolvedValue({ userId: owner.clerkId });
@@ -79,6 +81,7 @@ describe("integration /api/chats/search", () => {
         userId: user.id,
         chatId: chat.id,
         role: "USER",
+        text: `Marathon fixture ${i}`,
         createdAt: new Date(`2026-02-17T10:${String(i).padStart(2, "0")}:00Z`),
       });
     }

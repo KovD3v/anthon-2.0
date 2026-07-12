@@ -1,10 +1,13 @@
+export const PERSONAL_PLAN_LABELS = ["Basic", "Basic Plus", "Pro"] as const;
+
 export function PricingSkeleton() {
   return (
     <output
       className="absolute inset-x-0 top-0 grid gap-4 md:grid-cols-3"
       aria-label="Caricamento dei piani"
+      aria-live="polite"
     >
-      {["Essenziale", "Completo", "Performance"].map((label) => (
+      {PERSONAL_PLAN_LABELS.map((label) => (
         <div
           key={label}
           className="min-h-[25rem] animate-pulse rounded-2xl border border-border bg-card p-6"

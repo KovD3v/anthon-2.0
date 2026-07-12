@@ -20,6 +20,7 @@ import {
   type TelegramVoice,
 } from "@/lib/channels/telegram/utils";
 import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
+import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -28,9 +29,11 @@ const telegramLogger = createLogger("webhook");
 
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
+  detectVoiceRequestIntent,
   generateVoice,
   getSystemLoad,
   getVoicePlanConfig,
+  getVoiceUnavailability,
   isElevenLabsConfigured,
   shouldGenerateVoice,
   trackVoiceUsage,
@@ -283,6 +286,11 @@ async function handleUpdate(update: TelegramUpdate) {
   const user = identity?.user
     ? identity.user
     : await createGuestUserForTelegramIdentity(externalId);
+  const conversationThread = await ensureConversationThread({
+    userId: user.id,
+    channel: "TELEGRAM",
+    externalThreadId: String(chatId),
+  });
 
   let messageType: "IMAGE" | "DOCUMENT" | "AUDIO" | "TEXT";
   let _defaultContent: string;
@@ -304,6 +312,7 @@ async function handleUpdate(update: TelegramUpdate) {
     .create({
       data: {
         userId: user.id,
+        conversationThreadId: conversationThread.id,
         channel: "TELEGRAM",
         direction: "INBOUND",
         role: "USER",
@@ -599,11 +608,14 @@ async function handleUpdate(update: TelegramUpdate) {
 
   // Generate assistant response.
   let assistantText = "";
+  let assistantMessageId: string | undefined;
 
   try {
     const flowResult = await runChannelFlow({
       channel: "TELEGRAM",
       userId: user.id,
+      conversationThreadId: conversationThread.id,
+      userMessageId: inbound.id,
       userMessageText: userMessageText || (hasPhoto ? "Immagine" : "Documento"),
       parts: messageParts,
       rateLimit: {
@@ -623,6 +635,11 @@ async function handleUpdate(update: TelegramUpdate) {
         isGuest: user.isGuest,
         hasAudio: false,
         hasImages: downloadedPhoto,
+        inputOrigin: transcribedText
+          ? "transcribed_voice"
+          : downloadedPhoto || hasDocument
+            ? "direct_media"
+            : "text",
       },
       execution: { mode: "text" },
       persistence: {
@@ -638,6 +655,7 @@ async function handleUpdate(update: TelegramUpdate) {
       },
     });
     assistantText = flowResult.assistantText;
+    assistantMessageId = flowResult.persistence?.messageId;
     if (flowResult.persistence?.status === "failed") {
       await recordTelegramInboundError({
         inboundId: inbound.id,
@@ -714,6 +732,7 @@ async function handleUpdate(update: TelegramUpdate) {
   }
 
   // Voice generation decision
+  let voiceFallbackNotice: string | undefined;
   if (isElevenLabsConfigured()) {
     try {
       // Fetch user preferences for voice
@@ -726,6 +745,8 @@ async function handleUpdate(update: TelegramUpdate) {
         userId: user.id,
         userMessage: userMessageText,
         assistantText,
+        channel: "TELEGRAM",
+        excludeMessageId: assistantMessageId,
         userPreferences: {
           voiceEnabled: preferences?.voiceEnabled ?? true,
         },
@@ -739,6 +760,18 @@ async function handleUpdate(update: TelegramUpdate) {
         planId: user.subscription?.planId,
       });
 
+      telegramLogger.info(
+        "voice.delivery_decision",
+        "Resolved Telegram voice delivery",
+        {
+          userId: user.id,
+          category: voiceResult.category,
+          capacityState: voiceResult.capacityState,
+          reasonCode: voiceResult.reasonCode,
+          shouldGenerateVoice: voiceResult.shouldGenerateVoice,
+        },
+      );
+
       if (voiceResult.shouldGenerateVoice) {
         const audio = await generateVoice(assistantText);
         const voiceSent = await LatencyLogger.measure(
@@ -746,10 +779,25 @@ async function handleUpdate(update: TelegramUpdate) {
           async () => sendTelegramVoice(chatId, audio.audioBuffer),
         );
         if (voiceSent) {
+          if (assistantMessageId) {
+            await prisma.message
+              .update({
+                where: { id: assistantMessageId },
+                data: { type: "AUDIO", mediaType: "audio/mpeg" },
+              })
+              .catch((error) =>
+                telegramLogger.error(
+                  "voice.persistence_update_failed",
+                  "Failed marking Telegram response as audio",
+                  { error, userId: user.id, messageId: assistantMessageId },
+                ),
+              );
+          }
           await trackVoiceUsage(
             user.id,
             audio.characterCount,
             "TELEGRAM",
+            audio.costUsd,
           ).catch((error) =>
             telegramLogger.error(
               "voice.usage_tracking_failed",
@@ -759,6 +807,13 @@ async function handleUpdate(update: TelegramUpdate) {
           );
           return;
         }
+        if (voiceResult.explicitVoiceRequest) {
+          voiceFallbackNotice = getVoiceUnavailability(
+            "PROVIDER_UNAVAILABLE",
+          ).userMessage;
+        }
+      } else if (voiceResult.explicitVoiceRequest) {
+        voiceFallbackNotice = voiceResult.unavailability?.userMessage;
       }
     } catch (err) {
       telegramLogger.error(
@@ -767,10 +822,24 @@ async function handleUpdate(update: TelegramUpdate) {
         { err },
       );
       // Fallback to text on any voice error
+      if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
+        voiceFallbackNotice = getVoiceUnavailability(
+          "PROVIDER_UNAVAILABLE",
+        ).userMessage;
+      }
     }
+  } else if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
+    voiceFallbackNotice = getVoiceUnavailability(
+      "PROVIDER_UNAVAILABLE",
+    ).userMessage;
   }
 
-  await sendTelegramMessage(chatId, assistantText);
+  await sendTelegramMessage(
+    chatId,
+    voiceFallbackNotice
+      ? `${voiceFallbackNotice}\n\n${assistantText}`
+      : assistantText,
+  );
 }
 
 async function createTelegramLinkUrl(externalId: string, chatId: string) {

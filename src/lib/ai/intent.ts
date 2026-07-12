@@ -44,6 +44,17 @@ export function matchesSimpleFastIntent(message: string) {
   );
 }
 
+/**
+ * Positive-only eligibility for compact execution. Response brevity is a
+ * separate concern: a contextual request that happens to ask for a short
+ * answer must never enter this bucket merely because it contains "breve".
+ */
+export function matchesAtomicCoachingIntent(message: string) {
+  return /^(?:ciao|ehi|hey|buongiorno|buonasera|grazie)[!.,\s]*$|\b(motivami|motiva|caricami|incoraggiami|calmami|tranquillizzami)\b|\breset\s+mentale\b|\bconsiglio\s+(?:veloce|rapido)\b/i.test(
+    message.trim(),
+  );
+}
+
 export function matchesBriefResponseIntent(message: string) {
   return /\b(breve|brevemente|rapido|rapida|veloce|sintesi|sintetico|sintetica|riassumi|due\s+righe|una\s+frase|in\s+breve|short|brief|quick|concise)\b/i.test(
     message,

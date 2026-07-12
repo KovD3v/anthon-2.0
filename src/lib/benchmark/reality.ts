@@ -1434,7 +1434,13 @@ export function createDatabaseBackedRealityExecutor(
 ): DatabaseBackedRealityExecutor {
   const contexts = new Map<
     string,
-    { userId: string; chatId: string; scenarioId: string; modelId: string }
+    {
+      userId: string;
+      chatId: string;
+      conversationThreadId: string;
+      scenarioId: string;
+      modelId: string;
+    }
   >();
   const createdUserIds = new Set<string>();
 
@@ -1488,10 +1494,20 @@ export function createDatabaseBackedRealityExecutor(
         },
         select: { id: true },
       });
+      const thread = await prisma.conversationThread.create({
+        data: {
+          userId: user.id,
+          channel: "WEB",
+          externalThreadId: chat.id,
+          chatId: chat.id,
+        },
+        select: { id: true },
+      });
 
       context = {
         userId: user.id,
         chatId: chat.id,
+        conversationThreadId: thread.id,
         scenarioId: scenario.id,
         modelId,
       };
@@ -1499,10 +1515,11 @@ export function createDatabaseBackedRealityExecutor(
       createdUserIds.add(user.id);
     }
 
-    await prisma.message.create({
+    const userMessage = await prisma.message.create({
       data: {
         userId: context.userId,
         chatId: context.chatId,
+        conversationThreadId: context.conversationThreadId,
         channel: "WEB",
         direction: "INBOUND",
         role: "USER",
@@ -1521,6 +1538,8 @@ export function createDatabaseBackedRealityExecutor(
     const streamResult = await streamChat({
       userId: context.userId,
       chatId: context.chatId,
+      conversationThreadId: context.conversationThreadId,
+      userMessageId: userMessage.id,
       userMessage: turn.userMessage,
       planId: options.planId,
       userRole: options.userRole,
@@ -1545,6 +1564,8 @@ export function createDatabaseBackedRealityExecutor(
     await persistAssistantOutput({
       userId: context.userId,
       chatId: context.chatId,
+      conversationThreadId: context.conversationThreadId,
+      userMessageId: userMessage.id,
       channel: "WEB",
       text,
       userMessageText: turn.userMessage,

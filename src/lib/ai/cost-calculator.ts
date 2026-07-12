@@ -98,6 +98,8 @@ export interface AIMetrics {
   costUsd: number;
   generationTimeMs: number;
   reasoningTimeMs: number | null;
+  turnPlan?: Record<string, unknown>;
+  tracePayload?: Record<string, unknown>;
 }
 
 interface FinishResultInput {

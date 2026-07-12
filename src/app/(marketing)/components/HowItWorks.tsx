@@ -8,7 +8,6 @@ import { defaultTransition, fadeUp, staggerContainer } from "@/lib/motion";
 const steps = [
   {
     id: "step-chat",
-    number: "01",
     title: "Parla con Anthon",
     description:
       "Racconta ad Anthon delle tue prossime partite, delle sfide attuali e dei tuoi obiettivi. Lui ascolta e comprende il tuo contesto unico.",
@@ -16,7 +15,6 @@ const steps = [
   },
   {
     id: "step-plan",
-    number: "02",
     title: "Ottieni il tuo piano",
     description:
       "Ricevi un piano di preparazione mentale personalizzato, inclusi audio di visualizzazione, esercizi di respirazione e affermazioni.",
@@ -24,7 +22,6 @@ const steps = [
   },
   {
     id: "step-track",
-    number: "03",
     title: "Monitora e migliora",
     description:
       "Registra le tue sensazioni dopo le partite e gli allenamenti. Anthon adatta i suoi consigli in base al tuo feedback e ai tuoi progressi.",
@@ -64,18 +61,8 @@ export function HowItWorks() {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
-          className="relative grid grid-cols-1 gap-5 md:grid-cols-3"
+          className="relative mx-auto grid max-w-4xl grid-cols-1 gap-4"
         >
-          {/* Connecting line for desktop */}
-          <m.div
-            aria-hidden="true"
-            initial={{ scaleX: 0 }}
-            whileInView={{ scaleX: 1 }}
-            viewport={{ once: true }}
-            transition={{ ...defaultTransition, duration: 0.7, delay: 0.2 }}
-            className="editorial-rule absolute left-[16%] right-[16%] top-12 -z-10 hidden h-px origin-left text-border md:block"
-          />
-
           {steps.map((step) => (
             <m.div
               key={step.id}
@@ -83,19 +70,18 @@ export function HowItWorks() {
               transition={defaultTransition}
               whileHover={{ y: -4 }}
             >
-              <Card className="group flex h-full flex-col items-start rounded-2xl bg-card p-6 text-left shadow-none transition-[border-color,box-shadow] duration-300 hover:border-brand-yellow/60 hover:shadow-[0_20px_50px_-36px_rgba(0,0,0,0.7)]">
-                <div className="relative z-10 mb-8 flex h-20 w-20 items-center justify-center rounded-full border border-border bg-card transition-transform duration-300 group-hover:rotate-3">
-                  <step.icon className="h-8 w-8 text-foreground transition-transform duration-300 group-hover:scale-110" />
-                  <div className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-brand-yellow font-mono text-xs font-bold text-[#171714]">
-                    {step.number}
-                  </div>
+              <Card className="group grid h-full rounded-2xl bg-card p-6 text-left shadow-none transition-[border-color,box-shadow] duration-300 hover:border-brand-yellow/60 hover:shadow-[0_20px_50px_-36px_rgba(0,0,0,0.7)] sm:grid-cols-[auto_1fr] sm:gap-8 sm:p-8">
+                <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-xl bg-brand-yellow text-[#171714] transition-transform duration-300 group-hover:rotate-3 sm:mb-0">
+                  <step.icon className="h-7 w-7 transition-transform duration-300 group-hover:scale-110" />
                 </div>
-                <h3 className="font-display mb-3 text-2xl font-bold uppercase leading-none">
-                  {step.title}
-                </h3>
-                <p className="leading-relaxed text-muted-foreground">
-                  {step.description}
-                </p>
+                <div>
+                  <h3 className="font-display mb-3 text-2xl font-bold uppercase leading-none sm:text-3xl">
+                    {step.title}
+                  </h3>
+                  <p className="max-w-2xl leading-relaxed text-muted-foreground">
+                    {step.description}
+                  </p>
+                </div>
               </Card>
             </m.div>
           ))}

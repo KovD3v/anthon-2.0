@@ -15,6 +15,7 @@ import type { Prisma, SubscriptionStatus } from "@/generated/prisma";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import { runChannelFlow } from "@/lib/channel-flow";
+import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { authenticateGuest } from "@/lib/guest-auth";
 import { LatencyLogger } from "@/lib/latency-logger";
@@ -148,6 +149,12 @@ export async function handleGuestChatPost(request: Request) {
         const requestConversationMessageCount = messages.filter(
           (message) => message.role === "user" || message.role === "assistant",
         ).length;
+        const conversationThread = await ensureConversationThread({
+          userId: user.id,
+          channel: "WEB",
+          externalThreadId: chatId,
+          chatId,
+        });
 
         // Save the user message to the database
         const message = await LatencyLogger.measure(
@@ -157,6 +164,7 @@ export async function handleGuestChatPost(request: Request) {
               data: {
                 userId: user.id,
                 chatId,
+                conversationThreadId: conversationThread.id,
                 channel: "WEB",
                 direction: "INBOUND",
                 role: "USER",
@@ -239,6 +247,8 @@ export async function handleGuestChatPost(request: Request) {
           channel: "WEB_GUEST",
           userId: user.id,
           chatId,
+          conversationThreadId: conversationThread.id,
+          userMessageId: message.id,
           userMessageText,
           parts:
             lastUserMessage.parts?.map((part) => {

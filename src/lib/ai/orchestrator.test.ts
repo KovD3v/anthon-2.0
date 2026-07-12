@@ -340,6 +340,10 @@ describe("ai/orchestrator", () => {
     };
     expect(streamInput.instructions).toContain("user-context-data");
     expect(streamInput.instructions).toContain("user-memories-data");
+    expect(streamInput.instructions).toContain("TEXT RESPONSE MODE");
+    expect(streamInput.instructions).toContain(
+      "Do not mention voice/audio availability",
+    );
     expect(streamInput.instructions).not.toContain("SAVING DATA");
     expect(streamInput.instructions).not.toContain("TOOL POLICY");
     expect(streamInput.instructions).not.toContain("RAG CONTEXT");
@@ -351,24 +355,42 @@ describe("ai/orchestrator", () => {
     ).toBe(1);
   });
 
-  it("uses compact prompt and no tools for simple authenticated coaching messages", async () => {
+  it("keeps contextual short follow-ups on the full plan", async () => {
+    mocks.buildConversationContext.mockResolvedValue([
+      {
+        role: "user",
+        content: "Raccontami una breve storia su Messi",
+      },
+      {
+        role: "assistant",
+        content:
+          "Messi era piccolo, ma continuò ad allenarsi fino a diventare un campione.",
+      },
+      {
+        role: "user",
+        content: "La storia la voglio più breve",
+      },
+    ]);
+
     await streamChat({
       userId: "user-1",
       chatId: "chat-simple-fast",
-      userMessage: "Dammi una risposta breve: motivami prima dell'allenamento",
+      userMessage: "La storia la voglio più breve",
     });
 
-    expect(mocks.shouldUseRag).not.toHaveBeenCalled();
-    expect(mocks.buildConversationContext).not.toHaveBeenCalled();
-    expect(mocks.formatTinyUserSnapshotForPrompt).toHaveBeenCalledWith(
+    expect(mocks.shouldUseRag).toHaveBeenCalled();
+    expect(mocks.buildConversationContext).toHaveBeenCalledWith(
       "user-1",
+      20,
+      "chat-simple-fast",
     );
-    expect(mocks.formatUserContextForPrompt).not.toHaveBeenCalled();
-    expect(mocks.formatMemoriesForPrompt).not.toHaveBeenCalled();
+    expect(mocks.formatTinyUserSnapshotForPrompt).not.toHaveBeenCalled();
+    expect(mocks.formatUserContextForPrompt).toHaveBeenCalledWith("user-1");
+    expect(mocks.formatMemoriesForPrompt).toHaveBeenCalledWith("user-1");
     expect(mocks.createMemoryTools).not.toHaveBeenCalled();
     expect(mocks.createUserContextTools).not.toHaveBeenCalled();
     expect(mocks.createTinyfishTools).not.toHaveBeenCalled();
-    expect(mocks.getVoicePlanConfig).not.toHaveBeenCalled();
+    expect(mocks.getVoicePlanConfig).toHaveBeenCalled();
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       instructions: string;
@@ -380,21 +402,32 @@ describe("ai/orchestrator", () => {
     expect(streamInput.messages).toEqual([
       {
         role: "user",
-        content: "Dammi una risposta breve: motivami prima dell'allenamento",
+        content: "Raccontami una breve storia su Messi",
+      },
+      {
+        role: "assistant",
+        content:
+          "Messi era piccolo, ma continuò ad allenarsi fino a diventare un campione.",
+      },
+      {
+        role: "user",
+        content: "La storia la voglio più breve",
       },
     ]);
-    expect(streamInput.maxOutputTokens).toBe(180);
-    expect(streamInput.instructions).toContain("Reply in the user's language");
-    expect(streamInput.instructions).toContain("USER SNAPSHOT");
-    expect(streamInput.instructions).toContain("Sport: tennis");
-    expect(streamInput.instructions).toContain("Obiettivo: focus pre-gara");
+    expect(streamInput.maxOutputTokens).toBe(96);
+    expect(streamInput.instructions).toContain("LANGUAGE RULES");
+    expect(streamInput.instructions).toContain(
+      "Do not mention voice/audio availability",
+    );
+    expect(streamInput.instructions).toContain("USER CONTEXT");
+    expect(streamInput.instructions).toContain("user-context-data");
     expect(streamInput.instructions).not.toContain("SAVING DATA");
     expect(streamInput.instructions).not.toContain("WEB SEARCH");
     expect(streamInput.instructions).not.toContain("RAG CONTEXT");
-    expect(streamInput.instructions).not.toContain("USER CONTEXT");
-    expect(streamInput.instructions).not.toContain("USER MEMORIES");
-    expect(streamInput.instructions).not.toContain("user-context-data");
-    expect(streamInput.instructions).not.toContain("user-memories-data");
+    expect(streamInput.instructions).toContain("USER CONTEXT");
+    expect(streamInput.instructions).toContain("USER MEMORIES");
+    expect(streamInput.instructions).toContain("user-context-data");
+    expect(streamInput.instructions).toContain("user-memories-data");
   });
 
   it("uses full memory context when the user asks whether Anthon knows them", async () => {
@@ -532,21 +565,17 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).toEqual({});
     expect(mocks.createMemoryTools).not.toHaveBeenCalled();
     expect(mocks.createUserContextTools).not.toHaveBeenCalled();
-    expect(streamInput.maxOutputTokens).toBeUndefined();
+    expect(streamInput.maxOutputTokens).toBe(96);
   });
 
   it("routes a compact quality prompt suite without sending complex requests to simple fast mode", async () => {
     const fastPrompts = [
       "Ciao",
       "Motivami prima dell'allenamento",
-      "Dammi una risposta breve: focus prima della partita",
       "Caricami in poche parole",
       "Consiglio veloce per restare concentrato",
       "Reset mentale rapido",
-      "Una frase breve per non mollare",
-      "Ehi, dammi una spinta",
       "Tranquillizzami prima della gara",
-      "Grazie, risposta breve",
     ];
 
     const fullPrompts = [
@@ -601,7 +630,9 @@ describe("ai/orchestrator", () => {
       };
       expect(streamInput.instructions, prompt).toContain("USER SNAPSHOT");
       expect(streamInput.tools, prompt).toEqual({});
-      expect(streamInput.maxOutputTokens, prompt).toBe(180);
+      expect(streamInput.maxOutputTokens, prompt).toBe(
+        /breve|veloce|rapido/i.test(prompt) ? 96 : undefined,
+      );
       expect(mocks.formatTinyUserSnapshotForPrompt, prompt).toHaveBeenCalled();
       expect(mocks.formatUserContextForPrompt, prompt).not.toHaveBeenCalled();
       expect(mocks.formatMemoriesForPrompt, prompt).not.toHaveBeenCalled();
@@ -1251,7 +1282,9 @@ describe("ai/orchestrator", () => {
     );
     expect(mocks.streamText).not.toHaveBeenCalled();
 
-    const openRouterCall = fetchSpy.mock.calls.find(
+    const openRouterCall = (
+      fetchSpy.mock.calls as unknown as Array<[URL | RequestInfo, RequestInit?]>
+    ).find(
       ([input]) =>
         String(input) === "https://openrouter.ai/api/v1/chat/completions",
     );
@@ -1335,7 +1368,9 @@ describe("ai/orchestrator", () => {
     }
 
     expect(mocks.streamText).not.toHaveBeenCalled();
-    const openRouterCall = fetchSpy.mock.calls.find(
+    const openRouterCall = (
+      fetchSpy.mock.calls as unknown as Array<[URL | RequestInfo, RequestInit?]>
+    ).find(
       ([input]) =>
         String(input) === "https://openrouter.ai/api/v1/chat/completions",
     );
@@ -1863,6 +1898,29 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).toContain("VOICE RESPONSE MODE");
     expect(streamInput.instructions).toContain("spoken audio");
     expect(streamInput.instructions).toContain("Do not use markdown");
+  });
+
+  it("adds the exact fallback reason when an explicit voice request is unavailable", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-voice-fallback",
+      userMessage: "Mandami un vocale",
+      voiceEnabled: false,
+      voiceUnavailableReason:
+        "Voice is temporarily unavailable, so I'm replying in text.",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+    };
+
+    expect(streamInput.instructions).toContain(
+      'Begin with this exact sentence: "Voice is temporarily unavailable, so I\'m replying in text."',
+    );
+    expect(streamInput.instructions).toContain(
+      "Do not promise that audio will follow.",
+    );
+    expect(streamInput.instructions).not.toContain("TEXT RESPONSE MODE");
   });
 
   it("continues streaming when memories are temporarily unavailable", async () => {

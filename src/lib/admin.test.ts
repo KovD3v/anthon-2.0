@@ -39,6 +39,7 @@ describe("admin", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
   });
 
   it("calculates start date from supported ranges", () => {
@@ -112,17 +113,21 @@ describe("admin", () => {
     expect(result.totalCostUsd).toBe(0);
   });
 
-  it("returns connected system health when db query succeeds", async () => {
+  it("distinguishes verified connectivity from configured integrations", async () => {
     mocks.queryRaw.mockResolvedValue([1]);
+
+    vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key");
+    vi.stubEnv("CLERK_SECRET_KEY", "test-clerk-key");
+    vi.stubEnv("BLOB_READ_WRITE_TOKEN", "test-blob-token");
 
     const result = await getSystemHealth();
 
     expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
     expect(result).toEqual({
       database: { status: "connected" },
-      openrouter: { status: "connected" },
-      clerk: { status: "connected" },
-      vercelBlob: { status: "connected" },
+      openrouter: { status: "configured" },
+      clerk: { status: "configured" },
+      vercelBlob: { status: "configured" },
     });
   });
 
@@ -133,10 +138,14 @@ describe("admin", () => {
 
     expect(result.database).toEqual({
       status: "error",
-      message: "Database disconnected",
+      message: "Database non raggiungibile",
     });
-    expect(result.openrouter.status).toBe("connected");
-    expect(result.clerk.status).toBe("connected");
-    expect(result.vercelBlob.status).toBe("connected");
+    expect(["configured", "not_configured"]).toContain(
+      result.openrouter.status,
+    );
+    expect(["configured", "not_configured"]).toContain(result.clerk.status);
+    expect(["configured", "not_configured"]).toContain(
+      result.vercelBlob.status,
+    );
   });
 });

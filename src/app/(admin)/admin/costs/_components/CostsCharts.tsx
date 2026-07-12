@@ -50,9 +50,9 @@ export default function CostsCharts({
           <CardHeader>
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
-              Cost History
+              Storico dei costi
             </CardTitle>
-            <CardDescription>Daily AI expenditure over time</CardDescription>
+            <CardDescription>Spesa IA giornaliera nel tempo</CardDescription>
           </CardHeader>
           <CardContent className="h-75 w-full pt-4">
             <ResponsiveContainer width="100%" height="100%">
@@ -78,7 +78,7 @@ export default function CostsCharts({
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(val) =>
-                    new Date(val).toLocaleDateString(undefined, {
+                    new Date(val).toLocaleDateString("it-IT", {
                       month: "short",
                       day: "numeric",
                     })
@@ -99,7 +99,7 @@ export default function CostsCharts({
                           <p className="text-xs text-muted-foreground mb-1">
                             {new Date(
                               payload[0].payload.date,
-                            ).toLocaleDateString()}
+                            ).toLocaleDateString("it-IT")}
                           </p>
                           <p className="text-sm font-bold text-primary">
                             ${Number(payload[0].value).toFixed(4)}
@@ -130,9 +130,11 @@ export default function CostsCharts({
           <CardHeader>
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
               <Brain className="h-5 w-5 text-emerald-500" />
-              Model Distribution
+              Distribuzione per modello
             </CardTitle>
-            <CardDescription>AI cost by model provider</CardDescription>
+            <CardDescription>
+              Costo IA per fornitore del modello
+            </CardDescription>
           </CardHeader>
           <CardContent className="h-75 flex flex-col items-center justify-center">
             <ResponsiveContainer width="100%" height={200}>

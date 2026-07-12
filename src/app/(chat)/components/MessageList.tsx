@@ -1,7 +1,7 @@
 "use client";
 
 import type { UIMessage } from "ai";
-import { AnimatePresence, m } from "framer-motion";
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import {
   ArrowDown,
   Brain,
@@ -39,6 +39,7 @@ import { AttachmentPreview } from "./Attachments";
 import { AudioPlayer } from "./AudioPlayer";
 import { useMessageVirtualizer } from "./hooks/useMessageVirtualizer";
 import { MemoizedMarkdown } from "./MemoizedMarkdown";
+import { VoiceResponse } from "./VoiceResponse";
 
 // Extended UIMessage type that includes database fields
 type ExtendedMessage = UIMessage & {
@@ -128,6 +129,7 @@ export function MessageList({
   isLoadingMore = false,
   onLoadMore,
 }: MessageListProps) {
+  const shouldReduceMotion = useReducedMotion();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const { copy, copied } = useCopyToClipboard();
@@ -376,9 +378,17 @@ export function MessageList({
                   }}
                 >
                   <m.div
-                    variants={fadeUp}
-                    initial={shouldAnimateMount ? "hidden" : false}
-                    animate="show"
+                    initial={
+                      shouldAnimateMount
+                        ? {
+                            opacity: 0,
+                            transform: shouldReduceMotion
+                              ? "translateY(0)"
+                              : "translateY(12px)",
+                          }
+                        : false
+                    }
+                    animate={{ opacity: 1, transform: "translateY(0)" }}
                     transition={defaultTransition}
                     className={`group flex items-start gap-2 mb-8 ${
                       isUser ? "flex-row-reverse" : "flex-row"
@@ -426,7 +436,14 @@ export function MessageList({
                         </div>
                       )}
 
-                      <div
+                      <m.div
+                        layout={!shouldReduceMotion}
+                        transition={{
+                          layout: {
+                            duration: 0.18,
+                            ease: [0.77, 0, 0.175, 1],
+                          },
+                        }}
                         className={`relative text-sm leading-relaxed ${
                           /* Only apply bubble styling if there's text or we are editing */
                           !isAttachmentOnly || isEditing
@@ -467,56 +484,51 @@ export function MessageList({
                             </div>
                           </div>
                         ) : message.role === "assistant" ? (
-                          <>
-                            {/* Voice message: show only audio player */}
-                            {isVoiceMessage && voiceAudioSrc ? (
-                              <AudioPlayer
-                                src={voiceAudioSrc}
-                                name="Messaggio vocale"
-                                mimeType="audio/mpeg"
-                              />
-                            ) : assistantDisplayState === "pending" ? (
-                              <div
-                                className="flex items-center gap-2 text-black"
-                                aria-live="polite"
-                              >
-                                <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
-                                <div className="flex flex-col">
+                          isVoiceMessage ? (
+                            <VoiceResponse
+                              audioSrc={voiceAudioSrc}
+                              transcript={messageText}
+                              messageId={message.id}
+                            />
+                          ) : assistantDisplayState === "pending" ? (
+                            <div
+                              className="flex items-center gap-2 text-black"
+                              aria-live="polite"
+                            >
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
+                              <div className="flex flex-col">
+                                <span className="font-medium text-black">
+                                  {assistantPendingLabel}
+                                </span>
+                                <span className="text-xs text-black/70">
+                                  {CHAT_REACTIVITY_COPY.assistantWorkingDetail}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Text message: show markdown */
+                            <>
+                              {assistantToolFeedback && (
+                                <div
+                                  className={`mb-3 flex items-center gap-2 text-black ${
+                                    hasText
+                                      ? "border-black/10 border-b pb-3"
+                                      : ""
+                                  }`}
+                                  aria-live="polite"
+                                >
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
                                   <span className="font-medium text-black">
-                                    {assistantPendingLabel}
-                                  </span>
-                                  <span className="text-xs text-black/70">
-                                    {
-                                      CHAT_REACTIVITY_COPY.assistantWorkingDetail
-                                    }
+                                    {assistantToolFeedback}
                                   </span>
                                 </div>
-                              </div>
-                            ) : (
-                              /* Text message: show markdown */
-                              <>
-                                {assistantToolFeedback && (
-                                  <div
-                                    className={`mb-3 flex items-center gap-2 text-black ${
-                                      hasText
-                                        ? "border-black/10 border-b pb-3"
-                                        : ""
-                                    }`}
-                                    aria-live="polite"
-                                  >
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
-                                    <span className="font-medium text-black">
-                                      {assistantToolFeedback}
-                                    </span>
-                                  </div>
-                                )}
-                                <MemoizedMarkdown
-                                  className={assistantMarkdownClassName}
-                                  content={messageText}
-                                />
-                              </>
-                            )}
-                          </>
+                              )}
+                              <MemoizedMarkdown
+                                className={assistantMarkdownClassName}
+                                content={messageText}
+                              />
+                            </>
+                          )
                         ) : (
                           <div className="whitespace-pre-wrap">
                             {messageText}
@@ -626,7 +638,7 @@ export function MessageList({
                               </div>
                             );
                           })()}
-                      </div>
+                      </m.div>
 
                       {/* Actions Row */}
                       <div
@@ -787,9 +799,8 @@ export function MessageList({
 
           {shouldShowPendingRow && (
             <m.output
-              variants={fadeUp}
-              initial="hidden"
-              animate="show"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               transition={defaultTransition}
               className="group mt-8 mb-2 flex items-start gap-2"
               aria-live="polite"
@@ -820,10 +831,24 @@ export function MessageList({
       <AnimatePresence>
         {showScrollButton && (
           <m.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10"
+            initial={{
+              opacity: 0,
+              transform: shouldReduceMotion
+                ? "translateX(-50%) scale(1)"
+                : "translateX(-50%) scale(0.95)",
+            }}
+            animate={{
+              opacity: 1,
+              transform: "translateX(-50%) scale(1)",
+            }}
+            exit={{
+              opacity: 0,
+              transform: shouldReduceMotion
+                ? "translateX(-50%) scale(1)"
+                : "translateX(-50%) scale(0.95)",
+            }}
+            transition={defaultTransition}
+            className="absolute bottom-28 left-1/2 z-10"
           >
             <Button
               size="sm"

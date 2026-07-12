@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   prismaAttachmentCreate: vi.fn(),
   prismaPreferencesFindUnique: vi.fn(),
   prismaSubscriptionFindUnique: vi.fn(),
+  ensureConversationThread: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
   streamChat: vi.fn(),
@@ -102,6 +103,11 @@ vi.mock("@/lib/latency-logger", () => ({
 }));
 
 vi.mock("@/lib/voice", () => ({
+  detectVoiceRequestIntent: () => "UNSPECIFIED",
+  getVoiceUnavailability: () => ({
+    code: "PROVIDER_UNAVAILABLE",
+    userMessage: "Voice is temporarily unavailable, so I'm replying in text.",
+  }),
   isElevenLabsConfigured: mocks.isElevenLabsConfigured,
   shouldGenerateVoice: mocks.shouldGenerateVoice,
   getVoicePlanConfig: mocks.getVoicePlanConfig,
@@ -117,6 +123,10 @@ vi.mock("@/lib/analytics/funnel", () => ({
 
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
+}));
+
+vi.mock("@/lib/conversations/threads", () => ({
+  ensureConversationThread: mocks.ensureConversationThread,
 }));
 
 import {
@@ -244,6 +254,7 @@ describe("/api/webhooks/telegram", () => {
     mocks.prismaAttachmentCreate.mockReset();
     mocks.prismaPreferencesFindUnique.mockReset();
     mocks.prismaSubscriptionFindUnique.mockReset();
+    mocks.ensureConversationThread.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
     mocks.streamChat.mockReset();
@@ -262,6 +273,9 @@ describe("/api/webhooks/telegram", () => {
     mocks.waitUntil.mockImplementation(() => {});
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.ensureConversationThread.mockResolvedValue({
+      id: "thread-telegram-1",
+    });
     mocks.prismaTransaction.mockImplementation(async (callback) =>
       callback({
         message: {
@@ -924,11 +938,18 @@ describe("/api/webhooks/telegram", () => {
     mocks.incrementUsage.mockResolvedValue(undefined);
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
     mocks.isElevenLabsConfigured.mockReturnValue(true);
-    mocks.shouldGenerateVoice.mockResolvedValue({ shouldGenerateVoice: true });
+    mocks.shouldGenerateVoice.mockResolvedValue({
+      shouldGenerateVoice: true,
+      category: "VOICE_STRONG",
+      capacityState: "GREEN",
+      reasonCode: "STRONG_MOMENT",
+      explicitVoiceRequest: true,
+    });
     mocks.getVoicePlanConfig.mockReturnValue({ enabled: true });
     mocks.generateVoice.mockResolvedValue({
       audioBuffer: Buffer.from("audio"),
       characterCount: 21,
+      costUsd: 0.00105,
     });
     mocks.streamChat.mockImplementation(async ({ onFinish }) => {
       await onFinish?.({
@@ -974,9 +995,107 @@ describe("/api/webhooks/telegram", () => {
       "https://api.telegram.org/botbot-token/sendMessage",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining("risposta vocale"),
+        body: expect.stringContaining(
+          "Voice is temporarily unavailable, so I'm replying in text.",
+        ),
       }),
     );
+    expect(mocks.shouldGenerateVoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userMessage: "mandami un vocale",
+        assistantText: "risposta vocale",
+        channel: "TELEGRAM",
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
+  });
+
+  it("explains an explicit voice request blocked by provider capacity", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.OPENROUTER_API_KEY = "sk-test";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      id: "ci_1",
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: false,
+        subscription: { status: "ACTIVE", planId: "my-basic-plan" },
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate
+      .mockResolvedValueOnce({ id: "msg_in_1" })
+      .mockResolvedValueOnce({ id: "msg_out_1" });
+    mocks.incrementUsage.mockResolvedValue(undefined);
+    mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.isElevenLabsConfigured.mockReturnValue(true);
+    mocks.getVoicePlanConfig.mockReturnValue({ enabled: true });
+    mocks.shouldGenerateVoice.mockResolvedValue({
+      shouldGenerateVoice: false,
+      category: "VOICE_REQUIRED",
+      capacityState: "RED",
+      reasonCode: "PROVIDER_RED",
+      explicitVoiceRequest: true,
+      unavailability: {
+        code: "PROVIDER_UNAVAILABLE",
+        userMessage:
+          "Voice is temporarily unavailable, so I'm replying in text.",
+      },
+    });
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "risposta disponibile come testo",
+        metrics: {
+          model: "test-model",
+          inputTokens: 10,
+          outputTokens: 20,
+          reasoningTokens: 0,
+          reasoningContent: null,
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.001,
+          generationTimeMs: 42,
+          reasoningTimeMs: 0,
+        },
+      });
+      return {
+        textStream: (async function* () {
+          yield "risposta disponibile come testo";
+        })(),
+      };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildTextUpdate("mandami un vocale")),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.telegram.org/botbot-token/sendMessage",
+      expect.objectContaining({
+        body: expect.stringContaining(
+          "Voice is temporarily unavailable, so I'm replying in text.",
+        ),
+      }),
+    );
+    expect(mocks.generateVoice).not.toHaveBeenCalled();
     expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
   });
 
@@ -1282,11 +1401,17 @@ describe("/api/webhooks/telegram", () => {
     mocks.incrementUsage.mockResolvedValue(undefined);
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
     mocks.isElevenLabsConfigured.mockReturnValue(true);
-    mocks.shouldGenerateVoice.mockResolvedValue({ shouldGenerateVoice: true });
+    mocks.shouldGenerateVoice.mockResolvedValue({
+      shouldGenerateVoice: true,
+      category: "VOICE_NATURAL",
+      capacityState: "GREEN",
+      reasonCode: "NATURAL_MOMENT",
+    });
     mocks.getVoicePlanConfig.mockReturnValue({ enabled: true });
     mocks.generateVoice.mockResolvedValue({
       audioBuffer: Buffer.from("audio"),
       characterCount: 21,
+      costUsd: 0.00105,
     });
     mocks.trackVoiceUsage.mockRejectedValue(new Error("usage write failed"));
     mocks.streamChat.mockImplementation(async ({ onFinish }) => {
@@ -1332,6 +1457,17 @@ describe("/api/webhooks/telegram", () => {
       "user_1",
       21,
       "TELEGRAM",
+      0.00105,
+    );
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith({
+      where: { id: "msg_out_1" },
+      data: { type: "AUDIO", mediaType: "audio/mpeg" },
+    });
+    expect(mocks.shouldGenerateVoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assistantText: "risposta vocale",
+        channel: "TELEGRAM",
+      }),
     );
   });
 

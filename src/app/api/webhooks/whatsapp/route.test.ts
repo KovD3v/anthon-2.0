@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   prismaChatUpdate: vi.fn(),
   prismaAttachmentCreate: vi.fn(),
   prismaPreferencesFindUnique: vi.fn(),
+  ensureConversationThread: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
   streamChat: vi.fn(),
@@ -99,6 +100,11 @@ vi.mock("@/lib/latency-logger", () => ({
 }));
 
 vi.mock("@/lib/voice", () => ({
+  detectVoiceRequestIntent: () => "UNSPECIFIED",
+  getVoiceUnavailability: () => ({
+    code: "PROVIDER_UNAVAILABLE",
+    userMessage: "Voice is temporarily unavailable, so I'm replying in text.",
+  }),
   isElevenLabsConfigured: mocks.isElevenLabsConfigured,
   shouldGenerateVoice: mocks.shouldGenerateVoice,
   getVoicePlanConfig: mocks.getVoicePlanConfig,
@@ -114,6 +120,10 @@ vi.mock("@/lib/analytics/funnel", () => ({
 
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
+}));
+
+vi.mock("@/lib/conversations/threads", () => ({
+  ensureConversationThread: mocks.ensureConversationThread,
 }));
 
 import * as openRouterTranscription from "@/lib/channels/transcription/openrouter";
@@ -325,6 +335,7 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.prismaChatUpdate.mockReset();
     mocks.prismaAttachmentCreate.mockReset();
     mocks.prismaPreferencesFindUnique.mockReset();
+    mocks.ensureConversationThread.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
     mocks.streamChat.mockReset();
@@ -343,6 +354,9 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.waitUntil.mockImplementation(() => {});
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.ensureConversationThread.mockResolvedValue({
+      id: "thread-whatsapp-1",
+    });
     mocks.prismaTransaction.mockImplementation(async (callback) =>
       callback({
         message: {
@@ -1648,11 +1662,17 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.incrementUsage.mockResolvedValue(undefined);
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
     mocks.isElevenLabsConfigured.mockReturnValue(true);
-    mocks.shouldGenerateVoice.mockResolvedValue({ shouldGenerateVoice: true });
+    mocks.shouldGenerateVoice.mockResolvedValue({
+      shouldGenerateVoice: true,
+      category: "VOICE_NATURAL",
+      capacityState: "GREEN",
+      reasonCode: "NATURAL_MOMENT",
+    });
     mocks.getVoicePlanConfig.mockReturnValue({ enabled: true });
     mocks.generateVoice.mockResolvedValue({
       audioBuffer: Buffer.from("audio"),
       characterCount: 21,
+      costUsd: 0.00105,
     });
     mocks.trackVoiceUsage.mockRejectedValue(new Error("usage write failed"));
     mocks.streamChat.mockImplementation(async ({ onFinish }) => {
@@ -1701,7 +1721,189 @@ describe("/api/webhooks/whatsapp", () => {
       "user_1",
       21,
       "WHATSAPP",
+      0.00105,
     );
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith({
+      where: { id: "wa_out_1" },
+      data: { type: "AUDIO", mediaType: "audio/mpeg" },
+    });
+    expect(mocks.shouldGenerateVoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userMessage: "mandami un vocale",
+        assistantText: "risposta vocale",
+        channel: "WHATSAPP",
+      }),
+    );
+  });
+
+  it("uses one text response when deterministic cadence suppresses WhatsApp audio", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: false,
+        subscription: { status: "ACTIVE", planId: "my-basic-plan" },
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate
+      .mockResolvedValueOnce({ id: "wa_in_1" })
+      .mockResolvedValueOnce({ id: "wa_out_1" });
+    mocks.incrementUsage.mockResolvedValue(undefined);
+    mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.isElevenLabsConfigured.mockReturnValue(true);
+    mocks.getVoicePlanConfig.mockReturnValue({ enabled: true });
+    mocks.shouldGenerateVoice.mockResolvedValue({
+      shouldGenerateVoice: false,
+      category: "VOICE_NATURAL",
+      capacityState: "GREEN",
+      reasonCode: "CADENCE_COOLDOWN",
+    });
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "una risposta riflessiva",
+        metrics: {
+          model: "test-model",
+          inputTokens: 10,
+          outputTokens: 20,
+          reasoningTokens: 0,
+          reasoningContent: null,
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.001,
+          generationTimeMs: 42,
+          reasoningTimeMs: 0,
+        },
+      });
+      return {
+        textStream: (async function* () {
+          yield "una risposta riflessiva";
+        })(),
+      };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildTextPayload("come posso affrontarlo?")),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://graph.facebook.com/v21.0/phone_1/messages",
+      expect.objectContaining({
+        body: expect.stringContaining("una risposta riflessiva"),
+      }),
+    );
+    expect(mocks.shouldGenerateVoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assistantText: "una risposta riflessiva",
+        channel: "WHATSAPP",
+      }),
+    );
+    expect(mocks.generateVoice).not.toHaveBeenCalled();
+    expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
+  });
+
+  it("explains an explicit WhatsApp voice request when TTS generation fails", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      userId: "user_1",
+      user: {
+        id: "user_1",
+        role: "USER",
+        isGuest: false,
+        subscription: { status: "ACTIVE", planId: "my-basic-plan" },
+      },
+    });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      effectiveEntitlements: { modelTier: "STANDARD" },
+    });
+    mocks.prismaMessageCreate
+      .mockResolvedValueOnce({ id: "wa_in_1" })
+      .mockResolvedValueOnce({ id: "wa_out_1" });
+    mocks.incrementUsage.mockResolvedValue(undefined);
+    mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.isElevenLabsConfigured.mockReturnValue(true);
+    mocks.getVoicePlanConfig.mockReturnValue({ enabled: true });
+    mocks.shouldGenerateVoice.mockResolvedValue({
+      shouldGenerateVoice: true,
+      category: "VOICE_REQUIRED",
+      capacityState: "GREEN",
+      reasonCode: "EXPLICIT_VOICE",
+      explicitVoiceRequest: true,
+    });
+    mocks.generateVoice.mockRejectedValue(new Error("tts failed"));
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "risposta disponibile come testo",
+        metrics: {
+          model: "test-model",
+          inputTokens: 10,
+          outputTokens: 20,
+          reasoningTokens: 0,
+          reasoningContent: null,
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.001,
+          generationTimeMs: 42,
+          reasoningTimeMs: 0,
+        },
+      });
+      return {
+        textStream: (async function* () {
+          yield "risposta disponibile come testo";
+        })(),
+      };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildTextPayload("mandami un vocale")),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://graph.facebook.com/v21.0/phone_1/messages",
+      expect.objectContaining({
+        body: expect.stringContaining(
+          "Voice is temporarily unavailable, so I'm replying in text.",
+        ),
+      }),
+    );
+    expect(mocks.generateVoice).toHaveBeenCalledTimes(1);
+    expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageUpdate).not.toHaveBeenCalledWith({
+      where: { id: "wa_out_1" },
+      data: { type: "AUDIO", mediaType: "audio/mpeg" },
+    });
   });
 
   it("helper signature and command/url helpers cover validation branches", () => {

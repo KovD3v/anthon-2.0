@@ -81,7 +81,7 @@ export default function AnalyticsCharts({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         <Card variant="glass">
           <CardHeader>
-            <CardTitle>Messages Over Time</CardTitle>
+            <CardTitle>Messaggi nel tempo</CardTitle>
           </CardHeader>
           <CardContent>
             {usageStats?.messagesByDay &&
@@ -114,7 +114,7 @@ export default function AnalyticsCharts({
               </ResponsiveContainer>
             ) : (
               <div className="h-75 flex items-center justify-center text-muted-foreground">
-                No data available
+                Nessun dato disponibile
               </div>
             )}
           </CardContent>
@@ -122,7 +122,7 @@ export default function AnalyticsCharts({
 
         <Card variant="glass">
           <CardHeader>
-            <CardTitle>New Users Over Time</CardTitle>
+            <CardTitle>Nuovi utenti nel tempo</CardTitle>
           </CardHeader>
           <CardContent>
             {usageStats?.usersByDay && usageStats.usersByDay.length > 0 ? (
@@ -149,7 +149,7 @@ export default function AnalyticsCharts({
               </ResponsiveContainer>
             ) : (
               <div className="h-75 flex items-center justify-center text-muted-foreground">
-                No data available
+                Nessun dato disponibile
               </div>
             )}
           </CardContent>
@@ -160,7 +160,7 @@ export default function AnalyticsCharts({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         <Card variant="glass">
           <CardHeader>
-            <CardTitle>AI Costs by Model</CardTitle>
+            <CardTitle>Costi IA per modello</CardTitle>
           </CardHeader>
           <CardContent>
             {costStats?.costByModel && costStats.costByModel.length > 0 ? (
@@ -197,7 +197,7 @@ export default function AnalyticsCharts({
               </ResponsiveContainer>
             ) : (
               <div className="h-75 flex items-center justify-center text-muted-foreground">
-                No cost data available
+                Nessun dato sui costi disponibile
               </div>
             )}
           </CardContent>
@@ -205,7 +205,7 @@ export default function AnalyticsCharts({
 
         <Card variant="glass">
           <CardHeader>
-            <CardTitle>Daily AI Costs</CardTitle>
+            <CardTitle>Costi IA giornalieri</CardTitle>
           </CardHeader>
           <CardContent>
             {costStats?.costByDay && costStats.costByDay.length > 0 ? (
@@ -228,7 +228,7 @@ export default function AnalyticsCharts({
                     }
                     formatter={(value: number | string | undefined) => [
                       `$${Number(value || 0).toFixed(4)}`,
-                      "Cost",
+                      "Costo",
                     ]}
                   />
                   <Line
@@ -241,7 +241,7 @@ export default function AnalyticsCharts({
               </ResponsiveContainer>
             ) : (
               <div className="h-75 flex items-center justify-center text-muted-foreground">
-                No cost data available
+                Nessun dato sui costi disponibile
               </div>
             )}
           </CardContent>
@@ -252,7 +252,7 @@ export default function AnalyticsCharts({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         <Card variant="glass">
           <CardHeader>
-            <CardTitle>User Message Distribution</CardTitle>
+            <CardTitle>Distribuzione dei messaggi per utente</CardTitle>
           </CardHeader>
           <CardContent>
             {usageStats?.messageDistribution &&
@@ -271,7 +271,7 @@ export default function AnalyticsCharts({
               </ResponsiveContainer>
             ) : (
               <div className="h-75 flex items-center justify-center text-muted-foreground">
-                No distribution data
+                Nessun dato sulla distribuzione
               </div>
             )}
           </CardContent>
@@ -279,46 +279,50 @@ export default function AnalyticsCharts({
 
         <Card variant="glass">
           <CardHeader>
-            <CardTitle>Conversion Funnel (Registered)</CardTitle>
+            <CardTitle>Funnel di conversione (utenti registrati)</CardTitle>
           </CardHeader>
           <CardContent>
             {funnelStats ? (
               <div className="space-y-4">
                 <FunnelRow
-                  label="Signup"
+                  label="Registrazione"
                   count={funnelStats.funnel.signup}
                   percentage={100}
                 />
                 <FunnelRow
-                  label="First Chat"
+                  label="Prima chat"
                   count={funnelStats.funnel.firstChat}
                   percentage={funnelStats.conversionRates.signupToFirstChat}
                 />
                 <FunnelRow
-                  label="Session 3"
+                  label="Terza sessione"
                   count={funnelStats.funnel.session3}
                   percentage={funnelStats.conversionRates.firstChatToSession3}
                 />
                 <FunnelRow
-                  label="Upgrade"
+                  label="Passaggio di piano"
                   count={funnelStats.funnel.upgrade}
                   percentage={funnelStats.conversionRates.session3ToUpgrade}
                 />
                 <div className="pt-4 border-t border-border">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Overall</span>
+                    <span className="text-muted-foreground">Complessivo</span>
                     <span className="font-bold text-green-600">
                       {funnelStats.conversionRates.overall.toFixed(1)}%
                     </span>
                   </div>
                   <div className="flex justify-between text-sm mt-2">
-                    <span className="text-muted-foreground">All users</span>
+                    <span className="text-muted-foreground">
+                      Tutti gli utenti
+                    </span>
                     <span className="font-bold text-blue-600">
                       {funnelStats.funnel.signupAll}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm mt-2">
-                    <span className="text-muted-foreground">All overall</span>
+                    <span className="text-muted-foreground">
+                      Complessivo totale
+                    </span>
                     <span className="font-bold text-indigo-600">
                       {funnelStats.conversionRates.overallAll.toFixed(1)}%
                     </span>
@@ -327,7 +331,7 @@ export default function AnalyticsCharts({
               </div>
             ) : (
               <div className="h-75 flex items-center justify-center text-muted-foreground">
-                No funnel data
+                Nessun dato sul funnel
               </div>
             )}
           </CardContent>
@@ -339,7 +343,7 @@ export default function AnalyticsCharts({
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Card variant="glass">
             <CardContent className="pt-6">
-              <div className="text-sm text-muted-foreground">Total Cost</div>
+              <div className="text-sm text-muted-foreground">Costo totale</div>
               <div className="text-lg font-semibold">
                 ${costStats.totalCostUsd.toFixed(2)}
               </div>
@@ -348,17 +352,17 @@ export default function AnalyticsCharts({
           <Card variant="glass">
             <CardContent className="pt-6">
               <div className="text-sm text-muted-foreground">
-                Total Output Tokens
+                Token di output totali
               </div>
               <div className="text-lg font-semibold">
-                {costStats.totalOutputTokens.toLocaleString()}
+                {costStats.totalOutputTokens.toLocaleString("it-IT")}
               </div>
             </CardContent>
           </Card>
           <Card variant="glass">
             <CardContent className="pt-6">
               <div className="text-sm text-muted-foreground">
-                Avg Cost/Message
+                Costo medio per messaggio
               </div>
               <div className="text-lg font-semibold">
                 ${costStats.avgCostPerMessage.toFixed(4)}
@@ -368,7 +372,7 @@ export default function AnalyticsCharts({
           <Card variant="glass">
             <CardContent className="pt-6">
               <div className="text-sm text-muted-foreground">
-                Avg Generation Time
+                Tempo medio di generazione
               </div>
               <div className="text-lg font-semibold">
                 {costStats.avgGenerationTimeMs.toFixed(0)}ms

@@ -53,6 +53,7 @@ describe("integration /api/chats/[id]", () => {
       userId: user.id,
       chatId: chat.id,
       role: "USER",
+      text: "Find my weekly running plan",
       createdAt: t1,
     });
     const m2 = await createMessage({
@@ -67,6 +68,10 @@ describe("integration /api/chats/[id]", () => {
       role: "USER",
       createdAt: t3,
     });
+
+    expect(m1.conversationThreadId).toBeTruthy();
+    expect(m2.conversationThreadId).toBe(m1.conversationThreadId);
+    expect(m3.conversationThreadId).toBe(m1.conversationThreadId);
 
     mocks.getAuthUser.mockResolvedValue({
       user: toAuthUser(user),
@@ -111,6 +116,7 @@ describe("integration /api/chats/[id]", () => {
       userId: user.id,
       chatId: chat.id,
       role: "USER",
+      text: "Find my weekly running plan",
       createdAt: new Date("2026-02-17T10:00:00.000Z"),
     });
 
@@ -137,10 +143,7 @@ describe("integration /api/chats/[id]", () => {
       { userId: user.id },
     );
     expect(mocks.revalidateTag).toHaveBeenCalledWith(`chat-${chat.id}`, "max");
-    expect(mocks.revalidateTag).toHaveBeenCalledWith(
-      `chats-${user.id}`,
-      "page",
-    );
+    expect(mocks.revalidateTag).toHaveBeenCalledWith(`chats-${user.id}`, "max");
   });
 
   it("DELETE succeeds even when revalidateTag throws", async () => {

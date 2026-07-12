@@ -186,7 +186,12 @@ export const getSharedChat = cache(
             : undefined,
         ragUsed: m.ragUsed || undefined,
         toolCalls: m.toolCalls,
-        attachments: m.attachments,
+        attachments: m.attachments.map((attachment) => ({
+          ...attachment,
+          blobUrl: attachment.contentType.startsWith("audio/")
+            ? `/api/voice/messages/${m.id}`
+            : attachment.blobUrl,
+        })),
       })),
       pagination: {
         hasMore,

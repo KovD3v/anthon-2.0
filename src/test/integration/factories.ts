@@ -58,15 +58,26 @@ export async function createChat(
     visibility: "PRIVATE" | "PUBLIC";
   }> = {},
 ) {
-  return prisma.chat.create({
-    data: {
-      userId,
-      title: overrides.title ?? null,
-      customTitle:
-        overrides.customTitle ??
-        (overrides.title !== null && !!overrides.title),
-      visibility: overrides.visibility ?? "PRIVATE",
-    },
+  return prisma.$transaction(async (tx) => {
+    const chat = await tx.chat.create({
+      data: {
+        userId,
+        title: overrides.title ?? null,
+        customTitle:
+          overrides.customTitle ??
+          (overrides.title !== null && !!overrides.title),
+        visibility: overrides.visibility ?? "PRIVATE",
+      },
+    });
+    await tx.conversationThread.create({
+      data: {
+        userId,
+        channel: "WEB",
+        externalThreadId: chat.id,
+        chatId: chat.id,
+      },
+    });
+    return chat;
   });
 }
 
@@ -77,6 +88,7 @@ export async function createMessage(
     role?: "USER" | "ASSISTANT" | "SYSTEM";
     direction?: "INBOUND" | "OUTBOUND";
     createdAt?: Date;
+    text?: string;
   } & Partial<{
     feedback: number | null;
     metadata: Prisma.InputJsonValue;
@@ -85,15 +97,35 @@ export async function createMessage(
   const role = input.role ?? "USER";
   const direction =
     input.direction ?? (role === "ASSISTANT" ? "OUTBOUND" : "INBOUND");
+  if (!input.chatId) {
+    throw new Error("Integration WEB messages require a chatId");
+  }
+  const thread = await prisma.conversationThread.findUnique({
+    where: { chatId: input.chatId },
+    select: { id: true, userId: true },
+  });
+  if (!thread || thread.userId !== input.userId) {
+    throw new Error(
+      "Integration WEB messages require an owned conversation thread",
+    );
+  }
 
   return prisma.message.create({
     data: {
       userId: input.userId,
-      chatId: input.chatId ?? null,
+      chatId: input.chatId,
+      conversationThreadId: thread.id,
       role,
       direction,
       channel: "WEB",
       type: "TEXT",
+      ...(input.text
+        ? {
+            parts: [
+              { type: "text", text: input.text },
+            ] as Prisma.InputJsonValue,
+          }
+        : {}),
       ...(input.createdAt ? { createdAt: input.createdAt } : {}),
       ...(input.feedback !== undefined ? { feedback: input.feedback } : {}),
       ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
