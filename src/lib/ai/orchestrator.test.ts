@@ -352,14 +352,34 @@ describe("ai/orchestrator", () => {
   });
 
   it("uses compact prompt and no tools for simple authenticated coaching messages", async () => {
+    mocks.buildConversationContext.mockResolvedValue([
+      {
+        role: "user",
+        content: "Raccontami una breve storia su Messi",
+      },
+      {
+        role: "assistant",
+        content:
+          "Messi era piccolo, ma continuò ad allenarsi fino a diventare un campione.",
+      },
+      {
+        role: "user",
+        content: "La storia la voglio più breve",
+      },
+    ]);
+
     await streamChat({
       userId: "user-1",
       chatId: "chat-simple-fast",
-      userMessage: "Dammi una risposta breve: motivami prima dell'allenamento",
+      userMessage: "La storia la voglio più breve",
     });
 
     expect(mocks.shouldUseRag).not.toHaveBeenCalled();
-    expect(mocks.buildConversationContext).not.toHaveBeenCalled();
+    expect(mocks.buildConversationContext).toHaveBeenCalledWith(
+      "user-1",
+      6,
+      "chat-simple-fast",
+    );
     expect(mocks.formatTinyUserSnapshotForPrompt).toHaveBeenCalledWith(
       "user-1",
     );
@@ -380,7 +400,16 @@ describe("ai/orchestrator", () => {
     expect(streamInput.messages).toEqual([
       {
         role: "user",
-        content: "Dammi una risposta breve: motivami prima dell'allenamento",
+        content: "Raccontami una breve storia su Messi",
+      },
+      {
+        role: "assistant",
+        content:
+          "Messi era piccolo, ma continuò ad allenarsi fino a diventare un campione.",
+      },
+      {
+        role: "user",
+        content: "La storia la voglio più breve",
       },
     ]);
     expect(streamInput.maxOutputTokens).toBe(180);

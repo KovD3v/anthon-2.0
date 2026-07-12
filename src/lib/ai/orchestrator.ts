@@ -77,6 +77,7 @@ import { getPostHogClient } from "@/lib/posthog";
 const aiLogger = createLogger("ai");
 const MULTIMODAL_ORCHESTRATOR_MODEL_ID = "google/gemini-2.5-flash-lite";
 const WEB_SEARCH_CONTEXT_MESSAGES = 4;
+const SIMPLE_FAST_CONTEXT_MESSAGES = 6;
 const PROMPT_MODULE_CLASSIFIER_MODEL_ID =
   process.env.PROMPT_MODULE_CLASSIFIER_MODEL_ID || "qwen/qwen3.6-27b";
 const PROMPT_MODULE_CLASSIFIER_TIMEOUT_MS = 900;
@@ -1367,13 +1368,15 @@ export async function streamChat({
         WEB_SEARCH_CONTEXT_MESSAGES,
       )
     : effectiveEntitlements.limits.maxContextMessages;
-  const skipHistoryPrefetch =
-    skipConversationHistory ||
-    (!classifierMayRun && provisionalPlan.promptMode === "simple_fast");
+  const skipHistoryPrefetch = skipConversationHistory;
+  const provisionalHistoryLimit =
+    !classifierMayRun && provisionalPlan.promptMode === "simple_fast"
+      ? Math.min(provisionalMaxContextMessages, SIMPLE_FAST_CONTEXT_MESSAGES)
+      : provisionalMaxContextMessages;
   const conversationHistoryPrefetch = skipHistoryPrefetch
     ? Promise.resolve<ModelMessage[]>([])
     : LatencyLogger.measure("📋 Orchestrator: Get conversation history", () =>
-        buildConversationContext(userId, provisionalMaxContextMessages, chatId),
+        buildConversationContext(userId, provisionalHistoryLimit, chatId),
       ).catch((error) => {
         aiLogger.error(
           "ai.conversation_history.error",
@@ -1509,8 +1512,7 @@ export async function streamChat({
   // Reconcile the optimistic prefetches with the final plan. Only the
   // classifier path can diverge: it may have enabled web search (tighter
   // history cap) or switched simple_fast to full mode.
-  const shouldSkipConversationHistory =
-    skipConversationHistory || promptMode === "simple_fast";
+  const shouldSkipConversationHistory = skipConversationHistory;
   const historyNeedsWebSearchCap =
     classifierMayRun &&
     toolPlan.webSearch &&
@@ -1522,6 +1524,12 @@ export async function streamChat({
       }
       if (historyNeedsWebSearchCap && history.length > maxContextMessages) {
         return history.slice(-maxContextMessages);
+      }
+      if (
+        promptMode === "simple_fast" &&
+        history.length > SIMPLE_FAST_CONTEXT_MESSAGES
+      ) {
+        return history.slice(-SIMPLE_FAST_CONTEXT_MESSAGES);
       }
       return history;
     },
