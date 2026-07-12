@@ -22,6 +22,8 @@ export interface WebVoiceModeDecision {
   category: VoiceSuitability;
   capacityState: VoiceCapacityState;
   reasonCode: VoiceDecisionReasonCode;
+  suitabilityReason?: string;
+  suitabilityConfidence?: number;
 }
 
 export interface WebVoiceModeParams {
@@ -58,16 +60,18 @@ export async function decideWebVoiceMode(
       requestIntent,
     });
   let classifierInvoked = false;
+  let classifiedSuitability: VoiceSuitabilityHint | undefined;
   const suitability =
     deterministic ??
-    (() => {
+    (async () => {
       classifierInvoked = true;
-      return classifyVoiceSuitability({
+      classifiedSuitability = await classifyVoiceSuitability({
         userId: params.userId,
         userMessage: params.userMessage,
         conversationContext: params.recentMessages,
         timeoutMs: params.timeoutMs,
       });
+      return classifiedSuitability;
     });
   const decision = await decideVoiceDelivery({
     userId: params.userId,
@@ -87,5 +91,7 @@ export async function decideWebVoiceMode(
     category: decision.category,
     capacityState: decision.capacityState,
     reasonCode: decision.reason.code,
+    suitabilityReason: (deterministic ?? classifiedSuitability)?.reason,
+    suitabilityConfidence: (deterministic ?? classifiedSuitability)?.confidence,
   };
 }

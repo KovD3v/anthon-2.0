@@ -1091,6 +1091,8 @@ describe("POST /api/chat", () => {
       category: "TEXT_PREFERRED",
       capacityState: "GREEN",
       reasonCode: "TEXT_PREFERRED",
+      suitabilityReason: "short_factual",
+      suitabilityConfidence: 0.92,
     });
     mocks.streamChat.mockImplementation(async ({ onFinish }) => {
       await onFinish?.({
@@ -1148,6 +1150,8 @@ describe("POST /api/chat", () => {
               category: "TEXT_PREFERRED",
               capacityState: "GREEN",
               source: "classifier",
+              suitabilityReason: "short_factual",
+              suitabilityConfidence: 0.92,
             },
           }),
         }),

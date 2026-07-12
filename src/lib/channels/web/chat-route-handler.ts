@@ -730,6 +730,12 @@ function getVoiceDecisionMetadataFields(
     category: decision.category,
     capacityState: decision.capacityState,
     source: decision.source,
+    ...(decision.suitabilityReason
+      ? { suitabilityReason: decision.suitabilityReason }
+      : {}),
+    ...(decision.suitabilityConfidence !== undefined
+      ? { suitabilityConfidence: decision.suitabilityConfidence }
+      : {}),
   };
 }
 

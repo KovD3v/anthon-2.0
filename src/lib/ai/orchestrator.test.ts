@@ -340,6 +340,10 @@ describe("ai/orchestrator", () => {
     };
     expect(streamInput.instructions).toContain("user-context-data");
     expect(streamInput.instructions).toContain("user-memories-data");
+    expect(streamInput.instructions).toContain("TEXT RESPONSE MODE");
+    expect(streamInput.instructions).toContain(
+      "Do not mention voice/audio availability",
+    );
     expect(streamInput.instructions).not.toContain("SAVING DATA");
     expect(streamInput.instructions).not.toContain("TOOL POLICY");
     expect(streamInput.instructions).not.toContain("RAG CONTEXT");
@@ -414,6 +418,9 @@ describe("ai/orchestrator", () => {
     ]);
     expect(streamInput.maxOutputTokens).toBe(180);
     expect(streamInput.instructions).toContain("Reply in the user's language");
+    expect(streamInput.instructions).toContain(
+      "Do not mention voice/audio availability",
+    );
     expect(streamInput.instructions).toContain("USER SNAPSHOT");
     expect(streamInput.instructions).toContain("Sport: tennis");
     expect(streamInput.instructions).toContain("Obiettivo: focus pre-gara");
@@ -1918,6 +1925,7 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).toContain(
       "Do not promise that audio will follow.",
     );
+    expect(streamInput.instructions).not.toContain("TEXT RESPONSE MODE");
   });
 
   it("continues streaming when memories are temporarily unavailable", async () => {

@@ -130,8 +130,24 @@ describe("voice/preflight", () => {
       category: "VOICE_NATURAL",
       reasonCode: "NATURAL_MOMENT",
       source: "classifier",
+      suitabilityReason: "reflective_coaching",
+      suitabilityConfidence: 0.85,
     });
     expect(mocks.openrouter).toHaveBeenCalledWith("qwen/qwen3.5-flash-02-23");
+  });
+
+  it("exposes classifier failure details for persisted diagnostics", async () => {
+    mocks.generateText.mockRejectedValue(new Error("classifier timeout"));
+
+    const result = await decideWebVoiceMode(baseParams());
+
+    expect(result).toMatchObject({
+      mode: "TEXT",
+      reasonCode: "TEXT_PREFERRED",
+      source: "classifier",
+      suitabilityReason: "classifier_failed",
+      suitabilityConfidence: 0,
+    });
   });
 
   it("does not classify when provider capacity is red", async () => {
