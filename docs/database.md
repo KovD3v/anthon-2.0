@@ -9,7 +9,8 @@ The project uses a single Neon project (`AnthonChat`) with two branches:
 | Branch | Role | Used by |
 |--------|------|---------|
 | `production` | Live deployed database | Vercel runtime (`DATABASE_URL`) and production-build migrations (`DIRECT_DATABASE_URL`) |
-| `development` | Dev/test database | Integration tests (`TEST_DATABASE_URL`), local dev |
+| `development` | Long-lived development database | Local development and parent for ephemeral integration-test branches |
+| `integration-*` | Ephemeral child of `development` | One migration/test run; deleted automatically afterward |
 
 ## Deployment migrations
 
@@ -55,9 +56,18 @@ application version:
 
 Do not combine a destructive contract change with its expand release.
 
-**Safety:** Never point `TEST_DATABASE_URL` at the production branch. The integration
-test setup (`global-setup.ts`) will abort if `TEST_DATABASE_URL` and `DATABASE_URL`
-resolve to the same Neon host.
+### Integration-test branches
+
+`bun run test:integration` requires `NEON_API_KEY`, `NEON_PROJECT_ID`, and a
+local `DATABASE_URL` that points to the non-default `development` branch. The
+runner resolves that endpoint's branch, refuses default, protected, `main`, or
+`production` parents, creates an expiring child with a read-write compute, runs
+`prisma migrate deploy`, injects `TEST_DATABASE_URL` only into Vitest, and
+deletes the child in `finally`.
+
+Do not store `TEST_DATABASE_URL` in `.env.local`. The existing host-comparison
+guard in `global-setup.ts` remains in place as defense in depth. Neon branch
+expiration provides a cleanup backstop if process-level deletion fails.
 
 ## Entity Relationship Overview
 

@@ -28,7 +28,7 @@ bun run format           # Biome format --write
 
 # Testing
 bun run test                         # Unit tests
-bun run test:integration             # Integration tests, requires TEST_DATABASE_URL
+bun run test:integration             # Integration tests on an ephemeral Neon branch
 bun run test:coverage:unit           # Unit coverage
 bun run test:coverage:integration    # Integration coverage
 bun run test:all                     # Unit + integration + coverage
@@ -114,7 +114,9 @@ Runtime DB URLs:
 
 - `DATABASE_URL` is the pooled runtime connection.
 - `DIRECT_DATABASE_URL` is the direct migration connection.
-- `TEST_DATABASE_URL` is used by integration tests.
+- Integration tests require `NEON_API_KEY` and `NEON_PROJECT_ID`. The runner
+  derives an ephemeral branch from the development `DATABASE_URL` and injects
+  `TEST_DATABASE_URL` only into the test process.
 
 ## Verification Expectations
 

@@ -98,7 +98,7 @@ anthon-2.0/
 | `bun run verify` | Run lint, typecheck, and unit tests |
 | `bun run format` | Format code with Biome   |
 | `bun run test`   | Run unit tests (Vitest)  |
-| `bun run test:integration` | Run integration tests (real DB) |
+| `bun run test:integration` | Create an ephemeral Neon branch, migrate, test, and delete it |
 | `bun run test:coverage:unit` | Run unit coverage |
 | `bun run test:coverage:integration` | Run integration coverage |
 | `bun run test:coverage` | Run unit + integration coverage |
@@ -129,7 +129,10 @@ Optional env overrides:
 
 For safe environment separation:
 
-- Use Neon `development` branch for `TEST_DATABASE_URL` (integration tests).
+- Use Neon `development` branch for local `DATABASE_URL`.
+- Configure `NEON_API_KEY` and `NEON_PROJECT_ID` locally for integration tests.
+  The runner creates a short-lived child of `development`, injects its URL only
+  into the migration/test processes, and deletes the branch afterward.
 - Use Neon `production` branch for the deployed `DATABASE_URL`.
 - Store that branch's direct connection string as the Production-only
   `DIRECT_DATABASE_URL` variable in Vercel. It is used only by the production

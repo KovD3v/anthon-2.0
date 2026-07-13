@@ -57,7 +57,11 @@ Feature-specific variables:
 
 `NEXT_PUBLIC_APP_URL` is used for link generation (channel linking, embedding headers, callbacks).
 
-`TEST_DATABASE_URL` is required for `bun run test:integration` and should point to a non-production database/branch.
+`bun run test:integration` requires `NEON_API_KEY` and `NEON_PROJECT_ID`.
+`DATABASE_URL` must point to the long-lived Neon `development` branch. The
+runner creates a short-lived child branch, injects its connection string only
+into migration/test child processes, and deletes it afterward. Do not persist
+`TEST_DATABASE_URL` in an env file.
 
 `TINYFISH_API_KEY` enables the runtime web-search tools (`tinyfishSearch` and
 `tinyfishFetch`). Without it, current-information turns should be covered by
@@ -65,8 +69,9 @@ tests/mocks rather than live provider calls.
 
 Neon branch mapping (required):
 
-- `TEST_DATABASE_URL` -> `development` branch (direct connection string)
-- `DATABASE_URL` -> the deployed environment's database (pooled connection string) — used by Vercel runtime
+- `NEON_API_KEY` + `NEON_PROJECT_ID` -> create/delete ephemeral test branches
+- local `DATABASE_URL` -> `development` branch (pooled connection string)
+- Vercel `DATABASE_URL` -> the deployed environment's database (pooled connection string)
 - `DIRECT_DATABASE_URL` -> the matching direct connection string — configure it as a Production-only Vercel variable so `bun run vercel:build` can apply pending production migrations; do not configure it for Preview
 
 Useful Neon CLI commands:
@@ -141,7 +146,7 @@ bun run start
 | `bun run verify` | Run lint, typecheck, and unit tests |
 | `bun run format` | Format code with Biome   |
 | `bun run test`   | Run unit tests (Vitest)  |
-| `bun run test:integration` | Run integration tests (real DB) |
+| `bun run test:integration` | Run migrations/tests on an ephemeral Neon branch |
 | `bun run test:coverage:unit` | Run unit coverage |
 | `bun run test:coverage:integration` | Run integration coverage |
 | `bun run test:coverage` | Run unit + integration coverage |
