@@ -119,6 +119,8 @@ export interface ChatMessage {
   voice?: {
     status: "PENDING" | "PROCESSING" | "READY" | "FAILED" | "CANCELLED";
     errorCode?: string;
+    /** True only when the user explicitly asked for an audio reply. */
+    isExplicitRequest?: boolean;
   };
   feedback?: -1 | 0 | 1 | null;
   feedbackReason?: MessageFeedbackReason;

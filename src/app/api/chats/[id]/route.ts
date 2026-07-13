@@ -163,6 +163,7 @@ export async function GET(request: Request, { params }: RouteParams) {
               ...(m.voiceGenerationJob.errorCode
                 ? { errorCode: m.voiceGenerationJob.errorCode }
                 : {}),
+              isExplicitRequest: isExplicitVoiceRequest(m.metadata),
             }
           : undefined,
         attachments: m.attachments.map((attachment) => ({
@@ -181,6 +182,17 @@ export async function GET(request: Request, { params }: RouteParams) {
     chatsLogger.error("get.error", "Failed to fetch chat", { error: err });
     return Response.json({ error: "Failed to fetch chat" }, { status: 500 });
   }
+}
+
+function isExplicitVoiceRequest(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== "object") return false;
+
+  const voice = (metadata as { voice?: unknown }).voice;
+  return (
+    !!voice &&
+    typeof voice === "object" &&
+    (voice as { category?: unknown }).category === "VOICE_REQUIRED"
+  );
 }
 
 // -----------------------------------------------------

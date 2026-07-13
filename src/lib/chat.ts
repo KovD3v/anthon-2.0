@@ -209,6 +209,7 @@ export const getSharedChat = cache(
               ...(m.voiceGenerationJob.errorCode
                 ? { errorCode: m.voiceGenerationJob.errorCode }
                 : {}),
+              isExplicitRequest: isExplicitVoiceRequest(m.metadata),
             }
           : undefined,
         attachments: m.attachments.map((attachment) => ({
@@ -228,3 +229,14 @@ export const getSharedChat = cache(
     };
   },
 );
+
+function isExplicitVoiceRequest(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== "object") return false;
+
+  const voice = (metadata as { voice?: unknown }).voice;
+  return (
+    !!voice &&
+    typeof voice === "object" &&
+    (voice as { category?: unknown }).category === "VOICE_REQUIRED"
+  );
+}

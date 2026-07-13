@@ -445,11 +445,15 @@ export function MessageList({
 
               const isVoiceMessage = !!dbVoiceAttachment;
               const voiceAudioSrc = dbVoiceAttachment?.blobUrl;
+              const isExplicitVoiceRequest =
+                message.voice?.isExplicitRequest === true;
               const isVoiceGenerationPending =
+                isExplicitVoiceRequest &&
                 !isVoiceMessage &&
                 (message.voice?.status === "PENDING" ||
                   message.voice?.status === "PROCESSING");
               const isVoiceGenerationUnavailable =
+                isExplicitVoiceRequest &&
                 !isVoiceMessage &&
                 (message.voice?.status === "FAILED" ||
                   message.voice?.status === "CANCELLED");
