@@ -1,5 +1,14 @@
 # Database Cleanup & Improvement Implementation Plan
 
+> [!WARNING]
+> **Historical plan — not an operational deployment runbook.** This document
+> records the March 2026 implementation proposal. Its instructions that `build`
+> applies migrations and that `scripts/migrate-prod.sh` should be created or run
+> are obsolete. Do not execute those snippets. Use the current
+> [deployment-migration runbook](../../database.md#deployment-migrations):
+> `bun run build` is artifact-only and migrations run only through the protected,
+> serialized GitHub Actions workflow.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fix the empty production Neon branch, clean up orphaned test schemas, and improve the database schema with better cost tracking, an indexed Memory category column, a leaner Message table, and proper voice cost accounting.

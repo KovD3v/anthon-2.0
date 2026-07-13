@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   messageFindMany: vi.fn(),
   messageFindUnique: vi.fn(),
   messageDeleteMany: vi.fn(),
+  deletePrivateVoiceBlobsForMessages: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -25,6 +26,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/voice/attachment-cleanup", () => ({
+  deletePrivateVoiceBlobsForMessages: mocks.deletePrivateVoiceBlobsForMessages,
+}));
+
 import { DELETE, GET, PATCH } from "./route";
 
 describe("/api/chat/messages route", () => {
@@ -34,10 +39,12 @@ describe("/api/chat/messages route", () => {
     mocks.messageFindMany.mockReset();
     mocks.messageFindUnique.mockReset();
     mocks.messageDeleteMany.mockReset();
+    mocks.deletePrivateVoiceBlobsForMessages.mockReset();
 
     mocks.auth.mockResolvedValue({ userId: "clerk_1" });
     mocks.userFindUnique.mockResolvedValue({ id: "user-1" });
     mocks.messageDeleteMany.mockResolvedValue({ count: 2 });
+    mocks.deletePrivateVoiceBlobsForMessages.mockResolvedValue(0);
   });
 
   it("GET returns 401 when Clerk auth has no userId", async () => {
@@ -100,7 +107,7 @@ describe("/api/chat/messages route", () => {
         userId: "user-1",
         chatId: "chat-1",
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 100,
       select: {
         id: true,
@@ -143,6 +150,49 @@ describe("/api/chat/messages route", () => {
     });
   });
 
+  it("GET returns the newest 100 messages in chronological order", async () => {
+    const allMessages = Array.from({ length: 101 }, (_, index) => ({
+      id: `m${index}`,
+      role: "USER",
+      parts: [{ type: "text", text: `message ${index}` }],
+      createdAt: new Date(Date.UTC(2026, 1, 16, 10, 0, index)),
+      model: null,
+      inputTokens: null,
+      outputTokens: null,
+      costUsd: null,
+      generationTimeMs: null,
+    }));
+
+    // Prisma returns the selected newest window in the requested descending order.
+    mocks.messageFindMany.mockResolvedValue(
+      [...allMessages].slice(1).reverse(),
+    );
+
+    const response = await GET(
+      new Request("http://localhost/api/chat/messages?chatId=chat-1"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.messageFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 100,
+      }),
+    );
+
+    const { messages } = (await response.json()) as {
+      messages: Array<{ createdAt: string; id: string }>;
+    };
+
+    expect(messages).toHaveLength(100);
+    expect(messages.map((message) => message.id)).toEqual(
+      allMessages.slice(1).map((message) => message.id),
+    );
+    expect(messages.map((message) => message.createdAt)).toEqual(
+      allMessages.slice(1).map((message) => message.createdAt.toISOString()),
+    );
+  });
+
   it("GET falls back to WEB/TEXT query when chatId is absent", async () => {
     mocks.messageFindMany.mockResolvedValue([]);
 
@@ -157,7 +207,7 @@ describe("/api/chat/messages route", () => {
         channel: "WEB",
         type: "TEXT",
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 100,
       select: {
         id: true,
@@ -346,6 +396,11 @@ describe("/api/chat/messages route", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(mocks.deletePrivateVoiceBlobsForMessages).toHaveBeenCalledWith({
+      userId: "user-1",
+      chatId: "chat-1",
+      createdAt: { gte: createdAt },
+    });
     expect(mocks.messageDeleteMany).toHaveBeenCalledWith({
       where: {
         userId: "user-1",
@@ -381,6 +436,29 @@ describe("/api/chat/messages route", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Internal server error",
     });
+  });
+
+  it("DELETE keeps messages when private voice cleanup fails", async () => {
+    const createdAt = new Date("2026-02-16T10:00:00.000Z");
+    mocks.messageFindUnique.mockResolvedValue({
+      id: "m1",
+      userId: "user-1",
+      role: "USER",
+      chatId: "chat-1",
+      createdAt,
+    });
+    mocks.deletePrivateVoiceBlobsForMessages.mockRejectedValue(
+      new Error("blob cleanup failed"),
+    );
+
+    const response = await DELETE(
+      new Request("http://localhost/api/chat/messages?id=m1", {
+        method: "DELETE",
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    expect(mocks.messageDeleteMany).not.toHaveBeenCalled();
   });
 
   it("PATCH returns 401 when Clerk auth has no userId", async () => {
@@ -526,6 +604,11 @@ describe("/api/chat/messages route", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(mocks.deletePrivateVoiceBlobsForMessages).toHaveBeenCalledWith({
+      userId: "user-1",
+      chatId: "chat-1",
+      createdAt: { gte: createdAt },
+    });
     expect(mocks.messageDeleteMany).toHaveBeenCalledWith({
       where: {
         userId: "user-1",

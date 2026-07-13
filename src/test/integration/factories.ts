@@ -13,6 +13,7 @@ export async function resetIntegrationDb() {
   await prisma.artifactVersion.deleteMany();
   await prisma.artifact.deleteMany();
   await prisma.voiceUsage.deleteMany();
+  await prisma.voiceGenerationJob.deleteMany();
   await prisma.dailyUsage.deleteMany();
   await prisma.sessionSummary.deleteMany();
   await prisma.memory.deleteMany();
@@ -21,6 +22,7 @@ export async function resetIntegrationDb() {
   await prisma.message.deleteMany();
   await prisma.chat.deleteMany();
   await prisma.subscription.deleteMany();
+  await prisma.channelConnectRequest.deleteMany();
   await prisma.channelLinkToken.deleteMany();
   await prisma.channelIdentity.deleteMany();
   await prisma.organizationAuditLog.deleteMany();

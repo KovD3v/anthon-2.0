@@ -263,6 +263,12 @@ describe("lib/chat", () => {
         toolCalls: true,
         feedback: true,
         metadata: true,
+        voiceGenerationJob: {
+          select: {
+            status: true,
+            errorCode: true,
+          },
+        },
         attachments: {
           select: {
             id: true,

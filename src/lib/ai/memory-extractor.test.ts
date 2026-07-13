@@ -147,6 +147,199 @@ describe("ai/memory-extractor", () => {
     });
   });
 
+  it("persists distinct facts in bounded concurrent batches", async () => {
+    const resolveWrites: Array<() => void> = [];
+    mocks.memoryUpsert.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveWrites.push(resolve);
+        }),
+    );
+    mocks.generateText.mockResolvedValue({
+      text: JSON.stringify({
+        facts: [
+          {
+            key: "user_name",
+            value: "Ada",
+            category: "identity",
+            confidence: 0.95,
+          },
+          {
+            key: "user_sport",
+            value: "tennis",
+            category: "sport",
+            confidence: 0.9,
+          },
+          {
+            key: "user_goal",
+            value: "win a match",
+            category: "goal",
+            confidence: 0.9,
+          },
+          {
+            key: "user_schedule",
+            value: "Sunday morning",
+            category: "schedule",
+            confidence: 0.9,
+          },
+          {
+            key: "user_preference",
+            value: "outdoor training",
+            category: "preference",
+            confidence: 0.9,
+          },
+        ],
+      }),
+    });
+
+    const extraction = extractAndSaveMemories(
+      "user-1",
+      "My name is Ada, I play tennis, and I want to win a match this season.",
+      "We can build a schedule that supports your tennis goal.",
+    );
+
+    await vi.waitFor(() => {
+      expect(mocks.memoryUpsert).toHaveBeenCalledTimes(4);
+    });
+    expect(
+      mocks.memoryUpsert.mock.calls.map(([args]) => args.where.userId_key.key),
+    ).toEqual(["user_name", "user_sport", "user_goal", "user_schedule"]);
+
+    for (const resolve of resolveWrites.splice(0)) {
+      resolve();
+    }
+
+    await vi.waitFor(() => {
+      expect(mocks.memoryUpsert).toHaveBeenCalledTimes(5);
+    });
+    for (const resolve of resolveWrites.splice(0)) {
+      resolve();
+    }
+
+    await extraction;
+
+    expect(mocks.invalidateMemoriesForPromptCache).toHaveBeenCalledWith(
+      "user-1",
+    );
+    expect(mocks.userUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps only the latest accepted fact for duplicate keys", async () => {
+    mocks.generateText.mockResolvedValue({
+      text: JSON.stringify({
+        facts: [
+          {
+            key: "user_sport",
+            value: "running",
+            category: "sport",
+            confidence: 0.9,
+          },
+          {
+            key: "user_sport",
+            value: "cycling",
+            category: "sport",
+            confidence: 0.95,
+          },
+          {
+            key: "user_sport",
+            value: "not-saved",
+            category: "sport",
+            confidence: 0.4,
+          },
+        ],
+      }),
+    });
+
+    await extractAndSaveMemories(
+      "user-1",
+      "I have switched from running to cycling as my main sport this year.",
+      "Cycling can be a great primary training focus.",
+    );
+
+    expect(mocks.memoryUpsert).toHaveBeenCalledTimes(1);
+    expect(mocks.memoryUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId_key: { userId: "user-1", key: "user_sport" },
+        },
+        update: expect.objectContaining({
+          value: expect.objectContaining({ content: "cycling" }),
+        }),
+        create: expect.objectContaining({
+          value: expect.objectContaining({ content: "cycling" }),
+        }),
+      }),
+    );
+  });
+
+  it("keeps the cache and activity untouched after a partial persistence failure", async () => {
+    const writeError = new Error("database unavailable");
+    mocks.memoryUpsert.mockImplementation((args) => {
+      if (args.where.userId_key.key === "user_goal") {
+        return Promise.reject(writeError);
+      }
+
+      return Promise.resolve({});
+    });
+    mocks.generateText.mockResolvedValue({
+      text: JSON.stringify({
+        facts: [
+          {
+            key: "user_name",
+            value: "Ada",
+            category: "identity",
+            confidence: 0.95,
+          },
+          {
+            key: "user_sport",
+            value: "tennis",
+            category: "sport",
+            confidence: 0.9,
+          },
+          {
+            key: "user_goal",
+            value: "win a match",
+            category: "goal",
+            confidence: 0.9,
+          },
+          {
+            key: "user_schedule",
+            value: "Sunday morning",
+            category: "schedule",
+            confidence: 0.9,
+          },
+          {
+            key: "user_preference",
+            value: "outdoor training",
+            category: "preference",
+            confidence: 0.9,
+          },
+        ],
+      }),
+    });
+
+    await expect(
+      extractAndSaveMemories(
+        "user-1",
+        "My name is Ada, I play tennis, and I want to win a match this season.",
+        "We can build a schedule that supports your tennis goal.",
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.memoryUpsert).toHaveBeenCalledTimes(5);
+    expect(mocks.invalidateMemoriesForPromptCache).not.toHaveBeenCalled();
+    expect(mocks.userUpdate).not.toHaveBeenCalled();
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      "memory_persistence_failed",
+      "One or more memory facts could not be persisted",
+      {
+        error: [writeError],
+        failedKeys: ["user_goal"],
+        userId: "user-1",
+      },
+    );
+  });
+
   it("updates last activity even when no facts pass confidence threshold", async () => {
     mocks.generateText.mockResolvedValue({
       text: JSON.stringify({

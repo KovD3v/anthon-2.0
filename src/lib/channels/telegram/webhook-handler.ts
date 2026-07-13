@@ -1,8 +1,11 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { waitUntil } from "@vercel/functions";
 import type { Prisma } from "@/generated/prisma";
-import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
-import { runChannelFlow } from "@/lib/channel-flow";
+import {
+  getExternalInboundMessageType,
+  prepareExternalChannelInbound,
+  runChannelFlow,
+} from "@/lib/channel-flow";
 import { buildExternalChannelInbound } from "@/lib/channel-flow/inbound";
 import { formatExternalRateLimitMessage } from "@/lib/channel-flow/rate-limit-message";
 import type { ChannelMessagePart } from "@/lib/channel-flow/types";
@@ -20,14 +23,15 @@ import {
   type TelegramVoice,
 } from "@/lib/channels/telegram/utils";
 import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
-import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 
 const telegramLogger = createLogger("webhook");
 
-import { checkRateLimit } from "@/lib/rate-limit";
+const CONNECT_DELIVERY_LEASE_MS = 60_000;
+const CONNECT_DELIVERY_TIMEOUT_MS = 45_000;
+
 import {
   detectVoiceRequestIntent,
   generateVoice,
@@ -165,6 +169,267 @@ export async function handleTelegramWebhookPost(request: Request) {
   return Response.json({ ok: true });
 }
 
+function isUniqueConstraintError(error: unknown) {
+  return (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2002"
+  );
+}
+
+function createTelegramConnectToken(externalMessageId: string) {
+  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (!secret) return null;
+
+  return createHmac("sha256", secret)
+    .update(`tg-connect:${externalMessageId}`)
+    .digest("hex");
+}
+
+async function createOrGetTelegramConnectRequest({
+  externalMessageId,
+  externalId,
+  chatId,
+}: {
+  externalMessageId: string;
+  externalId: string;
+  chatId: string;
+}) {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      // Create the durable claim first. PostgreSQL's unique constraint makes
+      // all duplicate deliveries wait here before they can create a token.
+      const connectRequest = await tx.channelConnectRequest.create({
+        data: {
+          channel: "TELEGRAM",
+          externalMessageId,
+          externalId,
+          chatId,
+          responseKind: "LINK",
+        },
+        select: { id: true, responseKind: true },
+      });
+
+      const existingIdentity = await tx.channelIdentity.findUnique({
+        where: {
+          channel_externalId: {
+            channel: "TELEGRAM",
+            externalId,
+          },
+        },
+        select: {
+          user: {
+            select: {
+              isGuest: true,
+            },
+          },
+        },
+      });
+
+      if (existingIdentity?.user && !existingIdentity.user.isGuest) {
+        return await tx.channelConnectRequest.update({
+          where: { id: connectRequest.id },
+          data: { responseKind: "ALREADY_LINKED" },
+          select: { id: true, responseKind: true },
+        });
+      }
+
+      const rawToken = createTelegramConnectToken(externalMessageId);
+      const tokenHash = rawToken ? hashLinkToken(rawToken) : null;
+      if (!tokenHash) {
+        return await tx.channelConnectRequest.update({
+          where: { id: connectRequest.id },
+          data: { responseKind: "UNAVAILABLE" },
+          select: { id: true, responseKind: true },
+        });
+      }
+
+      // The raw token is deterministic for this provider message, so a retry
+      // can reuse the same link without storing its secret value in the claim.
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      const existingToken = await tx.channelLinkToken.findUnique({
+        where: { tokenHash },
+        select: { id: true, expiresAt: true, consumedAt: true },
+      });
+      if (!existingToken) {
+        await tx.channelLinkToken.create({
+          data: {
+            channel: "TELEGRAM",
+            tokenHash,
+            externalId,
+            chatId,
+            expiresAt,
+          },
+          select: { id: true },
+        });
+      } else if (
+        !existingToken.consumedAt &&
+        existingToken.expiresAt.getTime() < Date.now()
+      ) {
+        await tx.channelLinkToken.update({
+          where: { id: existingToken.id },
+          data: { expiresAt },
+          select: { id: true },
+        });
+      }
+
+      return connectRequest;
+    });
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) throw error;
+
+    return await prisma.channelConnectRequest.findUnique({
+      where: {
+        channel_externalMessageId: {
+          channel: "TELEGRAM",
+          externalMessageId,
+        },
+      },
+      select: { id: true, responseKind: true },
+    });
+  }
+}
+
+/**
+ * A claim leases one outbound delivery at a time. Explicit send failures move
+ * it to FAILED so a later provider retry can claim it again; an expired lease
+ * also recovers a worker that stopped before recording its result.
+ */
+async function claimTelegramConnectDelivery(connectRequestId: string) {
+  const now = new Date();
+  const claimToken = randomUUID();
+  const result = await prisma.channelConnectRequest.updateMany({
+    where: {
+      id: connectRequestId,
+      OR: [
+        { status: { in: ["PENDING", "FAILED"] } },
+        {
+          status: "SENDING",
+          deliveryLeaseExpiresAt: { lt: now },
+        },
+      ],
+    },
+    data: {
+      status: "SENDING",
+      claimToken,
+      deliveryLeaseExpiresAt: new Date(
+        now.getTime() + CONNECT_DELIVERY_LEASE_MS,
+      ),
+      deliveryAttempts: { increment: 1 },
+      lastDeliveryError: null,
+    },
+  });
+
+  return result.count === 1 ? claimToken : null;
+}
+
+function telegramConnectResponse(
+  responseKind: "LINK" | "ALREADY_LINKED" | "UNAVAILABLE",
+  externalMessageId: string,
+) {
+  if (responseKind === "ALREADY_LINKED") {
+    return "Il tuo account Telegram è già collegato al tuo profilo. Puoi gestire i canali collegati dalla pagina del tuo account.";
+  }
+
+  if (responseKind === "UNAVAILABLE") {
+    return "Non riesco a generare il link di collegamento in questo momento. Riprova più tardi.";
+  }
+
+  const rawToken = createTelegramConnectToken(externalMessageId);
+  if (!rawToken) {
+    return "Non riesco a generare il link di collegamento in questo momento. Riprova più tardi.";
+  }
+
+  const baseUrl = getPublicAppUrl().replace(/\/$/, "");
+  const linkUrl = `${baseUrl}/link/telegram/${rawToken}`;
+  return `Per collegare Telegram al tuo profilo, apri questo link:\n${linkUrl}\n\nSe non sei loggato, ti verrà chiesto di accedere o registrarti e poi il canale verrà collegato automaticamente.`;
+}
+
+async function handleTelegramConnectCommand({
+  externalMessageId,
+  externalId,
+  chatId,
+}: {
+  externalMessageId: string;
+  externalId: string;
+  chatId: number;
+}) {
+  const connectRequest = await createOrGetTelegramConnectRequest({
+    externalMessageId,
+    externalId,
+    chatId: String(chatId),
+  }).catch((error) => {
+    telegramLogger.error(
+      "connect.claim_failed",
+      "Failed to create Telegram connect claim",
+      { error, externalMessageId },
+    );
+    return null;
+  });
+
+  if (!connectRequest) return;
+
+  let claimToken: string | null;
+  try {
+    claimToken = await claimTelegramConnectDelivery(connectRequest.id);
+    if (!claimToken) return;
+  } catch (error) {
+    telegramLogger.error(
+      "connect.delivery_claim_failed",
+      "Failed to claim Telegram connect delivery",
+      { error, connectRequestId: connectRequest.id },
+    );
+    return;
+  }
+
+  try {
+    const sent = await sendTelegramMessage(
+      chatId,
+      telegramConnectResponse(connectRequest.responseKind, externalMessageId),
+      AbortSignal.timeout(CONNECT_DELIVERY_TIMEOUT_MS),
+    );
+    if (!sent) throw new Error("Telegram connect response was not accepted");
+
+    await prisma.channelConnectRequest.updateMany({
+      where: {
+        id: connectRequest.id,
+        status: "SENDING",
+        claimToken,
+      },
+      data: {
+        status: "SENT",
+        claimToken: null,
+        deliveredAt: new Date(),
+        deliveryLeaseExpiresAt: null,
+        lastDeliveryError: null,
+      },
+    });
+  } catch (error) {
+    await prisma.channelConnectRequest
+      .updateMany({
+        where: {
+          id: connectRequest.id,
+          status: "SENDING",
+          claimToken,
+        },
+        data: {
+          status: "FAILED",
+          claimToken: null,
+          deliveryLeaseExpiresAt: null,
+          lastDeliveryError: safeErrorSummary(error),
+        },
+      })
+      .catch((markError) =>
+        telegramLogger.error(
+          "connect.delivery_failure_unrecorded",
+          "Failed to record Telegram connect delivery failure",
+          { markError, connectRequestId: connectRequest.id },
+        ),
+      );
+  }
+}
+
 async function handleUpdate(update: TelegramUpdate) {
   const message = update.message;
   const fromId = message?.from?.id;
@@ -195,172 +460,57 @@ async function handleUpdate(update: TelegramUpdate) {
 
   const externalMessageId = `${chatId}:${telegramMessageId}`;
 
-  // Idempotency: Telegram can retry webhooks.
-  const existing = await prisma.message.findFirst({
-    where: {
-      channel: "TELEGRAM",
-      externalMessageId,
-    },
-    select: { id: true },
-  });
-
-  if (existing) {
-    return;
-  }
-
-  // Non-tech linking flow: user asks the bot to connect their profile.
+  // `/connect` has no user yet, so it uses its own durable provider-message
+  // claim instead of the Message table's user-bound idempotency marker.
   if (text && isTelegramConnectCommand(text)) {
-    const externalId = String(fromId);
-
-    // Check if user is already connected to a non-guest account
-    const existingIdentity = await prisma.channelIdentity.findUnique({
-      where: {
-        channel_externalId: {
-          channel: "TELEGRAM",
-          externalId,
-        },
-      },
-      select: {
-        user: {
-          select: {
-            isGuest: true,
-          },
-        },
-      },
-    });
-
-    // If connected to a non-guest user, inform them they're already connected
-    if (existingIdentity?.user && !existingIdentity.user.isGuest) {
-      await sendTelegramMessage(
-        chatId,
-        "Il tuo account Telegram è già collegato al tuo profilo. Puoi gestire i canali collegati dalla pagina del tuo account.",
-      );
-      return;
-    }
-
-    const linkUrl = await createTelegramLinkUrl(externalId, String(chatId));
-    if (!linkUrl) {
-      await sendTelegramMessage(
-        chatId,
-        "Non riesco a generare il link di collegamento in questo momento. Riprova più tardi.",
-      );
-      return;
-    }
-
-    await sendTelegramMessage(
+    await handleTelegramConnectCommand({
+      externalMessageId,
+      externalId: String(fromId),
       chatId,
-      `Per collegare Telegram al tuo profilo, apri questo link:\n${linkUrl}\n\nSe non sei loggato, ti verrà chiesto di accedere o registrarti e poi il canale verrà collegato automaticamente.`,
-    );
+    });
     return;
   }
 
   const externalId = String(fromId);
-
-  // Resolve / create user for this Telegram identity.
-  const identity = await prisma.channelIdentity.findUnique({
-    where: {
-      channel_externalId: {
-        channel: "TELEGRAM",
-        externalId,
-      },
-    },
-    select: {
-      id: true,
-      userId: true,
-      user: {
-        select: {
-          id: true,
-          role: true,
-          isGuest: true,
-          subscription: {
-            select: {
-              status: true,
-              planId: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  const user = identity?.user
-    ? identity.user
-    : await createGuestUserForTelegramIdentity(externalId);
-  const conversationThread = await ensureConversationThread({
-    userId: user.id,
+  const preparedInbound = await prepareExternalChannelInbound({
     channel: "TELEGRAM",
+    externalId,
     externalThreadId: String(chatId),
+    externalMessageId,
+    messageType: getExternalInboundMessageType({
+      hasImage: hasPhoto,
+      hasDocument,
+      hasAudio: hasAudioMessage,
+    }),
+    metadata: {
+      telegram: {
+        updateId: update.update_id,
+        chatId,
+        fromId,
+        username: message?.from?.username,
+        languageCode: message?.from?.language_code,
+        hasVoice: hasVoice || undefined,
+        hasAudio: hasAudio || undefined,
+        hasPhoto: hasPhoto || undefined,
+        hasDocument: hasDocument || undefined,
+        documentName: message?.document?.file_name,
+        documentMimeType: message?.document?.mime_type,
+      },
+    } as Prisma.InputJsonValue,
+    buildGuestUserData: () => ({ isGuest: true }),
+    scheduleBackground: safeWaitUntil,
+    onFunnelTrackingError: (error) => {
+      telegramLogger.error("funnel.tracking_failed", "Funnel tracking failed", {
+        error,
+      });
+    },
   });
 
-  let messageType: "IMAGE" | "DOCUMENT" | "AUDIO" | "TEXT";
-  let _defaultContent: string;
-
-  if (hasPhoto) {
-    messageType = "IMAGE";
-    _defaultContent = "Foto";
-  } else if (hasDocument) {
-    messageType = "DOCUMENT";
-    _defaultContent = "Documento";
-  } else if (hasAudioMessage) {
-    messageType = "AUDIO";
-    _defaultContent = "Messaggio vocale";
-  } else {
-    messageType = "TEXT";
-    _defaultContent = "";
-  }
-  const inbound = await prisma.message
-    .create({
-      data: {
-        userId: user.id,
-        conversationThreadId: conversationThread.id,
-        channel: "TELEGRAM",
-        direction: "INBOUND",
-        role: "USER",
-        type: messageType,
-        externalMessageId,
-        metadata: {
-          telegram: {
-            updateId: update.update_id,
-            chatId,
-            fromId,
-            username: message?.from?.username,
-            languageCode: message?.from?.language_code,
-            hasVoice: hasVoice || undefined,
-            hasAudio: hasAudio || undefined,
-            hasPhoto: hasPhoto || undefined,
-            hasDocument: hasDocument || undefined,
-            documentName: message?.document?.file_name,
-            documentMimeType: message?.document?.mime_type,
-          },
-        } as Prisma.InputJsonValue,
-      },
-      select: { id: true },
-    })
-    .catch((err: unknown) => {
-      // Race-safe idempotency: if Telegram retries quickly, rely on DB uniqueness.
-      if (
-        err &&
-        typeof err === "object" &&
-        "code" in err &&
-        (err as { code?: string }).code === "P2002"
-      ) {
-        return null;
-      }
-      throw err;
-    });
-
-  if (!inbound) {
+  if (preparedInbound.status === "duplicate") {
     return;
   }
 
-  // Check rate limit (guest tier is stricter than trial).
-  const rateLimit = await checkRateLimit(
-    user.id,
-    user.subscription?.status,
-    user.role,
-    user.subscription?.planId,
-    user.isGuest,
-  );
+  const { user, conversationThread, inbound, rateLimit } = preparedInbound;
 
   if (!rateLimit.allowed) {
     await recordTelegramInboundError({
@@ -377,21 +527,6 @@ async function handleUpdate(update: TelegramUpdate) {
     );
     return;
   }
-
-  safeWaitUntil(
-    trackInboundUserMessageFunnelProgress({
-      userId: user.id,
-      isGuest: user.isGuest,
-      userRole: user.role,
-      channel: "TELEGRAM",
-      planId: user.subscription?.planId,
-      subscriptionStatus: user.subscription?.status,
-    }).catch((error) => {
-      telegramLogger.error("funnel.tracking_failed", "Funnel tracking failed", {
-        error,
-      });
-    }),
-  );
 
   if (process.env.TELEGRAM_DISABLE_AI === "true") {
     return;
@@ -842,72 +977,13 @@ async function handleUpdate(update: TelegramUpdate) {
   );
 }
 
-async function createTelegramLinkUrl(externalId: string, chatId: string) {
-  const rawToken = randomBytes(24).toString("hex");
-  const tokenHash = hashLinkToken(rawToken);
-  if (!tokenHash) return null;
-
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-  await prisma.channelLinkToken.create({
-    data: {
-      channel: "TELEGRAM",
-      tokenHash,
-      externalId,
-      chatId,
-      expiresAt,
-    },
-    select: { id: true },
-  });
-
-  const baseUrl = getPublicAppUrl().replace(/\/$/, "");
-  return `${baseUrl}/link/telegram/${rawToken}`;
-}
-
-async function createGuestUserForTelegramIdentity(externalId: string) {
-  return prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        isGuest: true,
-      },
-      select: {
-        id: true,
-        role: true,
-        isGuest: true,
-        subscription: {
-          select: {
-            status: true,
-            planId: true,
-          },
-        },
-      },
-    });
-
-    await tx.channelIdentity.upsert({
-      where: {
-        channel_externalId: {
-          channel: "TELEGRAM",
-          externalId,
-        },
-      },
-      update: {
-        userId: user.id,
-      },
-      create: {
-        channel: "TELEGRAM",
-        externalId,
-        userId: user.id,
-      },
-      select: { id: true },
-    });
-
-    return user;
-  });
-}
-
-async function sendTelegramMessage(chatId: number, text: string) {
+async function sendTelegramMessage(
+  chatId: number,
+  text: string,
+  signal?: AbortSignal,
+): Promise<boolean> {
   if (process.env.TELEGRAM_DISABLE_SEND === "true") {
-    return;
+    return true;
   }
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -916,11 +992,10 @@ async function sendTelegramMessage(chatId: number, text: string) {
       "config.missing_token",
       "TELEGRAM_BOT_TOKEN not configured",
     );
-    return;
+    return false;
   }
 
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
-
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -929,6 +1004,7 @@ async function sendTelegramMessage(chatId: number, text: string) {
       text,
       disable_web_page_preview: true,
     }),
+    signal,
   });
 
   if (!res.ok) {
@@ -937,7 +1013,10 @@ async function sendTelegramMessage(chatId: number, text: string) {
       status: res.status,
       body,
     });
+    return false;
   }
+
+  return true;
 }
 
 /**

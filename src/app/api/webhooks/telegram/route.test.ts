@@ -12,7 +12,14 @@ const mocks = vi.hoisted(() => ({
   waitUntil: vi.fn(),
   prismaMessageFindFirst: vi.fn(),
   prismaChannelIdentityFindUnique: vi.fn(),
+  prismaChannelIdentityUpsert: vi.fn(),
+  prismaChannelLinkTokenFindUnique: vi.fn(),
   prismaChannelLinkTokenCreate: vi.fn(),
+  prismaChannelLinkTokenUpdate: vi.fn(),
+  prismaChannelConnectRequestCreate: vi.fn(),
+  prismaChannelConnectRequestFindUnique: vi.fn(),
+  prismaChannelConnectRequestUpdate: vi.fn(),
+  prismaChannelConnectRequestUpdateMany: vi.fn(),
   prismaUserCreate: vi.fn(),
   prismaChannelIdentityCreate: vi.fn(),
   prismaChatUpsert: vi.fn(),
@@ -58,10 +65,19 @@ vi.mock("@/lib/db", () => ({
     },
     channelIdentity: {
       findUnique: mocks.prismaChannelIdentityFindUnique,
+      upsert: mocks.prismaChannelIdentityUpsert,
       create: mocks.prismaChannelIdentityCreate,
     },
     channelLinkToken: {
+      findUnique: mocks.prismaChannelLinkTokenFindUnique,
       create: mocks.prismaChannelLinkTokenCreate,
+      update: mocks.prismaChannelLinkTokenUpdate,
+    },
+    channelConnectRequest: {
+      create: mocks.prismaChannelConnectRequestCreate,
+      findUnique: mocks.prismaChannelConnectRequestFindUnique,
+      update: mocks.prismaChannelConnectRequestUpdate,
+      updateMany: mocks.prismaChannelConnectRequestUpdateMany,
     },
     user: {
       create: mocks.prismaUserCreate,
@@ -142,6 +158,10 @@ import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/open
 import { GET, POST } from "./route";
 
 const originalEnv = { ...process.env };
+
+function uniqueConstraintError() {
+  return Object.assign(new Error("Unique constraint"), { code: "P2002" });
+}
 
 function buildMinimalUpdate() {
   return {
@@ -242,7 +262,14 @@ describe("/api/webhooks/telegram", () => {
     mocks.waitUntil.mockReset();
     mocks.prismaMessageFindFirst.mockReset();
     mocks.prismaChannelIdentityFindUnique.mockReset();
+    mocks.prismaChannelIdentityUpsert.mockReset();
+    mocks.prismaChannelLinkTokenFindUnique.mockReset();
     mocks.prismaChannelLinkTokenCreate.mockReset();
+    mocks.prismaChannelLinkTokenUpdate.mockReset();
+    mocks.prismaChannelConnectRequestCreate.mockReset();
+    mocks.prismaChannelConnectRequestFindUnique.mockReset();
+    mocks.prismaChannelConnectRequestUpdate.mockReset();
+    mocks.prismaChannelConnectRequestUpdateMany.mockReset();
     mocks.prismaUserCreate.mockReset();
     mocks.prismaChannelIdentityCreate.mockReset();
     mocks.prismaChatUpsert.mockReset();
@@ -286,8 +313,41 @@ describe("/api/webhooks/telegram", () => {
         messageMetrics: {
           create: mocks.prismaMessageMetricsCreate,
         },
+        channelIdentity: {
+          findUnique: mocks.prismaChannelIdentityFindUnique,
+          upsert: mocks.prismaChannelIdentityUpsert,
+          create: mocks.prismaChannelIdentityCreate,
+        },
+        channelLinkToken: {
+          findUnique: mocks.prismaChannelLinkTokenFindUnique,
+          create: mocks.prismaChannelLinkTokenCreate,
+          update: mocks.prismaChannelLinkTokenUpdate,
+        },
+        channelConnectRequest: {
+          create: mocks.prismaChannelConnectRequestCreate,
+          update: mocks.prismaChannelConnectRequestUpdate,
+        },
+        user: {
+          create: mocks.prismaUserCreate,
+        },
       }),
     );
+    mocks.prismaChannelLinkTokenFindUnique.mockResolvedValue(null);
+    mocks.prismaChannelConnectRequestCreate.mockResolvedValue({
+      id: "tg_connect_1",
+      responseKind: "LINK",
+    });
+    mocks.prismaChannelConnectRequestFindUnique.mockResolvedValue({
+      id: "tg_connect_1",
+      responseKind: "LINK",
+    });
+    mocks.prismaChannelConnectRequestUpdate.mockImplementation(
+      ({ where, data }) => ({
+        id: where.id,
+        responseKind: data.responseKind ?? "LINK",
+      }),
+    );
+    mocks.prismaChannelConnectRequestUpdateMany.mockResolvedValue({ count: 1 });
     mocks.prismaMessageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
     mocks.prismaMessageUpdate.mockResolvedValue({});
     mocks.prismaPreferencesFindUnique.mockResolvedValue({ voiceEnabled: true });
@@ -500,6 +560,345 @@ describe("/api/webhooks/telegram", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("sync duplicate connect delivery reuses one token and sends one response", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+    process.env.NEXT_PUBLIC_APP_URL = "https://anthon.ai";
+
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue(null);
+    mocks.prismaChannelConnectRequestCreate
+      .mockResolvedValueOnce({ id: "tg_connect_1", responseKind: "LINK" })
+      .mockRejectedValueOnce(uniqueConstraintError());
+    mocks.prismaChannelConnectRequestFindUnique.mockResolvedValue({
+      id: "tg_connect_1",
+      responseKind: "LINK",
+    });
+
+    let deliveryClaims = 0;
+    mocks.prismaChannelConnectRequestUpdateMany.mockImplementation(
+      ({ data }) => {
+        if (data.status === "SENDING") {
+          return { count: deliveryClaims++ === 0 ? 1 : 0 };
+        }
+        return { count: 1 };
+      },
+    );
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await POST(
+        new Request("http://localhost/api/webhooks/telegram", {
+          method: "POST",
+          body: JSON.stringify(buildTextUpdate("/connect")),
+          headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+        }),
+      );
+      expect(response.status).toBe(200);
+    }
+
+    expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.prismaChannelConnectRequestFindUnique).toHaveBeenCalledWith({
+      where: {
+        channel_externalMessageId: {
+          channel: "TELEGRAM",
+          externalMessageId: "100:2",
+        },
+      },
+      select: { id: true, responseKind: true },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mocks.prismaMessageFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("sync concurrent connect deliveries atomically lease one response", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+    process.env.NEXT_PUBLIC_APP_URL = "https://anthon.ai";
+
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue(null);
+    let creates = 0;
+    mocks.prismaChannelConnectRequestCreate.mockImplementation(async () => {
+      if (creates++ === 0) {
+        await Promise.resolve();
+        return { id: "tg_connect_1", responseKind: "LINK" };
+      }
+      throw uniqueConstraintError();
+    });
+    mocks.prismaChannelConnectRequestFindUnique.mockResolvedValue({
+      id: "tg_connect_1",
+      responseKind: "LINK",
+    });
+
+    let deliveryClaims = 0;
+    mocks.prismaChannelConnectRequestUpdateMany.mockImplementation(
+      ({ data }) => {
+        if (data.status === "SENDING") {
+          return { count: deliveryClaims++ === 0 ? 1 : 0 };
+        }
+        return { count: 1 };
+      },
+    );
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const [first, second] = await Promise.all(
+      [0, 1].map(() =>
+        POST(
+          new Request("http://localhost/api/webhooks/telegram", {
+            method: "POST",
+            body: JSON.stringify(buildTextUpdate("/connect")),
+            headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+          }),
+        ),
+      ),
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("sync retries a failed connect delivery with the same token", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+    process.env.NEXT_PUBLIC_APP_URL = "https://anthon.ai";
+
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue(null);
+    mocks.prismaChannelConnectRequestCreate
+      .mockResolvedValueOnce({ id: "tg_connect_1", responseKind: "LINK" })
+      .mockRejectedValueOnce(uniqueConstraintError());
+    mocks.prismaChannelConnectRequestFindUnique.mockResolvedValue({
+      id: "tg_connect_1",
+      responseKind: "LINK",
+    });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await POST(
+        new Request("http://localhost/api/webhooks/telegram", {
+          method: "POST",
+          body: JSON.stringify(buildTextUpdate("/connect")),
+          headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+        }),
+      );
+      expect(response.status).toBe(200);
+    }
+
+    expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(mocks.prismaChannelConnectRequestUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "FAILED" }),
+      }),
+    );
+    expect(
+      mocks.prismaChannelConnectRequestUpdateMany,
+    ).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "SENT" }),
+      }),
+    );
+  });
+
+  it("does not let a stale successful connect delivery settle a newer Telegram lease", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+    process.env.NEXT_PUBLIC_APP_URL = "https://anthon.ai";
+
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue(null);
+    mocks.prismaChannelConnectRequestCreate
+      .mockResolvedValueOnce({ id: "tg_connect_1", responseKind: "LINK" })
+      .mockRejectedValueOnce(uniqueConstraintError());
+    mocks.prismaChannelConnectRequestFindUnique.mockResolvedValue({
+      id: "tg_connect_1",
+      responseKind: "LINK",
+    });
+
+    const claimTokens: string[] = [];
+    const settlements: Array<{
+      status: string;
+      claimToken: unknown;
+      count: number;
+    }> = [];
+    let activeClaimToken: string | undefined;
+    let finalStatus = "PENDING";
+    mocks.prismaChannelConnectRequestUpdateMany.mockImplementation(
+      ({ where, data }) => {
+        if (data.status === "SENDING") {
+          const claimToken = data.claimToken;
+          if (typeof claimToken !== "string") {
+            throw new Error("Connect lease must receive a fencing token");
+          }
+
+          // The second claim represents a redelivery after the first lease
+          // expired while its outbound request was still in progress.
+          claimTokens.push(claimToken);
+          activeClaimToken = claimToken;
+          finalStatus = "SENDING";
+          return Promise.resolve({ count: 1 });
+        }
+
+        const count = where.claimToken === activeClaimToken ? 1 : 0;
+        settlements.push({
+          status: data.status,
+          claimToken: where.claimToken,
+          count,
+        });
+        if (count === 1) finalStatus = data.status;
+        return Promise.resolve({ count });
+      },
+    );
+
+    let startFirstFetch!: () => void;
+    let resolveFirstFetch!: (response: Response) => void;
+    const firstFetchStarted = new Promise<void>((resolve) => {
+      startFirstFetch = resolve;
+    });
+    const firstFetch = new Promise<Response>((resolve) => {
+      resolveFirstFetch = resolve;
+    });
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        startFirstFetch();
+        return firstFetch;
+      })
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const staleWorker = POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildTextUpdate("/connect")),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+    await firstFetchStarted;
+
+    const newerWorker = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildTextUpdate("/connect")),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+    expect(newerWorker.status).toBe(200);
+
+    resolveFirstFetch(new Response("{}"));
+    expect((await staleWorker).status).toBe(200);
+
+    expect(claimTokens).toHaveLength(2);
+    expect(claimTokens[0]).not.toBe(claimTokens[1]);
+    expect(settlements).toEqual([
+      { status: "SENT", claimToken: claimTokens[1], count: 1 },
+      { status: "SENT", claimToken: claimTokens[0], count: 0 },
+    ]);
+    expect(finalStatus).toBe("SENT");
+  });
+
+  it("does not let a stale failed connect delivery settle a newer Telegram lease", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+    process.env.NEXT_PUBLIC_APP_URL = "https://anthon.ai";
+
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue(null);
+    mocks.prismaChannelConnectRequestCreate
+      .mockResolvedValueOnce({ id: "tg_connect_1", responseKind: "LINK" })
+      .mockRejectedValueOnce(uniqueConstraintError());
+    mocks.prismaChannelConnectRequestFindUnique.mockResolvedValue({
+      id: "tg_connect_1",
+      responseKind: "LINK",
+    });
+
+    const claimTokens: string[] = [];
+    const settlements: Array<{
+      status: string;
+      claimToken: unknown;
+      count: number;
+    }> = [];
+    let activeClaimToken: string | undefined;
+    let finalStatus = "PENDING";
+    mocks.prismaChannelConnectRequestUpdateMany.mockImplementation(
+      ({ where, data }) => {
+        if (data.status === "SENDING") {
+          const claimToken = data.claimToken;
+          if (typeof claimToken !== "string") {
+            throw new Error("Connect lease must receive a fencing token");
+          }
+
+          claimTokens.push(claimToken);
+          activeClaimToken = claimToken;
+          finalStatus = "SENDING";
+          return Promise.resolve({ count: 1 });
+        }
+
+        const count = where.claimToken === activeClaimToken ? 1 : 0;
+        settlements.push({
+          status: data.status,
+          claimToken: where.claimToken,
+          count,
+        });
+        if (count === 1) finalStatus = data.status;
+        return Promise.resolve({ count });
+      },
+    );
+
+    let startFirstFetch!: () => void;
+    let resolveFirstFetch!: (response: Response) => void;
+    const firstFetchStarted = new Promise<void>((resolve) => {
+      startFirstFetch = resolve;
+    });
+    const firstFetch = new Promise<Response>((resolve) => {
+      resolveFirstFetch = resolve;
+    });
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        startFirstFetch();
+        return firstFetch;
+      })
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const staleWorker = POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildTextUpdate("/connect")),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+    await firstFetchStarted;
+
+    const newerWorker = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildTextUpdate("/connect")),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+    expect(newerWorker.status).toBe(200);
+
+    resolveFirstFetch(new Response("unavailable", { status: 503 }));
+    expect((await staleWorker).status).toBe(200);
+
+    expect(claimTokens).toHaveLength(2);
+    expect(claimTokens[0]).not.toBe(claimTokens[1]);
+    expect(settlements).toEqual([
+      { status: "SENT", claimToken: claimTokens[1], count: 1 },
+      { status: "FAILED", claimToken: claimTokens[0], count: 0 },
+    ]);
+    expect(finalStatus).toBe("SENT");
   });
 
   it("sync text message persists inbound idempotency marker when rate limit is exceeded", async () => {

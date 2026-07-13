@@ -16,6 +16,11 @@ An AI-powered coaching chat application built with Next.js 16, featuring intelli
 
 ## 🚀 Quick Start
 
+Use Bun 1.3.5, the version pinned in the CI and migration workflows. Node.js is
+not required for this Bun-based workflow; if you run the toolchain with Node
+instead, use a version supported by Prisma 7.2: `^20.19`, `^22.12`, or
+`>=24.0`.
+
 ```bash
 # Install dependencies
 bun install
@@ -56,7 +61,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 -   **Framework:** Next.js 16 (App Router)
 -   **Language:** TypeScript
 -   **Database:** PostgreSQL + Prisma + pgvector
--   **AI:** Vercel AI SDK v6 + OpenRouter + TinyFish web tools
+-   **AI:** Vercel AI SDK v7 + OpenRouter + TinyFish web tools
 -   **Job Queue:** Upstash QStash
 -   **Auth:** Clerk
 -   **Styling:** Tailwind CSS + Radix UI + Framer Motion
@@ -87,7 +92,10 @@ anthon-2.0/
 | ---------------- | ------------------------ |
 | `bun run dev`    | Start development server |
 | `bun run build`  | Build for production     |
+| `bun run migrate:deploy` | Apply migrations through the guarded deployment workflow |
 | `bun run lint`   | Run Biome check          |
+| `bun run typecheck` | Run TypeScript checks without emitting files |
+| `bun run verify` | Run lint, typecheck, and unit tests |
 | `bun run format` | Format code with Biome   |
 | `bun run test`   | Run unit tests (Vitest)  |
 | `bun run test:integration` | Run integration tests (real DB) |
@@ -122,7 +130,10 @@ Optional env overrides:
 For safe environment separation:
 
 - Use Neon `development` branch for `TEST_DATABASE_URL` (integration tests).
-- Use Neon `production` branch for deployed `DATABASE_URL` and `DIRECT_DATABASE_URL`.
+- Use Neon `production` branch for the deployed `DATABASE_URL`.
+- Store that branch's direct connection string as `DIRECT_DATABASE_URL` in the
+  protected GitHub Environment used by the migration workflow, rather than in
+  Vercel build settings.
 
 ## 📄 License
 

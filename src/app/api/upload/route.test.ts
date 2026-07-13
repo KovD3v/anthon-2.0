@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   attachmentFindFirst: vi.fn(),
   attachmentDelete: vi.fn(),
   checkRateLimit: vi.fn(),
+  deletePrivateVoiceBlob: vi.fn(),
+  isPrivateVoiceBlobUrl: vi.fn(),
 }));
 
 vi.mock("@vercel/blob", () => ({
@@ -41,6 +43,11 @@ vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: mocks.checkRateLimit,
 }));
 
+vi.mock("@/lib/voice/storage", () => ({
+  deletePrivateVoiceBlob: mocks.deletePrivateVoiceBlob,
+  isPrivateVoiceBlobUrl: mocks.isPrivateVoiceBlobUrl,
+}));
+
 import { DELETE, POST } from "./route";
 
 function buildUploadRequest(formData: FormData): Request {
@@ -61,6 +68,8 @@ describe("/api/upload POST", () => {
     mocks.attachmentFindFirst.mockReset();
     mocks.attachmentDelete.mockReset();
     mocks.checkRateLimit.mockReset();
+    mocks.deletePrivateVoiceBlob.mockReset();
+    mocks.isPrivateVoiceBlobUrl.mockReset();
 
     mocks.getAuthUser.mockResolvedValue({
       user: { id: "user-1", role: "USER" },
@@ -97,6 +106,7 @@ describe("/api/upload POST", () => {
       id: "att-1",
       createdAt: new Date("2026-02-16T12:00:00.000Z"),
     });
+    mocks.isPrivateVoiceBlobUrl.mockReturnValue(false);
   });
 
   it("returns 401 when unauthenticated", async () => {
@@ -359,6 +369,8 @@ describe("/api/upload DELETE", () => {
     mocks.attachmentFindFirst.mockReset();
     mocks.attachmentDelete.mockReset();
     mocks.checkRateLimit.mockReset();
+    mocks.deletePrivateVoiceBlob.mockReset();
+    mocks.isPrivateVoiceBlobUrl.mockReset();
 
     mocks.getAuthUser.mockResolvedValue({
       user: { id: "user-1", role: "USER" },
@@ -370,6 +382,8 @@ describe("/api/upload DELETE", () => {
     });
     mocks.attachmentDelete.mockResolvedValue({});
     mocks.del.mockResolvedValue({});
+    mocks.deletePrivateVoiceBlob.mockResolvedValue(undefined);
+    mocks.isPrivateVoiceBlobUrl.mockReturnValue(false);
   });
 
   it("returns 401 when unauthenticated", async () => {
@@ -449,6 +463,29 @@ describe("/api/upload DELETE", () => {
     await expect(response.json()).resolves.toEqual({
       success: true,
       message: "File deleted successfully",
+    });
+  });
+
+  it("uses the dedicated private-store credential for voice objects", async () => {
+    const privateVoiceUrl =
+      "https://store.private.blob.vercel-storage.com/voice/chat-1/voice.mp3";
+    mocks.attachmentFindFirst.mockResolvedValue({
+      id: "att-voice-1",
+      blobUrl: privateVoiceUrl,
+    });
+    mocks.isPrivateVoiceBlobUrl.mockReturnValue(true);
+
+    const response = await DELETE(
+      new Request(
+        `http://localhost/api/upload?url=${encodeURIComponent(privateVoiceUrl)}`,
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.deletePrivateVoiceBlob).toHaveBeenCalledWith(privateVoiceUrl);
+    expect(mocks.del).not.toHaveBeenCalled();
+    expect(mocks.attachmentDelete).toHaveBeenCalledWith({
+      where: { id: "att-voice-1" },
     });
   });
 });

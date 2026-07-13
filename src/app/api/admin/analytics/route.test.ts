@@ -8,8 +8,8 @@ const mocks = vi.hoisted(() => ({
   messageAggregate: vi.fn(),
   messageFindMany: vi.fn(),
   messageGroupBy: vi.fn(),
+  queryRaw: vi.fn(),
   ragDocumentCount: vi.fn(),
-  subscriptionCount: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -18,6 +18,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    $queryRaw: mocks.queryRaw,
     user: {
       count: mocks.userCount,
       findMany: mocks.userFindMany,
@@ -30,9 +31,6 @@ vi.mock("@/lib/db", () => ({
     },
     ragDocument: {
       count: mocks.ragDocumentCount,
-    },
-    subscription: {
-      count: mocks.subscriptionCount,
     },
   },
 }));
@@ -48,8 +46,8 @@ describe("GET /api/admin/analytics", () => {
     mocks.messageAggregate.mockReset();
     mocks.messageFindMany.mockReset();
     mocks.messageGroupBy.mockReset();
+    mocks.queryRaw.mockReset();
     mocks.ragDocumentCount.mockReset();
-    mocks.subscriptionCount.mockReset();
 
     mocks.requireAdmin.mockResolvedValue({ errorResponse: null });
 
@@ -95,7 +93,18 @@ describe("GET /api/admin/analytics", () => {
         { userId: "u2", _count: 1 },
       ])
       .mockResolvedValueOnce([{ userId: "u1" }]);
-    mocks.subscriptionCount.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+    mocks.queryRaw.mockResolvedValue([
+      {
+        signup: BigInt(1),
+        firstChat: BigInt(1),
+        session3: BigInt(0),
+        upgrade: BigInt(1),
+        signupAll: BigInt(1),
+        firstChatAll: BigInt(1),
+        session3All: BigInt(0),
+        upgradeAll: BigInt(1),
+      },
+    ]);
   });
 
   it("returns requireAdmin error response when unauthorized", async () => {
@@ -213,6 +222,9 @@ describe("GET /api/admin/analytics", () => {
         overallAll: 100,
       },
     });
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
+    expect(mocks.userFindMany).not.toHaveBeenCalled();
+    expect(mocks.messageFindMany).not.toHaveBeenCalled();
   });
 
   it("returns 400 for invalid type", async () => {

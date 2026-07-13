@@ -4,12 +4,23 @@
  */
 
 import { NextResponse } from "next/server";
-import { analyzeSessionProgress } from "@/lib/analytics/funnel";
+import { SESSION } from "@/lib/ai/constants";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 
 const analyticsLogger = createLogger("usage");
+
+interface FunnelStatsRow {
+  signup: bigint;
+  firstChat: bigint;
+  session3: bigint;
+  upgrade: bigint;
+  signupAll: bigint;
+  firstChatAll: bigint;
+  session3All: bigint;
+  upgradeAll: bigint;
+}
 
 // GET /api/admin/analytics
 export async function GET(req: Request) {
@@ -259,78 +270,117 @@ function toPercentage(numerator: number, denominator: number) {
   return Math.round((numerator / denominator) * 1000) / 10;
 }
 
-function countUsersWithSession3(
-  userIds: Set<string>,
-  messagesByUser: Map<string, Date[]>,
-) {
-  let count = 0;
-  for (const userId of userIds) {
-    const timestamps = messagesByUser.get(userId);
-    if (!timestamps || timestamps.length < 6) continue;
-    const progress = analyzeSessionProgress(timestamps);
-    if (progress.validSessions >= 3) {
-      count++;
-    }
-  }
-  return count;
-}
-
 /**
  * Funnel statistics - signup to upgrade with registered/all comparison
  */
 async function getFunnelStats() {
-  const [allUsers, registeredUsers, userMessages, upgradeAll, upgrade] =
-    await Promise.all([
-      prisma.user.findMany({
-        select: { id: true },
-      }),
-      prisma.user.findMany({
-        where: { clerkId: { not: null } },
-        select: { id: true },
-      }),
-      prisma.message.findMany({
-        where: { role: "USER" },
-        select: { userId: true, createdAt: true },
-        orderBy: [{ userId: "asc" }, { createdAt: "asc" }],
-      }),
-      prisma.subscription.count({
-        where: { convertedAt: { not: null } },
-      }),
-      prisma.subscription.count({
-        where: {
-          convertedAt: { not: null },
-          user: { clerkId: { not: null } },
-        },
-      }),
-    ]);
+  // Keep this aligned with analyzeSessionProgress(): a new session starts only
+  // when the gap is strictly greater than SESSION.GAP_MS. RANGE keeps messages
+  // with identical timestamps in one session. Raw SQL bypasses the soft-delete
+  // extension, so the previous User and Message filters are explicit here.
+  const [stats] = await prisma.$queryRaw<FunnelStatsRow[]>`
+    WITH "activeUsers" AS (
+      SELECT
+        u.id,
+        u."clerkId" IS NOT NULL AS "isRegistered"
+      FROM "User" u
+      WHERE u."deletedAt" IS NULL
+    ),
+    "allUserMessages" AS (
+      SELECT
+        m."userId",
+        m."createdAt"
+      FROM "Message" m
+      WHERE m."role" = 'USER'
+        AND m."deletedAt" IS NULL
+    ),
+    "activeUserMessages" AS (
+      SELECT
+        m."userId",
+        m."createdAt",
+        u."isRegistered"
+      FROM "allUserMessages" m
+      INNER JOIN "activeUsers" u ON u.id = m."userId"
+    ),
+    "messagesWithPrevious" AS (
+      SELECT
+        "userId",
+        "createdAt",
+        "isRegistered",
+        LAG("createdAt") OVER (
+          PARTITION BY "userId"
+          ORDER BY "createdAt" ASC
+        ) AS "previousCreatedAt"
+      FROM "activeUserMessages"
+    ),
+    "sessionNumbers" AS (
+      SELECT
+        "userId",
+        "isRegistered",
+        SUM(
+          CASE
+            WHEN "previousCreatedAt" IS NULL
+              OR "createdAt" - "previousCreatedAt" > (${SESSION.GAP_MS} * INTERVAL '1 millisecond')
+            THEN 1
+            ELSE 0
+          END
+        ) OVER (
+          PARTITION BY "userId"
+          ORDER BY "createdAt" ASC
+          RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS "sessionNumber"
+      FROM "messagesWithPrevious"
+    ),
+    "sessionMessageCounts" AS (
+      SELECT
+        "userId",
+        "isRegistered",
+        "sessionNumber",
+        COUNT(*) AS "messageCount"
+      FROM "sessionNumbers"
+      GROUP BY "userId", "isRegistered", "sessionNumber"
+    ),
+    "usersWithSession3" AS (
+      SELECT
+        "userId",
+        "isRegistered"
+      FROM "sessionMessageCounts"
+      GROUP BY "userId", "isRegistered"
+      HAVING COUNT(*) FILTER (WHERE "messageCount" >= 2) >= 3
+    )
+    SELECT
+      (SELECT COUNT(*) FROM "activeUsers" WHERE "isRegistered") AS signup,
+      (SELECT COUNT(DISTINCT "userId") FROM "activeUserMessages" WHERE "isRegistered") AS "firstChat",
+      (SELECT COUNT(*) FROM "usersWithSession3" WHERE "isRegistered") AS session3,
+      (
+        SELECT COUNT(*)
+        FROM "Subscription" s
+        INNER JOIN "User" u ON u.id = s."userId"
+        WHERE s."convertedAt" IS NOT NULL
+          AND u."clerkId" IS NOT NULL
+      ) AS upgrade,
+      (SELECT COUNT(*) FROM "activeUsers") AS "signupAll",
+      (SELECT COUNT(DISTINCT "userId") FROM "allUserMessages") AS "firstChatAll",
+      (SELECT COUNT(*) FROM "usersWithSession3") AS "session3All",
+      (
+        SELECT COUNT(*)
+        FROM "Subscription" s
+        WHERE s."convertedAt" IS NOT NULL
+      ) AS "upgradeAll"
+  `;
 
-  const signupAll = allUsers.length;
-  const signup = registeredUsers.length;
-
-  const registeredUserIds = new Set(registeredUsers.map((user) => user.id));
-  const allUserIds = new Set(allUsers.map((user) => user.id));
-
-  const usersWithFirstChat = new Set<string>();
-  const messagesByUser = new Map<string, Date[]>();
-
-  for (const message of userMessages) {
-    usersWithFirstChat.add(message.userId);
-
-    const current = messagesByUser.get(message.userId);
-    if (current) {
-      current.push(message.createdAt);
-    } else {
-      messagesByUser.set(message.userId, [message.createdAt]);
-    }
+  if (!stats) {
+    throw new Error("Funnel analytics query returned no result");
   }
 
-  const firstChatAll = usersWithFirstChat.size;
-  const firstChat = Array.from(registeredUserIds).filter((userId) =>
-    usersWithFirstChat.has(userId),
-  ).length;
-
-  const session3All = countUsersWithSession3(allUserIds, messagesByUser);
-  const session3 = countUsersWithSession3(registeredUserIds, messagesByUser);
+  const signup = Number(stats.signup);
+  const firstChat = Number(stats.firstChat);
+  const session3 = Number(stats.session3);
+  const upgrade = Number(stats.upgrade);
+  const signupAll = Number(stats.signupAll);
+  const firstChatAll = Number(stats.firstChatAll);
+  const session3All = Number(stats.session3All);
+  const upgradeAll = Number(stats.upgradeAll);
 
   return {
     funnel: {

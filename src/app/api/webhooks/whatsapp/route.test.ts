@@ -13,7 +13,14 @@ const mocks = vi.hoisted(() => ({
   waitUntil: vi.fn(),
   prismaMessageFindFirst: vi.fn(),
   prismaChannelIdentityFindUnique: vi.fn(),
+  prismaChannelIdentityUpsert: vi.fn(),
+  prismaChannelLinkTokenFindUnique: vi.fn(),
   prismaChannelLinkTokenCreate: vi.fn(),
+  prismaChannelLinkTokenUpdate: vi.fn(),
+  prismaChannelConnectRequestCreate: vi.fn(),
+  prismaChannelConnectRequestFindUnique: vi.fn(),
+  prismaChannelConnectRequestUpdate: vi.fn(),
+  prismaChannelConnectRequestUpdateMany: vi.fn(),
   prismaUserCreate: vi.fn(),
   prismaChannelIdentityCreate: vi.fn(),
   prismaChatUpsert: vi.fn(),
@@ -58,10 +65,19 @@ vi.mock("@/lib/db", () => ({
     },
     channelIdentity: {
       findUnique: mocks.prismaChannelIdentityFindUnique,
+      upsert: mocks.prismaChannelIdentityUpsert,
       create: mocks.prismaChannelIdentityCreate,
     },
     channelLinkToken: {
+      findUnique: mocks.prismaChannelLinkTokenFindUnique,
       create: mocks.prismaChannelLinkTokenCreate,
+      update: mocks.prismaChannelLinkTokenUpdate,
+    },
+    channelConnectRequest: {
+      create: mocks.prismaChannelConnectRequestCreate,
+      findUnique: mocks.prismaChannelConnectRequestFindUnique,
+      update: mocks.prismaChannelConnectRequestUpdate,
+      updateMany: mocks.prismaChannelConnectRequestUpdateMany,
     },
     user: {
       create: mocks.prismaUserCreate,
@@ -135,9 +151,39 @@ import {
   sendWhatsAppVoice,
   verifySignature,
 } from "@/lib/channels/whatsapp/utils";
-import { GET, POST } from "./route";
+import { GET, POST as postWebhook } from "./route";
 
 const originalEnv = { ...process.env };
+const testAppSecret = "test-app-secret";
+const invalidSignature = `sha256=${"0".repeat(64)}`;
+
+function uniqueConstraintError() {
+  return Object.assign(new Error("Unique constraint"), { code: "P2002" });
+}
+
+// Keep behavior tests focused on webhook processing. Authentication tests call
+// `postWebhook` directly so they cannot accidentally receive a generated signature.
+async function POST(request: Request) {
+  const secret = process.env.WHATSAPP_APP_SECRET;
+  if (!secret) {
+    throw new Error(
+      "WHATSAPP_APP_SECRET must be configured for signed webhook tests",
+    );
+  }
+
+  const body = await request.clone().text();
+  const headers = new Headers(request.headers);
+  const signature = createHmac("sha256", secret).update(body).digest("hex");
+  headers.set("x-hub-signature-256", `sha256=${signature}`);
+
+  return postWebhook(
+    new Request(request.url, {
+      method: request.method,
+      headers,
+      body,
+    }),
+  );
+}
 
 function buildPayload() {
   return {
@@ -315,7 +361,7 @@ describe("/api/webhooks/whatsapp", () => {
   beforeEach(() => {
     process.env.WHATSAPP_VERIFY_TOKEN = "verify-token";
     process.env.OPENROUTER_API_KEY = "sk-test";
-    delete process.env.WHATSAPP_APP_SECRET;
+    process.env.WHATSAPP_APP_SECRET = testAppSecret;
     delete process.env.WHATSAPP_SYNC_WEBHOOK;
     delete process.env.WHATSAPP_DISABLE_SEND;
     delete process.env.WHATSAPP_DISABLE_AI;
@@ -324,7 +370,14 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.waitUntil.mockReset();
     mocks.prismaMessageFindFirst.mockReset();
     mocks.prismaChannelIdentityFindUnique.mockReset();
+    mocks.prismaChannelIdentityUpsert.mockReset();
+    mocks.prismaChannelLinkTokenFindUnique.mockReset();
     mocks.prismaChannelLinkTokenCreate.mockReset();
+    mocks.prismaChannelLinkTokenUpdate.mockReset();
+    mocks.prismaChannelConnectRequestCreate.mockReset();
+    mocks.prismaChannelConnectRequestFindUnique.mockReset();
+    mocks.prismaChannelConnectRequestUpdate.mockReset();
+    mocks.prismaChannelConnectRequestUpdateMany.mockReset();
     mocks.prismaUserCreate.mockReset();
     mocks.prismaChannelIdentityCreate.mockReset();
     mocks.prismaChatUpsert.mockReset();
@@ -367,8 +420,41 @@ describe("/api/webhooks/whatsapp", () => {
         messageMetrics: {
           create: mocks.prismaMessageMetricsCreate,
         },
+        channelIdentity: {
+          findUnique: mocks.prismaChannelIdentityFindUnique,
+          upsert: mocks.prismaChannelIdentityUpsert,
+          create: mocks.prismaChannelIdentityCreate,
+        },
+        channelLinkToken: {
+          findUnique: mocks.prismaChannelLinkTokenFindUnique,
+          create: mocks.prismaChannelLinkTokenCreate,
+          update: mocks.prismaChannelLinkTokenUpdate,
+        },
+        channelConnectRequest: {
+          create: mocks.prismaChannelConnectRequestCreate,
+          update: mocks.prismaChannelConnectRequestUpdate,
+        },
+        user: {
+          create: mocks.prismaUserCreate,
+        },
       }),
     );
+    mocks.prismaChannelLinkTokenFindUnique.mockResolvedValue(null);
+    mocks.prismaChannelConnectRequestCreate.mockResolvedValue({
+      id: "wa_connect_1",
+      responseKind: "LINK",
+    });
+    mocks.prismaChannelConnectRequestFindUnique.mockResolvedValue({
+      id: "wa_connect_1",
+      responseKind: "LINK",
+    });
+    mocks.prismaChannelConnectRequestUpdate.mockImplementation(
+      ({ where, data }) => ({
+        id: where.id,
+        responseKind: data.responseKind ?? "LINK",
+      }),
+    );
+    mocks.prismaChannelConnectRequestUpdateMany.mockResolvedValue({ count: 1 });
     mocks.prismaMessageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
     mocks.prismaPreferencesFindUnique.mockResolvedValue({ voiceEnabled: true });
     mocks.prismaMessageUpdate.mockResolvedValue({});
@@ -408,13 +494,44 @@ describe("/api/webhooks/whatsapp", () => {
     await expect(response.json()).resolves.toEqual({ error: "Forbidden" });
   });
 
-  it("POST returns 401 on signature mismatch when secret is configured", async () => {
-    process.env.WHATSAPP_APP_SECRET = "app-secret";
+  it("POST returns 401 when the app secret is missing", async () => {
+    delete process.env.WHATSAPP_APP_SECRET;
 
-    const response = await POST(
+    const response = await postWebhook(
       new Request("http://localhost/api/webhooks/whatsapp", {
         method: "POST",
         body: JSON.stringify(buildPayload()),
+        headers: { "x-hub-signature-256": invalidSignature },
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+    expect(mocks.waitUntil).not.toHaveBeenCalled();
+  });
+
+  it("POST returns 401 when the signature is missing", async () => {
+    process.env.WHATSAPP_APP_SECRET = "app-secret";
+
+    const response = await postWebhook(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildPayload()),
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+  });
+
+  it("POST returns 401 when the signature is invalid", async () => {
+    process.env.WHATSAPP_APP_SECRET = "app-secret";
+
+    const response = await postWebhook(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildPayload()),
+        headers: { "x-hub-signature-256": invalidSignature },
       }),
     );
 
@@ -431,7 +548,7 @@ describe("/api/webhooks/whatsapp", () => {
       .update(body)
       .digest("hex");
 
-    const response = await POST(
+    const response = await postWebhook(
       new Request("http://localhost/api/webhooks/whatsapp", {
         method: "POST",
         body,
@@ -608,6 +725,343 @@ describe("/api/webhooks/whatsapp", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("sync duplicate connect delivery reuses one token and sends one response", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+    process.env.NEXT_PUBLIC_APP_URL = "https://anthon.ai";
+
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue(null);
+    mocks.prismaChannelConnectRequestCreate
+      .mockResolvedValueOnce({ id: "wa_connect_1", responseKind: "LINK" })
+      .mockRejectedValueOnce(uniqueConstraintError());
+    mocks.prismaChannelConnectRequestFindUnique.mockResolvedValue({
+      id: "wa_connect_1",
+      responseKind: "LINK",
+    });
+
+    let deliveryClaims = 0;
+    mocks.prismaChannelConnectRequestUpdateMany.mockImplementation(
+      ({ data }) => {
+        if (data.status === "SENDING") {
+          return { count: deliveryClaims++ === 0 ? 1 : 0 };
+        }
+        return { count: 1 };
+      },
+    );
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await POST(
+        new Request("http://localhost/api/webhooks/whatsapp", {
+          method: "POST",
+          body: JSON.stringify(buildTextPayload("/connect")),
+        }),
+      );
+      expect(response.status).toBe(200);
+    }
+
+    expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.prismaChannelConnectRequestFindUnique).toHaveBeenCalledWith({
+      where: {
+        channel_externalMessageId: {
+          channel: "WHATSAPP",
+          externalMessageId: "wamid_1",
+        },
+      },
+      select: { id: true, responseKind: true },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mocks.prismaMessageFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("sync concurrent connect deliveries atomically lease one response", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+    process.env.NEXT_PUBLIC_APP_URL = "https://anthon.ai";
+
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue(null);
+    let creates = 0;
+    mocks.prismaChannelConnectRequestCreate.mockImplementation(async () => {
+      if (creates++ === 0) {
+        await Promise.resolve();
+        return { id: "wa_connect_1", responseKind: "LINK" };
+      }
+      throw uniqueConstraintError();
+    });
+    mocks.prismaChannelConnectRequestFindUnique.mockResolvedValue({
+      id: "wa_connect_1",
+      responseKind: "LINK",
+    });
+
+    let deliveryClaims = 0;
+    mocks.prismaChannelConnectRequestUpdateMany.mockImplementation(
+      ({ data }) => {
+        if (data.status === "SENDING") {
+          return { count: deliveryClaims++ === 0 ? 1 : 0 };
+        }
+        return { count: 1 };
+      },
+    );
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const [first, second] = await Promise.all(
+      [0, 1].map(() =>
+        POST(
+          new Request("http://localhost/api/webhooks/whatsapp", {
+            method: "POST",
+            body: JSON.stringify(buildTextPayload("/connect")),
+          }),
+        ),
+      ),
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("sync retries a failed connect delivery with the same token", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+    process.env.NEXT_PUBLIC_APP_URL = "https://anthon.ai";
+
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue(null);
+    mocks.prismaChannelConnectRequestCreate
+      .mockResolvedValueOnce({ id: "wa_connect_1", responseKind: "LINK" })
+      .mockRejectedValueOnce(uniqueConstraintError());
+    mocks.prismaChannelConnectRequestFindUnique.mockResolvedValue({
+      id: "wa_connect_1",
+      responseKind: "LINK",
+    });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await POST(
+        new Request("http://localhost/api/webhooks/whatsapp", {
+          method: "POST",
+          body: JSON.stringify(buildTextPayload("/connect")),
+        }),
+      );
+      expect(response.status).toBe(200);
+    }
+
+    expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(mocks.prismaChannelConnectRequestUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "FAILED" }),
+      }),
+    );
+    expect(
+      mocks.prismaChannelConnectRequestUpdateMany,
+    ).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "SENT" }),
+      }),
+    );
+  });
+
+  it("does not let a stale successful connect delivery settle a newer WhatsApp lease", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+    process.env.NEXT_PUBLIC_APP_URL = "https://anthon.ai";
+
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue(null);
+    mocks.prismaChannelConnectRequestCreate
+      .mockResolvedValueOnce({ id: "wa_connect_1", responseKind: "LINK" })
+      .mockRejectedValueOnce(uniqueConstraintError());
+    mocks.prismaChannelConnectRequestFindUnique.mockResolvedValue({
+      id: "wa_connect_1",
+      responseKind: "LINK",
+    });
+
+    const claimTokens: string[] = [];
+    const settlements: Array<{
+      status: string;
+      claimToken: unknown;
+      count: number;
+    }> = [];
+    let activeClaimToken: string | undefined;
+    let finalStatus = "PENDING";
+    mocks.prismaChannelConnectRequestUpdateMany.mockImplementation(
+      ({ where, data }) => {
+        if (data.status === "SENDING") {
+          const claimToken = data.claimToken;
+          if (typeof claimToken !== "string") {
+            throw new Error("Connect lease must receive a fencing token");
+          }
+
+          // The second claim represents a redelivery after the first lease
+          // expired while its outbound request was still in progress.
+          claimTokens.push(claimToken);
+          activeClaimToken = claimToken;
+          finalStatus = "SENDING";
+          return Promise.resolve({ count: 1 });
+        }
+
+        const count = where.claimToken === activeClaimToken ? 1 : 0;
+        settlements.push({
+          status: data.status,
+          claimToken: where.claimToken,
+          count,
+        });
+        if (count === 1) finalStatus = data.status;
+        return Promise.resolve({ count });
+      },
+    );
+
+    let startFirstFetch!: () => void;
+    let resolveFirstFetch!: (response: Response) => void;
+    const firstFetchStarted = new Promise<void>((resolve) => {
+      startFirstFetch = resolve;
+    });
+    const firstFetch = new Promise<Response>((resolve) => {
+      resolveFirstFetch = resolve;
+    });
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        startFirstFetch();
+        return firstFetch;
+      })
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const staleWorker = POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildTextPayload("/connect")),
+      }),
+    );
+    await firstFetchStarted;
+
+    const newerWorker = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildTextPayload("/connect")),
+      }),
+    );
+    expect(newerWorker.status).toBe(200);
+
+    resolveFirstFetch(new Response("{}"));
+    expect((await staleWorker).status).toBe(200);
+
+    expect(claimTokens).toHaveLength(2);
+    expect(claimTokens[0]).not.toBe(claimTokens[1]);
+    expect(settlements).toEqual([
+      { status: "SENT", claimToken: claimTokens[1], count: 1 },
+      { status: "SENT", claimToken: claimTokens[0], count: 0 },
+    ]);
+    expect(finalStatus).toBe("SENT");
+  });
+
+  it("does not let a stale failed connect delivery settle a newer WhatsApp lease", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+    process.env.NEXT_PUBLIC_APP_URL = "https://anthon.ai";
+
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue(null);
+    mocks.prismaChannelConnectRequestCreate
+      .mockResolvedValueOnce({ id: "wa_connect_1", responseKind: "LINK" })
+      .mockRejectedValueOnce(uniqueConstraintError());
+    mocks.prismaChannelConnectRequestFindUnique.mockResolvedValue({
+      id: "wa_connect_1",
+      responseKind: "LINK",
+    });
+
+    const claimTokens: string[] = [];
+    const settlements: Array<{
+      status: string;
+      claimToken: unknown;
+      count: number;
+    }> = [];
+    let activeClaimToken: string | undefined;
+    let finalStatus = "PENDING";
+    mocks.prismaChannelConnectRequestUpdateMany.mockImplementation(
+      ({ where, data }) => {
+        if (data.status === "SENDING") {
+          const claimToken = data.claimToken;
+          if (typeof claimToken !== "string") {
+            throw new Error("Connect lease must receive a fencing token");
+          }
+
+          claimTokens.push(claimToken);
+          activeClaimToken = claimToken;
+          finalStatus = "SENDING";
+          return Promise.resolve({ count: 1 });
+        }
+
+        const count = where.claimToken === activeClaimToken ? 1 : 0;
+        settlements.push({
+          status: data.status,
+          claimToken: where.claimToken,
+          count,
+        });
+        if (count === 1) finalStatus = data.status;
+        return Promise.resolve({ count });
+      },
+    );
+
+    let startFirstFetch!: () => void;
+    let resolveFirstFetch!: (response: Response) => void;
+    const firstFetchStarted = new Promise<void>((resolve) => {
+      startFirstFetch = resolve;
+    });
+    const firstFetch = new Promise<Response>((resolve) => {
+      resolveFirstFetch = resolve;
+    });
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        startFirstFetch();
+        return firstFetch;
+      })
+      .mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const staleWorker = POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildTextPayload("/connect")),
+      }),
+    );
+    await firstFetchStarted;
+
+    const newerWorker = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildTextPayload("/connect")),
+      }),
+    );
+    expect(newerWorker.status).toBe(200);
+
+    resolveFirstFetch(new Response("unavailable", { status: 503 }));
+    expect((await staleWorker).status).toBe(200);
+
+    expect(claimTokens).toHaveLength(2);
+    expect(claimTokens[0]).not.toBe(claimTokens[1]);
+    expect(settlements).toEqual([
+      { status: "SENT", claimToken: claimTokens[1], count: 1 },
+      { status: "FAILED", claimToken: claimTokens[0], count: 0 },
+    ]);
+    expect(finalStatus).toBe("SENT");
   });
 
   it("sync text message persists inbound idempotency marker when rate limit is exceeded", async () => {
@@ -1915,10 +2369,20 @@ describe("/api/webhooks/whatsapp", () => {
       method: "POST",
       body: "hello",
     });
-    expect(verifySignature(request, "hello")).toBe(true);
+    expect(verifySignature(request, "hello")).toBe(false);
 
     process.env.WHATSAPP_APP_SECRET = "app-secret";
     expect(verifySignature(request, "hello")).toBe(false);
+
+    const invalidRequest = new Request(
+      "http://localhost/api/webhooks/whatsapp",
+      {
+        method: "POST",
+        body: "hello",
+        headers: { "x-hub-signature-256": invalidSignature },
+      },
+    );
+    expect(verifySignature(invalidRequest, "hello")).toBe(false);
 
     const sig = createHmac("sha256", "app-secret")
       .update("hello")

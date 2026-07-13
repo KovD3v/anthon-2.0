@@ -4,9 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && (PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate deploy || (sleep 2 && PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate deploy) || (sleep 5 && PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate deploy)) && next build",
+    "build": "prisma generate && next build",
+    "migrate:deploy": "bash scripts/migrate-deploy.sh",
     "start": "next start",
     "lint": "biome check",
+    "typecheck": "tsc --noEmit",
+    "verify": "bun run lint && bun run typecheck && bun run test",
     "format": "biome format --write",
     "test": "vitest run",
     "test:coverage": "bun run test:coverage:unit && bun run test:coverage:integration",
@@ -23,7 +26,7 @@
     "analyze": "next experimental-analyze"
   },
   "prisma": {
-    "seed": "npx tsx prisma/seed.ts"
+    "seed": "bunx tsx prisma/seed.ts"
   },
   "dependencies": {
     "@ai-sdk/devtools": "^1.0.1",
@@ -44,7 +47,7 @@
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-virtual": "^3.13.12",
     "@upstash/qstash": "^2.8.4",
-    "@vercel/blob": "^2.0.0",
+    "@vercel/blob": "^2.3.0",
     "@vercel/functions": "^3.3.4",
     "ai": "^7.0.8",
     "class-variance-authority": "^0.7.1",

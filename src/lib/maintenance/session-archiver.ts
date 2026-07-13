@@ -10,6 +10,7 @@ import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { getTextFromParts } from "@/lib/utils/message-parts";
+import { deletePrivateVoiceBlobsForMessages } from "@/lib/voice/attachment-cleanup";
 
 const archiverLogger = createLogger("maintenance");
 
@@ -121,6 +122,13 @@ Sii conciso ma completo.`,
       modelId: MAINTENANCE_MODEL_ID,
       usage: result.usage,
       providerMetadata: result.providerMetadata,
+    });
+
+    // Permanent archival cascades through message attachments and unfinished
+    // voice jobs. Delete private objects first so their only references are
+    // not removed before storage cleanup can find them.
+    await deletePrivateVoiceBlobsForMessages({
+      id: { in: session.messages.map((message) => message.id) },
     });
 
     // 5. Transaction: Save Archive + Delete Messages

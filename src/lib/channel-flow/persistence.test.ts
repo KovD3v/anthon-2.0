@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   messageCreate: vi.fn(),
   messageMetricsCreate: vi.fn(),
+  voiceGenerationJobCreate: vi.fn(),
   chatUpdate: vi.fn(),
   incrementUsage: vi.fn(),
   extractAndSaveMemories: vi.fn(),
@@ -44,6 +45,7 @@ describe("channel-flow/persistence", () => {
     mocks.transaction.mockReset();
     mocks.messageCreate.mockReset();
     mocks.messageMetricsCreate.mockReset();
+    mocks.voiceGenerationJobCreate.mockReset();
     mocks.chatUpdate.mockReset();
     mocks.incrementUsage.mockReset();
     mocks.extractAndSaveMemories.mockReset();
@@ -53,10 +55,12 @@ describe("channel-flow/persistence", () => {
       callback({
         message: { create: mocks.messageCreate },
         messageMetrics: { create: mocks.messageMetricsCreate },
+        voiceGenerationJob: { create: mocks.voiceGenerationJobCreate },
       }),
     );
     mocks.messageCreate.mockResolvedValue({ id: "msg-1" });
     mocks.messageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
+    mocks.voiceGenerationJobCreate.mockResolvedValue({ id: "voice-job-1" });
     mocks.chatUpdate.mockResolvedValue({});
     mocks.incrementUsage.mockResolvedValue({});
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
@@ -104,6 +108,41 @@ describe("channel-flow/persistence", () => {
       "assistant",
     );
     expect(waitUntil).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates the durable voice job in the same transaction as its transcript", async () => {
+    const expiresAt = new Date("2026-07-14T10:00:00.000Z");
+
+    await persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        inputTokens: 5,
+        outputTokens: 8,
+        reasoningTokens: 0,
+        reasoningContent: "",
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.02,
+        generationTimeMs: 111,
+        reasoningTimeMs: 22,
+      },
+      voiceGeneration: { expiresAt },
+    });
+
+    expect(mocks.voiceGenerationJobCreate).toHaveBeenCalledWith({
+      data: {
+        messageId: "msg-1",
+        userId: "user-1",
+        expiresAt,
+      },
+    });
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
 
   it("persists derived tool metrics in assistant metadata", async () => {

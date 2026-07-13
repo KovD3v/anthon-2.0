@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import { deletePrivateVoiceBlobsForMessages } from "@/lib/voice/attachment-cleanup";
 
 const logger = createLogger("auth");
 
@@ -21,6 +22,12 @@ export async function DELETE() {
     // Delete from Clerk first — invalidates all active sessions
     const client = await clerkClient();
     await client.users.deleteUser(user.clerkId);
+
+    // A hard user cascade removes Attachments and unfinished voice jobs before
+    // the retention worker can discover their private Blobs. Remove those
+    // objects first; if storage is unavailable, keep local references for a
+    // safe retry instead of orphaning sensitive audio.
+    await deletePrivateVoiceBlobsForMessages({ userId: user.id });
 
     // Delete from DB — cascades to chats, messages, preferences, profile, memberships
     await prisma.user.delete({ where: { id: user.id } });

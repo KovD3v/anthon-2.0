@@ -14,6 +14,10 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
+import {
+  deletePrivateVoiceBlob,
+  isPrivateVoiceBlobUrl,
+} from "@/lib/voice/storage";
 
 const uploadLogger = createLogger("ai");
 
@@ -285,8 +289,13 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // 4. Delete from Vercel Blob
-    await del(upload.blobUrl);
+    // 4. Delete from Vercel Blob. Voice objects live in a dedicated private
+    // store, so they must never be deleted with the general upload credential.
+    if (isPrivateVoiceBlobUrl(upload.blobUrl)) {
+      await deletePrivateVoiceBlob(upload.blobUrl);
+    } else {
+      await del(upload.blobUrl);
+    }
 
     // 5. Delete from database
     await prisma.attachment.delete({

@@ -1,5 +1,14 @@
 # Database Cleanup & Improvement Design
 
+> [!WARNING]
+> **Historical design — not an operational deployment runbook.** This document
+> records the March 2026 proposal. Its instructions that `build` applies
+> migrations, that Vercel receives a direct migration URL, and that
+> `scripts/migrate-prod.sh` should be used are obsolete. Do not execute those
+> snippets. Use the current [deployment-migration runbook](../../database.md#deployment-migrations):
+> `bun run build` is artifact-only and migrations run only through the protected,
+> serialized GitHub Actions workflow.
+
 **Date:** 2026-03-28
 **Status:** Draft
 **Scope:** Two-phase — infrastructure/cleanup first, structural improvements second

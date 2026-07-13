@@ -12,7 +12,11 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
-import { convertToUIMessages, extractTextFromParts } from "@/lib/chat-client";
+import {
+  convertToUIMessages,
+  extractTextFromParts,
+  hasPendingVoiceGeneration,
+} from "@/lib/chat-client";
 import {
   getPaywallCardContent,
   type PaywallCardContent,
@@ -33,6 +37,9 @@ interface DeleteSnapshot {
   previousMessages: UIMessage[];
   previousChatData: ChatData;
 }
+
+const VOICE_GENERATION_POLL_INITIAL_DELAY_MS = 750;
+const VOICE_GENERATION_POLL_MAX_ATTEMPTS = 30;
 
 const messageMetadataSchema = z.object({
   inputTokens: z.number().optional(),
@@ -74,11 +81,12 @@ export function ChatConversationClient({
   const trialActivationInFlightRef = useRef(false);
   const submitInFlightRef = useRef(false);
   const pendingInitialMessageSubmittedRef = useRef(false);
+  const voiceGenerationPollAttemptsRef = useRef(0);
 
   // Initial messages from server data
   const initialMessages = convertToUIMessages(chatData.messages);
 
-  async function refreshChatData() {
+  const refreshChatData = useCallback(async () => {
     try {
       const response = await fetch(`${apiBase}/chats/${chatId}`);
       if (response.ok) {
@@ -90,7 +98,7 @@ export function ChatConversationClient({
       console.error("Failed to refresh chat data:", err);
     }
     return null;
-  }
+  }, [apiBase, chatId]);
 
   async function loadMoreMessages() {
     if (
@@ -150,6 +158,61 @@ export function ChatConversationClient({
       }
     },
   });
+
+  const hasUnresolvedVoiceGeneration = hasPendingVoiceGeneration(
+    chatData.messages,
+  );
+
+  // Voice jobs are durable and eventually attach their file to the existing
+  // assistant message. Poll only while one is unresolved so reconnects receive
+  // the final attachment without holding the chat stream open indefinitely.
+  useEffect(() => {
+    if (!hasUnresolvedVoiceGeneration) {
+      voiceGenerationPollAttemptsRef.current = 0;
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: number | undefined;
+
+    const poll = async () => {
+      const refreshedMessages = await refreshChatData();
+      if (cancelled) return;
+
+      if (refreshedMessages) {
+        setMessages(refreshedMessages);
+      }
+
+      voiceGenerationPollAttemptsRef.current += 1;
+      // A failed or misconfigured queue must not leave a mounted chat making
+      // requests forever. A later navigation or refresh starts a fresh,
+      // bounded observation window for the durable job.
+      if (
+        voiceGenerationPollAttemptsRef.current >=
+        VOICE_GENERATION_POLL_MAX_ATTEMPTS
+      ) {
+        return;
+      }
+
+      const backoffMultiplier = Math.floor(
+        voiceGenerationPollAttemptsRef.current / 4,
+      );
+      const delay = Math.min(
+        4_000,
+        VOICE_GENERATION_POLL_INITIAL_DELAY_MS * 2 ** backoffMultiplier,
+      );
+      timeoutId = window.setTimeout(poll, delay);
+    };
+
+    timeoutId = window.setTimeout(poll, VOICE_GENERATION_POLL_INITIAL_DELAY_MS);
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [hasUnresolvedVoiceGeneration, refreshChatData, setMessages]);
 
   useEffect(() => () => inputWarmup.dispose(), [inputWarmup]);
 

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   chatDelete: vi.fn(),
   messageFindMany: vi.fn(),
   messageFindFirst: vi.fn(),
+  deletePrivateVoiceBlobsForMessages: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({
@@ -37,6 +38,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/voice/attachment-cleanup", () => ({
+  deletePrivateVoiceBlobsForMessages: mocks.deletePrivateVoiceBlobsForMessages,
+}));
+
 import { DELETE, GET, PATCH } from "./route";
 
 function params(id = "chat-1") {
@@ -53,6 +58,7 @@ describe("/api/guest/chats/[id] route", () => {
     mocks.chatDelete.mockReset();
     mocks.messageFindMany.mockReset();
     mocks.messageFindFirst.mockReset();
+    mocks.deletePrivateVoiceBlobsForMessages.mockReset();
 
     mocks.authenticateGuest.mockResolvedValue({
       user: { id: "guest-1", isGuest: true },
@@ -126,6 +132,7 @@ describe("/api/guest/chats/[id] route", () => {
       updatedAt: new Date("2026-02-16T12:00:00.000Z"),
     });
     mocks.chatDelete.mockResolvedValue({ id: "chat-1" });
+    mocks.deletePrivateVoiceBlobsForMessages.mockResolvedValue(0);
   });
 
   it("GET returns 404 when chat is not found", async () => {
@@ -444,6 +451,9 @@ describe("/api/guest/chats/[id] route", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(mocks.deletePrivateVoiceBlobsForMessages).toHaveBeenCalledWith({
+      chatId: "chat-1",
+    });
     expect(mocks.chatDelete).toHaveBeenCalledWith({ where: { id: "chat-1" } });
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-guest-1", "max");
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "max");
@@ -480,5 +490,21 @@ describe("/api/guest/chats/[id] route", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Failed to delete chat",
     });
+  });
+
+  it("DELETE keeps the guest chat when private voice cleanup fails", async () => {
+    mocks.deletePrivateVoiceBlobsForMessages.mockRejectedValue(
+      new Error("blob cleanup failed"),
+    );
+
+    const response = await DELETE(
+      new Request("http://localhost/api/guest/chats/chat-1", {
+        method: "DELETE",
+      }),
+      { params: params("chat-1") },
+    );
+
+    expect(response.status).toBe(500);
+    expect(mocks.chatDelete).not.toHaveBeenCalled();
   });
 });

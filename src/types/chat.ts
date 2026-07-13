@@ -116,6 +116,10 @@ export interface ChatMessage {
   ragUsed?: boolean;
   toolCalls?: unknown;
   attachments?: StoredAttachment[];
+  voice?: {
+    status: "PENDING" | "PROCESSING" | "READY" | "FAILED" | "CANCELLED";
+    errorCode?: string;
+  };
   feedback?: -1 | 0 | 1 | null;
   feedbackReason?: MessageFeedbackReason;
 }

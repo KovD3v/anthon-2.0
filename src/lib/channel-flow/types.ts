@@ -101,4 +101,8 @@ export interface PersistAssistantOutputInput {
   revalidateTags?: string[];
   allowMemoryExtraction?: boolean;
   waitUntil?: (promise: Promise<unknown>) => void;
+  /** Create the durable web TTS job in the same transaction as the message. */
+  voiceGeneration?: {
+    expiresAt: Date;
+  };
 }

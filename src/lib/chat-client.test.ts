@@ -4,6 +4,7 @@ import type { ChatMessage } from "@/types/chat";
 import {
   convertToUIMessages,
   extractTextFromParts,
+  hasPendingVoiceGeneration,
   normalizeFilePartForPreview,
 } from "./chat-client";
 
@@ -57,6 +58,24 @@ describe("chat-client", () => {
     expect(msg0?.attachments).toEqual(messages[0]?.attachments);
     expect(result[0]?.feedback).toBe(-1);
     expect(result[0]?.feedbackReason).toBe("wrong_fact");
+  });
+
+  it("detects persisted pending and processing voice jobs after reconnect", () => {
+    expect(
+      hasPendingVoiceGeneration([
+        { voice: { status: "READY" } },
+        { voice: { status: "PENDING" } },
+      ]),
+    ).toBe(true);
+    expect(
+      hasPendingVoiceGeneration([{ voice: { status: "PROCESSING" } }]),
+    ).toBe(true);
+    expect(
+      hasPendingVoiceGeneration([
+        { voice: { status: "READY" } },
+        { voice: { status: "FAILED", errorCode: "EXPIRED" } },
+      ]),
+    ).toBe(false);
   });
 
   it("falls back to content text part when parts are missing", () => {

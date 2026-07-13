@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 
@@ -6,7 +6,7 @@ const whatsappLogger = createLogger("webhook");
 
 export function verifySignature(request: Request, body: string): boolean {
   const secret = process.env.WHATSAPP_APP_SECRET;
-  if (!secret) return true;
+  if (!secret) return false;
 
   const signature = request.headers.get("x-hub-signature-256");
   if (!signature) return false;
@@ -14,7 +14,12 @@ export function verifySignature(request: Request, body: string): boolean {
   const hash = createHmac("sha256", secret).update(body).digest("hex");
   const expectedSignature = `sha256=${hash}`;
 
-  return signature === expectedSignature;
+  if (signature.length !== expectedSignature.length) return false;
+
+  return timingSafeEqual(
+    Buffer.from(signature, "utf8"),
+    Buffer.from(expectedSignature, "utf8"),
+  );
 }
 
 export function isConnectCommand(text: string) {
@@ -33,15 +38,18 @@ export function getPublicAppUrl() {
   return "http://localhost:3000";
 }
 
-export async function sendWhatsAppMessage(to: string, text: string) {
-  if (process.env.WHATSAPP_DISABLE_SEND === "true") return;
+export async function sendWhatsAppMessage(
+  to: string,
+  text: string,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  if (process.env.WHATSAPP_DISABLE_SEND === "true") return true;
 
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!token || !phoneId) return;
+  if (!token || !phoneId) return false;
 
   const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
-
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -54,6 +62,7 @@ export async function sendWhatsAppMessage(to: string, text: string) {
       type: "text",
       text: { body: text },
     }),
+    signal,
   });
 
   if (!res.ok) {
@@ -61,7 +70,10 @@ export async function sendWhatsAppMessage(to: string, text: string) {
       status: res.status,
       body: await res.text(),
     });
+    return false;
   }
+
+  return true;
 }
 
 export async function sendWhatsAppVoice(

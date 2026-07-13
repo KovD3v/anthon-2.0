@@ -139,6 +139,7 @@ Notes:
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
+| `POST` | `/api/chat` | Voice-first replies return their transcript immediately; audio attaches asynchronously to the same message. |
 | `POST` | `/api/voice/generate` | Generate audio for an assistant message (plan + funnel checks apply). |
 
 `POST /api/voice/generate` body:
@@ -180,6 +181,7 @@ Notes:
 | `POST` | `/api/queues/consolidate` | Internal QStash consumer for memory consolidation. |
 | `POST` | `/api/queues/archive` | Internal QStash consumer for session archive. |
 | `POST` | `/api/queues/analyze` | Internal QStash consumer for profile analysis. |
+| `POST` | `/api/queues/voice` | Internal QStash consumer for durable web voice generation. |
 
 ## Webhooks
 
@@ -218,3 +220,5 @@ Typical status codes:
 - [Rate Limiting](./rate-limiting.md)
 - [Organizations](./organizations.md)
 - [Maintenance](./maintenance.md)
+- [Asynchronous web voice generation](./voice-async-generation.md)
+- [Private voice storage](./voice-storage.md)

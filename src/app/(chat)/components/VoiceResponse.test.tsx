@@ -47,4 +47,12 @@ describe("assistant voice response accessibility", () => {
     expect(messageListSource).toContain("<VoiceResponse");
     expect(messageListSource).toContain("transcript={messageText}");
   });
+
+  it("keeps the transcript visible while async audio is pending or unavailable", () => {
+    expect(messageListSource).toContain('message.voice?.status === "PENDING"');
+    expect(messageListSource).toContain("Sto preparando l&apos;audio…");
+    expect(messageListSource).toContain(
+      "L&apos;audio non è disponibile; puoi leggere",
+    );
+  });
 });

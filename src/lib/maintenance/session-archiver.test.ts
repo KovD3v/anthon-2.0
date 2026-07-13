@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   messageFindMany: vi.fn(),
   transaction: vi.fn(),
   trackSupportAiUsage: vi.fn(),
+  deletePrivateVoiceBlobsForMessages: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -29,6 +30,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/voice/attachment-cleanup", () => ({
+  deletePrivateVoiceBlobsForMessages: mocks.deletePrivateVoiceBlobsForMessages,
+}));
+
 import { archiveOldSessions } from "./session-archiver";
 
 describe("maintenance/session-archiver", () => {
@@ -40,6 +45,7 @@ describe("maintenance/session-archiver", () => {
     mocks.messageFindMany.mockReset();
     mocks.transaction.mockReset();
     mocks.trackSupportAiUsage.mockReset();
+    mocks.deletePrivateVoiceBlobsForMessages.mockReset();
 
     mocks.generateText.mockResolvedValue({
       text: "summary",
@@ -47,6 +53,7 @@ describe("maintenance/session-archiver", () => {
       providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
     });
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.deletePrivateVoiceBlobsForMessages.mockResolvedValue(0);
   });
 
   afterEach(() => {
@@ -101,6 +108,9 @@ describe("maintenance/session-archiver", () => {
       modelId: "maintenance-model-id",
       usage: { inputTokens: 30, outputTokens: 8 },
       providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
+    });
+    expect(mocks.deletePrivateVoiceBlobsForMessages).toHaveBeenCalledWith({
+      id: { in: ["m1", "m2"] },
     });
     expect(tx.archivedSession.create).toHaveBeenCalledWith(
       expect.objectContaining({

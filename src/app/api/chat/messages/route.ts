@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { getTextFromParts } from "@/lib/utils/message-parts";
+import { deletePrivateVoiceBlobsForMessages } from "@/lib/voice/attachment-cleanup";
 
 const chatLogger = createLogger("ai");
 
@@ -45,11 +46,11 @@ export async function GET(request: Request) {
           type: "TEXT" as const,
         };
 
-    // Fetch messages for the user, ordered by creation time
+    // Select the newest window deterministically, then return it chronologically.
     const messages = await prisma.message.findMany({
       where: whereClause,
-      orderBy: { createdAt: "asc" },
-      take: 100, // Limit to last 100 messages
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 100,
       select: {
         id: true,
         role: true,
@@ -63,8 +64,15 @@ export async function GET(request: Request) {
       },
     });
 
+    const chronologicalMessages = [...messages].sort((first, second) => {
+      const createdAtDifference =
+        first.createdAt.getTime() - second.createdAt.getTime();
+
+      return createdAtDifference || first.id.localeCompare(second.id);
+    });
+
     // Convert to UI message format
-    const uiMessages = messages.map((msg) => ({
+    const uiMessages = chronologicalMessages.map((msg) => ({
       id: msg.id,
       role: msg.role === "USER" ? "user" : "assistant",
       content: getTextFromParts(msg.parts) || "",
@@ -149,17 +157,21 @@ export async function DELETE(request: Request) {
       );
     }
 
+    const deletedMessageWhere = {
+      userId: user.id,
+      chatId: message.chatId,
+      createdAt: { gte: message.createdAt },
+    };
+
+    // Delete private voice objects before their Message/Attachment references
+    // disappear in the following hard delete.
+    await deletePrivateVoiceBlobsForMessages(deletedMessageWhere);
+
     // Delete this message and all subsequent messages in the same chat (cascade)
     // This keeps conversation coherent - deleting a user message also removes
     // the assistant response and any follow-up conversation
     const deleteResult = await prisma.message.deleteMany({
-      where: {
-        userId: user.id,
-        chatId: message.chatId, // Only delete from the same chat
-        createdAt: {
-          gte: message.createdAt,
-        },
-      },
+      where: deletedMessageWhere,
     });
 
     return NextResponse.json({
@@ -261,15 +273,17 @@ export async function PATCH(request: Request) {
       );
     }
 
+    const deletedMessageWhere = {
+      userId: user.id,
+      chatId: message.chatId,
+      createdAt: { gte: message.createdAt },
+    };
+
+    await deletePrivateVoiceBlobsForMessages(deletedMessageWhere);
+
     // Delete this message and all subsequent messages
     const deleteResult = await prisma.message.deleteMany({
-      where: {
-        userId: user.id,
-        chatId: message.chatId,
-        createdAt: {
-          gte: message.createdAt,
-        },
-      },
+      where: deletedMessageWhere,
     });
 
     // Return the new content so the frontend can re-send it

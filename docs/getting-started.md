@@ -4,7 +4,10 @@ This guide will help you set up and run Anthon 2.0 locally.
 
 ## Prerequisites
 
--   **Node.js** 20.9.0 or later
+-   **Bun** 1.3.5 (the version pinned in CI and migration workflows)
+-   **Node.js** is not required for this Bun-based workflow. If you run the
+    toolchain with Node instead, Prisma 7.2 supports `^20.19`, `^22.12`, or
+    `>=24.0` (Next.js 16 itself requires Node.js 20.9.0 or later).
 -   **PostgreSQL** 15+ with [pgvector](https://github.com/pgvector/pgvector) extension
 -   **Clerk account** for authentication ([clerk.com](https://clerk.com))
 -   **OpenRouter API key** for AI models ([openrouter.ai](https://openrouter.ai))
@@ -35,8 +38,8 @@ cp .env.example .env
 Minimum variables to run the web app:
 
 ```env
-DATABASE_URL="postgresql://user:password@host/anthon?schema=public"  # Neon production branch (pooled)
-DIRECT_DATABASE_URL="postgresql://user:password@host/anthon?schema=public"  # Neon production branch (direct)
+DATABASE_URL="postgresql://user:password@host/anthon?schema=public"  # Runtime connection (pooled)
+DIRECT_DATABASE_URL="postgresql://user:password@host/anthon?schema=public"  # Local Prisma CLI connection (direct)
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
 CLERK_SECRET_KEY="sk_test_..."
 CLERK_WEBHOOK_SECRET="whsec_..."
@@ -63,8 +66,8 @@ tests/mocks rather than live provider calls.
 Neon branch mapping (required):
 
 - `TEST_DATABASE_URL` -> `development` branch (direct connection string)
-- `DATABASE_URL` -> `production` branch (pooled connection string) — used by Vercel
-- `DIRECT_DATABASE_URL` -> `production` branch (direct connection string) — used by Vercel
+- `DATABASE_URL` -> the deployed environment's database (pooled connection string) — used by Vercel runtime
+- `DIRECT_DATABASE_URL` -> the matching direct connection string — used by local Prisma CLI commands and stored as a GitHub Environment secret for deployment migrations, not in Vercel build settings
 
 Useful Neon CLI commands:
 
@@ -95,15 +98,14 @@ Generate Prisma client:
 bunx prisma generate
 ```
 
-For **production/Vercel**: Migrations run automatically during `bun run build`
-(→ `prisma migrate deploy`). Set `DATABASE_URL` and `DIRECT_DATABASE_URL` in Vercel
-to the production branch connection strings; the next deploy applies all pending migrations.
-
-For **manual production migration**, use:
-
-```bash
-PROD_DATABASE_URL=<pooled> PROD_DIRECT_DATABASE_URL=<direct> ./scripts/migrate-prod.sh
-```
+For **Vercel Preview and production**, `bun run build` only creates the app
+artifact; it never applies migrations. Configure the app's runtime
+`DATABASE_URL` in Vercel, then apply schema changes through the protected,
+serialized **Apply database migrations** GitHub Actions workflow. It selects a
+separate `preview` or `production` GitHub Environment and reads that
+Environment's `DIRECT_DATABASE_URL` secret. See
+[Database deployment migrations](./database.md#deployment-migrations) for the
+required preview/production order and expand/contract compatibility rules.
 
 ### 5. Seed Database (Optional)
 
@@ -134,8 +136,11 @@ bun run start
 | ---------------- | ------------------------ |
 | `bun run dev`    | Start development server |
 | `bun run build`  | Build for production     |
+| `bun run migrate:deploy` | Guarded migration command, invoked only by the deployment workflow |
 | `bun run start`  | Start production server  |
 | `bun run lint`   | Run Biome check          |
+| `bun run typecheck` | Run TypeScript checks without emitting files |
+| `bun run verify` | Run lint, typecheck, and unit tests |
 | `bun run format` | Format code with Biome   |
 | `bun run test`   | Run unit tests (Vitest)  |
 | `bun run test:integration` | Run integration tests (real DB) |

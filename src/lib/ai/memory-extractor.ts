@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 
 const extractorLogger = createLogger("ai");
+const MAX_CONCURRENT_MEMORY_UPSERTS = 4;
 
 // Schema for extracted memory facts
 const ExtractedFactsSchema = z.object({
@@ -45,6 +46,13 @@ const ExtractedFactsSchema = z.object({
     }),
   ),
 });
+
+type ExtractedFact = z.infer<typeof ExtractedFactsSchema>["facts"][number];
+
+type MemoryPersistenceFailure = {
+  error: unknown;
+  key: string;
+};
 
 /**
  * Extracts important facts from a conversation exchange and saves them to Memory.
@@ -110,39 +118,30 @@ Restituisci i fatti estratti o un array vuoto se non ce ne sono.`,
       return;
     }
 
-    // Filter facts with high enough confidence and save them
+    // Filter facts with high enough confidence and save them.
     const highConfidenceFacts = output.facts.filter(
       (f) => f.confidence >= MEMORY.MIN_CONFIDENCE,
     );
 
-    for (const fact of highConfidenceFacts) {
-      // Use proper Prisma upsert with composite unique key (userId + key)
-      await prisma.memory.upsert({
-        where: {
-          userId_key: { userId, key: fact.key },
-        },
-        update: {
-          value: {
-            content: fact.value,
-            category: fact.category,
-            confidence: fact.confidence,
-            updatedAt: new Date().toISOString(),
-          },
-        },
-        create: {
+    const factsToPersist = selectLatestFactsByKey(highConfidenceFacts);
+    const failures = await persistMemoryFacts(userId, factsToPersist);
+
+    if (failures.length > 0) {
+      extractorLogger.error(
+        "memory_persistence_failed",
+        "One or more memory facts could not be persisted",
+        {
+          error: failures.map(({ error }) => error),
+          failedKeys: failures.map(({ key }) => key),
           userId,
-          key: fact.key,
-          value: {
-            content: fact.value,
-            category: fact.category,
-            confidence: fact.confidence,
-            createdAt: new Date().toISOString(),
-          },
         },
-      });
+      );
+      return;
     }
 
-    if (highConfidenceFacts.length > 0) {
+    // Only invalidate after every selected write succeeds. A partial persistence
+    // failure keeps the cache and activity update on the previous all-or-nothing path.
+    if (factsToPersist.length > 0) {
       invalidateMemoriesForPromptCache(userId);
     }
 
@@ -158,6 +157,80 @@ Restituisci i fatti estratti o un array vuoto se non ce ne sono.`,
       userId,
     });
   }
+}
+
+/**
+ * A response can repeat a key. Keeping the last accepted fact makes the final value
+ * deterministic while ensuring concurrent writes never race on the same composite key.
+ */
+function selectLatestFactsByKey(facts: ExtractedFact[]): ExtractedFact[] {
+  const factsByKey = new Map<string, ExtractedFact>();
+
+  for (const fact of facts) {
+    factsByKey.delete(fact.key);
+    factsByKey.set(fact.key, fact);
+  }
+
+  return [...factsByKey.values()];
+}
+
+async function persistMemoryFacts(
+  userId: string,
+  facts: ExtractedFact[],
+): Promise<MemoryPersistenceFailure[]> {
+  const failures: MemoryPersistenceFailure[] = [];
+
+  // Keep background extraction from flooding the connection pool. allSettled lets
+  // independent later batches run even when one write fails; the caller applies the
+  // all-or-nothing cache and activity policy after collecting every failure.
+  for (
+    let index = 0;
+    index < facts.length;
+    index += MAX_CONCURRENT_MEMORY_UPSERTS
+  ) {
+    const batch = facts.slice(index, index + MAX_CONCURRENT_MEMORY_UPSERTS);
+    const results = await Promise.allSettled(
+      batch.map((fact) => persistMemoryFact(userId, fact)),
+    );
+
+    for (const [batchIndex, result] of results.entries()) {
+      const fact = batch[batchIndex];
+      if (result.status === "rejected" && fact) {
+        failures.push({ error: result.reason, key: fact.key });
+      }
+    }
+  }
+
+  return failures;
+}
+
+function persistMemoryFact(userId: string, fact: ExtractedFact) {
+  const timestamp = new Date().toISOString();
+
+  // Use the existing composite unique key (userId + key) for every write.
+  return prisma.memory.upsert({
+    where: {
+      userId_key: { userId, key: fact.key },
+    },
+    update: {
+      value: {
+        content: fact.value,
+        category: fact.category,
+        confidence: fact.confidence,
+        updatedAt: timestamp,
+      },
+    },
+    create: {
+      userId,
+      key: fact.key,
+      value: {
+        content: fact.value,
+        category: fact.category,
+        confidence: fact.confidence,
+        createdAt: timestamp,
+      },
+    },
+  });
 }
 
 function parseExtractorOutput(text: string | undefined) {

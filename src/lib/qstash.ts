@@ -3,19 +3,27 @@ import { createLogger } from "@/lib/logger";
 
 const qstashLogger = createLogger("qstash");
 
-if (!process.env.QSTASH_URL || !process.env.QSTASH_TOKEN) {
-  throw new Error("QStash environment variables missing");
+function getQStashClient() {
+  const token = process.env.QSTASH_TOKEN;
+  const baseUrl = process.env.QSTASH_URL;
+
+  if (!token || !baseUrl) {
+    throw new Error("QStash environment variables missing");
+  }
+
+  return new Client({ token, baseUrl });
 }
 
-const qstash = new Client({
-  token: process.env.QSTASH_TOKEN,
-  baseUrl: process.env.QSTASH_URL,
-});
+function getQStashReceiver() {
+  const currentSigningKey = process.env.QSTASH_CURRENT_SIGNING_KEY;
+  const nextSigningKey = process.env.QSTASH_NEXT_SIGNING_KEY;
 
-const receiver = new Receiver({
-  currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY || "",
-  nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY || "",
-});
+  if (!currentSigningKey || !nextSigningKey) {
+    throw new Error("QStash signing keys missing");
+  }
+
+  return new Receiver({ currentSigningKey, nextSigningKey });
+}
 
 /**
  * Verifies that the request is coming from QStash.
@@ -25,9 +33,12 @@ export async function verifyQStashAuth(req: Request) {
   const body = await req.text();
   const signature = req.headers.get("Upstash-Signature") || "";
 
-  const isValid = await receiver.verify({
+  const isValid = await getQStashReceiver().verify({
     signature,
     body,
+    // Bind the signed payload to this exact endpoint. Without the URL, a
+    // valid QStash signature could be replayed against another queue route.
+    url: req.url,
   });
 
   if (!isValid) {
@@ -50,17 +61,23 @@ export async function verifyQStashAuth(req: Request) {
 export async function publishToQueue(
   endpoint: string,
   body: unknown,
-  delay?: number,
+  options?: {
+    delay?: number;
+    deduplicationId?: string;
+    retries?: number;
+  },
 ) {
   const appUrl = process.env.APP_URL || "http://localhost:3000"; // Fallback for local dev
   const destinationUrl = `${appUrl}/${endpoint}`;
 
   qstashLogger.info("publish", "Publishing to queue", { destinationUrl });
 
-  return qstash.publishJSON({
+  return getQStashClient().publishJSON({
     url: destinationUrl,
     body,
-    delay, // seamless delay support
+    delay: options?.delay, // seamless delay support
+    deduplicationId: options?.deduplicationId,
+    retries: options?.retries,
   });
 }
 
@@ -69,7 +86,7 @@ export async function publishToQueue(
  */
 export async function getQStashEvents(cursor?: string) {
   try {
-    return await qstash.events({ cursor });
+    return await getQStashClient().events({ cursor });
   } catch (error) {
     qstashLogger.error("events.fetch_failed", "Failed to fetch QStash events", {
       error,

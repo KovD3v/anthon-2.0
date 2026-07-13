@@ -13,7 +13,9 @@ const mocks = vi.hoisted(() => ({
   getSystemLoad: vi.fn(),
   generateVoice: vi.fn(),
   trackVoiceUsage: vi.fn(),
-  put: vi.fn(),
+  putPrivateVoiceBlob: vi.fn(),
+  deletePrivateVoiceBlob: vi.fn(),
+  scheduleVoiceGenerationJob: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -50,8 +52,13 @@ vi.mock("@/lib/voice", () => ({
   trackVoiceUsage: mocks.trackVoiceUsage,
 }));
 
-vi.mock("@vercel/blob", () => ({
-  put: mocks.put,
+vi.mock("@/lib/voice/storage", () => ({
+  putPrivateVoiceBlob: mocks.putPrivateVoiceBlob,
+  deletePrivateVoiceBlob: mocks.deletePrivateVoiceBlob,
+}));
+
+vi.mock("@/lib/voice/generation-jobs", () => ({
+  scheduleVoiceGenerationJob: mocks.scheduleVoiceGenerationJob,
 }));
 
 import { POST } from "./route";
@@ -78,7 +85,9 @@ describe("POST /api/voice/generate", () => {
     mocks.getSystemLoad.mockReset();
     mocks.generateVoice.mockReset();
     mocks.trackVoiceUsage.mockReset();
-    mocks.put.mockReset();
+    mocks.putPrivateVoiceBlob.mockReset();
+    mocks.deletePrivateVoiceBlob.mockReset();
+    mocks.scheduleVoiceGenerationJob.mockReset();
 
     mocks.start.mockReturnValue({ end: vi.fn(), split: vi.fn() });
     mocks.measure.mockImplementation(
@@ -99,6 +108,7 @@ describe("POST /api/voice/generate", () => {
       chatId: "chat-1",
       parts: [{ type: "text", text: "Hello from assistant" }],
       userId: "user-1",
+      voiceGenerationJob: null,
     });
     mocks.getVoicePlanConfig.mockReturnValue({
       enabled: true,
@@ -114,9 +124,10 @@ describe("POST /api/voice/generate", () => {
       characterCount: 3,
       costUsd: 0.0003,
     });
-    mocks.put.mockResolvedValue({
-      url: "https://blob.example/voice/msg-1.mp3",
+    mocks.putPrivateVoiceBlob.mockResolvedValue({
+      url: "https://store.private.blob.vercel-storage.com/voice/msg-1.mp3",
     });
+    mocks.deletePrivateVoiceBlob.mockResolvedValue(undefined);
     mocks.trackVoiceUsage.mockResolvedValue(undefined);
     mocks.attachmentCreate.mockResolvedValue({ id: "att-1" });
   });
@@ -237,6 +248,31 @@ describe("POST /api/voice/generate", () => {
     });
   });
 
+  it("defers to the durable job instead of generating a duplicate voice asset", async () => {
+    mocks.messageFindFirst.mockResolvedValue({
+      id: "msg-1",
+      chatId: "chat-1",
+      parts: [{ type: "text", text: "Hello from assistant" }],
+      userId: "user-1",
+      voiceGenerationJob: { status: "PENDING" },
+    });
+
+    const response = await POST(buildRequest({ messageId: "msg-1" }));
+
+    expect(response.status).toBe(202);
+    expect(mocks.scheduleVoiceGenerationJob).toHaveBeenCalledWith("msg-1");
+    expect(mocks.shouldGenerateVoice).not.toHaveBeenCalled();
+    expect(mocks.generateVoice).not.toHaveBeenCalled();
+    expect(mocks.putPrivateVoiceBlob).not.toHaveBeenCalled();
+    expect(mocks.attachmentCreate).not.toHaveBeenCalled();
+    expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual({
+      shouldGenerateVoice: false,
+      voiceStatus: "pending",
+      deferred: true,
+    });
+  });
+
   it("returns voice payload and stores attachment on success", async () => {
     const response = await POST(
       buildRequest({
@@ -255,13 +291,9 @@ describe("POST /api/voice/generate", () => {
         systemLoad: mocks.getSystemLoad,
       }),
     );
-    expect(mocks.put).toHaveBeenCalledWith(
+    expect(mocks.putPrivateVoiceBlob).toHaveBeenCalledWith(
       "voice/msg-1.mp3",
       Buffer.from("abc"),
-      expect.objectContaining({
-        access: "public",
-        contentType: "audio/mpeg",
-      }),
     );
     expect(mocks.trackVoiceUsage).toHaveBeenCalledWith(
       "user-1",
@@ -273,7 +305,8 @@ describe("POST /api/voice/generate", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           messageId: "msg-1",
-          blobUrl: "https://blob.example/voice/msg-1.mp3",
+          blobUrl:
+            "https://store.private.blob.vercel-storage.com/voice/msg-1.mp3",
         }),
       }),
     );
@@ -309,6 +342,21 @@ describe("POST /api/voice/generate", () => {
     const response = await POST(buildRequest({ messageId: "msg-1" }));
 
     expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "Voice generation failed",
+      shouldGenerateVoice: false,
+    });
+  });
+
+  it("deletes the private blob when attachment persistence fails after upload", async () => {
+    mocks.attachmentCreate.mockRejectedValue(new Error("attachment failed"));
+
+    const response = await POST(buildRequest({ messageId: "msg-1" }));
+
+    expect(response.status).toBe(500);
+    expect(mocks.deletePrivateVoiceBlob).toHaveBeenCalledWith(
+      "https://store.private.blob.vercel-storage.com/voice/msg-1.mp3",
+    );
     await expect(response.json()).resolves.toEqual({
       error: "Voice generation failed",
       shouldGenerateVoice: false,

@@ -4,7 +4,10 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
-    include: ["src/app/api/**/route.integration.test.ts"],
+    include: [
+      "src/app/api/**/route.integration.test.ts",
+      "src/lib/**/*.integration.test.ts",
+    ],
     environment: "node",
     globals: true,
     clearMocks: true,
@@ -24,6 +27,7 @@ export default defineConfig({
         "src/app/api/admin/organizations/route.ts",
         "src/app/api/admin/organizations/[organizationId]/route.ts",
         "src/app/api/admin/organizations/[organizationId]/audit/route.ts",
+        "src/lib/ai/session-cache.ts",
       ],
       thresholds: {
         statements: 35,

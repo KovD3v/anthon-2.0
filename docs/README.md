@@ -18,6 +18,7 @@ Welcome to the Anthon 2.0 documentation. Anthon is an AI-powered coaching chat a
 | [Guest Migration](./guest-migration.md) | Guest to registered user data migration      |
 | [Telegram Webhook](./telegram-webhook.md) | Telegram bot webhook flow                  |
 | [WhatsApp Webhook](./whatsapp-webhook.md) | WhatsApp Cloud API webhook flow            |
+| [Private Voice Storage](./voice-storage.md) | Private web voice upload, delivery, and retention policy |
 | [QA Test Plan](./qa-test-plan.md)       | Test checklist, execution process, and GitHub issue workflow |
 
 ## 🛠 Technology Stack
@@ -30,7 +31,7 @@ Welcome to the Anthon 2.0 documentation. Anthon is an AI-powered coaching chat a
 | **Vector Search**  | pgvector for RAG embeddings        |
 | **Authentication** | Clerk                              |
 | **AI Provider**    | OpenRouter with plan-based model routing |
-| **AI SDK**         | Vercel AI SDK v6                   |
+| **AI SDK**         | Vercel AI SDK v7                   |
 | **Web Search**     | TinyFish search and fetch tools     |
 | **Styling**        | Tailwind CSS                       |
 | **UI Components**  | Radix UI, Framer Motion            |

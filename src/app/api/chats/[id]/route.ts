@@ -13,6 +13,7 @@ import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { getTextFromParts } from "@/lib/utils/message-parts";
+import { deletePrivateVoiceBlobsForMessages } from "@/lib/voice/attachment-cleanup";
 
 const chatsLogger = createLogger("ai");
 
@@ -101,6 +102,12 @@ export async function GET(request: Request, { params }: RouteParams) {
         toolCalls: true,
         feedback: true,
         metadata: true,
+        voiceGenerationJob: {
+          select: {
+            status: true,
+            errorCode: true,
+          },
+        },
         attachments: {
           select: {
             id: true,
@@ -150,6 +157,14 @@ export async function GET(request: Request, { params }: RouteParams) {
         toolCalls: m.toolCalls,
         feedback: m.feedback,
         feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
+        voice: m.voiceGenerationJob
+          ? {
+              status: m.voiceGenerationJob.status,
+              ...(m.voiceGenerationJob.errorCode
+                ? { errorCode: m.voiceGenerationJob.errorCode }
+                : {}),
+            }
+          : undefined,
         attachments: m.attachments.map((attachment) => ({
           ...attachment,
           blobUrl: attachment.contentType.startsWith("audio/")
@@ -313,6 +328,11 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
         { status: 404 },
       );
     }
+
+    // A hard chat cascade would remove private-voice references before the
+    // retention worker can clean their objects. Keep the chat on storage
+    // failure so this destructive operation can be retried safely.
+    await deletePrivateVoiceBlobsForMessages({ chatId: id });
 
     // Delete chat (cascade will delete messages, artifacts, etc.)
     await prisma.chat.delete({

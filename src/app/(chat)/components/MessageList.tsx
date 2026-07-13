@@ -445,6 +445,14 @@ export function MessageList({
 
               const isVoiceMessage = !!dbVoiceAttachment;
               const voiceAudioSrc = dbVoiceAttachment?.blobUrl;
+              const isVoiceGenerationPending =
+                !isVoiceMessage &&
+                (message.voice?.status === "PENDING" ||
+                  message.voice?.status === "PROCESSING");
+              const isVoiceGenerationUnavailable =
+                !isVoiceMessage &&
+                (message.voice?.status === "FAILED" ||
+                  message.voice?.status === "CANCELLED");
 
               return (
                 <div
@@ -609,6 +617,21 @@ export function MessageList({
                                 className={assistantMarkdownClassName}
                                 content={messageText}
                               />
+                              {isVoiceGenerationPending && (
+                                <output
+                                  className="mt-3 flex items-center gap-2 border-black/10 border-t pt-3 text-xs text-black/70"
+                                  aria-live="polite"
+                                >
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  <span>Sto preparando l&apos;audio…</span>
+                                </output>
+                              )}
+                              {isVoiceGenerationUnavailable && (
+                                <output className="mt-3 border-black/10 border-t pt-3 text-xs text-black/70">
+                                  L&apos;audio non è disponibile; puoi leggere
+                                  la risposta qui sopra.
+                                </output>
+                              )}
                             </>
                           )
                         ) : (

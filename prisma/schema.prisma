@@ -44,30 +44,31 @@ model User {
   role UserRole @default(USER)
 
   // Relationships
-  profile            Profile?
-  preferences        Preferences?
-  memories           Memory[]
-  messages           Message[]
-  chats              Chat[]
-  conversationThreads ConversationThread[]
-  aiTurnTraces       AiTurnTrace[]
-  dailyUsage         DailyUsage[]
-  identities         ChannelIdentity[]
-  consumedLinkTokens ChannelLinkToken[] @relation("ChannelLinkTokenConsumedBy")
-  subscription       Subscription?
-  sessionSummaries   SessionSummary[]
-  archivedSessions   ArchivedSession[]
-  voiceUsage         VoiceUsage[]
+  profile                 Profile?
+  preferences             Preferences?
+  memories                Memory[]
+  messages                Message[]
+  chats                   Chat[]
+  conversationThreads     ConversationThread[]
+  aiTurnTraces            AiTurnTrace[]
+  dailyUsage              DailyUsage[]
+  identities              ChannelIdentity[]
+  consumedLinkTokens      ChannelLinkToken[]       @relation("ChannelLinkTokenConsumedBy")
+  subscription            Subscription?
+  sessionSummaries        SessionSummary[]
+  archivedSessions        ArchivedSession[]
+  voiceUsage              VoiceUsage[]
+  voiceGenerationJobs     VoiceGenerationJob[]
   organizationMemberships OrganizationMembership[]
   ownedOrganizations      Organization[]           @relation("OrganizationOwner")
   createdOrganizations    Organization[]           @relation("OrganizationCreator")
   organizationAuditLogs   OrganizationAuditLog[]   @relation("OrganizationAuditActor")
 
   billingSyncedAt DateTime?
-  lastActivityAt DateTime  @default(now())
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  deletedAt      DateTime? // Soft delete
+  lastActivityAt  DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime? // Soft delete
 
   @@index([role])
   @@index([isGuest])
@@ -130,9 +131,9 @@ enum OrganizationAuditAction {
 model Organization {
   id String @id @default(cuid())
 
-  clerkOrganizationId String @unique
+  clerkOrganizationId String             @unique
   name                String
-  slug                String @unique
+  slug                String             @unique
   status              OrganizationStatus @default(ACTIVE)
 
   ownerUserId String?
@@ -158,19 +159,19 @@ model Organization {
 model OrganizationContract {
   id String @id @default(cuid())
 
-  organizationId String @unique
+  organizationId String       @unique
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  basePlan OrganizationBasePlan @default(BASIC)
+  basePlan  OrganizationBasePlan  @default(BASIC)
   seatLimit Int
   planLabel String
   modelTier OrganizationModelTier @default(BASIC)
 
-  maxRequestsPerDay  Int
+  maxRequestsPerDay     Int
   maxInputTokensPerDay  Int
   maxOutputTokensPerDay Int
-  maxCostPerDay      Float
-  maxContextMessages Int
+  maxCostPerDay         Float
+  maxContextMessages    Int
 
   version Int @default(1)
 
@@ -190,8 +191,8 @@ model OrganizationMembership {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  clerkMembershipId String @unique
-  role              OrganizationMemberRole @default(MEMBER)
+  clerkMembershipId String                       @unique
+  role              OrganizationMemberRole       @default(MEMBER)
   status            OrganizationMembershipStatus @default(ACTIVE)
 
   joinedAt DateTime?
@@ -274,6 +275,48 @@ model ChannelLinkToken {
   @@index([expiresAt])
 }
 
+// -----------------------------------------------------
+// CONNECT COMMAND DELIVERY (retry-safe channel linking)
+// -----------------------------------------------------
+
+enum ChannelConnectResponseKind {
+  LINK
+  ALREADY_LINKED
+  UNAVAILABLE
+}
+
+enum ChannelConnectDeliveryStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
+// A provider message can be delivered more than once. This marker owns the
+// one-time link-token creation and the outbound response delivery lifecycle.
+model ChannelConnectRequest {
+  id String @id @default(cuid())
+
+  channel           Channel
+  externalMessageId String
+  externalId        String
+  chatId            String
+  responseKind      ChannelConnectResponseKind
+
+  status                 ChannelConnectDeliveryStatus @default(PENDING)
+  claimToken             String?
+  deliveryLeaseExpiresAt DateTime?
+  deliveryAttempts       Int                          @default(0)
+  deliveredAt            DateTime?
+  lastDeliveryError      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([channel, externalMessageId])
+  @@index([status, deliveryLeaseExpiresAt])
+}
+
 enum Channel {
   WEB
   WHATSAPP
@@ -299,8 +342,8 @@ model Chat {
   customTitle Boolean        @default(false)
   visibility  ChatVisibility @default(PRIVATE)
 
-  messages  Message[]
-  artifacts Artifact[]
+  messages           Message[]
+  artifacts          Artifact[]
   conversationThread ConversationThread?
 
   createdAt DateTime  @default(now())
@@ -366,9 +409,10 @@ model Message {
   deletedAt DateTime? // Soft delete
 
   // Relationships
-  attachments Attachment[]
-  artifacts   Artifact[]      @relation("MessageArtifacts")
-  metrics     MessageMetrics?
+  attachments        Attachment[]
+  artifacts          Artifact[]          @relation("MessageArtifacts")
+  metrics            MessageMetrics?
+  voiceGenerationJob VoiceGenerationJob?
 
   @@unique([channel, externalMessageId])
   @@index([userId, channel, createdAt])
@@ -414,15 +458,15 @@ model ConversationThread {
 model ConversationThreadSummary {
   id String @id @default(cuid())
 
-  conversationThreadId String @unique
+  conversationThreadId String             @unique
   conversationThread   ConversationThread @relation(fields: [conversationThreadId], references: [id], onDelete: Cascade)
 
-  summary              String   @db.Text
-  throughMessageId     String?
+  summary                 String    @db.Text
+  throughMessageId        String?
   throughMessageCreatedAt DateTime?
-  version              Int      @default(1)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  version                 Int       @default(1)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 }
 
 enum AiTurnTraceStatus {
@@ -445,10 +489,10 @@ model AiTurnTrace {
   status             AiTurnTraceStatus @default(PENDING)
   metadata           Json
 
-  payloadCiphertext Bytes?
-  payloadIv         Bytes?
-  payloadTag        Bytes?
-  keyVersion        Int    @default(1)
+  payloadCiphertext    Bytes?
+  payloadIv            Bytes?
+  payloadTag           Bytes?
+  keyVersion           Int    @default(1)
   contentCaptureStatus String @default("pending")
 
   expiresAt DateTime
@@ -495,7 +539,7 @@ model MessageMetrics {
   generationTimeMs Int?
   reasoningTimeMs  Int?
 
-  toolCallCount  Int?
+  toolCallCount   Int?
   toolResultChars Int?
   toolTiming      Json?
 
@@ -730,9 +774,10 @@ model ArtifactVersion {
 // -----------------------------------------------------
 
 model Attachment {
-  id        String   @id @default(cuid())
-  messageId String?
-  message   Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  id                 String              @id @default(cuid())
+  messageId          String?
+  message            Message?            @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  voiceGenerationJob VoiceGenerationJob? @relation("VoiceGenerationAttachment")
 
   name        String // Original filename
   contentType String // MIME type
@@ -816,11 +861,69 @@ model VoiceUsage {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  generatedAt    DateTime @default(now())
-  characterCount Int // Characters sent to Eleven Labs
-  costUsd        Float? // Estimated cost in USD
-  channel        Channel  @default(TELEGRAM) // Which channel triggered the voice
+  generatedAt          DateTime            @default(now())
+  characterCount       Int // Characters sent to Eleven Labs
+  costUsd              Float? // Estimated cost in USD
+  channel              Channel             @default(TELEGRAM) // Which channel triggered the voice
+  voiceGenerationJobId String?             @unique
+  voiceGenerationJob   VoiceGenerationJob? @relation(fields: [voiceGenerationJobId], references: [id], onDelete: SetNull)
 
   @@index([userId, generatedAt(sort: Desc)])
   @@index([generatedAt])
+}
+
+// -----------------------------------------------------
+// WEB VOICE GENERATION (durable, retry-safe TTS lifecycle)
+// -----------------------------------------------------
+
+enum VoiceGenerationStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+  CANCELLED
+}
+
+// One job owns one web assistant message. The claim token and lease make
+// QStash's at-least-once deliveries safe: only the worker that currently owns
+// the lease can attach media or account for voice usage.
+model VoiceGenerationJob {
+  id String @id @default(cuid())
+
+  messageId String  @unique
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status         VoiceGenerationStatus @default(PENDING)
+  attempts       Int                   @default(0)
+  claimToken     String?
+  leaseExpiresAt DateTime?
+  expiresAt      DateTime
+
+  queuedAt    DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  failedAt    DateTime?
+
+  // Once upload succeeds, retries finalize this same private object instead
+  // of paying for another TTS request.
+  blobUrl        String?
+  audioSize      Int?
+  characterCount Int?
+  costUsd        Float?
+  attachmentId   String?     @unique
+  attachment     Attachment? @relation("VoiceGenerationAttachment", fields: [attachmentId], references: [id], onDelete: SetNull)
+
+  errorCode        String?
+  processingTimeMs Int?
+
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  voiceUsage VoiceUsage?
+
+  @@index([status, leaseExpiresAt])
+  @@index([status, expiresAt])
+  @@index([userId, createdAt(sort: Desc)])
 }

@@ -195,6 +195,17 @@ sequenceDiagram
     end
 ```
 
+#### Retry-safe connect delivery
+
+Each Telegram provider message creates one durable connect-request claim keyed by
+`chat_id:message_id`. The claim creates at most one link token and leases the
+outbound response so concurrent webhook deliveries cannot send it twice. A
+known failed send is marked `FAILED` and a later redelivery retries the same
+link; a stale `SENDING` lease may also be reclaimed after one minute. Each
+lease has a unique fencing token, so an expired worker cannot later record
+`SENT` or `FAILED` for a newer lease. The outbound request times out after 45
+seconds, before the one-minute lease expires.
+
 ## Data Structures
 
 ### TelegramUpdate

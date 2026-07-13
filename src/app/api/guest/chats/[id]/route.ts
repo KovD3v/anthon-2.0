@@ -13,6 +13,7 @@ import { prisma } from "@/lib/db";
 import { authenticateGuest } from "@/lib/guest-auth";
 import { createLogger } from "@/lib/logger";
 import { getTextFromParts } from "@/lib/utils/message-parts";
+import { deletePrivateVoiceBlobsForMessages } from "@/lib/voice/attachment-cleanup";
 
 const guestLogger = createLogger("auth");
 
@@ -273,6 +274,8 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
         { status: 404 },
       );
     }
+
+    await deletePrivateVoiceBlobsForMessages({ chatId: id });
 
     // Delete chat (cascade will delete messages)
     await prisma.chat.delete({

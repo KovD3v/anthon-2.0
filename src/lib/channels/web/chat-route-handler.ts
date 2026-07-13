@@ -21,13 +21,13 @@ import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { transcribeAudio } from "@/lib/transcription";
-import {
-  decideWebVoiceMode,
-  generateVoice,
-  getVoiceUnavailability,
-  trackVoiceUsage,
-} from "@/lib/voice";
+import { decideWebVoiceMode, getVoiceUnavailability } from "@/lib/voice";
 import { getVoicePlanConfig } from "@/lib/voice/config";
+import {
+  getVoiceGenerationExpiry,
+  scheduleVoiceGenerationJob,
+  withVoiceGenerationStatus,
+} from "@/lib/voice/generation-jobs";
 
 const logger = createLogger("ai");
 
@@ -492,7 +492,6 @@ export async function handleWebChatPost(request: Request) {
               : hasImages
                 ? "direct_media"
                 : "text",
-            explicitVoiceRequest: voiceDecision.category === "VOICE_REQUIRED",
             voiceDecision,
             waitUntil,
           });
@@ -559,7 +558,7 @@ export async function handleWebChatPost(request: Request) {
         return flowResult.streamResult.toUIMessageStreamResponse();
       } catch (error) {
         logger.error("chat.request.failed", "Chat API request failed", {
-          error,
+          errorName: error instanceof Error ? error.name : "unknown",
         });
         return new Response(
           JSON.stringify({ error: "Internal server error" }),
@@ -817,7 +816,6 @@ async function handleVoiceFirstWebResponse({
   hasImages,
   hasAudio,
   inputOrigin,
-  explicitVoiceRequest,
   voiceDecision,
   waitUntil: schedule,
 }: {
@@ -835,7 +833,6 @@ async function handleVoiceFirstWebResponse({
   hasImages?: boolean;
   hasAudio?: boolean;
   inputOrigin?: "text" | "transcribed_voice" | "direct_media";
-  explicitVoiceRequest?: boolean;
   voiceDecision: Awaited<ReturnType<typeof decideWebVoiceMode>>;
   waitUntil?: (promise: Promise<unknown>) => void;
 }) {
@@ -881,60 +878,7 @@ async function handleVoiceFirstWebResponse({
   if (!assistantText || !flowResult.metrics) {
     throw new Error("Voice response generation produced no assistant text");
   }
-
-  let audio: Awaited<ReturnType<typeof generateVoice>>;
-  let blobResult: { url: string };
-
-  try {
-    audio = await generateVoice(assistantText);
-    const { put } = await import("@vercel/blob");
-    blobResult = await put(
-      `voice/${chatId}/${Date.now()}.mp3`,
-      audio.audioBuffer,
-      {
-        access: "public",
-        contentType: "audio/mpeg",
-      },
-    );
-  } catch (error) {
-    logger.error("voice.web_generation_failed", "Web voice generation failed", {
-      error,
-      userId,
-      chatId,
-      conversationThreadId,
-      userMessageId,
-    });
-
-    const fallbackText = explicitVoiceRequest
-      ? `${getVoiceUnavailability("PROVIDER_UNAVAILABLE").userMessage}\n\n${assistantText}`
-      : assistantText;
-    const fallbackMessage = await persistAssistantOutput({
-      userId,
-      chatId,
-      conversationThreadId,
-      userMessageId,
-      channel: "WEB",
-      text: fallbackText,
-      userMessageText,
-      metrics: flowResult.metrics,
-      metadata: {
-        responseMode: "text_fallback",
-        voice: {
-          ...getVoiceDecisionMetadataFields(voiceDecision),
-          status: "failed",
-          fallback: "text",
-          deliveryReason: "generation_or_storage_failed",
-        },
-      },
-      updateChatTimestamp: true,
-      revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
-      allowMemoryExtraction: true,
-      waitUntil: schedule,
-    });
-
-    return createTextStreamResponse(fallbackMessage.id, fallbackText);
-  }
-
+  const voiceGenerationExpiresAt = getVoiceGenerationExpiry();
   const assistantMessage = await persistAssistantOutput({
     userId,
     chatId,
@@ -944,56 +888,29 @@ async function handleVoiceFirstWebResponse({
     text: assistantText,
     userMessageText,
     metrics: flowResult.metrics,
-    messageType: "AUDIO",
-    mediaUrl: blobResult.url,
-    mediaType: "audio/mpeg",
     metadata: {
       responseMode: "voice",
       transcript: assistantText,
-      voice: {
-        ...getVoiceDecisionMetadataFields(voiceDecision),
-        status: "ready",
-        costUsd: audio.costUsd,
-      },
+      ...withVoiceGenerationStatus(
+        {
+          voice: getVoiceDecisionMetadataFields(voiceDecision),
+        },
+        "pending",
+      ),
     },
     updateChatTimestamp: true,
     revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
     allowMemoryExtraction: true,
     waitUntil: schedule,
+    voiceGeneration: { expiresAt: voiceGenerationExpiresAt },
   });
 
-  await Promise.all([
-    prisma.attachment
-      .create({
-        data: {
-          messageId: assistantMessage.id,
-          name: "voice.mp3",
-          contentType: "audio/mpeg",
-          size: audio.audioBuffer.length,
-          blobUrl: blobResult.url,
-        },
-      })
-      .catch((error) =>
-        logger.error(
-          "voice.web_attachment_failed",
-          "Failed creating web voice attachment",
-          { error, userId, chatId, messageId: assistantMessage.id },
-        ),
-      ),
-    trackVoiceUsage(userId, audio.characterCount, "WEB", audio.costUsd).catch(
-      (error) =>
-        logger.error(
-          "voice.web_usage_tracking_failed",
-          "Failed tracking web voice usage",
-          { error, userId, chatId, messageId: assistantMessage.id },
-        ),
-    ),
-  ]);
+  // Return the persisted transcript immediately; TTS and Blob work continue in
+  // the durable worker. A refresh/reconnect reads the same message and its
+  // eventual attachment rather than receiving a second assistant message.
+  scheduleVoiceGenerationJob(assistantMessage.id, schedule);
 
-  return createVoiceFileStreamResponse(
-    assistantMessage.id,
-    `/api/voice/messages/${assistantMessage.id}`,
-  );
+  return createTextStreamResponse(assistantMessage.id, assistantText);
 }
 
 function getExplicitVoiceUnavailableReason(
@@ -1015,20 +932,6 @@ function getExplicitVoiceUnavailableReason(
     default:
       return undefined;
   }
-}
-
-function createVoiceFileStreamResponse(messageId: string, url: string) {
-  const stream = createUIMessageStream<UIMessage>({
-    execute: ({ writer }) => {
-      writer.write({ type: "start", messageId });
-      writer.write({ type: "start-step" });
-      writer.write({ type: "file", url, mediaType: "audio/mpeg" });
-      writer.write({ type: "finish-step" });
-      writer.write({ type: "finish", finishReason: "stop" });
-    },
-  });
-
-  return createUIMessageStreamResponse({ stream });
 }
 
 function createTextStreamResponse(messageId: string, text: string) {

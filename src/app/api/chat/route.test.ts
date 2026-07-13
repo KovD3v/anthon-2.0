@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   messageCreate: vi.fn(),
   messageMetricsCreate: vi.fn(),
+  voiceGenerationJobCreate: vi.fn(),
   messageCount: vi.fn(),
   attachmentFindFirst: vi.fn(),
   attachmentCreate: vi.fn(),
@@ -30,7 +31,10 @@ const mocks = vi.hoisted(() => ({
   transcribeAudio: vi.fn(),
   generateVoice: vi.fn(),
   trackVoiceUsage: vi.fn(),
-  put: vi.fn(),
+  putPrivateVoiceBlob: vi.fn(),
+  getVoiceGenerationExpiry: vi.fn(),
+  scheduleVoiceGenerationJob: vi.fn(),
+  withVoiceGenerationStatus: vi.fn(),
   ensureConversationThread: vi.fn(),
 }));
 
@@ -121,8 +125,14 @@ vi.mock("@/lib/voice", () => ({
   trackVoiceUsage: mocks.trackVoiceUsage,
 }));
 
-vi.mock("@vercel/blob", () => ({
-  put: mocks.put,
+vi.mock("@/lib/voice/storage", () => ({
+  putPrivateVoiceBlob: mocks.putPrivateVoiceBlob,
+}));
+
+vi.mock("@/lib/voice/generation-jobs", () => ({
+  getVoiceGenerationExpiry: mocks.getVoiceGenerationExpiry,
+  scheduleVoiceGenerationJob: mocks.scheduleVoiceGenerationJob,
+  withVoiceGenerationStatus: mocks.withVoiceGenerationStatus,
 }));
 
 import { POST } from "./route";
@@ -197,6 +207,7 @@ describe("POST /api/chat", () => {
     mocks.transaction.mockReset();
     mocks.messageCreate.mockReset();
     mocks.messageMetricsCreate.mockReset();
+    mocks.voiceGenerationJobCreate.mockReset();
     mocks.messageCount.mockReset();
     mocks.attachmentFindFirst.mockReset();
     mocks.attachmentCreate.mockReset();
@@ -214,7 +225,10 @@ describe("POST /api/chat", () => {
     mocks.transcribeAudio.mockReset();
     mocks.generateVoice.mockReset();
     mocks.trackVoiceUsage.mockReset();
-    mocks.put.mockReset();
+    mocks.putPrivateVoiceBlob.mockReset();
+    mocks.getVoiceGenerationExpiry.mockReset();
+    mocks.scheduleVoiceGenerationJob.mockReset();
+    mocks.withVoiceGenerationStatus.mockReset();
     mocks.ensureConversationThread.mockReset();
 
     mocks.start.mockReturnValue({
@@ -232,6 +246,9 @@ describe("POST /api/chat", () => {
         },
         messageMetrics: {
           create: mocks.messageMetricsCreate,
+        },
+        voiceGenerationJob: {
+          create: mocks.voiceGenerationJobCreate,
         },
       }),
     );
@@ -272,6 +289,7 @@ describe("POST /api/chat", () => {
     mocks.ensureConversationThread.mockResolvedValue({ id: "thread-1" });
     mocks.messageCreate.mockResolvedValue({ id: "msg-user-1" });
     mocks.messageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
+    mocks.voiceGenerationJobCreate.mockResolvedValue({ id: "voice-job-1" });
     mocks.messageCount.mockResolvedValue(1);
     mocks.chatUpdate.mockResolvedValue({});
     mocks.attachmentFindFirst.mockImplementation(
@@ -317,9 +335,18 @@ describe("POST /api/chat", () => {
       characterCount: 20,
       costUsd: 0.001,
     });
-    mocks.put.mockResolvedValue({
-      url: "https://blob.example/voice/msg-assistant-1.mp3",
+    mocks.putPrivateVoiceBlob.mockResolvedValue({
+      url: "https://store.private.blob.vercel-storage.com/voice/msg-assistant-1.mp3",
     });
+    mocks.getVoiceGenerationExpiry.mockReturnValue(
+      new Date("2026-07-14T12:00:00.000Z"),
+    );
+    mocks.withVoiceGenerationStatus.mockImplementation(
+      (metadata: { voice?: Record<string, unknown> }, status: string) => ({
+        ...metadata,
+        voice: { ...metadata.voice, status },
+      }),
+    );
     mocks.trackVoiceUsage.mockResolvedValue(undefined);
     mocks.streamChat.mockResolvedValue({
       toUIMessageStreamResponse: () =>
@@ -982,7 +1009,7 @@ describe("POST /api/chat", () => {
     });
   });
 
-  it("generates a voice-first assistant response when preflight chooses voice", async () => {
+  it("persists a voice-first transcript and queues TTS without waiting for audio", async () => {
     mocks.decideWebVoiceMode.mockResolvedValue({
       mode: "VOICE",
       reason: "User explicitly requested voice",
@@ -1035,19 +1062,30 @@ describe("POST /api/chat", () => {
         voiceEnabled: true,
       }),
     );
-    expect(mocks.generateVoice).toHaveBeenCalledWith(
-      "Respira. Spalle morbide. Ora scegli una sola azione semplice.",
+    expect(mocks.generateVoice).not.toHaveBeenCalled();
+    expect(mocks.putPrivateVoiceBlob).not.toHaveBeenCalled();
+    expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
+    expect(mocks.voiceGenerationJobCreate).toHaveBeenCalledWith({
+      data: {
+        messageId: "msg-assistant-1",
+        userId: "user-1",
+        expiresAt: new Date("2026-07-14T12:00:00.000Z"),
+      },
+    });
+    expect(mocks.scheduleVoiceGenerationJob).toHaveBeenCalledWith(
+      "msg-assistant-1",
+      mocks.waitUntil,
     );
-    expect(mocks.put).toHaveBeenCalledWith(
-      expect.stringMatching(/^voice\/.+\.mp3$/),
-      Buffer.from("audio"),
-      expect.objectContaining({ contentType: "audio/mpeg" }),
-    );
-    expect(mocks.trackVoiceUsage).toHaveBeenCalledWith(
-      "user-1",
-      20,
-      "WEB",
-      0.001,
+    expect(mocks.messageCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "TEXT",
+          metadata: expect.objectContaining({
+            responseMode: "voice",
+            voice: expect.objectContaining({ status: "pending" }),
+          }),
+        }),
+      }),
     );
     expect(mocks.decideWebVoiceMode).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1243,12 +1281,14 @@ describe("POST /api/chat", () => {
         hasAttachments: true,
       }),
     );
-    expect(mocks.generateVoice).toHaveBeenCalledWith(
-      "Ti descrivo a voce ciò che vedo nell'immagine.",
+    expect(mocks.generateVoice).not.toHaveBeenCalled();
+    expect(mocks.scheduleVoiceGenerationJob).toHaveBeenCalledWith(
+      "msg-assistant-1",
+      mocks.waitUntil,
     );
   });
 
-  it("explains the fallback when TTS fails for an explicit voice request", async () => {
+  it("keeps the explicit voice transcript available while generation runs asynchronously", async () => {
     mocks.decideWebVoiceMode.mockResolvedValue({
       mode: "VOICE",
       reason: "User explicitly requested voice",
@@ -1280,10 +1320,9 @@ describe("POST /api/chat", () => {
         })(),
       };
     });
-    mocks.generateVoice.mockRejectedValue(new Error("TTS unavailable"));
     mocks.messageCreate
       .mockResolvedValueOnce({ id: "msg-user-1" })
-      .mockResolvedValueOnce({ id: "msg-fallback-1" });
+      .mockResolvedValueOnce({ id: "msg-assistant-1" });
 
     const response = await POST(
       buildRequest({
@@ -1305,23 +1344,26 @@ describe("POST /api/chat", () => {
           parts: [
             {
               type: "text",
-              text: "Voice is temporarily unavailable, so I'm replying in text.\n\nRespira lentamente e scegli una sola azione.",
+              text: "Respira lentamente e scegli una sola azione.",
             },
           ],
           metadata: expect.objectContaining({
-            responseMode: "text_fallback",
+            responseMode: "voice",
             voice: expect.objectContaining({
               reasonCode: "EXPLICIT_VOICE",
-              status: "failed",
-              deliveryReason: "generation_or_storage_failed",
+              status: "pending",
             }),
           }),
         }),
       }),
     );
+    expect(mocks.scheduleVoiceGenerationJob).toHaveBeenCalledWith(
+      "msg-assistant-1",
+      mocks.waitUntil,
+    );
   });
 
-  it("does not persist a duplicate text fallback when voice side effects fail after audio persistence", async () => {
+  it("does not create an audio message or duplicate transcript before the job runs", async () => {
     mocks.decideWebVoiceMode.mockResolvedValue({
       mode: "VOICE",
       reason: "User explicitly requested voice",
@@ -1353,9 +1395,7 @@ describe("POST /api/chat", () => {
     });
     mocks.messageCreate
       .mockResolvedValueOnce({ id: "msg-user-1" })
-      .mockResolvedValueOnce({ id: "msg-assistant-1" })
-      .mockResolvedValueOnce({ id: "msg-fallback-1" });
-    mocks.trackVoiceUsage.mockRejectedValue(new Error("usage write failed"));
+      .mockResolvedValueOnce({ id: "msg-assistant-1" });
 
     const response = await POST(
       buildRequest({
@@ -1374,14 +1414,15 @@ describe("POST /api/chat", () => {
     expect(mocks.messageCreate).toHaveBeenLastCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          type: "AUDIO",
-          mediaUrl: "https://blob.example/voice/msg-assistant-1.mp3",
+          type: "TEXT",
           metadata: expect.objectContaining({
             responseMode: "voice",
+            voice: expect.objectContaining({ status: "pending" }),
           }),
         }),
       }),
     );
+    expect(mocks.scheduleVoiceGenerationJob).toHaveBeenCalledTimes(1);
   });
 
   it("transcribes audio data-url fields before the AI flow", async () => {

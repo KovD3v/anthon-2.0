@@ -19,6 +19,11 @@ import {
   shouldGenerateVoice,
   trackVoiceUsage,
 } from "@/lib/voice";
+import { scheduleVoiceGenerationJob } from "@/lib/voice/generation-jobs";
+import {
+  deletePrivateVoiceBlob,
+  putPrivateVoiceBlob,
+} from "@/lib/voice/storage";
 
 const logger = createLogger("voice");
 
@@ -158,6 +163,9 @@ export async function POST(request: Request) {
                   chatId: true,
                   parts: true,
                   userId: true,
+                  voiceGenerationJob: {
+                    select: { status: true },
+                  },
                 },
               }),
             ]),
@@ -173,6 +181,44 @@ export async function POST(request: Request) {
         if (!message || message.userId !== user.id || !messageText) {
           requestTimer.end();
           return Response.json({ error: "Message not found" }, { status: 404 });
+        }
+
+        // Web chat messages with a durable voice job must be generated only by
+        // that fenced worker. The legacy explicit endpoint remains available
+        // for messages without a job, but must never create a second blob,
+        // attachment, or usage record for an in-flight automatic generation.
+        if (message.voiceGenerationJob) {
+          const voiceStatus = message.voiceGenerationJob.status.toLowerCase();
+
+          if (message.voiceGenerationJob.status === "PENDING") {
+            void scheduleVoiceGenerationJob(message.id);
+          }
+
+          requestTimer.end();
+          if (message.voiceGenerationJob.status === "READY") {
+            return Response.json({
+              shouldGenerateVoice: true,
+              voiceStatus,
+              audioUrl: `/api/voice/messages/${message.id}`,
+            });
+          }
+
+          return Response.json(
+            {
+              shouldGenerateVoice: false,
+              voiceStatus,
+              deferred:
+                message.voiceGenerationJob.status === "PENDING" ||
+                message.voiceGenerationJob.status === "PROCESSING",
+            },
+            {
+              status:
+                message.voiceGenerationJob.status === "FAILED" ||
+                message.voiceGenerationJob.status === "CANCELLED"
+                  ? 409
+                  : 202,
+            },
+          );
         }
 
         const preferences = user.preferences;
@@ -230,21 +276,19 @@ export async function POST(request: Request) {
         }
 
         // Generate voice (already instrumented internally)
+        let uploadedBlobUrl: string | undefined;
         try {
           const audio = await generateVoice(messageText);
 
           // Upload first. Usage is recorded only after the audio has been
           // attached successfully, so a storage failure never consumes quota.
-          const { put } = await import("@vercel/blob");
           const blobResult = await LatencyLogger.measure(
             "Blob: Upload Audio",
             async () =>
-              put(`voice/${message.id}.mp3`, audio.audioBuffer, {
-                access: "public",
-                contentType: "audio/mpeg",
-              }),
+              putPrivateVoiceBlob(`voice/${message.id}.mp3`, audio.audioBuffer),
             "🌐 Voice API Request",
           );
+          uploadedBlobUrl = blobResult.url;
 
           // Create Attachment record (needs blobResult.url)
           const attachment = await LatencyLogger.measure(
@@ -262,6 +306,10 @@ export async function POST(request: Request) {
             "🌐 Voice API Request",
           );
 
+          // From this point the object is owned by the attachment. Leave the
+          // compensating cleanup guard armed only until persistence succeeds.
+          uploadedBlobUrl = undefined;
+
           await LatencyLogger.measure(
             "DB: Track Usage",
             async () =>
@@ -276,7 +324,11 @@ export async function POST(request: Request) {
             logger.error(
               "voice.web_usage_tracking_failed",
               "Voice was delivered but usage tracking failed",
-              { error, userId: user.id, messageId: message.id },
+              {
+                errorName: error instanceof Error ? error.name : "unknown",
+                userId: user.id,
+                messageId: message.id,
+              },
             ),
           );
 
@@ -302,8 +354,24 @@ export async function POST(request: Request) {
             audioUrl: `/api/voice/messages/${message.id}`,
           });
         } catch (error) {
+          if (uploadedBlobUrl) {
+            await deletePrivateVoiceBlob(uploadedBlobUrl).catch(
+              (cleanupError) =>
+                logger.warn(
+                  "voice.web_unattached_blob_cleanup_failed",
+                  "Failed deleting a private voice blob after persistence failed",
+                  {
+                    errorName:
+                      cleanupError instanceof Error
+                        ? cleanupError.name
+                        : "unknown",
+                    messageId: message.id,
+                  },
+                ),
+            );
+          }
           logger.error("voice.generation.failed", "Voice generation failed", {
-            error,
+            errorName: error instanceof Error ? error.name : "unknown",
             userId: user.id,
             messageId: message.id,
           });
@@ -318,7 +386,7 @@ export async function POST(request: Request) {
         }
       } catch (error) {
         logger.error("voice.request.failed", "Unexpected voice API error", {
-          error,
+          errorName: error instanceof Error ? error.name : "unknown",
         });
         requestTimer.end();
         return Response.json(

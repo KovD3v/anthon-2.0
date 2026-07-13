@@ -8,9 +8,24 @@ import type {
 export type ChatUIMessage = UIMessage & {
   createdAt?: Date;
   attachments?: StoredAttachment[];
+  voice?: ChatMessage["voice"];
   feedback?: -1 | 0 | 1 | null;
   feedbackReason?: MessageFeedbackReason;
 };
+
+/**
+ * A reconnect gets the persisted job state through the normal chat payload.
+ * The chat screen uses this to poll only until audio attaches or fails.
+ */
+export function hasPendingVoiceGeneration(
+  messages: Array<{ voice?: ChatMessage["voice"] }>,
+): boolean {
+  return messages.some(
+    (message) =>
+      message.voice?.status === "PENDING" ||
+      message.voice?.status === "PROCESSING",
+  );
+}
 
 /**
  * Convert database messages to UIMessage format for the AI SDK.
@@ -26,6 +41,7 @@ export function convertToUIMessages(messages: ChatMessage[]): ChatUIMessage[] {
     createdAt: new Date(msg.createdAt),
     annotations: msg.usage ? [msg.usage] : undefined,
     attachments: msg.attachments,
+    voice: msg.voice,
     feedback: msg.feedback,
     feedbackReason: msg.feedbackReason,
   }));

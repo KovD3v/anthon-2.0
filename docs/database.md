@@ -8,18 +8,68 @@ The project uses a single Neon project (`AnthonChat`) with two branches:
 
 | Branch | Role | Used by |
 |--------|------|---------|
-| `production` | Live deployed database | Vercel (`DATABASE_URL` / `DIRECT_DATABASE_URL`) |
+| `production` | Live deployed database | Vercel runtime (`DATABASE_URL`); GitHub `production` Environment migrations (`DIRECT_DATABASE_URL`) |
 | `development` | Dev/test database | Integration tests (`TEST_DATABASE_URL`), local dev |
 
-**Migrations run automatically** via `bun run build` → `prisma migrate deploy`.
-Set `DATABASE_URL` and `DIRECT_DATABASE_URL` in Vercel to the production branch
-connection strings — the next deploy will apply all pending migrations.
+## Deployment migrations
 
-For manual production migration:
+`bun run build` is artifact-only: it generates the Prisma client and compiles
+Next.js, but never invokes `prisma migrate deploy` or needs migration
+credentials. This keeps Vercel builds and verification CI non-mutating.
 
-```bash
-PROD_DATABASE_URL=<pooled> PROD_DIRECT_DATABASE_URL=<direct> ./scripts/migrate-prod.sh
-```
+The sole production-like migration owner is
+[`.github/workflows/migrate.yml`](../.github/workflows/migrate.yml). It is
+manually dispatched and serialized per target database:
+
+- Select `preview` or `production` explicitly when dispatching the workflow.
+- The selected GitHub Environment supplies its own `DIRECT_DATABASE_URL` secret.
+  Configure required reviewers for `production`; do not put this secret in the
+  repository, Vercel build settings, or the `Verify` workflow.
+- The workflow's concurrency group queues, rather than cancels, another migration
+  for the same target. `bun run migrate:deploy` refuses to run outside that job.
+
+`DATABASE_URL` remains the pooled runtime connection used by the deployed app;
+the migration job uses only the direct connection in its selected GitHub
+Environment. Never reuse the production secret for `preview`.
+
+### Preview path
+
+Use a dedicated non-production Neon branch/database for Vercel Preview and set
+its direct connection string as the `DIRECT_DATABASE_URL` secret of the GitHub
+`preview` Environment. For a change that contains a migration:
+
+1. Dispatch **Apply database migrations** against the branch/commit containing
+   the migration and select `preview`.
+2. Wait for the serialized job to succeed, then create or redeploy the Vercel
+   Preview deployment using that same source commit.
+3. Verify the preview against the preview database only. `bun run verify` does
+   not need either preview or production credentials.
+
+### Production path
+
+After the preview has been validated, dispatch **Apply database migrations**
+from the release branch/commit and select `production`. The protected GitHub
+`production` Environment supplies the production direct connection and the
+workflow runs `bun run migrate:deploy`. Wait for that run to succeed before
+merging/releasing the Vercel deployment that depends on the new schema. Do not
+run the command from a laptop or Vercel build.
+
+### Expand, migrate, contract
+
+Every rolling deployment must remain compatible with both the previous and next
+application version:
+
+1. **Expand:** add tables, nullable columns, additive indexes, or new values in
+   a backwards-compatible migration. Run it through the selected migration
+   workflow before deploying code that requires it.
+2. **Migrate/backfill:** move existing data with a resumable, observable job;
+   the application must tolerate rows that have not been backfilled yet.
+3. **Adopt:** deploy code that reads/writes the new representation while retaining
+   compatibility with the old one until every active deployment has changed.
+4. **Contract:** only in a later release, after all old deployments are gone,
+   remove obsolete fields or constraints through the same serialized workflow.
+
+Do not combine a destructive contract change with its expand release.
 
 **Safety:** Never point `TEST_DATABASE_URL` at the production branch. The integration
 test setup (`global-setup.ts`) will abort if `TEST_DATABASE_URL` and `DATABASE_URL`
@@ -99,7 +149,7 @@ Individual messages supporting text, media, and AI metadata.
 | `role`         | MessageRole      | USER, ASSISTANT, SYSTEM                          |
 | `direction`    | MessageDirection | INBOUND or OUTBOUND                              |
 | `type`         | MessageType      | TEXT, IMAGE, AUDIO, etc.                         |
-| `parts`        | Json?            | AI SDK v6 message parts — canonical content format |
+| `parts`        | Json?            | AI SDK v7 message parts — canonical content format |
 | `mediaUrl`     | String?          | Media URL (for non-web channels)                 |
 | `mediaType`    | String?          | Media MIME type                                  |
 | `externalMessageId` | String?     | External message id (unique per channel)         |

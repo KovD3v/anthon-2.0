@@ -5,7 +5,13 @@ import { prisma } from "@/lib/db";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 import { getVoicePlanConfig } from "@/lib/voice";
-import type { Chat, ChatData } from "@/types/chat";
+import type { Chat, ChatData, ChatMessage } from "@/types/chat";
+
+function normalizeMessageFeedback(
+  feedback: number | null,
+): ChatMessage["feedback"] {
+  return feedback === -1 || feedback === 0 || feedback === 1 ? feedback : null;
+}
 
 // -----------------------------------------------------
 // Data Fetching (Server-side with React Cache)
@@ -143,6 +149,12 @@ export const getSharedChat = cache(
               toolCalls: true,
               feedback: true,
               metadata: true,
+              voiceGenerationJob: {
+                select: {
+                  status: true,
+                  errorCode: true,
+                },
+              },
               attachments: {
                 select: {
                   id: true,
@@ -189,8 +201,16 @@ export const getSharedChat = cache(
             : undefined,
         ragUsed: m.ragUsed || undefined,
         toolCalls: m.toolCalls,
-        feedback: m.feedback,
+        feedback: normalizeMessageFeedback(m.feedback),
         feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
+        voice: m.voiceGenerationJob
+          ? {
+              status: m.voiceGenerationJob.status,
+              ...(m.voiceGenerationJob.errorCode
+                ? { errorCode: m.voiceGenerationJob.errorCode }
+                : {}),
+            }
+          : undefined,
         attachments: m.attachments.map((attachment) => ({
           ...attachment,
           blobUrl: attachment.contentType.startsWith("audio/")

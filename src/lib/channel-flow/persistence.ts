@@ -131,6 +131,7 @@ export async function persistAssistantOutput({
   revalidateTags: tags = [],
   allowMemoryExtraction = false,
   waitUntil,
+  voiceGeneration,
 }: PersistAssistantOutputInput) {
   const assistantMetadata = buildAssistantMetadata(metadata, metrics);
 
@@ -165,6 +166,19 @@ export async function persistAssistantOutput({
     await tx.messageMetrics.create({
       data: buildMessageMetricsData(createdMessage.id, metrics),
     });
+
+    // The message and its voice job must either both exist or neither exists.
+    // That makes a reconnect safe even if the process returns before QStash
+    // receives its delivery request.
+    if (voiceGeneration) {
+      await tx.voiceGenerationJob.create({
+        data: {
+          messageId: createdMessage.id,
+          userId,
+          expiresAt: voiceGeneration.expiresAt,
+        },
+      });
+    }
 
     return createdMessage;
   });
