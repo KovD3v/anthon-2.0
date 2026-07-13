@@ -173,6 +173,8 @@ describe("lib/chat", () => {
         reasoningTimeMs: 0,
         ragUsed: false,
         toolCalls: null,
+        feedback: null,
+        metadata: null,
         attachments: [],
       },
       {
@@ -188,6 +190,8 @@ describe("lib/chat", () => {
         reasoningTimeMs: null,
         ragUsed: null,
         toolCalls: [{ type: "tool", name: "search" }],
+        feedback: -1,
+        metadata: { feedback: { reason: "wrong_fact" } },
         attachments: [
           {
             id: "att-1",
@@ -218,6 +222,8 @@ describe("lib/chat", () => {
         reasoningTimeMs: null,
         ragUsed: null,
         toolCalls: null,
+        feedback: null,
+        metadata: null,
         attachments: [],
       },
     ]);
@@ -255,6 +261,8 @@ describe("lib/chat", () => {
         reasoningTimeMs: true,
         ragUsed: true,
         toolCalls: true,
+        feedback: true,
+        metadata: true,
         attachments: {
           select: {
             id: true,
@@ -285,6 +293,8 @@ describe("lib/chat", () => {
       role: "assistant",
       usage: undefined,
       ragUsed: undefined,
+      feedback: -1,
+      feedbackReason: "wrong_fact",
       attachments: [
         {
           id: "att-1",
@@ -338,6 +348,8 @@ describe("lib/chat", () => {
         reasoningTimeMs: null,
         ragUsed: null,
         toolCalls: null,
+        feedback: null,
+        metadata: null,
         attachments: [],
       },
     ]);

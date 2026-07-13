@@ -1,12 +1,23 @@
 import type { UIMessage } from "ai";
-import type { ChatMessage } from "@/types/chat";
+import type {
+  ChatMessage,
+  MessageFeedbackReason,
+  StoredAttachment,
+} from "@/types/chat";
+
+export type ChatUIMessage = UIMessage & {
+  createdAt?: Date;
+  attachments?: StoredAttachment[];
+  feedback?: -1 | 0 | 1 | null;
+  feedbackReason?: MessageFeedbackReason;
+};
 
 /**
  * Convert database messages to UIMessage format for the AI SDK.
  * This function is client-safe.
  */
-export function convertToUIMessages(messages: ChatMessage[]): UIMessage[] {
-  return messages.map((msg) => ({
+export function convertToUIMessages(messages: ChatMessage[]): ChatUIMessage[] {
+  return messages.map<ChatUIMessage>((msg) => ({
     id: msg.id,
     role: msg.role,
     parts: msg.parts
@@ -15,6 +26,8 @@ export function convertToUIMessages(messages: ChatMessage[]): UIMessage[] {
     createdAt: new Date(msg.createdAt),
     annotations: msg.usage ? [msg.usage] : undefined,
     attachments: msg.attachments,
+    feedback: msg.feedback,
+    feedbackReason: msg.feedbackReason,
   }));
 }
 

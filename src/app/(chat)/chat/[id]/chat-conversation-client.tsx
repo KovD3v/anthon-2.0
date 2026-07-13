@@ -539,6 +539,10 @@ export function ChatConversationClient({
           onEditContentChange={setEditContent}
           onDelete={handleDeleteMessage}
           onRegenerate={handleRegenerate}
+          feedbackEndpoint={
+            isGuest ? "/api/guest/chat/feedback" : "/api/chat/feedback"
+          }
+          canSubmitFeedback={chatData.isOwner}
           hasMoreMessages={chatData.pagination?.hasMore ?? false}
           isLoadingMore={isLoadingMore}
           onLoadMore={loadMoreMessages}

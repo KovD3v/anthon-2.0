@@ -8,6 +8,7 @@
 
 import { revalidateTag } from "next/cache";
 import { generateChatTitle } from "@/lib/ai/chat-title";
+import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
 import { prisma } from "@/lib/db";
 import { authenticateGuest } from "@/lib/guest-auth";
 import { createLogger } from "@/lib/logger";
@@ -87,6 +88,8 @@ export async function GET(request: Request, { params }: RouteParams) {
         generationTimeMs: true,
         ragUsed: true,
         toolCalls: true,
+        feedback: true,
+        metadata: true,
         // No attachments for guests
       },
     });
@@ -125,6 +128,8 @@ export async function GET(request: Request, { params }: RouteParams) {
             : undefined,
         ragUsed: m.ragUsed,
         toolCalls: m.toolCalls,
+        feedback: m.feedback,
+        feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
         attachments: [], // Guests don't have attachments
       })),
       pagination: {

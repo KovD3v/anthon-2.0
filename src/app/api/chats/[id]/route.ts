@@ -9,6 +9,7 @@
 import { revalidateTag } from "next/cache";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { getAuthUser } from "@/lib/auth";
+import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { getTextFromParts } from "@/lib/utils/message-parts";
@@ -98,6 +99,8 @@ export async function GET(request: Request, { params }: RouteParams) {
         reasoningTimeMs: true,
         ragUsed: true,
         toolCalls: true,
+        feedback: true,
+        metadata: true,
         attachments: {
           select: {
             id: true,
@@ -145,6 +148,8 @@ export async function GET(request: Request, { params }: RouteParams) {
             : undefined,
         ragUsed: m.ragUsed,
         toolCalls: m.toolCalls,
+        feedback: m.feedback,
+        feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
         attachments: m.attachments.map((attachment) => ({
           ...attachment,
           blobUrl: attachment.contentType.startsWith("audio/")

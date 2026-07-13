@@ -97,6 +97,14 @@ export interface Usage {
 // Chat Message
 // -----------------------------------------------------
 
+export type MessageFeedbackReason =
+  | "linguistic_error"
+  | "wrong_fact"
+  | "context_missed"
+  | "too_generic"
+  | "tool_search_problem"
+  | "other";
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -108,6 +116,8 @@ export interface ChatMessage {
   ragUsed?: boolean;
   toolCalls?: unknown;
   attachments?: StoredAttachment[];
+  feedback?: -1 | 0 | 1 | null;
+  feedbackReason?: MessageFeedbackReason;
 }
 
 // -----------------------------------------------------

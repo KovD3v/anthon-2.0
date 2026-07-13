@@ -80,6 +80,8 @@ describe("/api/guest/chats/[id] route", () => {
         generationTimeMs: 180,
         ragUsed: true,
         toolCalls: [{ name: "search" }],
+        feedback: -1,
+        metadata: { feedback: { reason: "context_missed" } },
       },
       {
         id: "m2",
@@ -93,6 +95,8 @@ describe("/api/guest/chats/[id] route", () => {
         generationTimeMs: null,
         ragUsed: false,
         toolCalls: null,
+        feedback: null,
+        metadata: null,
       },
       {
         id: "m1",
@@ -106,6 +110,8 @@ describe("/api/guest/chats/[id] route", () => {
         generationTimeMs: null,
         ragUsed: false,
         toolCalls: null,
+        feedback: null,
+        metadata: null,
       },
     ]);
 
@@ -189,6 +195,8 @@ describe("/api/guest/chats/[id] route", () => {
         generationTimeMs: true,
         ragUsed: true,
         toolCalls: true,
+        feedback: true,
+        metadata: true,
       },
     });
 
@@ -211,6 +219,7 @@ describe("/api/guest/chats/[id] route", () => {
           usage: undefined,
           ragUsed: false,
           toolCalls: null,
+          feedback: null,
           attachments: [],
         },
         {
@@ -228,6 +237,8 @@ describe("/api/guest/chats/[id] route", () => {
           },
           ragUsed: true,
           toolCalls: [{ name: "search" }],
+          feedback: -1,
+          feedbackReason: "context_missed",
           attachments: [],
         },
       ],

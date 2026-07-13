@@ -1,6 +1,5 @@
 "use client";
 
-import type { UIMessage } from "ai";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import {
   ArrowDown,
@@ -19,10 +18,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
-import { normalizeFilePartForPreview } from "@/lib/chat-client";
+import {
+  type ChatUIMessage,
+  normalizeFilePartForPreview,
+} from "@/lib/chat-client";
 import { formatRelativeTime } from "@/lib/format-time";
 import { defaultTransition, fadeUp, scaleIn } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import type { MessageFeedbackReason } from "@/types/chat";
 import {
   ASSISTANT_READING_MAX_MS,
   CHAT_REACTIVITY_COPY,
@@ -41,14 +44,7 @@ import { useMessageVirtualizer } from "./hooks/useMessageVirtualizer";
 import { MemoizedMarkdown } from "./MemoizedMarkdown";
 import { VoiceResponse } from "./VoiceResponse";
 
-// Extended UIMessage type that includes database fields
-type ExtendedMessage = UIMessage & {
-  createdAt?: string | Date;
-  attachments?: Array<{
-    contentType: string;
-    blobUrl: string;
-  }>;
-};
+type ExtendedMessage = ChatUIMessage;
 
 interface MessageListProps {
   messages: ExtendedMessage[];
@@ -63,6 +59,8 @@ interface MessageListProps {
   editContent: string;
   onDelete: (id: string) => void;
   onRegenerate: () => void;
+  feedbackEndpoint: string;
+  canSubmitFeedback?: boolean;
   // Lazy loading props
   hasMoreMessages?: boolean;
   isLoadingMore?: boolean;
@@ -87,7 +85,10 @@ const FEEDBACK_REASON_OPTIONS = [
   { value: "too_generic", label: "Troppo generico" },
   { value: "tool_search_problem", label: "Problema tool/search" },
   { value: "other", label: "Altro" },
-] as const;
+] as const satisfies ReadonlyArray<{
+  value: MessageFeedbackReason;
+  label: string;
+}>;
 
 type FeedbackReason = (typeof FEEDBACK_REASON_OPTIONS)[number]["value"];
 
@@ -97,11 +98,12 @@ function getFeedbackReasonLabel(reason: FeedbackReason | undefined) {
 }
 
 async function submitFeedback(
+  endpoint: string,
   messageId: string,
   feedback: number,
   selectedReason?: FeedbackReason,
 ) {
-  await fetch("/api/chat/feedback", {
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -110,6 +112,10 @@ async function submitFeedback(
       reason: selectedReason,
     }),
   });
+
+  if (!response.ok) {
+    throw new Error(`Feedback request failed with status ${response.status}`);
+  }
 }
 
 export function MessageList({
@@ -125,6 +131,8 @@ export function MessageList({
   editContent,
   onDelete,
   onRegenerate,
+  feedbackEndpoint,
+  canSubmitFeedback = true,
   hasMoreMessages = false,
   isLoadingMore = false,
   onLoadMore,
@@ -141,6 +149,9 @@ export function MessageList({
   >({});
   const [feedbackReasonMenuMessageId, setFeedbackReasonMenuMessageId] =
     useState<string | null>(null);
+  const [feedbackSavingState, setFeedbackSavingState] = useState<
+    Record<string, boolean>
+  >({});
   const [submittedElapsedMs, setSubmittedElapsedMs] = useState(0);
   const latestMessage = messages[messages.length - 1];
   const assistantPendingLabel = getAssistantPendingLabel({
@@ -183,8 +194,46 @@ export function MessageList({
     return () => window.clearTimeout(timeoutId);
   }, [status]);
 
+  useEffect(() => {
+    setFeedbackState((current) => {
+      let changed = false;
+      const next = { ...current };
+
+      for (const message of messages) {
+        if (
+          current[message.id] === undefined &&
+          message.feedback !== undefined &&
+          message.feedback !== null
+        ) {
+          next[message.id] = message.feedback;
+          changed = true;
+        }
+      }
+
+      return changed ? next : current;
+    });
+
+    setFeedbackReasonState((current) => {
+      let changed = false;
+      const next = { ...current };
+
+      for (const message of messages) {
+        if (
+          current[message.id] === undefined &&
+          message.feedbackReason !== undefined
+        ) {
+          next[message.id] = message.feedbackReason;
+          changed = true;
+        }
+      }
+
+      return changed ? next : current;
+    });
+  }, [messages]);
+
   async function handleFeedback(messageId: string, feedback: number) {
-    const currentFeedback = feedbackState[messageId];
+    const currentFeedback = feedbackState[messageId] ?? 0;
+    const currentReason = feedbackReasonState[messageId];
     // Toggle off if same feedback
     const newFeedback = currentFeedback === feedback ? 0 : feedback;
 
@@ -196,11 +245,22 @@ export function MessageList({
       setFeedbackReasonState((prev) => ({ ...prev, [messageId]: undefined }));
     }
 
+    setFeedbackSavingState((prev) => ({ ...prev, [messageId]: true }));
     try {
-      await submitFeedback(messageId, newFeedback);
-    } catch (error) {
-      console.error("Feedback error:", error);
+      await submitFeedback(feedbackEndpoint, messageId, newFeedback);
+    } catch {
+      setFeedbackState((prev) => ({
+        ...prev,
+        [messageId]: currentFeedback,
+      }));
+      setFeedbackReasonState((prev) => ({
+        ...prev,
+        [messageId]: currentReason,
+      }));
+      setFeedbackReasonMenuMessageId(null);
       toast.error(CHAT_REACTIVITY_COPY.feedbackFailed);
+    } finally {
+      setFeedbackSavingState((prev) => ({ ...prev, [messageId]: false }));
     }
   }
 
@@ -208,6 +268,7 @@ export function MessageList({
     messageId: string,
     selectedReason: FeedbackReason,
   ) {
+    const currentReason = feedbackReasonState[messageId];
     setFeedbackState((prev) => ({ ...prev, [messageId]: -1 }));
     setFeedbackReasonState((prev) => ({
       ...prev,
@@ -215,24 +276,43 @@ export function MessageList({
     }));
     setFeedbackReasonMenuMessageId(null);
 
+    setFeedbackSavingState((prev) => ({ ...prev, [messageId]: true }));
     try {
-      await submitFeedback(messageId, -1, selectedReason);
-    } catch (error) {
-      console.error("Feedback reason error:", error);
+      await submitFeedback(feedbackEndpoint, messageId, -1, selectedReason);
+    } catch {
+      setFeedbackReasonState((prev) => ({
+        ...prev,
+        [messageId]: currentReason,
+      }));
+      setFeedbackReasonMenuMessageId(messageId);
       toast.error(CHAT_REACTIVITY_COPY.feedbackFailed);
+    } finally {
+      setFeedbackSavingState((prev) => ({ ...prev, [messageId]: false }));
     }
   }
 
   async function handleFeedbackRemoval(messageId: string) {
+    const currentFeedback = feedbackState[messageId] ?? 0;
+    const currentReason = feedbackReasonState[messageId];
     setFeedbackState((prev) => ({ ...prev, [messageId]: 0 }));
     setFeedbackReasonState((prev) => ({ ...prev, [messageId]: undefined }));
     setFeedbackReasonMenuMessageId(null);
 
+    setFeedbackSavingState((prev) => ({ ...prev, [messageId]: true }));
     try {
-      await submitFeedback(messageId, 0);
-    } catch (error) {
-      console.error("Feedback removal error:", error);
+      await submitFeedback(feedbackEndpoint, messageId, 0);
+    } catch {
+      setFeedbackState((prev) => ({
+        ...prev,
+        [messageId]: currentFeedback,
+      }));
+      setFeedbackReasonState((prev) => ({
+        ...prev,
+        [messageId]: currentReason,
+      }));
       toast.error(CHAT_REACTIVITY_COPY.feedbackFailed);
+    } finally {
+      setFeedbackSavingState((prev) => ({ ...prev, [messageId]: false }));
     }
   }
 
@@ -355,6 +435,8 @@ export function MessageList({
               const feedbackReasonLabel = getFeedbackReasonLabel(
                 feedbackReasonState[message.id],
               );
+              const feedbackValue = feedbackState[message.id] ?? 0;
+              const isFeedbackSaving = feedbackSavingState[message.id] === true;
 
               // Voice message state from persisted DB attachments.
               const dbVoiceAttachment = message.attachments?.find((a) =>
@@ -642,8 +724,10 @@ export function MessageList({
 
                       {/* Actions Row */}
                       <div
-                        className={`flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 px-1 ${
-                          isUser ? "flex-row-reverse" : ""
+                        className={`flex flex-wrap items-center gap-1 px-1 transition-opacity ${
+                          isUser
+                            ? "flex-row-reverse opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                            : "opacity-100"
                         }`}
                       >
                         {isUser && !isEditing && (
@@ -693,32 +777,61 @@ export function MessageList({
                                 <Copy className="h-3 w-3" />
                               )}
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className={`h-6 w-6 ${
-                                feedbackState[message.id] === 1
-                                  ? "text-green-500"
-                                  : "text-muted-foreground hover:text-green-500"
-                              }`}
-                              onClick={() => handleFeedback(message.id, 1)}
-                              aria-label="Risposta utile"
-                            >
-                              <ThumbsUp className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className={`h-6 w-6 ${
-                                feedbackState[message.id] === -1
-                                  ? "text-red-500"
-                                  : "text-muted-foreground hover:text-red-500"
-                              }`}
-                              onClick={() => handleFeedback(message.id, -1)}
-                              aria-label="Risposta non utile"
-                            >
-                              <ThumbsDown className="h-3 w-3" />
-                            </Button>
+                            {canSubmitFeedback && (
+                              <>
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  {isFeedbackSaving
+                                    ? "Salvataggio…"
+                                    : feedbackValue === 0
+                                      ? "Ti è stata utile?"
+                                      : "Feedback inviato"}
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className={cn(
+                                    "h-7 gap-1 rounded-md px-2 text-xs",
+                                    feedbackValue === 1
+                                      ? "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
+                                      : "text-muted-foreground hover:text-foreground",
+                                  )}
+                                  onClick={() => handleFeedback(message.id, 1)}
+                                  disabled={isFeedbackSaving}
+                                  aria-label="Segna la risposta come utile"
+                                  aria-pressed={feedbackValue === 1}
+                                >
+                                  {isFeedbackSaving && feedbackValue === 1 ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <ThumbsUp className="h-3 w-3" />
+                                  )}
+                                  Sì
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className={cn(
+                                    "h-7 gap-1 rounded-md px-2 text-xs",
+                                    feedbackValue === -1
+                                      ? "bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive"
+                                      : "text-muted-foreground hover:text-foreground",
+                                  )}
+                                  onClick={() => handleFeedback(message.id, -1)}
+                                  disabled={isFeedbackSaving}
+                                  aria-label="Segna la risposta come non utile"
+                                  aria-pressed={feedbackValue === -1}
+                                >
+                                  {isFeedbackSaving && feedbackValue === -1 ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <ThumbsDown className="h-3 w-3" />
+                                  )}
+                                  No
+                                </Button>
+                              </>
+                            )}
                           </>
                         )}
 
@@ -736,60 +849,105 @@ export function MessageList({
                       </div>
 
                       {!isUser &&
-                        feedbackState[message.id] === -1 &&
+                        canSubmitFeedback &&
+                        feedbackValue === -1 &&
                         feedbackReasonMenuMessageId === message.id && (
-                          <fieldset className="flex max-w-80 flex-wrap gap-1 px-1">
-                            <legend className="sr-only">
-                              Motivo feedback negativo
+                          <fieldset className="max-w-full px-1">
+                            <legend className="mb-1.5 text-xs font-medium text-foreground">
+                              Cosa non ha funzionato?{" "}
+                              <span className="font-normal text-muted-foreground">
+                                Facoltativo
+                              </span>
                             </legend>
-                            {FEEDBACK_REASON_OPTIONS.map((option) => {
-                              const isSelected =
-                                feedbackReasonState[message.id] ===
-                                option.value;
+                            <div className="flex max-w-96 flex-wrap gap-1">
+                              {FEEDBACK_REASON_OPTIONS.map((option) => {
+                                const isSelected =
+                                  feedbackReasonState[message.id] ===
+                                  option.value;
 
-                              return (
-                                <Button
-                                  key={option.value}
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className={`h-7 rounded-md px-2 text-xs ${
-                                    isSelected
-                                      ? "bg-red-500/10 text-red-600"
-                                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                                  }`}
-                                  onClick={() =>
-                                    handleFeedbackReason(
-                                      message.id,
-                                      option.value,
-                                    )
-                                  }
-                                >
-                                  {option.label}
-                                </Button>
-                              );
-                            })}
+                                return (
+                                  <Button
+                                    key={option.value}
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn(
+                                      "h-7 rounded-md px-2 text-xs",
+                                      isSelected
+                                        ? "bg-destructive/10 text-destructive"
+                                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                                    )}
+                                    onClick={() =>
+                                      handleFeedbackReason(
+                                        message.id,
+                                        option.value,
+                                      )
+                                    }
+                                    disabled={isFeedbackSaving}
+                                  >
+                                    {option.label}
+                                  </Button>
+                                );
+                              })}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                                onClick={() =>
+                                  setFeedbackReasonMenuMessageId(null)
+                                }
+                                disabled={isFeedbackSaving}
+                              >
+                                Non ora
+                              </Button>
+                            </div>
                           </fieldset>
                         )}
-                      {!isUser && feedbackState[message.id] === -1 && (
-                        <div className="flex max-w-full flex-wrap items-center gap-1 px-1">
-                          {feedbackReasonLabel && (
-                            <span className="rounded-md bg-red-500/10 px-2 py-1 text-xs font-medium text-red-600">
-                              {feedbackReasonLabel}
-                            </span>
-                          )}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                            onClick={() => handleFeedbackRemoval(message.id)}
+                      {!isUser &&
+                        canSubmitFeedback &&
+                        feedbackValue !== 0 &&
+                        feedbackReasonMenuMessageId !== message.id && (
+                          <output
+                            className="flex max-w-full flex-wrap items-center gap-1 px-1 text-xs text-muted-foreground"
+                            aria-live="polite"
                           >
-                            <X className="mr-1 h-3 w-3" />
-                            Rimuovi feedback
-                          </Button>
-                        </div>
-                      )}
+                            <Check className="h-3 w-3 text-emerald-700 dark:text-emerald-400" />
+                            <span>Grazie, ci aiuta a migliorare.</span>
+                            {feedbackValue === -1 && feedbackReasonLabel && (
+                              <span className="rounded-md bg-destructive/10 px-2 py-1 font-medium text-destructive">
+                                {feedbackReasonLabel}
+                              </span>
+                            )}
+                            {feedbackValue === -1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                                onClick={() =>
+                                  setFeedbackReasonMenuMessageId(message.id)
+                                }
+                                disabled={isFeedbackSaving}
+                              >
+                                {feedbackReasonLabel
+                                  ? "Modifica motivo"
+                                  : "Aggiungi motivo"}
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                              onClick={() => handleFeedbackRemoval(message.id)}
+                              disabled={isFeedbackSaving}
+                            >
+                              <X className="mr-1 h-3 w-3" />
+                              Rimuovi feedback
+                            </Button>
+                          </output>
+                        )}
                     </div>
                   </m.div>
                 </div>

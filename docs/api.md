@@ -85,8 +85,22 @@ Routes commonly use helpers from `@/lib/api/responses`:
 `POST /api/chat/feedback`
 
 ```ts
-{ messageId: string; feedback: -1 | 0 | 1 }
+{
+  messageId: string;
+  feedback: -1 | 0 | 1;
+  reason?:
+    | "linguistic_error"
+    | "wrong_fact"
+    | "context_missed"
+    | "too_generic"
+    | "tool_search_problem"
+    | "other";
+}
 ```
+
+The optional reason is stored only for negative feedback. Sending `0` removes
+the rating and its reason. Guest chats use the same payload at
+`POST /api/guest/chat/feedback`.
 
 ## Guest API
 

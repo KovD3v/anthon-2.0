@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { cache } from "react";
+import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
 import { prisma } from "@/lib/db";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import { getTextFromParts } from "@/lib/utils/message-parts";
@@ -140,6 +141,8 @@ export const getSharedChat = cache(
               reasoningTimeMs: true,
               ragUsed: true,
               toolCalls: true,
+              feedback: true,
+              metadata: true,
               attachments: {
                 select: {
                   id: true,
@@ -186,6 +189,8 @@ export const getSharedChat = cache(
             : undefined,
         ragUsed: m.ragUsed || undefined,
         toolCalls: m.toolCalls,
+        feedback: m.feedback,
+        feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
         attachments: m.attachments.map((attachment) => ({
           ...attachment,
           blobUrl: attachment.contentType.startsWith("audio/")

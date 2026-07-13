@@ -5,24 +5,12 @@
  */
 
 import { auth } from "@clerk/nextjs/server";
-import { z } from "zod";
-import type { Prisma } from "@/generated/prisma";
+import {
+  type FeedbackInput,
+  FeedbackSchema,
+  saveMessageFeedback,
+} from "@/lib/chat-feedback";
 import { prisma } from "@/lib/db";
-
-const FeedbackReasonSchema = z.enum([
-  "linguistic_error",
-  "wrong_fact",
-  "context_missed",
-  "too_generic",
-  "tool_search_problem",
-  "other",
-]);
-
-const FeedbackSchema = z.object({
-  messageId: z.string().min(1),
-  feedback: z.number().int().min(-1).max(1), // -1, 0, or 1
-  reason: FeedbackReasonSchema.optional(),
-});
 
 export async function POST(request: Request) {
   const { userId: clerkId } = await auth();
@@ -42,7 +30,7 @@ export async function POST(request: Request) {
   }
 
   // Parse and validate body
-  let body: z.infer<typeof FeedbackSchema>;
+  let body: FeedbackInput;
   try {
     const rawBody = await request.json();
     body = FeedbackSchema.parse(rawBody);
@@ -50,60 +38,14 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  // Verify message ownership and that it's an assistant message
-  const message = await prisma.message.findFirst({
-    where: {
-      id: body.messageId,
-      userId: user.id,
-      role: "ASSISTANT",
-    },
-  });
+  const result = await saveMessageFeedback({ userId: user.id, input: body });
 
-  if (!message) {
+  if (!result) {
     return Response.json(
       { error: "Message not found or cannot receive feedback" },
       { status: 404 },
     );
   }
 
-  // Update feedback
-  const metadata = buildFeedbackMetadata(
-    message.metadata,
-    body.feedback,
-    body.reason,
-  );
-
-  await prisma.message.update({
-    where: { id: body.messageId },
-    data: {
-      feedback: body.feedback,
-      metadata,
-    },
-  });
-
-  return Response.json({
-    success: true,
-    messageId: body.messageId,
-    feedback: body.feedback,
-    reason: body.reason,
-  });
-}
-
-function buildFeedbackMetadata(
-  metadata: unknown,
-  feedback: number,
-  reason: z.infer<typeof FeedbackReasonSchema> | undefined,
-): Prisma.InputJsonValue {
-  const next =
-    metadata && typeof metadata === "object" && !Array.isArray(metadata)
-      ? { ...(metadata as Record<string, unknown>) }
-      : {};
-
-  if (feedback === -1 && reason) {
-    next.feedback = { reason };
-  } else {
-    delete next.feedback;
-  }
-
-  return next as Prisma.InputJsonValue;
+  return Response.json(result);
 }

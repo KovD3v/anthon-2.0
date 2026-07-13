@@ -83,6 +83,8 @@ describe("/api/chats/[id] route", () => {
         reasoningTimeMs: 22,
         ragUsed: true,
         toolCalls: [{ name: "tool" }],
+        feedback: -1,
+        metadata: { feedback: { reason: "too_generic" } },
         attachments: [
           {
             id: "att-1",
@@ -107,6 +109,8 @@ describe("/api/chats/[id] route", () => {
         reasoningTimeMs: null,
         ragUsed: false,
         toolCalls: null,
+        feedback: null,
+        metadata: null,
         attachments: [],
       },
       {
@@ -123,6 +127,8 @@ describe("/api/chats/[id] route", () => {
         reasoningTimeMs: null,
         ragUsed: false,
         toolCalls: null,
+        feedback: null,
+        metadata: null,
         attachments: [],
       },
     ]);
@@ -221,6 +227,8 @@ describe("/api/chats/[id] route", () => {
         reasoningTimeMs: true,
         ragUsed: true,
         toolCalls: true,
+        feedback: true,
+        metadata: true,
         attachments: {
           select: {
             id: true,
@@ -250,6 +258,7 @@ describe("/api/chats/[id] route", () => {
           usage: undefined,
           ragUsed: false,
           toolCalls: null,
+          feedback: null,
           attachments: [],
         },
         {
@@ -267,6 +276,8 @@ describe("/api/chats/[id] route", () => {
           },
           ragUsed: true,
           toolCalls: [{ name: "tool" }],
+          feedback: -1,
+          feedbackReason: "too_generic",
           attachments: [
             {
               id: "att-1",

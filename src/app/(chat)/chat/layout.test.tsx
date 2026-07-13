@@ -220,6 +220,10 @@ describe("chat mobile viewport layout", () => {
     expect(messageList).toContain("Problema tool/search");
     expect(messageList).toContain("Altro");
     expect(messageList).toContain("reason: selectedReason");
+    expect(messageList).toContain("Ti è stata utile?");
+    expect(messageList).toContain("Cosa non ha funzionato?");
+    expect(messageList).toContain("Grazie, ci aiuta a migliorare.");
+    expect(messageList).toContain("aria-pressed");
     expect(messageList).toContain("handleFeedbackRemoval");
     expect(messageList).toContain("Rimuovi feedback");
   });

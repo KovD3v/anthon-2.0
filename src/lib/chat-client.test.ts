@@ -30,6 +30,8 @@ describe("chat-client", () => {
             blobUrl: "https://example.com/file.txt",
           },
         ],
+        feedback: -1,
+        feedbackReason: "wrong_fact",
       },
     ];
 
@@ -53,6 +55,8 @@ describe("chat-client", () => {
       },
     ]);
     expect(msg0?.attachments).toEqual(messages[0]?.attachments);
+    expect(result[0]?.feedback).toBe(-1);
+    expect(result[0]?.feedbackReason).toBe("wrong_fact");
   });
 
   it("falls back to content text part when parts are missing", () => {
