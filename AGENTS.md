@@ -21,7 +21,8 @@ Prefer `bun run` over `npm run` and `bunx` over `npx` unless a tool specifically
 ```bash
 # Development
 bun run dev              # Start dev server
-bun run build            # Prisma generate + migrations deploy + Next build
+bun run build            # Prisma generate + Next build (artifact-only)
+bun run vercel:build     # Vercel production: migrations deploy + build
 bun run lint             # Biome check
 bun run format           # Biome format --write
 

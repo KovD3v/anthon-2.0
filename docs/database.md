@@ -8,51 +8,35 @@ The project uses a single Neon project (`AnthonChat`) with two branches:
 
 | Branch | Role | Used by |
 |--------|------|---------|
-| `production` | Live deployed database | Vercel runtime (`DATABASE_URL`); GitHub `production` Environment migrations (`DIRECT_DATABASE_URL`) |
+| `production` | Live deployed database | Vercel runtime (`DATABASE_URL`) and production-build migrations (`DIRECT_DATABASE_URL`) |
 | `development` | Dev/test database | Integration tests (`TEST_DATABASE_URL`), local dev |
 
 ## Deployment migrations
 
 `bun run build` is artifact-only: it generates the Prisma client and compiles
-Next.js, but never invokes `prisma migrate deploy` or needs migration
-credentials. This keeps Vercel builds and verification CI non-mutating.
+Next.js without mutating a database. Vercel runs `bun run vercel:build` instead:
+on a production build it applies `prisma migrate deploy` first, then runs the
+artifact build. Preview and local builds never apply migrations.
 
-The sole production-like migration owner is
-[`.github/workflows/migrate.yml`](../.github/workflows/migrate.yml). It is
-manually dispatched and serialized per target database:
-
-- Select `preview` or `production` explicitly when dispatching the workflow.
-- The selected GitHub Environment supplies its own `DIRECT_DATABASE_URL` secret.
-  Configure required reviewers for `production`; do not put this secret in the
-  repository, Vercel build settings, or the `Verify` workflow.
-- The workflow's concurrency group queues, rather than cancels, another migration
-  for the same target. `bun run migrate:deploy` refuses to run outside that job.
-
-`DATABASE_URL` remains the pooled runtime connection used by the deployed app;
-the migration job uses only the direct connection in its selected GitHub
-Environment. Never reuse the production secret for `preview`.
+Configure `DIRECT_DATABASE_URL` as a **Production-only** Vercel environment
+variable, pointing at the direct connection for the same Neon production branch
+as `DATABASE_URL`. It is used only while the production build runs and must not
+be configured for Preview. `DATABASE_URL` remains the pooled runtime connection.
 
 ### Preview path
 
-Use a dedicated non-production Neon branch/database for Vercel Preview and set
-its direct connection string as the `DIRECT_DATABASE_URL` secret of the GitHub
-`preview` Environment. For a change that contains a migration:
-
-1. Dispatch **Apply database migrations** against the branch/commit containing
-   the migration and select `preview`.
-2. Wait for the serialized job to succeed, then create or redeploy the Vercel
-   Preview deployment using that same source commit.
-3. Verify the preview against the preview database only. `bun run verify` does
-   not need either preview or production credentials.
+Use a dedicated non-production Neon branch/database for Vercel Preview. Preview
+builds remain artifact-only and do not need `DIRECT_DATABASE_URL`. Validate
+schema changes against that branch before production; use only additive,
+backwards-compatible migrations so an existing production deployment remains
+safe until the Vercel production build applies them.
 
 ### Production path
 
-After the preview has been validated, dispatch **Apply database migrations**
-from the release branch/commit and select `production`. The protected GitHub
-`production` Environment supplies the production direct connection and the
-workflow runs `bun run migrate:deploy`. Wait for that run to succeed before
-merging/releasing the Vercel deployment that depends on the new schema. Do not
-run the command from a laptop or Vercel build.
+After a preview has been validated, deploy the same commit to Vercel production.
+The production build applies pending additive migrations before Next.js is
+compiled, so the deployed application never starts against an older schema.
+Wait for the build to succeed before treating the release as live.
 
 ### Expand, migrate, contract
 

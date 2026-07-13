@@ -92,7 +92,7 @@ anthon-2.0/
 | ---------------- | ------------------------ |
 | `bun run dev`    | Start development server |
 | `bun run build`  | Build for production     |
-| `bun run migrate:deploy` | Apply migrations through the guarded deployment workflow |
+| `bun run vercel:build` | Vercel production build: migrate, generate Prisma client, and build |
 | `bun run lint`   | Run Biome check          |
 | `bun run typecheck` | Run TypeScript checks without emitting files |
 | `bun run verify` | Run lint, typecheck, and unit tests |
@@ -131,9 +131,9 @@ For safe environment separation:
 
 - Use Neon `development` branch for `TEST_DATABASE_URL` (integration tests).
 - Use Neon `production` branch for the deployed `DATABASE_URL`.
-- Store that branch's direct connection string as `DIRECT_DATABASE_URL` in the
-  protected GitHub Environment used by the migration workflow, rather than in
-  Vercel build settings.
+- Store that branch's direct connection string as the Production-only
+  `DIRECT_DATABASE_URL` variable in Vercel. It is used only by the production
+  build to apply pending Prisma migrations.
 
 ## 📄 License
 

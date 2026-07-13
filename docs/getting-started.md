@@ -67,7 +67,7 @@ Neon branch mapping (required):
 
 - `TEST_DATABASE_URL` -> `development` branch (direct connection string)
 - `DATABASE_URL` -> the deployed environment's database (pooled connection string) — used by Vercel runtime
-- `DIRECT_DATABASE_URL` -> the matching direct connection string — used by local Prisma CLI commands and stored as a GitHub Environment secret for deployment migrations, not in Vercel build settings
+- `DIRECT_DATABASE_URL` -> the matching direct connection string — configure it as a Production-only Vercel variable so `bun run vercel:build` can apply pending production migrations; do not configure it for Preview
 
 Useful Neon CLI commands:
 
@@ -98,14 +98,12 @@ Generate Prisma client:
 bunx prisma generate
 ```
 
-For **Vercel Preview and production**, `bun run build` only creates the app
-artifact; it never applies migrations. Configure the app's runtime
-`DATABASE_URL` in Vercel, then apply schema changes through the protected,
-serialized **Apply database migrations** GitHub Actions workflow. It selects a
-separate `preview` or `production` GitHub Environment and reads that
-Environment's `DIRECT_DATABASE_URL` secret. See
-[Database deployment migrations](./database.md#deployment-migrations) for the
-required preview/production order and expand/contract compatibility rules.
+For **Vercel Preview**, `bun run build` only creates the app artifact; it never
+applies migrations. For **Vercel production**, configure the runtime
+`DATABASE_URL` plus a Production-only `DIRECT_DATABASE_URL`: Vercel runs
+`bun run vercel:build`, which applies pending migrations before building the
+application. See [Database deployment migrations](./database.md#deployment-migrations)
+for the required preview/production order and expand/contract compatibility rules.
 
 ### 5. Seed Database (Optional)
 
@@ -136,7 +134,7 @@ bun run start
 | ---------------- | ------------------------ |
 | `bun run dev`    | Start development server |
 | `bun run build`  | Build for production     |
-| `bun run migrate:deploy` | Guarded migration command, invoked only by the deployment workflow |
+| `bun run vercel:build` | Vercel production build: migrate, generate Prisma client, and build |
 | `bun run start`  | Start production server  |
 | `bun run lint`   | Run Biome check          |
 | `bun run typecheck` | Run TypeScript checks without emitting files |
