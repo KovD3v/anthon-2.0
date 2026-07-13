@@ -15,6 +15,7 @@ interface ChatInputProps {
   input: string;
   isLoading: boolean;
   disableAttachments?: boolean;
+  disabledReason?: string;
   onInputWarmup?: (value: string) => void;
   setInput: (value: string) => void;
   onSubmit: (e: React.FormEvent, attachments?: AttachmentData[]) => void;
@@ -25,6 +26,7 @@ export function ChatInput({
   input,
   isLoading,
   disableAttachments = false,
+  disabledReason,
   onInputWarmup,
   setInput,
   onSubmit,
@@ -37,8 +39,12 @@ export function ChatInput({
   const [uploadingFileName, setUploadingFileName] = useState<string | null>(
     null,
   );
+  const externallyDisabled = Boolean(disabledReason);
   const cannotSubmit =
-    isUploading || isLoading || (!input.trim() && attachments.length === 0);
+    externallyDisabled ||
+    isUploading ||
+    isLoading ||
+    (!input.trim() && attachments.length === 0);
 
   const adjustHeight = useDebouncedCallback(() => {
     const textarea = textareaRef.current;
@@ -182,6 +188,14 @@ export function ChatInput({
         </output>
       )}
 
+      {disabledReason && (
+        <p
+          className="mb-2 text-center text-xs font-medium text-muted-foreground"
+          aria-live="polite"
+        >
+          {disabledReason}
+        </p>
+      )}
       <form
         onSubmit={handleFormSubmit}
         className="relative flex items-end gap-2 rounded-4xl border border-border/70 bg-background/60 p-2 shadow-lg backdrop-blur-xl ring-1 ring-black/5 dark:border-white/10 dark:bg-muted/40 dark:ring-white/10 transition-[border-color,box-shadow] focus-within:ring-2 focus-within:ring-primary/20"
@@ -193,7 +207,7 @@ export function ChatInput({
           className="sr-only"
           aria-label="Scegli un file da allegare"
           onChange={(e) => handleFileSelect(e.target.files)}
-          disabled={isUploading || isLoading}
+          disabled={externallyDisabled || isUploading || isLoading}
           accept="image/*,video/*,.pdf,.doc,.docx,.txt,audio/*,.mp3,.wav,.ogg,.aac,.flac,.m4a"
         />
 
@@ -213,7 +227,7 @@ export function ChatInput({
           <div className="pb-1">
             <AudioRecorder
               onRecordingComplete={handleRecordingComplete}
-              disabled={isLoading || isUploading}
+              disabled={externallyDisabled || isLoading || isUploading}
             />
           </div>
         )}
@@ -230,10 +244,10 @@ export function ChatInput({
             adjustHeight();
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Scrivi un messaggio…"
+          placeholder={disabledReason ?? "Scrivi un messaggio…"}
           rows={1}
           className="min-w-0 flex-1 resize-none bg-transparent px-2 py-3 text-sm outline-none placeholder:text-muted-foreground/50 max-h-[200px] overflow-y-auto scrollbar-none"
-          disabled={isLoading || isUploading}
+          disabled={externallyDisabled || isLoading || isUploading}
         />
         <div className="grid pb-1 pr-1">
           <AnimatePresence initial={false} mode="popLayout">

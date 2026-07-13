@@ -11,6 +11,10 @@ import {
   saveMessageFeedback,
 } from "@/lib/chat-feedback";
 import { prisma } from "@/lib/db";
+import {
+  captureModelComparisonEvent,
+  MODEL_COMPARISON_EVENTS,
+} from "@/lib/model-experiments/analytics";
 
 export async function POST(request: Request) {
   const { userId: clerkId } = await auth();
@@ -44,6 +48,24 @@ export async function POST(request: Request) {
     return Response.json(
       { error: "Message not found or cannot receive feedback" },
       { status: 404 },
+    );
+  }
+
+  const comparison = await prisma.modelExperimentPair.findUnique({
+    where: { canonicalMessageId: body.messageId },
+    select: { id: true, experimentId: true, countryCode: true },
+  });
+  if (comparison) {
+    captureModelComparisonEvent(
+      MODEL_COMPARISON_EVENTS.canonicalFeedback,
+      clerkId,
+      {
+        experiment_id: comparison.experimentId,
+        pair_id: comparison.id,
+        country: comparison.countryCode,
+        feedback: body.feedback,
+        reason: body.reason ?? null,
+      },
     );
   }
 

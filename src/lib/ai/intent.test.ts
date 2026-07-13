@@ -12,6 +12,7 @@ import {
   matchesProfileWriteIntent,
   matchesRagIntent,
   matchesSimpleFastIntent,
+  matchesVoiceIntent,
   shouldEnableWebFetchTool,
   shouldEnableWebSearchTool,
 } from "./intent";
@@ -170,5 +171,11 @@ describe("ai/intent", () => {
   it("matchesHealthRiskIntent detects injury and symptom language", () => {
     expect(matchesHealthRiskIntent("Ho dolore al ginocchio")).toBe(true);
     expect(matchesHealthRiskIntent("Sono carico per la gara")).toBe(false);
+  });
+
+  it("matchesVoiceIntent detects natural Italian voice requests", () => {
+    expect(matchesVoiceIntent("Dimmelo a voce")).toBe(true);
+    expect(matchesVoiceIntent("Rispondi con un messaggio vocale")).toBe(true);
+    expect(matchesVoiceIntent("Scrivimi una risposta")).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
   messageFindFirst: vi.fn(),
   messageUpdate: vi.fn(),
+  comparisonFindUnique: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -19,6 +20,9 @@ vi.mock("@/lib/db", () => ({
     message: {
       findFirst: mocks.messageFindFirst,
       update: mocks.messageUpdate,
+    },
+    modelExperimentPair: {
+      findUnique: mocks.comparisonFindUnique,
     },
   },
 }));
@@ -39,6 +43,8 @@ describe("POST /api/chat/feedback", () => {
     mocks.userFindUnique.mockReset();
     mocks.messageFindFirst.mockReset();
     mocks.messageUpdate.mockReset();
+    mocks.comparisonFindUnique.mockReset();
+    mocks.comparisonFindUnique.mockResolvedValue(null);
 
     mocks.auth.mockResolvedValue({ userId: "clerk-1" });
     mocks.userFindUnique.mockResolvedValue({ id: "user-1" });

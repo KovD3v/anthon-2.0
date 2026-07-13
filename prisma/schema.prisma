@@ -44,25 +44,29 @@ model User {
   role UserRole @default(USER)
 
   // Relationships
-  profile                 Profile?
-  preferences             Preferences?
-  memories                Memory[]
-  messages                Message[]
-  chats                   Chat[]
-  conversationThreads     ConversationThread[]
-  aiTurnTraces            AiTurnTrace[]
-  dailyUsage              DailyUsage[]
-  identities              ChannelIdentity[]
-  consumedLinkTokens      ChannelLinkToken[]       @relation("ChannelLinkTokenConsumedBy")
-  subscription            Subscription?
-  sessionSummaries        SessionSummary[]
-  archivedSessions        ArchivedSession[]
-  voiceUsage              VoiceUsage[]
-  voiceGenerationJobs     VoiceGenerationJob[]
-  organizationMemberships OrganizationMembership[]
-  ownedOrganizations      Organization[]           @relation("OrganizationOwner")
-  createdOrganizations    Organization[]           @relation("OrganizationCreator")
-  organizationAuditLogs   OrganizationAuditLog[]   @relation("OrganizationAuditActor")
+  profile                     Profile?
+  preferences                 Preferences?
+  memories                    Memory[]
+  messages                    Message[]
+  chats                       Chat[]
+  conversationThreads         ConversationThread[]
+  aiTurnTraces                AiTurnTrace[]
+  dailyUsage                  DailyUsage[]
+  identities                  ChannelIdentity[]
+  consumedLinkTokens          ChannelLinkToken[]           @relation("ChannelLinkTokenConsumedBy")
+  subscription                Subscription?
+  sessionSummaries            SessionSummary[]
+  archivedSessions            ArchivedSession[]
+  voiceUsage                  VoiceUsage[]
+  voiceGenerationJobs         VoiceGenerationJob[]
+  organizationMemberships     OrganizationMembership[]
+  ownedOrganizations          Organization[]               @relation("OrganizationOwner")
+  createdOrganizations        Organization[]               @relation("OrganizationCreator")
+  organizationAuditLogs       OrganizationAuditLog[]       @relation("OrganizationAuditActor")
+  modelExperimentParticipants ModelExperimentParticipant[]
+  modelExperimentPairs        ModelExperimentPair[]
+  modelExperimentAudits       ModelExperimentAudit[]       @relation("ModelExperimentAuditActor")
+  createdModelExperiments     ModelExperiment[]            @relation("ModelExperimentCreator")
 
   billingSyncedAt DateTime?
   lastActivityAt  DateTime  @default(now())
@@ -342,9 +346,10 @@ model Chat {
   customTitle Boolean        @default(false)
   visibility  ChatVisibility @default(PRIVATE)
 
-  messages           Message[]
-  artifacts          Artifact[]
-  conversationThread ConversationThread?
+  messages             Message[]
+  artifacts            Artifact[]
+  conversationThread   ConversationThread?
+  modelExperimentPairs ModelExperimentPair[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -409,10 +414,12 @@ model Message {
   deletedAt DateTime? // Soft delete
 
   // Relationships
-  attachments        Attachment[]
-  artifacts          Artifact[]          @relation("MessageArtifacts")
-  metrics            MessageMetrics?
-  voiceGenerationJob VoiceGenerationJob?
+  attachments                  Attachment[]
+  artifacts                    Artifact[]            @relation("MessageArtifacts")
+  metrics                      MessageMetrics?
+  voiceGenerationJob           VoiceGenerationJob?
+  sourceModelExperimentPairs   ModelExperimentPair[] @relation("ModelExperimentSourceMessage")
+  canonicalModelExperimentPair ModelExperimentPair?  @relation("ModelExperimentCanonicalMessage")
 
   @@unique([channel, externalMessageId])
   @@index([userId, channel, createdAt])
@@ -444,15 +451,234 @@ model ConversationThread {
   chatId String? @unique
   chat   Chat?   @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
-  messages Message[]
-  summary  ConversationThreadSummary?
-  traces   AiTurnTrace[]
+  messages             Message[]
+  summary              ConversationThreadSummary?
+  traces               AiTurnTrace[]
+  modelExperimentPairs ModelExperimentPair[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, channel, externalThreadId])
   @@index([userId, channel, updatedAt(sort: Desc)])
+}
+
+// -----------------------------------------------------
+// PAIRED MODEL COMPARISON EXPERIMENTS
+// -----------------------------------------------------
+
+enum ModelExperimentStatus {
+  DRAFT
+  READY
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum ModelExperimentVariantRole {
+  CONTROL
+  CANDIDATE
+}
+
+enum ModelExperimentNoticeState {
+  NOT_SHOWN
+  SHOWN
+}
+
+enum ModelExperimentPairStatus {
+  GENERATING
+  READY
+  RESOLVED
+  PARTIAL_FAILED
+  FAILED
+  EXPIRED
+}
+
+enum ModelExperimentVote {
+  A
+  B
+  TIE
+  AUTO_CONTROL
+  AUTO_SUCCESS
+}
+
+enum ModelExperimentResponseStatus {
+  PENDING
+  STREAMING
+  COMPLETED
+  FAILED
+  PURGED
+}
+
+model ModelExperiment {
+  id String @id @default(cuid())
+
+  key            String                @unique
+  name           String
+  status         ModelExperimentStatus @default(DRAFT)
+  posthogFlagKey String
+  targetCountry  String                @default("IT") @db.VarChar(2)
+  cooldownHours  Int                   @default(24)
+  perUserCap     Int                   @default(5)
+
+  createdByAdminId String
+  createdByAdmin   User   @relation("ModelExperimentCreator", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+
+  readyAt     DateTime?
+  activatedAt DateTime?
+  pausedAt    DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  variants     ModelExperimentVariant[]
+  participants ModelExperimentParticipant[]
+  pairs        ModelExperimentPair[]
+  audits       ModelExperimentAudit[]
+
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+}
+
+model ModelExperimentVariant {
+  id String @id @default(cuid())
+
+  experimentId String
+  experiment   ModelExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  role             ModelExperimentVariantRole
+  modelId          String
+  provider         String                     @default("openrouter")
+  generationConfig Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  responses       ModelExperimentResponse[]
+  pairSlotA       ModelExperimentPair[]     @relation("ModelExperimentSlotA")
+  pairSlotB       ModelExperimentPair[]     @relation("ModelExperimentSlotB")
+  selectedInPairs ModelExperimentPair[]     @relation("ModelExperimentSelectedVariant")
+
+  @@unique([experimentId, role])
+  @@index([modelId])
+}
+
+model ModelExperimentParticipant {
+  id String @id @default(cuid())
+
+  experimentId String
+  experiment   ModelExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  noticeState          ModelExperimentNoticeState @default(NOT_SHOWN)
+  attempts             Int                        @default(0)
+  completedComparisons Int                        @default(0)
+  nextEligibleAt       DateTime?
+  enrolledAt           DateTime                   @default(now())
+  lastExposedAt        DateTime?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+
+  pairs ModelExperimentPair[]
+
+  @@unique([experimentId, userId])
+  @@index([userId])
+  @@index([experimentId, nextEligibleAt])
+}
+
+model ModelExperimentPair {
+  id String @id @default(cuid())
+
+  experimentId         String
+  experiment           ModelExperiment            @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  participantId        String
+  participant          ModelExperimentParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  userId               String
+  user                 User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatId               String
+  chat                 Chat                       @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  conversationThreadId String
+  conversationThread   ConversationThread         @relation(fields: [conversationThreadId], references: [id], onDelete: Cascade)
+  sourceMessageId      String                     @unique
+  sourceMessage        Message                    @relation("ModelExperimentSourceMessage", fields: [sourceMessageId], references: [id], onDelete: Cascade)
+
+  slotAVariantId String
+  slotAVariant   ModelExperimentVariant @relation("ModelExperimentSlotA", fields: [slotAVariantId], references: [id], onDelete: Restrict)
+  slotBVariantId String
+  slotBVariant   ModelExperimentVariant @relation("ModelExperimentSlotB", fields: [slotBVariantId], references: [id], onDelete: Restrict)
+
+  status             ModelExperimentPairStatus @default(GENERATING)
+  vote               ModelExperimentVote?
+  selectedVariantId  String?
+  selectedVariant    ModelExperimentVariant?   @relation("ModelExperimentSelectedVariant", fields: [selectedVariantId], references: [id], onDelete: Restrict)
+  canonicalMessageId String?                   @unique
+  canonicalMessage   Message?                  @relation("ModelExperimentCanonicalMessage", fields: [canonicalMessageId], references: [id], onDelete: SetNull)
+  countryCode        String                    @db.VarChar(2)
+  promptMode         String?
+  exposedAt          DateTime?
+  readyAt            DateTime?
+  resolvedAt         DateTime?
+  expiresAt          DateTime
+  contentPurgeAt     DateTime?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  responses ModelExperimentResponse[]
+
+  @@index([experimentId, status])
+  @@index([participantId, createdAt(sort: Desc)])
+  @@index([userId, status])
+  @@index([expiresAt])
+  @@index([contentPurgeAt])
+}
+
+model ModelExperimentResponse {
+  id String @id @default(cuid())
+
+  pairId    String
+  pair      ModelExperimentPair    @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   ModelExperimentVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  status             ModelExperimentResponseStatus @default(PENDING)
+  parts              Json?
+  text               String?                       @db.Text
+  provider           String
+  modelId            String
+  generationConfig   Json
+  traceId            String                        @unique
+  errorCode          String?
+  inputTokens        Int?
+  outputTokens       Int?
+  reasoningTokens    Int?
+  costUsd            Float?
+  timeToFirstTokenMs Int?
+  generationTimeMs   Int?
+  firstTokenAt       DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
+
+  @@unique([pairId, variantId])
+  @@index([variantId, status])
+  @@index([pairId, status])
+}
+
+model ModelExperimentAudit {
+  id String @id @default(cuid())
+
+  experimentId String
+  experiment   ModelExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  actorUserId  String
+  actor        User            @relation("ModelExperimentAuditActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+  action       String
+  before       Json?
+  after        Json?
+  createdAt    DateTime        @default(now())
+
+  @@index([experimentId, createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
 }
 
 model ConversationThreadSummary {

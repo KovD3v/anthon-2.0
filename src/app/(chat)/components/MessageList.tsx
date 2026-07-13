@@ -23,6 +23,10 @@ import {
   normalizeFilePartForPreview,
 } from "@/lib/chat-client";
 import { formatRelativeTime } from "@/lib/format-time";
+import type {
+  ModelComparisonData,
+  ModelComparisonSlot,
+} from "@/lib/model-experiments/types";
 import { defaultTransition, fadeUp, scaleIn } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { MessageFeedbackReason } from "@/types/chat";
@@ -42,9 +46,17 @@ import { AttachmentPreview } from "./Attachments";
 import { AudioPlayer } from "./AudioPlayer";
 import { useMessageVirtualizer } from "./hooks/useMessageVirtualizer";
 import { MemoizedMarkdown } from "./MemoizedMarkdown";
+import { ModelComparisonCard } from "./ModelComparisonCard";
 import { VoiceResponse } from "./VoiceResponse";
 
 type ExtendedMessage = ChatUIMessage;
+
+function getModelComparisonData(parts: ExtendedMessage["parts"]) {
+  const part = parts?.find(
+    (candidate) => candidate.type === "data-modelComparison",
+  ) as { data?: ModelComparisonData } | undefined;
+  return part?.data;
+}
 
 interface MessageListProps {
   messages: ExtendedMessage[];
@@ -61,6 +73,11 @@ interface MessageListProps {
   onRegenerate: () => void;
   feedbackEndpoint: string;
   canSubmitFeedback?: boolean;
+  comparisonDeltas?: Record<
+    string,
+    Partial<Record<ModelComparisonSlot, string>>
+  >;
+  onModelComparisonResolved?: () => Promise<void>;
   // Lazy loading props
   hasMoreMessages?: boolean;
   isLoadingMore?: boolean;
@@ -133,6 +150,8 @@ export function MessageList({
   onRegenerate,
   feedbackEndpoint,
   canSubmitFeedback = true,
+  comparisonDeltas = {},
+  onModelComparisonResolved,
   hasMoreMessages = false,
   isLoadingMore = false,
   onLoadMore,
@@ -403,6 +422,7 @@ export function MessageList({
               const message = visibleMessages[virtualRow.index];
               const isEditing = editingMessageId === message.id;
               const messageText = getMessageText(message);
+              const comparisonData = getModelComparisonData(message.parts);
               const isLastAssistant =
                 message.role === "assistant" &&
                 message.id === visibleMessages[visibleMessages.length - 1]?.id;
@@ -505,7 +525,7 @@ export function MessageList({
 
                     {/* Content Bubble */}
                     <div
-                      className={`flex max-w-[85%] flex-col gap-2 ${
+                      className={`flex ${comparisonData ? "max-w-[calc(100%-2.5rem)] flex-1" : "max-w-[85%]"} flex-col gap-2 ${
                         isUser ? "items-end" : "items-start"
                       }`}
                     >
@@ -540,13 +560,15 @@ export function MessageList({
                         }}
                         className={`relative text-sm leading-relaxed ${
                           /* Only apply bubble styling if there's text or we are editing */
-                          !isAttachmentOnly || isEditing
-                            ? `px-5 py-3.5 shadow-sm ${
-                                isUser
-                                  ? "rounded-2xl rounded-tr-sm bg-primary text-primary-foreground"
-                                  : "rounded-2xl rounded-tl-sm bg-[#c4cd4c] text-black"
-                              }`
-                            : "p-0 bg-transparent" /* Transparent for standalone attachments */
+                          comparisonData
+                            ? "w-full bg-transparent p-0"
+                            : !isAttachmentOnly || isEditing
+                              ? `px-5 py-3.5 shadow-sm ${
+                                  isUser
+                                    ? "rounded-2xl rounded-tr-sm bg-primary text-primary-foreground"
+                                    : "rounded-2xl rounded-tl-sm bg-[#c4cd4c] text-black"
+                                }`
+                              : "p-0 bg-transparent" /* Transparent for standalone attachments */
                         } ${
                           assistantDisplayState === "streaming"
                             ? "min-h-[3.5rem] min-w-40 transition-[min-height,width] duration-150 ease-out"
@@ -578,7 +600,18 @@ export function MessageList({
                             </div>
                           </div>
                         ) : message.role === "assistant" ? (
-                          isVoiceMessage ? (
+                          comparisonData ? (
+                            <ModelComparisonCard
+                              data={comparisonData}
+                              streamedText={
+                                comparisonDeltas[comparisonData.pairId]
+                              }
+                              onResolved={
+                                onModelComparisonResolved ??
+                                (async () => undefined)
+                              }
+                            />
+                          ) : isVoiceMessage ? (
                             <VoiceResponse
                               audioSrc={voiceAudioSrc}
                               transcript={messageText}
@@ -750,130 +783,139 @@ export function MessageList({
                       </m.div>
 
                       {/* Actions Row */}
-                      <div
-                        className={`flex flex-wrap items-center gap-1 px-1 transition-opacity ${
-                          isUser
-                            ? "flex-row-reverse opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
-                            : "opacity-100"
-                        }`}
-                      >
-                        {isUser && !isEditing && (
-                          <>
+                      {!comparisonData && (
+                        <div
+                          className={`flex flex-wrap items-center gap-1 px-1 transition-opacity ${
+                            isUser
+                              ? "flex-row-reverse opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                              : "opacity-100"
+                          }`}
+                        >
+                          {isUser && !isEditing && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                onClick={() =>
+                                  onEditStart(message.id, messageText)
+                                }
+                                disabled={isLoading}
+                                aria-label="Modifica messaggio"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                onClick={() => onDelete(message.id)}
+                                aria-label="Elimina messaggio"
+                              >
+                                {deletingMessageId === message.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </>
+                          )}
+
+                          {!isUser && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                onClick={() => copy(messageText)}
+                                aria-label={
+                                  copied
+                                    ? "Messaggio copiato"
+                                    : "Copia messaggio"
+                                }
+                              >
+                                {copied ? (
+                                  <Check className="h-3 w-3" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                              </Button>
+                              {canSubmitFeedback && (
+                                <>
+                                  <span className="ml-1 text-xs text-muted-foreground">
+                                    {isFeedbackSaving
+                                      ? "Salvataggio…"
+                                      : feedbackValue === 0
+                                        ? "Ti è stata utile?"
+                                        : "Feedback inviato"}
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn(
+                                      "h-7 gap-1 rounded-md px-2 text-xs",
+                                      feedbackValue === 1
+                                        ? "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
+                                        : "text-muted-foreground hover:text-foreground",
+                                    )}
+                                    onClick={() =>
+                                      handleFeedback(message.id, 1)
+                                    }
+                                    disabled={isFeedbackSaving}
+                                    aria-label="Segna la risposta come utile"
+                                    aria-pressed={feedbackValue === 1}
+                                  >
+                                    {isFeedbackSaving && feedbackValue === 1 ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <ThumbsUp className="h-3 w-3" />
+                                    )}
+                                    Sì
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn(
+                                      "h-7 gap-1 rounded-md px-2 text-xs",
+                                      feedbackValue === -1
+                                        ? "bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive"
+                                        : "text-muted-foreground hover:text-foreground",
+                                    )}
+                                    onClick={() =>
+                                      handleFeedback(message.id, -1)
+                                    }
+                                    disabled={isFeedbackSaving}
+                                    aria-label="Segna la risposta come non utile"
+                                    aria-pressed={feedbackValue === -1}
+                                  >
+                                    {isFeedbackSaving &&
+                                    feedbackValue === -1 ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <ThumbsDown className="h-3 w-3" />
+                                    )}
+                                    No
+                                  </Button>
+                                </>
+                              )}
+                            </>
+                          )}
+
+                          {isLastAssistant && !isLoading && (
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                              onClick={() =>
-                                onEditStart(message.id, messageText)
-                              }
-                              disabled={isLoading}
-                              aria-label="Modifica messaggio"
+                              onClick={onRegenerate}
+                              aria-label="Rigenera risposta"
                             >
-                              <Pencil className="h-3 w-3" />
+                              <RefreshCw className="h-3 w-3" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                              onClick={() => onDelete(message.id)}
-                              aria-label="Elimina messaggio"
-                            >
-                              {deletingMessageId === message.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-3 w-3" />
-                              )}
-                            </Button>
-                          </>
-                        )}
-
-                        {!isUser && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                              onClick={() => copy(messageText)}
-                              aria-label={
-                                copied ? "Messaggio copiato" : "Copia messaggio"
-                              }
-                            >
-                              {copied ? (
-                                <Check className="h-3 w-3" />
-                              ) : (
-                                <Copy className="h-3 w-3" />
-                              )}
-                            </Button>
-                            {canSubmitFeedback && (
-                              <>
-                                <span className="ml-1 text-xs text-muted-foreground">
-                                  {isFeedbackSaving
-                                    ? "Salvataggio…"
-                                    : feedbackValue === 0
-                                      ? "Ti è stata utile?"
-                                      : "Feedback inviato"}
-                                </span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className={cn(
-                                    "h-7 gap-1 rounded-md px-2 text-xs",
-                                    feedbackValue === 1
-                                      ? "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
-                                      : "text-muted-foreground hover:text-foreground",
-                                  )}
-                                  onClick={() => handleFeedback(message.id, 1)}
-                                  disabled={isFeedbackSaving}
-                                  aria-label="Segna la risposta come utile"
-                                  aria-pressed={feedbackValue === 1}
-                                >
-                                  {isFeedbackSaving && feedbackValue === 1 ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <ThumbsUp className="h-3 w-3" />
-                                  )}
-                                  Sì
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className={cn(
-                                    "h-7 gap-1 rounded-md px-2 text-xs",
-                                    feedbackValue === -1
-                                      ? "bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive"
-                                      : "text-muted-foreground hover:text-foreground",
-                                  )}
-                                  onClick={() => handleFeedback(message.id, -1)}
-                                  disabled={isFeedbackSaving}
-                                  aria-label="Segna la risposta come non utile"
-                                  aria-pressed={feedbackValue === -1}
-                                >
-                                  {isFeedbackSaving && feedbackValue === -1 ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <ThumbsDown className="h-3 w-3" />
-                                  )}
-                                  No
-                                </Button>
-                              </>
-                            )}
-                          </>
-                        )}
-
-                        {isLastAssistant && !isLoading && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                            onClick={onRegenerate}
-                            aria-label="Rigenera risposta"
-                          >
-                            <RefreshCw className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </div>
+                          )}
+                        </div>
+                      )}
 
                       {!isUser &&
                         canSubmitFeedback &&

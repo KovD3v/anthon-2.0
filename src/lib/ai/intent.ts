@@ -119,7 +119,7 @@ export function matchesComplexCoachingIntent(message: string) {
 }
 
 export function matchesVoiceIntent(message: string) {
-  return /\b(audio|vocale|nota\s+vocale|voice\s+note|parla|registrami|mandami\s+un\s+vocale)\b/i.test(
+  return /\b(audio|vocale|nota\s+vocale|voice\s+note|parla|registrami|mandami\s+un\s+vocale|(?:dimmi|dimmelo|rispondi)\s+a\s+voce|a\s+voce)\b/i.test(
     message,
   );
 }

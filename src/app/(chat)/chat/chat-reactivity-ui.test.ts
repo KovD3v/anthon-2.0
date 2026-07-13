@@ -100,6 +100,33 @@ describe("getAssistantPendingLabel", () => {
     ).toBe("hidden");
   });
 
+  it("keeps a persisted unresolved model comparison visible", () => {
+    expect(
+      getAssistantMessageLifecycle({
+        message: {
+          id: "comparison-1",
+          role: "assistant",
+          parts: [
+            {
+              type: "data-modelComparison",
+              data: {
+                pairId: "pair-1",
+                noticeRequired: false,
+                status: "ready",
+                slots: {
+                  A: { status: "completed", text: "A" },
+                  B: { status: "completed", text: "B" },
+                },
+              },
+            },
+          ],
+        },
+        isLatest: false,
+        pendingLabel: null,
+      }),
+    ).toBe("content");
+  });
+
   it("marks assistant text as streaming while generation is active", () => {
     const message = {
       id: "assistant-1",

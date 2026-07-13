@@ -228,7 +228,10 @@ export function getAssistantMessageLifecycle({
 
   const hasText = getMessageText(message).trim().length > 0;
   const hasFilePart = message.parts?.some((part) => part.type === "file");
-  if (hasText || hasFilePart || hasRenderableAttachment) {
+  const hasModelComparison = message.parts?.some(
+    (part) => part.type === "data-modelComparison",
+  );
+  if (hasText || hasFilePart || hasModelComparison || hasRenderableAttachment) {
     return "content";
   }
 

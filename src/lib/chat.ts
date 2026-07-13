@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { cache } from "react";
 import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
 import { prisma } from "@/lib/db";
+import type { ModelComparisonData } from "@/lib/model-experiments/types";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 import { getVoicePlanConfig } from "@/lib/voice";
@@ -11,6 +12,25 @@ function normalizeMessageFeedback(
   feedback: number | null,
 ): ChatMessage["feedback"] {
   return feedback === -1 || feedback === 0 || feedback === 1 ? feedback : null;
+}
+
+function toComparisonSlot(
+  response:
+    | {
+        status: string;
+        text: string | null;
+      }
+    | undefined,
+): ModelComparisonData["slots"]["A"] {
+  const status =
+    response?.status === "COMPLETED"
+      ? "completed"
+      : response?.status === "FAILED"
+        ? "failed"
+        : response?.status === "STREAMING"
+          ? "streaming"
+          : "pending";
+  return { status, text: response?.text ?? "" };
 }
 
 // -----------------------------------------------------
@@ -175,6 +195,96 @@ export const getSharedChat = cache(
 
     messagesToReturn.reverse();
 
+    const unresolvedComparisons = cursor
+      ? []
+      : await prisma.modelExperimentPair.findMany({
+          where: {
+            chatId,
+            userId,
+            status: { in: ["GENERATING", "READY"] },
+            canonicalMessageId: null,
+          },
+          include: {
+            responses: true,
+            participant: { select: { noticeState: true } },
+          },
+          orderBy: { createdAt: "asc" },
+        });
+    const mappedMessages: ChatMessage[] = messagesToReturn.map((m) => ({
+      id: m.id,
+      role: m.role.toLowerCase() as "user" | "assistant",
+      content: getTextFromParts(m.parts),
+      parts: m.parts,
+      createdAt: m.createdAt.toISOString(),
+      model: isModelComparisonCanonical(m.metadata)
+        ? undefined
+        : (m.model ?? undefined),
+      usage:
+        m.inputTokens !== null
+          ? {
+              inputTokens: m.inputTokens,
+              outputTokens: m.outputTokens ?? 0,
+              cost: m.costUsd || 0,
+              generationTimeMs: m.generationTimeMs || undefined,
+              reasoningTimeMs: m.reasoningTimeMs || undefined,
+            }
+          : undefined,
+      ragUsed: m.ragUsed || undefined,
+      toolCalls: m.toolCalls,
+      feedback: normalizeMessageFeedback(m.feedback),
+      feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
+      voice: m.voiceGenerationJob
+        ? {
+            status: m.voiceGenerationJob.status,
+            ...(m.voiceGenerationJob.errorCode
+              ? { errorCode: m.voiceGenerationJob.errorCode }
+              : {}),
+            isExplicitRequest: isExplicitVoiceRequest(m.metadata),
+          }
+        : undefined,
+      attachments: m.attachments.map((attachment) => ({
+        ...attachment,
+        blobUrl: attachment.contentType.startsWith("audio/")
+          ? `/api/voice/messages/${m.id}`
+          : attachment.blobUrl,
+      })),
+    }));
+    for (const pair of unresolvedComparisons) {
+      const responseByVariant = new Map(
+        pair.responses.map((response) => [response.variantId, response]),
+      );
+      const comparisonData: ModelComparisonData = {
+        pairId: pair.id,
+        noticeRequired: pair.participant.noticeState === "NOT_SHOWN",
+        status: pair.status === "READY" ? "ready" : "generating",
+        slots: {
+          A: toComparisonSlot(responseByVariant.get(pair.slotAVariantId)),
+          B: toComparisonSlot(responseByVariant.get(pair.slotBVariantId)),
+        },
+      };
+      const comparisonMessage: ChatMessage = {
+        id: `model-comparison-${pair.id}`,
+        role: "assistant",
+        content: null,
+        parts: [
+          {
+            type: "data-modelComparison",
+            id: pair.id,
+            data: comparisonData,
+          },
+        ],
+        createdAt: pair.createdAt.toISOString(),
+      };
+      const sourceIndex = mappedMessages.findIndex(
+        (message) => message.id === pair.sourceMessageId,
+      );
+      mappedMessages.splice(
+        sourceIndex >= 0 ? sourceIndex + 1 : mappedMessages.length,
+        0,
+        comparisonMessage,
+      );
+    }
+
     return {
       id: chat.id,
       title: chat.title ?? "Nuova Chat",
@@ -182,43 +292,7 @@ export const getSharedChat = cache(
       isOwner: chat.userId === userId,
       createdAt: chat.createdAt.toISOString(),
       updatedAt: chat.updatedAt.toISOString(),
-      messages: messagesToReturn.map((m) => ({
-        id: m.id,
-        role: m.role.toLowerCase() as "user" | "assistant",
-        content: getTextFromParts(m.parts),
-        parts: m.parts,
-        createdAt: m.createdAt.toISOString(),
-        model: m.model ?? undefined,
-        usage:
-          m.inputTokens !== null
-            ? {
-                inputTokens: m.inputTokens,
-                outputTokens: m.outputTokens ?? 0,
-                cost: m.costUsd || 0,
-                generationTimeMs: m.generationTimeMs || undefined,
-                reasoningTimeMs: m.reasoningTimeMs || undefined,
-              }
-            : undefined,
-        ragUsed: m.ragUsed || undefined,
-        toolCalls: m.toolCalls,
-        feedback: normalizeMessageFeedback(m.feedback),
-        feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
-        voice: m.voiceGenerationJob
-          ? {
-              status: m.voiceGenerationJob.status,
-              ...(m.voiceGenerationJob.errorCode
-                ? { errorCode: m.voiceGenerationJob.errorCode }
-                : {}),
-              isExplicitRequest: isExplicitVoiceRequest(m.metadata),
-            }
-          : undefined,
-        attachments: m.attachments.map((attachment) => ({
-          ...attachment,
-          blobUrl: attachment.contentType.startsWith("audio/")
-            ? `/api/voice/messages/${m.id}`
-            : attachment.blobUrl,
-        })),
-      })),
+      messages: mappedMessages,
       pagination: {
         hasMore,
         nextCursor,
@@ -238,5 +312,14 @@ function isExplicitVoiceRequest(metadata: unknown): boolean {
     !!voice &&
     typeof voice === "object" &&
     (voice as { category?: unknown }).category === "VOICE_REQUIRED"
+  );
+}
+
+function isModelComparisonCanonical(metadata: unknown): boolean {
+  return Boolean(
+    metadata &&
+      typeof metadata === "object" &&
+      typeof (metadata as { modelComparisonPairId?: unknown })
+        .modelComparisonPairId === "string",
   );
 }

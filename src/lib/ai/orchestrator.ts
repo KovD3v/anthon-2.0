@@ -2010,6 +2010,323 @@ export async function streamChat({
   return result;
 }
 
+export interface PrepareChatTurnOptions {
+  userId: string;
+  chatId?: string;
+  conversationThreadId: string;
+  userMessageId: string;
+  userMessage: string;
+  planId?: string | null;
+  userRole?: string;
+  subscriptionStatus?: string;
+  memoryEnabled?: boolean;
+  effectiveEntitlements?: EffectiveEntitlements;
+  skipConversationHistory?: boolean;
+}
+
+export interface PreparedChatTurn {
+  userId: string;
+  chatId?: string;
+  conversationThreadId: string;
+  userMessageId: string;
+  userMessage: string;
+  planId?: string | null;
+  userRole?: string;
+  effectiveModelTier: string;
+  systemPrompt: string;
+  messages: ModelMessage[];
+  turnPlan: TurnPlan;
+  promptMode: PromptMode;
+  ragUsed: boolean;
+  ragChunksCount: number;
+}
+
+/**
+ * Builds the immutable, read-only context used by a paired model comparison.
+ * Tools are deliberately omitted from execution: persistent writes and web
+ * tools are ineligible, while RAG, history, memories, and user context are
+ * materialized once into this snapshot.
+ */
+export async function prepareChatTurn({
+  userId,
+  chatId,
+  conversationThreadId,
+  userMessageId,
+  userMessage,
+  planId,
+  userRole,
+  subscriptionStatus,
+  memoryEnabled = true,
+  effectiveEntitlements: prefetchedEntitlements,
+  skipConversationHistory = false,
+}: PrepareChatTurnOptions): Promise<PreparedChatTurn> {
+  const effectiveEntitlements =
+    prefetchedEntitlements ??
+    (await resolveEffectiveEntitlements({
+      userId,
+      subscriptionStatus,
+      userRole,
+      planId,
+      isGuest: false,
+    }));
+  const webSearchRule = evaluateWebSearchRule(userMessage);
+  const classifier = await classifyPromptModules({
+    userId,
+    userMessage,
+    webSearchRule,
+  });
+  const turnPlanInput = {
+    userMessage,
+    isGuest: false,
+    isFirstTurn: skipConversationHistory,
+    inputOrigin: "text" as const,
+    outputMode: "text" as const,
+    webSearchEnabled: webSearchRule.enabled,
+    webFetchEnabled: shouldEnableWebFetchTool(userMessage),
+    classifier,
+    fullMaxRawTurns: Math.max(
+      1,
+      Math.floor(effectiveEntitlements.limits.maxContextMessages / 2),
+    ),
+  };
+  const turnPlan =
+    process.env.AI_TURN_PLANNER_MODE === "legacy"
+      ? planLegacyTurn(turnPlanInput)
+      : planTurn(turnPlanInput);
+  const promptMode: PromptMode =
+    turnPlan.promptProfile === "compact" ? "simple_fast" : "full";
+
+  const conversationHistory =
+    turnPlan.history.scope === "none"
+      ? []
+      : (
+          await (
+            await import("@/lib/ai/thread-context")
+          ).buildThreadContext(
+            conversationThreadId,
+            {
+              includeSummary: turnPlan.history.includeSummary,
+              maxRawTurns: turnPlan.history.maxRawTurns,
+              maxRawChars: turnPlan.history.maxRawChars,
+            },
+            userMessageId,
+          )
+        ).messages;
+  const classifierRagEnabled = Boolean(classifier?.accepted && classifier.rag);
+  const ragResult = turnPlan.capabilities.rag
+    ? await (async () => {
+        try {
+          const needsRag =
+            classifierRagEnabled ||
+            (await shouldUseRag(userMessage, { userId }));
+          if (!needsRag) return { text: undefined, chunkCount: 0 };
+          const result = await getRagContext(userMessage);
+          return { text: result.text, chunkCount: result.chunkCount };
+        } catch (error) {
+          aiLogger.warn(
+            "model_comparison.rag_failed",
+            "Paired comparison RAG preparation failed",
+            { error, userId, chatId },
+          );
+          return { text: undefined, chunkCount: 0 };
+        }
+      })()
+    : { text: undefined, chunkCount: 0 };
+  const ragUsed = Boolean(ragResult.text);
+  const currentDate = new Date().toLocaleDateString("it-IT", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const userStyle = analyzeUserStyle(conversationHistory);
+  let systemPrompt: string;
+  if (promptMode === "simple_fast") {
+    const snapshot = await formatTinyUserSnapshotForPrompt(userId).catch(
+      () => "",
+    );
+    systemPrompt = buildSimpleFastSystemPrompt({
+      currentDate,
+      userSnapshot: snapshot,
+      userStyle,
+      responseMode: "text",
+    });
+  } else {
+    const [userContext, userMemories] = await Promise.all([
+      turnPlan.capabilities.userContext
+        ? formatUserContextForPrompt(userId).catch(
+            () => "No user context available.",
+          )
+        : Promise.resolve(""),
+      memoryEnabled && turnPlan.capabilities.userContext
+        ? formatMemoriesForPrompt(userId).catch(
+            () => "No user memories available.",
+          )
+        : Promise.resolve("Persistent memory is disabled for this session."),
+    ]);
+    systemPrompt = await buildSystemPrompt(userId, ragResult.text, {
+      userContext,
+      userMemories,
+      currentDate,
+      memoryEnabled,
+      voiceEnabled: false,
+      responseMode: "text",
+      userStyle,
+      isGuest: false,
+      promptModules: {
+        toolsEnabled: false,
+        webSearchEnabled: false,
+        webFetchEnabled: false,
+        userContextEnabled: turnPlan.capabilities.userContext,
+        persistentWritesEnabled: false,
+        preferenceWritesEnabled: false,
+        ragEnabled: ragUsed,
+      },
+    });
+  }
+
+  const history = [...conversationHistory];
+  const last = history.at(-1);
+  if (
+    last?.role === "user" &&
+    typeof last.content === "string" &&
+    last.content === userMessage
+  ) {
+    history.pop();
+  }
+  return {
+    userId,
+    chatId,
+    conversationThreadId,
+    userMessageId,
+    userMessage,
+    planId,
+    userRole,
+    effectiveModelTier: effectiveEntitlements.modelTier,
+    systemPrompt,
+    messages: [...history, { role: "user", content: userMessage }],
+    turnPlan,
+    promptMode,
+    ragUsed,
+    ragChunksCount: ragResult.chunkCount,
+  };
+}
+
+export interface ExecutePreparedChatTurnOptions {
+  prepared: PreparedChatTurn;
+  modelId: string;
+  generationConfig: {
+    temperature?: number;
+    topP?: number;
+    maxOutputTokens?: number;
+    reasoning?: "disabled" | "low" | "medium" | "high";
+    fallbacks: false;
+  };
+  clerkId: string;
+  traceId: string;
+  experimentId: string;
+  pairId: string;
+  role: "CONTROL" | "CANDIDATE";
+  onFirstToken?: (timeToFirstTokenMs: number) => void;
+  onFinish?: (result: {
+    text: string;
+    metrics: AIMetrics;
+  }) => void | Promise<void>;
+}
+
+export function executePreparedChatTurn({
+  prepared,
+  modelId,
+  generationConfig,
+  clerkId,
+  traceId,
+  experimentId,
+  pairId,
+  role,
+  onFirstToken,
+  onFinish,
+}: ExecutePreparedChatTurnOptions) {
+  const startTime = Date.now();
+  let firstTokenSeen = false;
+  const baseOptions = getOpenRouterProviderOptionsForModel(modelId) as {
+    provider?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  const reasoning = generationConfig.reasoning;
+  const model = withTracing(getModelById(modelId), getPostHogClient(), {
+    posthogDistinctId: clerkId,
+    posthogTraceId: traceId,
+    posthogProperties: {
+      conversationId: prepared.chatId,
+      experimentId,
+      pairId,
+      experimentRole: role,
+      modelId,
+      planId: prepared.planId ?? "free",
+      effectiveModelTier: prepared.effectiveModelTier,
+      userRole: prepared.userRole ?? "USER",
+      promptMode: prepared.promptMode,
+    },
+  });
+
+  return streamText({
+    model,
+    instructions: prepared.systemPrompt,
+    messages: prepared.messages,
+    temperature: generationConfig.temperature,
+    topP: generationConfig.topP,
+    maxOutputTokens:
+      generationConfig.maxOutputTokens ??
+      (prepared.turnPlan.responseLength === "brief" ? 96 : undefined),
+    providerOptions: {
+      openrouter: {
+        ...baseOptions,
+        provider: { ...baseOptions.provider, allow_fallbacks: false },
+        user: clerkId,
+        ...(reasoning
+          ? reasoning === "disabled"
+            ? { reasoning: { enabled: false, max_tokens: 1 } }
+            : { reasoning: { enabled: true, effort: reasoning } }
+          : {}),
+      },
+    },
+    headers: { "x-session-id": prepared.chatId ?? prepared.userId },
+    onChunk: ({ chunk }) => {
+      if (!firstTokenSeen && chunk.type === "text-delta" && chunk.text) {
+        firstTokenSeen = true;
+        onFirstToken?.(Date.now() - startTime);
+      }
+    },
+    onEnd: onFinish
+      ? async ({ text, usage, totalUsage, providerMetadata }) => {
+          const meteredUsage = totalUsage ?? usage;
+          const metrics = await extractAIMetrics(modelId, startTime, {
+            text,
+            usage: {
+              promptTokens: meteredUsage?.inputTokens,
+              completionTokens: meteredUsage?.outputTokens,
+              totalTokens: meteredUsage?.totalTokens,
+            },
+            providerMetadata: providerMetadata as Record<string, unknown>,
+            preferProviderUsage: !totalUsage,
+            ragUsed: prepared.ragUsed,
+            ragChunksCount: prepared.ragChunksCount,
+          });
+          metrics.turnPlan = prepared.turnPlan as unknown as Record<
+            string,
+            unknown
+          >;
+          metrics.tracePayload = {
+            userMessage: prepared.userMessage,
+            systemPrompt: prepared.systemPrompt,
+            messages: prepared.messages as unknown as Record<string, unknown>,
+          };
+          await onFinish({ text, metrics });
+        }
+      : undefined,
+  });
+}
+
 function getOpenRouterCost(
   providerMetadata: Record<string, unknown> | undefined,
 ) {

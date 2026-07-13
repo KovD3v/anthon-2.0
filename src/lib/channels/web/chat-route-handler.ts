@@ -19,6 +19,7 @@ import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
+import { tryCreateModelComparisonResponse } from "@/lib/model-experiments/runtime";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { transcribeAudio } from "@/lib/transcription";
 import { decideWebVoiceMode, getVoiceUnavailability } from "@/lib/voice";
@@ -502,6 +503,29 @@ export async function handleWebChatPost(request: Request) {
 
         const voiceUnavailableReason =
           getExplicitVoiceUnavailableReason(voiceDecision);
+
+        const comparisonResponse = await tryCreateModelComparisonResponse({
+          user: {
+            id: user.id,
+            clerkId,
+            role: user.role,
+            isGuest: user.isGuest,
+          },
+          request,
+          chatId,
+          conversationThreadId: conversationThread.id,
+          sourceMessageId: message.id,
+          userMessage: aiUserMessageText,
+          planId,
+          subscriptionStatus,
+          hasAttachments: Boolean(hasAttachments),
+          effectiveEntitlements: rateLimitResult.effectiveEntitlements,
+          skipConversationHistory: requestConversationMessageCount === 1,
+        });
+        if (comparisonResponse) {
+          requestTimer.split("Model comparison setup complete");
+          return comparisonResponse;
+        }
 
         const flowResult = await runChannelFlow({
           channel: "WEB",

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   chatFindFirst: vi.fn(),
   userFindUnique: vi.fn(),
   messageFindMany: vi.fn(),
+  modelExperimentPairFindMany: vi.fn(),
   resolveEffectiveEntitlements: vi.fn(),
   getVoicePlanConfig: vi.fn(),
 }));
@@ -30,6 +31,9 @@ vi.mock("@/lib/db", () => ({
     message: {
       findMany: mocks.messageFindMany,
     },
+    modelExperimentPair: {
+      findMany: mocks.modelExperimentPairFindMany,
+    },
   },
 }));
 
@@ -50,6 +54,8 @@ describe("lib/chat", () => {
     mocks.chatFindFirst.mockReset();
     mocks.userFindUnique.mockReset();
     mocks.messageFindMany.mockReset();
+    mocks.modelExperimentPairFindMany.mockReset();
+    mocks.modelExperimentPairFindMany.mockResolvedValue([]);
     mocks.resolveEffectiveEntitlements.mockReset();
     mocks.getVoicePlanConfig.mockReset();
 
@@ -182,7 +188,7 @@ describe("lib/chat", () => {
         role: "ASSISTANT",
         parts: [],
         createdAt: new Date("2026-02-17T10:59:00.000Z"),
-        model: null,
+        model: "candidate/model",
         inputTokens: null,
         outputTokens: null,
         costUsd: null,
@@ -191,7 +197,10 @@ describe("lib/chat", () => {
         ragUsed: null,
         toolCalls: [{ type: "tool", name: "search" }],
         feedback: -1,
-        metadata: { feedback: { reason: "wrong_fact" } },
+        metadata: {
+          feedback: { reason: "wrong_fact" },
+          modelComparisonPairId: "pair-1",
+        },
         attachments: [
           {
             id: "att-1",
@@ -297,6 +306,7 @@ describe("lib/chat", () => {
     expect(result?.messages[0]).toMatchObject({
       id: "m2",
       role: "assistant",
+      model: undefined,
       usage: undefined,
       ragUsed: undefined,
       feedback: -1,

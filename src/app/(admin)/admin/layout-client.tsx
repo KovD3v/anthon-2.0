@@ -5,6 +5,7 @@ import {
   Brain,
   Building2,
   FileText,
+  FlaskConical,
   LayoutDashboard,
   Menu,
   MessageSquare,
@@ -39,6 +40,11 @@ const navItems = [
   { href: "/admin/rag", label: "Documenti RAG", icon: FileText },
   { href: "/admin/voice", label: "Voce", icon: Mic },
   { href: "/admin/ai-traces", label: "Trace AI", icon: ShieldCheck },
+  {
+    href: "/admin/model-experiments",
+    label: "Confronti modelli",
+    icon: FlaskConical,
+  },
 ];
 
 function isActiveRoute(pathname: string, href: string) {

@@ -2,7 +2,6 @@
 
 import { useChat } from "@ai-sdk/react";
 import { useClerk } from "@clerk/nextjs";
-import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -17,6 +16,10 @@ import {
   extractTextFromParts,
   hasPendingVoiceGeneration,
 } from "@/lib/chat-client";
+import type {
+  AnthonUIMessage,
+  ModelComparisonSlot,
+} from "@/lib/model-experiments/types";
 import {
   getPaywallCardContent,
   type PaywallCardContent,
@@ -34,7 +37,7 @@ import { useChatContext } from "../layout-client";
 
 interface DeleteSnapshot {
   cancelled: boolean;
-  previousMessages: UIMessage[];
+  previousMessages: AnthonUIMessage[];
   previousChatData: ChatData;
 }
 
@@ -47,6 +50,28 @@ const messageMetadataSchema = z.object({
   generationTimeMs: z.number().optional(),
   reasoningTimeMs: z.number().optional(),
 });
+
+const modelComparisonSlotSchema = z.object({
+  status: z.enum(["pending", "streaming", "completed", "failed"]),
+  text: z.string(),
+});
+
+const modelComparisonDataPartSchemas = {
+  modelComparison: z.object({
+    pairId: z.string(),
+    noticeRequired: z.boolean(),
+    status: z.enum(["generating", "ready", "resolved", "partial_failed"]),
+    slots: z.object({
+      A: modelComparisonSlotSchema,
+      B: modelComparisonSlotSchema,
+    }),
+  }),
+  modelComparisonDelta: z.object({
+    pairId: z.string(),
+    slot: z.enum(["A", "B"]),
+    delta: z.string(),
+  }),
+};
 
 export function ChatConversationClient({
   chatId,
@@ -75,6 +100,9 @@ export function ChatConversationClient({
   const [editContent, setEditContent] = useState("");
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [comparisonDeltas, setComparisonDeltas] = useState<
+    Record<string, Partial<Record<ModelComparisonSlot, string>>>
+  >({});
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
 
   const trialActivationAttemptedRef = useRef(false);
@@ -146,11 +174,23 @@ export function ChatConversationClient({
     error: chatError,
     setMessages,
     stop,
-  } = useChat({
+  } = useChat<AnthonUIMessage>({
     id: chatId,
     messages: initialMessages,
     messageMetadataSchema,
+    dataPartSchemas: modelComparisonDataPartSchemas,
     transport,
+    onData: (part) => {
+      if (part.type !== "data-modelComparisonDelta") return;
+      const { pairId, slot, delta } = part.data;
+      setComparisonDeltas((current) => ({
+        ...current,
+        [pairId]: {
+          ...current[pairId],
+          [slot]: `${current[pairId]?.[slot] ?? ""}${delta}`,
+        },
+      }));
+    },
     onFinish: async () => {
       const newMessages = await refreshChatData();
       if (newMessages) {
@@ -158,6 +198,22 @@ export function ChatConversationClient({
       }
     },
   });
+
+  const hasBlockingModelComparison = streamingMessages.some((message) =>
+    message.parts.some(
+      (part) =>
+        part.type === "data-modelComparison" &&
+        (part.data.status === "generating" || part.data.status === "ready"),
+    ),
+  );
+
+  const handleModelComparisonResolved = useCallback(async () => {
+    const newMessages = await refreshChatData();
+    if (newMessages) {
+      setMessages(newMessages);
+      setComparisonDeltas({});
+    }
+  }, [refreshChatData, setMessages]);
 
   const hasUnresolvedVoiceGeneration = hasPendingVoiceGeneration(
     chatData.messages,
@@ -393,7 +449,7 @@ export function ChatConversationClient({
     try {
       await maybeActivateClerkTrial();
 
-      const parts: UIMessage["parts"] = [];
+      const parts: AnthonUIMessage["parts"] = [];
       if (submittedInput.trim()) {
         parts.push({ type: "text", text: submittedInput });
       }
@@ -412,7 +468,7 @@ export function ChatConversationClient({
         });
       }
       setInput("");
-      await sendMessage({ role: "user", parts: parts as UIMessage["parts"] });
+      await sendMessage({ role: "user", parts });
     } catch (error) {
       setInput(submittedInput);
       console.error("Failed to send chat message:", error);
@@ -606,6 +662,8 @@ export function ChatConversationClient({
             isGuest ? "/api/guest/chat/feedback" : "/api/chat/feedback"
           }
           canSubmitFeedback={chatData.isOwner}
+          comparisonDeltas={comparisonDeltas}
+          onModelComparisonResolved={handleModelComparisonResolved}
           hasMoreMessages={chatData.pagination?.hasMore ?? false}
           isLoadingMore={isLoadingMore}
           onLoadMore={loadMoreMessages}
@@ -654,6 +712,11 @@ export function ChatConversationClient({
         isLoading={isLoading}
         onStop={stop}
         disableAttachments={isGuest}
+        disabledReason={
+          hasBlockingModelComparison
+            ? "Scegli una risposta per continuare"
+            : undefined
+        }
       />
 
       <ConfirmDialog

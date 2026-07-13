@@ -1,11 +1,12 @@
 import type { UIMessage } from "ai";
+import type { AnthonUIMessage } from "@/lib/model-experiments/types";
 import type {
   ChatMessage,
   MessageFeedbackReason,
   StoredAttachment,
 } from "@/types/chat";
 
-export type ChatUIMessage = UIMessage & {
+export type ChatUIMessage = AnthonUIMessage & {
   createdAt?: Date;
   attachments?: StoredAttachment[];
   voice?: ChatMessage["voice"];
@@ -36,7 +37,7 @@ export function convertToUIMessages(messages: ChatMessage[]): ChatUIMessage[] {
     id: msg.id,
     role: msg.role,
     parts: msg.parts
-      ? (msg.parts as UIMessage["parts"])
+      ? (msg.parts as AnthonUIMessage["parts"])
       : [{ type: "text" as const, text: msg.content || "" }],
     createdAt: new Date(msg.createdAt),
     annotations: msg.usage ? [msg.usage] : undefined,
