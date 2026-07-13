@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   publishToQueue: vi.fn(),
@@ -51,6 +51,7 @@ vi.mock("./storage", () => ({
 import {
   enqueueVoiceGenerationJob,
   processVoiceGenerationJob,
+  scheduleVoiceGenerationJob,
 } from "./generation-jobs";
 
 const blobUrl =
@@ -112,6 +113,10 @@ function configureReadyTransaction() {
 }
 
 describe("voice generation jobs", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     for (const mock of Object.values(mocks)) {
       mock.mockReset();
@@ -156,6 +161,20 @@ describe("voice generation jobs", () => {
         data: { queuedAt: expect.any(Date) },
       }),
     );
+  });
+
+  it("processes voice locally without publishing to QStash in development", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    mocks.jobFindFirst.mockResolvedValue(createClaimedJob());
+    configureReadyTransaction();
+
+    await expect(
+      scheduleVoiceGenerationJob("message-1"),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.publishToQueue).not.toHaveBeenCalled();
+    expect(mocks.generateVoice).toHaveBeenCalledWith("Respira lentamente.");
+    expect(mocks.attachmentCreate).toHaveBeenCalledTimes(1);
   });
 
   it("lets one concurrent delivery attach and account for the audio once", async () => {

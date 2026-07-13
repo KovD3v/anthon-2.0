@@ -30,6 +30,10 @@ export type VoiceGenerationResult =
   | "deferred"
   | "skipped";
 
+interface ProcessVoiceGenerationOptions {
+  scheduleLeaseRecovery?: boolean;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -127,20 +131,49 @@ async function scheduleVoiceGenerationLeaseRecovery(
   );
 }
 
+function shouldProcessVoiceGenerationLocally(): boolean {
+  return process.env.NODE_ENV === "development";
+}
+
+async function processVoiceGenerationJobLocally(
+  messageId: string,
+): Promise<VoiceGenerationResult> {
+  // The normal worker reschedules transient failures through QStash. Local
+  // development has no externally reachable callback URL, so finish the same
+  // bounded retry sequence in-process instead.
+  let result: VoiceGenerationResult;
+  do {
+    result = await processVoiceGenerationJob(messageId, {
+      scheduleLeaseRecovery: false,
+    });
+  } while (result === "retry");
+
+  return result;
+}
+
 /**
- * Do not hold the chat response open for queue I/O. If queue publication
- * cannot start, record a visible failure while preserving the transcript.
+ * Do not hold the chat response open for asynchronous voice work. Production
+ * publishes a durable queue message; local development runs the same worker
+ * in-process because QStash cannot deliver to localhost.
  */
 export function scheduleVoiceGenerationJob(
   messageId: string,
   waitUntil?: (promise: Promise<unknown>) => void,
 ): Promise<void> {
-  const task = enqueueVoiceGenerationJob(messageId)
+  const task = (
+    shouldProcessVoiceGenerationLocally()
+      ? processVoiceGenerationJobLocally(messageId)
+      : enqueueVoiceGenerationJob(messageId)
+  )
     .then(() => undefined)
     .catch(async (error) => {
       voiceLogger.error(
-        "voice.async_enqueue_failed",
-        "Failed to enqueue durable web voice generation",
+        shouldProcessVoiceGenerationLocally()
+          ? "voice.local_generation_failed"
+          : "voice.async_enqueue_failed",
+        shouldProcessVoiceGenerationLocally()
+          ? "Local web voice generation failed"
+          : "Failed to enqueue durable web voice generation",
         {
           errorName: error instanceof Error ? error.name : "unknown",
           messageId,
@@ -364,6 +397,7 @@ async function discardUnattachedVoiceBlob(
  */
 export async function processVoiceGenerationJob(
   messageId: string,
+  { scheduleLeaseRecovery = true }: ProcessVoiceGenerationOptions = {},
 ): Promise<VoiceGenerationResult> {
   const now = new Date();
   const claimToken = randomUUID();
@@ -398,6 +432,7 @@ export async function processVoiceGenerationJob(
     });
 
     if (
+      scheduleLeaseRecovery &&
       existing?.status === VoiceGenerationStatus.PROCESSING &&
       existing.leaseExpiresAt &&
       existing.leaseExpiresAt > now &&
@@ -456,21 +491,23 @@ export async function processVoiceGenerationJob(
   // the local type instead of relying on the nullable database column.
   const claimedJob = { ...job, claimToken };
 
-  try {
-    await scheduleVoiceGenerationLeaseRecovery(messageId, leaseExpiresAt);
-  } catch (error) {
-    voiceLogger.warn(
-      "voice.async_recovery_enqueue_failed",
-      "Could not schedule the voice generation lease watchdog",
-      {
-        errorName: error instanceof Error ? error.name : "unknown",
-        messageId,
-      },
-    );
-    return await releaseOrFailVoiceGenerationJob(
-      claimedJob,
-      "QUEUE_UNAVAILABLE",
-    );
+  if (scheduleLeaseRecovery) {
+    try {
+      await scheduleVoiceGenerationLeaseRecovery(messageId, leaseExpiresAt);
+    } catch (error) {
+      voiceLogger.warn(
+        "voice.async_recovery_enqueue_failed",
+        "Could not schedule the voice generation lease watchdog",
+        {
+          errorName: error instanceof Error ? error.name : "unknown",
+          messageId,
+        },
+      );
+      return await releaseOrFailVoiceGenerationJob(
+        claimedJob,
+        "QUEUE_UNAVAILABLE",
+      );
+    }
   }
 
   const transcript = getTextFromParts(job.message.parts).trim();
