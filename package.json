@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@ai-sdk/devtools": "^1.0.1",
+    "@ai-sdk/provider": "4.0.1",
     "@ai-sdk/react": "^4.0.9",
     "@clerk/nextjs": "6.36.5",
     "@openrouter/ai-sdk-provider": "^1.2.8",
