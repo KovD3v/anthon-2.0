@@ -13,6 +13,10 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Prisma loads the datasource while generating the client, but this
+      # verification job does not connect to a database.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/anthon_ci
 
     steps:
       - uses: actions/checkout@v4
