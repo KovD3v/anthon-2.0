@@ -138,7 +138,7 @@ describe("voice generation jobs", () => {
   it("publishes one durable QStash delivery per pending message", async () => {
     mocks.jobFindUnique.mockResolvedValue({
       status: "PENDING",
-      expiresAt: new Date("2026-07-14T12:00:00.000Z"),
+      expiresAt: new Date(Date.now() + 60_000),
     });
 
     await expect(enqueueVoiceGenerationJob("message-1")).resolves.toMatchObject(
