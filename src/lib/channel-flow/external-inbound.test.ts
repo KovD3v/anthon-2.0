@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   messageFindFirst: vi.fn(),
   messageCreate: vi.fn(),
+  messageUpdateMany: vi.fn(),
   channelIdentityFindUnique: vi.fn(),
   channelIdentityUpsert: vi.fn(),
   ensureConversationThread: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock("@/lib/db", () => ({
     message: {
       findFirst: mocks.messageFindFirst,
       create: mocks.messageCreate,
+      updateMany: mocks.messageUpdateMany,
     },
     channelIdentity: {
       findUnique: mocks.channelIdentityFindUnique,
@@ -27,17 +29,17 @@ vi.mock("@/lib/conversations/threads", () => ({
   ensureConversationThread: mocks.ensureConversationThread,
 }));
 
-vi.mock("@/lib/rate-limit", () => ({
-  checkRateLimit: mocks.checkRateLimit,
-}));
-
+vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: mocks.checkRateLimit }));
 vi.mock("@/lib/analytics/funnel", () => ({
   trackInboundUserMessageFunnelProgress:
     mocks.trackInboundUserMessageFunnelProgress,
 }));
 
 import {
+  EXTERNAL_INBOUND_LEASE_MS,
   getExternalInboundMessageType,
+  markExternalChannelInboundCompleted,
+  markExternalChannelInboundFailed,
   prepareExternalChannelInbound,
 } from "./external-inbound";
 
@@ -45,11 +47,9 @@ const user = {
   id: "user_1",
   role: "USER" as const,
   isGuest: false,
-  subscription: {
-    status: "ACTIVE" as const,
-    planId: "pro",
-  },
+  subscription: { status: "ACTIVE" as const, planId: "pro" },
 };
+const thread = { id: "thread_1" };
 
 function buildEnvelope(
   overrides: Partial<Parameters<typeof prepareExternalChannelInbound>[0]> = {},
@@ -66,48 +66,189 @@ function buildEnvelope(
   };
 }
 
-describe("prepareExternalChannelInbound", () => {
-  beforeEach(() => {
-    mocks.messageFindFirst.mockReset();
-    mocks.messageCreate.mockReset();
-    mocks.channelIdentityFindUnique.mockReset();
-    mocks.channelIdentityUpsert.mockReset();
-    mocks.ensureConversationThread.mockReset();
-    mocks.checkRateLimit.mockReset();
-    mocks.trackInboundUserMessageFunnelProgress.mockReset();
+function existingInbound(
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED",
+  lease: Date | null = null,
+) {
+  return {
+    id: "inbound_1",
+    externalInboundStatus: status,
+    externalInboundLeaseExpiresAt: lease,
+    user,
+    conversationThread: thread,
+  };
+}
 
+describe("external inbound lifecycle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
     mocks.messageFindFirst.mockResolvedValue(null);
+    mocks.messageCreate.mockResolvedValue({ id: "inbound_1" });
+    mocks.messageUpdateMany.mockResolvedValue({ count: 1 });
     mocks.channelIdentityFindUnique.mockResolvedValue({ user });
     mocks.channelIdentityUpsert.mockResolvedValue({ user });
-    mocks.ensureConversationThread.mockResolvedValue({ id: "thread_1" });
-    mocks.messageCreate.mockResolvedValue({ id: "inbound_1" });
+    mocks.ensureConversationThread.mockResolvedValue(thread);
     mocks.checkRateLimit.mockResolvedValue({ allowed: true });
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
   });
 
-  it("short-circuits a provider retry before identity, persistence, rate limit, or analytics", async () => {
-    mocks.messageFindFirst.mockResolvedValue({ id: "already-persisted" });
-    const envelope = buildEnvelope();
+  it("creates a new message already owned by a processing lease", async () => {
+    const result = await prepareExternalChannelInbound(buildEnvelope());
 
-    await expect(prepareExternalChannelInbound(envelope)).resolves.toEqual({
-      status: "duplicate",
+    expect(result).toMatchObject({
+      status: "accepted",
+      reclaimed: false,
+      inbound: { id: "inbound_1" },
     });
-
-    expect(mocks.messageFindFirst).toHaveBeenCalledWith({
-      where: {
-        channel: "TELEGRAM",
-        externalMessageId: "telegram-chat-1:message-1",
-      },
+    expect(result.status === "accepted" && result.claimToken).toEqual(
+      expect.any(String),
+    );
+    expect(mocks.messageCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        externalInboundStatus: "PROCESSING",
+        externalInboundClaimToken: expect.any(String),
+        externalInboundLeaseExpiresAt: expect.any(Date),
+        externalInboundAttempts: 1,
+      }),
       select: { id: true },
     });
-    expect(mocks.channelIdentityFindUnique).not.toHaveBeenCalled();
-    expect(envelope.buildGuestUserData).not.toHaveBeenCalled();
-    expect(mocks.messageCreate).not.toHaveBeenCalled();
-    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
-    expect(mocks.trackInboundUserMessageFunnelProgress).not.toHaveBeenCalled();
+    const lease = mocks.messageCreate.mock.calls[0][0].data
+      .externalInboundLeaseExpiresAt as Date;
+    expect(lease.getTime() - Date.now()).toBeGreaterThan(
+      EXTERNAL_INBOUND_LEASE_MS - 2_000,
+    );
   });
 
-  it("normalizes identity, thread, inbound metadata, rate limit, and funnel scheduling", async () => {
+  it("treats completed and actively leased messages as terminal duplicates", async () => {
+    mocks.messageFindFirst.mockResolvedValueOnce(existingInbound("COMPLETED"));
+    await expect(
+      prepareExternalChannelInbound(buildEnvelope()),
+    ).resolves.toEqual({ status: "duplicate", reason: "completed" });
+
+    mocks.messageFindFirst.mockResolvedValueOnce(
+      existingInbound("PROCESSING", new Date(Date.now() + 30_000)),
+    );
+    mocks.messageUpdateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      prepareExternalChannelInbound(buildEnvelope()),
+    ).resolves.toEqual({ status: "duplicate", reason: "in_flight" });
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["FAILED", null],
+    ["PROCESSING", new Date(0)],
+  ] as const)(
+    "reclaims %s work with a fresh fenced claim",
+    async (status, lease) => {
+      mocks.messageFindFirst.mockResolvedValue(existingInbound(status, lease));
+
+      const result = await prepareExternalChannelInbound(buildEnvelope());
+
+      expect(result).toMatchObject({
+        status: "accepted",
+        reclaimed: true,
+        inbound: { id: "inbound_1" },
+      });
+      expect(mocks.messageUpdateMany).toHaveBeenCalledWith({
+        where: {
+          id: "inbound_1",
+          OR: [
+            { externalInboundStatus: "PENDING" },
+            { externalInboundStatus: "FAILED" },
+            {
+              externalInboundStatus: "PROCESSING",
+              externalInboundLeaseExpiresAt: { lte: expect.any(Date) },
+            },
+          ],
+        },
+        data: expect.objectContaining({
+          externalInboundStatus: "PROCESSING",
+          externalInboundAttempts: { increment: 1 },
+        }),
+      });
+    },
+  );
+
+  it("allows only one concurrent first-delivery claim", async () => {
+    let persisted = false;
+    mocks.messageFindFirst.mockImplementation(async () =>
+      persisted
+        ? existingInbound("PROCESSING", new Date(Date.now() + 60_000))
+        : null,
+    );
+    mocks.messageCreate.mockImplementation(async () => {
+      if (persisted) {
+        throw Object.assign(new Error("unique"), { code: "P2002" });
+      }
+      persisted = true;
+      return { id: "inbound_1" };
+    });
+    mocks.messageUpdateMany.mockResolvedValue({ count: 0 });
+
+    const results = await Promise.all([
+      prepareExternalChannelInbound(buildEnvelope()),
+      prepareExternalChannelInbound(buildEnvelope()),
+    ]);
+
+    expect(
+      results.filter((result) => result.status === "accepted"),
+    ).toHaveLength(1);
+    expect(results).toContainEqual({
+      status: "duplicate",
+      reason: "in_flight",
+    });
+  });
+
+  it("fences completion and failure updates by inbound id and claim token", async () => {
+    await expect(
+      markExternalChannelInboundCompleted({
+        inboundId: "inbound_1",
+        claimToken: "claim_current",
+      }),
+    ).resolves.toBe(true);
+    expect(mocks.messageUpdateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: {
+          id: "inbound_1",
+          externalInboundStatus: "PROCESSING",
+          externalInboundClaimToken: "claim_current",
+        },
+        data: expect.objectContaining({
+          externalInboundStatus: "COMPLETED",
+          externalInboundCompletedAt: expect.any(Date),
+        }),
+      }),
+    );
+
+    mocks.messageUpdateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      markExternalChannelInboundFailed({
+        inboundId: "inbound_1",
+        claimToken: "claim_stale",
+        error: `secret\n${"x".repeat(400)}`,
+      }),
+    ).resolves.toBe(false);
+    const failure = mocks.messageUpdateMany.mock.calls.at(-1)?.[0];
+    expect(failure.where.externalInboundClaimToken).toBe("claim_stale");
+    expect(failure.data.externalInboundLastError).not.toContain("\n");
+    expect(failure.data.externalInboundLastError).toHaveLength(300);
+  });
+
+  it("marks a claimed row failed when rate-limit evaluation throws", async () => {
+    mocks.checkRateLimit.mockRejectedValue(new Error("rate limit unavailable"));
+
+    await expect(
+      prepareExternalChannelInbound(buildEnvelope()),
+    ).rejects.toThrow("rate limit unavailable");
+    expect(mocks.messageUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ externalInboundStatus: "FAILED" }),
+      }),
+    );
+  });
+
+  it("normalizes identity, thread, metadata, rate limit, and funnel scheduling", async () => {
     const scheduleBackground = vi.fn();
     const envelope = buildEnvelope({
       channel: "WHATSAPP",
@@ -116,11 +257,7 @@ describe("prepareExternalChannelInbound", () => {
       externalMessageId: "wamid_1",
       messageType: "DOCUMENT",
       metadata: {
-        whatsapp: {
-          id: "wamid_1",
-          type: "document",
-          name: "Mario Rossi",
-        },
+        whatsapp: { id: "wamid_1", type: "document", name: "Mario Rossi" },
       },
       scheduleBackground,
     });
@@ -130,7 +267,7 @@ describe("prepareExternalChannelInbound", () => {
     expect(result).toMatchObject({
       status: "accepted",
       user,
-      conversationThread: { id: "thread_1" },
+      conversationThread: thread,
       inbound: { id: "inbound_1" },
       rateLimit: { allowed: true },
     });
@@ -147,12 +284,7 @@ describe("prepareExternalChannelInbound", () => {
             id: true,
             role: true,
             isGuest: true,
-            subscription: {
-              select: {
-                status: true,
-                planId: true,
-              },
-            },
+            subscription: { select: { status: true, planId: true } },
           },
         },
       },
@@ -163,7 +295,7 @@ describe("prepareExternalChannelInbound", () => {
       externalThreadId: "39333111222",
     });
     expect(mocks.messageCreate).toHaveBeenCalledWith({
-      data: {
+      data: expect.objectContaining({
         userId: "user_1",
         conversationThreadId: "thread_1",
         channel: "WHATSAPP",
@@ -172,13 +304,11 @@ describe("prepareExternalChannelInbound", () => {
         type: "DOCUMENT",
         externalMessageId: "wamid_1",
         metadata: {
-          whatsapp: {
-            id: "wamid_1",
-            type: "document",
-            name: "Mario Rossi",
-          },
+          whatsapp: { id: "wamid_1", type: "document", name: "Mario Rossi" },
         },
-      },
+        externalInboundStatus: "PROCESSING",
+        externalInboundAttempts: 1,
+      }),
       select: { id: true },
     });
     expect(mocks.checkRateLimit).toHaveBeenCalledWith(
@@ -197,23 +327,6 @@ describe("prepareExternalChannelInbound", () => {
       subscriptionStatus: "ACTIVE",
     });
     expect(scheduleBackground).toHaveBeenCalledTimes(1);
-  });
-
-  it("handles a racing duplicate database claim without downstream side effects", async () => {
-    mocks.channelIdentityFindUnique.mockResolvedValue(null);
-    mocks.channelIdentityUpsert.mockResolvedValue({ user });
-    mocks.messageCreate.mockRejectedValue(
-      Object.assign(new Error("unique"), { code: "P2002" }),
-    );
-    const envelope = buildEnvelope();
-
-    await expect(prepareExternalChannelInbound(envelope)).resolves.toEqual({
-      status: "duplicate",
-    });
-
-    expect(envelope.buildGuestUserData).toHaveBeenCalledTimes(1);
-    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
-    expect(mocks.trackInboundUserMessageFunnelProgress).not.toHaveBeenCalled();
   });
 
   it("converges concurrent first deliveries on one identity-owned guest", async () => {
@@ -252,16 +365,6 @@ describe("prepareExternalChannelInbound", () => {
       user: { id: "guest_winner" },
     });
     expect(mocks.channelIdentityUpsert).toHaveBeenCalledTimes(2);
-    expect(mocks.channelIdentityUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        update: {},
-        create: expect.objectContaining({
-          channel: "TELEGRAM",
-          externalId: "telegram-user-1",
-          user: { create: { isGuest: true } },
-        }),
-      }),
-    );
     expect(mocks.messageCreate).toHaveBeenCalledTimes(2);
     expect(mocks.messageCreate.mock.calls).toEqual(
       expect.arrayContaining([
@@ -290,9 +393,6 @@ describe("prepareExternalChannelInbound", () => {
       user: { id: "guest_winner" },
     });
     expect(mocks.channelIdentityFindUnique).toHaveBeenCalledTimes(2);
-    expect(mocks.channelIdentityUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({ update: {} }),
-    );
     expect(mocks.messageCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ userId: "guest_winner" }),
@@ -300,7 +400,7 @@ describe("prepareExternalChannelInbound", () => {
     );
   });
 
-  it("propagates a non-idempotency persistence error without invoking downstream work", async () => {
+  it("propagates a non-idempotency persistence error without downstream work", async () => {
     mocks.messageCreate.mockRejectedValue(new Error("database unavailable"));
 
     await expect(
@@ -311,7 +411,7 @@ describe("prepareExternalChannelInbound", () => {
     expect(mocks.trackInboundUserMessageFunnelProgress).not.toHaveBeenCalled();
   });
 
-  it("keeps a denied request persisted but leaves provider transport at the edge", async () => {
+  it("keeps a denied request claimed but leaves provider transport at the edge", async () => {
     mocks.checkRateLimit.mockResolvedValue({
       allowed: false,
       upgradeInfo: { currentPlan: "free" },
@@ -341,9 +441,7 @@ describe("prepareExternalChannelInbound", () => {
 
     const result = await prepareExternalChannelInbound(
       buildEnvelope({
-        scheduleBackground: (task) => {
-          scheduledTasks.push(task);
-        },
+        scheduleBackground: (task) => scheduledTasks.push(task),
         onFunnelTrackingError,
       }),
     );
@@ -355,7 +453,7 @@ describe("prepareExternalChannelInbound", () => {
 });
 
 describe("getExternalInboundMessageType", () => {
-  it("uses the same media priority for every provider adapter", () => {
+  it("uses the shared media priority", () => {
     expect(
       getExternalInboundMessageType({
         hasImage: true,

@@ -3,6 +3,8 @@ import { waitUntil } from "@vercel/functions";
 import type { Prisma } from "@/generated/prisma";
 import {
   getExternalInboundMessageType,
+  markExternalChannelInboundCompleted,
+  markExternalChannelInboundFailed,
   prepareExternalChannelInbound,
   runChannelFlow,
 } from "@/lib/channel-flow";
@@ -549,448 +551,488 @@ async function handleMessage(
 
   if (preparedInbound.status === "duplicate") return;
 
-  const { user, conversationThread, inbound, rateLimit } = preparedInbound;
-
-  if (!rateLimit.allowed) {
-    await recordWhatsAppInboundError({
+  const { user, conversationThread, inbound, rateLimit, claimToken } =
+    preparedInbound;
+  const completeInbound = () =>
+    markExternalChannelInboundCompleted({
       inboundId: inbound.id,
-      message,
-      context,
-      kind: "rate_limit_denied",
+      claimToken,
     });
-    await sendWhatsAppMessage(
-      from,
-      formatExternalRateLimitMessage(rateLimit.upgradeInfo),
-    );
-    return;
-  }
-
-  if (process.env.WHATSAPP_DISABLE_AI === "true") return;
-
-  if (!process.env.OPENROUTER_API_KEY) {
-    await recordWhatsAppInboundError({
+  const failInbound = (error: unknown) =>
+    markExternalChannelInboundFailed({
       inboundId: inbound.id,
-      message,
-      context,
-      kind: "ai_configuration_missing",
+      claimToken,
+      error,
     });
-    await sendWhatsAppMessage(
-      from,
-      "Servizio AI non configurato. Riprova più tardi.",
-    );
-    return;
-  }
 
-  // Process Media (Audio, Image, Document)
-  let transcribedText: string | null = null;
-  const files: ChannelMessagePart[] = [];
+  try {
+    if (!rateLimit.allowed) {
+      await recordWhatsAppInboundError({
+        inboundId: inbound.id,
+        message,
+        context,
+        kind: "rate_limit_denied",
+      });
+      const sent = await sendWhatsAppMessage(
+        from,
+        formatExternalRateLimitMessage(rateLimit.upgradeInfo),
+      );
+      if (sent) await completeInbound();
+      else await failInbound("rate_limit_response_send_failed");
+      return;
+    }
 
-  // --- Audio Transcription ---
-  if (hasAudio) {
-    const audioId = message.audio?.id || message.voice?.id;
-    if (audioId) {
-      const audioData = await downloadWhatsAppMedia(audioId);
-      if (!audioData) {
-        await recordWhatsAppInboundError({
-          inboundId: inbound.id,
-          message,
-          context,
-          kind: "audio_download_failed",
-        });
+    if (process.env.WHATSAPP_DISABLE_AI === "true") {
+      await completeInbound();
+      return;
+    }
 
-        await sendWhatsAppMessage(
-          from,
-          "Non sono riuscito a scaricare il messaggio audio. Riprova.",
-        );
-        return;
-      }
+    if (!process.env.OPENROUTER_API_KEY) {
+      await recordWhatsAppInboundError({
+        inboundId: inbound.id,
+        message,
+        context,
+        kind: "ai_configuration_missing",
+      });
+      await sendWhatsAppMessage(
+        from,
+        "Servizio AI non configurato. Riprova più tardi.",
+      );
+      await failInbound("ai_configuration_missing");
+      return;
+    }
 
-      try {
-        transcribedText = await transcribeAudioWithOpenRouter({
-          ...audioData,
-          title: "WhatsApp Bot",
-          userId: user.id,
-          source: "WHATSAPP",
-        });
-      } catch (err) {
-        whatsappLogger.error("transcription.failed", "Transcription failed", {
-          err,
-        });
-        await recordWhatsAppInboundError({
-          inboundId: inbound.id,
-          message,
-          context,
-          kind: "transcription_failed",
-          summary: safeErrorSummary(err),
-        });
-        await sendWhatsAppMessage(
-          from,
-          "Non sono riuscito a trascrivere il messaggio audio. Riprova.",
-        );
-        return;
-      }
+    // Process Media (Audio, Image, Document)
+    let transcribedText: string | null = null;
+    const files: ChannelMessagePart[] = [];
 
-      if (!transcribedText || transcribedText.trim().length === 0) {
-        await recordWhatsAppInboundError({
-          inboundId: inbound.id,
-          message,
-          context,
-          kind: "empty_transcription",
-        });
+    // --- Audio Transcription ---
+    if (hasAudio) {
+      const audioId = message.audio?.id || message.voice?.id;
+      if (audioId) {
+        const audioData = await downloadWhatsAppMedia(audioId);
+        if (!audioData) {
+          await recordWhatsAppInboundError({
+            inboundId: inbound.id,
+            message,
+            context,
+            kind: "audio_download_failed",
+          });
 
-        await sendWhatsAppMessage(
-          from,
-          "Non sono riuscito a trascrivere l'audio. Prova a reinviare il messaggio.",
-        );
-        return;
+          await sendWhatsAppMessage(
+            from,
+            "Non sono riuscito a scaricare il messaggio audio. Riprova.",
+          );
+          await failInbound("audio_download_failed");
+          return;
+        }
+
+        try {
+          transcribedText = await transcribeAudioWithOpenRouter({
+            ...audioData,
+            title: "WhatsApp Bot",
+            userId: user.id,
+            source: "WHATSAPP",
+          });
+        } catch (err) {
+          whatsappLogger.error("transcription.failed", "Transcription failed", {
+            err,
+          });
+          await recordWhatsAppInboundError({
+            inboundId: inbound.id,
+            message,
+            context,
+            kind: "transcription_failed",
+            summary: safeErrorSummary(err),
+          });
+          await sendWhatsAppMessage(
+            from,
+            "Non sono riuscito a trascrivere il messaggio audio. Riprova.",
+          );
+          await failInbound(err);
+          return;
+        }
+
+        if (!transcribedText || transcribedText.trim().length === 0) {
+          await recordWhatsAppInboundError({
+            inboundId: inbound.id,
+            message,
+            context,
+            kind: "empty_transcription",
+          });
+
+          await sendWhatsAppMessage(
+            from,
+            "Non sono riuscito a trascrivere l'audio. Prova a reinviare il messaggio.",
+          );
+          await failInbound("empty_transcription");
+          return;
+        }
       }
     }
-  }
 
-  // --- Image Download ---
-  let downloadedPhoto = false;
-  if (hasImage && message.image?.id) {
-    try {
-      const imageData = await downloadWhatsAppMedia(message.image.id);
-      if (!imageData) {
+    // --- Image Download ---
+    let downloadedPhoto = false;
+    if (hasImage && message.image?.id) {
+      try {
+        const imageData = await downloadWhatsAppMedia(message.image.id);
+        if (!imageData) {
+          await recordWhatsAppInboundError({
+            inboundId: inbound.id,
+            message,
+            context,
+            kind: "image_download_failed",
+          });
+          await sendWhatsAppMessage(
+            from,
+            "Non sono riuscito a scaricare l'immagine. Riprova.",
+          );
+          await failInbound("image_download_failed");
+          return;
+        }
+        files.push({
+          type: "file",
+          mimeType: imageData.mimeType,
+          data: imageData.base64,
+        });
+        downloadedPhoto = true;
+      } catch (err) {
+        whatsappLogger.error(
+          "media.image_download_failed",
+          "Failed to download image",
+          { err },
+        );
         await recordWhatsAppInboundError({
           inboundId: inbound.id,
           message,
           context,
           kind: "image_download_failed",
+          summary: safeErrorSummary(err),
         });
         await sendWhatsAppMessage(
           from,
           "Non sono riuscito a scaricare l'immagine. Riprova.",
         );
+        await failInbound(err);
         return;
       }
-      files.push({
-        type: "file",
-        mimeType: imageData.mimeType,
-        data: imageData.base64,
-      });
-      downloadedPhoto = true;
-    } catch (err) {
-      whatsappLogger.error(
-        "media.image_download_failed",
-        "Failed to download image",
-        { err },
-      );
-      await recordWhatsAppInboundError({
-        inboundId: inbound.id,
-        message,
-        context,
-        kind: "image_download_failed",
-        summary: safeErrorSummary(err),
-      });
-      await sendWhatsAppMessage(
-        from,
-        "Non sono riuscito a scaricare l'immagine. Riprova.",
-      );
-      return;
     }
-  }
 
-  // --- Document Download ---
-  if (hasDocument && message.document?.id) {
-    try {
-      const docData = await downloadWhatsAppMedia(message.document.id);
-      if (!docData) {
+    // --- Document Download ---
+    if (hasDocument && message.document?.id) {
+      try {
+        const docData = await downloadWhatsAppMedia(message.document.id);
+        if (!docData) {
+          await recordWhatsAppInboundError({
+            inboundId: inbound.id,
+            message,
+            context,
+            kind: "document_download_failed",
+          });
+          await sendWhatsAppMessage(
+            from,
+            "Non sono riuscito a scaricare il documento. Riprova.",
+          );
+          await failInbound("document_download_failed");
+          return;
+        }
+        if (!text && message.document.filename) {
+          files.unshift({
+            type: "text",
+            text: `L'utente ha inviato il file: ${message.document.filename}`,
+          });
+        }
+        files.push({
+          type: "file",
+          mimeType: docData.mimeType,
+          data: docData.base64,
+        });
+      } catch (err) {
+        whatsappLogger.error(
+          "media.document_download_failed",
+          "Failed to download document",
+          { err },
+        );
         await recordWhatsAppInboundError({
           inboundId: inbound.id,
           message,
           context,
           kind: "document_download_failed",
+          summary: safeErrorSummary(err),
         });
         await sendWhatsAppMessage(
           from,
           "Non sono riuscito a scaricare il documento. Riprova.",
         );
+        await failInbound(err);
         return;
       }
-      if (!text && message.document.filename) {
-        files.unshift({
-          type: "text",
-          text: `L'utente ha inviato il file: ${message.document.filename}`,
+    }
+
+    const { userMessageText, parts: messageParts } =
+      buildExternalChannelInbound({
+        text,
+        transcribedText,
+        voiceInstruction: transcribedText
+          ? "NOTA: l'utente ha inviato un messaggio vocale. Usa la TRASCRIZIONE qui sotto."
+          : null,
+        fallbackText: hasAudio
+          ? "Messaggio vocale"
+          : hasImage
+            ? "Immagine"
+            : "Documento",
+        defaultMediaPrompt: hasImage
+          ? "L'utente ha inviato questa immagine."
+          : "L'utente ha inviato questo file.",
+        files,
+      });
+
+    // Generate Response
+    let assistantText = "";
+    let assistantMessageId: string | undefined;
+    try {
+      const flowResult = await runChannelFlow({
+        channel: "WHATSAPP",
+        userId: user.id,
+        conversationThreadId: conversationThread.id,
+        userMessageId: inbound.id,
+        userMessageText:
+          userMessageText || (hasImage ? "Immagine" : "Documento"),
+        parts: messageParts,
+        rateLimit: {
+          allowed: rateLimit.allowed,
+          effectiveEntitlements: rateLimit.effectiveEntitlements,
+          upgradeInfo: rateLimit.upgradeInfo,
+        },
+        options: {
+          allowAttachments: true,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: true,
+        },
+        ai: {
+          planId: user.subscription?.planId,
+          userRole: user.role,
+          subscriptionStatus: user.subscription?.status,
+          isGuest: user.isGuest,
+          hasAudio: false,
+          hasImages: downloadedPhoto,
+          inputOrigin: transcribedText
+            ? "transcribed_voice"
+            : downloadedPhoto || hasDocument
+              ? "direct_media"
+              : "text",
+        },
+        execution: { mode: "text" },
+        persistence: {
+          channel: "WHATSAPP",
+          metadata: {
+            whatsapp: { inReplyTo: inbound.id },
+          } as Prisma.InputJsonValue,
+          saveAssistantMessage: true,
+          waitUntil: safeWaitUntil,
+        },
+      });
+      assistantText = flowResult.assistantText;
+      assistantMessageId = flowResult.persistence?.messageId;
+      if (flowResult.persistence?.status === "failed") {
+        await recordWhatsAppInboundError({
+          inboundId: inbound.id,
+          message,
+          context,
+          kind: "assistant_persistence_failed",
+          summary: safeErrorSummary(flowResult.persistence.error),
         });
+        await sendWhatsAppMessage(from, "Errore temporaneo. Riprova.");
+        await failInbound(flowResult.persistence.error);
+        return;
       }
-      files.push({
-        type: "file",
-        mimeType: docData.mimeType,
-        data: docData.base64,
-      });
     } catch (err) {
-      whatsappLogger.error(
-        "media.document_download_failed",
-        "Failed to download document",
-        { err },
-      );
-      await recordWhatsAppInboundError({
-        inboundId: inbound.id,
-        message,
-        context,
-        kind: "document_download_failed",
-        summary: safeErrorSummary(err),
-      });
+      whatsappLogger.error("chat.stream_failed", "streamChat failed", { err });
+      await prisma.message
+        .update({
+          where: { id: inbound.id },
+          data: {
+            metadata: {
+              whatsapp: {
+                id: messageId,
+                timestamp: message.timestamp,
+                type: message.type,
+                name: context.contacts?.[0]?.profile?.name,
+                error: {
+                  kind: "streamChat_failed",
+                  summary: safeErrorSummary(err),
+                },
+              },
+            } as Prisma.InputJsonValue,
+          },
+        })
+        .catch(() => undefined);
+      await sendWhatsAppMessage(from, "Si è verificato un errore. Riprova.");
+      await failInbound(err);
+      return;
+    }
+
+    if (!assistantText.trim()) {
+      await prisma.message
+        .update({
+          where: { id: inbound.id },
+          data: {
+            metadata: {
+              whatsapp: {
+                id: messageId,
+                timestamp: message.timestamp,
+                type: message.type,
+                name: context.contacts?.[0]?.profile?.name,
+                error: {
+                  kind: "empty_assistant_response",
+                },
+              },
+            } as Prisma.InputJsonValue,
+          },
+        })
+        .catch(() => undefined);
+
       await sendWhatsAppMessage(
         from,
-        "Non sono riuscito a scaricare il documento. Riprova.",
+        "Non ho generato una risposta. Riprova tra qualche secondo.",
       );
+      await failInbound("empty_assistant_response");
       return;
     }
-  }
 
-  const { userMessageText, parts: messageParts } = buildExternalChannelInbound({
-    text,
-    transcribedText,
-    voiceInstruction: transcribedText
-      ? "NOTA: l'utente ha inviato un messaggio vocale. Usa la TRASCRIZIONE qui sotto."
-      : null,
-    fallbackText: hasAudio
-      ? "Messaggio vocale"
-      : hasImage
-        ? "Immagine"
-        : "Documento",
-    defaultMediaPrompt: hasImage
-      ? "L'utente ha inviato questa immagine."
-      : "L'utente ha inviato questo file.",
-    files,
-  });
+    // Voice output
+    let voiceFallbackNotice: string | undefined;
+    if (isElevenLabsConfigured()) {
+      try {
+        const preferences = await prisma.preferences.findUnique({
+          where: { userId: user.id },
+          select: { voiceEnabled: true },
+        });
 
-  // Generate Response
-  let assistantText = "";
-  let assistantMessageId: string | undefined;
-  try {
-    const flowResult = await runChannelFlow({
-      channel: "WHATSAPP",
-      userId: user.id,
-      conversationThreadId: conversationThread.id,
-      userMessageId: inbound.id,
-      userMessageText: userMessageText || (hasImage ? "Immagine" : "Documento"),
-      parts: messageParts,
-      rateLimit: {
-        allowed: rateLimit.allowed,
-        effectiveEntitlements: rateLimit.effectiveEntitlements,
-        upgradeInfo: rateLimit.upgradeInfo,
-      },
-      options: {
-        allowAttachments: true,
-        allowMemoryExtraction: true,
-        allowVoiceOutput: true,
-      },
-      ai: {
-        planId: user.subscription?.planId,
-        userRole: user.role,
-        subscriptionStatus: user.subscription?.status,
-        isGuest: user.isGuest,
-        hasAudio: false,
-        hasImages: downloadedPhoto,
-        inputOrigin: transcribedText
-          ? "transcribed_voice"
-          : downloadedPhoto || hasDocument
-            ? "direct_media"
-            : "text",
-      },
-      execution: { mode: "text" },
-      persistence: {
-        channel: "WHATSAPP",
-        metadata: {
-          whatsapp: { inReplyTo: inbound.id },
-        } as Prisma.InputJsonValue,
-        saveAssistantMessage: true,
-        waitUntil: safeWaitUntil,
-      },
-    });
-    assistantText = flowResult.assistantText;
-    assistantMessageId = flowResult.persistence?.messageId;
-    if (flowResult.persistence?.status === "failed") {
-      await recordWhatsAppInboundError({
-        inboundId: inbound.id,
-        message,
-        context,
-        kind: "assistant_persistence_failed",
-        summary: safeErrorSummary(flowResult.persistence.error),
-      });
-      await sendWhatsAppMessage(from, "Errore temporaneo. Riprova.");
-      return;
-    }
-  } catch (err) {
-    whatsappLogger.error("chat.stream_failed", "streamChat failed", { err });
-    await prisma.message
-      .update({
-        where: { id: inbound.id },
-        data: {
-          metadata: {
-            whatsapp: {
-              id: messageId,
-              timestamp: message.timestamp,
-              type: message.type,
-              name: context.contacts?.[0]?.profile?.name,
-              error: {
-                kind: "streamChat_failed",
-                summary: safeErrorSummary(err),
-              },
-            },
-          } as Prisma.InputJsonValue,
-        },
-      })
-      .catch(() => undefined);
-    await sendWhatsAppMessage(from, "Si è verificato un errore. Riprova.");
-    return;
-  }
-
-  if (!assistantText.trim()) {
-    await prisma.message
-      .update({
-        where: { id: inbound.id },
-        data: {
-          metadata: {
-            whatsapp: {
-              id: messageId,
-              timestamp: message.timestamp,
-              type: message.type,
-              name: context.contacts?.[0]?.profile?.name,
-              error: {
-                kind: "empty_assistant_response",
-              },
-            },
-          } as Prisma.InputJsonValue,
-        },
-      })
-      .catch(() => undefined);
-
-    await sendWhatsAppMessage(
-      from,
-      "Non ho generato una risposta. Riprova tra qualche secondo.",
-    );
-    return;
-  }
-
-  // Voice output
-  let voiceFallbackNotice: string | undefined;
-  if (isElevenLabsConfigured()) {
-    try {
-      const preferences = await prisma.preferences.findUnique({
-        where: { userId: user.id },
-        select: { voiceEnabled: true },
-      });
-
-      const voiceResult = await shouldGenerateVoice({
-        userId: user.id,
-        userMessage: userMessageText,
-        assistantText,
-        channel: "WHATSAPP",
-        excludeMessageId: assistantMessageId,
-        userPreferences: {
-          voiceEnabled: preferences?.voiceEnabled ?? true,
-        },
-        planConfig: getVoicePlanConfig(
-          user.subscription?.status,
-          user.role,
-          user.subscription?.planId,
-          user.isGuest,
-        ),
-        systemLoad: getSystemLoad,
-        planId: user.subscription?.planId,
-      });
-
-      whatsappLogger.info(
-        "voice.delivery_decision",
-        "Resolved WhatsApp voice delivery",
-        {
+        const voiceResult = await shouldGenerateVoice({
           userId: user.id,
-          category: voiceResult.category,
-          capacityState: voiceResult.capacityState,
-          reasonCode: voiceResult.reasonCode,
-          shouldGenerateVoice: voiceResult.shouldGenerateVoice,
-        },
-      );
+          userMessage: userMessageText,
+          assistantText,
+          channel: "WHATSAPP",
+          excludeMessageId: assistantMessageId,
+          userPreferences: {
+            voiceEnabled: preferences?.voiceEnabled ?? true,
+          },
+          planConfig: getVoicePlanConfig(
+            user.subscription?.status,
+            user.role,
+            user.subscription?.planId,
+            user.isGuest,
+          ),
+          systemLoad: getSystemLoad,
+          planId: user.subscription?.planId,
+        });
 
-      if (voiceResult.shouldGenerateVoice) {
-        try {
-          const audio = await generateVoice(assistantText);
-          const success = await sendWhatsAppVoice(from, audio.audioBuffer);
+        whatsappLogger.info(
+          "voice.delivery_decision",
+          "Resolved WhatsApp voice delivery",
+          {
+            userId: user.id,
+            category: voiceResult.category,
+            capacityState: voiceResult.capacityState,
+            reasonCode: voiceResult.reasonCode,
+            shouldGenerateVoice: voiceResult.shouldGenerateVoice,
+          },
+        );
 
-          if (success) {
-            if (assistantMessageId) {
-              await prisma.message
-                .update({
-                  where: { id: assistantMessageId },
-                  data: { type: "AUDIO", mediaType: "audio/mpeg" },
-                })
-                .catch((error) =>
-                  whatsappLogger.error(
-                    "voice.persistence_update_failed",
-                    "Failed marking WhatsApp response as audio",
-                    { error, userId: user.id, messageId: assistantMessageId },
-                  ),
-                );
+        if (voiceResult.shouldGenerateVoice) {
+          try {
+            const audio = await generateVoice(assistantText);
+            const success = await sendWhatsAppVoice(from, audio.audioBuffer);
+
+            if (success) {
+              if (assistantMessageId) {
+                await prisma.message
+                  .update({
+                    where: { id: assistantMessageId },
+                    data: { type: "AUDIO", mediaType: "audio/mpeg" },
+                  })
+                  .catch((error) =>
+                    whatsappLogger.error(
+                      "voice.persistence_update_failed",
+                      "Failed marking WhatsApp response as audio",
+                      { error, userId: user.id, messageId: assistantMessageId },
+                    ),
+                  );
+              }
+              await trackVoiceUsage(
+                user.id,
+                audio.characterCount,
+                "WHATSAPP",
+                audio.costUsd,
+              ).catch((error) =>
+                whatsappLogger.error(
+                  "voice.usage_tracking_failed",
+                  "Failed tracking WhatsApp voice usage",
+                  { error, userId: user.id },
+                ),
+              );
+              await completeInbound();
+              return;
             }
-            await trackVoiceUsage(
-              user.id,
-              audio.characterCount,
-              "WHATSAPP",
-              audio.costUsd,
-            ).catch((error) =>
-              whatsappLogger.error(
-                "voice.usage_tracking_failed",
-                "Failed tracking WhatsApp voice usage",
-                { error, userId: user.id },
-              ),
+
+            whatsappLogger.warn(
+              "voice.send_fallback",
+              "Voice send returned false, falling back to text",
             );
-            return;
+            if (voiceResult.explicitVoiceRequest) {
+              voiceFallbackNotice = getVoiceUnavailability(
+                "PROVIDER_UNAVAILABLE",
+              ).userMessage;
+            }
+          } catch (voiceErr) {
+            whatsappLogger.error(
+              "voice.generation_failed",
+              "Voice generation/send threw",
+              { voiceErr },
+            );
+            if (voiceResult.explicitVoiceRequest) {
+              voiceFallbackNotice = getVoiceUnavailability(
+                "PROVIDER_UNAVAILABLE",
+              ).userMessage;
+            }
           }
-
-          whatsappLogger.warn(
-            "voice.send_fallback",
-            "Voice send returned false, falling back to text",
-          );
-          if (voiceResult.explicitVoiceRequest) {
-            voiceFallbackNotice = getVoiceUnavailability(
-              "PROVIDER_UNAVAILABLE",
-            ).userMessage;
-          }
-        } catch (voiceErr) {
-          whatsappLogger.error(
-            "voice.generation_failed",
-            "Voice generation/send threw",
-            { voiceErr },
-          );
-          if (voiceResult.explicitVoiceRequest) {
-            voiceFallbackNotice = getVoiceUnavailability(
-              "PROVIDER_UNAVAILABLE",
-            ).userMessage;
-          }
+        } else if (voiceResult.explicitVoiceRequest) {
+          voiceFallbackNotice = voiceResult.unavailability?.userMessage;
         }
-      } else if (voiceResult.explicitVoiceRequest) {
-        voiceFallbackNotice = voiceResult.unavailability?.userMessage;
+      } catch (err) {
+        whatsappLogger.error(
+          "voice.process_failed",
+          "Voice funnel/process failed",
+          { err },
+        );
+        if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
+          voiceFallbackNotice = getVoiceUnavailability(
+            "PROVIDER_UNAVAILABLE",
+          ).userMessage;
+        }
       }
-    } catch (err) {
-      whatsappLogger.error(
-        "voice.process_failed",
-        "Voice funnel/process failed",
-        { err },
-      );
-      if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
-        voiceFallbackNotice = getVoiceUnavailability(
-          "PROVIDER_UNAVAILABLE",
-        ).userMessage;
-      }
+    } else if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
+      voiceFallbackNotice = getVoiceUnavailability(
+        "PROVIDER_UNAVAILABLE",
+      ).userMessage;
     }
-  } else if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
-    voiceFallbackNotice = getVoiceUnavailability(
-      "PROVIDER_UNAVAILABLE",
-    ).userMessage;
-  }
 
-  // Text fallback
-  await sendWhatsAppMessage(
-    from,
-    voiceFallbackNotice
-      ? `${voiceFallbackNotice}\n\n${assistantText}`
-      : assistantText,
-  );
+    // Text fallback
+    const sent = await sendWhatsAppMessage(
+      from,
+      voiceFallbackNotice
+        ? `${voiceFallbackNotice}\n\n${assistantText}`
+        : assistantText,
+    );
+    // If the provider accepted the response but the acknowledgement was lost,
+    // a retry can send it again; automatic resend reconciliation is out of scope.
+    if (sent) await completeInbound();
+    else await failInbound("outbound_send_failed");
+  } catch (error) {
+    await failInbound(error);
+    throw error;
+  }
 }
 
 function buildWhatsAppGuestUserData(

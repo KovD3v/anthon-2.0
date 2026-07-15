@@ -3,6 +3,8 @@ import { waitUntil } from "@vercel/functions";
 import type { Prisma } from "@/generated/prisma";
 import {
   getExternalInboundMessageType,
+  markExternalChannelInboundCompleted,
+  markExternalChannelInboundFailed,
   prepareExternalChannelInbound,
   runChannelFlow,
 } from "@/lib/channel-flow";
@@ -510,124 +512,171 @@ async function handleUpdate(update: TelegramUpdate) {
     return;
   }
 
-  const { user, conversationThread, inbound, rateLimit } = preparedInbound;
-
-  if (!rateLimit.allowed) {
-    await recordTelegramInboundError({
+  const { user, conversationThread, inbound, rateLimit, claimToken } =
+    preparedInbound;
+  const completeInbound = () =>
+    markExternalChannelInboundCompleted({
       inboundId: inbound.id,
-      update,
-      chatId,
-      fromId,
-      message,
-      kind: "rate_limit_denied",
+      claimToken,
     });
-    await sendTelegramMessage(
-      chatId,
-      formatExternalRateLimitMessage(rateLimit.upgradeInfo),
-    );
-    return;
-  }
-
-  if (process.env.TELEGRAM_DISABLE_AI === "true") {
-    return;
-  }
-
-  if (!process.env.OPENROUTER_API_KEY) {
-    await recordTelegramInboundError({
+  const failInbound = (error: unknown) =>
+    markExternalChannelInboundFailed({
       inboundId: inbound.id,
-      update,
-      chatId,
-      fromId,
-      message,
-      kind: "ai_configuration_missing",
+      claimToken,
+      error,
     });
-    await sendTelegramMessage(
-      chatId,
-      "Servizio AI non configurato. Riprova più tardi.",
-    );
-    return;
-  }
 
-  // If Telegram provides voice/audio, transcribe it BEFORE calling streamChat.
-  // OpenRouter/Vercel AI SDK accept TEXT-only input.
-  let transcribedText: string | null = null;
-  if (hasAudioMessage) {
-    const audioData = await downloadTelegramAudio(
-      message?.voice,
-      message?.audio,
-    );
-    if (!audioData) {
+  try {
+    if (!rateLimit.allowed) {
       await recordTelegramInboundError({
         inboundId: inbound.id,
         update,
         chatId,
         fromId,
         message,
-        kind: "audio_download_failed",
+        kind: "rate_limit_denied",
       });
-
-      await sendTelegramMessage(
+      const sent = await sendTelegramMessage(
         chatId,
-        "Non sono riuscito a scaricare il messaggio audio. Riprova.",
+        formatExternalRateLimitMessage(rateLimit.upgradeInfo),
       );
+      if (sent) await completeInbound();
+      else await failInbound("rate_limit_response_send_failed");
       return;
     }
 
-    try {
-      transcribedText = await transcribeAudioWithOpenRouter({
-        ...audioData,
-        title: "Telegram Bot",
-        userId: user.id,
-        source: "TELEGRAM",
-      });
-    } catch (err) {
-      telegramLogger.error("transcription.failed", "Transcription failed", {
-        err,
-      });
+    if (process.env.TELEGRAM_DISABLE_AI === "true") {
+      await completeInbound();
+      return;
+    }
 
+    if (!process.env.OPENROUTER_API_KEY) {
       await recordTelegramInboundError({
         inboundId: inbound.id,
         update,
         chatId,
         fromId,
         message,
-        kind: "transcription_failed",
-        summary: safeErrorSummary(err),
+        kind: "ai_configuration_missing",
       });
-
       await sendTelegramMessage(
         chatId,
-        "Non sono riuscito a trascrivere l'audio in questo momento. Riprova.",
+        "Servizio AI non configurato. Riprova più tardi.",
       );
+      await failInbound("ai_configuration_missing");
       return;
     }
 
-    if (!transcribedText || transcribedText.trim().length === 0) {
-      await recordTelegramInboundError({
-        inboundId: inbound.id,
-        update,
-        chatId,
-        fromId,
-        message,
-        kind: "empty_transcription",
-      });
-
-      await sendTelegramMessage(
-        chatId,
-        "Non sono riuscito a trascrivere l'audio. Prova a reinviare il messaggio.",
+    // If Telegram provides voice/audio, transcribe it BEFORE calling streamChat.
+    // OpenRouter/Vercel AI SDK accept TEXT-only input.
+    let transcribedText: string | null = null;
+    if (hasAudioMessage) {
+      const audioData = await downloadTelegramAudio(
+        message?.voice,
+        message?.audio,
       );
-      return;
+      if (!audioData) {
+        await recordTelegramInboundError({
+          inboundId: inbound.id,
+          update,
+          chatId,
+          fromId,
+          message,
+          kind: "audio_download_failed",
+        });
+
+        await sendTelegramMessage(
+          chatId,
+          "Non sono riuscito a scaricare il messaggio audio. Riprova.",
+        );
+        await failInbound("audio_download_failed");
+        return;
+      }
+
+      try {
+        transcribedText = await transcribeAudioWithOpenRouter({
+          ...audioData,
+          title: "Telegram Bot",
+          userId: user.id,
+          source: "TELEGRAM",
+        });
+      } catch (err) {
+        telegramLogger.error("transcription.failed", "Transcription failed", {
+          err,
+        });
+
+        await recordTelegramInboundError({
+          inboundId: inbound.id,
+          update,
+          chatId,
+          fromId,
+          message,
+          kind: "transcription_failed",
+          summary: safeErrorSummary(err),
+        });
+
+        await sendTelegramMessage(
+          chatId,
+          "Non sono riuscito a trascrivere l'audio in questo momento. Riprova.",
+        );
+        await failInbound(err);
+        return;
+      }
+
+      if (!transcribedText || transcribedText.trim().length === 0) {
+        await recordTelegramInboundError({
+          inboundId: inbound.id,
+          update,
+          chatId,
+          fromId,
+          message,
+          kind: "empty_transcription",
+        });
+
+        await sendTelegramMessage(
+          chatId,
+          "Non sono riuscito a trascrivere l'audio. Prova a reinviare il messaggio.",
+        );
+        await failInbound("empty_transcription");
+        return;
+      }
     }
-  }
 
-  const files: ChannelMessagePart[] = [];
+    const files: ChannelMessagePart[] = [];
 
-  // Download and add photo if present
-  let downloadedPhoto = false;
-  if (hasPhoto && message?.photo) {
-    try {
-      const photoData = await downloadTelegramPhoto(message.photo);
-      if (!photoData) {
+    // Download and add photo if present
+    let downloadedPhoto = false;
+    if (hasPhoto && message?.photo) {
+      try {
+        const photoData = await downloadTelegramPhoto(message.photo);
+        if (!photoData) {
+          await recordTelegramInboundError({
+            inboundId: inbound.id,
+            update,
+            chatId,
+            fromId,
+            message,
+            kind: "photo_download_failed",
+          });
+          await sendTelegramMessage(
+            chatId,
+            "Non sono riuscito a scaricare l'immagine. Riprova.",
+          );
+          await failInbound("photo_download_failed");
+          return;
+        }
+        files.push({
+          type: "file",
+          mimeType: photoData.mimeType,
+          data: photoData.base64,
+        });
+        downloadedPhoto = true;
+      } catch (err) {
+        telegramLogger.error(
+          "media.photo_download_failed",
+          "Failed to download photo",
+          { err },
+        );
         await recordTelegramInboundError({
           inboundId: inbound.id,
           update,
@@ -635,47 +684,54 @@ async function handleUpdate(update: TelegramUpdate) {
           fromId,
           message,
           kind: "photo_download_failed",
+          summary: safeErrorSummary(err),
         });
         await sendTelegramMessage(
           chatId,
           "Non sono riuscito a scaricare l'immagine. Riprova.",
         );
+        await failInbound(err);
         return;
       }
-      files.push({
-        type: "file",
-        mimeType: photoData.mimeType,
-        data: photoData.base64,
-      });
-      downloadedPhoto = true;
-    } catch (err) {
-      telegramLogger.error(
-        "media.photo_download_failed",
-        "Failed to download photo",
-        { err },
-      );
-      await recordTelegramInboundError({
-        inboundId: inbound.id,
-        update,
-        chatId,
-        fromId,
-        message,
-        kind: "photo_download_failed",
-        summary: safeErrorSummary(err),
-      });
-      await sendTelegramMessage(
-        chatId,
-        "Non sono riuscito a scaricare l'immagine. Riprova.",
-      );
-      return;
     }
-  }
 
-  // Download and add document if present
-  if (hasDocument && message?.document) {
-    try {
-      const docData = await downloadTelegramDocument(message.document);
-      if (!docData) {
+    // Download and add document if present
+    if (hasDocument && message?.document) {
+      try {
+        const docData = await downloadTelegramDocument(message.document);
+        if (!docData) {
+          await recordTelegramInboundError({
+            inboundId: inbound.id,
+            update,
+            chatId,
+            fromId,
+            message,
+            kind: "document_download_failed",
+          });
+          await sendTelegramMessage(
+            chatId,
+            "Non sono riuscito a scaricare il documento. Riprova.",
+          );
+          await failInbound("document_download_failed");
+          return;
+        }
+        if (!text && docData.fileName) {
+          files.unshift({
+            type: "text",
+            text: `L'utente ha inviato il file: ${docData.fileName}`,
+          });
+        }
+        files.push({
+          type: "file",
+          mimeType: docData.mimeType,
+          data: docData.base64,
+        });
+      } catch (err) {
+        telegramLogger.error(
+          "media.document_download_failed",
+          "Failed to download document",
+          { err },
+        );
         await recordTelegramInboundError({
           inboundId: inbound.id,
           update,
@@ -683,298 +739,282 @@ async function handleUpdate(update: TelegramUpdate) {
           fromId,
           message,
           kind: "document_download_failed",
+          summary: safeErrorSummary(err),
         });
         await sendTelegramMessage(
           chatId,
           "Non sono riuscito a scaricare il documento. Riprova.",
         );
+        await failInbound(err);
         return;
       }
-      if (!text && docData.fileName) {
-        files.unshift({
-          type: "text",
-          text: `L'utente ha inviato il file: ${docData.fileName}`,
-        });
-      }
-      files.push({
-        type: "file",
-        mimeType: docData.mimeType,
-        data: docData.base64,
-      });
-    } catch (err) {
-      telegramLogger.error(
-        "media.document_download_failed",
-        "Failed to download document",
-        { err },
-      );
-      await recordTelegramInboundError({
-        inboundId: inbound.id,
-        update,
-        chatId,
-        fromId,
-        message,
-        kind: "document_download_failed",
-        summary: safeErrorSummary(err),
-      });
-      await sendTelegramMessage(
-        chatId,
-        "Non sono riuscito a scaricare il documento. Riprova.",
-      );
-      return;
     }
-  }
 
-  const { userMessageText, parts: messageParts } = buildExternalChannelInbound({
-    text,
-    transcribedText,
-    voiceInstruction: transcribedText
-      ? "NOTA: l'utente ha inviato un messaggio vocale. Puoi comprenderlo e rispondere usando la TRASCRIZIONE qui sotto. Non dire che non puoi ascoltare i vocali."
-      : null,
-    fallbackText: hasAudioMessage
-      ? "Messaggio vocale"
-      : hasPhoto
-        ? "Immagine"
-        : "Documento",
-    defaultMediaPrompt: hasPhoto
-      ? "L'utente ha inviato questa immagine."
-      : "L'utente ha inviato questo file.",
-    files,
-  });
-
-  // Generate assistant response.
-  let assistantText = "";
-  let assistantMessageId: string | undefined;
-
-  try {
-    const flowResult = await runChannelFlow({
-      channel: "TELEGRAM",
-      userId: user.id,
-      conversationThreadId: conversationThread.id,
-      userMessageId: inbound.id,
-      userMessageText: userMessageText || (hasPhoto ? "Immagine" : "Documento"),
-      parts: messageParts,
-      rateLimit: {
-        allowed: rateLimit.allowed,
-        effectiveEntitlements: rateLimit.effectiveEntitlements,
-        upgradeInfo: rateLimit.upgradeInfo,
-      },
-      options: {
-        allowAttachments: true,
-        allowMemoryExtraction: true,
-        allowVoiceOutput: true,
-      },
-      ai: {
-        planId: user.subscription?.planId,
-        userRole: user.role,
-        subscriptionStatus: user.subscription?.status,
-        isGuest: user.isGuest,
-        hasAudio: false,
-        hasImages: downloadedPhoto,
-        inputOrigin: transcribedText
-          ? "transcribed_voice"
-          : downloadedPhoto || hasDocument
-            ? "direct_media"
-            : "text",
-      },
-      execution: { mode: "text" },
-      persistence: {
-        channel: "TELEGRAM",
-        metadata: {
-          telegram: {
-            inReplyTo: inbound.id,
-            chatId,
-          },
-        } as Prisma.InputJsonValue,
-        saveAssistantMessage: true,
-        waitUntil: safeWaitUntil,
-      },
-    });
-    assistantText = flowResult.assistantText;
-    assistantMessageId = flowResult.persistence?.messageId;
-    if (flowResult.persistence?.status === "failed") {
-      await recordTelegramInboundError({
-        inboundId: inbound.id,
-        update,
-        chatId,
-        fromId,
-        message,
-        kind: "assistant_persistence_failed",
-        summary: safeErrorSummary(flowResult.persistence.error),
+    const { userMessageText, parts: messageParts } =
+      buildExternalChannelInbound({
+        text,
+        transcribedText,
+        voiceInstruction: transcribedText
+          ? "NOTA: l'utente ha inviato un messaggio vocale. Puoi comprenderlo e rispondere usando la TRASCRIZIONE qui sotto. Non dire che non puoi ascoltare i vocali."
+          : null,
+        fallbackText: hasAudioMessage
+          ? "Messaggio vocale"
+          : hasPhoto
+            ? "Immagine"
+            : "Documento",
+        defaultMediaPrompt: hasPhoto
+          ? "L'utente ha inviato questa immagine."
+          : "L'utente ha inviato questo file.",
+        files,
       });
+
+    // Generate assistant response.
+    let assistantText = "";
+    let assistantMessageId: string | undefined;
+
+    try {
+      const flowResult = await runChannelFlow({
+        channel: "TELEGRAM",
+        userId: user.id,
+        conversationThreadId: conversationThread.id,
+        userMessageId: inbound.id,
+        userMessageText:
+          userMessageText || (hasPhoto ? "Immagine" : "Documento"),
+        parts: messageParts,
+        rateLimit: {
+          allowed: rateLimit.allowed,
+          effectiveEntitlements: rateLimit.effectiveEntitlements,
+          upgradeInfo: rateLimit.upgradeInfo,
+        },
+        options: {
+          allowAttachments: true,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: true,
+        },
+        ai: {
+          planId: user.subscription?.planId,
+          userRole: user.role,
+          subscriptionStatus: user.subscription?.status,
+          isGuest: user.isGuest,
+          hasAudio: false,
+          hasImages: downloadedPhoto,
+          inputOrigin: transcribedText
+            ? "transcribed_voice"
+            : downloadedPhoto || hasDocument
+              ? "direct_media"
+              : "text",
+        },
+        execution: { mode: "text" },
+        persistence: {
+          channel: "TELEGRAM",
+          metadata: {
+            telegram: {
+              inReplyTo: inbound.id,
+              chatId,
+            },
+          } as Prisma.InputJsonValue,
+          saveAssistantMessage: true,
+          waitUntil: safeWaitUntil,
+        },
+      });
+      assistantText = flowResult.assistantText;
+      assistantMessageId = flowResult.persistence?.messageId;
+      if (flowResult.persistence?.status === "failed") {
+        await recordTelegramInboundError({
+          inboundId: inbound.id,
+          update,
+          chatId,
+          fromId,
+          message,
+          kind: "assistant_persistence_failed",
+          summary: safeErrorSummary(flowResult.persistence.error),
+        });
+        await sendTelegramMessage(
+          chatId,
+          "Errore temporaneo. Riprova tra qualche secondo.",
+        );
+        await failInbound(flowResult.persistence.error);
+        return;
+      }
+    } catch (err) {
+      telegramLogger.error("chat.stream_failed", "streamChat failed", { err });
+
+      await prisma.message
+        .update({
+          where: { id: inbound.id },
+          data: {
+            metadata: {
+              telegram: {
+                updateId: update.update_id,
+                chatId,
+                fromId,
+                username: message?.from?.username,
+                languageCode: message?.from?.language_code,
+                error: {
+                  kind: "streamChat_failed",
+                  summary: safeErrorSummary(err),
+                },
+              },
+            } as Prisma.InputJsonValue,
+          },
+        })
+        .catch(() => undefined);
+
       await sendTelegramMessage(
         chatId,
         "Errore temporaneo. Riprova tra qualche secondo.",
       );
+      await failInbound(err);
       return;
     }
-  } catch (err) {
-    telegramLogger.error("chat.stream_failed", "streamChat failed", { err });
 
-    await prisma.message
-      .update({
-        where: { id: inbound.id },
-        data: {
-          metadata: {
-            telegram: {
-              updateId: update.update_id,
-              chatId,
-              fromId,
-              username: message?.from?.username,
-              languageCode: message?.from?.language_code,
-              error: {
-                kind: "streamChat_failed",
-                summary: safeErrorSummary(err),
+    if (assistantText.trim().length === 0) {
+      await prisma.message
+        .update({
+          where: { id: inbound.id },
+          data: {
+            metadata: {
+              telegram: {
+                updateId: update.update_id,
+                chatId,
+                fromId,
+                username: message?.from?.username,
+                languageCode: message?.from?.language_code,
+                error: {
+                  kind: "empty_assistant_response",
+                },
               },
-            },
-          } as Prisma.InputJsonValue,
-        },
-      })
-      .catch(() => undefined);
+            } as Prisma.InputJsonValue,
+          },
+        })
+        .catch(() => undefined);
 
-    await sendTelegramMessage(
-      chatId,
-      "Errore temporaneo. Riprova tra qualche secondo.",
-    );
-    return;
-  }
-
-  if (assistantText.trim().length === 0) {
-    await prisma.message
-      .update({
-        where: { id: inbound.id },
-        data: {
-          metadata: {
-            telegram: {
-              updateId: update.update_id,
-              chatId,
-              fromId,
-              username: message?.from?.username,
-              languageCode: message?.from?.language_code,
-              error: {
-                kind: "empty_assistant_response",
-              },
-            },
-          } as Prisma.InputJsonValue,
-        },
-      })
-      .catch(() => undefined);
-
-    await sendTelegramMessage(
-      chatId,
-      "Non ho generato una risposta. Riprova tra qualche secondo.",
-    );
-    return;
-  }
-
-  // Voice generation decision
-  let voiceFallbackNotice: string | undefined;
-  if (isElevenLabsConfigured()) {
-    try {
-      // Fetch user preferences for voice
-      const preferences = await prisma.preferences.findUnique({
-        where: { userId: user.id },
-        select: { voiceEnabled: true },
-      });
-
-      const voiceResult = await shouldGenerateVoice({
-        userId: user.id,
-        userMessage: userMessageText,
-        assistantText,
-        channel: "TELEGRAM",
-        excludeMessageId: assistantMessageId,
-        userPreferences: {
-          voiceEnabled: preferences?.voiceEnabled ?? true,
-        },
-        planConfig: getVoicePlanConfig(
-          user.subscription?.status,
-          user.role,
-          user.subscription?.planId,
-          user.isGuest,
-        ),
-        systemLoad: getSystemLoad,
-        planId: user.subscription?.planId,
-      });
-
-      telegramLogger.info(
-        "voice.delivery_decision",
-        "Resolved Telegram voice delivery",
-        {
-          userId: user.id,
-          category: voiceResult.category,
-          capacityState: voiceResult.capacityState,
-          reasonCode: voiceResult.reasonCode,
-          shouldGenerateVoice: voiceResult.shouldGenerateVoice,
-        },
+      await sendTelegramMessage(
+        chatId,
+        "Non ho generato una risposta. Riprova tra qualche secondo.",
       );
+      await failInbound("empty_assistant_response");
+      return;
+    }
 
-      if (voiceResult.shouldGenerateVoice) {
-        const audio = await generateVoice(assistantText);
-        const voiceSent = await LatencyLogger.measure(
-          "Voice: Telegram Send",
-          async () => sendTelegramVoice(chatId, audio.audioBuffer),
+    // Voice generation decision
+    let voiceFallbackNotice: string | undefined;
+    if (isElevenLabsConfigured()) {
+      try {
+        // Fetch user preferences for voice
+        const preferences = await prisma.preferences.findUnique({
+          where: { userId: user.id },
+          select: { voiceEnabled: true },
+        });
+
+        const voiceResult = await shouldGenerateVoice({
+          userId: user.id,
+          userMessage: userMessageText,
+          assistantText,
+          channel: "TELEGRAM",
+          excludeMessageId: assistantMessageId,
+          userPreferences: {
+            voiceEnabled: preferences?.voiceEnabled ?? true,
+          },
+          planConfig: getVoicePlanConfig(
+            user.subscription?.status,
+            user.role,
+            user.subscription?.planId,
+            user.isGuest,
+          ),
+          systemLoad: getSystemLoad,
+          planId: user.subscription?.planId,
+        });
+
+        telegramLogger.info(
+          "voice.delivery_decision",
+          "Resolved Telegram voice delivery",
+          {
+            userId: user.id,
+            category: voiceResult.category,
+            capacityState: voiceResult.capacityState,
+            reasonCode: voiceResult.reasonCode,
+            shouldGenerateVoice: voiceResult.shouldGenerateVoice,
+          },
         );
-        if (voiceSent) {
-          if (assistantMessageId) {
-            await prisma.message
-              .update({
-                where: { id: assistantMessageId },
-                data: { type: "AUDIO", mediaType: "audio/mpeg" },
-              })
-              .catch((error) =>
-                telegramLogger.error(
-                  "voice.persistence_update_failed",
-                  "Failed marking Telegram response as audio",
-                  { error, userId: user.id, messageId: assistantMessageId },
-                ),
-              );
-          }
-          await trackVoiceUsage(
-            user.id,
-            audio.characterCount,
-            "TELEGRAM",
-            audio.costUsd,
-          ).catch((error) =>
-            telegramLogger.error(
-              "voice.usage_tracking_failed",
-              "Failed tracking Telegram voice usage",
-              { error, userId: user.id },
-            ),
+
+        if (voiceResult.shouldGenerateVoice) {
+          const audio = await generateVoice(assistantText);
+          const voiceSent = await LatencyLogger.measure(
+            "Voice: Telegram Send",
+            async () => sendTelegramVoice(chatId, audio.audioBuffer),
           );
-          return;
+          if (voiceSent) {
+            if (assistantMessageId) {
+              await prisma.message
+                .update({
+                  where: { id: assistantMessageId },
+                  data: { type: "AUDIO", mediaType: "audio/mpeg" },
+                })
+                .catch((error) =>
+                  telegramLogger.error(
+                    "voice.persistence_update_failed",
+                    "Failed marking Telegram response as audio",
+                    { error, userId: user.id, messageId: assistantMessageId },
+                  ),
+                );
+            }
+            await trackVoiceUsage(
+              user.id,
+              audio.characterCount,
+              "TELEGRAM",
+              audio.costUsd,
+            ).catch((error) =>
+              telegramLogger.error(
+                "voice.usage_tracking_failed",
+                "Failed tracking Telegram voice usage",
+                { error, userId: user.id },
+              ),
+            );
+            await completeInbound();
+            return;
+          }
+          if (voiceResult.explicitVoiceRequest) {
+            voiceFallbackNotice = getVoiceUnavailability(
+              "PROVIDER_UNAVAILABLE",
+            ).userMessage;
+          }
+        } else if (voiceResult.explicitVoiceRequest) {
+          voiceFallbackNotice = voiceResult.unavailability?.userMessage;
         }
-        if (voiceResult.explicitVoiceRequest) {
+      } catch (err) {
+        telegramLogger.error(
+          "voice.generation_failed",
+          "Voice generation failed",
+          { err },
+        );
+        // Fallback to text on any voice error
+        if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
           voiceFallbackNotice = getVoiceUnavailability(
             "PROVIDER_UNAVAILABLE",
           ).userMessage;
         }
-      } else if (voiceResult.explicitVoiceRequest) {
-        voiceFallbackNotice = voiceResult.unavailability?.userMessage;
       }
-    } catch (err) {
-      telegramLogger.error(
-        "voice.generation_failed",
-        "Voice generation failed",
-        { err },
-      );
-      // Fallback to text on any voice error
-      if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
-        voiceFallbackNotice = getVoiceUnavailability(
-          "PROVIDER_UNAVAILABLE",
-        ).userMessage;
-      }
+    } else if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
+      voiceFallbackNotice = getVoiceUnavailability(
+        "PROVIDER_UNAVAILABLE",
+      ).userMessage;
     }
-  } else if (detectVoiceRequestIntent(userMessageText) === "VOICE") {
-    voiceFallbackNotice = getVoiceUnavailability(
-      "PROVIDER_UNAVAILABLE",
-    ).userMessage;
-  }
 
-  await sendTelegramMessage(
-    chatId,
-    voiceFallbackNotice
-      ? `${voiceFallbackNotice}\n\n${assistantText}`
-      : assistantText,
-  );
+    const sent = await sendTelegramMessage(
+      chatId,
+      voiceFallbackNotice
+        ? `${voiceFallbackNotice}\n\n${assistantText}`
+        : assistantText,
+    );
+    // If the provider accepted the response but the acknowledgement was lost,
+    // a retry can send it again; automatic resend reconciliation is out of scope.
+    if (sent) await completeInbound();
+    else await failInbound("outbound_send_failed");
+  } catch (error) {
+    await failInbound(error);
+    throw error;
+  }
 }
 
 async function sendTelegramMessage(

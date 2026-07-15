@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   prismaMessageCreate: vi.fn(),
   prismaMessageMetricsCreate: vi.fn(),
   prismaMessageUpdate: vi.fn(),
+  prismaMessageUpdateMany: vi.fn(),
   prismaChatUpdate: vi.fn(),
   prismaAttachmentCreate: vi.fn(),
   prismaPreferencesFindUnique: vi.fn(),
@@ -59,6 +60,7 @@ vi.mock("@/lib/db", () => ({
       findFirst: mocks.prismaMessageFindFirst,
       create: mocks.prismaMessageCreate,
       update: mocks.prismaMessageUpdate,
+      updateMany: mocks.prismaMessageUpdateMany,
     },
     messageMetrics: {
       create: mocks.prismaMessageMetricsCreate,
@@ -158,6 +160,15 @@ import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/open
 import { GET, POST } from "./route";
 
 const originalEnv = { ...process.env };
+
+type InboundLifecycleState = {
+  id: string;
+  externalInboundStatus: string;
+  externalInboundClaimToken: string | null;
+  externalInboundLeaseExpiresAt: Date | null;
+  user: object;
+  conversationThread: { id: string };
+};
 
 function uniqueConstraintError() {
   return Object.assign(new Error("Unique constraint"), { code: "P2002" });
@@ -277,6 +288,7 @@ describe("/api/webhooks/telegram", () => {
     mocks.prismaMessageCreate.mockReset();
     mocks.prismaMessageMetricsCreate.mockReset();
     mocks.prismaMessageUpdate.mockReset();
+    mocks.prismaMessageUpdateMany.mockReset();
     mocks.prismaChatUpdate.mockReset();
     mocks.prismaAttachmentCreate.mockReset();
     mocks.prismaPreferencesFindUnique.mockReset();
@@ -309,6 +321,7 @@ describe("/api/webhooks/telegram", () => {
           findFirst: mocks.prismaMessageFindFirst,
           create: mocks.prismaMessageCreate,
           update: mocks.prismaMessageUpdate,
+          updateMany: mocks.prismaMessageUpdateMany,
         },
         messageMetrics: {
           create: mocks.prismaMessageMetricsCreate,
@@ -350,6 +363,7 @@ describe("/api/webhooks/telegram", () => {
     mocks.prismaChannelConnectRequestUpdateMany.mockResolvedValue({ count: 1 });
     mocks.prismaMessageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
     mocks.prismaMessageUpdate.mockResolvedValue({});
+    mocks.prismaMessageUpdateMany.mockResolvedValue({ count: 1 });
     mocks.prismaPreferencesFindUnique.mockResolvedValue({ voiceEnabled: true });
     mocks.start.mockReturnValue({ end: vi.fn(), split: vi.fn() });
     mocks.measure.mockImplementation(
@@ -458,7 +472,10 @@ describe("/api/webhooks/telegram", () => {
     process.env.TELEGRAM_SYNC_WEBHOOK = "true";
     process.env.OPENROUTER_API_KEY = "sk-test";
 
-    mocks.prismaMessageFindFirst.mockResolvedValue({ id: "existing_msg" });
+    mocks.prismaMessageFindFirst.mockResolvedValue({
+      id: "existing_msg",
+      externalInboundStatus: "COMPLETED",
+    });
 
     const response = await POST(
       new Request("http://localhost/api/webhooks/telegram", {
@@ -475,11 +492,104 @@ describe("/api/webhooks/telegram", () => {
         channel: "TELEGRAM",
         externalMessageId: "100:2",
       },
-      select: { id: true },
+      select: expect.objectContaining({
+        id: true,
+        externalInboundStatus: true,
+      }),
     });
     expect(mocks.prismaMessageCreate).not.toHaveBeenCalled();
     expect(mocks.checkRateLimit).not.toHaveBeenCalled();
     expect(mocks.streamChat).not.toHaveBeenCalled();
+  });
+
+  it("retries a failed inbound once, completes it, and ignores later or concurrent duplicates", async () => {
+    process.env.TELEGRAM_SYNC_WEBHOOK = "true";
+    process.env.TELEGRAM_DISABLE_SEND = "true";
+    delete process.env.OPENROUTER_API_KEY;
+
+    const lifecycleUser = {
+      id: "user_retry",
+      role: "USER",
+      isGuest: true,
+      subscription: null,
+    };
+    let state: InboundLifecycleState | null = null;
+    mocks.prismaMessageFindFirst.mockImplementation(async () => state);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      user: lifecycleUser,
+    });
+    mocks.checkRateLimit.mockResolvedValue({ allowed: true });
+    mocks.prismaMessageCreate.mockImplementation(async ({ data }) => {
+      if (data.direction === "INBOUND") {
+        state = {
+          id: "tg_retry_in",
+          externalInboundStatus: data.externalInboundStatus,
+          externalInboundClaimToken: data.externalInboundClaimToken,
+          externalInboundLeaseExpiresAt: data.externalInboundLeaseExpiresAt,
+          user: lifecycleUser,
+          conversationThread: { id: "thread-telegram-1" },
+        };
+        return { id: state.id };
+      }
+      return { id: "tg_retry_out" };
+    });
+    mocks.prismaMessageUpdateMany.mockImplementation(async ({ data }) => {
+      if (!state) return { count: 0 };
+      if (data.externalInboundAttempts) {
+        if (state.externalInboundStatus !== "FAILED") return { count: 0 };
+        Object.assign(state, {
+          externalInboundStatus: "PROCESSING",
+          externalInboundClaimToken: data.externalInboundClaimToken,
+          externalInboundLeaseExpiresAt: data.externalInboundLeaseExpiresAt,
+        });
+        return { count: 1 };
+      }
+      if (
+        state.externalInboundStatus !== "PROCESSING" ||
+        !state.externalInboundClaimToken
+      ) {
+        return { count: 0 };
+      }
+      Object.assign(state, {
+        externalInboundStatus: data.externalInboundStatus,
+        externalInboundClaimToken: null,
+        externalInboundLeaseExpiresAt: null,
+      });
+      return { count: 1 };
+    });
+
+    const request = () =>
+      POST(
+        new Request("http://localhost/api/webhooks/telegram", {
+          method: "POST",
+          body: JSON.stringify(buildTextUpdate("retry me")),
+          headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+        }),
+      );
+
+    await request();
+    expect(state).toMatchObject({ externalInboundStatus: "FAILED" });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+
+    process.env.OPENROUTER_API_KEY = "sk-test";
+    mocks.incrementUsage.mockResolvedValue(undefined);
+    mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.isElevenLabsConfigured.mockReturnValue(false);
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({ text: "retried", metrics: {} });
+      return {
+        textStream: (async function* () {
+          yield "retried";
+        })(),
+      };
+    });
+
+    await Promise.all([request(), request()]);
+    expect(mocks.streamChat).toHaveBeenCalledTimes(1);
+    expect(state).toMatchObject({ externalInboundStatus: "COMPLETED" });
+
+    await request();
+    expect(mocks.streamChat).toHaveBeenCalledTimes(1);
   });
 
   it("sync connect command returns early when non-guest identity is already linked", async () => {

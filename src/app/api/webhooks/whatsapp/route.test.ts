@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   prismaMessageCreate: vi.fn(),
   prismaMessageMetricsCreate: vi.fn(),
   prismaMessageUpdate: vi.fn(),
+  prismaMessageUpdateMany: vi.fn(),
   prismaChatUpdate: vi.fn(),
   prismaAttachmentCreate: vi.fn(),
   prismaPreferencesFindUnique: vi.fn(),
@@ -59,6 +60,7 @@ vi.mock("@/lib/db", () => ({
       findFirst: mocks.prismaMessageFindFirst,
       create: mocks.prismaMessageCreate,
       update: mocks.prismaMessageUpdate,
+      updateMany: mocks.prismaMessageUpdateMany,
     },
     messageMetrics: {
       create: mocks.prismaMessageMetricsCreate,
@@ -156,6 +158,15 @@ import { GET, POST as postWebhook } from "./route";
 const originalEnv = { ...process.env };
 const testAppSecret = "test-app-secret";
 const invalidSignature = `sha256=${"0".repeat(64)}`;
+
+type InboundLifecycleState = {
+  id: string;
+  externalInboundStatus: string;
+  externalInboundClaimToken: string | null;
+  externalInboundLeaseExpiresAt: Date | null;
+  user: object;
+  conversationThread: { id: string };
+};
 
 function uniqueConstraintError() {
   return Object.assign(new Error("Unique constraint"), { code: "P2002" });
@@ -385,6 +396,7 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.prismaMessageCreate.mockReset();
     mocks.prismaMessageMetricsCreate.mockReset();
     mocks.prismaMessageUpdate.mockReset();
+    mocks.prismaMessageUpdateMany.mockReset();
     mocks.prismaChatUpdate.mockReset();
     mocks.prismaAttachmentCreate.mockReset();
     mocks.prismaPreferencesFindUnique.mockReset();
@@ -416,6 +428,7 @@ describe("/api/webhooks/whatsapp", () => {
           findFirst: mocks.prismaMessageFindFirst,
           create: mocks.prismaMessageCreate,
           update: mocks.prismaMessageUpdate,
+          updateMany: mocks.prismaMessageUpdateMany,
         },
         messageMetrics: {
           create: mocks.prismaMessageMetricsCreate,
@@ -458,6 +471,7 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.prismaMessageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
     mocks.prismaPreferencesFindUnique.mockResolvedValue({ voiceEnabled: true });
     mocks.prismaMessageUpdate.mockResolvedValue({});
+    mocks.prismaMessageUpdateMany.mockResolvedValue({ count: 1 });
     mocks.start.mockReturnValue({ end: vi.fn(), split: vi.fn() });
     mocks.measure.mockImplementation(
       async (_name: string, fn: () => unknown) => await fn(),
@@ -662,7 +676,10 @@ describe("/api/webhooks/whatsapp", () => {
     process.env.WHATSAPP_SYNC_WEBHOOK = "true";
     process.env.OPENROUTER_API_KEY = "sk-test";
 
-    mocks.prismaMessageFindFirst.mockResolvedValue({ id: "existing_wa_msg" });
+    mocks.prismaMessageFindFirst.mockResolvedValue({
+      id: "existing_wa_msg",
+      externalInboundStatus: "COMPLETED",
+    });
 
     const response = await POST(
       new Request("http://localhost/api/webhooks/whatsapp", {
@@ -678,11 +695,103 @@ describe("/api/webhooks/whatsapp", () => {
         channel: "WHATSAPP",
         externalMessageId: "wamid_1",
       },
-      select: { id: true },
+      select: expect.objectContaining({
+        id: true,
+        externalInboundStatus: true,
+      }),
     });
     expect(mocks.prismaMessageCreate).not.toHaveBeenCalled();
     expect(mocks.checkRateLimit).not.toHaveBeenCalled();
     expect(mocks.streamChat).not.toHaveBeenCalled();
+  });
+
+  it("retries a failed inbound once, completes it, and ignores later or concurrent duplicates", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_DISABLE_SEND = "true";
+    delete process.env.OPENROUTER_API_KEY;
+
+    const lifecycleUser = {
+      id: "user_retry",
+      role: "USER",
+      isGuest: true,
+      subscription: null,
+    };
+    let state: InboundLifecycleState | null = null;
+    mocks.prismaMessageFindFirst.mockImplementation(async () => state);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
+      user: lifecycleUser,
+    });
+    mocks.checkRateLimit.mockResolvedValue({ allowed: true });
+    mocks.prismaMessageCreate.mockImplementation(async ({ data }) => {
+      if (data.direction === "INBOUND") {
+        state = {
+          id: "wa_retry_in",
+          externalInboundStatus: data.externalInboundStatus,
+          externalInboundClaimToken: data.externalInboundClaimToken,
+          externalInboundLeaseExpiresAt: data.externalInboundLeaseExpiresAt,
+          user: lifecycleUser,
+          conversationThread: { id: "thread-whatsapp-1" },
+        };
+        return { id: state.id };
+      }
+      return { id: "wa_retry_out" };
+    });
+    mocks.prismaMessageUpdateMany.mockImplementation(async ({ data }) => {
+      if (!state) return { count: 0 };
+      if (data.externalInboundAttempts) {
+        if (state.externalInboundStatus !== "FAILED") return { count: 0 };
+        Object.assign(state, {
+          externalInboundStatus: "PROCESSING",
+          externalInboundClaimToken: data.externalInboundClaimToken,
+          externalInboundLeaseExpiresAt: data.externalInboundLeaseExpiresAt,
+        });
+        return { count: 1 };
+      }
+      if (
+        state.externalInboundStatus !== "PROCESSING" ||
+        !state.externalInboundClaimToken
+      ) {
+        return { count: 0 };
+      }
+      Object.assign(state, {
+        externalInboundStatus: data.externalInboundStatus,
+        externalInboundClaimToken: null,
+        externalInboundLeaseExpiresAt: null,
+      });
+      return { count: 1 };
+    });
+
+    const request = () =>
+      POST(
+        new Request("http://localhost/api/webhooks/whatsapp", {
+          method: "POST",
+          body: JSON.stringify(buildTextPayload("retry me")),
+        }),
+      );
+
+    await request();
+    expect(state).toMatchObject({ externalInboundStatus: "FAILED" });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+
+    process.env.OPENROUTER_API_KEY = "sk-test";
+    mocks.incrementUsage.mockResolvedValue(undefined);
+    mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.isElevenLabsConfigured.mockReturnValue(false);
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({ text: "retried", metrics: {} });
+      return {
+        textStream: (async function* () {
+          yield "retried";
+        })(),
+      };
+    });
+
+    await Promise.all([request(), request()]);
+    expect(mocks.streamChat).toHaveBeenCalledTimes(1);
+    expect(state).toMatchObject({ externalInboundStatus: "COMPLETED" });
+
+    await request();
+    expect(mocks.streamChat).toHaveBeenCalledTimes(1);
   });
 
   it("sync connect command returns early when non-guest identity is already linked", async () => {

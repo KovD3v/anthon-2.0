@@ -1,5 +1,8 @@
 export {
+  EXTERNAL_INBOUND_LEASE_MS,
   getExternalInboundMessageType,
+  markExternalChannelInboundCompleted,
+  markExternalChannelInboundFailed,
   prepareExternalChannelInbound,
 } from "./external-inbound";
 export { runChannelFlow } from "./run";

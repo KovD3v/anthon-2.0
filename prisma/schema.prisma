@@ -328,6 +328,13 @@ enum Channel {
   // FUTURE: TELEGRAM, INSTAGRAM, MESSENGER, EMAIL, IOS_APP, ANDROID_APP
 }
 
+enum ExternalInboundProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 // -----------------------------------------------------
 // CHAT (conversation sessions)
 // -----------------------------------------------------
@@ -393,6 +400,13 @@ model Message {
   externalMessageId String? // External message ID from WhatsApp/Telegram/Instagram
   metadata          Json? // Dynamic payload (location, template params, button events, etc.)
 
+  externalInboundStatus         ExternalInboundProcessingStatus?
+  externalInboundClaimToken     String?
+  externalInboundLeaseExpiresAt DateTime?
+  externalInboundAttempts       Int?
+  externalInboundCompletedAt    DateTime?
+  externalInboundLastError      String?
+
   // -----------------------------------------------------
   // AI TRACKING (for ASSISTANT messages only)
   // -----------------------------------------------------
@@ -428,6 +442,7 @@ model Message {
   @@index([chatId, userId, createdAt(sort: Desc)])
   @@index([conversationThreadId, createdAt])
   @@index([externalMessageId])
+  @@index([externalInboundStatus, externalInboundLeaseExpiresAt])
   @@index([userId, role, createdAt])
   @@index([model, createdAt])
   @@index([deletedAt])

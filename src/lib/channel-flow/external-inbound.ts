@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Prisma, SubscriptionStatus, UserRole } from "@/generated/prisma";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import { ensureConversationThread } from "@/lib/conversations/threads";
@@ -41,14 +42,87 @@ export interface ExternalChannelInboundEnvelope {
 }
 
 type PreparedExternalChannelInbound =
-  | { status: "duplicate" }
+  | { status: "duplicate"; reason: "completed" | "in_flight" }
   | {
       status: "accepted";
+      claimToken: string;
+      reclaimed: boolean;
       user: ExternalChannelUser;
       conversationThread: Awaited<ReturnType<typeof ensureConversationThread>>;
       inbound: { id: string };
       rateLimit: RateLimitResult;
     };
+
+export const EXTERNAL_INBOUND_LEASE_MS = 60_000;
+const EXTERNAL_INBOUND_ERROR_MAX_LENGTH = 300;
+
+function safeExternalInboundErrorSummary(error: unknown) {
+  let summary = "Unknown error";
+  if (typeof error === "string") summary = error;
+  else if (error instanceof Error) summary = `${error.name}: ${error.message}`;
+  else {
+    try {
+      summary = JSON.stringify(error);
+    } catch {
+      summary = "Unserializable error";
+    }
+  }
+  return Array.from(summary, (character) => {
+    const code = character.charCodeAt(0);
+    return code < 32 || code === 127 ? " " : character;
+  })
+    .join("")
+    .slice(0, EXTERNAL_INBOUND_ERROR_MAX_LENGTH);
+}
+
+export async function markExternalChannelInboundCompleted({
+  inboundId,
+  claimToken,
+}: {
+  inboundId: string;
+  claimToken: string;
+}) {
+  const result = await prisma.message.updateMany({
+    where: {
+      id: inboundId,
+      externalInboundStatus: "PROCESSING",
+      externalInboundClaimToken: claimToken,
+    },
+    data: {
+      externalInboundStatus: "COMPLETED",
+      externalInboundClaimToken: null,
+      externalInboundLeaseExpiresAt: null,
+      externalInboundCompletedAt: new Date(),
+      externalInboundLastError: null,
+    },
+  });
+  return result.count === 1;
+}
+
+export async function markExternalChannelInboundFailed({
+  inboundId,
+  claimToken,
+  error,
+}: {
+  inboundId: string;
+  claimToken: string;
+  error: unknown;
+}) {
+  const result = await prisma.message.updateMany({
+    where: {
+      id: inboundId,
+      externalInboundStatus: "PROCESSING",
+      externalInboundClaimToken: claimToken,
+    },
+    data: {
+      externalInboundStatus: "FAILED",
+      externalInboundClaimToken: null,
+      externalInboundLeaseExpiresAt: null,
+      externalInboundLastError: safeExternalInboundErrorSummary(error),
+    },
+  });
+  return result.count === 1;
+}
 
 function isUniqueConstraintError(error: unknown) {
   return (
@@ -167,16 +241,88 @@ async function resolveExternalChannelUser(
 export async function prepareExternalChannelInbound(
   envelope: ExternalChannelInboundEnvelope,
 ): Promise<PreparedExternalChannelInbound> {
+  const now = new Date();
+  const claimToken = randomUUID();
+  const leaseExpiresAt = new Date(now.getTime() + EXTERNAL_INBOUND_LEASE_MS);
   const existing = await prisma.message.findFirst({
     where: {
       channel: envelope.channel,
       externalMessageId: envelope.externalMessageId,
     },
-    select: { id: true },
+    select: {
+      id: true,
+      externalInboundStatus: true,
+      externalInboundLeaseExpiresAt: true,
+      user: { select: externalChannelIdentitySelect.user.select },
+      conversationThread: true,
+    },
   });
 
   if (existing) {
-    return { status: "duplicate" };
+    if (existing.externalInboundStatus === "COMPLETED") {
+      return { status: "duplicate", reason: "completed" };
+    }
+
+    const reclaimed = await prisma.message.updateMany({
+      where: {
+        id: existing.id,
+        OR: [
+          { externalInboundStatus: "PENDING" },
+          { externalInboundStatus: "FAILED" },
+          {
+            externalInboundStatus: "PROCESSING",
+            externalInboundLeaseExpiresAt: { lte: now },
+          },
+        ],
+      },
+      data: {
+        externalInboundStatus: "PROCESSING",
+        externalInboundClaimToken: claimToken,
+        externalInboundLeaseExpiresAt: leaseExpiresAt,
+        externalInboundAttempts: { increment: 1 },
+        externalInboundLastError: null,
+      },
+    });
+
+    if (reclaimed.count !== 1) {
+      return { status: "duplicate", reason: "in_flight" };
+    }
+    if (!existing.conversationThread) {
+      await markExternalChannelInboundFailed({
+        inboundId: existing.id,
+        claimToken,
+        error: "Inbound message has no conversation thread",
+      });
+      throw new Error("Inbound message has no conversation thread");
+    }
+
+    let rateLimit: RateLimitResult;
+    try {
+      rateLimit = await checkRateLimit(
+        existing.user.id,
+        existing.user.subscription?.status,
+        existing.user.role,
+        existing.user.subscription?.planId,
+        existing.user.isGuest,
+      );
+    } catch (error) {
+      await markExternalChannelInboundFailed({
+        inboundId: existing.id,
+        claimToken,
+        error,
+      });
+      throw error;
+    }
+
+    return {
+      status: "accepted",
+      claimToken,
+      reclaimed: true,
+      user: existing.user,
+      conversationThread: existing.conversationThread,
+      inbound: { id: existing.id },
+      rateLimit,
+    };
   }
 
   const user = await resolveExternalChannelUser(envelope);
@@ -197,6 +343,10 @@ export async function prepareExternalChannelInbound(
         type: envelope.messageType,
         externalMessageId: envelope.externalMessageId,
         metadata: envelope.metadata,
+        externalInboundStatus: "PROCESSING",
+        externalInboundClaimToken: claimToken,
+        externalInboundLeaseExpiresAt: leaseExpiresAt,
+        externalInboundAttempts: 1,
       },
       select: { id: true },
     })
@@ -208,16 +358,26 @@ export async function prepareExternalChannelInbound(
     });
 
   if (!inbound) {
-    return { status: "duplicate" };
+    return await prepareExternalChannelInbound(envelope);
   }
 
-  const rateLimit = await checkRateLimit(
-    user.id,
-    user.subscription?.status,
-    user.role,
-    user.subscription?.planId,
-    user.isGuest,
-  );
+  let rateLimit: RateLimitResult;
+  try {
+    rateLimit = await checkRateLimit(
+      user.id,
+      user.subscription?.status,
+      user.role,
+      user.subscription?.planId,
+      user.isGuest,
+    );
+  } catch (error) {
+    await markExternalChannelInboundFailed({
+      inboundId: inbound.id,
+      claimToken,
+      error,
+    });
+    throw error;
+  }
 
   if (rateLimit.allowed) {
     const funnelTask = trackInboundUserMessageFunnelProgress({
@@ -240,6 +400,8 @@ export async function prepareExternalChannelInbound(
 
   return {
     status: "accepted",
+    claimToken,
+    reclaimed: false,
     user,
     conversationThread,
     inbound,
