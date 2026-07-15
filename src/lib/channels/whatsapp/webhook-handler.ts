@@ -1,10 +1,14 @@
-import { createHash, createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { waitUntil } from "@vercel/functions";
 import type { Prisma } from "@/generated/prisma";
 import {
+  claimChannelConnectDelivery,
   getExternalInboundMessageType,
+  markChannelConnectDeliveryFailed,
+  markChannelConnectDeliverySent,
   markExternalChannelInboundCompleted,
   markExternalChannelInboundFailed,
+  prepareChannelConnectRequest,
   prepareExternalChannelInbound,
   runChannelFlow,
 } from "@/lib/channel-flow";
@@ -25,7 +29,6 @@ import { createLogger } from "@/lib/logger";
 
 const whatsappLogger = createLogger("webhook");
 
-const CONNECT_DELIVERY_LEASE_MS = 60_000;
 const CONNECT_DELIVERY_TIMEOUT_MS = 45_000;
 
 import {
@@ -204,15 +207,6 @@ export async function handleWhatsAppWebhookPost(request: Request) {
   return Response.json({ error: "Not Found" }, { status: 404 });
 }
 
-function isUniqueConstraintError(error: unknown) {
-  return (
-    error &&
-    typeof error === "object" &&
-    "code" in error &&
-    (error as { code?: string }).code === "P2002"
-  );
-}
-
 function createWhatsAppConnectToken(externalMessageId: string) {
   const secret = process.env.WHATSAPP_VERIFY_TOKEN;
   if (!secret) return null;
@@ -229,141 +223,6 @@ function hashWhatsAppLinkToken(rawToken: string) {
   return createHash("sha256")
     .update(`wa-link:${secret}:${rawToken}`)
     .digest("hex");
-}
-
-async function createOrGetWhatsAppConnectRequest({
-  externalMessageId,
-  externalId,
-}: {
-  externalMessageId: string;
-  externalId: string;
-}) {
-  try {
-    return await prisma.$transaction(async (tx) => {
-      // Create the durable claim first. PostgreSQL's unique constraint makes
-      // all duplicate deliveries wait here before they can create a token.
-      const connectRequest = await tx.channelConnectRequest.create({
-        data: {
-          channel: "WHATSAPP",
-          externalMessageId,
-          externalId,
-          chatId: externalId,
-          responseKind: "LINK",
-        },
-        select: { id: true, responseKind: true },
-      });
-
-      const existingIdentity = await tx.channelIdentity.findUnique({
-        where: {
-          channel_externalId: {
-            channel: "WHATSAPP",
-            externalId,
-          },
-        },
-        select: {
-          user: {
-            select: {
-              isGuest: true,
-            },
-          },
-        },
-      });
-
-      if (existingIdentity?.user && !existingIdentity.user.isGuest) {
-        return await tx.channelConnectRequest.update({
-          where: { id: connectRequest.id },
-          data: { responseKind: "ALREADY_LINKED" },
-          select: { id: true, responseKind: true },
-        });
-      }
-
-      const rawToken = createWhatsAppConnectToken(externalMessageId);
-      const tokenHash = rawToken ? hashWhatsAppLinkToken(rawToken) : null;
-      if (!tokenHash) {
-        return await tx.channelConnectRequest.update({
-          where: { id: connectRequest.id },
-          data: { responseKind: "UNAVAILABLE" },
-          select: { id: true, responseKind: true },
-        });
-      }
-
-      // The raw token is deterministic for this WAMID, so a retry can reuse
-      // the same link without storing its secret value in the claim.
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-      const existingToken = await tx.channelLinkToken.findUnique({
-        where: { tokenHash },
-        select: { id: true, expiresAt: true, consumedAt: true },
-      });
-      if (!existingToken) {
-        await tx.channelLinkToken.create({
-          data: {
-            channel: "WHATSAPP",
-            tokenHash,
-            externalId,
-            chatId: externalId,
-            expiresAt,
-          },
-          select: { id: true },
-        });
-      } else if (
-        !existingToken.consumedAt &&
-        existingToken.expiresAt.getTime() < Date.now()
-      ) {
-        await tx.channelLinkToken.update({
-          where: { id: existingToken.id },
-          data: { expiresAt },
-          select: { id: true },
-        });
-      }
-
-      return connectRequest;
-    });
-  } catch (error) {
-    if (!isUniqueConstraintError(error)) throw error;
-
-    return await prisma.channelConnectRequest.findUnique({
-      where: {
-        channel_externalMessageId: {
-          channel: "WHATSAPP",
-          externalMessageId,
-        },
-      },
-      select: { id: true, responseKind: true },
-    });
-  }
-}
-
-/**
- * A claim leases one outbound delivery at a time. Explicit send failures move
- * it to FAILED so a later provider retry can claim it again; an expired lease
- * also recovers a worker that stopped before recording its result.
- */
-async function claimWhatsAppConnectDelivery(connectRequestId: string) {
-  const now = new Date();
-  const claimToken = randomUUID();
-  const result = await prisma.channelConnectRequest.updateMany({
-    where: {
-      id: connectRequestId,
-      OR: [
-        { status: { in: ["PENDING", "FAILED"] } },
-        {
-          status: "SENDING",
-          deliveryLeaseExpiresAt: { lt: now },
-        },
-      ],
-    },
-    data: {
-      status: "SENDING",
-      claimToken,
-      deliveryLeaseExpiresAt: new Date(
-        now.getTime() + CONNECT_DELIVERY_LEASE_MS,
-      ),
-      deliveryAttempts: { increment: 1 },
-      lastDeliveryError: null,
-    },
-  });
-
-  return result.count === 1 ? claimToken : null;
 }
 
 function whatsAppConnectResponse(
@@ -394,9 +253,13 @@ async function handleConnectCommand({
   externalMessageId: string;
   from: string;
 }) {
-  const connectRequest = await createOrGetWhatsAppConnectRequest({
+  const rawToken = createWhatsAppConnectToken(externalMessageId);
+  const connectRequest = await prepareChannelConnectRequest({
+    channel: "WHATSAPP",
     externalMessageId,
     externalId: from,
+    chatId: from,
+    tokenHash: rawToken ? hashWhatsAppLinkToken(rawToken) : null,
   }).catch((error) => {
     whatsappLogger.error(
       "connect.claim_failed",
@@ -410,7 +273,7 @@ async function handleConnectCommand({
 
   let claimToken: string | null;
   try {
-    claimToken = await claimWhatsAppConnectDelivery(connectRequest.id);
+    claimToken = await claimChannelConnectDelivery(connectRequest.id);
     if (!claimToken) return;
   } catch (error) {
     whatsappLogger.error(
@@ -429,42 +292,22 @@ async function handleConnectCommand({
     );
     if (!sent) throw new Error("WhatsApp connect response was not accepted");
 
-    await prisma.channelConnectRequest.updateMany({
-      where: {
-        id: connectRequest.id,
-        status: "SENDING",
-        claimToken,
-      },
-      data: {
-        status: "SENT",
-        claimToken: null,
-        deliveredAt: new Date(),
-        deliveryLeaseExpiresAt: null,
-        lastDeliveryError: null,
-      },
+    await markChannelConnectDeliverySent({
+      connectRequestId: connectRequest.id,
+      claimToken,
     });
   } catch (error) {
-    await prisma.channelConnectRequest
-      .updateMany({
-        where: {
-          id: connectRequest.id,
-          status: "SENDING",
-          claimToken,
-        },
-        data: {
-          status: "FAILED",
-          claimToken: null,
-          deliveryLeaseExpiresAt: null,
-          lastDeliveryError: safeErrorSummary(error),
-        },
-      })
-      .catch((markError) =>
-        whatsappLogger.error(
-          "connect.delivery_failure_unrecorded",
-          "Failed to record WhatsApp connect delivery failure",
-          { markError, connectRequestId: connectRequest.id },
-        ),
+    await markChannelConnectDeliveryFailed({
+      connectRequestId: connectRequest.id,
+      claimToken,
+      error,
+    }).catch((markError) => {
+      whatsappLogger.error(
+        "connect.delivery_failure_unrecorded",
+        "Failed to record WhatsApp connect delivery failure",
+        { markError, connectRequestId: connectRequest.id },
       );
+    });
   }
 }
 
