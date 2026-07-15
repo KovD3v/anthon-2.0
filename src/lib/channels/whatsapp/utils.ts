@@ -4,6 +4,94 @@ import { createLogger } from "@/lib/logger";
 
 const whatsappLogger = createLogger("webhook");
 
+// Raw download budgets only. Base64/downstream limits remain separate, and
+// every newly accepted media class must be assigned an explicit byte budget.
+const WHATSAPP_AUDIO_MAX_BYTES = 10 * 1024 * 1024;
+const WHATSAPP_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+const WHATSAPP_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
+const WHATSAPP_MEDIA_TIMEOUT_MS = 10_000;
+
+async function withWhatsAppMediaTimeout<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    WHATSAPP_MEDIA_TIMEOUT_MS,
+  );
+  try {
+    return await operation(controller.signal);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function isTrustedByteLength(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+function getMediaMaxBytes(mimeType: string): number {
+  if (mimeType.startsWith("audio/")) return WHATSAPP_AUDIO_MAX_BYTES;
+  if (mimeType.startsWith("image/")) return WHATSAPP_IMAGE_MAX_BYTES;
+  return WHATSAPP_DOCUMENT_MAX_BYTES;
+}
+
+function getTrustedContentLength(response: Response): number | null {
+  const value = response.headers.get("content-length");
+  if (!value || !/^\d+$/.test(value)) return null;
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+async function readBoundedResponseBody(
+  response: Response,
+  maxBytes: number,
+): Promise<Buffer | null> {
+  const contentLength = getTrustedContentLength(response);
+  if (contentLength !== null && contentLength > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    whatsappLogger.warn("media.content_length_exceeded", "Media is too large", {
+      contentLength,
+      maxBytes,
+    });
+    return null;
+  }
+
+  if (!response.body) return null;
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        whatsappLogger.warn(
+          "media.stream_size_exceeded",
+          "Media is too large",
+          {
+            receivedBytes: totalBytes,
+            maxBytes,
+          },
+        );
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return Buffer.concat(chunks, totalBytes);
+}
+
 export function verifySignature(request: Request, body: string): boolean {
   const secret = process.env.WHATSAPP_APP_SECRET;
   if (!secret) return false;
@@ -151,28 +239,57 @@ export async function downloadWhatsAppMedia(
   if (!token) return null;
 
   try {
-    const urlRes = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const metadata = await withWhatsAppMediaTimeout(async (signal) => {
+      const urlRes = await fetch(
+        `https://graph.facebook.com/v21.0/${mediaId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          signal,
+        },
+      );
+      if (!urlRes.ok) return null;
+      return (await urlRes.json()) as {
+        url?: unknown;
+        mime_type?: unknown;
+        file_size?: unknown;
+      };
     });
-    if (!urlRes.ok) return null;
+    if (!metadata) return null;
+    const url = typeof metadata.url === "string" ? metadata.url.trim() : "";
+    const mimeType =
+      typeof metadata.mime_type === "string" ? metadata.mime_type.trim() : "";
+    if (!url || !mimeType) return null;
 
-    const { url, mime_type } = (await urlRes.json()) as {
-      url: string;
-      mime_type: string;
-    };
+    const maxBytes = getMediaMaxBytes(mimeType);
+    if (
+      isTrustedByteLength(metadata.file_size) &&
+      metadata.file_size > maxBytes
+    ) {
+      whatsappLogger.warn(
+        "media.declared_size_exceeded",
+        "Media is too large",
+        {
+          declaredBytes: metadata.file_size,
+          maxBytes,
+        },
+      );
+      return null;
+    }
 
-    const binRes = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
+    const buffer = await withWhatsAppMediaTimeout(async (signal) => {
+      const binRes = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+      if (!binRes.ok) return null;
+      return readBoundedResponseBody(binRes, maxBytes);
     });
-    if (!binRes.ok) return null;
+    if (!buffer?.length) return null;
 
-    const buffer = await binRes.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString("base64");
-
-    return { base64, mimeType: mime_type };
-  } catch (error) {
+    return { base64: buffer.toString("base64"), mimeType };
+  } catch {
     whatsappLogger.error("media.download_failed", "Media download failed", {
-      error,
+      timeoutMs: WHATSAPP_MEDIA_TIMEOUT_MS,
     });
     return null;
   }

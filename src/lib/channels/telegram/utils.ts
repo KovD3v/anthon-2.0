@@ -3,6 +3,28 @@ import { createLogger } from "@/lib/logger";
 
 const telegramLogger = createLogger("webhook");
 
+// Raw download budgets only. Base64/downstream limits remain separate, and
+// every newly accepted media class must be assigned an explicit byte budget.
+const TELEGRAM_AUDIO_MAX_BYTES = 10 * 1024 * 1024;
+const TELEGRAM_PHOTO_MAX_BYTES = 10 * 1024 * 1024;
+const TELEGRAM_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
+const TELEGRAM_DOWNLOAD_TIMEOUT_MS = 10_000;
+
+async function withTelegramDownloadTimeout<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    TELEGRAM_DOWNLOAD_TIMEOUT_MS,
+  );
+  try {
+    return await operation(controller.signal);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export type TelegramVoice = {
   file_id: string;
   file_unique_id: string;
@@ -76,6 +98,77 @@ export function hashLinkToken(token: string) {
     .digest("hex");
 }
 
+function isTrustedByteLength(value: number | undefined): value is number {
+  return value !== undefined && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isDeclaredFileTooLarge(
+  declaredBytes: number | undefined,
+  maxBytes: number,
+): boolean {
+  if (!isTrustedByteLength(declaredBytes) || declaredBytes <= maxBytes) {
+    return false;
+  }
+
+  telegramLogger.warn("file.declared_size_exceeded", "File is too large", {
+    declaredBytes,
+    maxBytes,
+  });
+  return true;
+}
+
+function getTrustedContentLength(response: Response): number | null {
+  const value = response.headers.get("content-length");
+  if (!value || !/^\d+$/.test(value)) return null;
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+async function readBoundedResponseBody(
+  response: Response,
+  maxBytes: number,
+): Promise<Buffer | null> {
+  const contentLength = getTrustedContentLength(response);
+  if (contentLength !== null && contentLength > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    telegramLogger.warn("file.content_length_exceeded", "File is too large", {
+      contentLength,
+      maxBytes,
+    });
+    return null;
+  }
+
+  if (!response.body) return null;
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        telegramLogger.warn("file.stream_size_exceeded", "File is too large", {
+          receivedBytes: totalBytes,
+          maxBytes,
+        });
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return Buffer.concat(chunks, totalBytes);
+}
+
 export async function getTelegramFilePath(
   fileId: string,
 ): Promise<string | null> {
@@ -92,33 +185,31 @@ export async function getTelegramFilePath(
     const url = `https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(
       fileId,
     )}`;
-    const res = await fetch(url);
+    return await withTelegramDownloadTimeout(async (signal) => {
+      const res = await fetch(url, { signal });
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      telegramLogger.error("file.get_failed", "getFile failed", {
-        status: res.status,
-        body,
-      });
-      return null;
-    }
+      if (!res.ok) {
+        telegramLogger.error("file.get_failed", "getFile failed", {
+          status: res.status,
+        });
+        return null;
+      }
 
-    const data = (await res.json()) as {
-      ok: boolean;
-      result?: { file_path?: string };
-    };
+      const data = (await res.json()) as {
+        ok: boolean;
+        result?: { file_path?: string };
+      };
 
-    if (!data.ok || !data.result?.file_path) {
-      telegramLogger.error("file.no_path", "getFile returned no file_path", {
-        data,
-      });
-      return null;
-    }
+      if (!data.ok || !data.result?.file_path) {
+        telegramLogger.error("file.no_path", "getFile returned no file_path");
+        return null;
+      }
 
-    return data.result.file_path;
-  } catch (error) {
+      return data.result.file_path;
+    });
+  } catch {
     telegramLogger.error("file.path_error", "Error getting file path", {
-      error,
+      timeoutMs: TELEGRAM_DOWNLOAD_TIMEOUT_MS,
     });
     return null;
   }
@@ -126,6 +217,7 @@ export async function getTelegramFilePath(
 
 async function downloadTelegramFileAsBase64(
   filePath: string,
+  maxBytes: number,
 ): Promise<string | null> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
@@ -138,22 +230,22 @@ async function downloadTelegramFileAsBase64(
 
   try {
     const url = `https://api.telegram.org/file/bot${token}/${filePath}`;
-    const res = await fetch(url);
+    return await withTelegramDownloadTimeout(async (signal) => {
+      const res = await fetch(url, { signal });
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      telegramLogger.error("file.download_failed", "File download failed", {
-        status: res.status,
-        body,
-      });
-      return null;
-    }
+      if (!res.ok) {
+        telegramLogger.error("file.download_failed", "File download failed", {
+          status: res.status,
+        });
+        return null;
+      }
 
-    const arrayBuffer = await res.arrayBuffer();
-    return Buffer.from(arrayBuffer).toString("base64");
-  } catch (error) {
+      const buffer = await readBoundedResponseBody(res, maxBytes);
+      return buffer?.length ? buffer.toString("base64") : null;
+    });
+  } catch {
     telegramLogger.error("file.download_error", "Error downloading file", {
-      error,
+      timeoutMs: TELEGRAM_DOWNLOAD_TIMEOUT_MS,
     });
     return null;
   }
@@ -169,13 +261,20 @@ export async function downloadTelegramAudio(
   }
 
   const mimeType = voice?.mime_type || audio?.mime_type || "audio/ogg";
+  const fileSize = voice?.file_size ?? audio?.file_size;
+  if (isDeclaredFileTooLarge(fileSize, TELEGRAM_AUDIO_MAX_BYTES)) {
+    return null;
+  }
 
   const filePath = await getTelegramFilePath(fileId);
   if (!filePath) {
     return null;
   }
 
-  const base64 = await downloadTelegramFileAsBase64(filePath);
+  const base64 = await downloadTelegramFileAsBase64(
+    filePath,
+    TELEGRAM_AUDIO_MAX_BYTES,
+  );
   if (!base64) {
     return null;
   }
@@ -191,12 +290,20 @@ export async function downloadTelegramPhoto(
   }
 
   const largestPhoto = photos[photos.length - 1];
+  if (
+    isDeclaredFileTooLarge(largestPhoto.file_size, TELEGRAM_PHOTO_MAX_BYTES)
+  ) {
+    return null;
+  }
   const filePath = await getTelegramFilePath(largestPhoto.file_id);
   if (!filePath) {
     return null;
   }
 
-  const base64 = await downloadTelegramFileAsBase64(filePath);
+  const base64 = await downloadTelegramFileAsBase64(
+    filePath,
+    TELEGRAM_PHOTO_MAX_BYTES,
+  );
   if (!base64) {
     return null;
   }
@@ -207,12 +314,18 @@ export async function downloadTelegramPhoto(
 export async function downloadTelegramDocument(
   document: TelegramDocument,
 ): Promise<{ base64: string; mimeType: string; fileName?: string } | null> {
+  if (isDeclaredFileTooLarge(document.file_size, TELEGRAM_DOCUMENT_MAX_BYTES)) {
+    return null;
+  }
   const filePath = await getTelegramFilePath(document.file_id);
   if (!filePath) {
     return null;
   }
 
-  const base64 = await downloadTelegramFileAsBase64(filePath);
+  const base64 = await downloadTelegramFileAsBase64(
+    filePath,
+    TELEGRAM_DOCUMENT_MAX_BYTES,
+  );
   if (!base64) {
     return null;
   }
