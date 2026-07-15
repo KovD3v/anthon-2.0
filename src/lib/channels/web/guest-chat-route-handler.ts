@@ -106,7 +106,12 @@ export async function handleGuestChatPost(request: Request) {
           () =>
             prisma.chat.findFirst({
               where: { id: chatId, userId: user.id },
-              select: { id: true, title: true, customTitle: true },
+              select: {
+                id: true,
+                title: true,
+                customTitle: true,
+                _count: { select: { messages: true } },
+              },
             }),
           "🌐 Guest Chat API Request",
         );
@@ -286,7 +291,7 @@ export async function handleGuestChatPost(request: Request) {
             isGuest: true,
             hasImages: false,
             hasAudio: false,
-            skipConversationHistory: requestConversationMessageCount === 1,
+            skipConversationHistory: chat._count.messages === 0,
           },
           execution: { mode: "stream" },
           persistence: {

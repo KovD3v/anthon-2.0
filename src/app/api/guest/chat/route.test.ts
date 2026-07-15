@@ -194,6 +194,7 @@ describe("POST /api/guest/chat", () => {
       id: "chat-1",
       title: "Guest Chat",
       customTitle: true,
+      _count: { messages: 0 },
     });
     mocks.ensureConversationThread.mockResolvedValue({ id: "thread-guest-1" });
     mocks.messageCreate.mockResolvedValue({ id: "msg-guest-1" });
@@ -463,6 +464,12 @@ describe("POST /api/guest/chat", () => {
   });
 
   it("uses the last user message when multiple messages are submitted", async () => {
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Guest Chat",
+      customTitle: true,
+      _count: { messages: 2 },
+    });
     let streamArgs: Record<string, unknown> | undefined;
     mocks.streamChat.mockImplementation(
       async (args: Record<string, unknown>) => {
@@ -510,11 +517,47 @@ describe("POST /api/guest/chat", () => {
     });
   });
 
+  it("loads persisted history when the client submits only its latest message", async () => {
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Guest Chat",
+      customTitle: true,
+      _count: { messages: 3 },
+    });
+    let streamArgs: Record<string, unknown> | undefined;
+    mocks.streamChat.mockImplementation(
+      async (args: Record<string, unknown>) => {
+        streamArgs = args;
+        return {
+          toUIMessageStreamResponse: () =>
+            Response.json({ ok: true, stream: true }, { status: 200 }),
+        };
+      },
+    );
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          { role: "user", parts: [{ type: "text", text: "continue" }] },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(streamArgs).toMatchObject({
+      chatId: "chat-1",
+      userMessage: "continue",
+      skipConversationHistory: false,
+    });
+  });
+
   it("uses request messages for title refresh without a blocking message count", async () => {
     mocks.chatFindFirst.mockResolvedValue({
       id: "chat-1",
       title: "Nuova Chat",
       customTitle: false,
+      _count: { messages: 0 },
     });
 
     const response = await POST(

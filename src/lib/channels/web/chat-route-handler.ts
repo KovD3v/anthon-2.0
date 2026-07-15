@@ -181,7 +181,12 @@ export async function handleWebChatPost(request: Request) {
           () =>
             prisma.chat.findFirst({
               where: { id: chatId, userId: user.id },
-              select: { id: true, title: true, customTitle: true },
+              select: {
+                id: true,
+                title: true,
+                customTitle: true,
+                _count: { select: { messages: true } },
+              },
             }),
           "🌐 Chat API Request",
         );
@@ -520,7 +525,7 @@ export async function handleWebChatPost(request: Request) {
           subscriptionStatus,
           hasAttachments: Boolean(hasAttachments),
           effectiveEntitlements: rateLimitResult.effectiveEntitlements,
-          skipConversationHistory: requestConversationMessageCount === 1,
+          skipConversationHistory: chat._count.messages === 0,
         });
         if (comparisonResponse) {
           requestTimer.split("Model comparison setup complete");
@@ -561,7 +566,7 @@ export async function handleWebChatPost(request: Request) {
             responseMode: "text",
             voiceEnabled: voiceUnavailableReason ? false : undefined,
             voiceUnavailableReason,
-            skipConversationHistory: requestConversationMessageCount === 1,
+            skipConversationHistory: chat._count.messages === 0,
           },
           execution: { mode: "stream" },
           persistence: {

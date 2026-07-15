@@ -285,6 +285,7 @@ describe("POST /api/chat", () => {
       id: "chat-1",
       title: "Chat",
       customTitle: true,
+      _count: { messages: 0 },
     });
     mocks.ensureConversationThread.mockResolvedValue({ id: "thread-1" });
     mocks.messageCreate.mockResolvedValue({ id: "msg-user-1" });
@@ -844,6 +845,41 @@ describe("POST /api/chat", () => {
     });
   });
 
+  it("loads persisted history when the client submits only its latest message", async () => {
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Chat",
+      customTitle: true,
+      _count: { messages: 4 },
+    });
+    let streamArgs: Record<string, unknown> | undefined;
+    mocks.streamChat.mockImplementation(
+      async (args: Record<string, unknown>) => {
+        streamArgs = args;
+        return {
+          toUIMessageStreamResponse: () =>
+            Response.json({ ok: true, stream: true }, { status: 200 }),
+        };
+      },
+    );
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          { role: "user", parts: [{ type: "text", text: "continue" }] },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(streamArgs).toMatchObject({
+      chatId: "chat-1",
+      userMessage: "continue",
+      skipConversationHistory: false,
+    });
+  });
+
   it("passes image blob urls to the AI flow as image file parts", async () => {
     let streamArgs: Record<string, unknown> | undefined;
     mocks.streamChat.mockImplementation(
@@ -950,6 +986,7 @@ describe("POST /api/chat", () => {
       id: "chat-1",
       title: "Nuova Chat",
       customTitle: false,
+      _count: { messages: 0 },
     });
 
     const response = await POST(
@@ -978,6 +1015,7 @@ describe("POST /api/chat", () => {
       id: "chat-1",
       title: "Nuova Chat",
       customTitle: false,
+      _count: { messages: 0 },
     });
     mocks.generateChatTitle.mockRejectedValue(new Error("title service down"));
     mocks.waitUntil.mockImplementation((promise: Promise<unknown>) => {
