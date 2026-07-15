@@ -27,7 +27,7 @@ export default function HelpPage() {
       icon: Zap,
       title: "Feedback immediato",
       description:
-        "Ricevi indicazioni operative e valuta le risposte per rendere il supporto progressivamente più utile.",
+        "Ricevi indicazioni da provare e valuta le risposte. Il tuo feedback aiuta Anthon a capire cosa ti è utile.",
     },
     {
       icon: Search,
@@ -88,8 +88,8 @@ export default function HelpPage() {
                 </span>
               </h1>
               <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-                Scopri le funzioni principali e velocizza il tuo lavoro con le
-                scorciatoie da tastiera.
+                Qui trovi le funzioni principali e le scorciatoie da tastiera
+                per usarle più in fretta.
               </p>
             </m.div>
           </div>

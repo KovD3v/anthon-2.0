@@ -18,11 +18,11 @@ export function CTA() {
           transition={defaultTransition}
         >
           <h2 className="font-display mx-auto mb-6 max-w-4xl text-4xl font-bold uppercase leading-none tracking-tight sm:text-5xl">
-            Porta fiducia, focus e lucidità nella tua prossima gara
+            Prepara la testa per la prossima gara
           </h2>
           <p className="mx-auto mb-8 max-w-2xl text-xl text-[#171714]/75">
-            Parti dalla chat, scegli il piano quando ti serve più continuità e
-            coinvolgi il team quando lavori con atleti o staff.
+            Racconta ad Anthon cosa stai affrontando. La prima routine parte da
+            lì.
           </p>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
             <Button

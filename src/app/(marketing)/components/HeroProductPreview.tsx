@@ -174,7 +174,7 @@ export function HeroProductPreview() {
                     {status}
                   </p>
                   <h4 className="font-display mt-1 text-2xl font-bold uppercase leading-none sm:text-3xl">
-                    Reset 4—2—6
+                    Reset 4-2-6
                   </h4>
                 </div>
               </div>

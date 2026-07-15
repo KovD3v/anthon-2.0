@@ -10,21 +10,21 @@ const steps = [
     id: "step-chat",
     title: "Parla con Anthon",
     description:
-      "Racconta ad Anthon delle tue prossime partite, delle sfide attuali e dei tuoi obiettivi. Lui ascolta e comprende il tuo contesto unico.",
+      "Racconta cosa è successo, cosa ti aspetta e dove senti più pressione. Anthon parte da lì.",
     icon: MessageSquare,
   },
   {
     id: "step-plan",
     title: "Ottieni il tuo piano",
     description:
-      "Ricevi un piano di preparazione mentale personalizzato, inclusi audio di visualizzazione, esercizi di respirazione e affermazioni.",
+      "Ricevi una routine adatta a quel momento, con esercizi di respirazione, visualizzazioni o indicazioni da portare in campo.",
     icon: Sparkles,
   },
   {
     id: "step-track",
     title: "Monitora e migliora",
     description:
-      "Registra le tue sensazioni dopo le partite e gli allenamenti. Anthon adatta i suoi consigli in base al tuo feedback e ai tuoi progressi.",
+      "Dopo la partita, racconta com’è andata. Anthon tiene conto del tuo feedback nella conversazione successiva.",
     icon: TrendingUp,
   },
 ];
@@ -52,7 +52,8 @@ export function HowItWorks() {
             transition={{ ...defaultTransition, delay: 0.1 }}
             className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground"
           >
-            Il tuo viaggio verso la forza mentale in tre semplici passi.
+            Parti da una situazione precisa. Esci dalla chat con qualcosa da
+            provare.
           </m.p>
         </div>
 

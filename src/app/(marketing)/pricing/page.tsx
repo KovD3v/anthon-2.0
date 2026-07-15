@@ -17,9 +17,8 @@ export default function PricingPage() {
               Scegli il piano in base al tuo obiettivo sportivo
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              Inizia in chat, valida la routine mentale e passa a un piano
-              superiore quando hai bisogno di più continuità o lavoro di
-              squadra.
+              Prova Anthon in chat. Puoi cambiare piano quando vuoi allenarti
+              con più continuità o coinvolgere la squadra.
             </p>
           </div>
 

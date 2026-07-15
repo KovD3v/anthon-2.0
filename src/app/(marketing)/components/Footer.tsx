@@ -103,7 +103,7 @@ export function Footer() {
             &copy; {new Date().getFullYear()} Anthon AI. Tutti i diritti
             riservati.
           </p>
-          <p>Costruito per la performance, progettato in Italia.</p>
+          <p>Progettato in Italia per chi si allena e gareggia.</p>
         </div>
       </div>
     </footer>

@@ -176,12 +176,11 @@ export function AnthonScenarioDemo() {
       <div className="grid lg:grid-cols-[0.88fr_1.12fr]">
         <div className="relative flex flex-col justify-center p-6 sm:p-9 lg:p-12">
           <h2 className="max-w-md text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
-            Trasforma quello che vivi in qualcosa che puoi allenare.
+            Porta in chat quello che ti succede in gara.
           </h2>
           <p className="mt-5 max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Dalla pressione prima della gara al recupero dopo un errore: scegli
-            una situazione e scopri come Anthon la traduce in un'azione
-            concreta.
+            Scegli una situazione. Vedrai come Anthon passa dal racconto a una
+            routine da provare.
           </p>
 
           <fieldset className="mt-7 flex flex-wrap gap-2 border-0 p-0">

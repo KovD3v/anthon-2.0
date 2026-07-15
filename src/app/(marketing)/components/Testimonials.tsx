@@ -10,15 +10,15 @@ const method = [
     label: "Contesto",
     title: "Parte dalla situazione reale",
     description:
-      "Sport, momento della stagione, livello di pressione e obiettivo della prossima performance.",
+      "Anthon considera lo sport che pratichi, il momento della stagione e cosa ti aspetta nella prossima gara.",
     icon: ClipboardCheck,
   },
   {
     id: "method-action",
     label: "Azione",
-    title: "Trasforma il dialogo in una routine",
+    title: "Dal dialogo nasce una routine",
     description:
-      "Esercizi brevi, istruzioni chiare e un piano utilizzabile prima, durante e dopo la gara.",
+      "Ricevi esercizi brevi da usare nel momento in cui servono, dentro o fuori dal campo.",
     icon: Route,
   },
   {
@@ -26,7 +26,7 @@ const method = [
     label: "Adattamento",
     title: "Impara da ciò che succede in campo",
     description:
-      "Il feedback post-performance aggiorna il percorso e rende il lavoro successivo più specifico.",
+      "Dopo la gara racconti cosa ha funzionato. La conversazione successiva riparte da quel feedback.",
     icon: Repeat2,
   },
 ];
@@ -47,7 +47,7 @@ export function Testimonials() {
             transition={defaultTransition}
             className="font-display max-w-2xl text-4xl font-bold uppercase leading-[0.95] tracking-tight sm:text-5xl"
           >
-            Un metodo pratico, non frasi motivazionali
+            Dalla conversazione al campo
           </m.h2>
           <m.p
             variants={fadeUp}
@@ -57,8 +57,8 @@ export function Testimonials() {
             transition={{ ...defaultTransition, delay: 0.1 }}
             className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground"
           >
-            Ogni conversazione collega il vissuto dell’atleta a un’azione
-            concreta e a un ciclo di miglioramento.
+            Anthon parte da ciò che ti è successo, propone una routine e usa il
+            tuo feedback per scegliere il passo successivo.
           </m.p>
         </div>
 

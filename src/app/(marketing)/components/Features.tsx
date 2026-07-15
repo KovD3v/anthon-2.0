@@ -7,44 +7,44 @@ import { defaultTransition, fadeUp, staggerContainer } from "@/lib/motion";
 const features = [
   {
     id: "feature-training",
-    title: "Più fiducia in gara",
+    title: "Fiducia costruita in allenamento",
     description:
-      "Costruisci una routine mentale stabile per arrivare alle gare con sicurezza, non con dubbi.",
+      "Allena una routine da ripetere finché diventa familiare, anche nei minuti che precedono la gara.",
     icon: Brain,
   },
   {
     id: "feature-visualization",
-    title: "Focus immediato prima della performance",
+    title: "Meno pensieri prima di iniziare",
     description:
-      "Preparati in pochi minuti con esercizi guidati che ti aiutano a entrare nella zona giusta.",
+      "Usa esercizi brevi per riportare l’attenzione sul primo gesto che dipende da te.",
     icon: Target,
   },
   {
     id: "feature-flow",
-    title: "Continuità sotto pressione",
+    title: "Un reset durante la gara",
     description:
-      "Riduci cali di concentrazione e rientra velocemente nel tuo ritmo durante allenamento e gara.",
+      "Dopo un errore o una pausa, riparti da una sequenza semplice invece di inseguire il risultato.",
     icon: Zap,
   },
   {
     id: "feature-stress",
-    title: "Pressione gestita, non subita",
+    title: "La pressione ha un ritmo",
     description:
-      "Trasforma ansia e tensione in energia utile nei momenti in cui serve lucidità.",
+      "Riconosci cosa succede nel corpo e scegli una risposta che puoi usare sul campo.",
     icon: Shield,
   },
   {
     id: "feature-tracking",
-    title: "Progressi visibili settimana dopo settimana",
+    title: "Capisci cosa sta funzionando",
     description:
-      "Monitora i tuoi risultati mentali per capire cosa funziona davvero nel tuo percorso.",
+      "Registra come ti sei sentito e quali routine hai usato. Nel tempo emergono i segnali da seguire.",
     icon: Activity,
   },
   {
     id: "feature-insights",
-    title: "Decisioni migliori per il tuo percorso",
+    title: "Il lavoro cambia con te",
     description:
-      "Leggi i tuoi pattern di performance e adatta il lavoro mentale in base ai tuoi obiettivi sportivi.",
+      "Anthon usa il tuo feedback per adattare gli esercizi alla fase della stagione e al prossimo obiettivo.",
     icon: BarChart3,
   },
 ];
@@ -65,7 +65,7 @@ export function Features() {
             transition={defaultTransition}
             className="font-display text-4xl font-bold uppercase leading-none tracking-tight sm:text-5xl"
           >
-            Risultati mentali concreti, in campo e in gara
+            La preparazione mentale entra in campo con te
           </m.h2>
           <m.p
             variants={fadeUp}
@@ -75,8 +75,8 @@ export function Features() {
             transition={{ ...defaultTransition, delay: 0.1 }}
             className="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground"
           >
-            Ogni area è pensata per migliorare tre leve chiave: fiducia, focus e
-            gestione della pressione.
+            Preparati prima della gara, ritrova il ritmo nei momenti difficili e
+            guarda cosa cambia nel tempo.
           </m.p>
         </div>
 

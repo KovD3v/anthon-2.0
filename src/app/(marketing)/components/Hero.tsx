@@ -43,8 +43,8 @@ export function Hero() {
                 transition={{ ...defaultTransition, delay: 0.2 }}
                 className="max-w-xl text-lg leading-relaxed text-muted-foreground sm:text-xl"
               >
-                Un mental coach che trasforma pressione, errori e distrazioni in
-                routine pratiche per la tua prossima gara.
+                Racconta ad Anthon cosa succede in gara. Ti aiuta a preparare
+                una routine mentale da provare già al prossimo allenamento.
               </m.p>
 
               <m.div
