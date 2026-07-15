@@ -1,11 +1,27 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 import { deletePrivateVoiceBlobsForMessages } from "@/lib/voice/attachment-cleanup";
 
 const chatLogger = createLogger("ai");
+
+function chatMessageSuffixWhere(
+  userId: string,
+  chatId: string | null,
+  message: { id: string; createdAt: Date },
+): Prisma.MessageWhereInput {
+  return {
+    userId,
+    chatId,
+    OR: [
+      { createdAt: { gt: message.createdAt } },
+      { createdAt: message.createdAt, id: { gte: message.id } },
+    ],
+  };
+}
 
 /**
  * GET /api/chat/messages?chatId=<chatId>
@@ -157,11 +173,11 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const deletedMessageWhere = {
-      userId: user.id,
-      chatId: message.chatId,
-      createdAt: { gte: message.createdAt },
-    };
+    const deletedMessageWhere = chatMessageSuffixWhere(
+      user.id,
+      message.chatId,
+      message,
+    );
 
     // Delete private voice objects before their Message/Attachment references
     // disappear in the following hard delete.
@@ -273,11 +289,11 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const deletedMessageWhere = {
-      userId: user.id,
-      chatId: message.chatId,
-      createdAt: { gte: message.createdAt },
-    };
+    const deletedMessageWhere = chatMessageSuffixWhere(
+      user.id,
+      message.chatId,
+      message,
+    );
 
     await deletePrivateVoiceBlobsForMessages(deletedMessageWhere);
 

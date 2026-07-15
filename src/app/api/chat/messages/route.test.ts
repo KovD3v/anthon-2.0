@@ -399,15 +399,16 @@ describe("/api/chat/messages route", () => {
     expect(mocks.deletePrivateVoiceBlobsForMessages).toHaveBeenCalledWith({
       userId: "user-1",
       chatId: "chat-1",
-      createdAt: { gte: createdAt },
+      OR: [{ createdAt: { gt: createdAt } }, { createdAt, id: { gte: "m1" } }],
     });
     expect(mocks.messageDeleteMany).toHaveBeenCalledWith({
       where: {
         userId: "user-1",
         chatId: "chat-1",
-        createdAt: {
-          gte: createdAt,
-        },
+        OR: [
+          { createdAt: { gt: createdAt } },
+          { createdAt, id: { gte: "m1" } },
+        ],
       },
     });
     await expect(response.json()).resolves.toEqual({
@@ -607,15 +608,16 @@ describe("/api/chat/messages route", () => {
     expect(mocks.deletePrivateVoiceBlobsForMessages).toHaveBeenCalledWith({
       userId: "user-1",
       chatId: "chat-1",
-      createdAt: { gte: createdAt },
+      OR: [{ createdAt: { gt: createdAt } }, { createdAt, id: { gte: "m1" } }],
     });
     expect(mocks.messageDeleteMany).toHaveBeenCalledWith({
       where: {
         userId: "user-1",
         chatId: "chat-1",
-        createdAt: {
-          gte: createdAt,
-        },
+        OR: [
+          { createdAt: { gt: createdAt } },
+          { createdAt, id: { gte: "m1" } },
+        ],
       },
     });
     await expect(response.json()).resolves.toEqual({
