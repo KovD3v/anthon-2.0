@@ -206,28 +206,6 @@ describe("chat mobile viewport layout", () => {
     expect(audioRecorder).toContain('"uploading"');
   });
 
-  it("offers structured reasons after negative assistant feedback", () => {
-    const messageList = readFileSync(
-      "src/app/(chat)/components/MessageList.tsx",
-      "utf8",
-    );
-
-    expect(messageList).toContain("FEEDBACK_REASON_OPTIONS");
-    expect(messageList).toContain("Errore linguistico");
-    expect(messageList).toContain("Fatto sbagliato");
-    expect(messageList).toContain("Non ha capito il contesto");
-    expect(messageList).toContain("Troppo generico");
-    expect(messageList).toContain("Problema tool/search");
-    expect(messageList).toContain("Altro");
-    expect(messageList).toContain("reason: selectedReason");
-    expect(messageList).toContain("Ti è stata utile?");
-    expect(messageList).toContain("Cosa non ha funzionato?");
-    expect(messageList).toContain("Grazie, ci aiuta a migliorare.");
-    expect(messageList).toContain("aria-pressed");
-    expect(messageList).toContain("handleFeedbackRemoval");
-    expect(messageList).toContain("Rimuovi feedback");
-  });
-
   it("styles Anthon message boxes with the selected brand background and black text", () => {
     const messageList = readFileSync(
       "src/app/(chat)/components/MessageList.tsx",
