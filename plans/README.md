@@ -29,8 +29,8 @@ Plans 013, 014, 015, 016, 018, 019, and 020 are otherwise independent and may be
 | 013 | Make external-channel inbound processing retryable | P1 | M | — | DONE — approved at `01dc1d6`; schema, 89 focused tests, and full verify passed | — |
 | 014 | Bound external-channel media downloads | P1 | M | — | DONE — approved on `improve/014-bound-channel-media` at `e4ff68b` | — |
 | 015 | Use a total order for chat suffix deletion | P1 | S | — | DONE — approved on `improve/015-chat-total-order` at `d16a65e`; Neon integration skipped (credentials unavailable) | — |
-| 016 | Add and verify a pgvector ANN index | P2 | M | — | BLOCKED — no representative disposable corpus/query set or owner-approved recall floor | — |
-| 017 | Bound and checkpoint missing-embedding backfill | P2 | M | 016 | BLOCKED — dependency 016 is not approved | — |
+| 016 | Add and verify a pgvector ANN index | P2 | M | — | BLOCKED — deferred until beta provides a representative RAG corpus/query set and approved recall floor | — |
+| 017 | Bound and checkpoint missing-embedding backfill | P2 | M | 016 | BLOCKED — deferred until beta; requires a populated corpus and approved plan 016 | — |
 | 018 | Page and throttle maintenance fan-out | P2 | M | — | BLOCKED — no continuation owner; downstream profile analysis is not replay-idempotent | — |
 | 019 | Add behavioral coverage for stateful chat interactions | P2 | M-L | — | DONE — approved on `improve/019-chat-behavior-tests` at `7238534`; package/lock overlap with 020 requires ordered integration | — |
 | 020 | Declare the imported AI SDK provider package directly | P3 | S | — | DONE — approved on `improve/020-direct-ai-sdk-provider` at `75de015`; Knip still reports unrelated baseline debt | — |

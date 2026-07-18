@@ -22,19 +22,31 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   updateCachedChat: vi.fn(),
+  captureChatOptions: vi.fn(),
+  chatState: {
+    error: null as Error | null,
+    status: "ready" as "ready" | "error",
+  },
+  clearError: vi.fn(),
 }));
 
 vi.mock("@ai-sdk/react", () => ({
   useChat: (options: {
     messages: Array<{ id: string; role: string; parts: unknown[] }>;
-  }) => ({
-    messages: options.messages,
-    sendMessage: mocks.sendMessage,
-    status: "ready",
-    error: null,
-    setMessages: mocks.setMessages,
-    stop: vi.fn(),
-  }),
+    onError?: (error: Error) => void;
+    onFinish?: () => Promise<void>;
+  }) => {
+    mocks.captureChatOptions(options);
+    return {
+      messages: options.messages,
+      sendMessage: mocks.sendMessage,
+      status: mocks.chatState.status,
+      error: mocks.chatState.error,
+      setMessages: mocks.setMessages,
+      stop: vi.fn(),
+      clearError: mocks.clearError,
+    };
+  },
 }));
 
 vi.mock("@clerk/nextjs", () => ({
@@ -98,7 +110,28 @@ vi.mock("../../../(chat)/components/ChatHeader", () => ({
 }));
 
 vi.mock("../../../(chat)/components/ChatInput", () => ({
-  ChatInput: () => null,
+  ChatInput: ({
+    input,
+    isLoading,
+    onSubmit,
+    setInput,
+  }: {
+    input: string;
+    isLoading: boolean;
+    onSubmit: (event: React.FormEvent) => void;
+    setInput: (value: string) => void;
+  }) => (
+    <form onSubmit={onSubmit}>
+      <input
+        aria-label="Messaggio di test"
+        value={input}
+        onChange={(event) => setInput(event.target.value)}
+      />
+      <button type="submit" disabled={isLoading}>
+        Invia test
+      </button>
+    </form>
+  ),
 }));
 
 vi.mock("../../../(chat)/components/SuggestedActions", () => ({
@@ -117,6 +150,8 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
     onEditSave,
     onDelete,
     onRegenerate,
+    canSubmitFeedback,
+    feedbackMessageIds,
   }: ComponentProps<"div"> & {
     messages: Array<{ id: string; parts: Array<{ text?: string }> }>;
     editingMessageId: string | null;
@@ -127,8 +162,16 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
     onEditSave: () => void;
     onDelete: (id: string) => void;
     onRegenerate: () => void;
+    canSubmitFeedback: boolean;
+    feedbackMessageIds?: ReadonlySet<string>;
   }) => (
     <div>
+      <output data-testid="feedback-enabled">
+        {String(
+          canSubmitFeedback &&
+            feedbackMessageIds?.has(messages.at(-1)?.id ?? ""),
+        )}
+      </output>
       <ol aria-label="Messaggi">
         {messages.map((message) => (
           <li key={message.id}>{message.parts[0]?.text}</li>
@@ -225,13 +268,105 @@ afterEach(() => {
 });
 
 beforeEach(() => {
-  for (const mock of Object.values(mocks)) mock.mockReset();
+  for (const mock of Object.values(mocks)) {
+    if (typeof mock === "function" && "mockReset" in mock) {
+      mock.mockReset();
+    }
+  }
+  mocks.chatState.status = "ready";
+  mocks.chatState.error = null;
   mocks.confirm.mockResolvedValue(true);
   mocks.sendMessage.mockResolvedValue(undefined);
   vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
 
 describe("ChatConversationClient pagination and recovery", () => {
+  it("keeps submission settled until persisted messages are refreshed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify(initialChatData), { status: 200 }),
+        ),
+    );
+    const user = userEvent.setup();
+    renderConversation();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Messaggio di test" }),
+      "Nuova domanda",
+    );
+    await user.click(screen.getByRole("button", { name: "Invia test" }));
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce());
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Invia test" })
+        .disabled,
+    ).toBe(true);
+
+    const chatOptions = mocks.captureChatOptions.mock.calls.at(-1)?.[0] as {
+      onFinish: () => Promise<void>;
+    };
+    await act(() => chatOptions.onFinish());
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole<HTMLButtonElement>("button", { name: "Invia test" })
+          .disabled,
+      ).toBe(false),
+    );
+    expect(screen.getByTestId("feedback-enabled").textContent).toBe("true");
+    expect(mocks.setMessages).toHaveBeenCalledOnce();
+  });
+
+  it("keeps retry disabled until a failed submission promise unwinds", async () => {
+    let resolveSend: () => void = () => {};
+    mocks.sendMessage.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveSend = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    renderConversation();
+
+    const input = screen.getByRole("textbox", { name: "Messaggio di test" });
+    const submit = screen.getByRole<HTMLButtonElement>("button", {
+      name: "Invia test",
+    });
+    await user.type(input, "Primo tentativo");
+    await user.click(submit);
+
+    const chatOptions = mocks.captureChatOptions.mock.calls.at(-1)?.[0] as {
+      onError: (error: Error) => void;
+    };
+    act(() => chatOptions.onError(new Error("offline")));
+    expect(submit.disabled).toBe(true);
+
+    await act(async () => resolveSend());
+    await waitFor(() => expect(submit.disabled).toBe(false));
+
+    await user.type(input, "Secondo tentativo");
+    await user.click(submit);
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears the AI SDK error state before retrying a failed request", async () => {
+    mocks.chatState.status = "error";
+    mocks.chatState.error = new Error("offline");
+    const user = userEvent.setup();
+    renderConversation();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Messaggio di test" }),
+      "Riprova",
+    );
+    await user.click(screen.getByRole("button", { name: "Invia test" }));
+
+    expect(mocks.clearError).toHaveBeenCalledOnce();
+    expect(mocks.sendMessage).toHaveBeenCalledOnce();
+  });
+
   it("prepends an older page without disturbing current message order", async () => {
     vi.stubGlobal(
       "fetch",

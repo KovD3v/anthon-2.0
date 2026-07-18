@@ -138,9 +138,12 @@ export function buildEphemeralConnectionString(
   return connection.toString();
 }
 
-export function buildEphemeralBranchName(now = new Date()) {
+export function buildEphemeralBranchName(
+  now = new Date(),
+  prefix = "integration",
+) {
   const timestamp = now.toISOString().replace(/\D/g, "").slice(0, 14);
-  return `integration-${timestamp}-${crypto.randomUUID().slice(0, 8)}`;
+  return `${prefix}-${timestamp}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 export function buildChildProcessEnv(env: NodeJS.ProcessEnv) {
@@ -148,6 +151,7 @@ export function buildChildProcessEnv(env: NodeJS.ProcessEnv) {
   delete childEnv.NEON_API_KEY;
   delete childEnv.TEST_DATABASE_URL;
   delete childEnv.INTEGRATION_EPHEMERAL_BRANCH_ID;
+  delete childEnv.E2E_EPHEMERAL_BRANCH_ID;
   return childEnv;
 }
 
@@ -208,18 +212,33 @@ async function runCommand(
   });
 }
 
-export async function runEphemeralIntegrationTests(testArgs: string[] = []) {
+interface EphemeralRunContext {
+  branch: NeonBranch;
+  childProcessEnv: NodeJS.ProcessEnv;
+  developmentUrl: string;
+  testDatabaseUrl: string;
+}
+
+async function runOnEphemeralNeon({
+  branchPrefix,
+  label,
+  run,
+}: {
+  branchPrefix: string;
+  label: string;
+  run: (context: EphemeralRunContext) => Promise<number>;
+}) {
   const apiKey = process.env.NEON_API_KEY?.trim();
   const projectId = process.env.NEON_PROJECT_ID?.trim();
   const developmentUrl = process.env.DATABASE_URL?.trim();
   if (!apiKey || !projectId || !developmentUrl) {
     throw new Error(
-      "NEON_API_KEY, NEON_PROJECT_ID, and development DATABASE_URL are required for integration tests.",
+      `NEON_API_KEY, NEON_PROJECT_ID, and development DATABASE_URL are required for ${label} tests.`,
     );
   }
   if (process.env.TEST_DATABASE_URL) {
     throw new Error(
-      "Do not persist TEST_DATABASE_URL. The integration runner creates and injects an ephemeral Neon branch.",
+      `Do not persist TEST_DATABASE_URL. The ${label} runner creates and injects an ephemeral Neon branch.`,
     );
   }
 
@@ -242,7 +261,7 @@ export async function runEphemeralIntegrationTests(testArgs: string[] = []) {
   );
   assertDevelopmentParent(parent, developmentEndpoint.branch_id);
 
-  const branchName = buildEphemeralBranchName();
+  const branchName = buildEphemeralBranchName(new Date(), branchPrefix);
   const childProcessEnv = buildChildProcessEnv(process.env);
   let ephemeralBranch: CreatedBranch | null = null;
   let cleanupError: Error | null = null;
@@ -270,7 +289,7 @@ export async function runEphemeralIntegrationTests(testArgs: string[] = []) {
       );
     }
     console.log(
-      `[integration] Created ephemeral Neon branch ${ephemeralBranch.branch.name} (${ephemeralBranch.branch.id}) from ${parent?.name}.`,
+      `[${label}] Created ephemeral Neon branch ${ephemeralBranch.branch.name} (${ephemeralBranch.branch.id}) from ${parent?.name}.`,
     );
     const testDatabaseUrl = buildEphemeralConnectionString(
       developmentUrl,
@@ -293,16 +312,12 @@ export async function runEphemeralIntegrationTests(testArgs: string[] = []) {
       );
     }
 
-    testExitCode = await runCommand(
-      join(process.cwd(), "node_modules/.bin/vitest"),
-      ["run", "-c", "vitest.integration.config.ts", ...testArgs],
-      {
-        ...childProcessEnv,
-        DATABASE_URL: developmentUrl,
-        TEST_DATABASE_URL: testDatabaseUrl,
-        INTEGRATION_EPHEMERAL_BRANCH_ID: ephemeralBranch.branch.id,
-      },
-    );
+    testExitCode = await run({
+      branch: ephemeralBranch.branch,
+      childProcessEnv,
+      developmentUrl,
+      testDatabaseUrl,
+    });
   } finally {
     process.removeListener("SIGINT", handleSignal);
     process.removeListener("SIGTERM", handleSignal);
@@ -310,7 +325,7 @@ export async function runEphemeralIntegrationTests(testArgs: string[] = []) {
       try {
         await api.deleteBranch(ephemeralBranch.branch.id);
         console.log(
-          `[integration] Deleted ephemeral Neon branch ${ephemeralBranch.branch.name} (${ephemeralBranch.branch.id}).`,
+          `[${label}] Deleted ephemeral Neon branch ${ephemeralBranch.branch.name} (${ephemeralBranch.branch.id}).`,
         );
       } catch (error) {
         cleanupError = new Error(
@@ -322,9 +337,48 @@ export async function runEphemeralIntegrationTests(testArgs: string[] = []) {
 
   if (cleanupError) throw cleanupError;
   if (interruptedSignal) {
-    throw new Error(`Integration run interrupted by ${interruptedSignal}`);
+    throw new Error(`${label} run interrupted by ${interruptedSignal}`);
   }
   return testExitCode;
+}
+
+export async function runEphemeralIntegrationTests(testArgs: string[] = []) {
+  return runOnEphemeralNeon({
+    branchPrefix: "integration",
+    label: "integration",
+    run: ({ branch, childProcessEnv, developmentUrl, testDatabaseUrl }) =>
+      runCommand(
+        join(process.cwd(), "node_modules/.bin/vitest"),
+        ["run", "-c", "vitest.integration.config.ts", ...testArgs],
+        {
+          ...childProcessEnv,
+          DATABASE_URL: developmentUrl,
+          TEST_DATABASE_URL: testDatabaseUrl,
+          INTEGRATION_EPHEMERAL_BRANCH_ID: branch.id,
+        },
+      ),
+  });
+}
+
+export async function runEphemeralE2ETests(testArgs: string[] = []) {
+  return runOnEphemeralNeon({
+    branchPrefix: "e2e",
+    label: "e2e",
+    run: ({ branch, childProcessEnv, testDatabaseUrl }) =>
+      runCommand(
+        join(process.cwd(), "node_modules/.bin/playwright"),
+        ["test", ...testArgs],
+        {
+          ...childProcessEnv,
+          DATABASE_URL: testDatabaseUrl,
+          DIRECT_DATABASE_URL: testDatabaseUrl,
+          E2E_EPHEMERAL_BRANCH_ID: branch.id,
+          OPENROUTER_API_KEY: "e2e-local-key",
+          OPENROUTER_BASE_URL: "http://127.0.0.1:4317/api/v1",
+          NEXT_PUBLIC_APP_URL: "http://localhost:3100",
+        },
+      ),
+  });
 }
 
 if (import.meta.main) {

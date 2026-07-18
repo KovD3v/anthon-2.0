@@ -7,7 +7,7 @@
 
 ## Status
 
-- **Execution status**: BLOCKED on 2026-07-15 — the repository has no representative disposable RAG corpus/query set and no owner-approved ANN recall floor. No speculative migration was created.
+- **Execution status**: BLOCKED and deferred until beta on 2026-07-18 — production has no RAG documents or embedded chunks, so there is no representative corpus/query set or owner-approved ANN recall floor. No speculative migration should be created before beta provides that evidence.
 - **Priority**: P2
 - **Effort**: M
 - **Risk**: MED

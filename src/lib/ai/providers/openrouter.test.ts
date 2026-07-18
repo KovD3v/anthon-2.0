@@ -20,6 +20,7 @@ vi.mock("@ai-sdk/devtools", () => ({
 }));
 
 const originalApiKey = process.env.OPENROUTER_API_KEY;
+const originalBaseUrl = process.env.OPENROUTER_BASE_URL;
 
 describe("ai/providers/openrouter", () => {
   beforeEach(() => {
@@ -40,12 +41,14 @@ describe("ai/providers/openrouter", () => {
     );
 
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    delete process.env.OPENROUTER_BASE_URL;
     vi.stubEnv("NODE_ENV", "test");
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
     process.env.OPENROUTER_API_KEY = originalApiKey;
+    process.env.OPENROUTER_BASE_URL = originalBaseUrl;
   });
 
   it("creates the provider with OPENROUTER_API_KEY", async () => {
@@ -53,6 +56,17 @@ describe("ai/providers/openrouter", () => {
 
     expect(mocks.createOpenRouter).toHaveBeenCalledWith({
       apiKey: "test-openrouter-key",
+    });
+  });
+
+  it("uses an explicit OpenRouter base URL for isolated test environments", async () => {
+    process.env.OPENROUTER_BASE_URL = "http://127.0.0.1:4317/api/v1";
+
+    await import("./openrouter");
+
+    expect(mocks.createOpenRouter).toHaveBeenCalledWith({
+      apiKey: "test-openrouter-key",
+      baseURL: "http://127.0.0.1:4317/api/v1",
     });
   });
 

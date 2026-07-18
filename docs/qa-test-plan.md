@@ -3,6 +3,31 @@
 Guida pratica per persone non IT.
 Obiettivo: provare l'app, trovare problemi e segnalarli in modo chiaro.
 
+## Gate automatico pre-beta
+
+Prima di iniziare un giro manuale, eseguire:
+
+```bash
+bun run verify
+bun run test:e2e
+```
+
+`test:e2e` crea un branch Neon temporaneo dalla branch `development`, applica
+le migrazioni, avvia l'app con un server OpenRouter locale e infine elimina il
+branch. Il gate non invia richieste AI reali e copre il flusso guest su viewport
+desktop e mobile:
+
+- risposta in streaming;
+- secondo messaggio con contesto della conversazione;
+- persistenza dei messaggi dopo il refresh;
+- feedback persistito dopo il refresh;
+- interruzione di una risposta lenta;
+- recupero dopo un errore di richiesta.
+
+Richiede `NEON_API_KEY`, `NEON_PROJECT_ID` e `DATABASE_URL` configurato sulla
+branch Neon `development`. Gli artefatti di errore vengono salvati in
+`output/playwright/`.
+
 ## 1) Procedura di test
 
 Ogni persona segue questo flusso:

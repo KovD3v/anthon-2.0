@@ -99,6 +99,8 @@ export function ChatConversationClient({
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isSubmitInFlight, setIsSubmitInFlight] = useState(false);
+  const [isResponseSettling, setIsResponseSettling] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [comparisonDeltas, setComparisonDeltas] = useState<
     Record<string, Partial<Record<ModelComparisonSlot, string>>>
@@ -113,6 +115,10 @@ export function ChatConversationClient({
 
   // Initial messages from server data
   const initialMessages = convertToUIMessages(chatData.messages);
+  const persistedMessageIds = useMemo(
+    () => new Set(chatData.messages.map((message) => message.id)),
+    [chatData.messages],
+  );
 
   const refreshChatData = useCallback(async () => {
     try {
@@ -174,6 +180,7 @@ export function ChatConversationClient({
     error: chatError,
     setMessages,
     stop,
+    clearError,
   } = useChat<AnthonUIMessage>({
     id: chatId,
     messages: initialMessages,
@@ -192,10 +199,17 @@ export function ChatConversationClient({
       }));
     },
     onFinish: async () => {
-      const newMessages = await refreshChatData();
-      if (newMessages) {
-        setMessages(newMessages);
+      try {
+        const newMessages = await refreshChatData();
+        if (newMessages) {
+          setMessages(newMessages);
+        }
+      } finally {
+        setIsResponseSettling(false);
       }
+    },
+    onError: () => {
+      setIsResponseSettling(false);
     },
   });
 
@@ -437,13 +451,18 @@ export function ChatConversationClient({
     e.preventDefault();
     if (
       !(input.trim() || (attachments && attachments.length > 0)) ||
-      status !== "ready" ||
+      (status !== "ready" && status !== "error") ||
       submitInFlightRef.current
     ) {
       return;
     }
 
     submitInFlightRef.current = true;
+    if (status === "error") {
+      clearError();
+    }
+    setIsSubmitInFlight(true);
+    setIsResponseSettling(true);
     const submittedInput = input;
 
     try {
@@ -470,11 +489,13 @@ export function ChatConversationClient({
       setInput("");
       await sendMessage({ role: "user", parts });
     } catch (error) {
+      setIsResponseSettling(false);
       setInput(submittedInput);
       console.error("Failed to send chat message:", error);
       toast.error("Invio messaggio fallito");
     } finally {
       submitInFlightRef.current = false;
+      setIsSubmitInFlight(false);
     }
   };
 
@@ -610,7 +631,11 @@ export function ChatConversationClient({
     }
   };
 
-  const isLoading = status === "streaming" || status === "submitted";
+  const isLoading =
+    status === "streaming" ||
+    status === "submitted" ||
+    isSubmitInFlight ||
+    isResponseSettling;
   const isEmptyIdle = streamingMessages.length === 0 && !isLoading;
 
   return (
@@ -662,6 +687,7 @@ export function ChatConversationClient({
             isGuest ? "/api/guest/chat/feedback" : "/api/chat/feedback"
           }
           canSubmitFeedback={chatData.isOwner}
+          feedbackMessageIds={persistedMessageIds}
           comparisonDeltas={comparisonDeltas}
           onModelComparisonResolved={handleModelComparisonResolved}
           hasMoreMessages={chatData.pagination?.hasMore ?? false}
@@ -710,7 +736,10 @@ export function ChatConversationClient({
         onInputWarmup={inputWarmup.schedule}
         onSubmit={handleSubmit}
         isLoading={isLoading}
-        onStop={stop}
+        onStop={() => {
+          stop();
+          setIsResponseSettling(false);
+        }}
         disableAttachments={isGuest}
         disabledReason={
           hasBlockingModelComparison

@@ -6,6 +6,7 @@
 
 ## Status
 
+- **Execution status**: BLOCKED and deferred until beta on 2026-07-18 — production has no RAG corpus to backfill, and dependency 016 cannot be approved until representative beta retrieval data exists.
 - **Priority**: P2
 - **Effort**: M
 - **Risk**: MED

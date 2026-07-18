@@ -73,6 +73,7 @@ interface MessageListProps {
   onRegenerate: () => void;
   feedbackEndpoint: string;
   canSubmitFeedback?: boolean;
+  feedbackMessageIds?: ReadonlySet<string>;
   comparisonDeltas?: Record<
     string,
     Partial<Record<ModelComparisonSlot, string>>
@@ -150,6 +151,7 @@ export function MessageList({
   onRegenerate,
   feedbackEndpoint,
   canSubmitFeedback = true,
+  feedbackMessageIds,
   comparisonDeltas = {},
   onModelComparisonResolved,
   hasMoreMessages = false,
@@ -457,6 +459,9 @@ export function MessageList({
               );
               const feedbackValue = feedbackState[message.id] ?? 0;
               const isFeedbackSaving = feedbackSavingState[message.id] === true;
+              const canSubmitFeedbackForMessage =
+                canSubmitFeedback &&
+                (!feedbackMessageIds || feedbackMessageIds.has(message.id));
 
               // Voice message state from persisted DB attachments.
               const dbVoiceAttachment = message.attachments?.find((a) =>
@@ -482,6 +487,7 @@ export function MessageList({
                 <div
                   key={virtualRow.key}
                   data-index={virtualRow.index}
+                  data-message-role={message.role}
                   ref={rowVirtualizer.measureElement}
                   style={{
                     position: "absolute",
@@ -840,7 +846,7 @@ export function MessageList({
                                   <Copy className="h-3 w-3" />
                                 )}
                               </Button>
-                              {canSubmitFeedback && (
+                              {canSubmitFeedbackForMessage && (
                                 <>
                                   <span className="ml-1 text-xs text-muted-foreground">
                                     {isFeedbackSaving
@@ -918,7 +924,7 @@ export function MessageList({
                       )}
 
                       {!isUser &&
-                        canSubmitFeedback &&
+                        canSubmitFeedbackForMessage &&
                         feedbackValue === -1 &&
                         feedbackReasonMenuMessageId === message.id && (
                           <fieldset className="max-w-full px-1">
@@ -974,7 +980,7 @@ export function MessageList({
                           </fieldset>
                         )}
                       {!isUser &&
-                        canSubmitFeedback &&
+                        canSubmitFeedbackForMessage &&
                         feedbackValue !== 0 &&
                         feedbackReasonMenuMessageId !== message.id && (
                           <output

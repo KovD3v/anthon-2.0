@@ -110,6 +110,7 @@ describe("ephemeral Neon integration runner", () => {
         NEON_PROJECT_ID: "project-id",
         TEST_DATABASE_URL: "stale-test-url",
         INTEGRATION_EPHEMERAL_BRANCH_ID: "br-stale",
+        E2E_EPHEMERAL_BRANCH_ID: "br-stale-e2e",
       }),
     ).toEqual({
       NODE_ENV: "test",

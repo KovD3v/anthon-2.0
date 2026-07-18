@@ -12,6 +12,9 @@ import type { ResolvedPlanPolicies } from "@/lib/plans/types";
 // Remove this cast once @openrouter/ai-sdk-provider aligns its peer dependency.
 export const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
+  ...(process.env.OPENROUTER_BASE_URL?.trim()
+    ? { baseURL: process.env.OPENROUTER_BASE_URL.trim() }
+    : {}),
 }) as unknown as (
   modelId: string,
   settings?: Record<string, unknown>,

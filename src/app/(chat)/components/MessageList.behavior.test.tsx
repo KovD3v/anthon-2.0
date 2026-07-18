@@ -120,6 +120,24 @@ beforeEach(() => {
 });
 
 describe("MessageList rendered interactions", () => {
+  it("shows feedback only for persisted message ids", () => {
+    const view = renderMessageList({ feedbackMessageIds: new Set() });
+
+    expect(
+      screen.queryByRole("button", { name: "Segna la risposta come utile" }),
+    ).toBeNull();
+
+    view.rerender(
+      <MessageList
+        {...view.props}
+        feedbackMessageIds={new Set(["assistant-1"])}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Segna la risposta come utile" }),
+    ).toBeTruthy();
+  });
+
   it("submits negative feedback and its selected reason as two requests", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockImplementation(okResponse);
     vi.stubGlobal("fetch", fetchMock);
