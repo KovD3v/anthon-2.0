@@ -172,12 +172,13 @@ uses `/api/admin/rag` for document management.
 | `DELETE` | `/api/admin/organizations/[organizationId]` | Delete organization (Clerk + local). |
 | `GET` | `/api/admin/organizations/[organizationId]/audit` | Paginated organization audit events. |
 | `GET` | `/api/admin/elevenlabs/stats` | Voice generation statistics. |
+| `GET` | `/api/admin/health` | Admin-only deep diagnostics for DB, OpenRouter, Clerk, and Blob. |
 
 ## Operations and Maintenance API
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| `GET` | `/api/health` | Health checks for DB, OpenRouter, Clerk, Blob. |
+| `GET` | `/api/health` | Dependency-free public liveness check. |
 | `GET` | `/api/cron/trigger?job=all|consolidate|archive|analyze` | Publish maintenance jobs to QStash (`CRON_SECRET` required). |
 | `GET` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |
 | `POST` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |
