@@ -196,6 +196,7 @@ export async function POST(request: Request) {
     // 8. Create attachment record (not linked to a message yet)
     const attachment = await prisma.attachment.create({
       data: {
+        userId: user.id,
         name: file.name,
         contentType: fileType,
         size: file.size,
@@ -256,25 +257,7 @@ export async function DELETE(request: Request) {
     const upload = await prisma.attachment.findFirst({
       where: {
         blobUrl,
-        OR: [
-          {
-            message: {
-              userId: user.id,
-            },
-          },
-          {
-            messageId: null,
-            blobUrl: {
-              contains: `/uploads/${user.id}/`,
-            },
-          },
-          {
-            messageId: null,
-            blobUrl: {
-              contains: `/attachments/${user.id}/`,
-            },
-          },
-        ],
+        userId: user.id,
       },
       select: {
         id: true,

@@ -304,6 +304,7 @@ describe("POST /api/voice/generate", () => {
     expect(mocks.attachmentCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
+          userId: "user-1",
           messageId: "msg-1",
           blobUrl:
             "https://store.private.blob.vercel-storage.com/voice/msg-1.mp3",

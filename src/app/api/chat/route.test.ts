@@ -15,9 +15,8 @@ const mocks = vi.hoisted(() => ({
   messageMetricsCreate: vi.fn(),
   voiceGenerationJobCreate: vi.fn(),
   messageCount: vi.fn(),
-  attachmentFindFirst: vi.fn(),
   attachmentCreate: vi.fn(),
-  attachmentUpdate: vi.fn(),
+  attachmentUpdateMany: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
   streamChat: vi.fn(),
@@ -76,9 +75,8 @@ vi.mock("@/lib/db", () => ({
       create: mocks.messageMetricsCreate,
     },
     attachment: {
-      findFirst: mocks.attachmentFindFirst,
       create: mocks.attachmentCreate,
-      update: mocks.attachmentUpdate,
+      updateMany: mocks.attachmentUpdateMany,
     },
   },
 }));
@@ -209,9 +207,8 @@ describe("POST /api/chat", () => {
     mocks.messageMetricsCreate.mockReset();
     mocks.voiceGenerationJobCreate.mockReset();
     mocks.messageCount.mockReset();
-    mocks.attachmentFindFirst.mockReset();
     mocks.attachmentCreate.mockReset();
-    mocks.attachmentUpdate.mockReset();
+    mocks.attachmentUpdateMany.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
     mocks.streamChat.mockReset();
@@ -293,15 +290,7 @@ describe("POST /api/chat", () => {
     mocks.voiceGenerationJobCreate.mockResolvedValue({ id: "voice-job-1" });
     mocks.messageCount.mockResolvedValue(1);
     mocks.chatUpdate.mockResolvedValue({});
-    mocks.attachmentFindFirst.mockImplementation(
-      async (input: { where?: { id?: string } }) => ({
-        id: input.where?.id || "att-1",
-        messageId: null,
-        blobUrl: "https://blob.example/attachments/user-1/chat-1/file.png",
-        message: null,
-      }),
-    );
-    mocks.attachmentUpdate.mockResolvedValue({});
+    mocks.attachmentUpdateMany.mockResolvedValue({ count: 1 });
     mocks.attachmentCreate.mockResolvedValue({ id: "att-voice-1" });
     mocks.incrementUsage.mockResolvedValue({});
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
@@ -732,39 +721,13 @@ describe("POST /api/chat", () => {
         direction: "INBOUND",
       }),
     });
-    expect(mocks.attachmentUpdate).toHaveBeenNthCalledWith(1, {
-      where: { id: "att-1" },
+    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: "att-1", userId: "user-1", messageId: null },
       data: { messageId: "msg-user-123" },
     });
-    expect(mocks.attachmentUpdate).toHaveBeenNthCalledWith(2, {
-      where: { id: "att-2" },
+    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: "att-2", userId: "user-1", messageId: null },
       data: { messageId: "msg-user-123" },
-    });
-    expect(mocks.attachmentFindFirst).toHaveBeenNthCalledWith(1, {
-      where: { id: "att-1" },
-      select: {
-        id: true,
-        messageId: true,
-        blobUrl: true,
-        message: {
-          select: {
-            userId: true,
-          },
-        },
-      },
-    });
-    expect(mocks.attachmentFindFirst).toHaveBeenNthCalledWith(2, {
-      where: { id: "att-2" },
-      select: {
-        id: true,
-        messageId: true,
-        blobUrl: true,
-        message: {
-          select: {
-            userId: true,
-          },
-        },
-      },
     });
 
     expect(streamArgs).toMatchObject({
@@ -1593,19 +1556,9 @@ describe("POST /api/chat", () => {
 
   it("skips linking attachments that are not owned by the current user", async () => {
     mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
-    mocks.attachmentFindFirst
-      .mockResolvedValueOnce({
-        id: "att-1",
-        messageId: null,
-        blobUrl: "https://blob.example/uploads/user-1/file-a.png",
-        message: null,
-      })
-      .mockResolvedValueOnce({
-        id: "att-2",
-        messageId: "msg-other",
-        blobUrl: "https://blob.example/attachments/user-2/chat-9/file-b.png",
-        message: { userId: "user-2" },
-      });
+    mocks.attachmentUpdateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
 
     const response = await POST(
       buildRequest({
@@ -1624,9 +1577,65 @@ describe("POST /api/chat", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.attachmentUpdate).toHaveBeenCalledTimes(1);
-    expect(mocks.attachmentUpdate).toHaveBeenCalledWith({
-      where: { id: "att-1" },
+    expect(mocks.attachmentUpdateMany).toHaveBeenCalledTimes(2);
+    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: "att-1", userId: "user-1", messageId: null },
+      data: { messageId: "msg-user-123" },
+    });
+    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: "att-2", userId: "user-1", messageId: null },
+      data: { messageId: "msg-user-123" },
+    });
+  });
+
+  it("does not reassign linked or repeated attachments", async () => {
+    mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
+    mocks.attachmentUpdateMany
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [
+              { type: "text", text: "hello" },
+              { type: "file", attachmentId: "att-linked" },
+              { type: "file", attachmentId: "att-pending" },
+              { type: "file", attachmentId: "att-pending" },
+            ],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.attachmentUpdateMany).toHaveBeenCalledTimes(3);
+    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        id: "att-linked",
+        userId: "user-1",
+        messageId: null,
+      },
+      data: { messageId: "msg-user-123" },
+    });
+    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        id: "att-pending",
+        userId: "user-1",
+        messageId: null,
+      },
+      data: { messageId: "msg-user-123" },
+    });
+    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(3, {
+      where: {
+        id: "att-pending",
+        userId: "user-1",
+        messageId: null,
+      },
       data: { messageId: "msg-user-123" },
     });
   });

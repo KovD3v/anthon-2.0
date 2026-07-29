@@ -48,6 +48,7 @@ model User {
   preferences                 Preferences?
   memories                    Memory[]
   messages                    Message[]
+  attachments                 Attachment[]
   chats                       Chat[]
   conversationThreads         ConversationThread[]
   aiTurnTraces                AiTurnTrace[]
@@ -1016,6 +1017,8 @@ model ArtifactVersion {
 
 model Attachment {
   id                 String              @id @default(cuid())
+  userId             String
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   messageId          String?
   message            Message?            @relation(fields: [messageId], references: [id], onDelete: Cascade)
   voiceGenerationJob VoiceGenerationJob? @relation("VoiceGenerationAttachment")
@@ -1027,6 +1030,7 @@ model Attachment {
 
   createdAt DateTime @default(now())
 
+  @@index([userId])
   @@index([messageId])
 }
 

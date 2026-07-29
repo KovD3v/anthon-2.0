@@ -62,6 +62,7 @@ async function createPersistedVoiceMessage(
   });
   await prisma.attachment.create({
     data: {
+      userId,
       messageId: message.id,
       name: "voice.mp3",
       contentType: "audio/mpeg",

@@ -175,6 +175,16 @@ describe("voice generation jobs", () => {
     expect(mocks.publishToQueue).not.toHaveBeenCalled();
     expect(mocks.generateVoice).toHaveBeenCalledWith("Respira lentamente.");
     expect(mocks.attachmentCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.attachmentCreate).toHaveBeenCalledWith({
+      data: {
+        userId: "user-1",
+        messageId: "message-1",
+        name: "voice.mp3",
+        contentType: "audio/mpeg",
+        size: Buffer.from("audio").length,
+        blobUrl,
+      },
+    });
   });
 
   it("lets one concurrent delivery attach and account for the audio once", async () => {

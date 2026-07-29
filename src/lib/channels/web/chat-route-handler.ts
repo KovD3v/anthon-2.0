@@ -349,34 +349,13 @@ export async function handleWebChatPost(request: Request) {
                 attachmentId?: string;
               };
               if (filePart.attachmentId) {
-                const attachment = await prisma.attachment.findFirst({
-                  where: { id: filePart.attachmentId },
-                  select: {
-                    id: true,
-                    messageId: true,
-                    blobUrl: true,
-                    message: {
-                      select: {
-                        userId: true,
-                      },
-                    },
-                  },
-                });
-
-                if (!attachment) {
-                  continue;
-                }
-
-                if (
-                  attachment.message?.userId &&
-                  attachment.message.userId !== user.id
-                ) {
-                  continue;
-                }
-
                 await prisma.attachment
-                  .update({
-                    where: { id: filePart.attachmentId },
+                  .updateMany({
+                    where: {
+                      id: filePart.attachmentId,
+                      userId: user.id,
+                      messageId: null,
+                    },
                     data: { messageId: message.id },
                   })
                   .catch((error) =>

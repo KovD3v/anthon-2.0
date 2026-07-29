@@ -338,6 +338,7 @@ describe("/api/upload POST", () => {
     );
     expect(mocks.attachmentCreate).toHaveBeenCalledWith({
       data: {
+        userId: "user-1",
         name: "my file.md",
         contentType: "text/markdown",
         size: 9,
@@ -439,17 +440,7 @@ describe("/api/upload DELETE", () => {
     expect(mocks.attachmentFindFirst).toHaveBeenCalledWith({
       where: {
         blobUrl: "https://blob.example/file",
-        OR: [
-          { message: { userId: "user-1" } },
-          {
-            messageId: null,
-            blobUrl: { contains: "/uploads/user-1/" },
-          },
-          {
-            messageId: null,
-            blobUrl: { contains: "/attachments/user-1/" },
-          },
-        ],
+        userId: "user-1",
       },
       select: {
         id: true,
