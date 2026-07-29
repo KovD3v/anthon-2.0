@@ -3,7 +3,6 @@
  * Allows adding, listing, and deleting documents.
  */
 
-import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import {
   addDocument,
@@ -11,19 +10,17 @@ import {
   listDocuments,
   updateMissingEmbeddings,
 } from "@/lib/ai/rag";
+import { requireAdmin } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 
 const ragLogger = createLogger("ai");
 
 // GET /api/rag/documents - List all documents
 export async function GET() {
+  const { errorResponse } = await requireAdmin();
+  if (errorResponse) return errorResponse;
+
   try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const documents = await listDocuments();
     return NextResponse.json({ documents });
   } catch (error) {
@@ -37,13 +34,10 @@ export async function GET() {
 
 // POST /api/rag/documents - Add a new document
 export async function POST(req: Request) {
+  const { errorResponse } = await requireAdmin();
+  if (errorResponse) return errorResponse;
+
   try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const body = await req.json();
     const { title, content, source, url } = body;
 
@@ -72,13 +66,10 @@ export async function POST(req: Request) {
 
 // DELETE /api/rag/documents - Delete a document
 export async function DELETE(req: Request) {
+  const { errorResponse } = await requireAdmin();
+  if (errorResponse) return errorResponse;
+
   try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { searchParams } = new URL(req.url);
     const documentId = searchParams.get("id");
 
@@ -106,13 +97,10 @@ export async function DELETE(req: Request) {
 
 // PATCH /api/rag/documents - Update missing embeddings
 export async function PATCH() {
+  const { errorResponse } = await requireAdmin();
+  if (errorResponse) return errorResponse;
+
   try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const updatedCount = await updateMissingEmbeddings();
 
     return NextResponse.json({

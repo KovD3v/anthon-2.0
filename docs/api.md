@@ -121,12 +121,15 @@ Notes:
 
 ## RAG API
 
+The legacy RAG document-management methods below are admin-only. The admin UI
+uses `/api/admin/rag` for document management.
+
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| `GET` | `/api/rag/documents` | List RAG documents. |
-| `POST` | `/api/rag/documents` | Add one RAG document. |
-| `DELETE` | `/api/rag/documents?id=...` | Delete one RAG document and chunks. |
-| `PATCH` | `/api/rag/documents` | Backfill missing embeddings. |
+| `GET` | `/api/rag/documents` | List RAG documents (admin-only). |
+| `POST` | `/api/rag/documents` | Add one RAG document (admin-only). |
+| `DELETE` | `/api/rag/documents?id=...` | Delete one RAG document and chunks (admin-only). |
+| `PATCH` | `/api/rag/documents` | Backfill missing embeddings (admin-only). |
 | `POST` | `/api/rag/search` | Semantic search over RAG chunks. |
 
 `POST /api/rag/search` body:

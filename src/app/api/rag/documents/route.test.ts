@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  auth: vi.fn(),
+  requireAdmin: vi.fn(),
   listDocuments: vi.fn(),
   addDocument: vi.fn(),
   deleteDocument: vi.fn(),
   updateMissingEmbeddings: vi.fn(),
 }));
 
-vi.mock("@clerk/nextjs/server", () => ({
-  auth: mocks.auth,
+vi.mock("@/lib/auth", () => ({
+  requireAdmin: mocks.requireAdmin,
 }));
 
 vi.mock("@/lib/ai/rag", () => ({
@@ -31,23 +31,63 @@ function buildJsonRequest(method: string, body: unknown): Request {
 
 describe("/api/rag/documents", () => {
   beforeEach(() => {
-    mocks.auth.mockReset();
+    mocks.requireAdmin.mockReset();
     mocks.listDocuments.mockReset();
     mocks.addDocument.mockReset();
     mocks.deleteDocument.mockReset();
     mocks.updateMissingEmbeddings.mockReset();
 
-    mocks.auth.mockResolvedValue({ userId: "clerk-1" });
+    mocks.requireAdmin.mockResolvedValue({ errorResponse: null });
   });
 
-  it("GET returns 401 when unauthorized", async () => {
-    mocks.auth.mockResolvedValue({ userId: null });
+  const deniedRequests = [
+    { method: "GET", invoke: () => GET() },
+    {
+      method: "POST",
+      invoke: () =>
+        POST(
+          new Request("http://localhost/api/rag/documents", {
+            method: "POST",
+            body: "{not-json",
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+    },
+    {
+      method: "DELETE",
+      invoke: () =>
+        DELETE(
+          new Request("http://localhost/api/rag/documents", {
+            method: "DELETE",
+          }),
+        ),
+    },
+    { method: "PATCH", invoke: () => PATCH() },
+  ];
 
-    const response = await GET();
+  const denials = [
+    { status: 401, body: { error: "Unauthorized" } },
+    { status: 403, body: { error: "Forbidden" } },
+  ];
 
-    expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
-  });
+  for (const { method, invoke } of deniedRequests) {
+    for (const { status, body } of denials) {
+      it(`${method} returns ${status} before validation or RAG operations`, async () => {
+        mocks.requireAdmin.mockResolvedValue({
+          errorResponse: Response.json(body, { status }),
+        });
+
+        const response = await invoke();
+
+        expect(response.status).toBe(status);
+        await expect(response.json()).resolves.toEqual(body);
+        expect(mocks.listDocuments).not.toHaveBeenCalled();
+        expect(mocks.addDocument).not.toHaveBeenCalled();
+        expect(mocks.deleteDocument).not.toHaveBeenCalled();
+        expect(mocks.updateMissingEmbeddings).not.toHaveBeenCalled();
+      });
+    }
+  }
 
   it("GET returns documents list", async () => {
     mocks.listDocuments.mockResolvedValue([{ id: "doc-1", title: "Policy" }]);
