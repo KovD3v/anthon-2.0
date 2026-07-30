@@ -48,7 +48,7 @@ export default function ModelExperimentsPage() {
     key: "",
     name: "",
     posthogFlagKey: "model-comparison-italy",
-    controlModel: "z-ai/glm-5.2",
+    controlModel: "openai/gpt-5.6-luna",
     candidateModel: "",
   });
   const experiments = useQuery<{ experiments: Experiment[] }>({
@@ -180,7 +180,11 @@ export default function ModelExperimentsPage() {
               "Feature flag PostHog",
               "model-comparison-italy",
             ],
-            ["controlModel", "Modello control esatto", "z-ai/glm-5.2"],
+            [
+              "controlModel",
+              "Modello control esatto",
+              "openai/gpt-5.6-luna",
+            ],
             ["candidateModel", "Modello candidate esatto", "provider/model"],
           ].map(([field, label, placeholder]) => (
             <div key={field} className="space-y-2">

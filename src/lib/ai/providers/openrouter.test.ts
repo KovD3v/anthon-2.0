@@ -74,7 +74,7 @@ describe("ai/providers/openrouter", () => {
     const { getModelIdForPlan } = await import("./openrouter");
 
     expect(getModelIdForPlan(null, undefined, "orchestrator")).toBe(
-      "z-ai/glm-5.2",
+      "openai/gpt-5.6-luna",
     );
     expect(
       getModelIdForPlan(
@@ -84,7 +84,7 @@ describe("ai/providers/openrouter", () => {
         undefined,
         "ACTIVE",
       ),
-    ).toBe("z-ai/glm-5.2");
+    ).toBe("openai/gpt-5.6-luna");
     expect(
       getModelIdForPlan(
         "my-basic_plus-plan",
@@ -102,7 +102,7 @@ describe("ai/providers/openrouter", () => {
         undefined,
         "ACTIVE",
       ),
-    ).toBe("z-ai/glm-5.2");
+    ).toBe("openai/gpt-5.6-luna");
     expect(
       getModelIdForPlan(
         "my-pro-plan",
@@ -111,7 +111,7 @@ describe("ai/providers/openrouter", () => {
         undefined,
         "ACTIVE",
       ),
-    ).toBe("z-ai/glm-5.2");
+    ).toBe("openai/gpt-5.6-luna");
     expect(
       getModelIdForPlan(
         "my-pro-plan",
@@ -120,7 +120,7 @@ describe("ai/providers/openrouter", () => {
         "BASIC",
         "ACTIVE",
       ),
-    ).toBe("z-ai/glm-5.2");
+    ).toBe("openai/gpt-5.6-luna");
     expect(
       getModelIdForPlan(
         "my-basic-plan",
@@ -129,7 +129,7 @@ describe("ai/providers/openrouter", () => {
         "PRO",
         "ACTIVE",
       ),
-    ).toBe("z-ai/glm-5.2");
+    ).toBe("openai/gpt-5.6-luna");
   });
 
   it("passes orchestrator fallback models to OpenRouter", async () => {
@@ -145,10 +145,10 @@ describe("ai/providers/openrouter", () => {
       "ACTIVE",
     );
 
-    expect(mocks.provider).toHaveBeenCalledWith("z-ai/glm-5.2", {
+    expect(mocks.provider).toHaveBeenCalledWith("openai/gpt-5.6-luna", {
       models: ["deepseek/deepseek-v4-flash"],
     });
-    expect(model).toEqual({ modelId: "z-ai/glm-5.2" });
+    expect(model).toEqual({ modelId: "openai/gpt-5.6-luna" });
   });
 
   it("merges OpenRouter model settings with orchestrator fallbacks", async () => {
@@ -165,7 +165,7 @@ describe("ai/providers/openrouter", () => {
       { parallelToolCalls: false },
     );
 
-    expect(mocks.provider).toHaveBeenCalledWith("z-ai/glm-5.2", {
+    expect(mocks.provider).toHaveBeenCalledWith("openai/gpt-5.6-luna", {
       models: ["deepseek/deepseek-v4-flash"],
       parallelToolCalls: false,
     });
@@ -242,12 +242,12 @@ describe("ai/providers/openrouter", () => {
       "ACTIVE",
     );
 
-    expect(mocks.provider).toHaveBeenCalledWith("z-ai/glm-5.2", {
+    expect(mocks.provider).toHaveBeenCalledWith("openai/gpt-5.6-luna", {
       models: ["deepseek/deepseek-v4-flash"],
     });
     expect(mocks.wrapLanguageModel).not.toHaveBeenCalled();
     expect(model).toEqual({
-      modelId: "z-ai/glm-5.2",
+      modelId: "openai/gpt-5.6-luna",
     });
   });
 

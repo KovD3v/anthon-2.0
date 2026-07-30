@@ -21,6 +21,19 @@ describe("ai/providers/openrouter-routing", () => {
     });
   });
 
+  it("requests OpenAI priority service for the Luna orchestrator", () => {
+    expect(
+      getOpenRouterProviderOptionsForModel("openai/gpt-5.6-luna", {}),
+    ).toEqual({
+      provider: {
+        sort: "latency",
+      },
+      extraBody: {
+        service_tier: "priority",
+      },
+    });
+  });
+
   it("builds provider routing from environment variables", () => {
     expect(
       getOpenRouterProviderRouting({

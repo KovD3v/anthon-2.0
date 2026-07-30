@@ -70,6 +70,7 @@ const PROVIDER_OPTIONS_CACHE_MAX_ENTRIES = 200;
 const RECENT_ERROR_LIGHT_PENALTY_SECONDS = 8;
 const RECENT_ERROR_STRONG_PENALTY_SECONDS = 25;
 const RECENT_ERROR_COOLDOWN_THRESHOLD = 3;
+const PRIORITY_SERVICE_TIER_MODEL_IDS = new Set(["openai/gpt-5.6-luna"]);
 const providerOptionsCache = new Map<string, JSONObject>();
 
 export function getOpenRouterProviderOptions(
@@ -96,7 +97,12 @@ function getCachedOpenRouterProviderOptions(
   }
 
   const provider = getOpenRouterProviderRouting(env, modelId);
-  const options: JSONObject = provider ? { provider } : {};
+  const options: JSONObject = {
+    ...(provider ? { provider } : {}),
+    ...(modelId && PRIORITY_SERVICE_TIER_MODEL_IDS.has(modelId)
+      ? { extraBody: { service_tier: "priority" } }
+      : {}),
+  };
   providerOptionsCache.set(cacheKey, options);
   if (providerOptionsCache.size > PROVIDER_OPTIONS_CACHE_MAX_ENTRIES) {
     const oldestKey = providerOptionsCache.keys().next().value;

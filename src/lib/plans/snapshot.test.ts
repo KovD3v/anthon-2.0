@@ -12,7 +12,9 @@ describe("plans/snapshot", () => {
 
     expect(snapshot.personalPlan).toBe("BASIC_PLUS");
     expect(snapshot.effective.plan).toBe("BASIC_PLUS");
-    expect(snapshot.policies.modelRouting.orchestrator).toBe("z-ai/glm-5.2");
+    expect(snapshot.policies.modelRouting.orchestrator).toBe(
+      "openai/gpt-5.6-luna",
+    );
     expect(snapshot.policies.modelRouting.orchestratorFallbacks).toEqual([
       "deepseek/deepseek-v4-flash",
     ]);
@@ -20,7 +22,7 @@ describe("plans/snapshot", () => {
     expect(snapshot.policies.voice.maxPerWindow).toBe(20);
   });
 
-  it("uses GLM 5.2 with DeepSeek v4 Flash fallback for every runtime plan", () => {
+  it("uses GPT-5.6 Luna with DeepSeek v4 Flash fallback for every runtime plan", () => {
     const plans = [
       { isGuest: true },
       { subscriptionStatus: "TRIAL" },
@@ -33,7 +35,9 @@ describe("plans/snapshot", () => {
     for (const input of plans) {
       const snapshot = resolvePlanSnapshot(input);
 
-      expect(snapshot.policies.modelRouting.orchestrator).toBe("z-ai/glm-5.2");
+      expect(snapshot.policies.modelRouting.orchestrator).toBe(
+        "openai/gpt-5.6-luna",
+      );
       expect(snapshot.policies.modelRouting.orchestratorFallbacks).toEqual([
         "deepseek/deepseek-v4-flash",
       ]);
@@ -62,7 +66,9 @@ describe("plans/snapshot", () => {
     });
 
     expect(snapshot.effective.modelTier).toBe("ENTERPRISE");
-    expect(snapshot.policies.modelRouting.orchestrator).toBe("z-ai/glm-5.2");
+    expect(snapshot.policies.modelRouting.orchestrator).toBe(
+      "openai/gpt-5.6-luna",
+    );
     expect(snapshot.policies.modelRouting.orchestratorFallbacks).toEqual([
       "deepseek/deepseek-v4-flash",
     ]);
