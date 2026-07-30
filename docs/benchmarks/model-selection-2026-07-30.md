@@ -134,3 +134,111 @@ document therefore use non-empty responses with positive generation time.
 The harness should be hardened before the next benchmark so empty streamed
 turns are recorded as explicit failures and excluded from aggregate quality and
 latency metrics automatically.
+
+## Third-model quality evaluation
+
+After the benchmark, GPT-5.6 Sol performed an additional offline evaluation of
+all 44 saved responses per candidate. This did not make new provider calls.
+
+### Method and limitation
+
+- Candidate identities were replaced with per-scenario shuffled labels before
+  scoring and revealed only after all scores were assigned.
+- Each response was compared with the scenario's calibrated 2/10 and 9/10
+  anchors, specific judge rubric, transcript, and safety constraints.
+- The two turns in each scenario were averaged into one scenario score, giving
+  every scenario equal weight.
+- Empty provider-failure responses scored zero because they are zero-quality
+  user outcomes.
+- Scores are an independent qualitative judgment, not the deterministic
+  heuristic above.
+- The judge is in the same broad GPT-5.6 family as Luna. Blinding reduces but
+  cannot eliminate the possibility of family/style preference, so this result
+  should complement rather than replace a judge from another model family.
+
+### Blind quality results
+
+| Rank | Model | Average | Median | Scenario wins | Bottom finishes |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 1 | `openai/gpt-5.6-luna` priority | 7.93 | 8.25 | 18 | 0 |
+| 2 | `z-ai/glm-5.2` | 6.81 | 6.50 | 3 | 2 |
+| 3 | `google/gemini-3.5-flash-lite` | 6.64 | 7.00 | 3 | 1 |
+| 4 | `poolside/laguna-s-2.1` | 3.40 | 3.50 | 0 | 20 |
+
+Tied top scores count as wins for every tied candidate.
+
+### Quality by tagged scenario subset
+
+These subsets overlap because scenarios may carry multiple tags.
+
+| Model | Safety | Memory/context | Coaching | Brief/mobile |
+| --- | ---: | ---: | ---: | ---: |
+| `openai/gpt-5.6-luna` priority | 7.89 | 7.36 | 8.41 | 7.50 |
+| `z-ai/glm-5.2` | 6.93 | 5.54 | 7.55 | 6.00 |
+| `google/gemini-3.5-flash-lite` | 6.50 | 6.21 | 7.11 | 5.00 |
+| `poolside/laguna-s-2.1` | 4.54 | 2.93 | 4.00 | 2.75 |
+
+### Qualitative findings
+
+#### GPT-5.6 Luna priority
+
+Luna most consistently matched the high anchors. It was strongest at empathetic
+but actionable coaching, youth-athlete communication, safety escalation,
+multi-turn continuity, and turning vague concerns into a concrete next step.
+It rarely finished last even where another candidate gave the best individual
+answer.
+
+Its weaknesses were meaningful:
+
+- it missed the stored five-hours-of-sleep constraint and initially allowed a
+  possible maximal test;
+- it gave a partial triathlon plan before collecting all requested inputs;
+- its nutrition response became more prescriptive than the intended coaching
+  boundary;
+- its first voice-mode response unnecessarily discussed capability instead of
+  simply returning the requested short spoken-style line.
+
+#### GLM-5.2
+
+GLM remained a capable coaching baseline. Its strongest answers handled injury,
+dizziness, athlete selection, emotional support, and the need to collect
+requirements before planning. It generally offered good structure and useful
+follow-up questions.
+
+Its score fell through inconsistent memory use and safety decisions. It missed
+the sleep-load context, did not preserve the known shoe-drop preference, and
+allowed return-to-jump testing too early for the symptomatic ankle. Several
+answers were also longer than the user's requested mobile or concise format.
+
+#### Gemini 3.5 Flash Lite
+
+Gemini's successful answers were competitive with GLM despite being much
+faster. It was particularly good at honest capability boundaries, concise
+coaching, parental communication, uncertainty, and direct safety instructions.
+Its median exceeded GLM's, while a smaller number of weak scenarios pulled down
+its average.
+
+The weak cases involved deeper context integration: it missed stored sleep and
+equipment preferences, sometimes planned before asking the required diagnostic
+question, and gave unsafe or overly permissive ankle return-to-play advice.
+The brief voice scenario also triggered unnecessary capability wording.
+
+#### Laguna S 2.1
+
+The zero scores caused by upstream failures are part of the user-visible quality
+result, not merely infrastructure noise. On completed turns, Laguna sometimes
+produced useful structured coaching, but it was less consistent on safety,
+memory, brevity, and calibrated follow-up. It also hallucinated video analysis
+in one response and offered permissive return-to-play advice for the ankle.
+
+### Updated quality conclusion
+
+This third-model pass reverses the deterministic heuristic's top two:
+Luna ranks clearly above GLM on anchor-calibrated coaching quality, while GLM
+retains second place. Gemini is close to GLM qualitatively and dramatically
+faster, making it a credible candidate for many production roles. Laguna is
+not viable under the tested reliability and quality conditions.
+
+Because the judge shares a model family with Luna, the most decision-relevant
+next check is a blind judge from a non-OpenAI family over the same saved
+outputs. No candidate rerun is required for that check.
