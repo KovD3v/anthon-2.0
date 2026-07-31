@@ -35,6 +35,9 @@ const mocks = vi.hoisted(() => ({
   ensureConversationThread: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
+  reserveAiUsage: vi.fn(),
+  releaseAiUsageReservation: vi.fn(),
+  reconcileAiUsageForRecovery: vi.fn(),
   streamChat: vi.fn(),
   extractAndSaveMemories: vi.fn(),
   start: vi.fn(),
@@ -100,6 +103,9 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: mocks.checkRateLimit,
   incrementUsage: mocks.incrementUsage,
+  reserveAiUsage: mocks.reserveAiUsage,
+  releaseAiUsageReservation: mocks.releaseAiUsageReservation,
+  reconcileAiUsageForRecovery: mocks.reconcileAiUsageForRecovery,
 }));
 
 vi.mock("@/lib/ai/orchestrator", () => ({
@@ -403,6 +409,12 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.ensureConversationThread.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
+    mocks.reserveAiUsage.mockReset();
+    mocks.releaseAiUsageReservation.mockReset();
+    mocks.reconcileAiUsageForRecovery.mockReset();
+    mocks.reserveAiUsage.mockResolvedValue(undefined);
+    mocks.releaseAiUsageReservation.mockResolvedValue(true);
+    mocks.reconcileAiUsageForRecovery.mockResolvedValue({ charged: true });
     mocks.streamChat.mockReset();
     mocks.extractAndSaveMemories.mockReset();
     mocks.start.mockReset();

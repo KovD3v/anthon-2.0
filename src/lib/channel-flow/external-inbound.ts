@@ -5,6 +5,11 @@ import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import type { RateLimitResult } from "@/lib/rate-limit";
 import { checkRateLimit } from "@/lib/rate-limit";
+import {
+  EXTERNAL_INBOUND_HEARTBEAT_MS,
+  EXTERNAL_INBOUND_LEASE_MS,
+  getExternalInboundLeaseExpiry,
+} from "./external-inbound-lease";
 
 type ExternalChannel = "TELEGRAM" | "WHATSAPP";
 
@@ -50,10 +55,11 @@ type PreparedExternalChannelInbound =
       user: ExternalChannelUser;
       conversationThread: Awaited<ReturnType<typeof ensureConversationThread>>;
       inbound: { id: string };
+      savedAssistant?: { id: string; text: string };
       rateLimit: RateLimitResult;
     };
 
-export const EXTERNAL_INBOUND_LEASE_MS = 60_000;
+export { EXTERNAL_INBOUND_LEASE_MS };
 const EXTERNAL_INBOUND_ERROR_MAX_LENGTH = 300;
 
 function safeExternalInboundErrorSummary(error: unknown) {
@@ -124,6 +130,50 @@ export async function markExternalChannelInboundFailed({
   return result.count === 1;
 }
 
+export async function renewExternalChannelInboundLease({
+  inboundId,
+  claimToken,
+}: {
+  inboundId: string;
+  claimToken: string;
+}) {
+  const result = await prisma.message.updateMany({
+    where: {
+      id: inboundId,
+      externalInboundStatus: "PROCESSING",
+      externalInboundClaimToken: claimToken,
+    },
+    data: {
+      externalInboundLeaseExpiresAt: getExternalInboundLeaseExpiry(),
+    },
+  });
+  return result.count === 1;
+}
+
+export function startExternalInboundLeaseHeartbeat({
+  inboundId,
+  claimToken,
+}: {
+  inboundId: string;
+  claimToken: string;
+}) {
+  let stopped = false;
+  let inFlight: Promise<unknown> = Promise.resolve();
+  const timer = setInterval(() => {
+    if (stopped) return;
+    inFlight = renewExternalChannelInboundLease({ inboundId, claimToken }).catch(
+      () => false,
+    );
+  }, EXTERNAL_INBOUND_HEARTBEAT_MS);
+  timer.unref?.();
+
+  return async () => {
+    stopped = true;
+    clearInterval(timer);
+    await inFlight;
+  };
+}
+
 function isUniqueConstraintError(error: unknown) {
   return (
     error &&
@@ -131,6 +181,23 @@ function isUniqueConstraintError(error: unknown) {
     "code" in error &&
     (error as { code?: string }).code === "P2002"
   );
+}
+
+function textFromPersistedParts(parts: Prisma.JsonValue | null): string {
+  if (!Array.isArray(parts)) return "";
+  return parts
+    .filter(
+      (part): part is { type: "text"; text: string } =>
+        Boolean(
+          part &&
+            typeof part === "object" &&
+            !Array.isArray(part) &&
+            part.type === "text" &&
+            typeof part.text === "string",
+        ),
+    )
+    .map((part) => part.text)
+    .join("");
 }
 
 /**
@@ -243,7 +310,7 @@ export async function prepareExternalChannelInbound(
 ): Promise<PreparedExternalChannelInbound> {
   const now = new Date();
   const claimToken = randomUUID();
-  const leaseExpiresAt = new Date(now.getTime() + EXTERNAL_INBOUND_LEASE_MS);
+  const leaseExpiresAt = getExternalInboundLeaseExpiry(now);
   const existing = await prisma.message.findFirst({
     where: {
       channel: envelope.channel,
@@ -255,6 +322,7 @@ export async function prepareExternalChannelInbound(
       externalInboundLeaseExpiresAt: true,
       user: { select: externalChannelIdentitySelect.user.select },
       conversationThread: true,
+      generatedResponse: { select: { id: true, parts: true } },
     },
   });
 
@@ -321,6 +389,12 @@ export async function prepareExternalChannelInbound(
       user: existing.user,
       conversationThread: existing.conversationThread,
       inbound: { id: existing.id },
+      savedAssistant: existing.generatedResponse
+        ? {
+            id: existing.generatedResponse.id,
+            text: textFromPersistedParts(existing.generatedResponse.parts),
+          }
+        : undefined,
       rateLimit,
     };
   }

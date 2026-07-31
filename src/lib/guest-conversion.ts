@@ -32,7 +32,7 @@ export async function convertGuestForAuthenticatedUser(
   const guestUser = await prisma.user.findFirst({
     where: {
       isGuest: true,
-      guestAbuseIdHash: hashGuestToken(guestToken),
+      guestTokenHash: hashGuestToken(guestToken),
       guestConvertedAt: null,
     },
     select: { id: true },

@@ -1073,58 +1073,66 @@ async function runOpenRouterMultimodalCompletion({
 function createDirectMultimodalStreamResult(
   completionPromise: Promise<DirectMultimodalCompletion>,
 ) {
-  return {
-    textStream: (async function* () {
-      const { text } = await completionPromise;
-      yield text;
-    })(),
-    toUIMessageStreamResponse: (options: StreamResponseOptions = {}) => {
-      const { messageMetadata, ...responseOptions } = options;
-      const stream = createUIMessageStream({
-        execute: async ({ writer }) => {
-          const { text, metrics } = await completionPromise;
-          const textId = "text-1";
-          const finishPart = {
-            type: "finish" as const,
-            finishReason: "stop" as const,
-            usage: {
-              inputTokens: metrics.inputTokens,
-              outputTokens: metrics.outputTokens,
-            },
-            totalUsage: {
-              inputTokens: metrics.inputTokens,
-              outputTokens: metrics.outputTokens,
-            },
-          };
-          const metadata =
-            messageMetadata?.({ part: finishPart }) ??
-            ({
-              inputTokens: metrics.inputTokens,
-              outputTokens: metrics.outputTokens,
-              generationTimeMs: metrics.generationTimeMs,
-              reasoningTimeMs: metrics.reasoningTimeMs ?? undefined,
-            } satisfies Record<string, unknown>);
-          const write = writer.write as (part: unknown) => void;
+  const toUIMessageStream = (
+    options: StreamResponseOptions & { sendFinish?: boolean } = {},
+  ) => {
+    const { messageMetadata, sendFinish = true } = options;
+    return createUIMessageStream({
+      execute: async ({ writer }) => {
+        const { text, metrics } = await completionPromise;
+        const textId = "text-1";
+        const finishPart = {
+          type: "finish" as const,
+          finishReason: "stop" as const,
+          usage: {
+            inputTokens: metrics.inputTokens,
+            outputTokens: metrics.outputTokens,
+          },
+          totalUsage: {
+            inputTokens: metrics.inputTokens,
+            outputTokens: metrics.outputTokens,
+          },
+        };
+        const metadata =
+          messageMetadata?.({ part: finishPart }) ??
+          ({
+            inputTokens: metrics.inputTokens,
+            outputTokens: metrics.outputTokens,
+            generationTimeMs: metrics.generationTimeMs,
+            reasoningTimeMs: metrics.reasoningTimeMs ?? undefined,
+          } satisfies Record<string, unknown>);
+        const write = writer.write as (part: unknown) => void;
 
-          write({ type: "start" });
-          write({ type: "start-step" });
-          write({ type: "text-start", id: textId });
-          write({ type: "text-delta", id: textId, delta: text });
-          write({ type: "text-end", id: textId });
-          write({ type: "finish-step" });
+        write({ type: "start" });
+        write({ type: "start-step" });
+        write({ type: "text-start", id: textId });
+        write({ type: "text-delta", id: textId, delta: text });
+        write({ type: "text-end", id: textId });
+        write({ type: "finish-step" });
+        if (sendFinish) {
           write({
             type: "finish",
             finishReason: finishPart.finishReason,
             messageMetadata: metadata,
           });
-        },
-        onError: (error) =>
-          error instanceof Error ? error.message : "Image chat failed.",
-      });
+        }
+      },
+      onError: (error) =>
+        error instanceof Error ? error.message : "Image chat failed.",
+    });
+  };
 
+  return {
+    textStream: (async function* () {
+      const { text } = await completionPromise;
+      yield text;
+    })(),
+    toUIMessageStream,
+    toUIMessageStreamResponse: (options: StreamResponseOptions = {}) => {
+      const { messageMetadata, ...responseOptions } = options;
       return createUIMessageStreamResponse({
         ...responseOptions,
-        stream,
+        stream: toUIMessageStream({ messageMetadata }),
       });
     },
   };

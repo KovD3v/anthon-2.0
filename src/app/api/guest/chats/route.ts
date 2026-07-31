@@ -8,6 +8,7 @@
 import { waitUntil } from "@vercel/functions";
 import { prisma, warmDatabaseConnection } from "@/lib/db";
 import { authenticateGuest, createGuestChatForSession } from "@/lib/guest-auth";
+import { GuestCreationDeniedError } from "@/lib/guest-abuse";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 
@@ -19,11 +20,11 @@ export const runtime = "nodejs";
 // GET - List all chats for guest user
 // -----------------------------------------------------
 
-export async function GET() {
+export async function GET(request?: Request) {
   try {
     const { user } = await LatencyLogger.measure(
       "Guest Chats: Authenticate guest",
-      () => authenticateGuest(),
+      () => authenticateGuest(request),
     );
 
     const chats = await LatencyLogger.measure(
@@ -57,6 +58,9 @@ export async function GET() {
       isGuest: true,
     });
   } catch (err) {
+    if (err instanceof GuestCreationDeniedError) {
+      return Response.json({ error: err.message }, { status: err.status });
+    }
     guestLogger.error("get.error", "Failed to fetch guest chats", {
       error: err,
     });
@@ -90,7 +94,7 @@ export async function POST(request: Request) {
       // Empty body is fine
     }
 
-    const { chat } = await createGuestChatForSession({ title });
+    const { chat } = await createGuestChatForSession({ title, request });
     waitUntil(warmDatabaseConnection("guest_chat_created"));
 
     return Response.json(
@@ -105,6 +109,9 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (err) {
+    if (err instanceof GuestCreationDeniedError) {
+      return Response.json({ error: err.message }, { status: err.status });
+    }
     guestLogger.error("post.error", "Failed to create guest chat", {
       error: err,
     });

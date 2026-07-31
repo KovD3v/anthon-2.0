@@ -1,10 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { waitUntil } from "@vercel/functions";
-import {
-  createUIMessageStream,
-  createUIMessageStreamResponse,
-  type UIMessage,
-} from "ai";
+import type { UIMessage } from "ai";
 import type { Prisma } from "@/generated/prisma";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
@@ -16,6 +12,15 @@ import type { ChannelMessagePart } from "@/lib/channel-flow";
 import { runChannelFlow } from "@/lib/channel-flow";
 import { persistAssistantOutput } from "@/lib/channel-flow/persistence";
 import {
+  claimWebInboundMessage,
+  createWebTextStreamResponse,
+  findExistingWebInboundMessage,
+  getWebClientPayloadHash,
+  isValidWebClientMessageId,
+  textFromPersistedAssistant,
+  WebInboundConflictError,
+} from "@/lib/channel-flow/web-inbound";
+import {
   resolveOwnedWebMessageParts,
   WebAttachmentInputError,
 } from "@/lib/channels/web/attachment-input";
@@ -24,7 +29,7 @@ import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { tryCreateModelComparisonResponse } from "@/lib/model-experiments/runtime";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, reconcileAiUsageForRecovery } from "@/lib/rate-limit";
 import { transcribeAudio } from "@/lib/transcription";
 import { decideWebVoiceMode, getVoiceUnavailability } from "@/lib/voice";
 import { getVoicePlanConfig } from "@/lib/voice/config";
@@ -98,6 +103,17 @@ export async function handleWebChatPost(request: Request) {
         if (!lastUserMessage) {
           return new Response("No user message provided", { status: 400 });
         }
+
+        if (!isValidWebClientMessageId(lastUserMessage.id)) {
+          return Response.json(
+            { error: "A valid user message id is required" },
+            { status: 400 },
+          );
+        }
+        const clientMessageId = lastUserMessage.id;
+        const clientPayloadHash = getWebClientPayloadHash(
+          lastUserMessage.parts,
+        );
 
         const userMessageText =
           lastUserMessage.parts
@@ -208,6 +224,41 @@ export async function handleWebChatPost(request: Request) {
           externalThreadId: chatId,
           chatId,
         });
+
+        let existingInbound: Awaited<
+          ReturnType<typeof findExistingWebInboundMessage>
+        >;
+        try {
+          existingInbound = await findExistingWebInboundMessage({
+            userId: user.id,
+            chatId,
+            conversationThreadId: conversationThread.id,
+            clientMessageId,
+            payloadHash: clientPayloadHash,
+          });
+        } catch (error) {
+          if (error instanceof WebInboundConflictError) {
+            return Response.json(
+              { error: error.message, reason: error.reason },
+              { status: error.status },
+            );
+          }
+          throw error;
+        }
+
+        if (existingInbound?.generatedResponse) {
+          const savedText = textFromPersistedAssistant(
+            existingInbound.generatedResponse,
+          );
+          if (!savedText.trim()) {
+            throw new Error("Persisted assistant response has no text");
+          }
+          requestTimer.split("Idempotent replay complete");
+          return createWebTextStreamResponse(
+            existingInbound.generatedResponse.id,
+            savedText,
+          );
+        }
 
         const shouldSyncSubscription =
           !user.isGuest &&
@@ -320,73 +371,74 @@ export async function handleWebChatPost(request: Request) {
           );
         }
 
-        // Save the user message to the database with parts
-        const message = await LatencyLogger.measure(
-          "DB: Save user message",
-          () =>
-            prisma.message.create({
-              data: {
-                userId: user.id,
-                chatId,
-                conversationThreadId: conversationThread.id,
-                channel: "WEB",
-                direction: "INBOUND",
-                role: "USER",
-                type: "TEXT",
-                parts:
-                  resolvedMessageParts.persistedParts as Prisma.InputJsonValue,
-              },
-            }),
-          "🌐 Chat API Request",
-        );
+        let inboundClaim: Awaited<ReturnType<typeof claimWebInboundMessage>>;
+        try {
+          inboundClaim = existingInbound
+            ? { message: existingInbound, created: false }
+            : await LatencyLogger.measure(
+                "DB: Claim user message",
+                () =>
+                  claimWebInboundMessage({
+                    userId: user.id,
+                    chatId,
+                    conversationThreadId: conversationThread.id,
+                    clientMessageId,
+                    payloadHash: clientPayloadHash,
+                    parts:
+                      resolvedMessageParts.persistedParts as Prisma.InputJsonValue,
+                    attachmentIds: resolvedMessageParts.attachmentIds,
+                  }),
+                "🌐 Chat API Request",
+              );
+        } catch (error) {
+          if (error instanceof WebInboundConflictError) {
+            return Response.json(
+              { error: error.message, reason: error.reason },
+              { status: error.status },
+            );
+          }
+          throw error;
+        }
 
-        waitUntil(
-          trackInboundUserMessageFunnelProgress({
-            userId: user.id,
-            isGuest: user.isGuest,
-            userRole: user.role,
-            channel: "WEB",
-            planId,
-            subscriptionStatus,
-          }).catch((error) =>
-            logger.error(
-              "chat.funnel_tracking_failed",
-              "Failed tracking funnel progress",
-              {
-                error,
-                userId: user.id,
-                messageId: message.id,
-              },
-            ),
-          ),
-        );
+        const message = inboundClaim.message;
+        if (message.generatedResponse) {
+          const savedText = textFromPersistedAssistant(
+            message.generatedResponse,
+          );
+          if (!savedText.trim()) {
+            throw new Error("Persisted assistant response has no text");
+          }
+          return createWebTextStreamResponse(
+            message.generatedResponse.id,
+            savedText,
+          );
+        }
 
-        // Link attachments to the message
-        for (const attachmentId of resolvedMessageParts.attachmentIds) {
-          await prisma.attachment
-            .updateMany({
-              where: {
-                id: attachmentId,
-                userId: user.id,
-                messageId: null,
-              },
-              data: { messageId: message.id },
-            })
-            .catch((error) =>
+        if (inboundClaim.created) {
+          waitUntil(
+            trackInboundUserMessageFunnelProgress({
+              userId: user.id,
+              isGuest: user.isGuest,
+              userRole: user.role,
+              channel: "WEB",
+              planId,
+              subscriptionStatus,
+            }).catch((error) =>
               logger.error(
-                "chat.attachment.link_failed",
-                "Failed to link attachment",
+                "chat.funnel_tracking_failed",
+                "Failed tracking funnel progress",
                 {
                   error,
-                  attachmentId,
+                  userId: user.id,
                   messageId: message.id,
                 },
               ),
-            );
+            ),
+          );
         }
 
         // Auto-generate or refresh chat title if not manually set by user
-        if (!chat.customTitle) {
+        if (inboundClaim.created && !chat.customTitle) {
           const shouldRefresh =
             requestConversationMessageCount === 1 ||
             requestConversationMessageCount === 2 ||
@@ -568,6 +620,20 @@ export async function handleWebChatPost(request: Request) {
             waitUntil,
           },
         });
+
+        if (flowResult.rateLimit) {
+          return Response.json(
+            {
+              error: flowResult.rateLimit.retryable
+                ? "Generation already in progress"
+                : "Rate limit exceeded",
+              reason: flowResult.rateLimit.reason,
+              retryable: flowResult.rateLimit.retryable,
+              upgradeInfo: flowResult.rateLimit.upgradeInfo,
+            },
+            { status: flowResult.rateLimit.retryable ? 409 : 429 },
+          );
+        }
 
         if (!flowResult.streamResult) {
           throw new Error("Missing stream result");
@@ -816,43 +882,84 @@ async function handleVoiceFirstWebResponse({
     },
   });
 
+  if (flowResult.rateLimit) {
+    return Response.json(
+      {
+        error: flowResult.rateLimit.retryable
+          ? "Generation already in progress"
+          : "Rate limit exceeded",
+        reason: flowResult.rateLimit.reason,
+        retryable: flowResult.rateLimit.retryable,
+        upgradeInfo: flowResult.rateLimit.upgradeInfo,
+      },
+      { status: flowResult.rateLimit.retryable ? 409 : 429 },
+    );
+  }
+
   const assistantText = flowResult.assistantText.trim();
   if (!assistantText || !flowResult.metrics) {
     throw new Error("Voice response generation produced no assistant text");
   }
   const voiceGenerationExpiresAt = getVoiceGenerationExpiry();
-  const assistantMessage = await persistAssistantOutput({
-    userId,
-    chatId,
-    conversationThreadId,
-    userMessageId,
-    channel: "WEB",
-    text: assistantText,
-    userMessageText,
-    metrics: flowResult.metrics,
-    metadata: {
-      responseMode: "voice",
-      transcript: assistantText,
-      ...withVoiceGenerationStatus(
-        {
-          voice: getVoiceDecisionMetadataFields(voiceDecision),
-        },
-        "pending",
-      ),
-    },
-    updateChatTimestamp: true,
-    revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
-    allowMemoryExtraction: true,
-    waitUntil: schedule,
-    voiceGeneration: { expiresAt: voiceGenerationExpiresAt },
-  });
+  let assistantMessage: Awaited<ReturnType<typeof persistAssistantOutput>>;
+  try {
+    assistantMessage = await persistAssistantOutput({
+      userId,
+      chatId,
+      conversationThreadId,
+      userMessageId,
+      channel: "WEB",
+      text: assistantText,
+      userMessageText,
+      metrics: flowResult.metrics,
+      metadata: {
+        responseMode: "voice",
+        transcript: assistantText,
+        ...withVoiceGenerationStatus(
+          {
+            voice: getVoiceDecisionMetadataFields(voiceDecision),
+          },
+          "pending",
+        ),
+      },
+      updateChatTimestamp: true,
+      revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
+      allowMemoryExtraction: true,
+      waitUntil: schedule,
+      usageReservationId: flowResult.usageReservationId,
+      usageReservationClaimToken: flowResult.usageReservationClaimToken,
+      usageAlreadyReconciled: flowResult.usageAlreadyReconciled,
+      voiceGeneration: { expiresAt: voiceGenerationExpiresAt },
+    });
+  } catch (error) {
+    if (
+      flowResult.usageReservationId &&
+      flowResult.usageReservationClaimToken &&
+      !flowResult.usageAlreadyReconciled
+    ) {
+      await reconcileAiUsageForRecovery({
+        reservationId: flowResult.usageReservationId,
+        claimToken: flowResult.usageReservationClaimToken,
+        userId,
+        text: assistantText,
+        metrics: flowResult.metrics,
+      }).catch((recoveryError) =>
+        logger.error(
+          "voice.persistence_recovery_failed",
+          "Failed recording voice-first persistence recovery",
+          { error: recoveryError, userId, chatId },
+        ),
+      );
+    }
+    throw error;
+  }
 
   // Return the persisted transcript immediately; TTS and Blob work continue in
   // the durable worker. A refresh/reconnect reads the same message and its
   // eventual attachment rather than receiving a second assistant message.
   scheduleVoiceGenerationJob(assistantMessage.id, schedule);
 
-  return createTextStreamResponse(assistantMessage.id, assistantText);
+  return createWebTextStreamResponse(assistantMessage.id, assistantText);
 }
 
 function getExplicitVoiceUnavailableReason(
@@ -874,21 +981,4 @@ function getExplicitVoiceUnavailableReason(
     default:
       return undefined;
   }
-}
-
-function createTextStreamResponse(messageId: string, text: string) {
-  const textPartId = `${messageId}-text`;
-  const stream = createUIMessageStream<UIMessage>({
-    execute: ({ writer }) => {
-      writer.write({ type: "start", messageId });
-      writer.write({ type: "start-step" });
-      writer.write({ type: "text-start", id: textPartId });
-      writer.write({ type: "text-delta", id: textPartId, delta: text });
-      writer.write({ type: "text-end", id: textPartId });
-      writer.write({ type: "finish-step" });
-      writer.write({ type: "finish", finishReason: "stop" });
-    },
-  });
-
-  return createUIMessageStreamResponse({ stream });
 }

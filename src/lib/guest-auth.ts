@@ -8,6 +8,11 @@
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
+import {
+  type GuestCreationReservation,
+  reserveGuestCreation,
+  releaseGuestCreation,
+} from "@/lib/guest-abuse";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 
@@ -105,6 +110,7 @@ export async function clearGuestCookie(): Promise<void> {
  */
 async function getOrCreateGuestUser(
   existingToken?: string | null,
+  request?: Request,
 ): Promise<{ user: GuestUser; token: string; isNew: boolean }> {
   // If we have an existing token, try to find the user
   if (existingToken) {
@@ -116,7 +122,7 @@ async function getOrCreateGuestUser(
         prisma.user.findFirst({
           where: {
             isGuest: true,
-            guestAbuseIdHash: tokenHash,
+            guestTokenHash: tokenHash,
             guestConvertedAt: null, // Not yet converted to registered user
           },
           select: {
@@ -143,33 +149,44 @@ async function getOrCreateGuestUser(
   }
 
   // No valid token or user not found - create a new guest user
+  if (!request) {
+    throw new Error("A request is required to create a guest session");
+  }
+  const creationReservation = await reserveGuestCreation(request);
   const newToken = generateGuestToken();
   const tokenHash = hashGuestToken(newToken);
 
-  const user = await LatencyLogger.measure(
-    "Guest Auth: Create guest user",
-    () =>
-      prisma.user.create({
-        data: {
-          isGuest: true,
-          guestAbuseIdHash: tokenHash,
-        },
-        select: {
-          id: true,
-          isGuest: true,
-          role: true,
-          subscription: {
-            select: {
-              status: true,
-              planId: true,
+  let user: GuestUser;
+  try {
+    user = (await LatencyLogger.measure(
+      "Guest Auth: Create guest user",
+      () =>
+        prisma.user.create({
+          data: {
+            isGuest: true,
+            guestTokenHash: tokenHash,
+            guestAbuseIdHash: creationReservation.fingerprintHash,
+          },
+          select: {
+            id: true,
+            isGuest: true,
+            role: true,
+            subscription: {
+              select: {
+                status: true,
+                planId: true,
+              },
             },
           },
-        },
-      }),
-  );
+        }),
+    )) as GuestUser;
+  } catch (error) {
+    await releaseGuestCreation(creationReservation).catch(() => undefined);
+    throw error;
+  }
 
   return {
-    user: user as GuestUser,
+    user,
     token: newToken,
     isNew: true,
   };
@@ -188,7 +205,7 @@ export async function getExistingGuestUser(): Promise<GuestUser | null> {
   const user = await prisma.user.findFirst({
     where: {
       isGuest: true,
-      guestAbuseIdHash: tokenHash,
+      guestTokenHash: tokenHash,
       guestConvertedAt: null,
     },
     select: {
@@ -215,13 +232,13 @@ export async function getExistingGuestUser(): Promise<GuestUser | null> {
  * Get a guest user and ensure cookie is set.
  * This is the main entry point for guest authentication in API routes.
  */
-export async function authenticateGuest(): Promise<{
+export async function authenticateGuest(request?: Request): Promise<{
   user: GuestUser;
   token: string;
   isNew: boolean;
 }> {
   const existingToken = await getGuestTokenFromCookies();
-  const result = await getOrCreateGuestUser(existingToken);
+  const result = await getOrCreateGuestUser(existingToken, request);
 
   // Set cookie if this is a new session or token changed
   if (result.isNew || result.token !== existingToken) {
@@ -243,6 +260,7 @@ export async function authenticateGuest(): Promise<{
 
 export async function createGuestChatForSession(input: {
   title?: string;
+  request?: Request;
 }): Promise<{
   user: GuestUser;
   token: string;
@@ -259,7 +277,7 @@ export async function createGuestChatForSession(input: {
         prisma.user.findFirst({
           where: {
             isGuest: true,
-            guestAbuseIdHash: tokenHash,
+            guestTokenHash: tokenHash,
             guestConvertedAt: null,
           },
           select: {
@@ -312,40 +330,29 @@ export async function createGuestChatForSession(input: {
     }
   }
 
+  if (!input.request) {
+    throw new Error("A request is required to create a guest session");
+  }
+  const creationReservation: GuestCreationReservation =
+    await reserveGuestCreation(input.request);
   const newToken = generateGuestToken();
   const tokenHash = hashGuestToken(newToken);
 
-  const chatWithUser = await LatencyLogger.measure(
-    "Guest Chats: Create guest user and chat",
-    () =>
-      prisma.chat.create({
-        data: {
+  let chatWithUser: Awaited<ReturnType<typeof createGuestWithChat>>;
+  try {
+    chatWithUser = await LatencyLogger.measure(
+      "Guest Chats: Create guest user and chat",
+      () =>
+        createGuestWithChat({
           title: input.title,
-          customTitle: !!input.title,
-          visibility: "PRIVATE",
-          user: {
-            create: {
-              isGuest: true,
-              guestAbuseIdHash: tokenHash,
-            },
-          },
-        },
-        select: {
-          id: true,
-          title: true,
-          visibility: true,
-          createdAt: true,
-          updatedAt: true,
-          user: {
-            select: {
-              id: true,
-              isGuest: true,
-              role: true,
-            },
-          },
-        },
-      }),
-  );
+          tokenHash,
+          abuseHash: creationReservation.fingerprintHash,
+        }),
+    );
+  } catch (error) {
+    await releaseGuestCreation(creationReservation).catch(() => undefined);
+    throw error;
+  }
 
   await setGuestCookie(newToken);
 
@@ -362,4 +369,43 @@ export async function createGuestChatForSession(input: {
     isNew: true,
     chat,
   };
+}
+
+function createGuestWithChat({
+  title,
+  tokenHash,
+  abuseHash,
+}: {
+  title?: string;
+  tokenHash: string;
+  abuseHash: string;
+}) {
+  return prisma.chat.create({
+    data: {
+      title,
+      customTitle: !!title,
+      visibility: "PRIVATE",
+      user: {
+        create: {
+          isGuest: true,
+          guestTokenHash: tokenHash,
+          guestAbuseIdHash: abuseHash,
+        },
+      },
+    },
+    select: {
+      id: true,
+      title: true,
+      visibility: true,
+      createdAt: true,
+      updatedAt: true,
+      user: {
+        select: {
+          id: true,
+          isGuest: true,
+          role: true,
+        },
+      },
+    },
+  });
 }

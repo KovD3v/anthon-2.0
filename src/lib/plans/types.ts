@@ -1,6 +1,7 @@
 import type {
   EntitlementLimits,
   OrganizationModelTier,
+  UploadLimits,
 } from "@/lib/organizations/types";
 import type { VoicePlanConfig } from "@/lib/voice/config";
 
@@ -50,6 +51,7 @@ export interface ResolvedPlanPolicies {
     maintenance: string;
   };
   attachmentRetentionDays: number;
+  uploadLimits: UploadLimits;
   voice: VoicePlanConfig;
 }
 

@@ -15,9 +15,19 @@ import type { Prisma, SubscriptionStatus } from "@/generated/prisma";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import { runChannelFlow } from "@/lib/channel-flow";
+import {
+  claimWebInboundMessage,
+  createWebTextStreamResponse,
+  findExistingWebInboundMessage,
+  getWebClientPayloadHash,
+  isValidWebClientMessageId,
+  textFromPersistedAssistant,
+  WebInboundConflictError,
+} from "@/lib/channel-flow/web-inbound";
 import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { authenticateGuest } from "@/lib/guest-auth";
+import { GuestCreationDeniedError } from "@/lib/guest-abuse";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -70,6 +80,17 @@ export async function handleGuestChatPost(request: Request) {
           return new Response("No user message provided", { status: 400 });
         }
 
+        if (!isValidWebClientMessageId(lastUserMessage.id)) {
+          return Response.json(
+            { error: "A valid user message id is required" },
+            { status: 400 },
+          );
+        }
+        const clientMessageId = lastUserMessage.id;
+        const clientPayloadHash = getWebClientPayloadHash(
+          lastUserMessage.parts,
+        );
+
         const hasAttachments = lastUserMessage.parts?.some(
           (part) => part.type === "file",
         );
@@ -96,7 +117,7 @@ export async function handleGuestChatPost(request: Request) {
         // Authenticate guest user via cookies after request-only validation.
         const { user } = await LatencyLogger.measure(
           "Auth: Guest authentication",
-          () => authenticateGuest(),
+          () => authenticateGuest(request),
           "🌐 Guest Chat API Request",
         );
 
@@ -120,6 +141,47 @@ export async function handleGuestChatPost(request: Request) {
           return Response.json(
             { error: "Chat not found or access denied" },
             { status: 404 },
+          );
+        }
+
+        const conversationThread = await ensureConversationThread({
+          userId: user.id,
+          channel: "WEB",
+          externalThreadId: chatId,
+          chatId,
+        });
+        let existingInbound: Awaited<
+          ReturnType<typeof findExistingWebInboundMessage>
+        >;
+        try {
+          existingInbound = await findExistingWebInboundMessage({
+            userId: user.id,
+            chatId,
+            conversationThreadId: conversationThread.id,
+            clientMessageId,
+            payloadHash: clientPayloadHash,
+          });
+        } catch (error) {
+          if (error instanceof WebInboundConflictError) {
+            return Response.json(
+              { error: error.message, reason: error.reason },
+              { status: error.status },
+            );
+          }
+          throw error;
+        }
+
+        if (existingInbound?.generatedResponse) {
+          const savedText = textFromPersistedAssistant(
+            existingInbound.generatedResponse,
+          );
+          if (!savedText.trim()) {
+            throw new Error("Persisted assistant response has no text");
+          }
+          requestTimer.split("Idempotent replay complete");
+          return createWebTextStreamResponse(
+            existingInbound.generatedResponse.id,
+            savedText,
           );
         }
 
@@ -151,60 +213,72 @@ export async function handleGuestChatPost(request: Request) {
           );
         }
 
-        const requestConversationMessageCount = messages.filter(
-          (message) => message.role === "user" || message.role === "assistant",
-        ).length;
-        const conversationThread = await ensureConversationThread({
-          userId: user.id,
-          channel: "WEB",
-          externalThreadId: chatId,
-          chatId,
-        });
-
-        // Save the user message to the database
-        const message = await LatencyLogger.measure(
-          "DB: Save user message",
-          () =>
-            prisma.message.create({
-              data: {
+        let inboundClaim: Awaited<ReturnType<typeof claimWebInboundMessage>>;
+        try {
+          inboundClaim = existingInbound
+            ? { message: existingInbound, created: false }
+            : await claimWebInboundMessage({
                 userId: user.id,
                 chatId,
                 conversationThreadId: conversationThread.id,
-                channel: "WEB",
-                direction: "INBOUND",
-                role: "USER",
-                type: "TEXT",
+                clientMessageId,
+                payloadHash: clientPayloadHash,
                 parts: lastUserMessage.parts as Prisma.InputJsonValue,
-              },
-            }),
-          "🌐 Guest Chat API Request",
-        );
+              });
+        } catch (error) {
+          if (error instanceof WebInboundConflictError) {
+            return Response.json(
+              { error: error.message, reason: error.reason },
+              { status: error.status },
+            );
+          }
+          throw error;
+        }
+        const message = inboundClaim.message;
+        if (message.generatedResponse) {
+          const savedText = textFromPersistedAssistant(
+            message.generatedResponse,
+          );
+          if (!savedText.trim()) {
+            throw new Error("Persisted assistant response has no text");
+          }
+          return createWebTextStreamResponse(
+            message.generatedResponse.id,
+            savedText,
+          );
+        }
 
-        waitUntil(
-          trackInboundUserMessageFunnelProgress({
-            userId: user.id,
-            isGuest: true,
-            userRole: user.role,
-            channel: "WEB_GUEST",
-            planId: user.subscription?.planId,
-            subscriptionStatus:
-              (user.subscription?.status as SubscriptionStatus | undefined) ??
-              null,
-          }).catch((error) =>
-            logger.error(
-              "guest_chat.funnel_tracking_failed",
-              "Failed tracking guest funnel progress",
-              {
-                error,
-                userId: user.id,
-                messageId: message.id,
-              },
+        const requestConversationMessageCount = messages.filter(
+          (message) => message.role === "user" || message.role === "assistant",
+        ).length;
+        if (inboundClaim.created) {
+          waitUntil(
+            trackInboundUserMessageFunnelProgress({
+              userId: user.id,
+              isGuest: true,
+              userRole: user.role,
+              channel: "WEB_GUEST",
+              planId: user.subscription?.planId,
+              subscriptionStatus:
+                (user.subscription?.status as
+                  | SubscriptionStatus
+                  | undefined) ?? null,
+            }).catch((error) =>
+              logger.error(
+                "guest_chat.funnel_tracking_failed",
+                "Failed tracking guest funnel progress",
+                {
+                  error,
+                  userId: user.id,
+                  messageId: message.id,
+                },
+              ),
             ),
-          ),
-        );
+          );
+        }
 
         // Auto-generate or refresh chat title if not manually set by user
-        if (!chat.customTitle) {
+        if (inboundClaim.created && !chat.customTitle) {
           const shouldRefresh =
             requestConversationMessageCount === 1 ||
             requestConversationMessageCount === 2 ||
@@ -301,6 +375,20 @@ export async function handleGuestChatPost(request: Request) {
           },
         });
 
+        if (flowResult.rateLimit) {
+          return Response.json(
+            {
+              error: flowResult.rateLimit.retryable
+                ? "Generation already in progress"
+                : "Rate limit exceeded",
+              reason: flowResult.rateLimit.reason,
+              retryable: flowResult.rateLimit.retryable,
+              upgradeInfo: flowResult.rateLimit.upgradeInfo,
+            },
+            { status: flowResult.rateLimit.retryable ? 409 : 429 },
+          );
+        }
+
         if (!flowResult.streamResult) {
           throw new Error("Missing stream result");
         }
@@ -308,6 +396,12 @@ export async function handleGuestChatPost(request: Request) {
         requestTimer.split("Setup complete");
         return flowResult.streamResult.toUIMessageStreamResponse();
       } catch (error) {
+        if (error instanceof GuestCreationDeniedError) {
+          return Response.json(
+            { error: error.message },
+            { status: error.status },
+          );
+        }
         logger.error(
           "guest_chat.request.failed",
           "Guest Chat API request failed",

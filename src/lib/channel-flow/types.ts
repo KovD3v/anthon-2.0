@@ -57,6 +57,8 @@ export interface InboundContext {
     updateChatTimestamp?: boolean;
     revalidateTags?: string[];
     waitUntil?: (promise: Promise<unknown>) => void;
+    /** Current external inbound claim. Used to fence stale webhook workers. */
+    externalInboundClaimToken?: string;
   };
   hooks?: {
     onFinish?: (result: {
@@ -69,6 +71,9 @@ export interface InboundContext {
 export interface RunChannelFlowResult {
   assistantText: string;
   metrics?: AIMetrics;
+  usageReservationId?: string;
+  usageReservationClaimToken?: string;
+  usageAlreadyReconciled?: boolean;
   persistence?: {
     status: "saved" | "skipped" | "failed";
     messageId?: string;
@@ -77,6 +82,8 @@ export interface RunChannelFlowResult {
   rateLimit?: {
     status: "denied";
     upgradeInfo?: unknown;
+    reason?: string;
+    retryable?: boolean;
   };
   streamResult?: {
     toUIMessageStreamResponse: () => Response;
@@ -101,6 +108,10 @@ export interface PersistAssistantOutputInput {
   revalidateTags?: string[];
   allowMemoryExtraction?: boolean;
   waitUntil?: (promise: Promise<unknown>) => void;
+  usageReservationId?: string;
+  usageReservationClaimToken?: string;
+  usageAlreadyReconciled?: boolean;
+  externalInboundClaimToken?: string;
   /** Create the durable web TTS job in the same transaction as the message. */
   voiceGeneration?: {
     expiresAt: Date;

@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   streamChat: vi.fn(),
   persistAssistantOutput: vi.fn(),
+  reserveAiUsage: vi.fn(),
+  releaseAiUsageReservation: vi.fn(),
+  reconcileAiUsageForRecovery: vi.fn(),
 }));
 
 vi.mock("@/lib/ai/orchestrator", () => ({
@@ -11,6 +14,12 @@ vi.mock("@/lib/ai/orchestrator", () => ({
 
 vi.mock("./persistence", () => ({
   persistAssistantOutput: mocks.persistAssistantOutput,
+}));
+
+vi.mock("@/lib/rate-limit", () => ({
+  reserveAiUsage: mocks.reserveAiUsage,
+  releaseAiUsageReservation: mocks.releaseAiUsageReservation,
+  reconcileAiUsageForRecovery: mocks.reconcileAiUsageForRecovery,
 }));
 
 import { runChannelFlow } from "./run";
@@ -23,6 +32,12 @@ describe("channel-flow/run", () => {
   beforeEach(() => {
     mocks.streamChat.mockReset();
     mocks.persistAssistantOutput.mockReset();
+    mocks.reserveAiUsage.mockReset();
+    mocks.releaseAiUsageReservation.mockReset();
+    mocks.reconcileAiUsageForRecovery.mockReset();
+    mocks.reserveAiUsage.mockResolvedValue(undefined);
+    mocks.releaseAiUsageReservation.mockResolvedValue(true);
+    mocks.reconcileAiUsageForRecovery.mockResolvedValue({ charged: true });
   });
 
   it("returns stream result in stream mode", async () => {
@@ -658,6 +673,10 @@ describe("channel-flow/run", () => {
           allowed: true,
           effectiveEntitlements: {
             modelTier: "BASIC",
+            uploadLimits: {
+              maxUploadsPerDay: 25,
+              maxUploadBytesPerDay: 250 * 1024 * 1024,
+            },
             limits: {
               maxRequestsPerDay: 10,
               maxInputTokensPerDay: 1000,

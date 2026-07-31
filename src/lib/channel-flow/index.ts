@@ -15,6 +15,7 @@ export {
   markExternalChannelInboundCompleted,
   markExternalChannelInboundFailed,
   prepareExternalChannelInbound,
+  startExternalInboundLeaseHeartbeat,
 } from "./external-inbound";
 export { runChannelFlow } from "./run";
 export type {

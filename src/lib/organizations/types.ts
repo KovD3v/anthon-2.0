@@ -23,6 +23,11 @@ export interface EntitlementLimits {
   maxContextMessages: number;
 }
 
+export interface UploadLimits {
+  maxUploadsPerDay: number;
+  maxUploadBytesPerDay: number;
+}
+
 export interface EffectiveEntitlementSource {
   type: "personal" | "organization";
   sourceId: string;
@@ -33,6 +38,7 @@ export interface EffectiveEntitlementSource {
 
 export interface EffectiveEntitlements {
   limits: EntitlementLimits;
+  uploadLimits: UploadLimits;
   modelTier: OrganizationModelTier;
   sources: EffectiveEntitlementSource[];
 }

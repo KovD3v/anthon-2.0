@@ -26,6 +26,10 @@ const baseEntitlements: EffectiveEntitlements = {
     maxCostPerDay: 1,
     maxContextMessages: 10,
   },
+  uploadLimits: {
+    maxUploadsPerDay: 25,
+    maxUploadBytesPerDay: 250 * 1024 * 1024,
+  },
   modelTier: "BASIC",
   sources: [
     {

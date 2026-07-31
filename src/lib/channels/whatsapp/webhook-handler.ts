@@ -11,6 +11,7 @@ import {
   prepareChannelConnectRequest,
   prepareExternalChannelInbound,
   runChannelFlow,
+  startExternalInboundLeaseHeartbeat,
 } from "@/lib/channel-flow";
 import { buildExternalChannelInbound } from "@/lib/channel-flow/inbound";
 import { formatExternalRateLimitMessage } from "@/lib/channel-flow/rate-limit-message";
@@ -394,8 +395,14 @@ async function handleMessage(
 
   if (preparedInbound.status === "duplicate") return;
 
-  const { user, conversationThread, inbound, rateLimit, claimToken } =
-    preparedInbound;
+  const {
+    user,
+    conversationThread,
+    inbound,
+    rateLimit,
+    claimToken,
+    savedAssistant,
+  } = preparedInbound;
   const completeInbound = () =>
     markExternalChannelInboundCompleted({
       inboundId: inbound.id,
@@ -407,8 +414,27 @@ async function handleMessage(
       claimToken,
       error,
     });
+  const stopInboundHeartbeat = startExternalInboundLeaseHeartbeat({
+    inboundId: inbound.id,
+    claimToken,
+  });
 
   try {
+    if (savedAssistant) {
+      if (!savedAssistant.text.trim()) {
+        await failInbound("persisted_assistant_response_is_empty");
+        return;
+      }
+      const sent = await sendWhatsAppMessage(
+        from,
+        savedAssistant.text,
+        AbortSignal.timeout(15_000),
+      );
+      if (sent) await completeInbound();
+      else await failInbound("outbound_resend_failed");
+      return;
+    }
+
     if (!rateLimit.allowed) {
       await recordWhatsAppInboundError({
         inboundId: inbound.id,
@@ -673,8 +699,22 @@ async function handleMessage(
           } as Prisma.InputJsonValue,
           saveAssistantMessage: true,
           waitUntil: safeWaitUntil,
+          externalInboundClaimToken: claimToken,
         },
       });
+      if (flowResult.rateLimit) {
+        const sent = await sendWhatsAppMessage(
+          from,
+          formatExternalRateLimitMessage(
+            flowResult.rateLimit.upgradeInfo as Parameters<
+              typeof formatExternalRateLimitMessage
+            >[0],
+          ),
+        );
+        if (sent && !flowResult.rateLimit.retryable) await completeInbound();
+        else await failInbound(flowResult.rateLimit.reason ?? "usage_denied");
+        return;
+      }
       assistantText = flowResult.assistantText;
       assistantMessageId = flowResult.persistence?.messageId;
       if (flowResult.persistence?.status === "failed") {
@@ -875,6 +915,8 @@ async function handleMessage(
   } catch (error) {
     await failInbound(error);
     throw error;
+  } finally {
+    await stopInboundHeartbeat();
   }
 }
 

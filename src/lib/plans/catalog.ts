@@ -1,6 +1,7 @@
 import type {
   EntitlementLimits,
   OrganizationModelTier,
+  UploadLimits,
 } from "@/lib/organizations/types";
 import type { VoicePlanConfig } from "@/lib/voice/config";
 import type { CanonicalPlan } from "./types";
@@ -8,6 +9,7 @@ import type { CanonicalPlan } from "./types";
 interface PlanCatalogEntry {
   modelTier: OrganizationModelTier;
   limits: EntitlementLimits;
+  uploadLimits: UploadLimits;
   attachmentRetentionDays: number;
   modelRouting: {
     orchestrator: string;
@@ -44,6 +46,10 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
       maxCostPerDay: 0.05,
       maxContextMessages: 5,
     },
+    uploadLimits: {
+      maxUploadsPerDay: 0,
+      maxUploadBytesPerDay: 0,
+    },
     attachmentRetentionDays: 1,
     modelRouting: {
       orchestrator: ORCHESTRATOR_MODEL_ID,
@@ -67,6 +73,10 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
       maxOutputTokensPerDay: 50_000,
       maxCostPerDay: 0.5,
       maxContextMessages: 10,
+    },
+    uploadLimits: {
+      maxUploadsPerDay: 10,
+      maxUploadBytesPerDay: 50 * 1024 * 1024,
     },
     attachmentRetentionDays: 7,
     modelRouting: {
@@ -92,6 +102,10 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
       maxCostPerDay: 3,
       maxContextMessages: 15,
     },
+    uploadLimits: {
+      maxUploadsPerDay: 25,
+      maxUploadBytesPerDay: 250 * 1024 * 1024,
+    },
     attachmentRetentionDays: 30,
     modelRouting: {
       orchestrator: ORCHESTRATOR_MODEL_ID,
@@ -115,6 +129,10 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
       maxOutputTokensPerDay: 400_000,
       maxCostPerDay: 5,
       maxContextMessages: 30,
+    },
+    uploadLimits: {
+      maxUploadsPerDay: 50,
+      maxUploadBytesPerDay: 500 * 1024 * 1024,
     },
     attachmentRetentionDays: 60,
     modelRouting: {
@@ -140,6 +158,10 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
       maxCostPerDay: 15,
       maxContextMessages: 100,
     },
+    uploadLimits: {
+      maxUploadsPerDay: 100,
+      maxUploadBytesPerDay: 2 * 1024 * 1024 * 1024,
+    },
     attachmentRetentionDays: 180,
     modelRouting: {
       orchestrator: ORCHESTRATOR_MODEL_ID,
@@ -163,6 +185,10 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
       maxOutputTokensPerDay: Number.POSITIVE_INFINITY,
       maxCostPerDay: Number.POSITIVE_INFINITY,
       maxContextMessages: 100,
+    },
+    uploadLimits: {
+      maxUploadsPerDay: Number.POSITIVE_INFINITY,
+      maxUploadBytesPerDay: Number.POSITIVE_INFINITY,
     },
     attachmentRetentionDays: 365 * 10,
     modelRouting: {
