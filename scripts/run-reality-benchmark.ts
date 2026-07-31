@@ -154,7 +154,12 @@ function assertAtLeastOneSuccessfulTurnPerModel(
       );
       return (
         modelResults.length === 0 ||
-        modelResults.every((result) => result.metadata?.benchmarkError === true)
+        modelResults.every(
+          (result) =>
+            result.metadata?.benchmarkError === true ||
+            result.assistantText.trim().length === 0 ||
+            result.metrics.generationTimeMs <= 0,
+        )
       );
     })
     .map((model) => model.modelId);
