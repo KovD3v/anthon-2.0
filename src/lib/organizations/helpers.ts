@@ -14,10 +14,6 @@ import {
   type OrganizationMemberRole,
 } from "@/lib/organizations/types";
 
-type JsonObject = Record<string, unknown>;
-
-export type { JsonObject };
-
 export function jsonValue(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
 }
