@@ -49,6 +49,7 @@ export interface InboundContext {
   };
   execution?: {
     mode?: "stream" | "text";
+    abortSignal?: AbortSignal;
   };
   persistence?: {
     saveAssistantMessage?: boolean;

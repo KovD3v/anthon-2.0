@@ -545,6 +545,7 @@ export async function handleWebChatPost(request: Request) {
                 ? "direct_media"
                 : "text",
             voiceDecision,
+            abortSignal: request.signal,
             waitUntil,
           });
 
@@ -614,7 +615,7 @@ export async function handleWebChatPost(request: Request) {
             voiceUnavailableReason,
             skipConversationHistory: chat._count.messages === 0,
           },
-          execution: { mode: "stream" },
+          execution: { mode: "stream", abortSignal: request.signal },
           persistence: {
             channel: "WEB",
             saveAssistantMessage: true,
@@ -835,6 +836,7 @@ async function handleVoiceFirstWebResponse({
   hasAudio,
   inputOrigin,
   voiceDecision,
+  abortSignal,
   waitUntil: schedule,
 }: {
   userId: string;
@@ -852,6 +854,7 @@ async function handleVoiceFirstWebResponse({
   hasAudio?: boolean;
   inputOrigin?: "text" | "transcribed_voice" | "direct_media";
   voiceDecision: Awaited<ReturnType<typeof decideWebVoiceMode>>;
+  abortSignal?: AbortSignal;
   waitUntil?: (promise: Promise<unknown>) => void;
 }) {
   const flowResult = await runChannelFlow({
@@ -885,7 +888,7 @@ async function handleVoiceFirstWebResponse({
       responseMode: "voice",
       voiceEnabled: true,
     },
-    execution: { mode: "text" },
+    execution: { mode: "text", abortSignal },
     persistence: {
       channel: "WEB",
       saveAssistantMessage: false,

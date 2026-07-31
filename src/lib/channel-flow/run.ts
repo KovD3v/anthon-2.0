@@ -98,6 +98,31 @@ function createPersistedResponse(
   return createUIMessageStreamResponse({ stream });
 }
 
+function withCancellation<T>(
+  stream: ReadableStream<T>,
+  onCancel: (reason: unknown) => Promise<void>,
+) {
+  const reader = stream.getReader();
+  return new ReadableStream<T>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(value);
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    async cancel(reason) {
+      await onCancel(reason);
+      await reader.cancel(reason).catch(() => undefined);
+    },
+  });
+}
+
 export async function runChannelFlow(
   ctx: InboundContext,
 ): Promise<RunChannelFlowResult> {
@@ -153,6 +178,55 @@ export async function runChannelFlow(
 
   const usageReservationId = usageReservation?.reservationId;
   const usageReservationClaimToken = usageReservation?.claimToken;
+  type UsageReservationState =
+    | "reserved"
+    | "settling"
+    | "settled"
+    | "releasing";
+  let usageReservationState: UsageReservationState =
+    usageReservation?.recovery || usageReservation?.persistedAssistant
+      ? "settled"
+      : "reserved";
+  let usageReservationRelease: Promise<boolean> | undefined;
+
+  const releaseUsageReservationOnce = () => {
+    if (
+      usageReservationState !== "reserved" ||
+      !usageReservationId ||
+      !usageReservationClaimToken
+    ) {
+      return Promise.resolve(false);
+    }
+    usageReservationState = "releasing";
+    usageReservationRelease ??= releaseAiUsageReservation({
+      reservationId: usageReservationId,
+      claimToken: usageReservationClaimToken,
+      userId: ctx.userId,
+    }).catch(() => false);
+    return usageReservationRelease;
+  };
+
+  const beginUsageReservationSettlement = () => {
+    if (!usageReservationId || !usageReservationClaimToken) return;
+    if (usageReservationState === "releasing") {
+      throw new Error("Usage reservation was released before settlement");
+    }
+    if (usageReservationState === "reserved") {
+      usageReservationState = "settling";
+    }
+  };
+
+  const markUsageReservationSettled = () => {
+    if (usageReservationId && usageReservationClaimToken) {
+      usageReservationState = "settled";
+    }
+  };
+
+  const resetUsageReservationSettlement = () => {
+    if (usageReservationState === "settling") {
+      usageReservationState = "reserved";
+    }
+  };
 
   const persistGeneratedOutput = async ({
     text,
@@ -164,6 +238,9 @@ export async function runChannelFlow(
     usageAlreadyReconciled?: boolean;
   }) => {
     if (ctx.persistence?.saveAssistantMessage === false) return undefined;
+    if (!usageAlreadyReconciled) {
+      beginUsageReservationSettlement();
+    }
     try {
       const message = await persistAssistantOutput({
         userId: ctx.userId,
@@ -185,6 +262,7 @@ export async function runChannelFlow(
         externalInboundClaimToken: ctx.persistence?.externalInboundClaimToken,
       });
       persistence = { status: "saved", messageId: message.id };
+      markUsageReservationSettled();
       return message;
     } catch (error) {
       persistence = { status: "failed", error };
@@ -193,19 +271,23 @@ export async function runChannelFlow(
         usageReservationClaimToken &&
         !usageAlreadyReconciled
       ) {
-        await reconcileAiUsageForRecovery({
-          reservationId: usageReservationId,
-          claimToken: usageReservationClaimToken,
-          userId: ctx.userId,
-          text,
-          metrics,
-        }).catch((recoveryError) =>
+        try {
+          await reconcileAiUsageForRecovery({
+            reservationId: usageReservationId,
+            claimToken: usageReservationClaimToken,
+            userId: ctx.userId,
+            text,
+            metrics,
+          });
+          markUsageReservationSettled();
+        } catch (recoveryError) {
+          resetUsageReservationSettlement();
           runLogger.error(
             "usage.recovery_reconcile_failed",
             "Failed recording generated usage recovery",
             { error: recoveryError, userId: ctx.userId },
-          ),
-        );
+          );
+        }
       }
       runLogger.error("persist.failed", "Failed persisting assistant output", {
         error,
@@ -283,6 +365,28 @@ export async function runChannelFlow(
     };
   }
 
+  const generationAbortController = new AbortController();
+  const requestAbortSignal = ctx.execution?.abortSignal;
+  const forwardRequestAbort = () =>
+    generationAbortController.abort(requestAbortSignal?.reason);
+  generationAbortController.signal.addEventListener(
+    "abort",
+    () => {
+      void releaseUsageReservationOnce();
+    },
+    { once: true },
+  );
+  if (requestAbortSignal?.aborted) {
+    forwardRequestAbort();
+  } else {
+    requestAbortSignal?.addEventListener("abort", forwardRequestAbort, {
+      once: true,
+    });
+  }
+
+  const detachRequestAbort = () =>
+    requestAbortSignal?.removeEventListener("abort", forwardRequestAbort);
+
   let streamResult: Awaited<ReturnType<typeof streamChat>>;
   try {
     streamResult = await streamChat({
@@ -313,17 +417,26 @@ export async function runChannelFlow(
         : undefined,
       effectiveEntitlements: ctx.rateLimit.effectiveEntitlements,
       skipConversationHistory: ctx.ai?.skipConversationHistory,
+      abortSignal: generationAbortController.signal,
       onFinish: async ({ text, metrics }) => {
         finalMetrics = metrics;
+        generationAbortController.signal.throwIfAborted();
         if (!text.trim()) {
           if (usageReservationId && usageReservationClaimToken) {
-            await reconcileAiUsageForRecovery({
-              reservationId: usageReservationId,
-              claimToken: usageReservationClaimToken,
-              userId: ctx.userId,
-              text,
-              metrics,
-            });
+            beginUsageReservationSettlement();
+            try {
+              await reconcileAiUsageForRecovery({
+                reservationId: usageReservationId,
+                claimToken: usageReservationClaimToken,
+                userId: ctx.userId,
+                text,
+                metrics,
+              });
+              markUsageReservationSettled();
+            } catch (error) {
+              resetUsageReservationSettlement();
+              throw error;
+            }
           }
           throw new Error("AI generation returned an empty response");
         }
@@ -341,13 +454,8 @@ export async function runChannelFlow(
       },
     });
   } catch (error) {
-    if (usageReservationId && usageReservationClaimToken) {
-      await releaseAiUsageReservation({
-        reservationId: usageReservationId,
-        claimToken: usageReservationClaimToken,
-        userId: ctx.userId,
-      }).catch(() => undefined);
-    }
+    detachRequestAbort();
+    await releaseUsageReservationOnce();
     throw error;
   }
 
@@ -367,11 +475,18 @@ export async function runChannelFlow(
             }) => ReadableStream<UIMessageChunk>;
           };
           if (!streamable.toUIMessageStream) {
+            detachRequestAbort();
+            generationAbortController.abort(
+              new Error("Missing durable UI stream primitive"),
+            );
             throw new Error(
               "AI stream does not expose the durable UI stream primitive",
             );
           }
 
+          let sourceReader:
+            | ReadableStreamDefaultReader<UIMessageChunk>
+            | undefined;
           const durableStream = createUIMessageStream<UIMessage>({
             async execute({ writer }) {
               let sourceErrored = false;
@@ -381,27 +496,27 @@ export async function runChannelFlow(
                 });
                 if (!source) throw new Error("Missing UI stream");
                 const reader = source.getReader();
+                sourceReader = reader;
                 try {
                   while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
                     if (value.type === "error" || value.type === "abort") {
                       sourceErrored = true;
+                      if (!generationAbortController.signal.aborted) {
+                        generationAbortController.abort(value.type);
+                      }
+                      await releaseUsageReservationOnce();
                     }
                     writer.write(value);
                   }
                 } finally {
+                  sourceReader = undefined;
                   reader.releaseLock();
                 }
 
                 if (sourceErrored || !finalMetrics) {
-                  if (usageReservationId && usageReservationClaimToken) {
-                    await releaseAiUsageReservation({
-                      reservationId: usageReservationId,
-                      claimToken: usageReservationClaimToken,
-                      userId: ctx.userId,
-                    });
-                  }
+                  await releaseUsageReservationOnce();
                   return;
                 }
                 if (persistence?.status === "failed") {
@@ -413,24 +528,29 @@ export async function runChannelFlow(
                   messageMetadata: finishMetadata(finalMetrics),
                 });
               } catch (error) {
-                if (
-                  !finalMetrics &&
-                  usageReservationId &&
-                  usageReservationClaimToken
-                ) {
-                  await releaseAiUsageReservation({
-                    reservationId: usageReservationId,
-                    claimToken: usageReservationClaimToken,
-                    userId: ctx.userId,
-                  }).catch(() => undefined);
-                }
+                await releaseUsageReservationOnce();
                 throw error;
+              } finally {
+                detachRequestAbort();
               }
             },
             onError: () =>
               "Non sono riuscito a salvare la risposta. Riprova senza perdere quota.",
           });
-          return createUIMessageStreamResponse({ stream: durableStream });
+          const cancellationAwareStream = withCancellation(
+            durableStream,
+            async (reason) => {
+              if (!generationAbortController.signal.aborted) {
+                generationAbortController.abort(reason);
+              }
+              await releaseUsageReservationOnce();
+              await sourceReader?.cancel(reason).catch(() => undefined);
+              detachRequestAbort();
+            },
+          );
+          return createUIMessageStreamResponse({
+            stream: cancellationAwareStream,
+          });
         },
       },
     };
@@ -442,14 +562,10 @@ export async function runChannelFlow(
       assistantText += chunk;
     }
   } catch (error) {
-    if (!finalMetrics && usageReservationId && usageReservationClaimToken) {
-      await releaseAiUsageReservation({
-        reservationId: usageReservationId,
-        claimToken: usageReservationClaimToken,
-        userId: ctx.userId,
-      }).catch(() => undefined);
-    }
+    await releaseUsageReservationOnce();
     throw error;
+  } finally {
+    detachRequestAbort();
   }
 
   return {

@@ -400,6 +400,7 @@ describe("ai/orchestrator", () => {
   });
 
   it("builds stream payload for text messages and skips entitlement lookup when prefetched", async () => {
+    const abortController = new AbortController();
     const prefetchedEntitlements = {
       ...baseEntitlements,
       modelTier: "PRO" as const,
@@ -414,6 +415,7 @@ describe("ai/orchestrator", () => {
       chatId: "chat-1",
       userMessage: "same message",
       effectiveEntitlements: prefetchedEntitlements,
+      abortSignal: abortController.signal,
     });
 
     expect(result).toEqual({ marker: "stream-result" });
@@ -436,9 +438,9 @@ describe("ai/orchestrator", () => {
         stopWhen: "stop-5",
         messages: [{ role: "user", content: "same message" }],
         tools: {},
+        abortSignal: abortController.signal,
       }),
     );
-
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       instructions: string;
     };
@@ -848,6 +850,7 @@ describe("ai/orchestrator", () => {
   });
 
   it("routes image messages through OpenRouter REST with image_url content", async () => {
+    const abortController = new AbortController();
     const originalApiKey = process.env.OPENROUTER_API_KEY;
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
     const fetchSpy = createTrustedImageFetch(
@@ -896,6 +899,7 @@ describe("ai/orchestrator", () => {
         chatId: "chat-image",
         userMessage: "cosa vedi?",
         hasImages: true,
+        abortSignal: abortController.signal,
         messageParts: [
           { type: "text", text: "cosa vedi?" },
           {
@@ -946,6 +950,7 @@ describe("ai/orchestrator", () => {
           Authorization: "Bearer test-openrouter-key",
           "Content-Type": "application/json",
         }),
+        signal: abortController.signal,
       }),
     );
 
@@ -1859,6 +1864,7 @@ describe("ai/orchestrator", () => {
   });
 
   it("uses the prompt classifier for ambiguous current-info requests", async () => {
+    const abortController = new AbortController();
     mocks.generateText.mockResolvedValueOnce({
       output: {
         webSearch: "yes",
@@ -1884,6 +1890,7 @@ describe("ai/orchestrator", () => {
       userId: "user-1",
       chatId: "chat-ambiguous-current-info",
       userMessage: "Mi aggiorni sulla situazione di Messi?",
+      abortSignal: abortController.signal,
     });
 
     expect(mocks.generateText).toHaveBeenCalledWith(
@@ -1899,6 +1906,7 @@ describe("ai/orchestrator", () => {
         },
         temperature: 0,
         maxOutputTokens: 120,
+        abortSignal: abortController.signal,
       }),
     );
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
@@ -1927,6 +1935,27 @@ describe("ai/orchestrator", () => {
     );
     expect(streamInput.instructions).toContain("WEB SEARCH");
     expect(streamInput.instructions).not.toContain("USER CONTEXT");
+  });
+
+  it("propagates prompt-classifier cancellation instead of falling back", async () => {
+    const abortController = new AbortController();
+    const abortError = new Error("request aborted");
+    mocks.generateText.mockImplementationOnce(async ({ abortSignal }) => {
+      expect(abortSignal).toBe(abortController.signal);
+      abortController.abort(abortError);
+      throw abortError;
+    });
+
+    await expect(
+      streamChat({
+        userId: "user-1",
+        chatId: "chat-aborted-classifier",
+        userMessage: "Mi aggiorni sulla situazione di Messi?",
+        abortSignal: abortController.signal,
+      }),
+    ).rejects.toBe(abortError);
+
+    expect(mocks.streamText).not.toHaveBeenCalled();
   });
 
   it("builds audio/file content parts, strips codec suffixes, and applies voice-disabled prompt variant", async () => {

@@ -356,6 +356,7 @@ interface StreamChatOptions {
   userMessageId?: string;
   inputOrigin?: "text" | "transcribed_voice" | "direct_media";
   benchmarkModelId?: string;
+  abortSignal?: AbortSignal;
 }
 
 type PromptMode = "full" | "guest" | "simple_fast";
@@ -983,6 +984,7 @@ async function runOpenRouterMultimodalCompletion({
   ragChunksCount,
   telemetryContext,
   onFinish,
+  abortSignal,
 }: {
   modelId: string;
   systemPrompt: string;
@@ -992,6 +994,7 @@ async function runOpenRouterMultimodalCompletion({
   ragChunksCount: number;
   telemetryContext: AiGenerationTelemetryContext;
   onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
+  abortSignal?: AbortSignal;
 }): Promise<DirectMultimodalCompletion> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -999,6 +1002,7 @@ async function runOpenRouterMultimodalCompletion({
   }
 
   const openRouterMessages = await toOpenRouterMessages(systemPrompt, messages);
+  abortSignal?.throwIfAborted();
 
   const response = await fetch(
     "https://openrouter.ai/api/v1/chat/completions",
@@ -1018,6 +1022,7 @@ async function runOpenRouterMultimodalCompletion({
         usage: { include: true },
         ...getOpenRouterProviderOptionsForModel(modelId),
       }),
+      signal: abortSignal,
     },
   );
 
@@ -1158,10 +1163,10 @@ async function classifyPromptModules({
       () =>
         generateText({
           model: openrouter(PROMPT_MODULE_CLASSIFIER_MODEL_ID),
-          abortSignal,
           output: Output.object({ schema: promptModuleClassifierSchema }),
           temperature: 0,
           maxOutputTokens: 120,
+          abortSignal,
           timeout: { totalMs: PROMPT_MODULE_CLASSIFIER_TIMEOUT_MS },
           providerOptions: {
             openrouter: getOpenRouterProviderOptionsForModel(
@@ -1271,6 +1276,7 @@ export async function streamChat({
   userMessageId,
   inputOrigin: requestedInputOrigin,
   benchmarkModelId,
+  abortSignal,
 }: StreamChatOptions) {
   // Record start time for performance tracking
   const startTime = Date.now();
@@ -1322,6 +1328,7 @@ export async function streamChat({
     userId,
     userMessage,
     webSearchRule,
+    abortSignal,
   });
 
   const promptModuleClassifier = await promptModuleClassifierPromise;
@@ -1846,6 +1853,7 @@ export async function streamChat({
             await onFinish({ text, metrics: attachTurnTrace(metrics) });
           }
         : undefined,
+      abortSignal,
     });
 
     aiLogger.info("ai.stream.started", "AI multimodal streaming started", {
@@ -1866,6 +1874,7 @@ export async function streamChat({
   // Stream the response
   const result = streamText({
     model,
+    abortSignal,
     instructions: systemPrompt,
     messages,
     tools,
