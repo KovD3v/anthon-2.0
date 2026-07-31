@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
   getRateLimitsForUser: vi.fn(),
   getDailyUsage: vi.fn(),
   incrementUsage: vi.fn(),
-  reconcileAiUsage: vi.fn(),
   reconcileAiUsageForRecovery: vi.fn(),
   reconcileAiUsageInTransaction: vi.fn(),
   releaseAiUsageReservation: vi.fn(),
@@ -29,7 +28,6 @@ vi.mock("./usage", () => ({
 }));
 
 vi.mock("./reservations", () => ({
-  reconcileAiUsage: mocks.reconcileAiUsage,
   reconcileAiUsageForRecovery: mocks.reconcileAiUsageForRecovery,
   reconcileAiUsageInTransaction: mocks.reconcileAiUsageInTransaction,
   releaseAiUsageReservation: mocks.releaseAiUsageReservation,
@@ -45,7 +43,6 @@ describe("rate-limit/index barrel", () => {
     expect(typeof rateLimit.getRateLimitsForUser).toBe("function");
     expect(typeof rateLimit.getDailyUsage).toBe("function");
     expect(typeof rateLimit.incrementUsage).toBe("function");
-    expect(typeof rateLimit.reconcileAiUsage).toBe("function");
     expect(typeof rateLimit.reconcileAiUsageForRecovery).toBe("function");
     expect(typeof rateLimit.reconcileAiUsageInTransaction).toBe("function");
     expect(typeof rateLimit.releaseAiUsageReservation).toBe("function");
