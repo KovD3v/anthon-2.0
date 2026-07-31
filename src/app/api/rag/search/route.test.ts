@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   shouldUseRag: vi.fn(),
   searchDocuments: vi.fn(),
-  getRagContext: vi.fn(),
+  buildRagContext: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -14,7 +14,7 @@ vi.mock("@clerk/nextjs/server", () => ({
 vi.mock("@/lib/ai/rag", () => ({
   shouldUseRag: mocks.shouldUseRag,
   searchDocuments: mocks.searchDocuments,
-  getRagContext: mocks.getRagContext,
+  buildRagContext: mocks.buildRagContext,
 }));
 
 import { POST } from "./route";
@@ -40,12 +40,12 @@ describe("POST /api/rag/search", () => {
     mocks.auth.mockReset();
     mocks.shouldUseRag.mockReset();
     mocks.searchDocuments.mockReset();
-    mocks.getRagContext.mockReset();
+    mocks.buildRagContext.mockReset();
 
     mocks.auth.mockResolvedValue({ userId: "clerk-1" });
     mocks.shouldUseRag.mockResolvedValue(true);
     mocks.searchDocuments.mockResolvedValue([{ id: "doc-1" }]);
-    mocks.getRagContext.mockResolvedValue({
+    mocks.buildRagContext.mockReturnValue({
       text: "context text",
       chunkCount: 1,
     });
@@ -77,7 +77,7 @@ describe("POST /api/rag/search", () => {
       error: "Invalid request body",
     });
     expect(mocks.searchDocuments).not.toHaveBeenCalled();
-    expect(mocks.getRagContext).not.toHaveBeenCalled();
+    expect(mocks.buildRagContext).not.toHaveBeenCalled();
   });
 
   it.each(["   ", 123, { text: "hello" }, ["hello"]])(
@@ -91,7 +91,7 @@ describe("POST /api/rag/search", () => {
       });
       expect(mocks.shouldUseRag).not.toHaveBeenCalled();
       expect(mocks.searchDocuments).not.toHaveBeenCalled();
-      expect(mocks.getRagContext).not.toHaveBeenCalled();
+      expect(mocks.buildRagContext).not.toHaveBeenCalled();
     },
   );
 
@@ -105,7 +105,7 @@ describe("POST /api/rag/search", () => {
         error: "limit must be an integer between 1 and 5",
       });
       expect(mocks.searchDocuments).not.toHaveBeenCalled();
-      expect(mocks.getRagContext).not.toHaveBeenCalled();
+      expect(mocks.buildRagContext).not.toHaveBeenCalled();
     },
   );
 
@@ -128,12 +128,15 @@ describe("POST /api/rag/search", () => {
 
   it("returns search results and context", async () => {
     mocks.searchDocuments.mockResolvedValue([{ id: "d1" }, { id: "d2" }]);
-    mocks.getRagContext.mockResolvedValue({ text: "ctx", chunkCount: 1 });
+    mocks.buildRagContext.mockReturnValue({ text: "ctx", chunkCount: 2 });
 
     const response = await POST(buildRequest({ query: "nutrition", limit: 2 }));
 
     expect(mocks.searchDocuments).toHaveBeenCalledWith("nutrition", 2);
-    expect(mocks.getRagContext).toHaveBeenCalledWith("nutrition");
+    expect(mocks.buildRagContext).toHaveBeenCalledWith([
+      { id: "d1" },
+      { id: "d2" },
+    ]);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       needsRag: true,

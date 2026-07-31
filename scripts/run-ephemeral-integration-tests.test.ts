@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assertDevelopmentParent,
   buildChildProcessEnv,
+  buildE2EProcessEnv,
   buildEphemeralBranchName,
   buildEphemeralConnectionString,
   getEndpointId,
@@ -44,6 +45,30 @@ describe("ephemeral Neon integration runner", () => {
     expect(() =>
       assertDevelopmentParent({ id: "br-dev", name: "development" }, "br-dev"),
     ).not.toThrow();
+  });
+
+  it("refuses a missing or mismatched development parent", () => {
+    expect(() => assertDevelopmentParent(undefined, "br-dev")).toThrow(
+      "was not found",
+    );
+    expect(() =>
+      assertDevelopmentParent(
+        { id: "br-other", name: "development" },
+        "br-dev",
+      ),
+    ).toThrow("was not found");
+    expect(() =>
+      assertDevelopmentParent(
+        { id: "br-main", name: "main", primary: true },
+        "br-main",
+      ),
+    ).toThrow("DATABASE_URL must point to development");
+  });
+
+  it("rejects a database URL that is not a Neon endpoint", () => {
+    expect(() =>
+      getEndpointId("postgresql://user:secret@localhost:5432/db"),
+    ).toThrow("DATABASE_URL must point to a Neon endpoint");
   });
 
   it("reuses credentials while replacing only the branch endpoint", () => {
@@ -95,10 +120,74 @@ describe("ephemeral Neon integration runner", () => {
     });
   });
 
+  it("lists project endpoints and branches with authenticated GET requests", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            endpoints: [
+              {
+                id: "ep-dev",
+                branch_id: "br-dev",
+                host: "ep-dev.neon.tech",
+                type: "read_write",
+              },
+            ],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            branches: [{ id: "br-dev", name: "development" }],
+          }),
+        ),
+      ) as typeof fetch;
+    const api = new NeonBranchApi("secret-key", "project-id", fetcher);
+
+    await expect(api.listEndpoints()).resolves.toHaveLength(1);
+    await expect(api.listBranches()).resolves.toEqual([
+      { id: "br-dev", name: "development" },
+    ]);
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("/projects/project-id/endpoints"),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept: "application/json",
+          Authorization: "Bearer secret-key",
+        }),
+      }),
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("/projects/project-id/branches"),
+      expect.any(Object),
+    );
+  });
+
+  it("reports Neon API failures without including response content", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response("provider details", {
+        status: 503,
+        statusText: "Unavailable",
+      }),
+    ) as typeof fetch;
+    const api = new NeonBranchApi("secret-key", "project-id", fetcher);
+
+    await expect(api.deleteBranch("br-test")).rejects.toThrow(
+      "Neon API request failed (DELETE /branches/br-test, 503 Unavailable)",
+    );
+  });
+
   it("uses bounded, collision-resistant branch names", () => {
     const name = buildEphemeralBranchName(new Date("2026-07-13T17:30:45.000Z"));
     expect(name).toMatch(/^integration-20260713173045-[a-f0-9]{8}$/);
     expect(name.length).toBeLessThan(64);
+    expect(
+      buildEphemeralBranchName(new Date("2026-07-13T17:30:45.000Z"), "e2e"),
+    ).toMatch(/^e2e-20260713173045-[a-f0-9]{8}$/);
   });
 
   it("does not pass Neon management credentials or stale test URLs to children", () => {
@@ -116,6 +205,24 @@ describe("ephemeral Neon integration runner", () => {
       NODE_ENV: "test",
       DATABASE_URL: "development-url",
       NEON_PROJECT_ID: "project-id",
+    });
+  });
+
+  it("raises the guest creation cap only inside the isolated E2E process", () => {
+    const env = buildE2EProcessEnv({
+      childProcessEnv: {
+        NODE_ENV: "test",
+        GUEST_CREATIONS_PER_IP_PER_DAY: "3",
+      },
+      testDatabaseUrl: "ephemeral-url",
+      branchId: "br-e2e",
+    });
+
+    expect(env).toMatchObject({
+      DATABASE_URL: "ephemeral-url",
+      DIRECT_DATABASE_URL: "ephemeral-url",
+      E2E_EPHEMERAL_BRANCH_ID: "br-e2e",
+      GUEST_CREATIONS_PER_IP_PER_DAY: "100",
     });
   });
 });

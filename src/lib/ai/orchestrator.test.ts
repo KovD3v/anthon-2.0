@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   getRagContext: vi.fn(),
   shouldUseRag: vi.fn(),
   buildConversationContext: vi.fn(),
+  buildThreadContext: vi.fn(),
   createMemoryTools: vi.fn(),
   formatMemoriesForPrompt: vi.fn(),
   createTinyfishTools: vi.fn(),
@@ -73,6 +74,10 @@ vi.mock("@/lib/ai/session-manager", () => ({
   buildConversationContext: mocks.buildConversationContext,
 }));
 
+vi.mock("@/lib/ai/thread-context", () => ({
+  buildThreadContext: mocks.buildThreadContext,
+}));
+
 vi.mock("@/lib/ai/tools/memory", () => ({
   createMemoryTools: mocks.createMemoryTools,
   formatMemoriesForPrompt: mocks.formatMemoriesForPrompt,
@@ -103,7 +108,11 @@ vi.mock("@/lib/voice", () => ({
   getVoicePlanConfig: mocks.getVoicePlanConfig,
 }));
 
-import { streamChat } from "./orchestrator";
+import {
+  executePreparedChatTurn,
+  prepareChatTurn,
+  streamChat,
+} from "./orchestrator";
 
 const TRUSTED_BLOB_ORIGIN = "https://store.public.blob.vercel-storage.com";
 const TRUSTED_IMAGE_URL = `${TRUSTED_BLOB_ORIGIN}/attachments/user-1/chat-image/photo.jpg`;
@@ -169,6 +178,7 @@ describe("ai/orchestrator", () => {
     mocks.getRagContext.mockReset();
     mocks.shouldUseRag.mockReset();
     mocks.buildConversationContext.mockReset();
+    mocks.buildThreadContext.mockReset();
     mocks.createMemoryTools.mockReset();
     mocks.formatMemoriesForPrompt.mockReset();
     mocks.createTinyfishTools.mockReset();
@@ -232,6 +242,7 @@ describe("ai/orchestrator", () => {
     mocks.buildConversationContext.mockResolvedValue([
       { role: "user", content: "same message" },
     ]);
+    mocks.buildThreadContext.mockResolvedValue({ messages: [] });
     mocks.formatUserContextForPrompt.mockResolvedValue("user-context-data");
     mocks.formatMemoriesForPrompt.mockResolvedValue("user-memories-data");
     mocks.createMemoryTools.mockReturnValue({
@@ -307,6 +318,85 @@ describe("ai/orchestrator", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it("forwards abort signals to prepared experiment generations", () => {
+    const abortController = new AbortController();
+
+    executePreparedChatTurn({
+      prepared: {
+        userId: "user-1",
+        chatId: "chat-1",
+        conversationThreadId: "thread-1",
+        userMessageId: "message-1",
+        userMessage: "help me focus",
+        planId: "basic",
+        userRole: "USER",
+        effectiveModelTier: "BASIC",
+        systemPrompt: "coach prompt",
+        messages: [{ role: "user", content: "help me focus" }],
+        turnPlan: {
+          responseLength: "brief",
+        } as never,
+        promptMode: "full",
+        ragUsed: false,
+        ragChunksCount: 0,
+      },
+      abortSignal: abortController.signal,
+      modelId: "provider/candidate",
+      generationConfig: { fallbacks: false },
+      clerkId: "clerk-1",
+      traceId: "trace-1",
+      experimentId: "experiment-1",
+      pairId: "pair-1",
+      role: "CANDIDATE",
+    });
+
+    expect(mocks.streamText).toHaveBeenCalledWith(
+      expect.objectContaining({ abortSignal: abortController.signal }),
+    );
+  });
+
+  it("forwards abort signals to experiment prompt preparation", async () => {
+    const abortController = new AbortController();
+
+    await prepareChatTurn({
+      userId: "user-1",
+      abortSignal: abortController.signal,
+      chatId: "chat-1",
+      conversationThreadId: "thread-1",
+      userMessageId: "message-1",
+      userMessage: "Mi aggiorni sulla situazione di Messi?",
+      effectiveEntitlements: baseEntitlements as never,
+      skipConversationHistory: true,
+    });
+
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({ abortSignal: abortController.signal }),
+    );
+  });
+
+  it("does not downgrade an aborted experiment classifier to fallback planning", async () => {
+    const abortController = new AbortController();
+    const abortReason = new Error("request disconnected");
+    mocks.generateText.mockImplementationOnce(async () => {
+      abortController.abort(abortReason);
+      throw abortReason;
+    });
+
+    await expect(
+      prepareChatTurn({
+        userId: "user-1",
+        abortSignal: abortController.signal,
+        chatId: "chat-1",
+        conversationThreadId: "thread-1",
+        userMessageId: "message-1",
+        userMessage: "Mi aggiorni sulla situazione di Messi?",
+        effectiveEntitlements: baseEntitlements as never,
+        skipConversationHistory: true,
+      }),
+    ).rejects.toBe(abortReason);
+    expect(mocks.buildThreadContext).not.toHaveBeenCalled();
   });
 
   it("builds stream payload for text messages and skips entitlement lookup when prefetched", async () => {

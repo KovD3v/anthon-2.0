@@ -1,8 +1,10 @@
 import { Prisma } from "@/generated/prisma";
+import type { AIMetrics } from "@/lib/ai/cost-calculator";
 import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import { reconcileAiUsageInTransaction } from "@/lib/rate-limit";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 import {
   captureModelComparisonEvent,
@@ -21,6 +23,16 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 function asJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
+}
+
+async function lockModelExperiment(
+  tx: Pick<Prisma.TransactionClient, "$queryRaw">,
+  experimentId: string,
+) {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>(
+    Prisma.sql`SELECT "id" FROM "ModelExperiment" WHERE "id" = ${experimentId} FOR UPDATE`,
+  );
+  if (rows.length === 0) throw new Error("EXPERIMENT_NOT_FOUND");
 }
 
 function publicExperimentSnapshot(experiment: {
@@ -92,6 +104,7 @@ export async function updateDraftModelExperiment(
   input: Partial<Omit<CreateModelExperimentInput, "key">>,
 ) {
   return prisma.$transaction(async (tx) => {
+    await lockModelExperiment(tx, experimentId);
     const before = await tx.modelExperiment.findUnique({
       where: { id: experimentId },
       include: { variants: true },
@@ -145,6 +158,7 @@ export async function updateDraftModelExperiment(
 
 export async function deleteDraftModelExperiment(experimentId: string) {
   return prisma.$transaction(async (tx) => {
+    await lockModelExperiment(tx, experimentId);
     const experiment = await tx.modelExperiment.findUnique({
       where: { id: experimentId },
       select: {
@@ -170,6 +184,7 @@ export async function transitionModelExperiment(
   action: ModelExperimentLifecycleAction,
 ) {
   return prisma.$transaction(async (tx) => {
+    await lockModelExperiment(tx, experimentId);
     const before = await tx.modelExperiment.findUnique({
       where: { id: experimentId },
       include: { variants: true },
@@ -238,6 +253,7 @@ export async function createModelComparisonPair({
   random?: () => number;
 }) {
   return prisma.$transaction(async (tx) => {
+    await lockModelExperiment(tx, experimentId);
     const experiment = await tx.modelExperiment.findUnique({
       where: { id: experimentId },
       include: { variants: true },
@@ -253,11 +269,21 @@ export async function createModelComparisonPair({
     );
     if (!control || !candidate) throw new Error("EXPERIMENT_VARIANTS_INVALID");
 
-    const participant = await tx.modelExperimentParticipant.upsert({
-      where: { experimentId_userId: { experimentId, userId } },
-      create: { experimentId, userId },
-      update: {},
+    await tx.modelExperimentParticipant.createMany({
+      data: { experimentId, userId },
+      skipDuplicates: true,
     });
+    const [participant] = await tx.$queryRaw<
+      Array<{
+        id: string;
+        attempts: number;
+        nextEligibleAt: Date | null;
+        noticeState: "NOT_SHOWN" | "SHOWN";
+      }>
+    >(
+      Prisma.sql`SELECT "id", "attempts", "nextEligibleAt", "noticeState" FROM "ModelExperimentParticipant" WHERE "experimentId" = ${experimentId} AND "userId" = ${userId} FOR UPDATE`,
+    );
+    if (!participant) throw new Error("PARTICIPANT_NOT_FOUND");
     if (
       participant.attempts >= experiment.perUserCap ||
       (participant.nextEligibleAt && participant.nextEligibleAt > now)
@@ -345,16 +371,103 @@ export async function markModelComparisonExposed(
   }
 }
 
+export async function finalizeReadyModelComparisonPair({
+  pairId,
+  userId,
+  metrics,
+}: {
+  pairId: string;
+  userId: string;
+  metrics: AIMetrics;
+}) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "ModelExperimentPair" WHERE "id" = ${pairId} FOR UPDATE`,
+    );
+    const pair = await tx.modelExperimentPair.findUnique({
+      where: { id: pairId },
+      select: { id: true, userId: true, sourceMessageId: true, status: true },
+    });
+    if (!pair || pair.userId !== userId) throw new Error("PAIR_NOT_FOUND");
+    if (pair.status === "READY") return pair;
+    if (pair.status !== "GENERATING") throw new Error("PAIR_NOT_GENERATING");
+
+    const reservation = await tx.aiUsageReservation.findUnique({
+      where: {
+        userId_requestKey: { userId, requestKey: pair.sourceMessageId },
+      },
+      select: { id: true, claimToken: true },
+    });
+    if (!reservation) throw new Error("USAGE_RESERVATION_NOT_FOUND");
+    await reconcileAiUsageInTransaction(tx, {
+      reservationId: reservation.id,
+      claimToken: reservation.claimToken,
+      userId,
+      metrics,
+    });
+    return tx.modelExperimentPair.update({
+      where: { id: pairId },
+      data: { status: "READY", readyAt: new Date() },
+    });
+  });
+}
+
+export async function finalizeFailedModelComparisonPair({
+  pairId,
+  userId,
+}: {
+  pairId: string;
+  userId: string;
+}) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "ModelExperimentPair" WHERE "id" = ${pairId} FOR UPDATE`,
+    );
+    const pair = await tx.modelExperimentPair.findUnique({
+      where: { id: pairId },
+      select: { id: true, userId: true, sourceMessageId: true, status: true },
+    });
+    if (!pair || pair.userId !== userId) throw new Error("PAIR_NOT_FOUND");
+    if (pair.status === "FAILED") return pair;
+    if (pair.status !== "GENERATING") throw new Error("PAIR_NOT_GENERATING");
+
+    const reservation = await tx.aiUsageReservation.findUnique({
+      where: {
+        userId_requestKey: { userId, requestKey: pair.sourceMessageId },
+      },
+      select: { id: true, claimToken: true },
+    });
+    const now = new Date();
+    if (reservation) {
+      await tx.aiUsageReservation.updateMany({
+        where: {
+          id: reservation.id,
+          userId,
+          claimToken: reservation.claimToken,
+          status: "RESERVED",
+        },
+        data: { status: "RELEASED", releasedAt: now },
+      });
+    }
+    return tx.modelExperimentPair.update({
+      where: { id: pairId },
+      data: { status: "FAILED", resolvedAt: now },
+    });
+  });
+}
+
 export async function resolveModelComparisonPair({
   pairId,
   userId,
   clerkId,
   choice,
+  usageMetrics,
 }: {
   pairId: string;
   userId: string;
   clerkId: string;
   choice: "A" | "B" | "TIE" | "AUTO_CONTROL" | "AUTO_SUCCESS";
+  usageMetrics?: AIMetrics;
 }) {
   const result = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw(
@@ -441,27 +554,23 @@ export async function resolveModelComparisonPair({
       },
     });
 
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    await tx.dailyUsage.upsert({
-      where: { userId_date: { userId, date: today } },
-      create: {
+    if (usageMetrics) {
+      const reservation = await tx.aiUsageReservation.findUnique({
+        where: {
+          userId_requestKey: { userId, requestKey: pair.sourceMessageId },
+        },
+        select: { id: true, claimToken: true },
+      });
+      if (!reservation) throw new Error("USAGE_RESERVATION_NOT_FOUND");
+      await reconcileAiUsageInTransaction(tx, {
+        reservationId: reservation.id,
+        claimToken: reservation.claimToken,
         userId,
-        date: today,
-        requestCount: 1,
-        inputTokens: response.inputTokens ?? 0,
-        outputTokens: response.outputTokens ?? 0,
-        reasoningTokens: response.reasoningTokens ?? 0,
-        totalCostUsd: response.costUsd ?? 0,
-      },
-      update: {
-        requestCount: { increment: 1 },
-        inputTokens: { increment: response.inputTokens ?? 0 },
-        outputTokens: { increment: response.outputTokens ?? 0 },
-        reasoningTokens: { increment: response.reasoningTokens ?? 0 },
-        totalCostUsd: { increment: response.costUsd ?? 0 },
-      },
-    });
+        metrics: usageMetrics,
+        assistantMessageId: message.id,
+      });
+    }
+
     const now = new Date();
     const updatedPair = await tx.modelExperimentPair.update({
       where: { id: pair.id },

@@ -1140,11 +1140,14 @@ async function classifyPromptModules({
   userId,
   userMessage,
   webSearchRule,
+  abortSignal,
 }: {
   userId: string;
   userMessage: string;
   webSearchRule: WebSearchRuleDecision;
+  abortSignal?: AbortSignal;
 }): Promise<PromptModuleClassifierDecision | null> {
+  abortSignal?.throwIfAborted();
   if (webSearchRule.confidence === "high") {
     return null;
   }
@@ -1155,6 +1158,7 @@ async function classifyPromptModules({
       () =>
         generateText({
           model: openrouter(PROMPT_MODULE_CLASSIFIER_MODEL_ID),
+          abortSignal,
           output: Output.object({ schema: promptModuleClassifierSchema }),
           temperature: 0,
           maxOutputTokens: 120,
@@ -1226,6 +1230,7 @@ ${JSON.stringify(userMessage)}`,
 
     return decision;
   } catch (error) {
+    abortSignal?.throwIfAborted();
     aiLogger.warn(
       "ai.prompt_modules.classifier_failed",
       "Prompt module classifier failed; using deterministic modules",
@@ -2021,6 +2026,7 @@ export async function streamChat({
 
 export interface PrepareChatTurnOptions {
   userId: string;
+  abortSignal?: AbortSignal;
   chatId?: string;
   conversationThreadId: string;
   userMessageId: string;
@@ -2058,6 +2064,7 @@ export interface PreparedChatTurn {
  */
 export async function prepareChatTurn({
   userId,
+  abortSignal,
   chatId,
   conversationThreadId,
   userMessageId,
@@ -2069,6 +2076,7 @@ export async function prepareChatTurn({
   effectiveEntitlements: prefetchedEntitlements,
   skipConversationHistory = false,
 }: PrepareChatTurnOptions): Promise<PreparedChatTurn> {
+  abortSignal?.throwIfAborted();
   const effectiveEntitlements =
     prefetchedEntitlements ??
     (await resolveEffectiveEntitlements({
@@ -2083,7 +2091,9 @@ export async function prepareChatTurn({
     userId,
     userMessage,
     webSearchRule,
+    abortSignal,
   });
+  abortSignal?.throwIfAborted();
   const turnPlanInput = {
     userMessage,
     isGuest: false,
@@ -2223,6 +2233,7 @@ export async function prepareChatTurn({
 
 export interface ExecutePreparedChatTurnOptions {
   prepared: PreparedChatTurn;
+  abortSignal?: AbortSignal;
   modelId: string;
   generationConfig: {
     temperature?: number;
@@ -2245,6 +2256,7 @@ export interface ExecutePreparedChatTurnOptions {
 
 export function executePreparedChatTurn({
   prepared,
+  abortSignal,
   modelId,
   generationConfig,
   clerkId,
@@ -2278,6 +2290,7 @@ export function executePreparedChatTurn({
 
   return streamText({
     model,
+    abortSignal,
     instructions: prepared.systemPrompt,
     messages: prepared.messages,
     temperature: generationConfig.temperature,
