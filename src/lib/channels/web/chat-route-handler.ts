@@ -3,6 +3,7 @@ import { waitUntil } from "@vercel/functions";
 import type { UIMessage } from "ai";
 import type { Prisma } from "@/generated/prisma";
 import { generateChatTitle } from "@/lib/ai/chat-title";
+import { loadTrustedRemoteMedia } from "@/lib/ai/multimodal-media";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import {
   isBillingSyncStale,
@@ -323,6 +324,9 @@ export async function handleWebChatPost(request: Request) {
           resolvedMessageParts = await resolveOwnedWebMessageParts(
             lastUserMessage,
             user.id,
+            {
+              allowedExistingInboundMessageId: existingInbound?.id,
+            },
           );
         } catch (error) {
           if (error instanceof WebAttachmentInputError) {
@@ -344,33 +348,6 @@ export async function handleWebChatPost(request: Request) {
         const hadAudioAttachment = messageParts.some(
           (part) => part.type === "file" && part.mimeType?.startsWith("audio/"),
         );
-        let aiMessageParts: ChannelMessagePart[];
-        let aiUserMessageText: string;
-        let aiHasAudio: boolean;
-        try {
-          const preparedInput = await prepareWebMessageForAi({
-            messageParts,
-            userId: user.id,
-            normalizedUserMessageText,
-          });
-          aiMessageParts = preparedInput.parts;
-          aiUserMessageText = preparedInput.userMessageText;
-          aiHasAudio = preparedInput.hasAudio;
-        } catch (error) {
-          logger.error(
-            "chat.transcription_failed",
-            "Failed transcribing web audio message",
-            { error, userId: user.id, chatId },
-          );
-          return Response.json(
-            {
-              error:
-                "Non sono riuscito a trascrivere l'audio in questo momento. Riprova o invia un messaggio testuale.",
-            },
-            { status: 502 },
-          );
-        }
-
         let inboundClaim: Awaited<ReturnType<typeof claimWebInboundMessage>>;
         try {
           inboundClaim = existingInbound
@@ -411,6 +388,33 @@ export async function handleWebChatPost(request: Request) {
           return createWebTextStreamResponse(
             message.generatedResponse.id,
             savedText,
+          );
+        }
+
+        let aiMessageParts: ChannelMessagePart[];
+        let aiUserMessageText: string;
+        let aiHasAudio: boolean;
+        try {
+          const preparedInput = await prepareWebMessageForAi({
+            messageParts,
+            userId: user.id,
+            normalizedUserMessageText,
+          });
+          aiMessageParts = preparedInput.parts;
+          aiUserMessageText = preparedInput.userMessageText;
+          aiHasAudio = preparedInput.hasAudio;
+        } catch (error) {
+          logger.error(
+            "chat.transcription_failed",
+            "Failed transcribing web audio message",
+            { error, userId: user.id, chatId },
+          );
+          return Response.json(
+            {
+              error:
+                "Non sono riuscito a trascrivere l'audio in questo momento. Riprova o invia un messaggio testuale.",
+            },
+            { status: 502 },
           );
         }
 
@@ -676,11 +680,17 @@ async function prepareWebMessageForAi({
     }
 
     if (!part.data?.trim()) {
-      throw new Error("Web audio message has no base64 payload");
+      throw new Error("Web audio message has no canonical Blob URL");
     }
 
+    const audioBytes = await loadTrustedRemoteMedia({
+      url: part.data,
+      mediaType: part.mimeType,
+      expectedSize: part.size,
+    });
+
     const transcript = await transcribeAudio({
-      base64: part.data,
+      base64: Buffer.from(audioBytes).toString("base64"),
       mimeType: part.mimeType,
       title: "Web Chat",
       userId,

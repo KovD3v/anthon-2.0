@@ -1,9 +1,6 @@
 import type { UIMessage } from "ai";
 import {
-  isDataUrl,
-  isHttpUrl,
   MAX_MULTIMODAL_MEDIA_BYTES,
-  normalizeInlineMediaBase64,
   normalizeMediaType,
 } from "@/lib/ai/multimodal-media";
 import type { ChannelMessagePart } from "@/lib/channel-flow";
@@ -22,8 +19,6 @@ export class WebAttachmentInputError extends Error {
 
 type ClientFilePart = {
   attachmentId?: unknown;
-  data?: unknown;
-  url?: unknown;
 };
 
 type CanonicalFilePart = ChannelMessagePart & {
@@ -41,6 +36,10 @@ export type ResolvedWebMessageParts = {
   attachmentIds: string[];
 };
 
+export type ResolveOwnedWebMessagePartsOptions = {
+  allowedExistingInboundMessageId?: string;
+};
+
 function getAttachmentId(part: ClientFilePart) {
   if (
     typeof part.attachmentId !== "string" ||
@@ -54,12 +53,13 @@ function getAttachmentId(part: ClientFilePart) {
 
 /**
  * Replace all client-controlled file URLs and metadata with owner-scoped
- * Attachment rows. Inline audio is retained only after exact type, byte-size,
- * base64, and magic-byte validation; every remote URL comes from durable state.
+ * Attachment rows. A linked row is valid only when retrying the exact inbound
+ * message that already owns it; every media URL comes from durable state.
  */
 export async function resolveOwnedWebMessageParts(
   message: UIMessage,
   userId: string,
+  options: ResolveOwnedWebMessagePartsOptions = {},
 ): Promise<ResolvedWebMessageParts> {
   const fileParts = (message.parts ?? []).filter(
     (part) => part.type === "file",
@@ -83,6 +83,7 @@ export async function resolveOwnedWebMessageParts(
             contentType: true,
             size: true,
             blobUrl: true,
+            messageId: true,
           },
         });
   const attachmentsById = new Map(
@@ -90,6 +91,15 @@ export async function resolveOwnedWebMessageParts(
   );
 
   if (attachmentsById.size !== requestedIds.length) {
+    throw new WebAttachmentInputError();
+  }
+  if (
+    attachments.some(
+      ({ messageId }) =>
+        messageId !== null &&
+        messageId !== options.allowedExistingInboundMessageId,
+    )
+  ) {
     throw new WebAttachmentInputError();
   }
   if (
@@ -129,8 +139,7 @@ export async function resolveOwnedWebMessageParts(
       continue;
     }
 
-    const clientFile = part as ClientFilePart;
-    const attachmentId = getAttachmentId(clientFile);
+    const attachmentId = getAttachmentId(part as ClientFilePart);
     const attachment = attachmentsById.get(attachmentId);
     if (!attachment) {
       throw new WebAttachmentInputError();
@@ -148,36 +157,7 @@ export async function resolveOwnedWebMessageParts(
     persistedParts.push(persistedFile);
     attachmentIds.push(attachmentId);
 
-    const inlineCandidate =
-      typeof clientFile.data === "string"
-        ? clientFile.data
-        : typeof clientFile.url === "string" && isDataUrl(clientFile.url)
-          ? clientFile.url
-          : undefined;
-    const canUseInlineAudio =
-      mimeType.startsWith("audio/") &&
-      inlineCandidate !== undefined &&
-      !isHttpUrl(inlineCandidate);
-    if (mimeType.startsWith("audio/") && !canUseInlineAudio) {
-      throw new WebAttachmentInputError();
-    }
-
-    if (canUseInlineAudio) {
-      try {
-        aiParts.push({
-          ...persistedFile,
-          data: normalizeInlineMediaBase64({
-            data: inlineCandidate,
-            mediaType: mimeType,
-            expectedSize: attachment.size,
-          }),
-        });
-      } catch {
-        throw new WebAttachmentInputError();
-      }
-    } else {
-      aiParts.push(persistedFile);
-    }
+    aiParts.push(persistedFile);
   }
 
   return { aiParts, persistedParts, attachmentIds };

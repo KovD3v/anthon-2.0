@@ -29,6 +29,7 @@ describe("resolveOwnedWebMessageParts", () => {
         size: 12,
         blobUrl:
           "https://store.public.blob.vercel-storage.com/attachments/user-1/owned.pdf",
+        messageId: null,
       },
     ]);
 
@@ -59,6 +60,7 @@ describe("resolveOwnedWebMessageParts", () => {
         contentType: true,
         size: true,
         blobUrl: true,
+        messageId: true,
       },
     });
     expect(resolved.aiParts[1]).toEqual({
@@ -115,7 +117,7 @@ describe("resolveOwnedWebMessageParts", () => {
     expect(mocks.findMany).not.toHaveBeenCalled();
   });
 
-  it("uses canonical audio metadata and retains only validated inline bytes", async () => {
+  it("uses the canonical audio URL and ignores client-provided inline bytes", async () => {
     const wavBytes = Buffer.from([
       0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45,
     ]);
@@ -127,6 +129,7 @@ describe("resolveOwnedWebMessageParts", () => {
         size: wavBytes.byteLength,
         blobUrl:
           "https://store.public.blob.vercel-storage.com/attachments/owned.wav",
+        messageId: null,
       },
     ]);
 
@@ -152,7 +155,7 @@ describe("resolveOwnedWebMessageParts", () => {
       {
         type: "file",
         attachmentId: "att-audio",
-        data: wavBytes.toString("base64"),
+        data: expect.stringContaining("blob.vercel-storage.com"),
         mimeType: "audio/wav",
         name: "owned.wav",
         size: wavBytes.byteLength,
@@ -166,6 +169,40 @@ describe("resolveOwnedWebMessageParts", () => {
         size: wavBytes.byteLength,
       }),
     ]);
+    expect(JSON.stringify(resolved)).not.toContain(wavBytes.toString("base64"));
+  });
+
+  it("rejects attachments linked elsewhere but allows the exact inbound retry", async () => {
+    mocks.findMany.mockResolvedValue([
+      {
+        id: "att-linked",
+        name: "linked.pdf",
+        contentType: "application/pdf",
+        size: 12,
+        blobUrl:
+          "https://store.public.blob.vercel-storage.com/attachments/linked.pdf",
+        messageId: "inbound-existing",
+      },
+    ]);
+    const message = {
+      id: "client-message-1",
+      role: "user" as const,
+      parts: [{ type: "file", attachmentId: "att-linked" } as never],
+    };
+
+    await expect(
+      resolveOwnedWebMessageParts(message, "user-1"),
+    ).rejects.toBeInstanceOf(WebAttachmentInputError);
+    await expect(
+      resolveOwnedWebMessageParts(message, "user-1", {
+        allowedExistingInboundMessageId: "inbound-existing",
+      }),
+    ).resolves.toMatchObject({ attachmentIds: ["att-linked"] });
+    await expect(
+      resolveOwnedWebMessageParts(message, "user-1", {
+        allowedExistingInboundMessageId: "different-inbound",
+      }),
+    ).rejects.toBeInstanceOf(WebAttachmentInputError);
   });
 
   it("caps attachment count and id length before querying", async () => {
@@ -207,6 +244,7 @@ describe("resolveOwnedWebMessageParts", () => {
         contentType: "application/pdf",
         size: 8 * 1024 * 1024,
         blobUrl: `https://store.public.blob.vercel-storage.com/attachments/${id}.pdf`,
+        messageId: null,
       })),
     );
 
@@ -233,6 +271,7 @@ describe("resolveOwnedWebMessageParts", () => {
         size: 10 * 1024 * 1024 + 1,
         blobUrl:
           "https://store.public.blob.vercel-storage.com/attachments/oversized.pdf",
+        messageId: null,
       },
     ]);
 

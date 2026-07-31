@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   syncPersonalSubscriptionFromClerk: vi.fn(),
   decideWebVoiceMode: vi.fn(),
   getVoiceUnavailability: vi.fn(),
+  loadTrustedRemoteMedia: vi.fn(),
   transcribeAudio: vi.fn(),
   generateVoice: vi.fn(),
   trackVoiceUsage: vi.fn(),
@@ -122,6 +123,11 @@ vi.mock("@/lib/billing/personal-subscription", () => ({
   syncPersonalSubscriptionFromClerk: mocks.syncPersonalSubscriptionFromClerk,
 }));
 
+vi.mock("@/lib/ai/multimodal-media", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ai/multimodal-media")>()),
+  loadTrustedRemoteMedia: mocks.loadTrustedRemoteMedia,
+}));
+
 vi.mock("@/lib/transcription", () => ({
   transcribeAudio: mocks.transcribeAudio,
 }));
@@ -143,6 +149,7 @@ vi.mock("@/lib/voice/generation-jobs", () => ({
   withVoiceGenerationStatus: mocks.withVoiceGenerationStatus,
 }));
 
+import { getWebClientPayloadHash } from "@/lib/channel-flow/web-inbound";
 import { POST } from "./route";
 
 const TRUSTED_BLOB_ORIGIN = "https://store.public.blob.vercel-storage.com";
@@ -150,6 +157,7 @@ const VALID_WAV_BYTES = Buffer.from([
   0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45,
 ]);
 const VALID_MP3_BYTES = Buffer.from("ID3safe audio");
+const CLIENT_AUDIO_BYTES = Buffer.from("client-controlled audio bytes");
 
 function canonicalAttachment(
   id: string,
@@ -158,6 +166,7 @@ function canonicalAttachment(
     contentType: string;
     size: number;
     blobUrl: string;
+    messageId: string | null;
   }> = {},
 ) {
   return {
@@ -166,6 +175,7 @@ function canonicalAttachment(
     contentType: "image/png",
     size: 4,
     blobUrl: `${TRUSTED_BLOB_ORIGIN}/${id}.png`,
+    messageId: null,
     ...overrides,
   };
 }
@@ -285,6 +295,7 @@ describe("POST /api/chat", () => {
     mocks.syncPersonalSubscriptionFromClerk.mockReset();
     mocks.decideWebVoiceMode.mockReset();
     mocks.getVoiceUnavailability.mockReset();
+    mocks.loadTrustedRemoteMedia.mockReset();
     mocks.transcribeAudio.mockReset();
     mocks.generateVoice.mockReset();
     mocks.trackVoiceUsage.mockReset();
@@ -401,6 +412,10 @@ describe("POST /api/chat", () => {
           ? "Voice is temporarily unavailable, so I'm replying in text."
           : `Voice unavailable: ${code}`,
     }));
+    mocks.loadTrustedRemoteMedia.mockImplementation(
+      async ({ mediaType }: { mediaType: string }) =>
+        mediaType === "audio/mpeg" ? VALID_MP3_BYTES : VALID_WAV_BYTES,
+    );
     mocks.transcribeAudio.mockResolvedValue({
       text: "trascrizione del vocale",
       provider: "openrouter-gemini",
@@ -802,7 +817,7 @@ describe("POST /api/chat", () => {
                 mimeType: "audio/mpeg",
                 name: "voice.mp3",
                 size: 99,
-                data: `data:audio/mpeg;base64,${VALID_MP3_BYTES.toString("base64")}`,
+                data: `data:audio/mpeg;base64,${CLIENT_AUDIO_BYTES.toString("base64")}`,
               },
             ],
           },
@@ -844,7 +859,7 @@ describe("POST /api/chat", () => {
     ]);
     expect(JSON.stringify(persistedParts)).not.toContain("127.0.0.1");
     expect(JSON.stringify(persistedParts)).not.toContain(
-      VALID_MP3_BYTES.toString("base64"),
+      CLIENT_AUDIO_BYTES.toString("base64"),
     );
     expect(mocks.attachmentUpdateMany).toHaveBeenCalledWith({
       where: {
@@ -886,6 +901,25 @@ describe("POST /api/chat", () => {
       userId: "user-1",
       source: "WEB",
     });
+    expect(mocks.loadTrustedRemoteMedia).toHaveBeenCalledWith({
+      url: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.mp3`,
+      mediaType: "audio/mpeg",
+      expectedSize: VALID_MP3_BYTES.byteLength,
+    });
+    expect(mocks.messageCreate.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.loadTrustedRemoteMedia.mock.invocationCallOrder[0] ?? Infinity,
+    );
+    expect(mocks.attachmentUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.loadTrustedRemoteMedia.mock.invocationCallOrder[0] ?? Infinity,
+    );
+    expect(
+      mocks.loadTrustedRemoteMedia.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      mocks.transcribeAudio.mock.invocationCallOrder[0] ?? Infinity,
+    );
+    expect(mocks.transcribeAudio.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.streamChat.mock.invocationCallOrder[0] ?? Infinity,
+    );
     expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-1",
@@ -1635,7 +1669,7 @@ describe("POST /api/chat", () => {
     expect(mocks.scheduleVoiceGenerationJob).toHaveBeenCalledTimes(1);
   });
 
-  it("transcribes audio data-url fields before the AI flow", async () => {
+  it("transcribes validated bytes from the canonical Blob URL before the AI flow", async () => {
     let streamArgs: Record<string, unknown> | undefined;
     mocks.streamChat.mockImplementation(
       async (args: Record<string, unknown>) => {
@@ -1669,7 +1703,7 @@ describe("POST /api/chat", () => {
                 mimeType: "audio/wav",
                 name: "voice.wav",
                 size: 99,
-                url: `data:audio/wav;base64,${VALID_WAV_BYTES.toString("base64")}`,
+                url: `data:audio/wav;base64,${CLIENT_AUDIO_BYTES.toString("base64")}`,
               },
             ],
           },
@@ -1702,6 +1736,16 @@ describe("POST /api/chat", () => {
       title: "Web Chat",
       userId: "user-1",
       source: "WEB",
+    });
+    expect(mocks.transcribeAudio).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        base64: CLIENT_AUDIO_BYTES.toString("base64"),
+      }),
+    );
+    expect(mocks.loadTrustedRemoteMedia).toHaveBeenCalledWith({
+      url: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.wav`,
+      mediaType: "audio/wav",
+      expectedSize: VALID_WAV_BYTES.byteLength,
     });
   });
 
@@ -1742,12 +1786,19 @@ describe("POST /api/chat", () => {
       error:
         "Non sono riuscito a trascrivere l'audio in questo momento. Riprova o invia un messaggio testuale.",
     });
-    expect(mocks.messageCreate).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.attachmentUpdateMany).toHaveBeenCalledTimes(1);
+    expect(mocks.messageCreate.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.loadTrustedRemoteMedia.mock.invocationCallOrder[0] ?? Infinity,
+    );
+    expect(mocks.attachmentUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.transcribeAudio.mock.invocationCallOrder[0] ?? Infinity,
+    );
     expect(mocks.streamChat).not.toHaveBeenCalled();
     expect(mocks.decideWebVoiceMode).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when canonical audio has no validated inline payload", async () => {
+  it("ignores a client remote audio URL and transcribes the canonical Blob", async () => {
     mocks.attachmentFindMany.mockResolvedValue([
       canonicalAttachment("att-voice", {
         name: "canonical-voice.wav",
@@ -1778,10 +1829,7 @@ describe("POST /api/chat", () => {
       }),
     );
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      error: "Invalid or inaccessible attachment",
-    });
+    expect(response.status).toBe(200);
     expect(mocks.userFindUnique).toHaveBeenCalledTimes(1);
     expect(mocks.checkRateLimit).toHaveBeenCalledTimes(1);
     expect(mocks.attachmentFindMany).toHaveBeenCalledWith({
@@ -1792,10 +1840,21 @@ describe("POST /api/chat", () => {
         contentType: true,
         size: true,
         blobUrl: true,
+        messageId: true,
       },
     });
-    expect(mocks.messageCreate).not.toHaveBeenCalled();
-    expect(mocks.decideWebVoiceMode).not.toHaveBeenCalled();
+    expect(mocks.loadTrustedRemoteMedia).toHaveBeenCalledWith({
+      url: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.wav`,
+      mediaType: "audio/wav",
+      expectedSize: VALID_WAV_BYTES.byteLength,
+    });
+    expect(mocks.transcribeAudio).toHaveBeenCalledWith(
+      expect.objectContaining({
+        base64: VALID_WAV_BYTES.toString("base64"),
+      }),
+    );
+    expect(mocks.messageCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.decideWebVoiceMode).toHaveBeenCalledTimes(1);
   });
 
   it("rejects the whole message when any attachment is not owned", async () => {
@@ -1831,8 +1890,111 @@ describe("POST /api/chat", () => {
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
+  it("rejects an attachment linked to a different inbound before Blob access", async () => {
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-linked", {
+        name: "linked.wav",
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/linked.wav`,
+        messageId: "different-inbound",
+      }),
+    ]);
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [{ type: "file", attachmentId: "att-linked" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
+    expect(mocks.loadTrustedRemoteMedia).not.toHaveBeenCalled();
+    expect(mocks.transcribeAudio).not.toHaveBeenCalled();
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+  });
+
+  it("allows an exact retry to reuse the attachment linked to its inbound", async () => {
+    const clientParts = [
+      {
+        type: "file",
+        attachmentId: "att-linked",
+        url: `data:audio/wav;base64,${CLIENT_AUDIO_BYTES.toString("base64")}`,
+      },
+    ];
+    mocks.messageFindUnique.mockResolvedValue({
+      id: "inbound-existing",
+      userId: "user-1",
+      chatId: "chat-1",
+      conversationThreadId: "thread-1",
+      clientMessagePayloadHash: getWebClientPayloadHash(clientParts),
+      parts: [
+        {
+          type: "file",
+          attachmentId: "att-linked",
+          data: `${TRUSTED_BLOB_ORIGIN}/linked.wav`,
+          mimeType: "audio/wav",
+          name: "linked.wav",
+          size: VALID_WAV_BYTES.byteLength,
+        },
+      ],
+      generatedResponse: null,
+    });
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-linked", {
+        name: "linked.wav",
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/linked.wav`,
+        messageId: "inbound-existing",
+      }),
+    ]);
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            id: "client-retry-1",
+            role: "user",
+            parts: clientParts,
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
+    expect(mocks.attachmentUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.loadTrustedRemoteMedia).toHaveBeenCalledWith({
+      url: `${TRUSTED_BLOB_ORIGIN}/linked.wav`,
+      mediaType: "audio/wav",
+      expectedSize: VALID_WAV_BYTES.byteLength,
+    });
+    expect(mocks.transcribeAudio).toHaveBeenCalledTimes(1);
+    expect(mocks.streamChat).toHaveBeenCalledTimes(1);
+  });
+
   it("rolls back the inbound claim when any attachment cannot be linked", async () => {
     mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-linked", {
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/linked.wav`,
+      }),
+      canonicalAttachment("att-pending", {
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/pending.wav`,
+      }),
+    ]);
     mocks.attachmentUpdateMany
       .mockResolvedValueOnce({ count: 0 })
       .mockResolvedValueOnce({ count: 1 })
@@ -1865,6 +2027,8 @@ describe("POST /api/chat", () => {
       },
       data: { messageId: "msg-user-123" },
     });
+    expect(mocks.loadTrustedRemoteMedia).not.toHaveBeenCalled();
+    expect(mocks.transcribeAudio).not.toHaveBeenCalled();
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
