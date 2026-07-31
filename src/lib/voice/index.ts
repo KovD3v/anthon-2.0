@@ -9,19 +9,16 @@ export {
   type VoiceCadenceConfig,
   type VoicePlanConfig,
 } from "./config";
-export {
-  decideVoiceDelivery,
-  getVoiceCapacityState,
-  type VoiceCapacityState,
-  type VoiceDecisionReason,
-  type VoiceDecisionReasonCode,
-  type VoiceDeliveryDecision,
-  type VoiceDeliveryParams,
-  type VoiceSuitability,
-  type VoiceSuitabilityHint,
+export type {
+  VoiceCapacityState,
+  VoiceDecisionReason,
+  VoiceDecisionReasonCode,
+  VoiceDeliveryDecision,
+  VoiceDeliveryParams,
+  VoiceSuitability,
+  VoiceSuitabilityHint,
 } from "./decision";
 export {
-  estimateVoiceCostUsd,
   generateVoice,
   getElevenLabsSubscription,
   getSystemLoad,
@@ -47,12 +44,10 @@ export {
   type WebVoiceModeDecision,
   type WebVoiceModeParams,
 } from "./preflight";
-export {
-  type ClassifySuitabilityParams,
-  classifyVoiceSuitability,
-  type DeterministicSuitabilityParams,
-  getDeterministicVoiceSuitability,
-  type VoiceClassifierDiagnostics,
-  type VoiceClassifierFailureCode,
-  type VoiceSuitabilityClassification,
+export type {
+  ClassifySuitabilityParams,
+  DeterministicSuitabilityParams,
+  VoiceClassifierDiagnostics,
+  VoiceClassifierFailureCode,
+  VoiceSuitabilityClassification,
 } from "./suitability";

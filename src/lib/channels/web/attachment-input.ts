@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 
 export const MAX_WEB_MESSAGE_ATTACHMENTS = 6;
 export const MAX_WEB_ATTACHMENT_ID_LENGTH = 128;
-export const MAX_WEB_MESSAGE_ATTACHMENT_BYTES = 30 * 1024 * 1024;
+const MAX_WEB_MESSAGE_ATTACHMENT_BYTES = 30 * 1024 * 1024;
 
 export class WebAttachmentInputError extends Error {
   constructor(message = "Invalid attachment") {

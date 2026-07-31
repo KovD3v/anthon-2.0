@@ -479,33 +479,6 @@ export async function reconcileAiUsageInTransaction(
   return { charged: true };
 }
 
-/**
- * Reconcile provider usage without attaching it to one assistant message.
- * This is used by multi-candidate executions where the request has one
- * accounting unit but no canonical response message yet.
- */
-export async function reconcileAiUsage({
-  reservationId,
-  claimToken,
-  userId,
-  metrics,
-}: {
-  reservationId: string;
-  claimToken: string;
-  userId: string;
-  metrics: AIMetrics;
-}) {
-  return prisma.$transaction((tx) =>
-    reconcileAiUsageInTransaction(tx, {
-      reservationId,
-      claimToken,
-      userId,
-      metrics,
-      allowAlreadyReconciled: true,
-    }),
-  );
-}
-
 function recoverableMetrics(metrics: AIMetrics): Prisma.InputJsonValue {
   const minimal: AIMetrics = {
     model: metrics.model,

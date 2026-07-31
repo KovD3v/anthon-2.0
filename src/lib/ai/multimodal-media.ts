@@ -52,7 +52,7 @@ export const MAX_MULTIMODAL_MEDIA_BYTES = 10 * 1024 * 1024;
 const MAX_BASE64_ENCODED_LENGTH =
   Math.ceil(MAX_MULTIMODAL_MEDIA_BYTES / 3) * 4 + 4;
 
-export class MediaPayloadValidationError extends Error {
+class MediaPayloadValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "MediaPayloadValidationError";
@@ -86,7 +86,7 @@ export function getMultimodalMediaKind(
   return null;
 }
 
-export function getMultimodalModelCapabilities(modelId: string) {
+function getMultimodalModelCapabilities(modelId: string) {
   return (
     MULTIMODAL_MODEL_CAPABILITIES[modelId] ??
     DEFAULT_MULTIMODAL_MODEL_CAPABILITIES

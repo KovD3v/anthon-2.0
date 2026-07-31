@@ -3,14 +3,12 @@ export type {
   PrepareChannelConnectRequestInput,
 } from "./connect";
 export {
-  CONNECT_DELIVERY_LEASE_MS,
   claimChannelConnectDelivery,
   markChannelConnectDeliveryFailed,
   markChannelConnectDeliverySent,
   prepareChannelConnectRequest,
 } from "./connect";
 export {
-  EXTERNAL_INBOUND_LEASE_MS,
   getExternalInboundMessageType,
   markExternalChannelInboundCompleted,
   markExternalChannelInboundFailed,

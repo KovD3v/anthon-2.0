@@ -140,7 +140,7 @@ export async function markExternalChannelInboundFailed({
   return result.count === 1;
 }
 
-export async function renewExternalChannelInboundLease({
+async function renewExternalChannelInboundLease({
   inboundId,
   claimToken,
 }: {

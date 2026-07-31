@@ -19,7 +19,6 @@ export type {
   AiUsageReservationResult,
 } from "./reservations";
 export {
-  reconcileAiUsage,
   reconcileAiUsageForRecovery,
   reconcileAiUsageInTransaction,
   releaseAiUsageReservation,

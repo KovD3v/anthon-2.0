@@ -5,8 +5,7 @@ import type {
   TranscriptionResult,
 } from "@/lib/transcription/types";
 
-export const OPENROUTER_GEMINI_TRANSCRIPTION_MODEL_ID =
-  "google/gemini-2.5-flash-lite";
+const OPENROUTER_GEMINI_TRANSCRIPTION_MODEL_ID = "google/gemini-2.5-flash-lite";
 
 const DEFAULT_PROMPT =
   "Trascrivi questo messaggio audio in testo. Rispondi SOLO con la trascrizione, senza commenti.";
@@ -18,7 +17,7 @@ export const openRouterGeminiTranscriptionProvider: TranscriptionProvider = {
   },
 };
 
-export async function transcribeWithOpenRouterGemini({
+async function transcribeWithOpenRouterGemini({
   base64,
   mimeType,
   title = "Channel Bot",
