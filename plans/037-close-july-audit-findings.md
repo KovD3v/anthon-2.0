@@ -14,7 +14,7 @@
 - **Depends on**: 022, 023, 024, 025
 - **Category**: security, reliability, performance, verification
 - **Planned at**: commit `a5e4105`, 2026-07-31
-- **State**: IN PROGRESS
+- **State**: DONE
 
 ## Scope
 
@@ -44,18 +44,45 @@
 
 ## Acceptance gates
 
-- [ ] Prisma schema formats, validates, generates, and the additive migration
+- [x] Prisma schema formats, validates, generates, and the additive migration
   deploys on a disposable production clone.
-- [ ] Focused security, retry, quota, stream, webhook, experiment, and RAG tests
+- [x] Focused security, retry, quota, stream, webhook, experiment, and RAG tests
   pass.
-- [ ] Unit coverage, integration, E2E, lint, typecheck, Knip, and production
+- [x] Unit coverage, integration, E2E, lint, typecheck, Knip, and production
   build pass.
-- [ ] The CI workflow exposes database/auth secrets only to first-party test
+- [x] The CI workflow exposes database/auth secrets only to first-party test
   steps and never to dependency-install or third-party Action steps.
-- [ ] Documentation describes idempotency keys, reservation semantics, upload
+- [x] Documentation describes idempotency keys, reservation semantics, upload
   quotas, guest abuse controls, and durable attachment ownership.
-- [ ] `git diff --check` is clean and all work is committed on the isolated
+- [x] `git diff --check` is clean and all work is committed on the isolated
   branch.
+
+## Verification
+
+Completed on 2026-07-31 from the isolated
+`improve/037-all-audit-findings` branch:
+
+- `bun install --frozen-lockfile`, `prisma format`, `prisma validate`, and
+  `prisma generate` passed with Prisma 7.9.1.
+- `bun run lint`, `bun run typecheck`, `bun run knip`, and the Next.js 16.2.12
+  production build passed; the build generated all 48 static pages.
+- Unit coverage passed with 156 files passing and one skipped, 1,426 tests
+  passing and four skipped, and 75.65% branch coverage (5,950/7,865).
+- The disposable-development-branch integration suite passed 15 files and 42
+  tests. The desktop/mobile Playwright suite passed all four tests, including
+  interruption and immediate retry. Both ephemeral branches were deleted.
+- `prisma migrate deploy` was rehearsed on an isolated child of the default
+  primary `production` Neon branch. Both new migration rows and the
+  `AiUsageReservation`, `DailyUploadUsage`, and `GuestAbuseBucket` tables were
+  verified before the child branch was deleted.
+- The repository now has the five CI secret names required by the trusted
+  persistence job. The workflow injects them only into first-party preflight,
+  integration, and E2E run steps.
+- Supported dependency updates and safe top-level overrides reduced
+  `bun audit` from 65 advisories to 12 (six high, six moderate). The remaining
+  findings are pinned or incompatible transitives under Next.js, Prisma
+  Studio, AI SDK devtools, Knip, and Vitest; no unsafe cross-major override was
+  forced.
 
 ## Promotion contract
 

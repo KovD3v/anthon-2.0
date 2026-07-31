@@ -9,11 +9,10 @@ Status values: `TODO`, `IN PROGRESS`, `DONE`, `BLOCKED` (with a reason), or `REJ
 
 ## Recommended execution order
 
-`037`
-
-Plan 037 integrates the four approved security/reliability promotions and
-closes the remaining actionable July 31 engineering findings. Plans 016-018
-remain blocked and are not part of this batch.
+No unblocked execution plan remains. Plan 037 integrated the four approved
+security/reliability promotions and closed the remaining actionable July 31
+engineering findings. Plans 016-018 remain blocked and were not part of this
+batch.
 
 ## Execution status
 
@@ -55,7 +54,7 @@ remain blocked and are not part of this batch.
 | 034 | Identify Anthon honestly as an AI mental coach | P2 | S | — | DONE — full and guest prompts aligned with transparent AI identity; full verify passed | — |
 | 035 | Give users control of coaching profile and memories | P1 | L | — | DONE — ownership-scoped profile/memory controls and prompt-cache invalidation implemented; full verify passed | — |
 | 036 | Turn returning visits into a coaching check-in | P2 | M | 035 | DONE — deterministic resume/check-in launcher implemented; full verify passed | — |
-| 037 | Close the July 31 reliability audit | P1 | XL | 022, 023, 024, 025 | IN PROGRESS — batch integration and verification underway | — |
+| 037 | Close the July 31 reliability audit | P1 | XL | 022, 023, 024, 025 | DONE — actionable findings implemented; unit, coverage, integration, E2E, build, Knip, and production-clone migration gates passed | — |
 
 ## Dependency notes
 
