@@ -63,6 +63,20 @@ runner creates a short-lived child branch, injects its connection string only
 into migration/test child processes, and deletes it afterward. Do not persist
 `TEST_DATABASE_URL` in an env file.
 
+The trusted GitHub Actions persistence job runs only for `main` pushes and
+same-repository, non-Dependabot pull requests. Configure these repository
+secrets before requiring the job:
+
+- `NEON_DEVELOPMENT_DATABASE_URL`
+- `NEON_API_KEY`
+- `NEON_PROJECT_ID`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `CLERK_SECRET_KEY`
+
+The workflow exposes those values only to first-party preflight/test commands;
+checkout, tool setup, cache restore, dependency installation, and browser
+installation receive only a non-routable placeholder database URL.
+
 `TINYFISH_API_KEY` enables the runtime web-search tools (`tinyfishSearch` and
 `tinyfishFetch`). Without it, current-information turns should be covered by
 tests/mocks rather than live provider calls.
@@ -143,14 +157,15 @@ bun run start
 | `bun run start`  | Start production server  |
 | `bun run lint`   | Run Biome check          |
 | `bun run typecheck` | Run TypeScript checks without emitting files |
-| `bun run verify` | Run lint, typecheck, and unit tests |
+| `bun run verify` | Run lint, typecheck, and enforced unit coverage |
 | `bun run format` | Format code with Biome   |
 | `bun run test`   | Run unit tests (Vitest)  |
 | `bun run test:integration` | Run migrations/tests on an ephemeral Neon branch |
+| `bun run test:e2e` | Run guest browser tests on a separate ephemeral Neon branch |
 | `bun run test:coverage:unit` | Run unit coverage |
 | `bun run test:coverage:integration` | Run integration coverage |
 | `bun run test:coverage` | Run unit + integration coverage |
-| `bun run test:all` | Run unit + integration + coverage |
+| `bun run test:all` | Run unit and integration coverage once each |
 | `bun run test:watch` | Run tests in watch mode |
 | `bun run test:ui` | Run tests with Vitest UI |
 

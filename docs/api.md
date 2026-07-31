@@ -67,6 +67,7 @@ Routes commonly use helpers from `@/lib/api/responses`:
 {
   chatId: string;
   messages: Array<{
+    id: string; // required for the final user message
     role: "user" | "assistant";
     parts?: Array<
       | { type: "text"; text: string }
@@ -75,6 +76,18 @@ Routes commonly use helpers from `@/lib/api/responses`:
   }>;
 }
 ```
+
+The final user message ID is an idempotency key scoped to the current user. It
+must start with an alphanumeric character and contain at most 128 characters
+from `[A-Za-z0-9._:-]`. Retrying the same ID with the same canonical payload
+replays the saved answer; reusing it in another chat or with changed content
+returns `409`. File parts must reference an
+owner-scoped `attachmentId`. The server uses the attachment's stored URL, MIME
+type, name, and size and does not trust inline client bytes.
+
+`POST /api/upload` accepts one non-empty file up to 10 MiB. It reserves the
+effective plan's daily object and byte quota before storage; quota exhaustion
+returns `429` with current `usage` and `limits`.
 
 `PATCH /api/chat/messages`
 
@@ -118,6 +131,9 @@ Notes:
 
 - Guests cannot upload files in guest chat endpoint.
 - Guest limits differ from authenticated trial limits.
+- New guest-session creation is abuse-limited by a keyed fingerprint of the
+  trusted client address. Missing trusted identity fails closed outside local
+  development; exhaustion returns `429`.
 
 ## RAG API
 
@@ -215,7 +231,9 @@ Typical status codes:
 - `401` unauthorized
 - `403` forbidden
 - `404` not found
+- `409` idempotency conflict or another generation is still in progress
 - `429` rate-limited
+- `502` upstream media/transcription failure
 - `500` internal server error
 
 ## Related Documentation

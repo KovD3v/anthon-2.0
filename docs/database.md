@@ -117,7 +117,10 @@ Central identity for all user data across channels.
 Guest support (used mainly by non-web channels like Telegram):
 
 - `isGuest` marks a user created before sign-up.
-- `guestAbuseIdHash` can be used to de-duplicate/abuse-protect guest identities.
+- `guestTokenHash` is the unique hash of the revocable HttpOnly guest session
+  token.
+- `guestAbuseIdHash` is a non-unique, domain-separated HMAC of the trusted
+  client address used for abuse controls. The source address is never stored.
 - `guestConvertedAt` is set when a guest profile is migrated into a registered user.
 
 ### Chat
@@ -147,6 +150,9 @@ Individual messages supporting text, media, and AI metadata.
 | `mediaUrl`     | String?          | Media URL (for non-web channels)                 |
 | `mediaType`    | String?          | Media MIME type                                  |
 | `externalMessageId` | String?     | External message id (unique per channel)         |
+| `clientMessageId` | String?       | User-scoped browser message id used for retry-safe ingestion |
+| `clientMessagePayloadHash` | String? | Canonical payload hash; changed retries are rejected |
+| `sourceInboundMessageId` | String? | Inbound message answered by this assistant message |
 | `metadata`     | Json?            | Channel-specific payload (e.g. Telegram)        |
 | `model`        | String?          | AI model used (e.g., "google/gemini-2.5-flash") |
 | `inputTokens`  | Int?             | Prompt tokens                                    |
@@ -234,6 +240,33 @@ Per-day usage tracking for rate limiting.
 | `reasoningTokens` | Int | Total reasoning tokens (models that expose them) |
 | `totalCostUsd`  | Float | Total cost                                |
 | `voiceCostUsd`  | Float | Voice generation cost for the day         |
+
+### AiUsageReservation
+
+Fences one billable AI turn before provider work begins. A user-scoped
+`requestKey` makes retries idempotent, while `claimToken` prevents a stale
+worker from reconciling a newer lease. Finite plans serialize in-flight turns
+so concurrent requests cannot spend the same remaining daily allowance.
+
+Successful assistant persistence and usage reconciliation share a database
+transaction. If generation succeeds but persistence fails, bounded recovery
+fields retain the assistant text plus content-free metrics needed to finish a
+retry without calling the model or charging again. Expired and old terminal
+reservations are cleaned up during later reservations.
+
+### DailyUploadUsage and UploadReservation
+
+`DailyUploadUsage` records committed and currently reserved object counts and
+bytes per user and UTC day. `UploadReservation` fences the exact file size
+before Blob storage work. Creating the durable `Attachment` and committing the
+quota reservation happen in the same transaction; failed uploads release the
+reservation and remove any just-created Blob.
+
+### GuestAbuseBucket
+
+Stores only a keyed address fingerprint, UTC window, and guest-creation count.
+The atomic upsert enforces the daily creation cap across cookie resets and
+concurrent requests. Old windows are retained for 30 days and then removed.
 
 ### Subscription
 
@@ -341,7 +374,12 @@ Key fields:
 Tracks an uploaded file (stored in Vercel Blob) and optionally links it to a message.
 
 - During upload, the record can be created without `messageId`.
-- When the user sends a message, the server links attachments to the saved message.
+- When the user sends a message, the server claims the inbound message and all
+  still-unlinked, owner-scoped attachments in one transaction.
+- Retries may reuse an attachment only when it is already linked to that exact
+  inbound message. An attachment linked elsewhere is rejected.
+- AI and transcription inputs are loaded from the canonical stored Blob URL;
+  client-provided inline bytes are never authoritative.
 
 ### Artifact / ArtifactVersion
 

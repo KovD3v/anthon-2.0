@@ -891,8 +891,8 @@ async function handleUpdate(update: TelegramUpdate) {
         ? `${voiceFallbackNotice}\n\n${assistantText}`
         : assistantText,
     );
-    // If the provider accepted the response but the acknowledgement was lost,
-    // a retry can send it again; automatic resend reconciliation is out of scope.
+    // Persisted assistant output lets a retried provider webhook resend this
+    // response without regenerating or charging for it again.
     if (sent) await completeInbound();
     else await failInbound("outbound_send_failed");
   } catch (error) {
