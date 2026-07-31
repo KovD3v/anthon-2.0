@@ -6,6 +6,11 @@ const mocks = vi.hoisted(() => ({
   getRateLimitsForUser: vi.fn(),
   getDailyUsage: vi.fn(),
   incrementUsage: vi.fn(),
+  reconcileAiUsage: vi.fn(),
+  reconcileAiUsageForRecovery: vi.fn(),
+  reconcileAiUsageInTransaction: vi.fn(),
+  releaseAiUsageReservation: vi.fn(),
+  reserveAiUsage: vi.fn(),
 }));
 
 vi.mock("./check", () => ({
@@ -23,6 +28,14 @@ vi.mock("./usage", () => ({
   incrementUsage: mocks.incrementUsage,
 }));
 
+vi.mock("./reservations", () => ({
+  reconcileAiUsage: mocks.reconcileAiUsage,
+  reconcileAiUsageForRecovery: mocks.reconcileAiUsageForRecovery,
+  reconcileAiUsageInTransaction: mocks.reconcileAiUsageInTransaction,
+  releaseAiUsageReservation: mocks.releaseAiUsageReservation,
+  reserveAiUsage: mocks.reserveAiUsage,
+}));
+
 import * as rateLimit from "./index";
 
 describe("rate-limit/index barrel", () => {
@@ -32,5 +45,10 @@ describe("rate-limit/index barrel", () => {
     expect(typeof rateLimit.getRateLimitsForUser).toBe("function");
     expect(typeof rateLimit.getDailyUsage).toBe("function");
     expect(typeof rateLimit.incrementUsage).toBe("function");
+    expect(typeof rateLimit.reconcileAiUsage).toBe("function");
+    expect(typeof rateLimit.reconcileAiUsageForRecovery).toBe("function");
+    expect(typeof rateLimit.reconcileAiUsageInTransaction).toBe("function");
+    expect(typeof rateLimit.releaseAiUsageReservation).toBe("function");
+    expect(typeof rateLimit.reserveAiUsage).toBe("function");
   });
 });

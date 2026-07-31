@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   incrementUsage: vi.fn(),
   reserveAiUsage: vi.fn(),
   releaseAiUsageReservation: vi.fn(),
+  reconcileAiUsageInTransaction: vi.fn(),
   reconcileAiUsageForRecovery: vi.fn(),
   streamChat: vi.fn(),
   generateChatTitle: vi.fn(),
@@ -98,6 +99,7 @@ vi.mock("@/lib/rate-limit", () => ({
   incrementUsage: mocks.incrementUsage,
   reserveAiUsage: mocks.reserveAiUsage,
   releaseAiUsageReservation: mocks.releaseAiUsageReservation,
+  reconcileAiUsageInTransaction: mocks.reconcileAiUsageInTransaction,
   reconcileAiUsageForRecovery: mocks.reconcileAiUsageForRecovery,
 }));
 
@@ -286,6 +288,7 @@ describe("POST /api/chat", () => {
     mocks.incrementUsage.mockReset();
     mocks.reserveAiUsage.mockReset();
     mocks.releaseAiUsageReservation.mockReset();
+    mocks.reconcileAiUsageInTransaction.mockReset();
     mocks.reconcileAiUsageForRecovery.mockReset();
     mocks.streamChat.mockReset();
     mocks.generateChatTitle.mockReset();
@@ -332,8 +335,13 @@ describe("POST /api/chat", () => {
     );
 
     mocks.messageFindUnique.mockResolvedValue(null);
-    mocks.reserveAiUsage.mockResolvedValue(undefined);
+    mocks.reserveAiUsage.mockResolvedValue({
+      allowed: true,
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+    });
     mocks.releaseAiUsageReservation.mockResolvedValue(true);
+    mocks.reconcileAiUsageInTransaction.mockResolvedValue({ charged: true });
     mocks.reconcileAiUsageForRecovery.mockResolvedValue({ charged: true });
 
     mocks.auth.mockResolvedValue({ userId: "clerk_1" });
@@ -2034,11 +2042,17 @@ describe("POST /api/chat", () => {
 
   it("runs onFinish side effects for assistant message, usage, cache tags, and memories", async () => {
     let streamArgs: Record<string, unknown> | undefined;
+    let closeUiStream: (() => void) | undefined;
     mocks.streamChat.mockImplementation(
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
-          toUIMessageStream: emptyUiStream,
+          toUIMessageStream: () =>
+            new ReadableStream({
+              start(controller) {
+                closeUiStream = () => controller.close();
+              },
+            }),
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -2056,6 +2070,8 @@ describe("POST /api/chat", () => {
       }),
     );
     expect(response.status).toBe(200);
+    const responseBody = response.text();
+    await vi.waitFor(() => expect(closeUiStream).toBeTypeOf("function"));
 
     const onFinish = streamArgs?.onFinish as
       | ((input: {
@@ -2093,6 +2109,8 @@ describe("POST /api/chat", () => {
         reasoningTimeMs: 78,
       },
     });
+    closeUiStream?.();
+    await responseBody;
 
     expect(mocks.messageCreate).toHaveBeenNthCalledWith(
       2,
@@ -2106,13 +2124,23 @@ describe("POST /api/chat", () => {
         }),
       }),
     );
-    expect(mocks.incrementUsage).toHaveBeenCalledWith(
-      "user-1",
-      111,
-      222,
-      0.123,
-      10,
+    expect(mocks.reconcileAiUsageInTransaction).toHaveBeenCalledWith(
+      expect.any(Object),
+      {
+        reservationId: "reservation-1",
+        claimToken: "claim-1",
+        userId: "user-1",
+        metrics: expect.objectContaining({
+          inputTokens: 111,
+          outputTokens: 222,
+          costUsd: 0.123,
+          reasoningTokens: 10,
+        }),
+        assistantMessageId: "msg-assistant-1",
+        allowAlreadyReconciled: false,
+      },
     );
+    expect(mocks.incrementUsage).not.toHaveBeenCalled();
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "max");
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "max");
     expect(mocks.extractAndSaveMemories).toHaveBeenCalledWith(

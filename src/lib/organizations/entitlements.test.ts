@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PERSONAL_PLAN_LIMITS } from "@/lib/limits/personal-limits";
+import { PLAN_CATALOG } from "@/lib/plans";
 
 const mocks = vi.hoisted(() => ({
   findMany: vi.fn(),
@@ -40,6 +41,7 @@ describe("organizations/entitlements", () => {
     expect(mocks.findMany).not.toHaveBeenCalled();
     expect(result).toEqual({
       limits: PERSONAL_PLAN_LIMITS.ADMIN,
+      uploadLimits: PLAN_CATALOG.ADMIN.uploadLimits,
       modelTier: "ADMIN",
       sources: [
         {
@@ -64,6 +66,7 @@ describe("organizations/entitlements", () => {
     expect(mocks.findMany).not.toHaveBeenCalled();
     expect(result).toEqual({
       limits: PERSONAL_PLAN_LIMITS.GUEST,
+      uploadLimits: PLAN_CATALOG.GUEST.uploadLimits,
       modelTier: "TRIAL",
       sources: [
         {
@@ -230,6 +233,7 @@ describe("organizations/entitlements", () => {
 
     expect(result).toEqual({
       limits: PERSONAL_PLAN_LIMITS.BASIC,
+      uploadLimits: PLAN_CATALOG.BASIC.uploadLimits,
       modelTier: "BASIC",
       sources: [
         {
