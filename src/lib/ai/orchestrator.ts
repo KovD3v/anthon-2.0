@@ -1016,9 +1016,7 @@ async function runOpenRouterMultimodalCompletion({
         model: modelId,
         messages: openRouterMessages,
         usage: { include: true },
-        provider: getOpenRouterProviderOptionsForModel(modelId).provider as
-          | Record<string, unknown>
-          | undefined,
+        ...getOpenRouterProviderOptionsForModel(modelId),
       }),
     },
   );

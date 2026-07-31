@@ -234,6 +234,25 @@ describe("multimodal media validation", () => {
     await rejection;
   });
 
+  it("bounds DNS resolution with the same remote media timeout", async () => {
+    vi.useFakeTimers();
+    mocks.dnsLookup.mockReturnValueOnce(new Promise(() => undefined));
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const download = loadTrustedRemoteMedia({
+      url: TRUSTED_URL,
+      mediaType: "application/pdf",
+    });
+    const rejection = expect(download).rejects.toThrow(
+      "Remote media download timed out",
+    );
+    await vi.advanceTimersByTimeAsync(10_000);
+    await rejection;
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("requires exact response MIME, byte count, and magic signature", async () => {
     const fetchSpy = vi
       .fn()

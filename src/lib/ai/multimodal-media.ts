@@ -366,7 +366,25 @@ export function isPublicNetworkAddress(address: string) {
   );
 }
 
-async function validateRemoteMediaUrl(value: string) {
+async function lookupRemoteMediaHost(hostname: string, signal: AbortSignal) {
+  if (signal.aborted) {
+    throw signal.reason ?? new DOMException("aborted", "AbortError");
+  }
+
+  return await new Promise<Array<{ address: string; family: number }>>(
+    (resolve, reject) => {
+      const onAbort = () =>
+        reject(signal.reason ?? new DOMException("aborted", "AbortError"));
+      signal.addEventListener("abort", onAbort, { once: true });
+
+      lookup(hostname, { all: true, verbatim: true })
+        .then((addresses) => resolve(addresses), reject)
+        .finally(() => signal.removeEventListener("abort", onAbort));
+    },
+  );
+}
+
+async function validateRemoteMediaUrl(value: string, signal: AbortSignal) {
   let url: URL;
   try {
     url = new URL(value);
@@ -386,8 +404,11 @@ async function validateRemoteMediaUrl(value: string) {
 
   let addresses: Array<{ address: string; family: number }>;
   try {
-    addresses = await lookup(url.hostname, { all: true, verbatim: true });
+    addresses = await lookupRemoteMediaHost(url.hostname, signal);
   } catch {
+    if (signal.aborted) {
+      throw signal.reason ?? new DOMException("aborted", "AbortError");
+    }
     throw new MediaPayloadValidationError("Remote media host did not resolve");
   }
 
@@ -465,7 +486,7 @@ export async function loadTrustedRemoteMedia({
   try {
     let currentUrl = initialUrl;
     for (let redirectCount = 0; ; redirectCount += 1) {
-      const url = await validateRemoteMediaUrl(currentUrl);
+      const url = await validateRemoteMediaUrl(currentUrl, controller.signal);
       const response = await fetch(url, {
         cache: "no-store",
         redirect: "manual",

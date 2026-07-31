@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { generateText } from "ai";
+import { describe, expect, it, vi } from "vitest";
 import {
   getOpenRouterProviderOptions,
   getOpenRouterProviderOptionsForModel,
@@ -28,10 +30,55 @@ describe("ai/providers/openrouter-routing", () => {
       provider: {
         sort: "latency",
       },
-      extraBody: {
-        service_tier: "priority",
+      service_tier: "priority",
+    });
+  });
+
+  it("sends the priority service tier at the OpenRouter wire level", async () => {
+    const modelId = "openai/gpt-5.6-luna";
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        expect(body).toMatchObject({ service_tier: "priority" });
+        expect(body).not.toHaveProperty("extraBody");
+
+        return new Response(
+          JSON.stringify({
+            id: "generation-1",
+            object: "chat.completion",
+            created: 1,
+            model: modelId,
+            choices: [
+              {
+                index: 0,
+                message: { role: "assistant", content: "ok" },
+                finish_reason: "stop",
+              },
+            ],
+            usage: {
+              prompt_tokens: 1,
+              completion_tokens: 1,
+              total_tokens: 2,
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      },
+    );
+    const provider = createOpenRouter({
+      apiKey: "test-key",
+      fetch: fetchMock,
+    });
+
+    await generateText({
+      model: provider(modelId),
+      prompt: "ping",
+      providerOptions: {
+        openrouter: getOpenRouterProviderOptionsForModel(modelId),
       },
     });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("builds provider routing from environment variables", () => {
