@@ -1,27 +1,23 @@
 import { devToolsMiddleware } from "@ai-sdk/devtools";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import type { LanguageModel } from "ai";
+import {
+  createOpenRouter,
+  type OpenRouterChatSettings,
+} from "@openrouter/ai-sdk-provider";
 import { wrapLanguageModel } from "ai";
 import type { OrganizationModelTier } from "@/lib/organizations/types";
 import { resolvePlanSnapshot } from "@/lib/plans";
 import type { ResolvedPlanPolicies } from "@/lib/plans/types";
 
-// Create OpenRouter provider instance with API key from environment.
-// The double cast is required because @openrouter/ai-sdk-provider bundles its own copy of
-// @ai-sdk/provider, whose LanguageModelV2 type conflicts with the one in the `ai` package.
-// Remove this cast once @openrouter/ai-sdk-provider aligns its peer dependency.
+// Create the AI SDK 7-compatible OpenRouter provider instance.
 export const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
   ...(process.env.OPENROUTER_BASE_URL?.trim()
     ? { baseURL: process.env.OPENROUTER_BASE_URL.trim() }
     : {}),
-}) as unknown as (
-  modelId: string,
-  settings?: Record<string, unknown>,
-) => LanguageModel;
+});
 
 type ModelType = "orchestrator" | "subAgent";
-type OpenRouterModelSettings = Record<string, unknown>;
+type OpenRouterModelSettings = OpenRouterChatSettings;
 
 // Helper to wrap model with devtools in development
 // biome-ignore lint/suspicious/noExplicitAny: model type is internal to AI SDK wrapLanguageModel

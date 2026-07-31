@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   voiceGenerationJobCreate: vi.fn(),
   messageCount: vi.fn(),
   attachmentCreate: vi.fn(),
+  attachmentFindMany: vi.fn(),
   attachmentUpdateMany: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
@@ -76,6 +77,7 @@ vi.mock("@/lib/db", () => ({
     },
     attachment: {
       create: mocks.attachmentCreate,
+      findMany: mocks.attachmentFindMany,
       updateMany: mocks.attachmentUpdateMany,
     },
   },
@@ -134,6 +136,31 @@ vi.mock("@/lib/voice/generation-jobs", () => ({
 }));
 
 import { POST } from "./route";
+
+const TRUSTED_BLOB_ORIGIN = "https://store.public.blob.vercel-storage.com";
+const VALID_WAV_BYTES = Buffer.from([
+  0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45,
+]);
+const VALID_MP3_BYTES = Buffer.from("ID3safe audio");
+
+function canonicalAttachment(
+  id: string,
+  overrides: Partial<{
+    name: string;
+    contentType: string;
+    size: number;
+    blobUrl: string;
+  }> = {},
+) {
+  return {
+    id,
+    name: `${id}.png`,
+    contentType: "image/png",
+    size: 4,
+    blobUrl: `${TRUSTED_BLOB_ORIGIN}/${id}.png`,
+    ...overrides,
+  };
+}
 
 function buildRequest(body: unknown): Request {
   return new Request("http://localhost/api/chat", {
@@ -208,6 +235,7 @@ describe("POST /api/chat", () => {
     mocks.voiceGenerationJobCreate.mockReset();
     mocks.messageCount.mockReset();
     mocks.attachmentCreate.mockReset();
+    mocks.attachmentFindMany.mockReset();
     mocks.attachmentUpdateMany.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
@@ -291,6 +319,10 @@ describe("POST /api/chat", () => {
     mocks.messageCount.mockResolvedValue(1);
     mocks.chatUpdate.mockResolvedValue({});
     mocks.attachmentUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.attachmentFindMany.mockImplementation(
+      async ({ where }: { where: { id: { in: string[] } } }) =>
+        where.id.in.map((id) => canonicalAttachment(id)),
+    );
     mocks.attachmentCreate.mockResolvedValue({ id: "att-voice-1" });
     mocks.incrementUsage.mockResolvedValue({});
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
@@ -678,6 +710,19 @@ describe("POST /api/chat", () => {
       },
     );
     mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-1", {
+        name: "canonical-image.png",
+        size: 42,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-image.png`,
+      }),
+      canonicalAttachment("att-2", {
+        name: "canonical-voice.mp3",
+        contentType: "audio/mpeg",
+        size: VALID_MP3_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.mp3`,
+      }),
+    ]);
 
     const response = await POST(
       buildRequest({
@@ -693,7 +738,7 @@ describe("POST /api/chat", () => {
                 mimeType: "image/png",
                 name: "image.png",
                 size: 42,
-                data: "data:image",
+                data: "https://127.0.0.1/private.png",
               },
               {
                 type: "file",
@@ -701,7 +746,7 @@ describe("POST /api/chat", () => {
                 mimeType: "audio/mpeg",
                 name: "voice.mp3",
                 size: 99,
-                data: "data:audio",
+                data: `data:audio/mpeg;base64,${VALID_MP3_BYTES.toString("base64")}`,
               },
             ],
           },
@@ -721,6 +766,28 @@ describe("POST /api/chat", () => {
         direction: "INBOUND",
       }),
     });
+    const persistedParts = mocks.messageCreate.mock.calls[0]?.[0].data.parts;
+    expect(persistedParts).toEqual([
+      { type: "text", text: "hello" },
+      expect.objectContaining({
+        attachmentId: "att-1",
+        data: `${TRUSTED_BLOB_ORIGIN}/canonical-image.png`,
+        mimeType: "image/png",
+        name: "canonical-image.png",
+        size: 42,
+      }),
+      expect.objectContaining({
+        attachmentId: "att-2",
+        data: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.mp3`,
+        mimeType: "audio/mpeg",
+        name: "canonical-voice.mp3",
+        size: VALID_MP3_BYTES.byteLength,
+      }),
+    ]);
+    expect(JSON.stringify(persistedParts)).not.toContain("127.0.0.1");
+    expect(JSON.stringify(persistedParts)).not.toContain(
+      VALID_MP3_BYTES.toString("base64"),
+    );
     expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(1, {
       where: { id: "att-1", userId: "user-1", messageId: null },
       data: { messageId: "msg-user-123" },
@@ -744,6 +811,9 @@ describe("POST /api/chat", () => {
           type: "file",
           attachmentId: "att-1",
           mimeType: "image/png",
+          data: `${TRUSTED_BLOB_ORIGIN}/canonical-image.png`,
+          name: "canonical-image.png",
+          size: 42,
         }),
         expect.objectContaining({
           type: "text",
@@ -752,7 +822,7 @@ describe("POST /api/chat", () => {
       ],
     });
     expect(mocks.transcribeAudio).toHaveBeenCalledWith({
-      base64: "data:audio",
+      base64: VALID_MP3_BYTES.toString("base64"),
       mimeType: "audio/mpeg",
       title: "Web Chat",
       userId: "user-1",
@@ -854,6 +924,14 @@ describe("POST /api/chat", () => {
         };
       },
     );
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-image-url", {
+        name: "canonical-photo.jpg",
+        contentType: "image/jpeg",
+        size: 987,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-photo.jpg`,
+      }),
+    ]);
 
     const response = await POST(
       buildRequest({
@@ -868,7 +946,7 @@ describe("POST /api/chat", () => {
                 mimeType: "image/png",
                 name: "photo.png",
                 size: 1234,
-                url: "https://blob.example/uploads/user-1/chat-1/photo.png",
+                url: "http://127.0.0.1/private.png",
               },
             ],
           },
@@ -886,17 +964,17 @@ describe("POST /api/chat", () => {
         { type: "text", text: "che vedi?" },
         {
           type: "file",
-          data: "https://blob.example/uploads/user-1/chat-1/photo.png",
-          mimeType: "image/png",
-          name: "photo.png",
-          size: 1234,
+          data: `${TRUSTED_BLOB_ORIGIN}/canonical-photo.jpg`,
+          mimeType: "image/jpeg",
+          name: "canonical-photo.jpg",
+          size: 987,
           attachmentId: "att-image-url",
         },
       ],
     });
   });
 
-  it("keeps image data urls supported as file payloads", async () => {
+  it("discards client image data URLs in favor of canonical blob metadata", async () => {
     let streamArgs: Record<string, unknown> | undefined;
     mocks.streamChat.mockImplementation(
       async (args: Record<string, unknown>) => {
@@ -907,6 +985,14 @@ describe("POST /api/chat", () => {
         };
       },
     );
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-image-data-url", {
+        name: "camera.jpg",
+        contentType: "image/jpeg",
+        size: 321,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-camera.jpg`,
+      }),
+    ]);
 
     const response = await POST(
       buildRequest({
@@ -937,10 +1023,69 @@ describe("POST /api/chat", () => {
       messageParts: [
         expect.objectContaining({
           type: "file",
-          data: "data:image/jpeg;base64,aW1hZ2UtYmFzZTY0",
+          data: `${TRUSTED_BLOB_ORIGIN}/canonical-camera.jpg`,
           mimeType: "image/jpeg",
+          name: "camera.jpg",
+          size: 321,
         }),
       ],
+    });
+  });
+
+  it("recomputes media flags from canonical attachment metadata", async () => {
+    let streamArgs: Record<string, unknown> | undefined;
+    mocks.streamChat.mockImplementation(
+      async (args: Record<string, unknown>) => {
+        streamArgs = args;
+        return {
+          toUIMessageStreamResponse: () =>
+            Response.json({ ok: true, stream: true }, { status: 200 }),
+        };
+      },
+    );
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-canonical-audio", {
+        name: "canonical.wav",
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical.wav`,
+      }),
+    ]);
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [
+              {
+                type: "file",
+                attachmentId: "att-canonical-audio",
+                mimeType: "image/png",
+                name: "client-spoof.png",
+                size: 999,
+                url: `data:audio/wav;base64,${VALID_WAV_BYTES.toString("base64")}`,
+              },
+            ],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.transcribeAudio).toHaveBeenCalledWith(
+      expect.objectContaining({
+        base64: VALID_WAV_BYTES.toString("base64"),
+        mimeType: "audio/wav",
+      }),
+    );
+    expect(streamArgs).toMatchObject({
+      hasImages: false,
+      hasAudio: false,
+      inputOrigin: "transcribed_voice",
+      userMessage:
+        "Trascrizione del messaggio vocale:\ntrascrizione del vocale",
     });
   });
 
@@ -1438,6 +1583,14 @@ describe("POST /api/chat", () => {
       },
     );
     mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-voice", {
+        name: "canonical-voice.wav",
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.wav`,
+      }),
+    ]);
 
     const response = await POST(
       buildRequest({
@@ -1451,7 +1604,7 @@ describe("POST /api/chat", () => {
                 mimeType: "audio/wav",
                 name: "voice.wav",
                 size: 99,
-                url: "data:audio/wav;base64,dm9pY2UtYmFzZTY0",
+                url: `data:audio/wav;base64,${VALID_WAV_BYTES.toString("base64")}`,
               },
             ],
           },
@@ -1479,7 +1632,7 @@ describe("POST /api/chat", () => {
       }),
     );
     expect(mocks.transcribeAudio).toHaveBeenCalledWith({
-      base64: "dm9pY2UtYmFzZTY0",
+      base64: VALID_WAV_BYTES.toString("base64"),
       mimeType: "audio/wav",
       title: "Web Chat",
       userId: "user-1",
@@ -1489,6 +1642,14 @@ describe("POST /api/chat", () => {
 
   it("returns a transcription error without calling the AI flow", async () => {
     mocks.transcribeAudio.mockRejectedValue(new Error("provider down"));
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-voice", {
+        name: "canonical-voice.wav",
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.wav`,
+      }),
+    ]);
 
     const response = await POST(
       buildRequest({
@@ -1502,7 +1663,7 @@ describe("POST /api/chat", () => {
                 mimeType: "audio/wav",
                 name: "voice.wav",
                 size: 99,
-                url: "data:audio/wav;base64,dm9pY2UtYmFzZTY0",
+                url: `data:audio/wav;base64,${VALID_WAV_BYTES.toString("base64")}`,
               },
             ],
           },
@@ -1521,7 +1682,15 @@ describe("POST /api/chat", () => {
     expect(mocks.decideWebVoiceMode).not.toHaveBeenCalled();
   });
 
-  it("returns 400 for unsupported non-image file urls before side effects", async () => {
+  it("returns 400 when canonical audio has no validated inline payload", async () => {
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-voice", {
+        name: "canonical-voice.wav",
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.wav`,
+      }),
+    ]);
     const response = await POST(
       buildRequest({
         messages: [
@@ -1546,19 +1715,26 @@ describe("POST /api/chat", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      error: "Unsupported file payload",
+      error: "Invalid or inaccessible attachment",
     });
-    expect(mocks.userFindUnique).not.toHaveBeenCalled();
-    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.userFindUnique).toHaveBeenCalledTimes(1);
+    expect(mocks.checkRateLimit).toHaveBeenCalledTimes(1);
+    expect(mocks.attachmentFindMany).toHaveBeenCalledWith({
+      where: { id: { in: ["att-voice"] }, userId: "user-1" },
+      select: {
+        id: true,
+        name: true,
+        contentType: true,
+        size: true,
+        blobUrl: true,
+      },
+    });
     expect(mocks.messageCreate).not.toHaveBeenCalled();
     expect(mocks.decideWebVoiceMode).not.toHaveBeenCalled();
   });
 
-  it("skips linking attachments that are not owned by the current user", async () => {
-    mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
-    mocks.attachmentUpdateMany
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({ count: 0 });
+  it("rejects the whole message when any attachment is not owned", async () => {
+    mocks.attachmentFindMany.mockResolvedValue([canonicalAttachment("att-1")]);
 
     const response = await POST(
       buildRequest({
@@ -1576,16 +1752,18 @@ describe("POST /api/chat", () => {
       }),
     );
 
-    expect(response.status).toBe(200);
-    expect(mocks.attachmentUpdateMany).toHaveBeenCalledTimes(2);
-    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(1, {
-      where: { id: "att-1", userId: "user-1", messageId: null },
-      data: { messageId: "msg-user-123" },
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid or inaccessible attachment",
     });
-    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(2, {
-      where: { id: "att-2", userId: "user-1", messageId: null },
-      data: { messageId: "msg-user-123" },
-    });
+    expect(mocks.attachmentFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ["att-1", "att-2"] }, userId: "user-1" },
+      }),
+    );
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
+    expect(mocks.attachmentUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
   it("does not reassign linked or repeated attachments", async () => {

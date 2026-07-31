@@ -16,6 +16,9 @@ export function getPostHogClient(): PostHog {
     }
     posthogClient = new PostHog(apiKey, {
       host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
+      // Defense in depth: AI telemetry is metadata-only and must never include
+      // prompts, outputs, tool arguments/results, or reasoning content.
+      privacyMode: true,
       flushAt: 1, // Flush immediately for serverless
       flushInterval: 0,
     });

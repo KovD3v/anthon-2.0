@@ -15,6 +15,10 @@ import {
 import type { ChannelMessagePart } from "@/lib/channel-flow";
 import { runChannelFlow } from "@/lib/channel-flow";
 import { persistAssistantOutput } from "@/lib/channel-flow/persistence";
+import {
+  resolveOwnedWebMessageParts,
+  WebAttachmentInputError,
+} from "@/lib/channels/web/attachment-input";
 import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
@@ -103,7 +107,7 @@ export async function handleWebChatPost(request: Request) {
             .join("") || "";
         const normalizedUserMessageText = userMessageText.trim();
 
-        const hasAttachments = lastUserMessage.parts?.some(
+        const hasSubmittedAttachments = lastUserMessage.parts?.some(
           (part) => part.type === "file",
         );
 
@@ -114,7 +118,7 @@ export async function handleWebChatPost(request: Request) {
           );
         }
 
-        if (!normalizedUserMessageText && !hasAttachments) {
+        if (!normalizedUserMessageText && !hasSubmittedAttachments) {
           return new Response("Empty message", { status: 400 });
         }
 
@@ -261,16 +265,31 @@ export async function handleWebChatPost(request: Request) {
           (message) => message.role === "user" || message.role === "assistant",
         ).length;
 
-        // Check if message has images
-        const hasImages = lastUserMessage.parts?.some((part) => {
-          if (part.type === "file") {
-            const filePart = part as unknown as { mimeType?: string };
-            return filePart.mimeType?.startsWith("image/");
+        let resolvedMessageParts: Awaited<
+          ReturnType<typeof resolveOwnedWebMessageParts>
+        >;
+        try {
+          resolvedMessageParts = await resolveOwnedWebMessageParts(
+            lastUserMessage,
+            user.id,
+          );
+        } catch (error) {
+          if (error instanceof WebAttachmentInputError) {
+            return Response.json(
+              { error: "Invalid or inaccessible attachment" },
+              { status: 400 },
+            );
           }
-          return false;
-        });
+          throw error;
+        }
 
-        const messageParts = buildChannelMessageParts(lastUserMessage);
+        const messageParts = resolvedMessageParts.aiParts;
+        const hasAttachments = messageParts.some(
+          (part) => part.type === "file",
+        );
+        const hasImages = messageParts.some(
+          (part) => part.type === "file" && part.mimeType?.startsWith("image/"),
+        );
         const hadAudioAttachment = messageParts.some(
           (part) => part.type === "file" && part.mimeType?.startsWith("audio/"),
         );
@@ -314,7 +333,8 @@ export async function handleWebChatPost(request: Request) {
                 direction: "INBOUND",
                 role: "USER",
                 type: "TEXT",
-                parts: lastUserMessage.parts as Prisma.InputJsonValue,
+                parts:
+                  resolvedMessageParts.persistedParts as Prisma.InputJsonValue,
               },
             }),
           "🌐 Chat API Request",
@@ -342,36 +362,27 @@ export async function handleWebChatPost(request: Request) {
         );
 
         // Link attachments to the message
-        if (lastUserMessage.parts && Array.isArray(lastUserMessage.parts)) {
-          for (const part of lastUserMessage.parts) {
-            if (part.type === "file") {
-              const filePart = part as unknown as {
-                attachmentId?: string;
-              };
-              if (filePart.attachmentId) {
-                await prisma.attachment
-                  .updateMany({
-                    where: {
-                      id: filePart.attachmentId,
-                      userId: user.id,
-                      messageId: null,
-                    },
-                    data: { messageId: message.id },
-                  })
-                  .catch((error) =>
-                    logger.error(
-                      "chat.attachment.link_failed",
-                      "Failed to link attachment",
-                      {
-                        error,
-                        attachmentId: filePart.attachmentId,
-                        messageId: message.id,
-                      },
-                    ),
-                  );
-              }
-            }
-          }
+        for (const attachmentId of resolvedMessageParts.attachmentIds) {
+          await prisma.attachment
+            .updateMany({
+              where: {
+                id: attachmentId,
+                userId: user.id,
+                messageId: null,
+              },
+              data: { messageId: message.id },
+            })
+            .catch((error) =>
+              logger.error(
+                "chat.attachment.link_failed",
+                "Failed to link attachment",
+                {
+                  error,
+                  attachmentId,
+                  messageId: message.id,
+                },
+              ),
+            );
         }
 
         // Auto-generate or refresh chat title if not manually set by user
@@ -580,70 +591,6 @@ export async function handleWebChatPost(request: Request) {
   );
 }
 
-function normalizeFilePartData(filePart: {
-  data?: string;
-  url?: string;
-  mimeType?: string;
-}) {
-  if (filePart.data) {
-    return filePart.data;
-  }
-
-  if (!filePart.url) {
-    return undefined;
-  }
-
-  if (
-    filePart.mimeType?.startsWith("image/") ||
-    filePart.mimeType === "application/pdf" ||
-    filePart.mimeType?.startsWith("video/")
-  ) {
-    return filePart.url;
-  }
-
-  if (filePart.url.startsWith("data:") && filePart.url.includes(",")) {
-    return filePart.url.split(",")[1];
-  }
-
-  return undefined;
-}
-
-function buildChannelMessageParts(message: UIMessage): ChannelMessagePart[] {
-  const messageParts: ChannelMessagePart[] = [];
-
-  for (const part of message.parts ?? []) {
-    if (part.type === "text") {
-      messageParts.push({
-        type: "text",
-        text: (part as { text: string }).text || "",
-      });
-      continue;
-    }
-
-    if (part.type === "file") {
-      const filePart = part as unknown as {
-        data?: string;
-        url?: string;
-        mimeType?: string;
-        name?: string;
-        size?: number;
-        attachmentId?: string;
-      };
-      const fileData = normalizeFilePartData(filePart);
-      messageParts.push({
-        type: "file",
-        data: fileData,
-        mimeType: filePart.mimeType,
-        name: filePart.name,
-        size: filePart.size,
-        attachmentId: filePart.attachmentId,
-      });
-    }
-  }
-
-  return messageParts;
-}
-
 async function prepareWebMessageForAi({
   messageParts,
   userId,
@@ -718,24 +665,11 @@ function hasUnsupportedFilePayload(part: UIMessage["parts"][number]) {
   }
 
   const filePart = part as unknown as {
-    data?: string;
-    url?: string;
-    mimeType?: string;
+    attachmentId?: unknown;
   };
-
-  if (filePart.data) {
-    return false;
-  }
-
-  if (!filePart.url) {
-    return false;
-  }
-
-  if (filePart.mimeType?.startsWith("image/")) {
-    return false;
-  }
-
-  return !filePart.url.startsWith("data:");
+  return (
+    typeof filePart.attachmentId !== "string" || !filePart.attachmentId.trim()
+  );
 }
 
 function getRecentTextMessages(messages: UIMessage[]) {

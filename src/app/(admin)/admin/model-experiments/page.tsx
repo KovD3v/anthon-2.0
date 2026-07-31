@@ -180,11 +180,7 @@ export default function ModelExperimentsPage() {
               "Feature flag PostHog",
               "model-comparison-italy",
             ],
-            [
-              "controlModel",
-              "Modello control esatto",
-              "openai/gpt-5.6-luna",
-            ],
+            ["controlModel", "Modello control esatto", "openai/gpt-5.6-luna"],
             ["candidateModel", "Modello candidate esatto", "provider/model"],
           ].map(([field, label, placeholder]) => (
             <div key={field} className="space-y-2">
