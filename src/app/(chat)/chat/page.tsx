@@ -2,6 +2,7 @@
 
 import { useUser } from "@clerk/nextjs";
 import {
+  ArrowRight,
   Brain,
   CalendarClock,
   RotateCcw,
@@ -47,7 +48,8 @@ const starterPrompts = [
  */
 export default function ChatPage() {
   const { user } = useUser();
-  const { createChat, chats, isGuest } = useChatContext();
+  const { createChat, navigateToChat, chats, coachingGoal, isGuest } =
+    useChatContext();
   const searchParams = useSearchParams();
   const startedPrefilledChatRef = useRef(false);
   const prefilledPrompt = searchParams.get("q")?.trim() ?? "";
@@ -64,6 +66,14 @@ export default function ChatPage() {
   const greeting = isGuest
     ? "Benvenuto!"
     : `Ciao${user?.firstName ? `, ${user.firstName}` : ""}!`;
+  const mostRecentChat =
+    !isGuest && chats.length > 0
+      ? [...chats].sort(
+          (left, right) =>
+            Date.parse(right.updatedAt) - Date.parse(left.updatedAt) ||
+            left.id.localeCompare(right.id),
+        )[0]
+      : null;
 
   return (
     <PageWrapper className="flex flex-1 flex-col">
@@ -81,6 +91,50 @@ export default function ChatPage() {
               o apri una conversazione libera.
             </p>
           </div>
+
+          {mostRecentChat && (
+            <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 p-5 text-left shadow-sm">
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-primary">
+                Riprendi il percorso
+              </p>
+              <h2 className="font-display mt-2 text-2xl font-bold uppercase leading-none">
+                {mostRecentChat.title}
+              </h2>
+              {coachingGoal && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Il tuo obiettivo: {coachingGoal}
+                </p>
+              )}
+              <p className="mt-2 text-xs text-muted-foreground">
+                Ultimo aggiornamento{" "}
+                {new Intl.DateTimeFormat("it-IT", {
+                  day: "numeric",
+                  month: "short",
+                }).format(new Date(mostRecentChat.updatedAt))}
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Button
+                  className="gap-2"
+                  onClick={() => navigateToChat(mostRecentChat.id)}
+                >
+                  Riprendi
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    createChat({
+                      title: "Check-in sul percorso",
+                      initialMessage:
+                        "Vorrei fare un check-in sul mio percorso dall'ultima conversazione. Fammi una domanda alla volta per capire cosa è successo, cosa ha funzionato e dove mi sono bloccato.",
+                    })
+                  }
+                >
+                  Com&apos;è andata?
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-3 text-left md:grid-cols-3">
             {starterPrompts.map((starter) => (
@@ -125,7 +179,7 @@ export default function ChatPage() {
             <Sparkles className="h-5 w-5" />
             Conversazione libera
           </Button>
-          {chats.length > 0 && (
+          {chats.length > 0 && !mostRecentChat && (
             <p className="mt-6 text-sm text-muted-foreground">
               Hai {chats.length} conversazion{chats.length !== 1 ? "i" : "e"}.
               Puoi riprenderle dalla barra laterale.

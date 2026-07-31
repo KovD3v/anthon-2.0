@@ -2,12 +2,17 @@ import { Suspense } from "react";
 import type { UserRole } from "@/generated/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { getSharedChats } from "@/lib/chat";
+import { getUserControlledCoachingGoal } from "@/lib/coaching-context";
 import { prisma } from "@/lib/db";
 import { getGuestTokenFromCookies, hashGuestToken } from "@/lib/guest-auth";
+import { convertGuestForAuthenticatedUser } from "@/lib/guest-conversion";
+import { createLogger } from "@/lib/logger";
 import { getSharedUsageData } from "@/lib/usage";
 import type { Chat, UsageData } from "@/types/chat";
 import { SidebarSkeleton } from "../../(chat)/components/Skeletons";
 import { LayoutClient } from "./layout-client";
+
+const chatLayoutLogger = createLogger("ai");
 
 export default function ChatLayout({
   children,
@@ -73,12 +78,15 @@ function ChatLayoutSkeleton() {
 }
 
 async function ChatSidebarData({ children }: { children: React.ReactNode }) {
-  const { chats, usageData, isGuest } = await getChatSidebarData();
+  const { chats, usageData, coachingGoal, isGuest, guestConversionPending } =
+    await getChatSidebarData();
 
   return (
     <LayoutClient
       initialChats={chats}
       initialUsageData={usageData}
+      initialCoachingGoal={coachingGoal}
+      guestConversionPending={guestConversionPending}
       isGuest={isGuest}
     >
       {children}
@@ -89,17 +97,35 @@ async function ChatSidebarData({ children }: { children: React.ReactNode }) {
 export async function getChatSidebarData(): Promise<{
   chats: Chat[];
   usageData: UsageData | null;
+  coachingGoal: string | null;
+  guestConversionPending: boolean;
   isGuest: boolean;
 }> {
   const { user: authUser } = await getAuthUser();
   let chats: Chat[] = [];
   let usageData: UsageData | null = null;
+  let coachingGoal: string | null = null;
+  let guestConversionPending = false;
   let isGuest = false;
 
   if (authUser) {
     // Authenticated user path
+    const conversionOutcome = await convertGuestForAuthenticatedUser(
+      authUser.id,
+      { canMutateCookies: false },
+    );
+    guestConversionPending = conversionOutcome !== "no_cookie";
     chats = await getSharedChats(authUser.id);
     usageData = await getSharedUsageData(authUser.id, authUser.role);
+    try {
+      coachingGoal = await getUserControlledCoachingGoal(authUser.id);
+    } catch (error) {
+      chatLayoutLogger.warn(
+        "coaching_goal.unavailable",
+        "Failed to load coaching goal",
+        { error },
+      );
+    }
   } else {
     isGuest = true;
 
@@ -126,5 +152,11 @@ export async function getChatSidebarData(): Promise<{
     }
   }
 
-  return { chats, usageData, isGuest };
+  return {
+    chats,
+    usageData,
+    coachingGoal,
+    isGuest,
+    guestConversionPending,
+  };
 }

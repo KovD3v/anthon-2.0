@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   getGuestTokenFromCookies: vi.fn(),
   hashGuestToken: vi.fn(),
   getSharedUsageData: vi.fn(),
+  convertGuestForAuthenticatedUser: vi.fn(),
+  getUserControlledCoachingGoal: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -36,6 +38,14 @@ vi.mock("@/lib/usage", () => ({
   getSharedUsageData: mocks.getSharedUsageData,
 }));
 
+vi.mock("@/lib/guest-conversion", () => ({
+  convertGuestForAuthenticatedUser: mocks.convertGuestForAuthenticatedUser,
+}));
+
+vi.mock("@/lib/coaching-context", () => ({
+  getUserControlledCoachingGoal: mocks.getUserControlledCoachingGoal,
+}));
+
 vi.mock("./layout-client", () => ({
   LayoutClient: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -50,12 +60,16 @@ describe("chat layout sidebar data", () => {
     mocks.getGuestTokenFromCookies.mockReset();
     mocks.hashGuestToken.mockReset();
     mocks.getSharedUsageData.mockReset();
+    mocks.convertGuestForAuthenticatedUser.mockReset();
+    mocks.getUserControlledCoachingGoal.mockReset();
 
     mocks.getAuthUser.mockResolvedValue({
       user: null,
       error: "Not authenticated",
     });
     mocks.getGuestTokenFromCookies.mockResolvedValue(null);
+    mocks.convertGuestForAuthenticatedUser.mockResolvedValue("no_cookie");
+    mocks.getUserControlledCoachingGoal.mockResolvedValue(null);
   });
 
   it("treats unauthenticated first visits without a guest cookie as guest mode", async () => {
@@ -64,9 +78,57 @@ describe("chat layout sidebar data", () => {
     expect(result).toEqual({
       chats: [],
       usageData: null,
+      coachingGoal: null,
+      guestConversionPending: false,
       isGuest: true,
     });
     expect(mocks.prismaUserFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("converts a guest before reading authenticated sidebar data", async () => {
+    const order: string[] = [];
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "user-1", role: "USER" },
+      error: null,
+    });
+    mocks.convertGuestForAuthenticatedUser.mockImplementation(async () => {
+      order.push("convert");
+      return "migrated";
+    });
+    mocks.getSharedChats.mockImplementation(async () => {
+      order.push("chats");
+      return [];
+    });
+    mocks.getSharedUsageData.mockImplementation(async () => {
+      order.push("usage");
+      return null;
+    });
+
+    await getChatSidebarData();
+
+    expect(order).toEqual(["convert", "chats", "usage"]);
+    expect(mocks.convertGuestForAuthenticatedUser).toHaveBeenCalledWith(
+      "user-1",
+      { canMutateCookies: false },
+    );
+  });
+
+  it("loads the authenticated user's coaching goal", async () => {
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "user-1", role: "USER" },
+      error: null,
+    });
+    mocks.getSharedChats.mockResolvedValue([]);
+    mocks.getSharedUsageData.mockResolvedValue(null);
+    mocks.getUserControlledCoachingGoal.mockResolvedValue("Restare lucido");
+
+    await expect(getChatSidebarData()).resolves.toEqual({
+      chats: [],
+      usageData: null,
+      coachingGoal: "Restare lucido",
+      guestConversionPending: false,
+      isGuest: false,
+    });
   });
 });
 

@@ -8,12 +8,7 @@
 import { revalidateTag } from "next/cache";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import {
-  clearGuestCookie,
-  getGuestTokenFromCookies,
-  hashGuestToken,
-} from "@/lib/guest-auth";
-import { migrateGuestToUser } from "@/lib/guest-migration";
+import { convertGuestForAuthenticatedUser } from "@/lib/guest-conversion";
 import { createLogger } from "@/lib/logger";
 
 const chatsLogger = createLogger("ai");
@@ -32,54 +27,7 @@ export async function GET() {
   }
 
   try {
-    // Check for guest migration: if user has a guest cookie, migrate their data
-    const guestToken = await getGuestTokenFromCookies();
-    if (guestToken) {
-      const tokenHash = hashGuestToken(guestToken);
-
-      // Find guest user by token hash
-      const guestUser = await prisma.user.findFirst({
-        where: {
-          isGuest: true,
-          guestAbuseIdHash: tokenHash,
-          guestConvertedAt: null,
-        },
-        select: { id: true },
-      });
-
-      if (guestUser) {
-        if (guestUser.id !== user.id) {
-          // Migrate guest data to authenticated user
-          chatsLogger.info("guest.migration_start", "Migrating guest to user", {
-            guestId: guestUser.id,
-            userId: user.id,
-          });
-          const migrationResult = await migrateGuestToUser(
-            guestUser.id,
-            user.id,
-          );
-
-          if (migrationResult.success) {
-            chatsLogger.info(
-              "guest.migration_success",
-              "Guest migration successful",
-              { migratedCounts: migrationResult.migratedCounts },
-            );
-          } else {
-            chatsLogger.error(
-              "guest.migration_failed",
-              "Guest migration failed",
-              { error: migrationResult.error },
-            );
-          }
-        }
-        // Always clear guest cookie after migration attempt (success or already migrated)
-        await clearGuestCookie();
-      } else {
-        // No guest user found for this token, clear the stale cookie anyway
-        await clearGuestCookie();
-      }
-    }
+    await convertGuestForAuthenticatedUser(user.id);
 
     const chats = await prisma.chat.findMany({
       where: { userId: user.id },

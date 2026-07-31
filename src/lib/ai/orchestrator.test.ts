@@ -341,6 +341,13 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).toContain("user-context-data");
     expect(streamInput.instructions).toContain("user-memories-data");
     expect(streamInput.instructions).toContain("TEXT RESPONSE MODE");
+    expect(streamInput.instructions).toContain("AI mental coach");
+    expect(streamInput.instructions).toContain(
+      "Never claim to be human, licensed, or a healthcare professional",
+    );
+    expect(streamInput.instructions).not.toContain(
+      "NEVER say you are an AI or a model",
+    );
     expect(streamInput.instructions).toContain(
       "Do not mention voice/audio availability",
     );
@@ -1990,6 +1997,13 @@ describe("ai/orchestrator", () => {
       maxOutputTokens?: number;
     };
     expect(streamInput.instructions).toContain("GUEST SESSION");
+    expect(streamInput.instructions).toContain("AI mental coach");
+    expect(streamInput.instructions).toContain(
+      "Never claim to be human, licensed, or a healthcare professional",
+    );
+    expect(streamInput.instructions).not.toContain(
+      "NEVER say you are an AI or a model",
+    );
     expect(streamInput.instructions).toContain(
       "Persistent profile, preferences, and memory are unavailable",
     );

@@ -3,13 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   revalidateTag: vi.fn(),
   getAuthUser: vi.fn(),
-  userFindFirst: vi.fn(),
   chatFindMany: vi.fn(),
   chatCreate: vi.fn(),
-  getGuestTokenFromCookies: vi.fn(),
-  hashGuestToken: vi.fn(),
-  clearGuestCookie: vi.fn(),
-  migrateGuestToUser: vi.fn(),
+  convertGuestForAuthenticatedUser: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({
@@ -22,9 +18,6 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    user: {
-      findFirst: mocks.userFindFirst,
-    },
     chat: {
       findMany: mocks.chatFindMany,
       create: mocks.chatCreate,
@@ -32,14 +25,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/lib/guest-auth", () => ({
-  getGuestTokenFromCookies: mocks.getGuestTokenFromCookies,
-  hashGuestToken: mocks.hashGuestToken,
-  clearGuestCookie: mocks.clearGuestCookie,
-}));
-
-vi.mock("@/lib/guest-migration", () => ({
-  migrateGuestToUser: mocks.migrateGuestToUser,
+vi.mock("@/lib/guest-conversion", () => ({
+  convertGuestForAuthenticatedUser: mocks.convertGuestForAuthenticatedUser,
 }));
 
 import { GET, POST } from "./route";
@@ -59,25 +46,15 @@ describe("/api/chats route", () => {
   beforeEach(() => {
     mocks.revalidateTag.mockReset();
     mocks.getAuthUser.mockReset();
-    mocks.userFindFirst.mockReset();
     mocks.chatFindMany.mockReset();
     mocks.chatCreate.mockReset();
-    mocks.getGuestTokenFromCookies.mockReset();
-    mocks.hashGuestToken.mockReset();
-    mocks.clearGuestCookie.mockReset();
-    mocks.migrateGuestToUser.mockReset();
+    mocks.convertGuestForAuthenticatedUser.mockReset();
 
     mocks.getAuthUser.mockResolvedValue({
       user: { id: "user-1", role: "USER" },
       error: null,
     });
-    mocks.getGuestTokenFromCookies.mockResolvedValue(null);
-    mocks.hashGuestToken.mockReturnValue("hashed-token");
-    mocks.clearGuestCookie.mockResolvedValue(undefined);
-    mocks.migrateGuestToUser.mockResolvedValue({
-      success: true,
-      migratedCounts: { chats: 1, messages: 2 },
-    });
+    mocks.convertGuestForAuthenticatedUser.mockResolvedValue("no_cookie");
     mocks.chatFindMany.mockResolvedValue([
       {
         id: "chat-1",
@@ -136,52 +113,26 @@ describe("/api/chats route", () => {
         },
       },
     });
-    expect(mocks.clearGuestCookie).not.toHaveBeenCalled();
-  });
-
-  it("GET migrates guest data and clears cookie when guest token belongs to another guest user", async () => {
-    mocks.getGuestTokenFromCookies.mockResolvedValue("guest-token");
-    mocks.userFindFirst.mockResolvedValue({ id: "guest-user-1" });
-
-    const response = await GET();
-
-    expect(response.status).toBe(200);
-    expect(mocks.hashGuestToken).toHaveBeenCalledWith("guest-token");
-    expect(mocks.userFindFirst).toHaveBeenCalledWith({
-      where: {
-        isGuest: true,
-        guestAbuseIdHash: "hashed-token",
-        guestConvertedAt: null,
-      },
-      select: { id: true },
-    });
-    expect(mocks.migrateGuestToUser).toHaveBeenCalledWith(
-      "guest-user-1",
+    expect(mocks.convertGuestForAuthenticatedUser).toHaveBeenCalledWith(
       "user-1",
     );
-    expect(mocks.clearGuestCookie).toHaveBeenCalledTimes(1);
   });
 
-  it("GET only clears cookie when guest token maps to same user", async () => {
-    mocks.getGuestTokenFromCookies.mockResolvedValue("guest-token");
-    mocks.userFindFirst.mockResolvedValue({ id: "user-1" });
+  it("GET delegates guest conversion before reading chats", async () => {
+    const order: string[] = [];
+    mocks.convertGuestForAuthenticatedUser.mockImplementation(async () => {
+      order.push("convert");
+      return "migrated";
+    });
+    mocks.chatFindMany.mockImplementation(async () => {
+      order.push("read");
+      return [];
+    });
 
     const response = await GET();
 
     expect(response.status).toBe(200);
-    expect(mocks.migrateGuestToUser).not.toHaveBeenCalled();
-    expect(mocks.clearGuestCookie).toHaveBeenCalledTimes(1);
-  });
-
-  it("GET clears stale guest cookie when no guest user found", async () => {
-    mocks.getGuestTokenFromCookies.mockResolvedValue("stale-token");
-    mocks.userFindFirst.mockResolvedValue(null);
-
-    const response = await GET();
-
-    expect(response.status).toBe(200);
-    expect(mocks.clearGuestCookie).toHaveBeenCalledTimes(1);
-    expect(mocks.migrateGuestToUser).not.toHaveBeenCalled();
+    expect(order).toEqual(["convert", "read"]);
   });
 
   it("GET returns 500 on unexpected error", async () => {

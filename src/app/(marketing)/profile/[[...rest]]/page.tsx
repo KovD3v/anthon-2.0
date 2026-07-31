@@ -4,6 +4,7 @@ import { UserProfile } from "@clerk/nextjs";
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { CoachingContextSection } from "../components/CoachingContextSection";
 import { PreferencesSection } from "../components/PreferencesSection";
 
 export default function ProfilePage() {
@@ -61,6 +62,7 @@ export default function ProfilePage() {
 
         {/* Preferences Section */}
         <PreferencesSection />
+        <CoachingContextSection />
       </div>
     </div>
   );

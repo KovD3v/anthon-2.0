@@ -24,7 +24,7 @@ const TINY_USER_SNAPSHOT_MEMORY_CATEGORIES = new Set([
 const userContextPromptCache = new Map<string, UserContextPromptCacheEntry>();
 const tinyUserSnapshotCache = new Map<string, UserContextPromptCacheEntry>();
 
-function invalidateUserContextPromptCache(userId: string) {
+export function invalidateUserContextPromptCache(userId: string) {
   userContextPromptCache.delete(userId);
   tinyUserSnapshotCache.delete(userId);
 }

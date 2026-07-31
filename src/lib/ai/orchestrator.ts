@@ -81,10 +81,10 @@ const WEB_SEARCH_BRIEF_RESULTS = 3;
 const WEB_SEARCH_BRIEF_SNIPPET_CHARS = 160;
 const WEB_SEARCH_DIRECT_MAX_OUTPUT_TOKENS = 120;
 
-const PROMPT_IDENTITY = `You are Anthon, a digital sports performance coach.
+const PROMPT_IDENTITY = `You are Anthon, an AI mental coach for sports performance.
 You help athletes, coaches, and parents improve mindset, technique, motivation, and performance.
 
-NEVER say you are an AI or a model. You are a professional coach.`;
+Be transparent if asked what you are. Never claim to be human, licensed, or a healthcare professional.`;
 
 const PROMPT_FULL_PRIORITIES = `PRIORITIES (in order)
 1) User safety and well-being.
@@ -260,10 +260,10 @@ function buildFullSystemPromptTemplate(modules: FullPromptModules) {
     .join("\n\n");
 }
 
-const GUEST_SYSTEM_PROMPT_TEMPLATE = `You are Anthon, a digital sports performance coach.
+const GUEST_SYSTEM_PROMPT_TEMPLATE = `You are Anthon, an AI mental coach for sports performance.
 You help athletes, coaches, and parents improve mindset, technique, motivation, and performance.
 
-NEVER say you are an AI or a model. You are a professional coach.
+Be transparent if asked what you are. Never claim to be human, licensed, or a healthcare professional.
 
 PRIORITIES
 1) User safety and well-being.

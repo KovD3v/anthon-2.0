@@ -36,6 +36,7 @@ interface CreateChatOptions {
 
 interface ChatContextType {
   chats: Chat[];
+  coachingGoal: string | null;
   isLoading: boolean;
   isCreatingChat: boolean;
   currentChatId: string | null;
@@ -74,6 +75,13 @@ function GuestBanner({
   showToggle?: boolean;
   onToggleSidebar?: () => void;
 }) {
+  const pathname = usePathname();
+  const continuation =
+    pathname === "/chat" || /^\/chat\/[^/?#\\]+$/.test(pathname)
+      ? pathname
+      : "/chat";
+  const signUpHref = `/sign-up?redirect_url=${encodeURIComponent(continuation)}`;
+
   return (
     <div className="mx-2 mt-2 md:mx-4 md:mt-4">
       <div className="flex items-center justify-between gap-2 bg-linear-to-r from-primary/10 via-primary/5 to-transparent backdrop-blur-xl border border-primary/20 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl shadow-sm shadow-primary/5">
@@ -107,7 +115,7 @@ function GuestBanner({
           variant="default"
           className="gap-1.5 h-8 text-xs shrink-0 rounded-xl px-3"
         >
-          <Link href="/sign-up" aria-label="Registrati">
+          <Link href={signUpHref} aria-label="Registrati">
             <UserPlus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Registrati</span>
           </Link>
@@ -125,11 +133,15 @@ export function LayoutClient({
   children,
   initialChats,
   initialUsageData,
+  initialCoachingGoal,
+  guestConversionPending,
   isGuest,
 }: {
   children: React.ReactNode;
   initialChats: Chat[];
   initialUsageData: UsageData | null;
+  initialCoachingGoal: string | null;
+  guestConversionPending: boolean;
   isGuest: boolean;
 }) {
   const { user } = useUser();
@@ -163,6 +175,11 @@ export function LayoutClient({
   useEffect(() => {
     setUsageData(initialUsageData);
   }, [initialUsageData]);
+
+  useEffect(() => {
+    if (!guestConversionPending || isGuest) return;
+    fetch("/api/guest/convert", { method: "POST" }).catch(() => {});
+  }, [guestConversionPending, isGuest]);
 
   useEffect(() => {
     if (window.innerWidth >= 768) {
@@ -499,6 +516,7 @@ export function LayoutClient({
     <ChatContext.Provider
       value={{
         chats,
+        coachingGoal: initialCoachingGoal,
         isLoading,
         isCreatingChat,
         currentChatId,
