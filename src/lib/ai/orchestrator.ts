@@ -1001,7 +1001,11 @@ async function runOpenRouterMultimodalCompletion({
     throw new Error("OPENROUTER_API_KEY is required for multimodal chat");
   }
 
-  const openRouterMessages = await toOpenRouterMessages(systemPrompt, messages);
+  const openRouterMessages = await toOpenRouterMessages(
+    systemPrompt,
+    messages,
+    abortSignal,
+  );
   abortSignal?.throwIfAborted();
 
   const response = await fetch(

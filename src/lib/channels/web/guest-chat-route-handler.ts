@@ -366,7 +366,11 @@ export async function handleGuestChatPost(request: Request) {
             hasAudio: false,
             skipConversationHistory: chat._count.messages === 0,
           },
-          execution: { mode: "stream", abortSignal: request.signal },
+          execution: {
+            mode: "stream",
+            abortSignal: request.signal,
+            waitUntil,
+          },
           persistence: {
             channel: "WEB",
             saveAssistantMessage: true,

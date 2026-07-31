@@ -50,6 +50,7 @@ export interface InboundContext {
   execution?: {
     mode?: "stream" | "text";
     abortSignal?: AbortSignal;
+    waitUntil?: (promise: Promise<unknown>) => void;
   };
   persistence?: {
     saveAssistantMessage?: boolean;

@@ -967,6 +967,85 @@ describe("channel-flow/run", () => {
     expect(mocks.persistAssistantOutput).not.toHaveBeenCalled();
   });
 
+  it("waits for the in-flight reservation release when the consumer disconnects", async () => {
+    let completeRelease: ((released: boolean) => void) | undefined;
+    mocks.reserveAiUsage.mockResolvedValue({
+      allowed: true,
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+    });
+    mocks.releaseAiUsageReservation.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          completeRelease = resolve;
+        }),
+    );
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "partial answer";
+      })(),
+      toUIMessageStream: () =>
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: "start", messageId: "assistant" });
+          },
+        }),
+    });
+
+    const result = await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      chatId: "chat-1",
+      userMessageId: "inbound-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: {
+        allowed: true,
+        effectiveEntitlements: {
+          modelTier: "BASIC",
+          uploadLimits: {
+            maxUploadsPerDay: 25,
+            maxUploadBytesPerDay: 250 * 1024 * 1024,
+          },
+          limits: {
+            maxRequestsPerDay: 10,
+            maxInputTokensPerDay: 1_000,
+            maxOutputTokensPerDay: 1_000,
+            maxCostPerDay: 1,
+            maxContextMessages: 20,
+          },
+          sources: [],
+        },
+      },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: true,
+      },
+      execution: { mode: "stream" },
+      persistence: { channel: "WEB", saveAssistantMessage: false },
+    });
+
+    const reader = result.streamResult
+      ?.toUIMessageStreamResponse()
+      .body?.getReader();
+    await reader?.read();
+    let cancellationFinished = false;
+    const cancellation = reader?.cancel("client disconnected").then(() => {
+      cancellationFinished = true;
+    });
+
+    await vi.waitFor(() =>
+      expect(mocks.releaseAiUsageReservation).toHaveBeenCalledTimes(1),
+    );
+    expect(cancellationFinished).toBe(false);
+    completeRelease?.(true);
+    await cancellation;
+
+    expect(cancellationFinished).toBe(true);
+    expect(mocks.releaseAiUsageReservation).toHaveBeenCalledTimes(1);
+  });
+
   it("does not release a reservation while completed generation is settling", async () => {
     const sourceCancel = vi.fn();
     let resolvePersistence: ((message: { id: string }) => void) | undefined;
@@ -1173,18 +1252,16 @@ describe("channel-flow/run", () => {
       return {
         textStream: (async function* () {
           streamStarted?.();
-          await new Promise<void>((_resolve, reject) => {
+          await new Promise<void>((resolve) => {
             if (abortSignal.aborted) {
-              reject(abortSignal.reason);
+              resolve();
               return;
             }
-            abortSignal.addEventListener(
-              "abort",
-              () => reject(abortSignal.reason),
-              { once: true },
-            );
+            abortSignal.addEventListener("abort", () => resolve(), {
+              once: true,
+            });
           });
-          yield "unreachable";
+          return;
         })(),
       };
     });
@@ -1233,6 +1310,60 @@ describe("channel-flow/run", () => {
     expect(upstreamSignal?.aborted).toBe(true);
     expect(mocks.releaseAiUsageReservation).toHaveBeenCalledTimes(1);
     expect(mocks.persistAssistantOutput).not.toHaveBeenCalled();
+  });
+
+  it("releases a text-mode reservation when generation ends without metrics", async () => {
+    mocks.reserveAiUsage.mockResolvedValue({
+      allowed: true,
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+    });
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "incomplete answer";
+      })(),
+    });
+
+    await expect(
+      runChannelFlow({
+        channel: "WEB",
+        userId: "user-1",
+        chatId: "chat-1",
+        userMessageId: "inbound-1",
+        userMessageText: "hello",
+        parts: [{ type: "text", text: "hello" }],
+        rateLimit: {
+          allowed: true,
+          effectiveEntitlements: {
+            modelTier: "BASIC",
+            uploadLimits: {
+              maxUploadsPerDay: 25,
+              maxUploadBytesPerDay: 250 * 1024 * 1024,
+            },
+            limits: {
+              maxRequestsPerDay: 10,
+              maxInputTokensPerDay: 1_000,
+              maxOutputTokensPerDay: 1_000,
+              maxCostPerDay: 1,
+              maxContextMessages: 20,
+            },
+            sources: [],
+          },
+        },
+        options: {
+          allowAttachments: true,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: true,
+        },
+        execution: { mode: "text" },
+        persistence: {
+          channel: "WEB",
+          saveAssistantMessage: false,
+        },
+      }),
+    ).rejects.toThrow("AI generation completed without final metrics");
+
+    expect(mocks.releaseAiUsageReservation).toHaveBeenCalledTimes(1);
   });
 
   it("turns streamed persistence rejection into an error without a successful finish", async () => {

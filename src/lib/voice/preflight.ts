@@ -40,12 +40,14 @@ export interface WebVoiceModeParams {
   channel?: "WEB";
   hasAttachments?: boolean;
   timeoutMs?: number;
+  abortSignal?: AbortSignal;
   suitabilityHint?: VoiceSuitabilityHint;
 }
 
 export async function decideWebVoiceMode(
   params: WebVoiceModeParams,
 ): Promise<WebVoiceModeDecision> {
+  params.abortSignal?.throwIfAborted();
   const requestIntent = detectVoiceRequestIntent(params.userMessage);
   const ineligibleSuitability =
     !params.planConfig.enabled || params.userPreferences.voiceEnabled === false
@@ -73,6 +75,7 @@ export async function decideWebVoiceMode(
         userMessage: params.userMessage,
         conversationContext: params.recentMessages,
         timeoutMs: params.timeoutMs,
+        abortSignal: params.abortSignal,
       });
       return classifiedSuitability;
     });
@@ -86,6 +89,7 @@ export async function decideWebVoiceMode(
     channel: "WEB",
     chatId: params.chatId,
   });
+  params.abortSignal?.throwIfAborted();
 
   return {
     mode: decision.shouldGenerateVoice ? "VOICE" : "TEXT",

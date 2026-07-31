@@ -465,11 +465,14 @@ export async function loadTrustedRemoteMedia({
   url: initialUrl,
   mediaType,
   expectedSize,
+  abortSignal,
 }: {
   url: string;
   mediaType: string;
   expectedSize?: number;
+  abortSignal?: AbortSignal;
 }) {
+  abortSignal?.throwIfAborted();
   if (
     expectedSize !== undefined &&
     (!Number.isSafeInteger(expectedSize) ||
@@ -479,18 +482,24 @@ export async function loadTrustedRemoteMedia({
     throw new MediaPayloadValidationError("Invalid attachment size metadata");
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REMOTE_MEDIA_TIMEOUT_MS);
+  const timeoutController = new AbortController();
+  const signal = abortSignal
+    ? AbortSignal.any([abortSignal, timeoutController.signal])
+    : timeoutController.signal;
+  const timeout = setTimeout(
+    () => timeoutController.abort(),
+    REMOTE_MEDIA_TIMEOUT_MS,
+  );
   timeout.unref?.();
 
   try {
     let currentUrl = initialUrl;
     for (let redirectCount = 0; ; redirectCount += 1) {
-      const url = await validateRemoteMediaUrl(currentUrl, controller.signal);
+      const url = await validateRemoteMediaUrl(currentUrl, signal);
       const response = await fetch(url, {
         cache: "no-store",
         redirect: "manual",
-        signal: controller.signal,
+        signal,
         headers: { Accept: normalizeMediaType(mediaType) },
       });
 
@@ -560,7 +569,10 @@ export async function loadTrustedRemoteMedia({
     if (error instanceof MediaPayloadValidationError) {
       throw error;
     }
-    if (controller.signal.aborted) {
+    if (abortSignal?.aborted) {
+      throw abortSignal.reason ?? new DOMException("aborted", "AbortError");
+    }
+    if (timeoutController.signal.aborted) {
       throw new MediaPayloadValidationError("Remote media download timed out");
     }
     throw new MediaPayloadValidationError("Remote media download failed");
@@ -619,11 +631,13 @@ async function dataUrlFromHttpUrl(
   url: string,
   mediaType: string,
   expectedSize?: number,
+  abortSignal?: AbortSignal,
 ) {
   const bytes = await loadTrustedRemoteMedia({
     url,
     mediaType,
     expectedSize,
+    abortSignal,
   });
   return `data:${mediaType};base64,${Buffer.from(bytes).toString("base64")}`;
 }
@@ -650,9 +664,10 @@ async function toOpenRouterFileData(
   data: string | Uint8Array,
   mediaType: string,
   expectedSize?: number,
+  abortSignal?: AbortSignal,
 ) {
   if (typeof data === "string" && isHttpUrl(data)) {
-    return dataUrlFromHttpUrl(data, mediaType, expectedSize);
+    return dataUrlFromHttpUrl(data, mediaType, expectedSize, abortSignal);
   }
 
   return dataUrlFromPayload(data, mediaType, expectedSize);
@@ -671,7 +686,9 @@ function defaultFilename(mediaType: string) {
 
 async function toOpenRouterContentPart(
   part: unknown,
+  abortSignal?: AbortSignal,
 ): Promise<OpenRouterContentPart | null> {
+  abortSignal?.throwIfAborted();
   if (!part || typeof part !== "object") {
     return null;
   }
@@ -718,6 +735,7 @@ async function toOpenRouterContentPart(
         candidate.data,
         mediaType,
         expectedSize,
+        abortSignal,
       );
       return { type: "image_url", image_url: { url: fileData } };
     }
@@ -736,6 +754,7 @@ async function toOpenRouterContentPart(
       candidate.data,
       mediaType,
       expectedSize,
+      abortSignal,
     );
 
     return {
@@ -755,7 +774,9 @@ async function toOpenRouterContentPart(
 
 async function toOpenRouterContent(
   content: unknown,
+  abortSignal?: AbortSignal,
 ): Promise<string | OpenRouterContentPart[]> {
+  abortSignal?.throwIfAborted();
   if (typeof content === "string") {
     return content;
   }
@@ -766,7 +787,7 @@ async function toOpenRouterContent(
 
   const parts: OpenRouterContentPart[] = [];
   for (const part of content) {
-    const transformed = await toOpenRouterContentPart(part);
+    const transformed = await toOpenRouterContentPart(part, abortSignal);
     if (transformed) {
       parts.push(transformed);
     }
@@ -777,7 +798,9 @@ async function toOpenRouterContent(
 export async function toOpenRouterMessages(
   systemPrompt: string,
   messages: ModelMessage[],
+  abortSignal?: AbortSignal,
 ): Promise<OpenRouterMessage[]> {
+  abortSignal?.throwIfAborted();
   const openRouterMessages: OpenRouterMessage[] = [
     { role: "system", content: systemPrompt },
   ];
@@ -789,7 +812,7 @@ export async function toOpenRouterMessages(
 
     openRouterMessages.push({
       role: message.role,
-      content: await toOpenRouterContent(message.content),
+      content: await toOpenRouterContent(message.content, abortSignal),
     });
   }
 

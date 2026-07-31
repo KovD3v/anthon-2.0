@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   chatUpdate: vi.fn(),
   transaction: vi.fn(),
   messageFindUnique: vi.fn(),
+  modelExperimentPairFindUnique: vi.fn(),
   messageCreate: vi.fn(),
   messageMetricsCreate: vi.fn(),
   voiceGenerationJobCreate: vi.fn(),
@@ -78,6 +79,9 @@ vi.mock("@/lib/db", () => ({
       findUnique: mocks.messageFindUnique,
       create: mocks.messageCreate,
       count: mocks.messageCount,
+    },
+    modelExperimentPair: {
+      findUnique: mocks.modelExperimentPairFindUnique,
     },
     messageMetrics: {
       create: mocks.messageMetricsCreate,
@@ -277,6 +281,7 @@ describe("POST /api/chat", () => {
     mocks.chatUpdate.mockReset();
     mocks.transaction.mockReset();
     mocks.messageFindUnique.mockReset();
+    mocks.modelExperimentPairFindUnique.mockReset();
     mocks.messageCreate.mockReset();
     mocks.messageMetricsCreate.mockReset();
     mocks.voiceGenerationJobCreate.mockReset();
@@ -335,6 +340,7 @@ describe("POST /api/chat", () => {
     );
 
     mocks.messageFindUnique.mockResolvedValue(null);
+    mocks.modelExperimentPairFindUnique.mockResolvedValue(null);
     mocks.reserveAiUsage.mockResolvedValue({
       allowed: true,
       reservationId: "reservation-1",

@@ -190,6 +190,9 @@ export async function runChannelFlow(
   let usageReservationRelease: Promise<boolean> | undefined;
 
   const releaseUsageReservationOnce = () => {
+    if (usageReservationState === "releasing") {
+      return usageReservationRelease ?? Promise.resolve(false);
+    }
     if (
       usageReservationState !== "reserved" ||
       !usageReservationId ||
@@ -198,11 +201,31 @@ export async function runChannelFlow(
       return Promise.resolve(false);
     }
     usageReservationState = "releasing";
-    usageReservationRelease ??= releaseAiUsageReservation({
-      reservationId: usageReservationId,
-      claimToken: usageReservationClaimToken,
-      userId: ctx.userId,
-    }).catch(() => false);
+    usageReservationRelease = (async () => {
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const released = await releaseAiUsageReservation({
+            reservationId: usageReservationId,
+            claimToken: usageReservationClaimToken,
+            userId: ctx.userId,
+          });
+          usageReservationState = "settled";
+          return released;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+
+      usageReservationState = "reserved";
+      usageReservationRelease = undefined;
+      runLogger.error(
+        "usage.reservation_release_failed",
+        "Failed releasing AI usage reservation after retry",
+        { error: lastError, userId: ctx.userId },
+      );
+      return false;
+    })();
     return usageReservationRelease;
   };
 
@@ -372,7 +395,8 @@ export async function runChannelFlow(
   generationAbortController.signal.addEventListener(
     "abort",
     () => {
-      void releaseUsageReservationOnce();
+      const release = releaseUsageReservationOnce();
+      (ctx.execution?.waitUntil ?? ctx.persistence?.waitUntil)?.(release);
     },
     { once: true },
   );
@@ -537,8 +561,13 @@ export async function runChannelFlow(
             onError: () =>
               "Non sono riuscito a salvare la risposta. Riprova senza perdere quota.",
           });
-          const cancellationAwareStream = withCancellation(
-            durableStream,
+          const response = createUIMessageStreamResponse({
+            stream: durableStream,
+          });
+          if (!response.body) return response;
+
+          const cancellationAwareBody = withCancellation(
+            response.body,
             async (reason) => {
               if (!generationAbortController.signal.aborted) {
                 generationAbortController.abort(reason);
@@ -548,8 +577,10 @@ export async function runChannelFlow(
               detachRequestAbort();
             },
           );
-          return createUIMessageStreamResponse({
-            stream: cancellationAwareStream,
+          return new Response(cancellationAwareBody, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
           });
         },
       },
@@ -566,6 +597,16 @@ export async function runChannelFlow(
     throw error;
   } finally {
     detachRequestAbort();
+  }
+
+  if (generationAbortController.signal.aborted) {
+    await releaseUsageReservationOnce();
+    generationAbortController.signal.throwIfAborted();
+  }
+
+  if (!finalMetrics && usageReservationId && usageReservationClaimToken) {
+    await releaseUsageReservationOnce();
+    throw new Error("AI generation completed without final metrics");
   }
 
   return {

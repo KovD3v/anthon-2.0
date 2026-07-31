@@ -234,6 +234,37 @@ describe("multimodal media validation", () => {
     await rejection;
   });
 
+  it("aborts remote media conversion with the caller request signal", async () => {
+    const abortController = new AbortController();
+    const abortError = new Error("request aborted");
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) =>
+        await new Promise<Response>((_resolve, reject) => {
+          if (init?.signal?.aborted) {
+            reject(init.signal.reason);
+            return;
+          }
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(init.signal?.reason),
+            { once: true },
+          );
+        }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const conversion = toOpenRouterMessages(
+      "system",
+      remoteImageMessages(),
+      abortController.signal,
+    );
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    abortController.abort(abortError);
+
+    await expect(conversion).rejects.toBe(abortError);
+    expect(fetchSpy.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  });
+
   it("bounds DNS resolution with the same remote media timeout", async () => {
     vi.useFakeTimers();
     mocks.dnsLookup.mockReturnValueOnce(new Promise(() => undefined));

@@ -505,6 +505,7 @@ export async function handleWebChatPost(request: Request) {
           planConfig: voicePlanConfig,
           planId,
           hasAttachments: Boolean(hasAttachments),
+          abortSignal: request.signal,
         });
 
         logger.info(
