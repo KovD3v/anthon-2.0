@@ -9,11 +9,18 @@ vi.mock("node:dns/promises", () => ({
 }));
 
 import {
+  getMultimodalMediaKind,
+  hasSupportedOpenRouterMedia,
+  isBase64Payload,
+  isDataUrl,
+  isHttpUrl,
   isPublicNetworkAddress,
   isTrustedVercelBlobHostname,
   loadTrustedRemoteMedia,
   MAX_MULTIMODAL_MEDIA_BYTES,
+  modelSupportsMultimodalMediaKind,
   normalizeInlineMediaBase64,
+  normalizeMediaType,
   toOpenRouterMessages,
 } from "./multimodal-media";
 
@@ -63,6 +70,68 @@ describe("multimodal media validation", () => {
     ).toBe(false);
   });
 
+  it("normalizes media types and classifies only supported media families", () => {
+    expect(normalizeMediaType(" Image/PNG ; charset=binary ")).toBe(
+      "image/png",
+    );
+    expect(getMultimodalMediaKind()).toBeNull();
+    expect(getMultimodalMediaKind("image/png")).toBe("image");
+    expect(getMultimodalMediaKind("application/pdf; charset=binary")).toBe(
+      "pdf",
+    );
+    expect(getMultimodalMediaKind("video/mp4")).toBe("video");
+    expect(getMultimodalMediaKind("audio/mpeg")).toBeNull();
+
+    expect(
+      modelSupportsMultimodalMediaKind("google/gemini-2.5-flash-lite", "video"),
+    ).toBe(true);
+    expect(modelSupportsMultimodalMediaKind("unknown/model", "image")).toBe(
+      true,
+    );
+    expect(modelSupportsMultimodalMediaKind("unknown/model", "pdf")).toBe(
+      false,
+    );
+  });
+
+  it("recognizes bounded base64, data URLs, and HTTP URLs without guessing", () => {
+    expect(isBase64Payload("c2FmZQ==")).toBe(true);
+    expect(isBase64Payload("c2 Fm\nZQ==")).toBe(true);
+    expect(isBase64Payload("")).toBe(false);
+    expect(isBase64Payload("abc")).toBe(false);
+    expect(isBase64Payload("%%%%")).toBe(false);
+    expect(
+      isBase64Payload(
+        "A".repeat(Math.ceil(MAX_MULTIMODAL_MEDIA_BYTES / 3) * 4 + 5),
+      ),
+    ).toBe(false);
+
+    expect(isHttpUrl("http://example.com/file")).toBe(true);
+    expect(isHttpUrl("https://example.com/file")).toBe(true);
+    expect(isHttpUrl("ftp://example.com/file")).toBe(false);
+    expect(isHttpUrl("not a url")).toBe(false);
+    expect(isDataUrl("data:image/png;charset=binary;base64,AAAA")).toBe(true);
+    expect(isDataUrl("data:image/png,AAAA")).toBe(false);
+  });
+
+  it("detects public-address boundaries across reserved IPv4 and IPv6 ranges", () => {
+    for (const address of [
+      "192.0.2.1",
+      "198.18.0.1",
+      "198.19.255.255",
+      "198.51.100.1",
+      "203.0.113.1",
+      "224.0.0.1",
+      "not-an-address",
+      "2001:0::1",
+      "2001:db8::1",
+      "2002::1",
+      "64:ff9b:1::1",
+      "ff00::1",
+    ]) {
+      expect(isPublicNetworkAddress(address), address).toBe(false);
+    }
+  });
+
   it.each([
     "0.0.0.0",
     "10.0.0.1",
@@ -105,6 +174,45 @@ describe("multimodal media validation", () => {
     ).rejects.toThrow("Remote media URL is not trusted");
 
     expect(mocks.dnsLookup).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "not a url",
+    `https://user:password@${TRUSTED_HOST}/document.pdf`,
+    `https://${TRUSTED_HOST}:444/document.pdf`,
+  ])("rejects malformed or credentialed remote URL %s", async (url) => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      loadTrustedRemoteMedia({ url, mediaType: "application/pdf" }),
+    ).rejects.toThrow(
+      /Invalid remote media URL|Remote media URL is not trusted/,
+    );
+    expect(mocks.dnsLookup).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when DNS errors or returns no addresses", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    mocks.dnsLookup.mockRejectedValueOnce(new Error("resolver unavailable"));
+
+    await expect(
+      loadTrustedRemoteMedia({
+        url: TRUSTED_URL,
+        mediaType: "application/pdf",
+      }),
+    ).rejects.toThrow("Remote media host did not resolve");
+
+    mocks.dnsLookup.mockResolvedValueOnce([]);
+    await expect(
+      loadTrustedRemoteMedia({
+        url: TRUSTED_URL,
+        mediaType: "application/pdf",
+      }),
+    ).rejects.toThrow("resolved to a non-public address");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -151,6 +259,88 @@ describe("multimodal media validation", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(mocks.dnsLookup).toHaveBeenCalledTimes(2);
   });
+
+  it("bounds redirects and rejects redirects without a location", async () => {
+    const redirect = () =>
+      new Response(null, {
+        status: 302,
+        headers: { Location: TRUSTED_URL },
+      });
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 302 }))
+      .mockResolvedValue(redirect());
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      loadTrustedRemoteMedia({
+        url: TRUSTED_URL,
+        mediaType: "application/pdf",
+      }),
+    ).rejects.toThrow("redirect has no location");
+
+    await expect(
+      loadTrustedRemoteMedia({
+        url: TRUSTED_URL,
+        mediaType: "application/pdf",
+      }),
+    ).rejects.toThrow("Too many media redirects");
+    expect(fetchSpy).toHaveBeenCalledTimes(5);
+  });
+
+  it("rejects HTTP failures, missing bodies, and malformed content lengths", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("failure", { status: 503 }))
+      .mockResolvedValueOnce(
+        new Response(null, { headers: { "Content-Type": "application/pdf" } }),
+      )
+      .mockResolvedValueOnce(
+        new Response(PDF_BYTES, {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Length": "not-a-number",
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      loadTrustedRemoteMedia({
+        url: TRUSTED_URL,
+        mediaType: "application/pdf",
+      }),
+    ).rejects.toThrow("status 503");
+    await expect(
+      loadTrustedRemoteMedia({
+        url: TRUSTED_URL,
+        mediaType: "application/pdf",
+      }),
+    ).rejects.toThrow("response is empty");
+    await expect(
+      loadTrustedRemoteMedia({
+        url: TRUSTED_URL,
+        mediaType: "application/pdf",
+      }),
+    ).rejects.toThrow("invalid content length");
+  });
+
+  it.each([-1, 1.5, Number.NaN, MAX_MULTIMODAL_MEDIA_BYTES + 1])(
+    "rejects invalid attachment size metadata %s before network access",
+    async (expectedSize) => {
+      const fetchSpy = vi.fn();
+      vi.stubGlobal("fetch", fetchSpy);
+
+      await expect(
+        loadTrustedRemoteMedia({
+          url: TRUSTED_URL,
+          mediaType: "application/pdf",
+          expectedSize,
+        }),
+      ).rejects.toThrow("Invalid attachment size metadata");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    },
+  );
 
   it("rejects oversized metadata and response content length without reading a body", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
@@ -433,6 +623,175 @@ describe("multimodal media validation", () => {
       }),
     ).toThrow("size does not match");
   });
+
+  it.each([
+    [
+      "image/png",
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    ],
+    ["image/gif", Buffer.from("GIF87a")],
+    ["image/gif", Buffer.from("GIF89a")],
+    ["image/webp", Buffer.from("RIFF0000WEBP")],
+    ["image/bmp", Buffer.from("BM")],
+    ["audio/mpeg", Buffer.from("ID3")],
+    ["audio/mpeg", Buffer.from([0xff, 0xe0])],
+    ["audio/wav", Buffer.from("RIFF0000WAVE")],
+    ["audio/ogg", Buffer.from("OggS")],
+    ["audio/webm", Buffer.from([0x1a, 0x45, 0xdf, 0xa3])],
+    ["audio/aac", Buffer.from([0xff, 0xf0])],
+    ["audio/flac", Buffer.from("fLaC")],
+    ["audio/mp4", Buffer.from("0000ftyp")],
+    ["audio/x-m4a", Buffer.from("0000ftyp")],
+    ["video/mp4", Buffer.from("0000ftyp")],
+    ["video/quicktime", Buffer.from("0000ftyp")],
+    ["video/mov", Buffer.from("0000ftyp")],
+    ["video/3gpp", Buffer.from("0000ftyp")],
+    ["video/webm", Buffer.from([0x1a, 0x45, 0xdf, 0xa3])],
+    ["video/avi", Buffer.from("RIFF0000AVI ")],
+    ["video/x-msvideo", Buffer.from("RIFF0000AVI ")],
+    ["video/x-flv", Buffer.from("FLV")],
+    [
+      "video/wmv",
+      Buffer.from([0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11]),
+    ],
+    [
+      "video/x-ms-wmv",
+      Buffer.from([0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11]),
+    ],
+    ["video/mpeg", Buffer.from([0x00, 0x00, 0x01, 0xba])],
+    ["video/mpg", Buffer.from([0x00, 0x00, 0x01, 0xb3])],
+  ])("validates the declared %s magic signature", (mediaType, bytes) => {
+    const base64 = bytes.toString("base64");
+    expect(normalizeInlineMediaBase64({ data: base64, mediaType })).toBe(
+      base64,
+    );
+  });
+
+  it("rejects empty and oversized byte payloads before provider conversion", async () => {
+    const messages = (bytes: Uint8Array) =>
+      [
+        {
+          role: "user",
+          content: [
+            {
+              type: "file",
+              data: bytes,
+              mediaType: "application/pdf",
+            },
+          ],
+        },
+      ] as never;
+
+    await expect(
+      toOpenRouterMessages("system", messages(new Uint8Array())),
+    ).rejects.toThrow("Media payload is empty");
+    await expect(
+      toOpenRouterMessages(
+        "system",
+        messages(new Uint8Array(MAX_MULTIMODAL_MEDIA_BYTES + 1)),
+      ),
+    ).rejects.toThrow("Media payload exceeds size limit");
+  });
+
+  it("reports supported media only for valid file parts and model capabilities", () => {
+    const messages = [
+      { role: "system", content: "not parts" },
+      {
+        role: "user",
+        content: [
+          null,
+          { type: "text", text: "hello" },
+          { type: "file", mediaType: 42 },
+          { type: "file", mediaType: "audio/mpeg" },
+          { type: "file", mediaType: "application/pdf" },
+        ],
+      },
+    ] as never;
+
+    expect(hasSupportedOpenRouterMedia(messages, "unknown/model")).toBe(false);
+    expect(
+      hasSupportedOpenRouterMedia(messages, "google/gemini-2.5-flash-lite"),
+    ).toBe(true);
+  });
+
+  it("filters invalid message parts while preserving text and inline files", async () => {
+    const pdf = Buffer.from("%PDF-1.7 safe");
+    const video = Buffer.from("0000ftyp");
+
+    await expect(
+      toOpenRouterMessages("system", [
+        { role: "system", content: "ignored duplicate system" },
+        { role: "tool", content: [] },
+        { role: "assistant", content: 42 },
+        {
+          role: "user",
+          content: [
+            null,
+            "invalid",
+            { type: "text", text: 42 },
+            { type: "text", text: "hello" },
+            { type: "file", mediaType: "application/pdf" },
+            {
+              type: "file",
+              mediaType: "application/pdf",
+              data: pdf,
+              name: "notes.pdf",
+            },
+            {
+              type: "file",
+              mediaType: "video/mp4",
+              data: video,
+              name: "   ",
+            },
+          ],
+        },
+      ] as never),
+    ).resolves.toEqual([
+      { role: "system", content: "system" },
+      { role: "assistant", content: "" },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "hello" },
+          {
+            type: "file",
+            file: {
+              filename: "notes.pdf",
+              file_data: `data:application/pdf;base64,${pdf.toString("base64")}`,
+            },
+          },
+          {
+            type: "file",
+            file: {
+              filename: "video",
+              file_data: `data:video/mp4;base64,${video.toString("base64")}`,
+            },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it.each([-1, 1.5, Number.NaN, MAX_MULTIMODAL_MEDIA_BYTES + 1, "4"])(
+    "rejects invalid message media size metadata %s",
+    async (size) => {
+      await expect(
+        toOpenRouterMessages("system", [
+          {
+            role: "user",
+            content: [
+              {
+                type: "file",
+                mediaType: "application/pdf",
+                data: PDF_BYTES,
+                size,
+              },
+            ],
+          },
+        ] as never),
+      ).rejects.toThrow("Invalid media size metadata");
+    },
+  );
 
   it("requires an SVG root after an optional XML declaration and comments", () => {
     const svg = Buffer.from(

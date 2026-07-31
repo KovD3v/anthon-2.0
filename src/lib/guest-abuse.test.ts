@@ -34,6 +34,17 @@ function requestWithForwardedFor(value: string) {
   });
 }
 
+function expectedFingerprint(
+  address: string,
+  secret = "guest-abuse-test-secret",
+) {
+  return createHmac("sha256", secret)
+    .update("anthon:guest-creation-abuse:v1")
+    .update("\0")
+    .update(address)
+    .digest("hex");
+}
+
 describe("guest creation abuse reservations", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
@@ -59,11 +70,7 @@ describe("guest creation abuse reservations", () => {
 
   it("hashes one trusted Vercel address without exposing the source address", async () => {
     const address = "203.0.113.42";
-    const expectedHash = createHmac("sha256", "guest-abuse-test-secret")
-      .update("anthon:guest-creation-abuse:v1")
-      .update("\0")
-      .update(address)
-      .digest("hex");
+    const expectedHash = expectedFingerprint(address);
 
     const reservation = await reserveGuestCreation(
       requestWithForwardedFor(address),
@@ -93,6 +100,120 @@ describe("guest creation abuse reservations", () => {
 
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
+
+  it("normalizes proxy IPv4 ports, mapped IPv6, and bracketed IPv6", async () => {
+    vi.stubEnv("VERCEL", "");
+    vi.stubEnv("TRUST_PROXY_HEADERS", "true");
+
+    const cases = [
+      ["203.0.113.42:443", "203.0.113.42"],
+      ["::ffff:203.0.113.42", "203.0.113.42"],
+      ["[2001:4860:4860::8888]:443", "2001:4860:4860::8888"],
+    ] as const;
+
+    for (const [header, normalized] of cases) {
+      const result = await reserveGuestCreation(
+        requestWithForwardedFor(header),
+      );
+      expect(result.fingerprintHash).toBe(expectedFingerprint(normalized));
+    }
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(cases.length);
+  });
+
+  it("uses the first trusted proxy hop and falls back to x-real-ip", async () => {
+    vi.stubEnv("VERCEL", "");
+    vi.stubEnv("TRUST_PROXY_HEADERS", "true");
+
+    await expect(
+      reserveGuestCreation(
+        requestWithForwardedFor("198.51.100.7, 203.0.113.42"),
+      ),
+    ).resolves.toMatchObject({
+      fingerprintHash: expectedFingerprint("198.51.100.7"),
+    });
+
+    await expect(
+      reserveGuestCreation(
+        new Request("https://anthon.app/api/guest/chat", {
+          headers: {
+            "x-forwarded-for": "not-an-address",
+            "x-real-ip": "203.0.113.42",
+          },
+        }),
+      ),
+    ).resolves.toMatchObject({
+      fingerprintHash: expectedFingerprint("203.0.113.42"),
+    });
+  });
+
+  it("uses test and development identities only in their explicit environments", async () => {
+    vi.stubEnv("VERCEL", "");
+    vi.stubEnv("TRUST_PROXY_HEADERS", "");
+    vi.stubEnv("NODE_ENV", "test");
+
+    await expect(
+      reserveGuestCreation(
+        requestWithForwardedFor("203.0.113.42, 198.51.100.7"),
+      ),
+    ).resolves.toMatchObject({
+      fingerprintHash: expectedFingerprint("203.0.113.42"),
+    });
+
+    vi.stubEnv("NODE_ENV", "development");
+    await expect(
+      reserveGuestCreation(new Request("https://anthon.app/api/guest/chat")),
+    ).resolves.toMatchObject({
+      fingerprintHash: expectedFingerprint("local-development"),
+    });
+
+    vi.stubEnv("NODE_ENV", "production");
+    await expect(
+      reserveGuestCreation(new Request("https://anthon.app/api/guest/chat")),
+    ).rejects.toMatchObject({ reason: "identity_unavailable" });
+  });
+
+  it.each(["", "   ", "999.1.1.1", "::ffff:not-an-ip"])(
+    "rejects an unusable trusted identity header %j",
+    async (header) => {
+      await expect(
+        reserveGuestCreation(requestWithForwardedFor(header)),
+      ).rejects.toMatchObject({ reason: "identity_unavailable" });
+      expect(mocks.transaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it("falls back to the Clerk secret without persisting the source address", async () => {
+    vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", "   ");
+    vi.stubEnv("CLERK_SECRET_KEY", "clerk-fallback-secret");
+
+    await expect(
+      reserveGuestCreation(requestWithForwardedFor("203.0.113.42")),
+    ).resolves.toMatchObject({
+      fingerprintHash: expectedFingerprint(
+        "203.0.113.42",
+        "clerk-fallback-secret",
+      ),
+    });
+  });
+
+  it.each([
+    ["1", 1],
+    ["100", 100],
+    ["0", 3],
+    ["101", 3],
+    ["1.5", 3],
+    ["invalid", 3],
+  ])(
+    "bounds configured daily creation limit %s to %i",
+    async (value, limit) => {
+      vi.stubEnv("GUEST_CREATIONS_PER_IP_PER_DAY", value);
+
+      await reserveGuestCreation(requestWithForwardedFor("203.0.113.42"));
+
+      const sql = mocks.queryRaw.mock.calls[0]?.[0] as { values?: unknown[] };
+      expect(sql.values).toContain(limit);
+    },
+  );
 
   it("fails closed when no HMAC secret is configured", async () => {
     vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", "");
@@ -142,5 +263,17 @@ describe("guest creation abuse reservations", () => {
     });
     expect(mocks.delete).toHaveBeenCalledOnce();
     expect(mocks.delete).toHaveBeenCalledWith({ where: { id: "bucket-1" } });
+  });
+
+  it("treats release of a missing bucket as an idempotent no-op", async () => {
+    mocks.findUnique.mockResolvedValue(null);
+
+    await releaseGuestCreation({
+      fingerprintHash: "hashed-address",
+      windowStart: new Date("2026-07-31T00:00:00.000Z"),
+    });
+
+    expect(mocks.delete).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 });
