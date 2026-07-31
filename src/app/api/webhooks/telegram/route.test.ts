@@ -11,6 +11,7 @@ import {
 const mocks = vi.hoisted(() => ({
   waitUntil: vi.fn(),
   prismaMessageFindFirst: vi.fn(),
+  prismaMessageFindUnique: vi.fn(),
   prismaChannelIdentityFindUnique: vi.fn(),
   prismaChannelIdentityUpsert: vi.fn(),
   prismaChannelLinkTokenFindUnique: vi.fn(),
@@ -61,6 +62,7 @@ vi.mock("@/lib/db", () => ({
     $transaction: mocks.prismaTransaction,
     message: {
       findFirst: mocks.prismaMessageFindFirst,
+      findUnique: mocks.prismaMessageFindUnique,
       create: mocks.prismaMessageCreate,
       update: mocks.prismaMessageUpdate,
       updateMany: mocks.prismaMessageUpdateMany,
@@ -278,6 +280,8 @@ describe("/api/webhooks/telegram", () => {
 
     mocks.waitUntil.mockReset();
     mocks.prismaMessageFindFirst.mockReset();
+    mocks.prismaMessageFindUnique.mockReset();
+    mocks.prismaMessageFindUnique.mockResolvedValue(null);
     mocks.prismaChannelIdentityFindUnique.mockReset();
     mocks.prismaChannelIdentityUpsert.mockReset();
     mocks.prismaChannelLinkTokenFindUnique.mockReset();
@@ -331,6 +335,7 @@ describe("/api/webhooks/telegram", () => {
       callback({
         message: {
           findFirst: mocks.prismaMessageFindFirst,
+          findUnique: mocks.prismaMessageFindUnique,
           create: mocks.prismaMessageCreate,
           update: mocks.prismaMessageUpdate,
           updateMany: mocks.prismaMessageUpdateMany,
@@ -554,6 +559,14 @@ describe("/api/webhooks/telegram", () => {
           externalInboundClaimToken: data.externalInboundClaimToken,
           externalInboundLeaseExpiresAt: data.externalInboundLeaseExpiresAt,
         });
+        return { count: 1 };
+      }
+      if (
+        data.externalInboundLeaseExpiresAt &&
+        data.externalInboundStatus === undefined
+      ) {
+        state.externalInboundLeaseExpiresAt =
+          data.externalInboundLeaseExpiresAt;
         return { count: 1 };
       }
       if (

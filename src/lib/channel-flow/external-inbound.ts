@@ -50,12 +50,22 @@ type PreparedExternalChannelInbound =
   | { status: "duplicate"; reason: "completed" | "in_flight" }
   | {
       status: "accepted";
+      mode: "resend";
       claimToken: string;
       reclaimed: boolean;
       user: ExternalChannelUser;
       conversationThread: Awaited<ReturnType<typeof ensureConversationThread>>;
       inbound: { id: string };
-      savedAssistant?: { id: string; text: string };
+      savedAssistant: { id: string; text: string };
+    }
+  | {
+      status: "accepted";
+      mode: "generate";
+      claimToken: string;
+      reclaimed: boolean;
+      user: ExternalChannelUser;
+      conversationThread: Awaited<ReturnType<typeof ensureConversationThread>>;
+      inbound: { id: string };
       rateLimit: RateLimitResult;
     };
 
@@ -161,9 +171,10 @@ export function startExternalInboundLeaseHeartbeat({
   let inFlight: Promise<unknown> = Promise.resolve();
   const timer = setInterval(() => {
     if (stopped) return;
-    inFlight = renewExternalChannelInboundLease({ inboundId, claimToken }).catch(
-      () => false,
-    );
+    inFlight = renewExternalChannelInboundLease({
+      inboundId,
+      claimToken,
+    }).catch(() => false);
   }, EXTERNAL_INBOUND_HEARTBEAT_MS);
   timer.unref?.();
 
@@ -186,15 +197,14 @@ function isUniqueConstraintError(error: unknown) {
 function textFromPersistedParts(parts: Prisma.JsonValue | null): string {
   if (!Array.isArray(parts)) return "";
   return parts
-    .filter(
-      (part): part is { type: "text"; text: string } =>
-        Boolean(
-          part &&
-            typeof part === "object" &&
-            !Array.isArray(part) &&
-            part.type === "text" &&
-            typeof part.text === "string",
-        ),
+    .filter((part): part is { type: "text"; text: string } =>
+      Boolean(
+        part &&
+          typeof part === "object" &&
+          !Array.isArray(part) &&
+          part.type === "text" &&
+          typeof part.text === "string",
+      ),
     )
     .map((part) => part.text)
     .join("");
@@ -364,6 +374,22 @@ export async function prepareExternalChannelInbound(
       throw new Error("Inbound message has no conversation thread");
     }
 
+    if (existing.generatedResponse) {
+      return {
+        status: "accepted",
+        mode: "resend",
+        claimToken,
+        reclaimed: true,
+        user: existing.user,
+        conversationThread: existing.conversationThread,
+        inbound: { id: existing.id },
+        savedAssistant: {
+          id: existing.generatedResponse.id,
+          text: textFromPersistedParts(existing.generatedResponse.parts),
+        },
+      };
+    }
+
     let rateLimit: RateLimitResult;
     try {
       rateLimit = await checkRateLimit(
@@ -384,17 +410,12 @@ export async function prepareExternalChannelInbound(
 
     return {
       status: "accepted",
+      mode: "generate",
       claimToken,
       reclaimed: true,
       user: existing.user,
       conversationThread: existing.conversationThread,
       inbound: { id: existing.id },
-      savedAssistant: existing.generatedResponse
-        ? {
-            id: existing.generatedResponse.id,
-            text: textFromPersistedParts(existing.generatedResponse.parts),
-          }
-        : undefined,
       rateLimit,
     };
   }
@@ -474,6 +495,7 @@ export async function prepareExternalChannelInbound(
 
   return {
     status: "accepted",
+    mode: "generate",
     claimToken,
     reclaimed: false,
     user,

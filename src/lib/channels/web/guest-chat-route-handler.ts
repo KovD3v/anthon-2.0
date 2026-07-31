@@ -26,8 +26,8 @@ import {
 } from "@/lib/channel-flow/web-inbound";
 import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
-import { authenticateGuest } from "@/lib/guest-auth";
 import { GuestCreationDeniedError } from "@/lib/guest-abuse";
+import { authenticateGuest } from "@/lib/guest-auth";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -260,9 +260,8 @@ export async function handleGuestChatPost(request: Request) {
               channel: "WEB_GUEST",
               planId: user.subscription?.planId,
               subscriptionStatus:
-                (user.subscription?.status as
-                  | SubscriptionStatus
-                  | undefined) ?? null,
+                (user.subscription?.status as SubscriptionStatus | undefined) ??
+                null,
             }).catch((error) =>
               logger.error(
                 "guest_chat.funnel_tracking_failed",

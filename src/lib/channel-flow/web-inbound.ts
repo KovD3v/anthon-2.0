@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
-import type { Prisma } from "@/generated/prisma";
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
   type UIMessage,
 } from "ai";
+import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 
 const MAX_WEB_CLIENT_MESSAGE_ID_LENGTH = 128;

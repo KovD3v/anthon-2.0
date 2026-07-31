@@ -17,7 +17,7 @@ export {
   prepareExternalChannelInbound,
   startExternalInboundLeaseHeartbeat,
 } from "./external-inbound";
-export { runChannelFlow } from "./run";
+export { AssistantPersistenceError, runChannelFlow } from "./run";
 export type {
   ChannelKind,
   ChannelMessagePart,

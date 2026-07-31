@@ -38,6 +38,7 @@ describe("channel-flow/run", () => {
     mocks.reserveAiUsage.mockResolvedValue(undefined);
     mocks.releaseAiUsageReservation.mockResolvedValue(true);
     mocks.reconcileAiUsageForRecovery.mockResolvedValue({ charged: true });
+    mocks.persistAssistantOutput.mockResolvedValue({ id: "assistant-1" });
   });
 
   it("returns stream result in stream mode", async () => {
@@ -46,6 +47,12 @@ describe("channel-flow/run", () => {
     );
     const streamResult = {
       toUIMessageStreamResponse,
+      toUIMessageStream: () =>
+        new ReadableStream({
+          start(controller) {
+            controller.close();
+          },
+        }),
       textStream: (async function* () {
         yield "ignored";
       })(),
@@ -81,11 +88,7 @@ describe("channel-flow/run", () => {
     expect(result.streamResult?.toUIMessageStreamResponse()).toBeInstanceOf(
       Response,
     );
-    expect(toUIMessageStreamResponse).toHaveBeenCalledWith(
-      expect.objectContaining({
-        messageMetadata: expect.any(Function),
-      }),
-    );
+    expect(toUIMessageStreamResponse).not.toHaveBeenCalled();
     expect(result.assistantText).toBe("");
     expect(mocks.streamChat).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -122,6 +125,12 @@ describe("channel-flow/run", () => {
       onFinish = input.onFinish;
       return {
         toUIMessageStreamResponse,
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.close();
+            },
+          }),
         textStream: (async function* () {
           yield "ignored";
         })(),
@@ -163,23 +172,14 @@ describe("channel-flow/run", () => {
         reasoningTimeMs: null,
       },
     });
-    result.streamResult?.toUIMessageStreamResponse();
+    const response = result.streamResult?.toUIMessageStreamResponse();
+    const body = await response?.text();
 
-    const messageMetadata =
-      toUIMessageStreamResponse.mock.calls[0]?.[0]?.messageMetadata;
-    const metadata = messageMetadata?.({
-      part: {
-        type: "finish",
-        totalUsage: { inputTokens: 1, outputTokens: 2 },
-      },
-    });
-
-    expect(metadata).toEqual({
-      inputTokens: 123,
-      outputTokens: 45,
-      generationTimeMs: 3210,
-      reasoningTimeMs: undefined,
-    });
+    expect(toUIMessageStreamResponse).not.toHaveBeenCalled();
+    expect(body).toContain("inputTokens");
+    expect(body).toContain("123");
+    expect(body).toContain("outputTokens");
+    expect(body).toContain("45");
   });
 
   it("passes memory availability from channel options to the orchestrator", async () => {
@@ -669,6 +669,7 @@ describe("channel-flow/run", () => {
 
       await runChannelFlow({
         ...testCase.input,
+        userMessageId: `inbound-${testCase.name.replaceAll(" ", "-")}`,
         rateLimit: {
           allowed: true,
           effectiveEntitlements: {
@@ -822,7 +823,7 @@ describe("channel-flow/run", () => {
     expect(mocks.persistAssistantOutput).not.toHaveBeenCalled();
   });
 
-  it("returns failed persistence status when assistant output cannot be saved", async () => {
+  it("fails the channel flow when assistant output cannot be saved", async () => {
     const persistenceError = new Error("database is unavailable");
 
     mocks.persistAssistantOutput.mockRejectedValue(persistenceError);
@@ -850,28 +851,139 @@ describe("channel-flow/run", () => {
       };
     });
 
+    await expect(
+      runChannelFlow({
+        channel: "WHATSAPP",
+        userId: "user-1",
+        userMessageText: "ciao",
+        parts: [{ type: "text", text: "ciao" }],
+        rateLimit: { allowed: true },
+        options: {
+          allowAttachments: true,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: true,
+        },
+        execution: { mode: "text" },
+        persistence: {
+          channel: "WHATSAPP",
+          saveAssistantMessage: true,
+        },
+      }),
+    ).rejects.toMatchObject({
+      name: "AssistantPersistenceError",
+      persistenceCause: persistenceError,
+    });
+  });
+
+  it("turns streamed persistence rejection into an error without a successful finish", async () => {
+    const persistenceError = new Error("database is unavailable");
+    const reservation = {
+      allowed: true as const,
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+    };
+
+    mocks.reserveAiUsage.mockResolvedValue(reservation);
+    mocks.persistAssistantOutput.mockRejectedValue(persistenceError);
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => ({
+      textStream: (async function* () {
+        yield "unsaved answer";
+      })(),
+      toUIMessageStream: (options: { sendFinish?: boolean }) => {
+        expect(options).toEqual({ sendFinish: false });
+        return new ReadableStream({
+          async start(controller) {
+            controller.enqueue({
+              type: "start",
+              messageId: "assistant-stream",
+            });
+            controller.enqueue({ type: "start-step" });
+            controller.enqueue({ type: "text-start", id: "text-1" });
+            controller.enqueue({
+              type: "text-delta",
+              id: "text-1",
+              delta: "unsaved answer",
+            });
+            controller.enqueue({ type: "text-end", id: "text-1" });
+            try {
+              await onFinish?.({
+                text: "unsaved answer",
+                metrics: {
+                  model: "test-model",
+                  inputTokens: 3,
+                  outputTokens: 2,
+                  reasoningTokens: null,
+                  reasoningContent: null,
+                  toolCalls: null,
+                  ragUsed: false,
+                  ragChunksCount: 0,
+                  costUsd: 0.01,
+                  generationTimeMs: 100,
+                  reasoningTimeMs: null,
+                },
+              });
+              controller.close();
+            } catch (error) {
+              controller.error(error);
+            }
+          },
+        });
+      },
+    }));
+
     const result = await runChannelFlow({
-      channel: "WHATSAPP",
+      channel: "WEB",
       userId: "user-1",
-      userMessageText: "ciao",
-      parts: [{ type: "text", text: "ciao" }],
-      rateLimit: { allowed: true },
+      chatId: "chat-1",
+      userMessageId: "inbound-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: {
+        allowed: true,
+        effectiveEntitlements: {
+          modelTier: "BASIC",
+          uploadLimits: {
+            maxUploadsPerDay: 25,
+            maxUploadBytesPerDay: 250 * 1024 * 1024,
+          },
+          limits: {
+            maxRequestsPerDay: 10,
+            maxInputTokensPerDay: 1_000,
+            maxOutputTokensPerDay: 1_000,
+            maxCostPerDay: 1,
+            maxContextMessages: 20,
+          },
+          sources: [],
+        },
+      },
       options: {
         allowAttachments: true,
         allowMemoryExtraction: true,
         allowVoiceOutput: true,
       },
-      execution: { mode: "text" },
+      execution: { mode: "stream" },
       persistence: {
-        channel: "WHATSAPP",
+        channel: "WEB",
         saveAssistantMessage: true,
       },
     });
 
-    expect(result.assistantText).toBe("answer without persistence");
-    expect(result.persistence).toEqual({
-      status: "failed",
-      error: persistenceError,
+    const response = result.streamResult?.toUIMessageStreamResponse();
+    const body = await response?.text();
+
+    expect(response?.status).toBe(200);
+    expect(body).toContain(
+      "Non sono riuscito a salvare la risposta. Riprova senza perdere quota.",
+    );
+    expect(body).toContain('"type":"error"');
+    expect(body).not.toContain('"type":"finish"');
+    expect(mocks.reconcileAiUsageForRecovery).toHaveBeenCalledWith({
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+      userId: "user-1",
+      text: "unsaved answer",
+      metrics: expect.objectContaining({ inputTokens: 3, outputTokens: 2 }),
     });
+    expect(mocks.releaseAiUsageReservation).not.toHaveBeenCalled();
   });
 });

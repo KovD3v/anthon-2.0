@@ -10,9 +10,7 @@ const HMAC_DOMAIN = "anthon:guest-creation-abuse:v1";
 export class GuestCreationDeniedError extends Error {
   readonly status = 429;
 
-  constructor(
-    readonly reason: "identity_unavailable" | "daily_limit_reached",
-  ) {
+  constructor(readonly reason: "identity_unavailable" | "daily_limit_reached") {
     super(
       reason === "daily_limit_reached"
         ? "Guest creation limit reached"
@@ -56,8 +54,7 @@ function trustedClientAddress(request: Request): string | null {
     return (
       parseForwardedAddress(request.headers.get("x-forwarded-for"), {
         allowList: true,
-      }) ??
-      parseForwardedAddress(request.headers.get("x-real-ip"))
+      }) ?? parseForwardedAddress(request.headers.get("x-real-ip"))
     );
   }
 
@@ -65,8 +62,7 @@ function trustedClientAddress(request: Request): string | null {
     return (
       parseForwardedAddress(request.headers.get("x-forwarded-for"), {
         allowList: true,
-      }) ??
-      parseForwardedAddress(request.headers.get("x-real-ip"))
+      }) ?? parseForwardedAddress(request.headers.get("x-real-ip"))
     );
   }
 

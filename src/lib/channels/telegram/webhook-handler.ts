@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { waitUntil } from "@vercel/functions";
 import type { Prisma } from "@/generated/prisma";
 import {
+  AssistantPersistenceError,
   claimChannelConnectDelivery,
   getExternalInboundMessageType,
   markChannelConnectDeliveryFailed,
@@ -353,14 +354,7 @@ async function handleUpdate(update: TelegramUpdate) {
     return;
   }
 
-  const {
-    user,
-    conversationThread,
-    inbound,
-    rateLimit,
-    claimToken,
-    savedAssistant,
-  } = preparedInbound;
+  const { user, conversationThread, inbound, claimToken } = preparedInbound;
   const completeInbound = () =>
     markExternalChannelInboundCompleted({
       inboundId: inbound.id,
@@ -378,7 +372,8 @@ async function handleUpdate(update: TelegramUpdate) {
   });
 
   try {
-    if (savedAssistant) {
+    if (preparedInbound.mode === "resend") {
+      const { savedAssistant } = preparedInbound;
       if (!savedAssistant.text.trim()) {
         await failInbound("persisted_assistant_response_is_empty");
         return;
@@ -392,6 +387,8 @@ async function handleUpdate(update: TelegramUpdate) {
       else await failInbound("outbound_resend_failed");
       return;
     }
+
+    const { rateLimit } = preparedInbound;
 
     if (!rateLimit.allowed) {
       await recordTelegramInboundError({
@@ -719,6 +716,11 @@ async function handleUpdate(update: TelegramUpdate) {
     } catch (err) {
       telegramLogger.error("chat.stream_failed", "streamChat failed", { err });
 
+      const persistenceFailure =
+        err instanceof AssistantPersistenceError
+          ? err.persistenceCause
+          : undefined;
+
       await prisma.message
         .update({
           where: { id: inbound.id },
@@ -731,8 +733,10 @@ async function handleUpdate(update: TelegramUpdate) {
                 username: message?.from?.username,
                 languageCode: message?.from?.language_code,
                 error: {
-                  kind: "streamChat_failed",
-                  summary: safeErrorSummary(err),
+                  kind: persistenceFailure
+                    ? "assistant_persistence_failed"
+                    : "streamChat_failed",
+                  summary: safeErrorSummary(persistenceFailure ?? err),
                 },
               },
             } as Prisma.InputJsonValue,

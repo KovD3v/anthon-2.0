@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   cookieSet: vi.fn(),
   cookieDelete: vi.fn(),
   latencyMeasure: vi.fn(),
+  reserveGuestCreation: vi.fn(),
+  releaseGuestCreation: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({
@@ -33,6 +35,11 @@ vi.mock("@/lib/latency-logger", () => ({
   },
 }));
 
+vi.mock("@/lib/guest-abuse", () => ({
+  reserveGuestCreation: mocks.reserveGuestCreation,
+  releaseGuestCreation: mocks.releaseGuestCreation,
+}));
+
 import {
   authenticateGuest,
   clearGuestCookie,
@@ -51,6 +58,8 @@ describe("lib/guest-auth", () => {
     mocks.cookieSet.mockReset();
     mocks.cookieDelete.mockReset();
     mocks.latencyMeasure.mockReset();
+    mocks.reserveGuestCreation.mockReset();
+    mocks.releaseGuestCreation.mockReset();
 
     mocks.cookies.mockResolvedValue({
       get: mocks.cookieGet,
@@ -60,6 +69,11 @@ describe("lib/guest-auth", () => {
     mocks.latencyMeasure.mockImplementation(
       async (_name: string, fn: () => Promise<unknown>) => await fn(),
     );
+    mocks.reserveGuestCreation.mockResolvedValue({
+      fingerprintHash: "abuse-fingerprint",
+      windowStart: new Date("2026-07-31T00:00:00.000Z"),
+    });
+    mocks.releaseGuestCreation.mockResolvedValue(undefined);
   });
 
   it("hashGuestToken returns deterministic sha256 hash", () => {
@@ -101,7 +115,9 @@ describe("lib/guest-auth", () => {
       subscription: null,
     });
 
-    const result = await authenticateGuest();
+    const result = await authenticateGuest(
+      new Request("http://localhost/api/guest/chat"),
+    );
 
     expect(result).toEqual({
       user: {
@@ -130,7 +146,9 @@ describe("lib/guest-auth", () => {
       subscription: null,
     });
 
-    const result = await authenticateGuest();
+    const result = await authenticateGuest(
+      new Request("http://localhost/api/guest/chat"),
+    );
 
     expect(result.user.id).toBe("guest-new");
     expect(result.isNew).toBe(true);
@@ -165,7 +183,9 @@ describe("lib/guest-auth", () => {
       subscription: null,
     });
 
-    const result = await authenticateGuest();
+    const result = await authenticateGuest(
+      new Request("http://localhost/api/guest/chat"),
+    );
 
     expect(result.user.id).toBe("guest-recreated");
     expect(result.isNew).toBe(true);
@@ -191,6 +211,7 @@ describe("lib/guest-auth", () => {
 
     const result = await createGuestChatForSession({
       title: "Performance check",
+      request: new Request("http://localhost/api/guest/chats"),
     });
 
     expect(result.user.id).toBe("guest-new");
@@ -206,7 +227,8 @@ describe("lib/guest-auth", () => {
         user: {
           create: {
             isGuest: true,
-            guestAbuseIdHash: expect.any(String),
+            guestTokenHash: expect.any(String),
+            guestAbuseIdHash: "abuse-fingerprint",
           },
         },
       },

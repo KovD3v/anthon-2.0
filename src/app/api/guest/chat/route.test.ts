@@ -8,11 +8,15 @@ const mocks = vi.hoisted(() => ({
   chatFindFirst: vi.fn(),
   chatUpdate: vi.fn(),
   transaction: vi.fn(),
+  messageFindUnique: vi.fn(),
   messageCreate: vi.fn(),
   messageMetricsCreate: vi.fn(),
   messageCount: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
+  reserveAiUsage: vi.fn(),
+  releaseAiUsageReservation: vi.fn(),
+  reconcileAiUsageForRecovery: vi.fn(),
   streamChat: vi.fn(),
   generateChatTitle: vi.fn(),
   trackInboundUserMessageFunnelProgress: vi.fn(),
@@ -42,6 +46,7 @@ vi.mock("@/lib/db", () => ({
       update: mocks.chatUpdate,
     },
     message: {
+      findUnique: mocks.messageFindUnique,
       create: mocks.messageCreate,
       count: mocks.messageCount,
     },
@@ -58,6 +63,9 @@ vi.mock("@/lib/conversations/threads", () => ({
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: mocks.checkRateLimit,
   incrementUsage: mocks.incrementUsage,
+  reserveAiUsage: mocks.reserveAiUsage,
+  releaseAiUsageReservation: mocks.releaseAiUsageReservation,
+  reconcileAiUsageForRecovery: mocks.reconcileAiUsageForRecovery,
 }));
 
 vi.mock("@/lib/ai/orchestrator", () => ({
@@ -76,10 +84,36 @@ vi.mock("@/lib/analytics/funnel", () => ({
 import { POST } from "./route";
 
 function buildRequest(body: unknown): Request {
+  const normalizedBody =
+    body && typeof body === "object" && !Array.isArray(body)
+      ? {
+          ...(body as Record<string, unknown>),
+          ...("messages" in body && Array.isArray(body.messages)
+            ? {
+                messages: body.messages.map((message, index) =>
+                  message &&
+                  typeof message === "object" &&
+                  (message as { role?: unknown }).role === "user" &&
+                  !("id" in message)
+                    ? { ...message, id: `client-guest-${index}` }
+                    : message,
+                ),
+              }
+            : {}),
+        }
+      : body;
   return new Request("http://localhost/api/guest/chat", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify(normalizedBody),
     headers: { "Content-Type": "application/json" },
+  });
+}
+
+function emptyUiStream() {
+  return new ReadableStream({
+    start(controller) {
+      controller.close();
+    },
   });
 }
 
@@ -155,11 +189,15 @@ describe("POST /api/guest/chat", () => {
     mocks.chatFindFirst.mockReset();
     mocks.chatUpdate.mockReset();
     mocks.transaction.mockReset();
+    mocks.messageFindUnique.mockReset();
     mocks.messageCreate.mockReset();
     mocks.messageMetricsCreate.mockReset();
     mocks.messageCount.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
+    mocks.reserveAiUsage.mockReset();
+    mocks.releaseAiUsageReservation.mockReset();
+    mocks.reconcileAiUsageForRecovery.mockReset();
     mocks.streamChat.mockReset();
     mocks.generateChatTitle.mockReset();
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
@@ -175,6 +213,7 @@ describe("POST /api/guest/chat", () => {
     mocks.transaction.mockImplementation(async (callback) =>
       callback({
         message: {
+          findUnique: mocks.messageFindUnique,
           create: mocks.messageCreate,
           count: mocks.messageCount,
         },
@@ -183,6 +222,10 @@ describe("POST /api/guest/chat", () => {
         },
       }),
     );
+    mocks.messageFindUnique.mockResolvedValue(null);
+    mocks.reserveAiUsage.mockResolvedValue(undefined);
+    mocks.releaseAiUsageReservation.mockResolvedValue(true);
+    mocks.reconcileAiUsageForRecovery.mockResolvedValue({ charged: true });
     mocks.waitUntil.mockImplementation(() => {});
     mocks.authenticateGuest.mockResolvedValue({
       user: guestUser,
@@ -205,6 +248,7 @@ describe("POST /api/guest/chat", () => {
     mocks.generateChatTitle.mockResolvedValue("Guest title");
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.streamChat.mockResolvedValue({
+      toUIMessageStream: emptyUiStream,
       toUIMessageStreamResponse: () =>
         Response.json({ ok: true, stream: true }, { status: 200 }),
     });
@@ -417,6 +461,7 @@ describe("POST /api/guest/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -433,15 +478,17 @@ describe("POST /api/guest/chat", () => {
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true, stream: true });
-    expect(mocks.messageCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        userId: "guest-1",
-        chatId: "chat-1",
-        role: "USER",
-        direction: "INBOUND",
+    await expect(response.text()).resolves.toContain("[DONE]");
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "guest-1",
+          chatId: "chat-1",
+          role: "USER",
+          direction: "INBOUND",
+        }),
       }),
-    });
+    );
     expect(streamArgs).toMatchObject({
       userId: "guest-1",
       chatId: "chat-1",
@@ -475,6 +522,7 @@ describe("POST /api/guest/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -499,15 +547,17 @@ describe("POST /api/guest/chat", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.messageCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        userId: "guest-1",
-        chatId: "chat-1",
-        role: "USER",
-        direction: "INBOUND",
-        parts: [{ type: "text", text: "second question" }],
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "guest-1",
+          chatId: "chat-1",
+          role: "USER",
+          direction: "INBOUND",
+          parts: [{ type: "text", text: "second question" }],
+        }),
       }),
-    });
+    );
     expect(streamArgs).toMatchObject({
       userId: "guest-1",
       chatId: "chat-1",
@@ -529,6 +579,7 @@ describe("POST /api/guest/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -583,6 +634,7 @@ describe("POST /api/guest/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -695,13 +747,15 @@ describe("POST /api/guest/chat", () => {
     });
     expect(mocks.streamChat).toHaveBeenCalledTimes(1);
     expect(mocks.messageCreate).toHaveBeenCalledTimes(1);
-    expect(mocks.messageCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        role: "USER",
-        direction: "INBOUND",
-        parts: [{ type: "text", text: "hello guest" }],
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          role: "USER",
+          direction: "INBOUND",
+          parts: [{ type: "text", text: "hello guest" }],
+        }),
       }),
-    });
+    );
     expect(mocks.chatUpdate).not.toHaveBeenCalledWith({
       where: { id: "chat-1" },
       data: { updatedAt: expect.any(Date) },

@@ -13,6 +13,18 @@ export {
   getAttachmentRetentionDays,
   getRateLimitsForUser,
 } from "./config";
+export type {
+  AiUsagePersistedAssistant,
+  AiUsageRecovery,
+  AiUsageReservationResult,
+} from "./reservations";
+export {
+  reconcileAiUsage,
+  reconcileAiUsageForRecovery,
+  reconcileAiUsageInTransaction,
+  releaseAiUsageReservation,
+  reserveAiUsage,
+} from "./reservations";
 // Types
 export type {
   DailyUsageData,
@@ -22,15 +34,3 @@ export type {
 } from "./types";
 // Usage tracking
 export { getDailyUsage, incrementTokenUsage, incrementUsage } from "./usage";
-export {
-  reconcileAiUsage,
-  reconcileAiUsageForRecovery,
-  reconcileAiUsageInTransaction,
-  releaseAiUsageReservation,
-  reserveAiUsage,
-} from "./reservations";
-export type {
-  AiUsageRecovery,
-  AiUsagePersistedAssistant,
-  AiUsageReservationResult,
-} from "./reservations";

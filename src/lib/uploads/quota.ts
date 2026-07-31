@@ -122,20 +122,16 @@ export async function reserveUploadQuota({
     await lockUser(tx, userId);
     await cleanupUploadReservations(tx, userId, now);
 
-    const usage =
-      (await tx.dailyUploadUsage.findUnique({
-        where: { userId_date: { userId, date: today } },
-      })) ?? {
-        uploadCount: 0,
-        uploadedBytes: BigInt(0),
-        reservedCount: 0,
-        reservedBytes: BigInt(0),
-      };
+    const usage = (await tx.dailyUploadUsage.findUnique({
+      where: { userId_date: { userId, date: today } },
+    })) ?? {
+      uploadCount: 0,
+      uploadedBytes: BigInt(0),
+      reservedCount: 0,
+      reservedBytes: BigInt(0),
+    };
     const responseUsage = numericUsage(usage);
-    if (
-      usage.uploadCount + usage.reservedCount + 1 >
-      limits.maxUploadsPerDay
-    ) {
+    if (usage.uploadCount + usage.reservedCount + 1 > limits.maxUploadsPerDay) {
       return {
         allowed: false,
         reason: "Daily upload count reached",
@@ -190,10 +186,7 @@ export async function reserveUploadQuota({
 
 export async function commitUploadReservationInTransaction(
   tx: TransactionClient,
-  {
-    reservationId,
-    userId,
-  }: { reservationId: string; userId: string },
+  { reservationId, userId }: { reservationId: string; userId: string },
 ) {
   const now = new Date();
   await lockUser(tx, userId);
@@ -206,7 +199,9 @@ export async function commitUploadReservationInTransaction(
   }
   if (reservation.status === "COMMITTED") return { committed: false };
   if (reservation.status !== "RESERVED") {
-    throw new Error(`Upload reservation is ${reservation.status.toLowerCase()}`);
+    throw new Error(
+      `Upload reservation is ${reservation.status.toLowerCase()}`,
+    );
   }
 
   await tx.dailyUploadUsage.update({

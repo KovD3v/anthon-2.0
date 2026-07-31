@@ -10,8 +10,8 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import {
   type GuestCreationReservation,
-  reserveGuestCreation,
   releaseGuestCreation,
+  reserveGuestCreation,
 } from "@/lib/guest-abuse";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -158,27 +158,25 @@ async function getOrCreateGuestUser(
 
   let user: GuestUser;
   try {
-    user = (await LatencyLogger.measure(
-      "Guest Auth: Create guest user",
-      () =>
-        prisma.user.create({
-          data: {
-            isGuest: true,
-            guestTokenHash: tokenHash,
-            guestAbuseIdHash: creationReservation.fingerprintHash,
-          },
-          select: {
-            id: true,
-            isGuest: true,
-            role: true,
-            subscription: {
-              select: {
-                status: true,
-                planId: true,
-              },
+    user = (await LatencyLogger.measure("Guest Auth: Create guest user", () =>
+      prisma.user.create({
+        data: {
+          isGuest: true,
+          guestTokenHash: tokenHash,
+          guestAbuseIdHash: creationReservation.fingerprintHash,
+        },
+        select: {
+          id: true,
+          isGuest: true,
+          role: true,
+          subscription: {
+            select: {
+              status: true,
+              planId: true,
             },
           },
-        }),
+        },
+      }),
     )) as GuestUser;
   } catch (error) {
     await releaseGuestCreation(creationReservation).catch(() => undefined);

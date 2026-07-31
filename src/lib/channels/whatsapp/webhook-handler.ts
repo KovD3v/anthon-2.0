@@ -2,6 +2,7 @@ import { createHash, createHmac } from "node:crypto";
 import { waitUntil } from "@vercel/functions";
 import type { Prisma } from "@/generated/prisma";
 import {
+  AssistantPersistenceError,
   claimChannelConnectDelivery,
   getExternalInboundMessageType,
   markChannelConnectDeliveryFailed,
@@ -395,14 +396,7 @@ async function handleMessage(
 
   if (preparedInbound.status === "duplicate") return;
 
-  const {
-    user,
-    conversationThread,
-    inbound,
-    rateLimit,
-    claimToken,
-    savedAssistant,
-  } = preparedInbound;
+  const { user, conversationThread, inbound, claimToken } = preparedInbound;
   const completeInbound = () =>
     markExternalChannelInboundCompleted({
       inboundId: inbound.id,
@@ -420,7 +414,8 @@ async function handleMessage(
   });
 
   try {
-    if (savedAssistant) {
+    if (preparedInbound.mode === "resend") {
+      const { savedAssistant } = preparedInbound;
       if (!savedAssistant.text.trim()) {
         await failInbound("persisted_assistant_response_is_empty");
         return;
@@ -434,6 +429,8 @@ async function handleMessage(
       else await failInbound("outbound_resend_failed");
       return;
     }
+
+    const { rateLimit } = preparedInbound;
 
     if (!rateLimit.allowed) {
       await recordWhatsAppInboundError({
@@ -731,6 +728,10 @@ async function handleMessage(
       }
     } catch (err) {
       whatsappLogger.error("chat.stream_failed", "streamChat failed", { err });
+      const persistenceFailure =
+        err instanceof AssistantPersistenceError
+          ? err.persistenceCause
+          : undefined;
       await prisma.message
         .update({
           where: { id: inbound.id },
@@ -742,15 +743,22 @@ async function handleMessage(
                 type: message.type,
                 name: context.contacts?.[0]?.profile?.name,
                 error: {
-                  kind: "streamChat_failed",
-                  summary: safeErrorSummary(err),
+                  kind: persistenceFailure
+                    ? "assistant_persistence_failed"
+                    : "streamChat_failed",
+                  summary: safeErrorSummary(persistenceFailure ?? err),
                 },
               },
             } as Prisma.InputJsonValue,
           },
         })
         .catch(() => undefined);
-      await sendWhatsAppMessage(from, "Si è verificato un errore. Riprova.");
+      await sendWhatsAppMessage(
+        from,
+        persistenceFailure
+          ? "Errore temporaneo. Riprova."
+          : "Si è verificato un errore. Riprova.",
+      );
       await failInbound(err);
       return;
     }

@@ -20,6 +20,13 @@ import type {
 
 const runLogger = createLogger("ai");
 
+export class AssistantPersistenceError extends Error {
+  constructor(readonly persistenceCause: unknown) {
+    super("Assistant response persistence failed", { cause: persistenceCause });
+    this.name = "AssistantPersistenceError";
+  }
+}
+
 function normalizeParts(parts: ChannelMessagePart[]) {
   return parts.map((part) => {
     if (part.type === "text") {
@@ -175,8 +182,7 @@ export async function runChannelFlow(
         usageReservationId,
         usageReservationClaimToken,
         usageAlreadyReconciled,
-        externalInboundClaimToken:
-          ctx.persistence?.externalInboundClaimToken,
+        externalInboundClaimToken: ctx.persistence?.externalInboundClaimToken,
       });
       persistence = { status: "saved", messageId: message.id };
       return message;
@@ -204,26 +210,26 @@ export async function runChannelFlow(
       runLogger.error("persist.failed", "Failed persisting assistant output", {
         error,
       });
-      throw error;
+      throw new AssistantPersistenceError(error);
     }
   };
 
   if (usageReservation?.recovery) {
-    finalMetrics = usageReservation.recovery.metrics;
+    const recovery = usageReservation.recovery;
+    finalMetrics = recovery.metrics;
     const message = await persistGeneratedOutput({
-      text: usageReservation.recovery.text,
-      metrics: usageReservation.recovery.metrics,
+      text: recovery.text,
+      metrics: recovery.metrics,
       usageAlreadyReconciled: true,
     });
     if (ctx.hooks?.onFinish) {
       await ctx.hooks.onFinish({
-        text: usageReservation.recovery.text,
-        metrics: usageReservation.recovery.metrics,
+        text: recovery.text,
+        metrics: recovery.metrics,
       });
     }
     return {
-      assistantText:
-        mode === "text" ? usageReservation.recovery.text : "",
+      assistantText: mode === "text" ? recovery.text : "",
       metrics: finalMetrics,
       persistence,
       usageReservationId,
@@ -233,13 +239,13 @@ export async function runChannelFlow(
         mode === "stream" && message
           ? {
               textStream: (async function* () {
-                yield usageReservation.recovery?.text ?? "";
+                yield recovery.text;
               })(),
               toUIMessageStreamResponse: () =>
                 createPersistedResponse(
                   message.id,
-                  usageReservation.recovery?.text ?? "",
-                  usageReservation.recovery?.metrics ?? finalMetrics!,
+                  recovery.text,
+                  recovery.metrics,
                 ),
             }
           : undefined,

@@ -120,7 +120,7 @@ function getLimitReason(
     totalCostUsd: number;
   },
   limits: RateLimits,
-): AiUsageReservationResult & { allowed: false } | null {
+): (AiUsageReservationResult & { allowed: false }) | null {
   if (usage.requestCount >= limits.maxRequestsPerDay) {
     return {
       allowed: false,
@@ -156,7 +156,12 @@ function parseRecovery(
   text: string | null,
   metrics: Prisma.JsonValue | null,
 ): AiUsageRecovery | undefined {
-  if (!text || !metrics || typeof metrics !== "object" || Array.isArray(metrics)) {
+  if (
+    !text ||
+    !metrics ||
+    typeof metrics !== "object" ||
+    Array.isArray(metrics)
+  ) {
     return undefined;
   }
   return { text, metrics: metrics as unknown as AIMetrics };
@@ -242,9 +247,10 @@ export async function reserveAiUsage({
             metrics: {
               model: assistant.model ?? messageMetrics?.model ?? "persisted",
               provider: messageMetrics?.provider,
-              providerMetadata: messageMetrics?.providerMetadata as
-                | Record<string, unknown>
-                | null,
+              providerMetadata: messageMetrics?.providerMetadata as Record<
+                string,
+                unknown
+              > | null,
               inputTokens:
                 assistant.inputTokens ?? messageMetrics?.inputTokens ?? 0,
               outputTokens:
@@ -254,9 +260,7 @@ export async function reserveAiUsage({
                 messageMetrics?.reasoningTokens ??
                 null,
               reasoningContent: assistant.reasoningContent,
-              toolCalls: assistant.toolCalls as
-                | AIMetrics["toolCalls"]
-                | null,
+              toolCalls: assistant.toolCalls as AIMetrics["toolCalls"] | null,
               toolCallCount: messageMetrics?.toolCallCount ?? undefined,
               toolResultChars: messageMetrics?.toolResultChars ?? undefined,
               toolTiming: messageMetrics?.toolTiming as
@@ -264,11 +268,8 @@ export async function reserveAiUsage({
                 | undefined,
               ragUsed: assistant.ragUsed ?? messageMetrics?.ragUsed ?? false,
               ragChunksCount:
-                assistant.ragChunksCount ??
-                messageMetrics?.ragChunksCount ??
-                0,
-              costUsd:
-                assistant.costUsd ?? messageMetrics?.costUsd ?? 0,
+                assistant.ragChunksCount ?? messageMetrics?.ragChunksCount ?? 0,
+              costUsd: assistant.costUsd ?? messageMetrics?.costUsd ?? 0,
               generationTimeMs:
                 assistant.generationTimeMs ??
                 messageMetrics?.generationTimeMs ??
@@ -288,15 +289,14 @@ export async function reserveAiUsage({
       };
     }
 
-    const usage =
-      (await tx.dailyUsage.findUnique({
-        where: { userId_date: { userId, date: today } },
-      })) ?? {
-        requestCount: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-        totalCostUsd: 0,
-      };
+    const usage = (await tx.dailyUsage.findUnique({
+      where: { userId_date: { userId, date: today } },
+    })) ?? {
+      requestCount: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      totalCostUsd: 0,
+    };
     const activeReservations = await tx.aiUsageReservation.aggregate({
       where: { userId, date: today, status: "RESERVED" },
       _sum: {
@@ -309,17 +309,14 @@ export async function reserveAiUsage({
     });
     const effectiveUsage = {
       requestCount:
-        usage.requestCount +
-        (activeReservations._sum.reservedRequests ?? 0),
+        usage.requestCount + (activeReservations._sum.reservedRequests ?? 0),
       inputTokens:
-        usage.inputTokens +
-        (activeReservations._sum.reservedInputTokens ?? 0),
+        usage.inputTokens + (activeReservations._sum.reservedInputTokens ?? 0),
       outputTokens:
         usage.outputTokens +
         (activeReservations._sum.reservedOutputTokens ?? 0),
       totalCostUsd:
-        usage.totalCostUsd +
-        (activeReservations._sum.reservedCostUsd ?? 0),
+        usage.totalCostUsd + (activeReservations._sum.reservedCostUsd ?? 0),
     };
     const hasFiniteBudget =
       Number.isFinite(limits.maxRequestsPerDay) ||
@@ -397,11 +394,7 @@ function buildUsageUpdate(metrics: AIMetrics) {
   };
 }
 
-function buildUsageCreate(
-  userId: string,
-  date: Date,
-  metrics: AIMetrics,
-) {
+function buildUsageCreate(userId: string, date: Date, metrics: AIMetrics) {
   return {
     userId,
     date,

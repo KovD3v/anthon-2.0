@@ -7,8 +7,8 @@
 
 import { waitUntil } from "@vercel/functions";
 import { prisma, warmDatabaseConnection } from "@/lib/db";
-import { authenticateGuest, createGuestChatForSession } from "@/lib/guest-auth";
 import { GuestCreationDeniedError } from "@/lib/guest-abuse";
+import { authenticateGuest, createGuestChatForSession } from "@/lib/guest-auth";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 

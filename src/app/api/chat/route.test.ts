@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   chatFindFirst: vi.fn(),
   chatUpdate: vi.fn(),
   transaction: vi.fn(),
+  messageFindUnique: vi.fn(),
   messageCreate: vi.fn(),
   messageMetricsCreate: vi.fn(),
   voiceGenerationJobCreate: vi.fn(),
@@ -20,6 +21,9 @@ const mocks = vi.hoisted(() => ({
   attachmentUpdateMany: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
+  reserveAiUsage: vi.fn(),
+  releaseAiUsageReservation: vi.fn(),
+  reconcileAiUsageForRecovery: vi.fn(),
   streamChat: vi.fn(),
   generateChatTitle: vi.fn(),
   extractAndSaveMemories: vi.fn(),
@@ -69,6 +73,7 @@ vi.mock("@/lib/db", () => ({
       update: mocks.chatUpdate,
     },
     message: {
+      findUnique: mocks.messageFindUnique,
       create: mocks.messageCreate,
       count: mocks.messageCount,
     },
@@ -90,6 +95,9 @@ vi.mock("@/lib/conversations/threads", () => ({
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: mocks.checkRateLimit,
   incrementUsage: mocks.incrementUsage,
+  reserveAiUsage: mocks.reserveAiUsage,
+  releaseAiUsageReservation: mocks.releaseAiUsageReservation,
+  reconcileAiUsageForRecovery: mocks.reconcileAiUsageForRecovery,
 }));
 
 vi.mock("@/lib/ai/orchestrator", () => ({
@@ -163,10 +171,36 @@ function canonicalAttachment(
 }
 
 function buildRequest(body: unknown): Request {
+  const normalizedBody =
+    body && typeof body === "object" && !Array.isArray(body)
+      ? {
+          ...(body as Record<string, unknown>),
+          ...("messages" in body && Array.isArray(body.messages)
+            ? {
+                messages: body.messages.map((message, index) =>
+                  message &&
+                  typeof message === "object" &&
+                  (message as { role?: unknown }).role === "user" &&
+                  !("id" in message)
+                    ? { ...message, id: `client-user-${index}` }
+                    : message,
+                ),
+              }
+            : {}),
+        }
+      : body;
   return new Request("http://localhost/api/chat", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify(normalizedBody),
     headers: { "Content-Type": "application/json" },
+  });
+}
+
+function emptyUiStream() {
+  return new ReadableStream({
+    start(controller) {
+      controller.close();
+    },
   });
 }
 
@@ -230,6 +264,7 @@ describe("POST /api/chat", () => {
     mocks.chatFindFirst.mockReset();
     mocks.chatUpdate.mockReset();
     mocks.transaction.mockReset();
+    mocks.messageFindUnique.mockReset();
     mocks.messageCreate.mockReset();
     mocks.messageMetricsCreate.mockReset();
     mocks.voiceGenerationJobCreate.mockReset();
@@ -239,6 +274,9 @@ describe("POST /api/chat", () => {
     mocks.attachmentUpdateMany.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
+    mocks.reserveAiUsage.mockReset();
+    mocks.releaseAiUsageReservation.mockReset();
+    mocks.reconcileAiUsageForRecovery.mockReset();
     mocks.streamChat.mockReset();
     mocks.generateChatTitle.mockReset();
     mocks.extractAndSaveMemories.mockReset();
@@ -266,6 +304,7 @@ describe("POST /api/chat", () => {
     mocks.transaction.mockImplementation(async (callback) =>
       callback({
         message: {
+          findUnique: mocks.messageFindUnique,
           create: mocks.messageCreate,
           count: mocks.messageCount,
         },
@@ -275,8 +314,16 @@ describe("POST /api/chat", () => {
         voiceGenerationJob: {
           create: mocks.voiceGenerationJobCreate,
         },
+        attachment: {
+          updateMany: mocks.attachmentUpdateMany,
+        },
       }),
     );
+
+    mocks.messageFindUnique.mockResolvedValue(null);
+    mocks.reserveAiUsage.mockResolvedValue(undefined);
+    mocks.releaseAiUsageReservation.mockResolvedValue(true);
+    mocks.reconcileAiUsageForRecovery.mockResolvedValue({ charged: true });
 
     mocks.auth.mockResolvedValue({ userId: "clerk_1" });
     mocks.userFindUnique.mockResolvedValue({
@@ -318,7 +365,14 @@ describe("POST /api/chat", () => {
     mocks.voiceGenerationJobCreate.mockResolvedValue({ id: "voice-job-1" });
     mocks.messageCount.mockResolvedValue(1);
     mocks.chatUpdate.mockResolvedValue({});
-    mocks.attachmentUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.attachmentUpdateMany.mockImplementation(
+      async ({ where }: { where: { id: string | { in: string[] } } }) => ({
+        count:
+          typeof where.id === "object" && "in" in where.id
+            ? new Set(where.id.in).size
+            : 1,
+      }),
+    );
     mocks.attachmentFindMany.mockImplementation(
       async ({ where }: { where: { id: { in: string[] } } }) =>
         where.id.in.map((id) => canonicalAttachment(id)),
@@ -371,6 +425,7 @@ describe("POST /api/chat", () => {
     );
     mocks.trackVoiceUsage.mockResolvedValue(undefined);
     mocks.streamChat.mockResolvedValue({
+      toUIMessageStream: emptyUiStream,
       toUIMessageStreamResponse: () =>
         Response.json({ ok: true, stream: true }, { status: 200 }),
     });
@@ -704,6 +759,7 @@ describe("POST /api/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -756,16 +812,18 @@ describe("POST /api/chat", () => {
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true, stream: true });
+    await expect(response.text()).resolves.toContain("[DONE]");
 
-    expect(mocks.messageCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        userId: "user-1",
-        chatId: "chat-1",
-        role: "USER",
-        direction: "INBOUND",
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "user-1",
+          chatId: "chat-1",
+          role: "USER",
+          direction: "INBOUND",
+        }),
       }),
-    });
+    );
     const persistedParts = mocks.messageCreate.mock.calls[0]?.[0].data.parts;
     expect(persistedParts).toEqual([
       { type: "text", text: "hello" },
@@ -788,12 +846,12 @@ describe("POST /api/chat", () => {
     expect(JSON.stringify(persistedParts)).not.toContain(
       VALID_MP3_BYTES.toString("base64"),
     );
-    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(1, {
-      where: { id: "att-1", userId: "user-1", messageId: null },
-      data: { messageId: "msg-user-123" },
-    });
-    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(2, {
-      where: { id: "att-2", userId: "user-1", messageId: null },
+    expect(mocks.attachmentUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ["att-1", "att-2"] },
+        userId: "user-1",
+        messageId: null,
+      },
       data: { messageId: "msg-user-123" },
     });
 
@@ -851,6 +909,7 @@ describe("POST /api/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -890,6 +949,7 @@ describe("POST /api/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -919,6 +979,7 @@ describe("POST /api/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -980,6 +1041,7 @@ describe("POST /api/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -1038,6 +1100,7 @@ describe("POST /api/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -1143,7 +1206,7 @@ describe("POST /api/chat", () => {
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true, stream: true });
+    await expect(response.text()).resolves.toContain("[DONE]");
     expect(mocks.generateChatTitle).toHaveBeenCalledWith("USER: first prompt", {
       userId: "user-1",
     });
@@ -1309,6 +1372,7 @@ describe("POST /api/chat", () => {
         },
       });
       return {
+        toUIMessageStream: emptyUiStream,
         toUIMessageStreamResponse: () =>
           Response.json({ ok: true, stream: true }, { status: 200 }),
       };
@@ -1577,6 +1641,7 @@ describe("POST /api/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -1766,7 +1831,7 @@ describe("POST /api/chat", () => {
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
-  it("does not reassign linked or repeated attachments", async () => {
+  it("rolls back the inbound claim when any attachment cannot be linked", async () => {
     mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
     mocks.attachmentUpdateMany
       .mockResolvedValueOnce({ count: 0 })
@@ -1790,32 +1855,17 @@ describe("POST /api/chat", () => {
       }),
     );
 
-    expect(response.status).toBe(200);
-    expect(mocks.attachmentUpdateMany).toHaveBeenCalledTimes(3);
-    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(1, {
+    expect(response.status).toBe(409);
+    expect(mocks.attachmentUpdateMany).toHaveBeenCalledTimes(1);
+    expect(mocks.attachmentUpdateMany).toHaveBeenCalledWith({
       where: {
-        id: "att-linked",
+        id: { in: ["att-linked", "att-pending"] },
         userId: "user-1",
         messageId: null,
       },
       data: { messageId: "msg-user-123" },
     });
-    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(2, {
-      where: {
-        id: "att-pending",
-        userId: "user-1",
-        messageId: null,
-      },
-      data: { messageId: "msg-user-123" },
-    });
-    expect(mocks.attachmentUpdateMany).toHaveBeenNthCalledWith(3, {
-      where: {
-        id: "att-pending",
-        userId: "user-1",
-        messageId: null,
-      },
-      data: { messageId: "msg-user-123" },
-    });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
   it("runs onFinish side effects for assistant message, usage, cache tags, and memories", async () => {
@@ -1824,6 +1874,7 @@ describe("POST /api/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
