@@ -43,6 +43,10 @@ DIRECT_DATABASE_URL="postgresql://user:password@host/anthon?schema=public"  # Lo
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
 CLERK_SECRET_KEY="sk_test_..."
 CLERK_WEBHOOK_SECRET="whsec_..."
+NEXT_PUBLIC_CLERK_SIGN_IN_URL="/sign-in"
+NEXT_PUBLIC_CLERK_SIGN_UP_URL="/sign-up"
+NEXT_PUBLIC_TERMS_URL="https://anthon.ai/terms"
+NEXT_PUBLIC_PRIVACY_URL="https://anthon.ai/privacy"
 OPENROUTER_API_KEY="sk-or-..."
 ```
 
@@ -56,6 +60,11 @@ Feature-specific variables:
 - Voice generation: `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`
 
 `NEXT_PUBLIC_APP_URL` is used for link generation (channel linking, embedding headers, callbacks).
+
+The Clerk Dashboard must allow the app's `/sso-callback` URL for Apple,
+Facebook, and Google in each environment. Live OAuth, email delivery, bot
+protection, client trust, MFA, and session-task checks require development Clerk
+credentials and are release gates rather than mocked unit-test assertions.
 
 `bun run test:integration` requires `NEON_API_KEY` and `NEON_PROJECT_ID`.
 `DATABASE_URL` must point to the long-lived Neon `development` branch. The
@@ -198,7 +207,8 @@ This section is for users/admins who are using the app UI (not for developers). 
 
 ### Sign in / Sign up
 
-- If you're signed out and open admin pages (`/admin`), you will be redirected away from restricted content.
+- `/sign-in`, `/sign-up`, and `/forgot-password` use the Italian Anthon auth UI while Clerk remains the authentication provider.
+- If you're signed out and open protected pages, you will be redirected to sign-in and returned only to an allowlisted internal destination.
 - Chat supports guest mode: signed-out users can still use `/chat` with guest limits.
 - After signing in, you should land back on the page you tried to open.
 

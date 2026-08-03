@@ -10,8 +10,19 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Added
 
-- Added a dedicated Clerk password-reset flow at `/forgot-password` with email verification code, password confirmation, code resend, and automatic session activation.
-- Added an explicit password-reset link to the sign-in page.
+- Added an Italian Anthon authentication shell and custom Clerk Core 3 flows for
+  password and social sign-in, registration, email verification, client trust,
+  SMS/TOTP/backup-code MFA, OAuth requirements, and password recovery.
+- Added allowlisted post-auth continuations, legal URL validation, bot-protection
+  placement, session-task routes, and focused auth regression coverage.
+
+### Changed
+
+- Upgraded `@clerk/nextjs` to v7, moved the provider inside `<body>`, migrated
+  auth conditions to `Show`, and changed marketing auth actions from modal
+  components to explicit routes.
+- Kept Clerk account and organization components while presenting rare session
+  tasks inside the Anthon shell.
 
 ## [0.5.1] - 2026-08-01
 
