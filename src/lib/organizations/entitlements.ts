@@ -6,6 +6,7 @@ import {
   type ResolvedEntitlements as PlanResolvedEntitlements,
   resolvePersonalPlan,
   resolveEffectiveEntitlements as resolvePlanEffectiveEntitlements,
+  resolvePoliciesForEntitlements,
 } from "@/lib/plans";
 import { applyOrgOverrides } from "./plan-defaults";
 import type {
@@ -42,6 +43,7 @@ function toEffectiveEntitlements(
 
   return {
     limits: source.limits,
+    uploadLimits: resolvePoliciesForEntitlements(source).uploadLimits,
     modelTier: source.modelTier,
     sources: [mappedSource],
   };

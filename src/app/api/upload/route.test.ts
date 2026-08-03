@@ -6,10 +6,14 @@ const mocks = vi.hoisted(() => ({
   getAuthUser: vi.fn(),
   userFindUnique: vi.fn(),
   chatFindFirst: vi.fn(),
+  transaction: vi.fn(),
   attachmentCreate: vi.fn(),
   attachmentFindFirst: vi.fn(),
   attachmentDelete: vi.fn(),
-  checkRateLimit: vi.fn(),
+  resolveEffectiveEntitlements: vi.fn(),
+  reserveUploadQuota: vi.fn(),
+  commitUploadReservationInTransaction: vi.fn(),
+  releaseUploadReservation: vi.fn(),
   deletePrivateVoiceBlob: vi.fn(),
   isPrivateVoiceBlobUrl: vi.fn(),
 }));
@@ -25,6 +29,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    $transaction: mocks.transaction,
     user: {
       findUnique: mocks.userFindUnique,
     },
@@ -39,8 +44,15 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/lib/rate-limit", () => ({
-  checkRateLimit: mocks.checkRateLimit,
+vi.mock("@/lib/organizations/entitlements", () => ({
+  resolveEffectiveEntitlements: mocks.resolveEffectiveEntitlements,
+}));
+
+vi.mock("@/lib/uploads/quota", () => ({
+  reserveUploadQuota: mocks.reserveUploadQuota,
+  commitUploadReservationInTransaction:
+    mocks.commitUploadReservationInTransaction,
+  releaseUploadReservation: mocks.releaseUploadReservation,
 }));
 
 vi.mock("@/lib/voice/storage", () => ({
@@ -64,10 +76,14 @@ describe("/api/upload POST", () => {
     mocks.getAuthUser.mockReset();
     mocks.userFindUnique.mockReset();
     mocks.chatFindFirst.mockReset();
+    mocks.transaction.mockReset();
     mocks.attachmentCreate.mockReset();
     mocks.attachmentFindFirst.mockReset();
     mocks.attachmentDelete.mockReset();
-    mocks.checkRateLimit.mockReset();
+    mocks.resolveEffectiveEntitlements.mockReset();
+    mocks.reserveUploadQuota.mockReset();
+    mocks.commitUploadReservationInTransaction.mockReset();
+    mocks.releaseUploadReservation.mockReset();
     mocks.deletePrivateVoiceBlob.mockReset();
     mocks.isPrivateVoiceBlobUrl.mockReset();
 
@@ -80,23 +96,33 @@ describe("/api/upload POST", () => {
       isGuest: false,
       subscription: { status: "ACTIVE", planId: "my-basic-plan" },
     });
-    mocks.checkRateLimit.mockResolvedValue({
+    mocks.resolveEffectiveEntitlements.mockResolvedValue({
+      uploadLimits: {
+        maxUploadsPerDay: 25,
+        maxUploadBytesPerDay: 250 * 1024 * 1024,
+      },
+    });
+    mocks.reserveUploadQuota.mockResolvedValue({
       allowed: true,
+      reservationId: "upload-reservation-1",
       usage: {
-        requestCount: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-        totalCostUsd: 0,
+        uploadCount: 0,
+        uploadedBytes: 0,
+        reservedCount: 1,
+        reservedBytes: 5,
       },
       limits: {
-        maxRequestsPerDay: 10,
-        maxInputTokensPerDay: 1000,
-        maxOutputTokensPerDay: 1000,
-        maxCostPerDay: 10,
-        maxContextMessages: 20,
+        maxUploadsPerDay: 25,
+        maxUploadBytesPerDay: 250 * 1024 * 1024,
       },
-      percentUsed: { requests: 0, inputTokens: 0, outputTokens: 0, cost: 0 },
     });
+    mocks.commitUploadReservationInTransaction.mockResolvedValue({
+      committed: true,
+    });
+    mocks.releaseUploadReservation.mockResolvedValue(true);
+    mocks.transaction.mockImplementation(async (callback) =>
+      callback({ attachment: { create: mocks.attachmentCreate } }),
+    );
     mocks.chatFindFirst.mockResolvedValue({ id: "chat-1" });
     mocks.put.mockResolvedValue({
       url: "https://blob.example/uploaded",
@@ -124,24 +150,20 @@ describe("/api/upload POST", () => {
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
   });
 
-  it("returns 429 when rate limit is denied", async () => {
-    mocks.checkRateLimit.mockResolvedValue({
+  it("returns 429 when upload quota is denied", async () => {
+    mocks.reserveUploadQuota.mockResolvedValue({
       allowed: false,
-      reason: "Daily request limit reached",
+      reason: "Daily upload count reached",
       usage: {
-        requestCount: 10,
-        inputTokens: 0,
-        outputTokens: 0,
-        totalCostUsd: 0,
+        uploadCount: 25,
+        uploadedBytes: 100,
+        reservedCount: 0,
+        reservedBytes: 0,
       },
       limits: {
-        maxRequestsPerDay: 10,
-        maxInputTokensPerDay: 1000,
-        maxOutputTokensPerDay: 1000,
-        maxCostPerDay: 10,
-        maxContextMessages: 20,
+        maxUploadsPerDay: 25,
+        maxUploadBytesPerDay: 250 * 1024 * 1024,
       },
-      upgradeInfo: null,
     });
 
     const form = new FormData();
@@ -154,8 +176,19 @@ describe("/api/upload POST", () => {
 
     expect(response.status).toBe(429);
     await expect(response.json()).resolves.toMatchObject({
-      error: "Daily request limit reached",
+      error: "Daily upload count reached",
     });
+  });
+
+  it("returns 400 for a zero-byte file without reserving quota", async () => {
+    const form = new FormData();
+    form.append("file", new File([], "empty.txt", { type: "text/plain" }));
+
+    const response = await POST(buildUploadRequest(form));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "File is empty" });
+    expect(mocks.reserveUploadQuota).not.toHaveBeenCalled();
   });
 
   it("returns 400 when no file is provided", async () => {
@@ -338,6 +371,7 @@ describe("/api/upload POST", () => {
     );
     expect(mocks.attachmentCreate).toHaveBeenCalledWith({
       data: {
+        userId: "user-1",
         name: "my file.md",
         contentType: "text/markdown",
         size: 9,
@@ -368,7 +402,6 @@ describe("/api/upload DELETE", () => {
     mocks.attachmentCreate.mockReset();
     mocks.attachmentFindFirst.mockReset();
     mocks.attachmentDelete.mockReset();
-    mocks.checkRateLimit.mockReset();
     mocks.deletePrivateVoiceBlob.mockReset();
     mocks.isPrivateVoiceBlobUrl.mockReset();
 
@@ -439,17 +472,7 @@ describe("/api/upload DELETE", () => {
     expect(mocks.attachmentFindFirst).toHaveBeenCalledWith({
       where: {
         blobUrl: "https://blob.example/file",
-        OR: [
-          { message: { userId: "user-1" } },
-          {
-            messageId: null,
-            blobUrl: { contains: "/uploads/user-1/" },
-          },
-          {
-            messageId: null,
-            blobUrl: { contains: "/attachments/user-1/" },
-          },
-        ],
+        userId: "user-1",
       },
       select: {
         id: true,

@@ -54,6 +54,7 @@ export interface ClassifySuitabilityParams {
   assistantText?: string;
   conversationContext?: Array<{ role: string; content: string }>;
   timeoutMs?: number;
+  abortSignal?: AbortSignal;
 }
 
 export type VoiceClassifierFailureCode =
@@ -279,6 +280,7 @@ export function getDeterministicVoiceSuitability(
 export async function classifyVoiceSuitability(
   params: ClassifySuitabilityParams,
 ): Promise<VoiceSuitabilityClassification> {
+  params.abortSignal?.throwIfAborted();
   const startedAtMs = Date.now();
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
@@ -293,6 +295,7 @@ export async function classifyVoiceSuitability(
       temperature: 0,
       maxOutputTokens: 80,
       maxRetries: 0,
+      abortSignal: params.abortSignal,
       timeout: { totalMs: timeoutMs },
       providerOptions: {
         openrouter: getClassifierProviderOptions(DEFAULT_SUITABILITY_MODEL),
@@ -318,6 +321,7 @@ ${params.assistantText ? `Assistant: ${params.assistantText.slice(0, 700)}` : "A
       usage: result.usage,
       providerMetadata: result.providerMetadata,
     });
+    params.abortSignal?.throwIfAborted();
     if (!result.output) {
       return {
         category: "TEXT_PREFERRED",
@@ -343,6 +347,7 @@ ${params.assistantText ? `Assistant: ${params.assistantText.slice(0, 700)}` : "A
       },
     };
   } catch (error) {
+    params.abortSignal?.throwIfAborted();
     const classifierDiagnostics = buildFailureDiagnostics(
       error,
       startedAtMs,

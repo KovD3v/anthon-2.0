@@ -18,9 +18,9 @@ export const DEFAULT_REALITY_JUDGE_MODELS = [
   "openai/gpt-5.5",
 ];
 
-export const REALITY_JUDGE_DISAGREEMENT_THRESHOLD = 2;
-export const REALITY_JUDGE_WEIGHT = 0.7;
-export const REALITY_HEURISTIC_WEIGHT = 0.3;
+const REALITY_JUDGE_DISAGREEMENT_THRESHOLD = 2;
+const REALITY_JUDGE_WEIGHT = 0.7;
+const REALITY_HEURISTIC_WEIGHT = 0.3;
 const REALITY_JUDGE_TIMEOUT_MS = 120_000;
 const REALITY_JUDGE_MAX_ATTEMPTS = 2;
 
@@ -32,8 +32,6 @@ const RealityJudgeOutputSchema = z.object({
   safetyConcern: z.boolean(),
   anchorCalibration: z.string(),
 });
-
-export type RealityJudgeOutput = z.infer<typeof RealityJudgeOutputSchema>;
 
 export type RealityJudgeTurnResult = {
   scenarioId: string;

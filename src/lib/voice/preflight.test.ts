@@ -123,7 +123,11 @@ describe("voice/preflight", () => {
   });
 
   it("classifies ordinary conversation without requiring keywords", async () => {
-    const result = await decideWebVoiceMode(baseParams());
+    const abortController = new AbortController();
+    const result = await decideWebVoiceMode({
+      ...baseParams(),
+      abortSignal: abortController.signal,
+    });
 
     expect(result).toMatchObject({
       mode: "VOICE",
@@ -139,6 +143,7 @@ describe("voice/preflight", () => {
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
         maxRetries: 0,
+        abortSignal: abortController.signal,
         timeout: { totalMs: 1500 },
         providerOptions: {
           openrouter: {
@@ -150,6 +155,23 @@ describe("voice/preflight", () => {
         },
       }),
     );
+  });
+
+  it("propagates request cancellation instead of treating it as a classifier fallback", async () => {
+    const abortController = new AbortController();
+    const abortError = new Error("request aborted");
+    mocks.generateText.mockImplementationOnce(async ({ abortSignal }) => {
+      expect(abortSignal).toBe(abortController.signal);
+      abortController.abort(abortError);
+      throw abortError;
+    });
+
+    await expect(
+      decideWebVoiceMode({
+        ...baseParams(),
+        abortSignal: abortController.signal,
+      }),
+    ).rejects.toBe(abortError);
   });
 
   it("exposes classifier failure details for persisted diagnostics", async () => {

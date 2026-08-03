@@ -13,6 +13,17 @@ export {
   getAttachmentRetentionDays,
   getRateLimitsForUser,
 } from "./config";
+export type {
+  AiUsagePersistedAssistant,
+  AiUsageRecovery,
+  AiUsageReservationResult,
+} from "./reservations";
+export {
+  reconcileAiUsageForRecovery,
+  reconcileAiUsageInTransaction,
+  releaseAiUsageReservation,
+  reserveAiUsage,
+} from "./reservations";
 // Types
 export type {
   DailyUsageData,

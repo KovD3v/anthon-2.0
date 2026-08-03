@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 
-export const FeedbackReasonSchema = z.enum([
+const FeedbackReasonSchema = z.enum([
   "linguistic_error",
   "wrong_fact",
   "context_missed",

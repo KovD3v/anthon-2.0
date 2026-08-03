@@ -3,20 +3,19 @@ export type {
   PrepareChannelConnectRequestInput,
 } from "./connect";
 export {
-  CONNECT_DELIVERY_LEASE_MS,
   claimChannelConnectDelivery,
   markChannelConnectDeliveryFailed,
   markChannelConnectDeliverySent,
   prepareChannelConnectRequest,
 } from "./connect";
 export {
-  EXTERNAL_INBOUND_LEASE_MS,
   getExternalInboundMessageType,
   markExternalChannelInboundCompleted,
   markExternalChannelInboundFailed,
   prepareExternalChannelInbound,
+  startExternalInboundLeaseHeartbeat,
 } from "./external-inbound";
-export { runChannelFlow } from "./run";
+export { AssistantPersistenceError, runChannelFlow } from "./run";
 export type {
   ChannelKind,
   ChannelMessagePart,

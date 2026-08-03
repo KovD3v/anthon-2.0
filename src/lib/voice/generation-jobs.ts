@@ -620,6 +620,7 @@ export async function processVoiceGenerationJob(
 
       const attachment = await tx.attachment.create({
         data: {
+          userId: job.userId,
           messageId: current.message.id,
           name: "voice.mp3",
           contentType: "audio/mpeg",

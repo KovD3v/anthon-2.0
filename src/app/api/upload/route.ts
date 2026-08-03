@@ -13,7 +13,12 @@ import { del, put } from "@vercel/blob";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
+import {
+  commitUploadReservationInTransaction,
+  releaseUploadReservation,
+  reserveUploadQuota,
+} from "@/lib/uploads/quota";
 import {
   deletePrivateVoiceBlob,
   isPrivateVoiceBlobUrl,
@@ -104,37 +109,10 @@ export async function POST(request: Request) {
     return Response.json({ error: error || "Unauthorized" }, { status: 401 });
   }
 
+  let uploadReservationId: string | undefined;
+  let uploadedBlobUrl: string | undefined;
   try {
-    // 2. Rate limiting - check upload quota
-    // Get full user data with subscription for rate limit check
-    const fullUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      include: {
-        subscription: true,
-      },
-    });
-
-    const rateLimitResult = await checkRateLimit(
-      user.id,
-      fullUser?.subscription?.status,
-      user.role,
-      fullUser?.subscription?.planId,
-      fullUser?.isGuest,
-    );
-
-    if (!rateLimitResult.allowed) {
-      return Response.json(
-        {
-          error: rateLimitResult.reason || "Rate limit exceeded",
-          usage: rateLimitResult.usage,
-          limits: rateLimitResult.limits,
-          upgradeInfo: rateLimitResult.upgradeInfo,
-        },
-        { status: 429 },
-      );
-    }
-
-    // 3. Parse form data
+    // 2. Parse form data before reserving quota.
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
 
@@ -142,7 +120,11 @@ export async function POST(request: Request) {
       return Response.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // 4. Validate file size
+    if (file.size === 0) {
+      return Response.json({ error: "File is empty" }, { status: 400 });
+    }
+
+    // 3. Validate file size
     if (file.size > MAX_FILE_SIZE) {
       return Response.json(
         {
@@ -154,7 +136,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. Validate file type
+    // 4. Validate file type
     // Strip codec parameters (e.g., "audio/webm;codecs=opus" -> "audio/webm")
     const rawType = file.type || detectFileType(file.name);
     const fileType = rawType.split(";")[0].trim();
@@ -165,7 +147,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 6. Optional: Verify chat ownership if chatId is provided
+    // 5. Optional: Verify chat ownership if chatId is provided
     const chatId = formData.get("chatId") as string | null;
     if (chatId) {
       const chat = await prisma.chat.findFirst({
@@ -180,6 +162,39 @@ export async function POST(request: Request) {
       }
     }
 
+    // 6. Resolve the winning personal/organization policy and atomically
+    // reserve this exact object and byte count before external storage work.
+    const fullUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: { subscription: true },
+    });
+    if (!fullUser) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const entitlements = await resolveEffectiveEntitlements({
+      userId: user.id,
+      subscriptionStatus: fullUser.subscription?.status,
+      userRole: user.role,
+      planId: fullUser.subscription?.planId,
+      isGuest: fullUser.isGuest,
+    });
+    const quota = await reserveUploadQuota({
+      userId: user.id,
+      byteCount: file.size,
+      limits: entitlements.uploadLimits,
+    });
+    if (!quota.allowed) {
+      return Response.json(
+        {
+          error: quota.reason,
+          usage: quota.usage,
+          limits: quota.limits,
+        },
+        { status: 429 },
+      );
+    }
+    uploadReservationId = quota.reservationId;
+
     // 7. Generate unique filename with user ID
     const timestamp = Date.now();
     const sanitizedName = sanitizeFilename(file.name);
@@ -187,20 +202,29 @@ export async function POST(request: Request) {
       ? `attachments/${user.id}/${chatId}/${timestamp}-${sanitizedName}`
       : `uploads/${user.id}/${timestamp}-${sanitizedName}`;
 
-    // 7. Upload to Vercel Blob
+    // 8. Upload to Vercel Blob
     const { url, downloadUrl } = await put(pathname, file, {
       access: "public",
       contentType: fileType,
     });
+    uploadedBlobUrl = url;
 
-    // 8. Create attachment record (not linked to a message yet)
-    const attachment = await prisma.attachment.create({
-      data: {
-        name: file.name,
-        contentType: fileType,
-        size: file.size,
-        blobUrl: url,
-      },
+    // 9. The durable attachment and quota commit succeed or fail together.
+    const attachment = await prisma.$transaction(async (tx) => {
+      const created = await tx.attachment.create({
+        data: {
+          userId: user.id,
+          name: file.name,
+          contentType: fileType,
+          size: file.size,
+          blobUrl: url,
+        },
+      });
+      await commitUploadReservationInTransaction(tx, {
+        reservationId: quota.reservationId,
+        userId: user.id,
+      });
+      return created;
     });
 
     return Response.json({
@@ -213,6 +237,27 @@ export async function POST(request: Request) {
       createdAt: attachment.createdAt,
     });
   } catch (err) {
+    if (uploadedBlobUrl) {
+      await del(uploadedBlobUrl).catch((cleanupError) =>
+        uploadLogger.error(
+          "upload.blob_cleanup_failed",
+          "Failed cleaning up Blob after upload persistence failure",
+          { error: cleanupError },
+        ),
+      );
+    }
+    if (uploadReservationId) {
+      await releaseUploadReservation({
+        reservationId: uploadReservationId,
+        userId: user.id,
+      }).catch((rollbackError) =>
+        uploadLogger.error(
+          "upload.quota_rollback_failed",
+          "Failed releasing upload quota reservation",
+          { error: rollbackError },
+        ),
+      );
+    }
     uploadLogger.error("upload.error", "Failed to upload file", { error: err });
     return Response.json(
       {
@@ -256,25 +301,7 @@ export async function DELETE(request: Request) {
     const upload = await prisma.attachment.findFirst({
       where: {
         blobUrl,
-        OR: [
-          {
-            message: {
-              userId: user.id,
-            },
-          },
-          {
-            messageId: null,
-            blobUrl: {
-              contains: `/uploads/${user.id}/`,
-            },
-          },
-          {
-            messageId: null,
-            blobUrl: {
-              contains: `/attachments/${user.id}/`,
-            },
-          },
-        ],
+        userId: user.id,
       },
       select: {
         id: true,

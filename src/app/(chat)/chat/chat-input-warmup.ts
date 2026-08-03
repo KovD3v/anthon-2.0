@@ -1,4 +1,4 @@
-export const CHAT_INPUT_WARMUP_DEBOUNCE_MS = 350;
+const CHAT_INPUT_WARMUP_DEBOUNCE_MS = 350;
 
 type WarmupFetcher = (
   input: string,

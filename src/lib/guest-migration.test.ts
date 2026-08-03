@@ -30,6 +30,13 @@ type Tx = {
     update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
   };
+  aiUsageReservation: { deleteMany: ReturnType<typeof vi.fn> };
+  uploadReservation: { deleteMany: ReturnType<typeof vi.fn> };
+  dailyUploadUsage: {
+    findMany: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+  };
   profile: {
     findUnique: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
@@ -63,6 +70,17 @@ function buildTx(): Tx {
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue(null),
       update: vi.fn().mockResolvedValue({}),
+      delete: vi.fn().mockResolvedValue({}),
+    },
+    aiUsageReservation: {
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    uploadReservation: {
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    dailyUploadUsage: {
+      findMany: vi.fn().mockResolvedValue([]),
+      upsert: vi.fn().mockResolvedValue({}),
       delete: vi.fn().mockResolvedValue({}),
     },
     profile: {
@@ -136,7 +154,11 @@ describe("lib/guest-migration", () => {
     });
     expect(tx.user.update).toHaveBeenCalledWith({
       where: { id: "guest-1" },
-      data: { guestConvertedAt: expect.any(Date) },
+      data: {
+        guestConvertedAt: expect.any(Date),
+        guestTokenHash: null,
+        guestAbuseIdHash: null,
+      },
     });
     expect(tx.memory.upsert).not.toHaveBeenCalled();
   });
@@ -214,7 +236,9 @@ describe("lib/guest-migration", () => {
         requestCount: 3,
         inputTokens: 100,
         outputTokens: 200,
+        reasoningTokens: 4,
         totalCostUsd: 0.42,
+        voiceCostUsd: 0.02,
       },
     ]);
     tx.dailyUsage.findUnique.mockResolvedValue({
@@ -241,7 +265,9 @@ describe("lib/guest-migration", () => {
         requestCount: { increment: 3 },
         inputTokens: { increment: 100 },
         outputTokens: { increment: 200 },
+        reasoningTokens: { increment: 4 },
         totalCostUsd: { increment: 0.42 },
+        voiceCostUsd: { increment: 0.02 },
       },
     });
     expect(tx.dailyUsage.delete).toHaveBeenCalledWith({

@@ -1,4 +1,3 @@
-import { withTracing } from "@posthog/ai";
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
@@ -48,6 +47,10 @@ import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrou
 import { getRagContext, shouldUseRag } from "@/lib/ai/rag";
 import { buildConversationContext } from "@/lib/ai/session-manager";
 import {
+  type AiGenerationTelemetryContext,
+  captureAiGenerationMetadata,
+} from "@/lib/ai/telemetry";
+import {
   createMemoryTools,
   formatMemoriesForPrompt,
 } from "@/lib/ai/tools/memory";
@@ -67,7 +70,6 @@ import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
-import { getPostHogClient } from "@/lib/posthog";
 
 const aiLogger = createLogger("ai");
 const MULTIMODAL_ORCHESTRATOR_MODEL_ID = "google/gemini-2.5-flash-lite";
@@ -333,6 +335,9 @@ interface StreamChatOptions {
     text?: string;
     data?: string;
     mimeType?: string;
+    size?: number;
+    name?: string;
+    attachmentId?: string;
     [key: string]: unknown;
   }>;
   onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
@@ -351,6 +356,7 @@ interface StreamChatOptions {
   userMessageId?: string;
   inputOrigin?: "text" | "transcribed_voice" | "direct_media";
   benchmarkModelId?: string;
+  abortSignal?: AbortSignal;
 }
 
 type PromptMode = "full" | "guest" | "simple_fast";
@@ -976,7 +982,9 @@ async function runOpenRouterMultimodalCompletion({
   startTime,
   ragUsed,
   ragChunksCount,
+  telemetryContext,
   onFinish,
+  abortSignal,
 }: {
   modelId: string;
   systemPrompt: string;
@@ -984,14 +992,21 @@ async function runOpenRouterMultimodalCompletion({
   startTime: number;
   ragUsed: boolean;
   ragChunksCount: number;
+  telemetryContext: AiGenerationTelemetryContext;
   onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
+  abortSignal?: AbortSignal;
 }): Promise<DirectMultimodalCompletion> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY is required for multimodal chat");
   }
 
-  const openRouterMessages = await toOpenRouterMessages(systemPrompt, messages);
+  const openRouterMessages = await toOpenRouterMessages(
+    systemPrompt,
+    messages,
+    abortSignal,
+  );
+  abortSignal?.throwIfAborted();
 
   const response = await fetch(
     "https://openrouter.ai/api/v1/chat/completions",
@@ -1009,10 +1024,9 @@ async function runOpenRouterMultimodalCompletion({
         model: modelId,
         messages: openRouterMessages,
         usage: { include: true },
-        provider: getOpenRouterProviderOptionsForModel(modelId).provider as
-          | Record<string, unknown>
-          | undefined,
+        ...getOpenRouterProviderOptionsForModel(modelId),
       }),
+      signal: abortSignal,
     },
   );
 
@@ -1056,6 +1070,7 @@ async function runOpenRouterMultimodalCompletion({
     ragUsed,
     ragChunksCount,
   });
+  captureAiGenerationMetadata({ context: telemetryContext, metrics });
 
   await onFinish?.({ text, metrics });
 
@@ -1065,58 +1080,66 @@ async function runOpenRouterMultimodalCompletion({
 function createDirectMultimodalStreamResult(
   completionPromise: Promise<DirectMultimodalCompletion>,
 ) {
-  return {
-    textStream: (async function* () {
-      const { text } = await completionPromise;
-      yield text;
-    })(),
-    toUIMessageStreamResponse: (options: StreamResponseOptions = {}) => {
-      const { messageMetadata, ...responseOptions } = options;
-      const stream = createUIMessageStream({
-        execute: async ({ writer }) => {
-          const { text, metrics } = await completionPromise;
-          const textId = "text-1";
-          const finishPart = {
-            type: "finish" as const,
-            finishReason: "stop" as const,
-            usage: {
-              inputTokens: metrics.inputTokens,
-              outputTokens: metrics.outputTokens,
-            },
-            totalUsage: {
-              inputTokens: metrics.inputTokens,
-              outputTokens: metrics.outputTokens,
-            },
-          };
-          const metadata =
-            messageMetadata?.({ part: finishPart }) ??
-            ({
-              inputTokens: metrics.inputTokens,
-              outputTokens: metrics.outputTokens,
-              generationTimeMs: metrics.generationTimeMs,
-              reasoningTimeMs: metrics.reasoningTimeMs ?? undefined,
-            } satisfies Record<string, unknown>);
-          const write = writer.write as (part: unknown) => void;
+  const toUIMessageStream = (
+    options: StreamResponseOptions & { sendFinish?: boolean } = {},
+  ) => {
+    const { messageMetadata, sendFinish = true } = options;
+    return createUIMessageStream({
+      execute: async ({ writer }) => {
+        const { text, metrics } = await completionPromise;
+        const textId = "text-1";
+        const finishPart = {
+          type: "finish" as const,
+          finishReason: "stop" as const,
+          usage: {
+            inputTokens: metrics.inputTokens,
+            outputTokens: metrics.outputTokens,
+          },
+          totalUsage: {
+            inputTokens: metrics.inputTokens,
+            outputTokens: metrics.outputTokens,
+          },
+        };
+        const metadata =
+          messageMetadata?.({ part: finishPart }) ??
+          ({
+            inputTokens: metrics.inputTokens,
+            outputTokens: metrics.outputTokens,
+            generationTimeMs: metrics.generationTimeMs,
+            reasoningTimeMs: metrics.reasoningTimeMs ?? undefined,
+          } satisfies Record<string, unknown>);
+        const write = writer.write as (part: unknown) => void;
 
-          write({ type: "start" });
-          write({ type: "start-step" });
-          write({ type: "text-start", id: textId });
-          write({ type: "text-delta", id: textId, delta: text });
-          write({ type: "text-end", id: textId });
-          write({ type: "finish-step" });
+        write({ type: "start" });
+        write({ type: "start-step" });
+        write({ type: "text-start", id: textId });
+        write({ type: "text-delta", id: textId, delta: text });
+        write({ type: "text-end", id: textId });
+        write({ type: "finish-step" });
+        if (sendFinish) {
           write({
             type: "finish",
             finishReason: finishPart.finishReason,
             messageMetadata: metadata,
           });
-        },
-        onError: (error) =>
-          error instanceof Error ? error.message : "Image chat failed.",
-      });
+        }
+      },
+      onError: (error) =>
+        error instanceof Error ? error.message : "Image chat failed.",
+    });
+  };
 
+  return {
+    textStream: (async function* () {
+      const { text } = await completionPromise;
+      yield text;
+    })(),
+    toUIMessageStream,
+    toUIMessageStreamResponse: (options: StreamResponseOptions = {}) => {
+      const { messageMetadata, ...responseOptions } = options;
       return createUIMessageStreamResponse({
         ...responseOptions,
-        stream,
+        stream: toUIMessageStream({ messageMetadata }),
       });
     },
   };
@@ -1126,11 +1149,14 @@ async function classifyPromptModules({
   userId,
   userMessage,
   webSearchRule,
+  abortSignal,
 }: {
   userId: string;
   userMessage: string;
   webSearchRule: WebSearchRuleDecision;
+  abortSignal?: AbortSignal;
 }): Promise<PromptModuleClassifierDecision | null> {
+  abortSignal?.throwIfAborted();
   if (webSearchRule.confidence === "high") {
     return null;
   }
@@ -1144,6 +1170,7 @@ async function classifyPromptModules({
           output: Output.object({ schema: promptModuleClassifierSchema }),
           temperature: 0,
           maxOutputTokens: 120,
+          abortSignal,
           timeout: { totalMs: PROMPT_MODULE_CLASSIFIER_TIMEOUT_MS },
           providerOptions: {
             openrouter: getOpenRouterProviderOptionsForModel(
@@ -1212,6 +1239,7 @@ ${JSON.stringify(userMessage)}`,
 
     return decision;
   } catch (error) {
+    abortSignal?.throwIfAborted();
     aiLogger.warn(
       "ai.prompt_modules.classifier_failed",
       "Prompt module classifier failed; using deterministic modules",
@@ -1252,6 +1280,7 @@ export async function streamChat({
   userMessageId,
   inputOrigin: requestedInputOrigin,
   benchmarkModelId,
+  abortSignal,
 }: StreamChatOptions) {
   // Record start time for performance tracking
   const startTime = Date.now();
@@ -1303,6 +1332,7 @@ export async function streamChat({
     userId,
     userMessage,
     webSearchRule,
+    abortSignal,
   });
 
   const promptModuleClassifier = await promptModuleClassifierPromise;
@@ -1458,20 +1488,17 @@ export async function streamChat({
           subscriptionStatus,
         );
 
-  // Wrap model with PostHog tracing for LLM analytics
-  const model = withTracing(baseModel, getPostHogClient(), {
-    posthogDistinctId: userId,
-    posthogTraceId: chatId,
-    posthogProperties: {
-      conversationId: chatId,
-      planId: planId || "free",
-      effectiveModelTier: effectiveEntitlements.modelTier,
-      userRole: userRole || "USER",
-      isGuest: isGuest || false,
-      modelId,
-      promptMode,
-    },
-  });
+  const model = baseModel;
+  const telemetryContext: AiGenerationTelemetryContext = {
+    distinctId: userId,
+    traceId: chatId ?? userId,
+    conversationId: chatId,
+    planId,
+    effectiveModelTier: effectiveEntitlements.modelTier,
+    userRole,
+    isGuest,
+    promptMode,
+  };
 
   const ragPromise =
     isGuest || !turnPlan.capabilities.rag
@@ -1600,6 +1627,7 @@ export async function streamChat({
           data: string | Uint8Array;
           mediaType: string;
           name?: string;
+          size?: number;
         };
     const contentParts: ContentPart[] = [];
     const unsupportedMediaAttachments: Array<{
@@ -1660,6 +1688,7 @@ export async function streamChat({
           data: part.data,
           mediaType: cleanMimeType,
           name: attachmentName,
+          size: part.size,
         });
         continue;
       }
@@ -1822,11 +1851,13 @@ export async function streamChat({
       startTime,
       ragUsed,
       ragChunksCount,
+      telemetryContext,
       onFinish: onFinish
         ? async ({ text, metrics }) => {
             await onFinish({ text, metrics: attachTurnTrace(metrics) });
           }
         : undefined,
+      abortSignal,
     });
 
     aiLogger.info("ai.stream.started", "AI multimodal streaming started", {
@@ -1847,6 +1878,7 @@ export async function streamChat({
   // Stream the response
   const result = streamText({
     model,
+    abortSignal,
     instructions: systemPrompt,
     messages,
     tools,
@@ -1873,66 +1905,61 @@ export async function streamChat({
     prepareStep: directWebSearchEvidence
       ? undefined
       : createToolLoopPrepareStep(toolPlan),
-    onEnd: onFinish
-      ? async ({
-          text,
-          usage,
-          totalUsage,
-          providerMetadata,
-        }: StepResult<ToolSet> & {
-          totalUsage?: {
-            inputTokens?: number;
-            outputTokens?: number;
-            totalTokens?: number;
-          };
-        }) => {
-          const meteredUsage = totalUsage ?? usage;
+    onEnd: async ({
+      text,
+      usage,
+      totalUsage,
+      providerMetadata,
+    }: StepResult<ToolSet> & {
+      totalUsage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        totalTokens?: number;
+      };
+    }) => {
+      const meteredUsage = totalUsage ?? usage;
 
-          // Extract AI metrics including cost calculation
-          const metrics = await extractAIMetrics(modelId, startTime, {
-            text,
-            usage: {
-              promptTokens: meteredUsage?.inputTokens,
-              completionTokens: meteredUsage?.outputTokens,
-              totalTokens: meteredUsage?.totalTokens,
-            },
-            providerMetadata: providerMetadata as Record<string, unknown>,
-            preferProviderUsage: !totalUsage,
-            providerCostUsd: sumCosts(collectedOpenRouterCosts),
-            // Pass collected tool calls
-            collectedToolCalls:
-              collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
-            toolTiming:
-              collectedToolCalls.length > 0
-                ? {
-                    ...toolTiming,
-                    toolExecutionMs: toolTimingState.toolExecutionMs,
-                  }
-                : undefined,
-            // RAG tracking
-            ragUsed,
-            ragChunksCount,
-          });
-          attachTurnTrace(metrics);
+      // Extract AI metrics including cost calculation.
+      const metrics = await extractAIMetrics(modelId, startTime, {
+        text,
+        usage: {
+          promptTokens: meteredUsage?.inputTokens,
+          completionTokens: meteredUsage?.outputTokens,
+          totalTokens: meteredUsage?.totalTokens,
+        },
+        providerMetadata: providerMetadata as Record<string, unknown>,
+        preferProviderUsage: !totalUsage,
+        providerCostUsd: sumCosts(collectedOpenRouterCosts),
+        collectedToolCalls:
+          collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
+        toolTiming:
+          collectedToolCalls.length > 0
+            ? {
+                ...toolTiming,
+                toolExecutionMs: toolTimingState.toolExecutionMs,
+              }
+            : undefined,
+        ragUsed,
+        ragChunksCount,
+      });
+      captureAiGenerationMetadata({ context: telemetryContext, metrics });
 
-          if (collectedToolCalls.length > 0) {
-            aiLogger.info(
-              "ai.tool_loop.timing",
-              "AI tool loop timing captured",
-              {
-                userId,
-                chatId,
-                modelId,
-                toolCallCount: metrics.toolCallCount,
-                toolResultChars: metrics.toolResultChars,
-                toolTiming: metrics.toolTiming,
-              },
-            );
-          }
+      if (collectedToolCalls.length > 0) {
+        aiLogger.info("ai.tool_loop.timing", "AI tool loop timing captured", {
+          userId,
+          chatId,
+          modelId,
+          toolCallCount: metrics.toolCallCount,
+          toolResultChars: metrics.toolResultChars,
+          toolTiming: metrics.toolTiming,
+        });
+      }
 
-          await onFinish({ text, metrics });
-        }
-      : undefined,
+      if (onFinish) {
+        attachTurnTrace(metrics);
+        await onFinish({ text, metrics });
+      }
+    },
     onStepEnd: (step: StepResult<ToolSet>) => {
       const stepFinishedAt = Date.now();
       const stepElapsedMs = Math.max(
@@ -2012,6 +2039,7 @@ export async function streamChat({
 
 export interface PrepareChatTurnOptions {
   userId: string;
+  abortSignal?: AbortSignal;
   chatId?: string;
   conversationThreadId: string;
   userMessageId: string;
@@ -2049,6 +2077,7 @@ export interface PreparedChatTurn {
  */
 export async function prepareChatTurn({
   userId,
+  abortSignal,
   chatId,
   conversationThreadId,
   userMessageId,
@@ -2060,6 +2089,7 @@ export async function prepareChatTurn({
   effectiveEntitlements: prefetchedEntitlements,
   skipConversationHistory = false,
 }: PrepareChatTurnOptions): Promise<PreparedChatTurn> {
+  abortSignal?.throwIfAborted();
   const effectiveEntitlements =
     prefetchedEntitlements ??
     (await resolveEffectiveEntitlements({
@@ -2074,7 +2104,9 @@ export async function prepareChatTurn({
     userId,
     userMessage,
     webSearchRule,
+    abortSignal,
   });
+  abortSignal?.throwIfAborted();
   const turnPlanInput = {
     userMessage,
     isGuest: false,
@@ -2214,6 +2246,7 @@ export async function prepareChatTurn({
 
 export interface ExecutePreparedChatTurnOptions {
   prepared: PreparedChatTurn;
+  abortSignal?: AbortSignal;
   modelId: string;
   generationConfig: {
     temperature?: number;
@@ -2236,6 +2269,7 @@ export interface ExecutePreparedChatTurnOptions {
 
 export function executePreparedChatTurn({
   prepared,
+  abortSignal,
   modelId,
   generationConfig,
   clerkId,
@@ -2253,24 +2287,23 @@ export function executePreparedChatTurn({
     [key: string]: unknown;
   };
   const reasoning = generationConfig.reasoning;
-  const model = withTracing(getModelById(modelId), getPostHogClient(), {
-    posthogDistinctId: clerkId,
-    posthogTraceId: traceId,
-    posthogProperties: {
-      conversationId: prepared.chatId,
-      experimentId,
-      pairId,
-      experimentRole: role,
-      modelId,
-      planId: prepared.planId ?? "free",
-      effectiveModelTier: prepared.effectiveModelTier,
-      userRole: prepared.userRole ?? "USER",
-      promptMode: prepared.promptMode,
-    },
-  });
+  const model = getModelById(modelId);
+  const telemetryContext: AiGenerationTelemetryContext = {
+    distinctId: clerkId,
+    traceId,
+    conversationId: prepared.chatId,
+    experimentId,
+    pairId,
+    experimentRole: role,
+    planId: prepared.planId,
+    effectiveModelTier: prepared.effectiveModelTier,
+    userRole: prepared.userRole,
+    promptMode: prepared.promptMode,
+  };
 
   return streamText({
     model,
+    abortSignal,
     instructions: prepared.systemPrompt,
     messages: prepared.messages,
     temperature: generationConfig.temperature,
@@ -2297,33 +2330,35 @@ export function executePreparedChatTurn({
         onFirstToken?.(Date.now() - startTime);
       }
     },
-    onEnd: onFinish
-      ? async ({ text, usage, totalUsage, providerMetadata }) => {
-          const meteredUsage = totalUsage ?? usage;
-          const metrics = await extractAIMetrics(modelId, startTime, {
-            text,
-            usage: {
-              promptTokens: meteredUsage?.inputTokens,
-              completionTokens: meteredUsage?.outputTokens,
-              totalTokens: meteredUsage?.totalTokens,
-            },
-            providerMetadata: providerMetadata as Record<string, unknown>,
-            preferProviderUsage: !totalUsage,
-            ragUsed: prepared.ragUsed,
-            ragChunksCount: prepared.ragChunksCount,
-          });
-          metrics.turnPlan = prepared.turnPlan as unknown as Record<
-            string,
-            unknown
-          >;
-          metrics.tracePayload = {
-            userMessage: prepared.userMessage,
-            systemPrompt: prepared.systemPrompt,
-            messages: prepared.messages as unknown as Record<string, unknown>,
-          };
-          await onFinish({ text, metrics });
-        }
-      : undefined,
+    onEnd: async ({ text, usage, totalUsage, providerMetadata }) => {
+      const meteredUsage = totalUsage ?? usage;
+      const metrics = await extractAIMetrics(modelId, startTime, {
+        text,
+        usage: {
+          promptTokens: meteredUsage?.inputTokens,
+          completionTokens: meteredUsage?.outputTokens,
+          totalTokens: meteredUsage?.totalTokens,
+        },
+        providerMetadata: providerMetadata as Record<string, unknown>,
+        preferProviderUsage: !totalUsage,
+        ragUsed: prepared.ragUsed,
+        ragChunksCount: prepared.ragChunksCount,
+      });
+      captureAiGenerationMetadata({ context: telemetryContext, metrics });
+
+      if (onFinish) {
+        metrics.turnPlan = prepared.turnPlan as unknown as Record<
+          string,
+          unknown
+        >;
+        metrics.tracePayload = {
+          userMessage: prepared.userMessage,
+          systemPrompt: prepared.systemPrompt,
+          messages: prepared.messages as unknown as Record<string, unknown>,
+        };
+        await onFinish({ text, metrics });
+      }
+    },
   });
 }
 

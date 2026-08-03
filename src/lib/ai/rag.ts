@@ -208,10 +208,16 @@ async function generateEmbeddings(
  * Search for relevant document chunks based on a query.
  * Uses cosine similarity for semantic search with pgvector.
  */
+export interface RagSearchResult {
+  content: string;
+  title: string;
+  similarity: number;
+}
+
 export async function searchDocuments(
   query: string,
   limit: number = 5,
-): Promise<Array<{ content: string; title: string; similarity: number }>> {
+): Promise<RagSearchResult[]> {
   try {
     // Generate embedding for the query
     const queryEmbedding = await generateEmbedding(query);
@@ -271,9 +277,7 @@ export interface RagContext {
 /**
  * Format RAG results into a context string for the system prompt.
  */
-function formatRagContext(
-  results: Array<{ content: string; title: string; similarity: number }>,
-): string {
+function formatRagContext(results: RagSearchResult[]): string {
   if (results.length === 0) {
     return "Nessun documento rilevante trovato.";
   }
@@ -298,6 +302,10 @@ function formatRagContext(
  */
 export async function getRagContext(query: string): Promise<RagContext> {
   const results = await searchDocuments(query);
+  return buildRagContext(results);
+}
+
+export function buildRagContext(results: RagSearchResult[]): RagContext {
   return {
     text: formatRagContext(results),
     chunkCount: results.length,

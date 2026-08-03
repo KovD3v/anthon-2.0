@@ -11,15 +11,21 @@ const mocks = vi.hoisted(() => ({
   chatFindFirst: vi.fn(),
   chatUpdate: vi.fn(),
   transaction: vi.fn(),
+  messageFindUnique: vi.fn(),
+  modelExperimentPairFindUnique: vi.fn(),
   messageCreate: vi.fn(),
   messageMetricsCreate: vi.fn(),
   voiceGenerationJobCreate: vi.fn(),
   messageCount: vi.fn(),
-  attachmentFindFirst: vi.fn(),
   attachmentCreate: vi.fn(),
-  attachmentUpdate: vi.fn(),
+  attachmentFindMany: vi.fn(),
+  attachmentUpdateMany: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
+  reserveAiUsage: vi.fn(),
+  releaseAiUsageReservation: vi.fn(),
+  reconcileAiUsageInTransaction: vi.fn(),
+  reconcileAiUsageForRecovery: vi.fn(),
   streamChat: vi.fn(),
   generateChatTitle: vi.fn(),
   extractAndSaveMemories: vi.fn(),
@@ -28,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   syncPersonalSubscriptionFromClerk: vi.fn(),
   decideWebVoiceMode: vi.fn(),
   getVoiceUnavailability: vi.fn(),
+  loadTrustedRemoteMedia: vi.fn(),
   transcribeAudio: vi.fn(),
   generateVoice: vi.fn(),
   trackVoiceUsage: vi.fn(),
@@ -69,16 +76,20 @@ vi.mock("@/lib/db", () => ({
       update: mocks.chatUpdate,
     },
     message: {
+      findUnique: mocks.messageFindUnique,
       create: mocks.messageCreate,
       count: mocks.messageCount,
+    },
+    modelExperimentPair: {
+      findUnique: mocks.modelExperimentPairFindUnique,
     },
     messageMetrics: {
       create: mocks.messageMetricsCreate,
     },
     attachment: {
-      findFirst: mocks.attachmentFindFirst,
       create: mocks.attachmentCreate,
-      update: mocks.attachmentUpdate,
+      findMany: mocks.attachmentFindMany,
+      updateMany: mocks.attachmentUpdateMany,
     },
   },
 }));
@@ -90,6 +101,10 @@ vi.mock("@/lib/conversations/threads", () => ({
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: mocks.checkRateLimit,
   incrementUsage: mocks.incrementUsage,
+  reserveAiUsage: mocks.reserveAiUsage,
+  releaseAiUsageReservation: mocks.releaseAiUsageReservation,
+  reconcileAiUsageInTransaction: mocks.reconcileAiUsageInTransaction,
+  reconcileAiUsageForRecovery: mocks.reconcileAiUsageForRecovery,
 }));
 
 vi.mock("@/lib/ai/orchestrator", () => ({
@@ -114,6 +129,11 @@ vi.mock("@/lib/billing/personal-subscription", () => ({
   syncPersonalSubscriptionFromClerk: mocks.syncPersonalSubscriptionFromClerk,
 }));
 
+vi.mock("@/lib/ai/multimodal-media", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ai/multimodal-media")>()),
+  loadTrustedRemoteMedia: mocks.loadTrustedRemoteMedia,
+}));
+
 vi.mock("@/lib/transcription", () => ({
   transcribeAudio: mocks.transcribeAudio,
 }));
@@ -135,13 +155,68 @@ vi.mock("@/lib/voice/generation-jobs", () => ({
   withVoiceGenerationStatus: mocks.withVoiceGenerationStatus,
 }));
 
+import { getWebClientPayloadHash } from "@/lib/channel-flow/web-inbound";
 import { POST } from "./route";
 
+const TRUSTED_BLOB_ORIGIN = "https://store.public.blob.vercel-storage.com";
+const VALID_WAV_BYTES = Buffer.from([
+  0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45,
+]);
+const VALID_MP3_BYTES = Buffer.from("ID3safe audio");
+const CLIENT_AUDIO_BYTES = Buffer.from("client-controlled audio bytes");
+
+function canonicalAttachment(
+  id: string,
+  overrides: Partial<{
+    name: string;
+    contentType: string;
+    size: number;
+    blobUrl: string;
+    messageId: string | null;
+  }> = {},
+) {
+  return {
+    id,
+    name: `${id}.png`,
+    contentType: "image/png",
+    size: 4,
+    blobUrl: `${TRUSTED_BLOB_ORIGIN}/${id}.png`,
+    messageId: null,
+    ...overrides,
+  };
+}
+
 function buildRequest(body: unknown): Request {
+  const normalizedBody =
+    body && typeof body === "object" && !Array.isArray(body)
+      ? {
+          ...(body as Record<string, unknown>),
+          ...("messages" in body && Array.isArray(body.messages)
+            ? {
+                messages: body.messages.map((message, index) =>
+                  message &&
+                  typeof message === "object" &&
+                  (message as { role?: unknown }).role === "user" &&
+                  !("id" in message)
+                    ? { ...message, id: `client-user-${index}` }
+                    : message,
+                ),
+              }
+            : {}),
+        }
+      : body;
   return new Request("http://localhost/api/chat", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify(normalizedBody),
     headers: { "Content-Type": "application/json" },
+  });
+}
+
+function emptyUiStream() {
+  return new ReadableStream({
+    start(controller) {
+      controller.close();
+    },
   });
 }
 
@@ -205,15 +280,21 @@ describe("POST /api/chat", () => {
     mocks.chatFindFirst.mockReset();
     mocks.chatUpdate.mockReset();
     mocks.transaction.mockReset();
+    mocks.messageFindUnique.mockReset();
+    mocks.modelExperimentPairFindUnique.mockReset();
     mocks.messageCreate.mockReset();
     mocks.messageMetricsCreate.mockReset();
     mocks.voiceGenerationJobCreate.mockReset();
     mocks.messageCount.mockReset();
-    mocks.attachmentFindFirst.mockReset();
     mocks.attachmentCreate.mockReset();
-    mocks.attachmentUpdate.mockReset();
+    mocks.attachmentFindMany.mockReset();
+    mocks.attachmentUpdateMany.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
+    mocks.reserveAiUsage.mockReset();
+    mocks.releaseAiUsageReservation.mockReset();
+    mocks.reconcileAiUsageInTransaction.mockReset();
+    mocks.reconcileAiUsageForRecovery.mockReset();
     mocks.streamChat.mockReset();
     mocks.generateChatTitle.mockReset();
     mocks.extractAndSaveMemories.mockReset();
@@ -222,6 +303,7 @@ describe("POST /api/chat", () => {
     mocks.syncPersonalSubscriptionFromClerk.mockReset();
     mocks.decideWebVoiceMode.mockReset();
     mocks.getVoiceUnavailability.mockReset();
+    mocks.loadTrustedRemoteMedia.mockReset();
     mocks.transcribeAudio.mockReset();
     mocks.generateVoice.mockReset();
     mocks.trackVoiceUsage.mockReset();
@@ -241,6 +323,7 @@ describe("POST /api/chat", () => {
     mocks.transaction.mockImplementation(async (callback) =>
       callback({
         message: {
+          findUnique: mocks.messageFindUnique,
           create: mocks.messageCreate,
           count: mocks.messageCount,
         },
@@ -250,8 +333,22 @@ describe("POST /api/chat", () => {
         voiceGenerationJob: {
           create: mocks.voiceGenerationJobCreate,
         },
+        attachment: {
+          updateMany: mocks.attachmentUpdateMany,
+        },
       }),
     );
+
+    mocks.messageFindUnique.mockResolvedValue(null);
+    mocks.modelExperimentPairFindUnique.mockResolvedValue(null);
+    mocks.reserveAiUsage.mockResolvedValue({
+      allowed: true,
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+    });
+    mocks.releaseAiUsageReservation.mockResolvedValue(true);
+    mocks.reconcileAiUsageInTransaction.mockResolvedValue({ charged: true });
+    mocks.reconcileAiUsageForRecovery.mockResolvedValue({ charged: true });
 
     mocks.auth.mockResolvedValue({ userId: "clerk_1" });
     mocks.userFindUnique.mockResolvedValue({
@@ -293,15 +390,18 @@ describe("POST /api/chat", () => {
     mocks.voiceGenerationJobCreate.mockResolvedValue({ id: "voice-job-1" });
     mocks.messageCount.mockResolvedValue(1);
     mocks.chatUpdate.mockResolvedValue({});
-    mocks.attachmentFindFirst.mockImplementation(
-      async (input: { where?: { id?: string } }) => ({
-        id: input.where?.id || "att-1",
-        messageId: null,
-        blobUrl: "https://blob.example/attachments/user-1/chat-1/file.png",
-        message: null,
+    mocks.attachmentUpdateMany.mockImplementation(
+      async ({ where }: { where: { id: string | { in: string[] } } }) => ({
+        count:
+          typeof where.id === "object" && "in" in where.id
+            ? new Set(where.id.in).size
+            : 1,
       }),
     );
-    mocks.attachmentUpdate.mockResolvedValue({});
+    mocks.attachmentFindMany.mockImplementation(
+      async ({ where }: { where: { id: { in: string[] } } }) =>
+        where.id.in.map((id) => canonicalAttachment(id)),
+    );
     mocks.attachmentCreate.mockResolvedValue({ id: "att-voice-1" });
     mocks.incrementUsage.mockResolvedValue({});
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
@@ -326,6 +426,10 @@ describe("POST /api/chat", () => {
           ? "Voice is temporarily unavailable, so I'm replying in text."
           : `Voice unavailable: ${code}`,
     }));
+    mocks.loadTrustedRemoteMedia.mockImplementation(
+      async ({ mediaType }: { mediaType: string }) =>
+        mediaType === "audio/mpeg" ? VALID_MP3_BYTES : VALID_WAV_BYTES,
+    );
     mocks.transcribeAudio.mockResolvedValue({
       text: "trascrizione del vocale",
       provider: "openrouter-gemini",
@@ -350,6 +454,7 @@ describe("POST /api/chat", () => {
     );
     mocks.trackVoiceUsage.mockResolvedValue(undefined);
     mocks.streamChat.mockResolvedValue({
+      toUIMessageStream: emptyUiStream,
       toUIMessageStreamResponse: () =>
         Response.json({ ok: true, stream: true }, { status: 200 }),
     });
@@ -683,12 +788,26 @@ describe("POST /api/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
       },
     );
     mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-1", {
+        name: "canonical-image.png",
+        size: 42,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-image.png`,
+      }),
+      canonicalAttachment("att-2", {
+        name: "canonical-voice.mp3",
+        contentType: "audio/mpeg",
+        size: VALID_MP3_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.mp3`,
+      }),
+    ]);
 
     const response = await POST(
       buildRequest({
@@ -704,7 +823,7 @@ describe("POST /api/chat", () => {
                 mimeType: "image/png",
                 name: "image.png",
                 size: 42,
-                data: "data:image",
+                data: "https://127.0.0.1/private.png",
               },
               {
                 type: "file",
@@ -712,7 +831,7 @@ describe("POST /api/chat", () => {
                 mimeType: "audio/mpeg",
                 name: "voice.mp3",
                 size: 99,
-                data: "data:audio",
+                data: `data:audio/mpeg;base64,${CLIENT_AUDIO_BYTES.toString("base64")}`,
               },
             ],
           },
@@ -722,49 +841,47 @@ describe("POST /api/chat", () => {
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true, stream: true });
+    await expect(response.text()).resolves.toContain("[DONE]");
 
-    expect(mocks.messageCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        userId: "user-1",
-        chatId: "chat-1",
-        role: "USER",
-        direction: "INBOUND",
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "user-1",
+          chatId: "chat-1",
+          role: "USER",
+          direction: "INBOUND",
+        }),
       }),
-    });
-    expect(mocks.attachmentUpdate).toHaveBeenNthCalledWith(1, {
-      where: { id: "att-1" },
-      data: { messageId: "msg-user-123" },
-    });
-    expect(mocks.attachmentUpdate).toHaveBeenNthCalledWith(2, {
-      where: { id: "att-2" },
-      data: { messageId: "msg-user-123" },
-    });
-    expect(mocks.attachmentFindFirst).toHaveBeenNthCalledWith(1, {
-      where: { id: "att-1" },
-      select: {
-        id: true,
-        messageId: true,
-        blobUrl: true,
-        message: {
-          select: {
-            userId: true,
-          },
-        },
+    );
+    const persistedParts = mocks.messageCreate.mock.calls[0]?.[0].data.parts;
+    expect(persistedParts).toEqual([
+      { type: "text", text: "hello" },
+      expect.objectContaining({
+        attachmentId: "att-1",
+        data: `${TRUSTED_BLOB_ORIGIN}/canonical-image.png`,
+        mimeType: "image/png",
+        name: "canonical-image.png",
+        size: 42,
+      }),
+      expect.objectContaining({
+        attachmentId: "att-2",
+        data: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.mp3`,
+        mimeType: "audio/mpeg",
+        name: "canonical-voice.mp3",
+        size: VALID_MP3_BYTES.byteLength,
+      }),
+    ]);
+    expect(JSON.stringify(persistedParts)).not.toContain("127.0.0.1");
+    expect(JSON.stringify(persistedParts)).not.toContain(
+      CLIENT_AUDIO_BYTES.toString("base64"),
+    );
+    expect(mocks.attachmentUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ["att-1", "att-2"] },
+        userId: "user-1",
+        messageId: null,
       },
-    });
-    expect(mocks.attachmentFindFirst).toHaveBeenNthCalledWith(2, {
-      where: { id: "att-2" },
-      select: {
-        id: true,
-        messageId: true,
-        blobUrl: true,
-        message: {
-          select: {
-            userId: true,
-          },
-        },
-      },
+      data: { messageId: "msg-user-123" },
     });
 
     expect(streamArgs).toMatchObject({
@@ -781,6 +898,9 @@ describe("POST /api/chat", () => {
           type: "file",
           attachmentId: "att-1",
           mimeType: "image/png",
+          data: `${TRUSTED_BLOB_ORIGIN}/canonical-image.png`,
+          name: "canonical-image.png",
+          size: 42,
         }),
         expect.objectContaining({
           type: "text",
@@ -789,12 +909,31 @@ describe("POST /api/chat", () => {
       ],
     });
     expect(mocks.transcribeAudio).toHaveBeenCalledWith({
-      base64: "data:audio",
+      base64: VALID_MP3_BYTES.toString("base64"),
       mimeType: "audio/mpeg",
       title: "Web Chat",
       userId: "user-1",
       source: "WEB",
     });
+    expect(mocks.loadTrustedRemoteMedia).toHaveBeenCalledWith({
+      url: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.mp3`,
+      mediaType: "audio/mpeg",
+      expectedSize: VALID_MP3_BYTES.byteLength,
+    });
+    expect(mocks.messageCreate.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.loadTrustedRemoteMedia.mock.invocationCallOrder[0] ?? Infinity,
+    );
+    expect(mocks.attachmentUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.loadTrustedRemoteMedia.mock.invocationCallOrder[0] ?? Infinity,
+    );
+    expect(
+      mocks.loadTrustedRemoteMedia.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      mocks.transcribeAudio.mock.invocationCallOrder[0] ?? Infinity,
+    );
+    expect(mocks.transcribeAudio.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.streamChat.mock.invocationCallOrder[0] ?? Infinity,
+    );
     expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-1",
@@ -818,6 +957,7 @@ describe("POST /api/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -857,6 +997,7 @@ describe("POST /api/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -886,11 +1027,20 @@ describe("POST /api/chat", () => {
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
       },
     );
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-image-url", {
+        name: "canonical-photo.jpg",
+        contentType: "image/jpeg",
+        size: 987,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-photo.jpg`,
+      }),
+    ]);
 
     const response = await POST(
       buildRequest({
@@ -905,7 +1055,7 @@ describe("POST /api/chat", () => {
                 mimeType: "image/png",
                 name: "photo.png",
                 size: 1234,
-                url: "https://blob.example/uploads/user-1/chat-1/photo.png",
+                url: "http://127.0.0.1/private.png",
               },
             ],
           },
@@ -923,27 +1073,36 @@ describe("POST /api/chat", () => {
         { type: "text", text: "che vedi?" },
         {
           type: "file",
-          data: "https://blob.example/uploads/user-1/chat-1/photo.png",
-          mimeType: "image/png",
-          name: "photo.png",
-          size: 1234,
+          data: `${TRUSTED_BLOB_ORIGIN}/canonical-photo.jpg`,
+          mimeType: "image/jpeg",
+          name: "canonical-photo.jpg",
+          size: 987,
           attachmentId: "att-image-url",
         },
       ],
     });
   });
 
-  it("keeps image data urls supported as file payloads", async () => {
+  it("discards client image data URLs in favor of canonical blob metadata", async () => {
     let streamArgs: Record<string, unknown> | undefined;
     mocks.streamChat.mockImplementation(
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
       },
     );
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-image-data-url", {
+        name: "camera.jpg",
+        contentType: "image/jpeg",
+        size: 321,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-camera.jpg`,
+      }),
+    ]);
 
     const response = await POST(
       buildRequest({
@@ -974,10 +1133,70 @@ describe("POST /api/chat", () => {
       messageParts: [
         expect.objectContaining({
           type: "file",
-          data: "data:image/jpeg;base64,aW1hZ2UtYmFzZTY0",
+          data: `${TRUSTED_BLOB_ORIGIN}/canonical-camera.jpg`,
           mimeType: "image/jpeg",
+          name: "camera.jpg",
+          size: 321,
         }),
       ],
+    });
+  });
+
+  it("recomputes media flags from canonical attachment metadata", async () => {
+    let streamArgs: Record<string, unknown> | undefined;
+    mocks.streamChat.mockImplementation(
+      async (args: Record<string, unknown>) => {
+        streamArgs = args;
+        return {
+          toUIMessageStream: emptyUiStream,
+          toUIMessageStreamResponse: () =>
+            Response.json({ ok: true, stream: true }, { status: 200 }),
+        };
+      },
+    );
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-canonical-audio", {
+        name: "canonical.wav",
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical.wav`,
+      }),
+    ]);
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [
+              {
+                type: "file",
+                attachmentId: "att-canonical-audio",
+                mimeType: "image/png",
+                name: "client-spoof.png",
+                size: 999,
+                url: `data:audio/wav;base64,${VALID_WAV_BYTES.toString("base64")}`,
+              },
+            ],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.transcribeAudio).toHaveBeenCalledWith(
+      expect.objectContaining({
+        base64: VALID_WAV_BYTES.toString("base64"),
+        mimeType: "audio/wav",
+      }),
+    );
+    expect(streamArgs).toMatchObject({
+      hasImages: false,
+      hasAudio: false,
+      inputOrigin: "transcribed_voice",
+      userMessage:
+        "Trascrizione del messaggio vocale:\ntrascrizione del vocale",
     });
   });
 
@@ -1035,7 +1254,7 @@ describe("POST /api/chat", () => {
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true, stream: true });
+    await expect(response.text()).resolves.toContain("[DONE]");
     expect(mocks.generateChatTitle).toHaveBeenCalledWith("USER: first prompt", {
       userId: "user-1",
     });
@@ -1201,6 +1420,7 @@ describe("POST /api/chat", () => {
         },
       });
       return {
+        toUIMessageStream: emptyUiStream,
         toUIMessageStreamResponse: () =>
           Response.json({ ok: true, stream: true }, { status: 200 }),
       };
@@ -1463,18 +1683,27 @@ describe("POST /api/chat", () => {
     expect(mocks.scheduleVoiceGenerationJob).toHaveBeenCalledTimes(1);
   });
 
-  it("transcribes audio data-url fields before the AI flow", async () => {
+  it("transcribes validated bytes from the canonical Blob URL before the AI flow", async () => {
     let streamArgs: Record<string, unknown> | undefined;
     mocks.streamChat.mockImplementation(
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: emptyUiStream,
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
       },
     );
     mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-voice", {
+        name: "canonical-voice.wav",
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.wav`,
+      }),
+    ]);
 
     const response = await POST(
       buildRequest({
@@ -1488,7 +1717,7 @@ describe("POST /api/chat", () => {
                 mimeType: "audio/wav",
                 name: "voice.wav",
                 size: 99,
-                url: "data:audio/wav;base64,dm9pY2UtYmFzZTY0",
+                url: `data:audio/wav;base64,${CLIENT_AUDIO_BYTES.toString("base64")}`,
               },
             ],
           },
@@ -1516,16 +1745,34 @@ describe("POST /api/chat", () => {
       }),
     );
     expect(mocks.transcribeAudio).toHaveBeenCalledWith({
-      base64: "dm9pY2UtYmFzZTY0",
+      base64: VALID_WAV_BYTES.toString("base64"),
       mimeType: "audio/wav",
       title: "Web Chat",
       userId: "user-1",
       source: "WEB",
     });
+    expect(mocks.transcribeAudio).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        base64: CLIENT_AUDIO_BYTES.toString("base64"),
+      }),
+    );
+    expect(mocks.loadTrustedRemoteMedia).toHaveBeenCalledWith({
+      url: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.wav`,
+      mediaType: "audio/wav",
+      expectedSize: VALID_WAV_BYTES.byteLength,
+    });
   });
 
   it("returns a transcription error without calling the AI flow", async () => {
     mocks.transcribeAudio.mockRejectedValue(new Error("provider down"));
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-voice", {
+        name: "canonical-voice.wav",
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.wav`,
+      }),
+    ]);
 
     const response = await POST(
       buildRequest({
@@ -1539,7 +1786,7 @@ describe("POST /api/chat", () => {
                 mimeType: "audio/wav",
                 name: "voice.wav",
                 size: 99,
-                url: "data:audio/wav;base64,dm9pY2UtYmFzZTY0",
+                url: `data:audio/wav;base64,${VALID_WAV_BYTES.toString("base64")}`,
               },
             ],
           },
@@ -1553,12 +1800,27 @@ describe("POST /api/chat", () => {
       error:
         "Non sono riuscito a trascrivere l'audio in questo momento. Riprova o invia un messaggio testuale.",
     });
-    expect(mocks.messageCreate).not.toHaveBeenCalled();
+    expect(mocks.messageCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.attachmentUpdateMany).toHaveBeenCalledTimes(1);
+    expect(mocks.messageCreate.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.loadTrustedRemoteMedia.mock.invocationCallOrder[0] ?? Infinity,
+    );
+    expect(mocks.attachmentUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.transcribeAudio.mock.invocationCallOrder[0] ?? Infinity,
+    );
     expect(mocks.streamChat).not.toHaveBeenCalled();
     expect(mocks.decideWebVoiceMode).not.toHaveBeenCalled();
   });
 
-  it("returns 400 for unsupported non-image file urls before side effects", async () => {
+  it("ignores a client remote audio URL and transcribes the canonical Blob", async () => {
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-voice", {
+        name: "canonical-voice.wav",
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.wav`,
+      }),
+    ]);
     const response = await POST(
       buildRequest({
         messages: [
@@ -1581,31 +1843,36 @@ describe("POST /api/chat", () => {
       }),
     );
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      error: "Unsupported file payload",
+    expect(response.status).toBe(200);
+    expect(mocks.userFindUnique).toHaveBeenCalledTimes(1);
+    expect(mocks.checkRateLimit).toHaveBeenCalledTimes(1);
+    expect(mocks.attachmentFindMany).toHaveBeenCalledWith({
+      where: { id: { in: ["att-voice"] }, userId: "user-1" },
+      select: {
+        id: true,
+        name: true,
+        contentType: true,
+        size: true,
+        blobUrl: true,
+        messageId: true,
+      },
     });
-    expect(mocks.userFindUnique).not.toHaveBeenCalled();
-    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
-    expect(mocks.messageCreate).not.toHaveBeenCalled();
-    expect(mocks.decideWebVoiceMode).not.toHaveBeenCalled();
+    expect(mocks.loadTrustedRemoteMedia).toHaveBeenCalledWith({
+      url: `${TRUSTED_BLOB_ORIGIN}/canonical-voice.wav`,
+      mediaType: "audio/wav",
+      expectedSize: VALID_WAV_BYTES.byteLength,
+    });
+    expect(mocks.transcribeAudio).toHaveBeenCalledWith(
+      expect.objectContaining({
+        base64: VALID_WAV_BYTES.toString("base64"),
+      }),
+    );
+    expect(mocks.messageCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.decideWebVoiceMode).toHaveBeenCalledTimes(1);
   });
 
-  it("skips linking attachments that are not owned by the current user", async () => {
-    mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
-    mocks.attachmentFindFirst
-      .mockResolvedValueOnce({
-        id: "att-1",
-        messageId: null,
-        blobUrl: "https://blob.example/uploads/user-1/file-a.png",
-        message: null,
-      })
-      .mockResolvedValueOnce({
-        id: "att-2",
-        messageId: "msg-other",
-        blobUrl: "https://blob.example/attachments/user-2/chat-9/file-b.png",
-        message: { userId: "user-2" },
-      });
+  it("rejects the whole message when any attachment is not owned", async () => {
+    mocks.attachmentFindMany.mockResolvedValue([canonicalAttachment("att-1")]);
 
     const response = await POST(
       buildRequest({
@@ -1623,20 +1890,175 @@ describe("POST /api/chat", () => {
       }),
     );
 
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid or inaccessible attachment",
+    });
+    expect(mocks.attachmentFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ["att-1", "att-2"] }, userId: "user-1" },
+      }),
+    );
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
+    expect(mocks.attachmentUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+  });
+
+  it("rejects an attachment linked to a different inbound before Blob access", async () => {
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-linked", {
+        name: "linked.wav",
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/linked.wav`,
+        messageId: "different-inbound",
+      }),
+    ]);
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [{ type: "file", attachmentId: "att-linked" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
+    expect(mocks.loadTrustedRemoteMedia).not.toHaveBeenCalled();
+    expect(mocks.transcribeAudio).not.toHaveBeenCalled();
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+  });
+
+  it("allows an exact retry to reuse the attachment linked to its inbound", async () => {
+    const clientParts = [
+      {
+        type: "file",
+        attachmentId: "att-linked",
+        url: `data:audio/wav;base64,${CLIENT_AUDIO_BYTES.toString("base64")}`,
+      },
+    ];
+    mocks.messageFindUnique.mockResolvedValue({
+      id: "inbound-existing",
+      userId: "user-1",
+      chatId: "chat-1",
+      conversationThreadId: "thread-1",
+      clientMessagePayloadHash: getWebClientPayloadHash(clientParts),
+      parts: [
+        {
+          type: "file",
+          attachmentId: "att-linked",
+          data: `${TRUSTED_BLOB_ORIGIN}/linked.wav`,
+          mimeType: "audio/wav",
+          name: "linked.wav",
+          size: VALID_WAV_BYTES.byteLength,
+        },
+      ],
+      generatedResponse: null,
+    });
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-linked", {
+        name: "linked.wav",
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/linked.wav`,
+        messageId: "inbound-existing",
+      }),
+    ]);
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            id: "client-retry-1",
+            role: "user",
+            parts: clientParts,
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
     expect(response.status).toBe(200);
-    expect(mocks.attachmentUpdate).toHaveBeenCalledTimes(1);
-    expect(mocks.attachmentUpdate).toHaveBeenCalledWith({
-      where: { id: "att-1" },
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
+    expect(mocks.attachmentUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.loadTrustedRemoteMedia).toHaveBeenCalledWith({
+      url: `${TRUSTED_BLOB_ORIGIN}/linked.wav`,
+      mediaType: "audio/wav",
+      expectedSize: VALID_WAV_BYTES.byteLength,
+    });
+    expect(mocks.transcribeAudio).toHaveBeenCalledTimes(1);
+    expect(mocks.streamChat).toHaveBeenCalledTimes(1);
+  });
+
+  it("rolls back the inbound claim when any attachment cannot be linked", async () => {
+    mocks.messageCreate.mockResolvedValueOnce({ id: "msg-user-123" });
+    mocks.attachmentFindMany.mockResolvedValue([
+      canonicalAttachment("att-linked", {
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/linked.wav`,
+      }),
+      canonicalAttachment("att-pending", {
+        contentType: "audio/wav",
+        size: VALID_WAV_BYTES.byteLength,
+        blobUrl: `${TRUSTED_BLOB_ORIGIN}/pending.wav`,
+      }),
+    ]);
+    mocks.attachmentUpdateMany
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [
+              { type: "text", text: "hello" },
+              { type: "file", attachmentId: "att-linked" },
+              { type: "file", attachmentId: "att-pending" },
+              { type: "file", attachmentId: "att-pending" },
+            ],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    expect(mocks.attachmentUpdateMany).toHaveBeenCalledTimes(1);
+    expect(mocks.attachmentUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ["att-linked", "att-pending"] },
+        userId: "user-1",
+        messageId: null,
+      },
       data: { messageId: "msg-user-123" },
     });
+    expect(mocks.loadTrustedRemoteMedia).not.toHaveBeenCalled();
+    expect(mocks.transcribeAudio).not.toHaveBeenCalled();
+    expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
   it("runs onFinish side effects for assistant message, usage, cache tags, and memories", async () => {
     let streamArgs: Record<string, unknown> | undefined;
+    let closeUiStream: (() => void) | undefined;
     mocks.streamChat.mockImplementation(
       async (args: Record<string, unknown>) => {
         streamArgs = args;
         return {
+          toUIMessageStream: () =>
+            new ReadableStream({
+              start(controller) {
+                closeUiStream = () => controller.close();
+              },
+            }),
           toUIMessageStreamResponse: () =>
             Response.json({ ok: true, stream: true }, { status: 200 }),
         };
@@ -1654,6 +2076,8 @@ describe("POST /api/chat", () => {
       }),
     );
     expect(response.status).toBe(200);
+    const responseBody = response.text();
+    await vi.waitFor(() => expect(closeUiStream).toBeTypeOf("function"));
 
     const onFinish = streamArgs?.onFinish as
       | ((input: {
@@ -1691,6 +2115,8 @@ describe("POST /api/chat", () => {
         reasoningTimeMs: 78,
       },
     });
+    closeUiStream?.();
+    await responseBody;
 
     expect(mocks.messageCreate).toHaveBeenNthCalledWith(
       2,
@@ -1704,13 +2130,23 @@ describe("POST /api/chat", () => {
         }),
       }),
     );
-    expect(mocks.incrementUsage).toHaveBeenCalledWith(
-      "user-1",
-      111,
-      222,
-      0.123,
-      10,
+    expect(mocks.reconcileAiUsageInTransaction).toHaveBeenCalledWith(
+      expect.any(Object),
+      {
+        reservationId: "reservation-1",
+        claimToken: "claim-1",
+        userId: "user-1",
+        metrics: expect.objectContaining({
+          inputTokens: 111,
+          outputTokens: 222,
+          costUsd: 0.123,
+          reasoningTokens: 10,
+        }),
+        assistantMessageId: "msg-assistant-1",
+        allowAlreadyReconciled: false,
+      },
     );
+    expect(mocks.incrementUsage).not.toHaveBeenCalled();
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "max");
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "max");
     expect(mocks.extractAndSaveMemories).toHaveBeenCalledWith(

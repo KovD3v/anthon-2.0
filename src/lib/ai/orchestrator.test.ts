@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  withTracing: vi.fn(),
+  captureAiGenerationMetadata: vi.fn(),
+  dnsLookup: vi.fn(),
   createUIMessageStream: vi.fn(),
   createUIMessageStreamResponse: vi.fn(),
   generateText: vi.fn(),
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   getRagContext: vi.fn(),
   shouldUseRag: vi.fn(),
   buildConversationContext: vi.fn(),
+  buildThreadContext: vi.fn(),
   createMemoryTools: vi.fn(),
   formatMemoriesForPrompt: vi.fn(),
   createTinyfishTools: vi.fn(),
@@ -24,14 +26,13 @@ const mocks = vi.hoisted(() => ({
   formatUserContextForPrompt: vi.fn(),
   measure: vi.fn(),
   resolveEffectiveEntitlements: vi.fn(),
-  getPostHogClient: vi.fn(),
   getVoicePlanConfig: vi.fn(),
   openrouter: vi.fn(),
   trackSupportAiUsage: vi.fn(),
 }));
 
-vi.mock("@posthog/ai", () => ({
-  withTracing: mocks.withTracing,
+vi.mock("node:dns/promises", () => ({
+  lookup: mocks.dnsLookup,
 }));
 
 vi.mock("ai", () => ({
@@ -47,6 +48,10 @@ vi.mock("ai", () => ({
 
 vi.mock("@/lib/ai/cost-calculator", () => ({
   extractAIMetrics: mocks.extractAIMetrics,
+}));
+
+vi.mock("@/lib/ai/telemetry", () => ({
+  captureAiGenerationMetadata: mocks.captureAiGenerationMetadata,
 }));
 
 vi.mock("@/lib/ai/providers/openrouter", () => ({
@@ -67,6 +72,10 @@ vi.mock("@/lib/ai/rag", () => ({
 
 vi.mock("@/lib/ai/session-manager", () => ({
   buildConversationContext: mocks.buildConversationContext,
+}));
+
+vi.mock("@/lib/ai/thread-context", () => ({
+  buildThreadContext: mocks.buildThreadContext,
 }));
 
 vi.mock("@/lib/ai/tools/memory", () => ({
@@ -95,15 +104,34 @@ vi.mock("@/lib/organizations/entitlements", () => ({
   resolveEffectiveEntitlements: mocks.resolveEffectiveEntitlements,
 }));
 
-vi.mock("@/lib/posthog", () => ({
-  getPostHogClient: mocks.getPostHogClient,
-}));
-
 vi.mock("@/lib/voice", () => ({
   getVoicePlanConfig: mocks.getVoicePlanConfig,
 }));
 
-import { streamChat } from "./orchestrator";
+import {
+  executePreparedChatTurn,
+  prepareChatTurn,
+  streamChat,
+} from "./orchestrator";
+
+const TRUSTED_BLOB_ORIGIN = "https://store.public.blob.vercel-storage.com";
+const TRUSTED_IMAGE_URL = `${TRUSTED_BLOB_ORIGIN}/attachments/user-1/chat-image/photo.jpg`;
+const VALID_JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+const VALID_WEBM_BYTES = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x01]);
+
+function createTrustedImageFetch(openRouterResponse: Response) {
+  return vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+    if (String(input) === TRUSTED_IMAGE_URL) {
+      return new Response(VALID_JPEG_BYTES, {
+        headers: {
+          "Content-Type": "image/jpeg",
+          "Content-Length": String(VALID_JPEG_BYTES.byteLength),
+        },
+      });
+    }
+    return openRouterResponse;
+  });
+}
 
 function countOccurrences(value: string, needle: string) {
   return value.split(needle).length - 1;
@@ -125,13 +153,18 @@ const baseEntitlements = {
     maxCostPerDay: 10,
     maxContextMessages: 20,
   },
+  uploadLimits: {
+    maxUploadsPerDay: 25,
+    maxUploadBytesPerDay: 250 * 1024 * 1024,
+  },
   modelTier: "BASIC",
   sources: [],
 };
 
 describe("ai/orchestrator", () => {
   beforeEach(() => {
-    mocks.withTracing.mockReset();
+    mocks.captureAiGenerationMetadata.mockReset();
+    mocks.dnsLookup.mockReset();
     mocks.createUIMessageStream.mockReset();
     mocks.createUIMessageStreamResponse.mockReset();
     mocks.generateText.mockReset();
@@ -145,6 +178,7 @@ describe("ai/orchestrator", () => {
     mocks.getRagContext.mockReset();
     mocks.shouldUseRag.mockReset();
     mocks.buildConversationContext.mockReset();
+    mocks.buildThreadContext.mockReset();
     mocks.createMemoryTools.mockReset();
     mocks.formatMemoriesForPrompt.mockReset();
     mocks.createTinyfishTools.mockReset();
@@ -154,7 +188,6 @@ describe("ai/orchestrator", () => {
     mocks.formatUserContextForPrompt.mockReset();
     mocks.measure.mockReset();
     mocks.resolveEffectiveEntitlements.mockReset();
-    mocks.getPostHogClient.mockReset();
     mocks.getVoicePlanConfig.mockReset();
     mocks.openrouter.mockReset();
     mocks.trackSupportAiUsage.mockReset();
@@ -176,12 +209,11 @@ describe("ai/orchestrator", () => {
     mocks.getModelForUser.mockReturnValue("base-model");
     mocks.getModelById.mockReturnValue("candidate-model");
     mocks.getModelIdForPlan.mockReturnValue("google/gemini-test");
-    mocks.getPostHogClient.mockReturnValue("posthog-client");
+    mocks.dnsLookup.mockResolvedValue([{ address: "8.8.8.8", family: 4 }]);
     mocks.openrouter.mockImplementation((modelId: string) => ({
       modelId,
       provider: "openrouter",
     }));
-    mocks.withTracing.mockReturnValue("traced-model");
     mocks.createUIMessageStream.mockImplementation(
       ({
         execute,
@@ -210,6 +242,7 @@ describe("ai/orchestrator", () => {
     mocks.buildConversationContext.mockResolvedValue([
       { role: "user", content: "same message" },
     ]);
+    mocks.buildThreadContext.mockResolvedValue({ messages: [] });
     mocks.formatUserContextForPrompt.mockResolvedValue("user-context-data");
     mocks.formatMemoriesForPrompt.mockResolvedValue("user-memories-data");
     mocks.createMemoryTools.mockReturnValue({
@@ -287,7 +320,87 @@ describe("ai/orchestrator", () => {
     vi.unstubAllGlobals();
   });
 
+  it("forwards abort signals to prepared experiment generations", () => {
+    const abortController = new AbortController();
+
+    executePreparedChatTurn({
+      prepared: {
+        userId: "user-1",
+        chatId: "chat-1",
+        conversationThreadId: "thread-1",
+        userMessageId: "message-1",
+        userMessage: "help me focus",
+        planId: "basic",
+        userRole: "USER",
+        effectiveModelTier: "BASIC",
+        systemPrompt: "coach prompt",
+        messages: [{ role: "user", content: "help me focus" }],
+        turnPlan: {
+          responseLength: "brief",
+        } as never,
+        promptMode: "full",
+        ragUsed: false,
+        ragChunksCount: 0,
+      },
+      abortSignal: abortController.signal,
+      modelId: "provider/candidate",
+      generationConfig: { fallbacks: false },
+      clerkId: "clerk-1",
+      traceId: "trace-1",
+      experimentId: "experiment-1",
+      pairId: "pair-1",
+      role: "CANDIDATE",
+    });
+
+    expect(mocks.streamText).toHaveBeenCalledWith(
+      expect.objectContaining({ abortSignal: abortController.signal }),
+    );
+  });
+
+  it("forwards abort signals to experiment prompt preparation", async () => {
+    const abortController = new AbortController();
+
+    await prepareChatTurn({
+      userId: "user-1",
+      abortSignal: abortController.signal,
+      chatId: "chat-1",
+      conversationThreadId: "thread-1",
+      userMessageId: "message-1",
+      userMessage: "Mi aggiorni sulla situazione di Messi?",
+      effectiveEntitlements: baseEntitlements as never,
+      skipConversationHistory: true,
+    });
+
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({ abortSignal: abortController.signal }),
+    );
+  });
+
+  it("does not downgrade an aborted experiment classifier to fallback planning", async () => {
+    const abortController = new AbortController();
+    const abortReason = new Error("request disconnected");
+    mocks.generateText.mockImplementationOnce(async () => {
+      abortController.abort(abortReason);
+      throw abortReason;
+    });
+
+    await expect(
+      prepareChatTurn({
+        userId: "user-1",
+        abortSignal: abortController.signal,
+        chatId: "chat-1",
+        conversationThreadId: "thread-1",
+        userMessageId: "message-1",
+        userMessage: "Mi aggiorni sulla situazione di Messi?",
+        effectiveEntitlements: baseEntitlements as never,
+        skipConversationHistory: true,
+      }),
+    ).rejects.toBe(abortReason);
+    expect(mocks.buildThreadContext).not.toHaveBeenCalled();
+  });
+
   it("builds stream payload for text messages and skips entitlement lookup when prefetched", async () => {
+    const abortController = new AbortController();
     const prefetchedEntitlements = {
       ...baseEntitlements,
       modelTier: "PRO" as const,
@@ -302,6 +415,7 @@ describe("ai/orchestrator", () => {
       chatId: "chat-1",
       userMessage: "same message",
       effectiveEntitlements: prefetchedEntitlements,
+      abortSignal: abortController.signal,
     });
 
     expect(result).toEqual({ marker: "stream-result" });
@@ -318,23 +432,15 @@ describe("ai/orchestrator", () => {
       "PRO",
       undefined,
     );
-    expect(mocks.withTracing).toHaveBeenCalledWith(
-      "base-model",
-      "posthog-client",
-      expect.objectContaining({
-        posthogDistinctId: "user-1",
-        posthogTraceId: "chat-1",
-      }),
-    );
     expect(mocks.streamText).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: "traced-model",
+        model: "base-model",
         stopWhen: "stop-5",
         messages: [{ role: "user", content: "same message" }],
         tools: {},
+        abortSignal: abortController.signal,
       }),
     );
-
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       instructions: string;
     };
@@ -716,16 +822,6 @@ describe("ai/orchestrator", () => {
     expect(mocks.getModelById).toHaveBeenCalledWith("candidate/model");
     expect(mocks.getModelForUser).not.toHaveBeenCalled();
     expect(mocks.getModelIdForPlan).not.toHaveBeenCalled();
-    expect(mocks.withTracing).toHaveBeenCalledWith(
-      "candidate-model",
-      "posthog-client",
-      expect.objectContaining({
-        posthogProperties: expect.objectContaining({
-          modelId: "candidate/model",
-        }),
-      }),
-    );
-
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       onEnd?: (input: {
         text: string;
@@ -744,12 +840,20 @@ describe("ai/orchestrator", () => {
       expect.any(Number),
       expect.objectContaining({ text: "assistant" }),
     );
+    expect(mocks.captureAiGenerationMetadata).toHaveBeenCalledWith({
+      context: expect.objectContaining({
+        distinctId: "user-1",
+        traceId: "chat-1",
+      }),
+      metrics: expect.objectContaining({ inputTokens: 10, outputTokens: 20 }),
+    });
   });
 
   it("routes image messages through OpenRouter REST with image_url content", async () => {
+    const abortController = new AbortController();
     const originalApiKey = process.env.OPENROUTER_API_KEY;
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
-    const fetchSpy = vi.fn().mockResolvedValue(
+    const fetchSpy = createTrustedImageFetch(
       Response.json({
         id: "gen-1",
         model: "google/gemini-2.5-flash-lite",
@@ -795,12 +899,14 @@ describe("ai/orchestrator", () => {
         chatId: "chat-image",
         userMessage: "cosa vedi?",
         hasImages: true,
+        abortSignal: abortController.signal,
         messageParts: [
           { type: "text", text: "cosa vedi?" },
           {
             type: "file",
-            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            data: TRUSTED_IMAGE_URL,
             mimeType: "image/jpeg",
+            size: VALID_JPEG_BYTES.byteLength,
           },
         ],
       });
@@ -818,15 +924,6 @@ describe("ai/orchestrator", () => {
     );
     expect(mocks.getModelForUser).not.toHaveBeenCalled();
     expect(mocks.getModelIdForPlan).not.toHaveBeenCalled();
-    expect(mocks.withTracing).toHaveBeenCalledWith(
-      "candidate-model",
-      "posthog-client",
-      expect.objectContaining({
-        posthogProperties: expect.objectContaining({
-          modelId: "google/gemini-2.5-flash-lite",
-        }),
-      }),
-    );
     expect(text).toBe("Vedo una scena sportiva.");
     expect(mocks.streamText).not.toHaveBeenCalled();
     expect(
@@ -853,11 +950,16 @@ describe("ai/orchestrator", () => {
           Authorization: "Bearer test-openrouter-key",
           "Content-Type": "application/json",
         }),
+        signal: abortController.signal,
       }),
     );
 
+    const openRouterCall = fetchSpy.mock.calls.find(
+      ([input]) =>
+        String(input) === "https://openrouter.ai/api/v1/chat/completions",
+    );
     const requestBody = JSON.parse(
-      (fetchSpy.mock.calls[0]?.[1] as { body: string }).body,
+      (openRouterCall?.[1] as { body: string }).body,
     );
     expect(requestBody).toEqual(
       expect.objectContaining({
@@ -875,7 +977,7 @@ describe("ai/orchestrator", () => {
           {
             type: "image_url",
             image_url: {
-              url: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+              url: `data:image/jpeg;base64,${VALID_JPEG_BYTES.toString("base64")}`,
             },
           },
         ],
@@ -900,12 +1002,19 @@ describe("ai/orchestrator", () => {
         },
       }),
     );
+    expect(mocks.captureAiGenerationMetadata).toHaveBeenCalledWith({
+      context: expect.objectContaining({
+        distinctId: "user-1",
+        traceId: "chat-image",
+      }),
+      metrics: expect.objectContaining({ inputTokens: 10, outputTokens: 20 }),
+    });
   });
 
   it("reads OpenRouter image text from array content parts", async () => {
     const originalApiKey = process.env.OPENROUTER_API_KEY;
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
-    const fetchSpy = vi.fn().mockResolvedValue(
+    const fetchSpy = createTrustedImageFetch(
       Response.json({
         id: "gen-array-content",
         model: "google/gemini-2.5-flash-lite",
@@ -938,8 +1047,9 @@ describe("ai/orchestrator", () => {
           { type: "text", text: "cosa vedi?" },
           {
             type: "file",
-            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            data: TRUSTED_IMAGE_URL,
             mimeType: "image/jpeg",
+            size: VALID_JPEG_BYTES.byteLength,
           },
         ],
       });
@@ -965,7 +1075,7 @@ describe("ai/orchestrator", () => {
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
+      createTrustedImageFetch(
         Response.json({
           id: "gen-reasoning",
           model: "google/gemini-2.5-flash-lite",
@@ -991,8 +1101,9 @@ describe("ai/orchestrator", () => {
           { type: "text", text: "analizza" },
           {
             type: "file",
-            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            data: TRUSTED_IMAGE_URL,
             mimeType: "image/jpeg",
+            size: VALID_JPEG_BYTES.byteLength,
           },
         ],
       });
@@ -1011,7 +1122,7 @@ describe("ai/orchestrator", () => {
     const onFinish = vi.fn();
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
+      createTrustedImageFetch(
         Response.json({
           id: "gen-empty",
           choices: [
@@ -1036,8 +1147,9 @@ describe("ai/orchestrator", () => {
           { type: "text", text: "analizza" },
           {
             type: "file",
-            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            data: TRUSTED_IMAGE_URL,
             mimeType: "image/jpeg",
+            size: VALID_JPEG_BYTES.byteLength,
           },
         ],
       });
@@ -1064,7 +1176,7 @@ describe("ai/orchestrator", () => {
         process.env.OPENROUTER_API_KEY = "test-openrouter-key";
         vi.stubGlobal(
           "fetch",
-          vi.fn().mockResolvedValue(Response.json(payload, { status })),
+          createTrustedImageFetch(Response.json(payload, { status })),
         );
 
         const result = await streamChat({
@@ -1076,8 +1188,9 @@ describe("ai/orchestrator", () => {
             { type: "text", text: "analizza" },
             {
               type: "file",
-              data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+              data: TRUSTED_IMAGE_URL,
               mimeType: "image/jpeg",
+              size: VALID_JPEG_BYTES.byteLength,
             },
           ],
         });
@@ -1109,8 +1222,9 @@ describe("ai/orchestrator", () => {
           { type: "text", text: "analizza" },
           {
             type: "file",
-            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            data: TRUSTED_IMAGE_URL,
             mimeType: "image/jpeg",
+            size: VALID_JPEG_BYTES.byteLength,
           },
         ],
       });
@@ -1130,7 +1244,7 @@ describe("ai/orchestrator", () => {
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
+      createTrustedImageFetch(
         Response.json({
           id: "gen-ui-stream",
           model: "google/gemini-2.5-flash-lite",
@@ -1184,8 +1298,9 @@ describe("ai/orchestrator", () => {
           { type: "text", text: "analizza" },
           {
             type: "file",
-            data: "https://blob.example/attachments/user-1/chat-image/photo.jpg",
+            data: TRUSTED_IMAGE_URL,
             mimeType: "image/jpeg",
+            size: VALID_JPEG_BYTES.byteLength,
           },
         ],
       });
@@ -1234,7 +1349,9 @@ describe("ai/orchestrator", () => {
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
     const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url === "https://blob.example/attachments/user-1/chat-pdf/doc.pdf") {
+      if (
+        url === `${TRUSTED_BLOB_ORIGIN}/attachments/user-1/chat-pdf/doc.pdf`
+      ) {
         return new Response(Buffer.from("%PDF-1.7 sample"), {
           headers: { "Content-Type": "application/pdf" },
         });
@@ -1268,7 +1385,7 @@ describe("ai/orchestrator", () => {
           { type: "text", text: "riassumi" },
           {
             type: "file",
-            data: "https://blob.example/attachments/user-1/chat-pdf/doc.pdf",
+            data: `${TRUSTED_BLOB_ORIGIN}/attachments/user-1/chat-pdf/doc.pdf`,
             mimeType: "application/pdf",
             name: "doc.pdf",
           },
@@ -1285,7 +1402,8 @@ describe("ai/orchestrator", () => {
     }
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      "https://blob.example/attachments/user-1/chat-pdf/doc.pdf",
+      new URL(`${TRUSTED_BLOB_ORIGIN}/attachments/user-1/chat-pdf/doc.pdf`),
+      expect.objectContaining({ redirect: "manual" }),
     );
     expect(mocks.streamText).not.toHaveBeenCalled();
 
@@ -1319,11 +1437,13 @@ describe("ai/orchestrator", () => {
   it("routes video messages through OpenRouter REST with file content", async () => {
     const originalApiKey = process.env.OPENROUTER_API_KEY;
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
-    const videoBytes = Buffer.from("video-bytes");
+    const videoBytes = Buffer.from([
+      0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x6d, 0x70, 0x34, 0x32,
+    ]);
     const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (
-        url === "https://blob.example/attachments/user-1/chat-video/clip.mp4"
+        url === `${TRUSTED_BLOB_ORIGIN}/attachments/user-1/chat-video/clip.mp4`
       ) {
         return new Response(videoBytes, {
           headers: { "Content-Type": "video/mp4" },
@@ -1358,7 +1478,7 @@ describe("ai/orchestrator", () => {
           { type: "text", text: "analizza il movimento" },
           {
             type: "file",
-            data: "https://blob.example/attachments/user-1/chat-video/clip.mp4",
+            data: `${TRUSTED_BLOB_ORIGIN}/attachments/user-1/chat-video/clip.mp4`,
             mimeType: "video/mp4",
             name: "clip.mp4",
           },
@@ -1409,7 +1529,7 @@ describe("ai/orchestrator", () => {
       messageParts: [
         {
           type: "file",
-          data: "https://blob.example/attachments/user-1/chat-video/clip.mp4",
+          data: `${TRUSTED_BLOB_ORIGIN}/attachments/user-1/chat-video/clip.mp4`,
           mimeType: "video/mp4",
           name: "clip.mp4",
         },
@@ -1430,7 +1550,7 @@ describe("ai/orchestrator", () => {
       ],
     });
     expect(JSON.stringify(streamInput.messages.at(-1))).not.toContain(
-      "https://blob.example/attachments/user-1/chat-video/clip.mp4",
+      `${TRUSTED_BLOB_ORIGIN}/attachments/user-1/chat-video/clip.mp4`,
     );
   });
 
@@ -1744,6 +1864,7 @@ describe("ai/orchestrator", () => {
   });
 
   it("uses the prompt classifier for ambiguous current-info requests", async () => {
+    const abortController = new AbortController();
     mocks.generateText.mockResolvedValueOnce({
       output: {
         webSearch: "yes",
@@ -1769,6 +1890,7 @@ describe("ai/orchestrator", () => {
       userId: "user-1",
       chatId: "chat-ambiguous-current-info",
       userMessage: "Mi aggiorni sulla situazione di Messi?",
+      abortSignal: abortController.signal,
     });
 
     expect(mocks.generateText).toHaveBeenCalledWith(
@@ -1784,6 +1906,7 @@ describe("ai/orchestrator", () => {
         },
         temperature: 0,
         maxOutputTokens: 120,
+        abortSignal: abortController.signal,
       }),
     );
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
@@ -1814,6 +1937,27 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).not.toContain("USER CONTEXT");
   });
 
+  it("propagates prompt-classifier cancellation instead of falling back", async () => {
+    const abortController = new AbortController();
+    const abortError = new Error("request aborted");
+    mocks.generateText.mockImplementationOnce(async ({ abortSignal }) => {
+      expect(abortSignal).toBe(abortController.signal);
+      abortController.abort(abortError);
+      throw abortError;
+    });
+
+    await expect(
+      streamChat({
+        userId: "user-1",
+        chatId: "chat-aborted-classifier",
+        userMessage: "Mi aggiorni sulla situazione di Messi?",
+        abortSignal: abortController.signal,
+      }),
+    ).rejects.toBe(abortError);
+
+    expect(mocks.streamText).not.toHaveBeenCalled();
+  });
+
   it("builds audio/file content parts, strips codec suffixes, and applies voice-disabled prompt variant", async () => {
     mocks.buildConversationContext.mockResolvedValue([]);
     mocks.shouldUseRag.mockResolvedValue(true);
@@ -1831,7 +1975,7 @@ describe("ai/orchestrator", () => {
       messageParts: [
         {
           type: "file",
-          data: Buffer.from("abc").toString("base64"),
+          data: VALID_WEBM_BYTES.toString("base64"),
           mimeType: "audio/webm;codecs=opus",
         },
       ],

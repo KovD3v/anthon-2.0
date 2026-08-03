@@ -168,7 +168,7 @@ export type RealityBenchmarkSummary = {
   results: RealityBenchmarkTurnResult[];
 };
 
-export const DEFAULT_REALITY_TURN_TIMEOUT_MS = 180_000;
+const DEFAULT_REALITY_TURN_TIMEOUT_MS = 180_000;
 
 export const PRELAUNCH_REALITY_SCENARIOS: RealityScenario[] = [
   {

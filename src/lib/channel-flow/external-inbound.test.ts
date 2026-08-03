@@ -170,6 +170,35 @@ describe("external inbound lifecycle", () => {
     },
   );
 
+  it("resends a persisted assistant without re-evaluating current rate limits", async () => {
+    mocks.messageFindFirst.mockResolvedValue({
+      ...existingInbound("FAILED"),
+      generatedResponse: {
+        id: "assistant-1",
+        parts: [
+          { type: "text", text: "already " },
+          { type: "tool-call", toolName: "search" },
+          { type: "text", text: "generated" },
+        ],
+      },
+    });
+
+    const result = await prepareExternalChannelInbound(buildEnvelope());
+
+    expect(result).toMatchObject({
+      status: "accepted",
+      mode: "resend",
+      reclaimed: true,
+      inbound: { id: "inbound_1" },
+      savedAssistant: {
+        id: "assistant-1",
+        text: "already generated",
+      },
+    });
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.trackInboundUserMessageFunnelProgress).not.toHaveBeenCalled();
+  });
+
   it("allows only one concurrent first-delivery claim", async () => {
     let persisted = false;
     mocks.messageFindFirst.mockImplementation(async () =>

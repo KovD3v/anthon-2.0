@@ -100,7 +100,7 @@ export async function buildThreadContext(
   };
 }
 
-export async function refreshConversationThreadSummary(
+async function refreshConversationThreadSummary(
   conversationThreadId: string,
   userId: string,
 ): Promise<void> {

@@ -176,7 +176,9 @@ export async function migrateGuestToUser(
               requestCount: { increment: usage.requestCount },
               inputTokens: { increment: usage.inputTokens },
               outputTokens: { increment: usage.outputTokens },
+              reasoningTokens: { increment: usage.reasoningTokens },
               totalCostUsd: { increment: usage.totalCostUsd },
+              voiceCostUsd: { increment: usage.voiceCostUsd },
             },
           });
           await tx.dailyUsage.delete({ where: { id: usage.id } });
@@ -187,6 +189,37 @@ export async function migrateGuestToUser(
           });
         }
         migratedCounts.dailyUsage++;
+      }
+
+      // Attempt-scoped reservations cannot safely move to a new identity.
+      // Guests cannot upload, but clear stale upload reservations defensively
+      // before merging their durable daily upload counters.
+      await tx.aiUsageReservation.deleteMany({
+        where: { userId: guestUserId },
+      });
+      await tx.uploadReservation.deleteMany({
+        where: { userId: guestUserId },
+      });
+      const guestUploadUsage = await tx.dailyUploadUsage.findMany({
+        where: { userId: guestUserId },
+      });
+      for (const usage of guestUploadUsage) {
+        await tx.dailyUploadUsage.upsert({
+          where: {
+            userId_date: { userId: targetUserId, date: usage.date },
+          },
+          create: {
+            userId: targetUserId,
+            date: usage.date,
+            uploadCount: usage.uploadCount,
+            uploadedBytes: usage.uploadedBytes,
+          },
+          update: {
+            uploadCount: { increment: usage.uploadCount },
+            uploadedBytes: { increment: usage.uploadedBytes },
+          },
+        });
+        await tx.dailyUploadUsage.delete({ where: { id: usage.id } });
       }
 
       // 7. Merge Profile with recency-based priority
@@ -376,7 +409,11 @@ export async function migrateGuestToUser(
       // 9. Mark guest as converted
       await tx.user.update({
         where: { id: guestUserId },
-        data: { guestConvertedAt: new Date() },
+        data: {
+          guestConvertedAt: new Date(),
+          guestTokenHash: null,
+          guestAbuseIdHash: null,
+        },
       });
 
       // 10. Save conflicts as a special memory for reference (if any)

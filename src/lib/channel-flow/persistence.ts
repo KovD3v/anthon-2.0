@@ -4,7 +4,11 @@ import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context"
 import { captureAiTurnTrace } from "@/lib/ai/trace";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
-import { incrementUsage } from "@/lib/rate-limit";
+import {
+  incrementUsage,
+  reconcileAiUsageInTransaction,
+} from "@/lib/rate-limit";
+import { getExternalInboundLeaseExpiry } from "./external-inbound-lease";
 import type { PersistAssistantOutputInput } from "./types";
 
 const persistenceLogger = createLogger("ai");
@@ -132,15 +136,47 @@ export async function persistAssistantOutput({
   allowMemoryExtraction = false,
   waitUntil,
   voiceGeneration,
+  usageReservationId,
+  usageReservationClaimToken,
+  usageAlreadyReconciled = false,
+  externalInboundClaimToken,
 }: PersistAssistantOutputInput) {
   const assistantMetadata = buildAssistantMetadata(metadata, metrics);
 
-  const message = await prisma.$transaction(async (tx) => {
+  const persisted = await prisma.$transaction(async (tx) => {
+    if (userMessageId && externalInboundClaimToken) {
+      const fenced = await tx.message.updateMany({
+        where: {
+          id: userMessageId,
+          userId,
+          externalInboundStatus: "PROCESSING",
+          externalInboundClaimToken,
+        },
+        data: {
+          externalInboundLeaseExpiresAt: getExternalInboundLeaseExpiry(),
+        },
+      });
+      if (fenced.count !== 1) {
+        throw new Error("External inbound claim is stale");
+      }
+    }
+
+    if (userMessageId) {
+      const existing = await tx.message.findUnique({
+        where: { sourceInboundMessageId: userMessageId },
+      });
+      if (existing?.userId === userId) {
+        return { message: existing, created: false };
+      }
+      if (existing) throw new Error("Inbound response ownership mismatch");
+    }
+
     const createdMessage = await tx.message.create({
       data: {
         userId,
         ...(chatId ? { chatId } : {}),
         ...(conversationThreadId ? { conversationThreadId } : {}),
+        ...(userMessageId ? { sourceInboundMessageId: userMessageId } : {}),
         channel,
         direction: "OUTBOUND",
         role: "ASSISTANT",
@@ -180,8 +216,23 @@ export async function persistAssistantOutput({
       });
     }
 
-    return createdMessage;
+    if (usageReservationId) {
+      if (!usageReservationClaimToken) {
+        throw new Error("Usage reservation claim token is required");
+      }
+      await reconcileAiUsageInTransaction(tx, {
+        reservationId: usageReservationId,
+        claimToken: usageReservationClaimToken,
+        userId,
+        metrics,
+        assistantMessageId: createdMessage.id,
+        allowAlreadyReconciled: usageAlreadyReconciled,
+      });
+    }
+
+    return { message: createdMessage, created: true };
   });
+  const { message } = persisted;
 
   if (updateChatTimestamp && chatId) {
     try {
@@ -198,34 +249,41 @@ export async function persistAssistantOutput({
     }
   }
 
-  try {
-    await incrementUsage(
-      userId,
-      metrics.inputTokens,
-      metrics.outputTokens,
-      metrics.costUsd,
-      metrics.reasoningTokens ?? 0,
-    );
-  } catch (error) {
-    persistenceLogger.error(
-      "usage.increment_failed",
-      "Failed incrementing usage after assistant persistence",
-      { error, userId, messageId: message.id },
-    );
+  if (!usageReservationId && persisted.created) {
+    try {
+      await incrementUsage(
+        userId,
+        metrics.inputTokens,
+        metrics.outputTokens,
+        metrics.costUsd,
+        metrics.reasoningTokens ?? 0,
+      );
+    } catch (error) {
+      persistenceLogger.error(
+        "usage.increment_failed",
+        "Failed incrementing usage after assistant persistence",
+        { error, userId, messageId: message.id },
+      );
+    }
   }
 
   if (tags.length > 0) {
     await revalidateTags(tags);
   }
 
-  if (conversationThreadId) {
+  if (conversationThreadId && persisted.created) {
     scheduleBackground(
       waitUntil,
       safelyRefreshConversationThreadSummary(conversationThreadId, userId),
     );
   }
 
-  if (conversationThreadId && metrics.tracePayload && metrics.turnPlan) {
+  if (
+    conversationThreadId &&
+    persisted.created &&
+    metrics.tracePayload &&
+    metrics.turnPlan
+  ) {
     scheduleBackground(
       waitUntil,
       captureAiTurnTrace({
@@ -250,7 +308,7 @@ export async function persistAssistantOutput({
     );
   }
 
-  if (!allowMemoryExtraction) {
+  if (!allowMemoryExtraction || !persisted.created) {
     return message;
   }
 

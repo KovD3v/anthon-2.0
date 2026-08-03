@@ -17,6 +17,15 @@ async function sendMessage(page: Page, text: string) {
   await page.getByRole("button", { name: "Invia messaggio" }).click();
 }
 
+async function waitForResponsePersisted(page: Page, text: string) {
+  const response = page
+    .locator('[data-message-role="assistant"]')
+    .filter({ hasText: text });
+  await expect(
+    response.getByRole("button", { name: "Segna la risposta come utile" }),
+  ).toBeVisible();
+}
+
 test.describe("guest chat beta smoke", () => {
   test("streams, restores context, and persists feedback after reload", async ({
     page,
@@ -32,6 +41,10 @@ test.describe("guest chat beta smoke", () => {
         exact: true,
       }),
     ).toBeVisible();
+    await waitForResponsePersisted(
+      page,
+      "Ho memorizzato la parola chiave zaffiro.",
+    );
 
     await page.reload();
     await expect(page.getByText(firstPrompt, { exact: true })).toBeVisible();

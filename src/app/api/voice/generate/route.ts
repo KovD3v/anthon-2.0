@@ -296,6 +296,7 @@ export async function POST(request: Request) {
             async () =>
               prisma.attachment.create({
                 data: {
+                  userId: user.id,
                   messageId: message.id,
                   name: "voice.mp3",
                   contentType: "audio/mpeg",

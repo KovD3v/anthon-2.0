@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { waitUntil } from "@vercel/functions";
 import type { Prisma } from "@/generated/prisma";
 import {
+  AssistantPersistenceError,
   claimChannelConnectDelivery,
   getExternalInboundMessageType,
   markChannelConnectDeliveryFailed,
@@ -11,6 +12,7 @@ import {
   prepareChannelConnectRequest,
   prepareExternalChannelInbound,
   runChannelFlow,
+  startExternalInboundLeaseHeartbeat,
 } from "@/lib/channel-flow";
 import { buildExternalChannelInbound } from "@/lib/channel-flow/inbound";
 import { formatExternalRateLimitMessage } from "@/lib/channel-flow/rate-limit-message";
@@ -352,8 +354,7 @@ async function handleUpdate(update: TelegramUpdate) {
     return;
   }
 
-  const { user, conversationThread, inbound, rateLimit, claimToken } =
-    preparedInbound;
+  const { user, conversationThread, inbound, claimToken } = preparedInbound;
   const completeInbound = () =>
     markExternalChannelInboundCompleted({
       inboundId: inbound.id,
@@ -365,8 +366,30 @@ async function handleUpdate(update: TelegramUpdate) {
       claimToken,
       error,
     });
+  const stopInboundHeartbeat = startExternalInboundLeaseHeartbeat({
+    inboundId: inbound.id,
+    claimToken,
+  });
 
   try {
+    if (preparedInbound.mode === "resend") {
+      const { savedAssistant } = preparedInbound;
+      if (!savedAssistant.text.trim()) {
+        await failInbound("persisted_assistant_response_is_empty");
+        return;
+      }
+      const sent = await sendTelegramMessage(
+        chatId,
+        savedAssistant.text,
+        AbortSignal.timeout(15_000),
+      );
+      if (sent) await completeInbound();
+      else await failInbound("outbound_resend_failed");
+      return;
+    }
+
+    const { rateLimit } = preparedInbound;
+
     if (!rateLimit.allowed) {
       await recordTelegramInboundError({
         inboundId: inbound.id,
@@ -655,8 +678,22 @@ async function handleUpdate(update: TelegramUpdate) {
           } as Prisma.InputJsonValue,
           saveAssistantMessage: true,
           waitUntil: safeWaitUntil,
+          externalInboundClaimToken: claimToken,
         },
       });
+      if (flowResult.rateLimit) {
+        const sent = await sendTelegramMessage(
+          chatId,
+          formatExternalRateLimitMessage(
+            flowResult.rateLimit.upgradeInfo as Parameters<
+              typeof formatExternalRateLimitMessage
+            >[0],
+          ),
+        );
+        if (sent && !flowResult.rateLimit.retryable) await completeInbound();
+        else await failInbound(flowResult.rateLimit.reason ?? "usage_denied");
+        return;
+      }
       assistantText = flowResult.assistantText;
       assistantMessageId = flowResult.persistence?.messageId;
       if (flowResult.persistence?.status === "failed") {
@@ -679,6 +716,11 @@ async function handleUpdate(update: TelegramUpdate) {
     } catch (err) {
       telegramLogger.error("chat.stream_failed", "streamChat failed", { err });
 
+      const persistenceFailure =
+        err instanceof AssistantPersistenceError
+          ? err.persistenceCause
+          : undefined;
+
       await prisma.message
         .update({
           where: { id: inbound.id },
@@ -691,8 +733,10 @@ async function handleUpdate(update: TelegramUpdate) {
                 username: message?.from?.username,
                 languageCode: message?.from?.language_code,
                 error: {
-                  kind: "streamChat_failed",
-                  summary: safeErrorSummary(err),
+                  kind: persistenceFailure
+                    ? "assistant_persistence_failed"
+                    : "streamChat_failed",
+                  summary: safeErrorSummary(persistenceFailure ?? err),
                 },
               },
             } as Prisma.InputJsonValue,
@@ -847,13 +891,15 @@ async function handleUpdate(update: TelegramUpdate) {
         ? `${voiceFallbackNotice}\n\n${assistantText}`
         : assistantText,
     );
-    // If the provider accepted the response but the acknowledgement was lost,
-    // a retry can send it again; automatic resend reconciliation is out of scope.
+    // Persisted assistant output lets a retried provider webhook resend this
+    // response without regenerating or charging for it again.
     if (sent) await completeInbound();
     else await failInbound("outbound_send_failed");
   } catch (error) {
     await failInbound(error);
     throw error;
+  } finally {
+    await stopInboundHeartbeat();
   }
 }
 

@@ -155,6 +155,29 @@ export function buildChildProcessEnv(env: NodeJS.ProcessEnv) {
   return childEnv;
 }
 
+export function buildE2EProcessEnv({
+  childProcessEnv,
+  testDatabaseUrl,
+  branchId,
+}: {
+  childProcessEnv: NodeJS.ProcessEnv;
+  testDatabaseUrl: string;
+  branchId: string;
+}) {
+  return {
+    ...childProcessEnv,
+    DATABASE_URL: testDatabaseUrl,
+    DIRECT_DATABASE_URL: testDatabaseUrl,
+    E2E_EPHEMERAL_BRANCH_ID: branchId,
+    OPENROUTER_API_KEY: "e2e-local-key",
+    OPENROUTER_BASE_URL: "http://127.0.0.1:4317/api/v1",
+    NEXT_PUBLIC_APP_URL: "http://localhost:3100",
+    // Every Playwright test gets a fresh guest, while all local requests share
+    // the same development-only abuse identity. Keep production's cap intact.
+    GUEST_CREATIONS_PER_IP_PER_DAY: "100",
+  } satisfies NodeJS.ProcessEnv;
+}
+
 function redactSecrets(message: string) {
   return message.replace(/postgres(?:ql)?:\/\/[^\s]+/gi, "<redacted-db-url>");
 }
@@ -368,15 +391,11 @@ export async function runEphemeralE2ETests(testArgs: string[] = []) {
       runCommand(
         join(process.cwd(), "node_modules/.bin/playwright"),
         ["test", ...testArgs],
-        {
-          ...childProcessEnv,
-          DATABASE_URL: testDatabaseUrl,
-          DIRECT_DATABASE_URL: testDatabaseUrl,
-          E2E_EPHEMERAL_BRANCH_ID: branch.id,
-          OPENROUTER_API_KEY: "e2e-local-key",
-          OPENROUTER_BASE_URL: "http://127.0.0.1:4317/api/v1",
-          NEXT_PUBLIC_APP_URL: "http://localhost:3100",
-        },
+        buildE2EProcessEnv({
+          childProcessEnv,
+          testDatabaseUrl,
+          branchId: branch.id,
+        }),
       ),
   });
 }

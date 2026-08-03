@@ -1,12 +1,29 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "e2e/mock-openrouter.ts",
+    "scripts/backfill-conversation-threads.ts",
+    "scripts/benchmark-voice-classifier.ts",
+    "scripts/generate-reality-model-selection-plots.ts",
+    "scripts/run-reality-benchmark.ts",
+    "scripts/sync-user-names.ts",
+    "src/test/integration/global-setup.ts",
+    "src/test/integration/setup-env.ts",
+    "src/test/integration/setup.ts",
+    "vitest.integration.config.ts"
+  ],
   "ignoreExportsUsedInFile": {
     "interface": true,
     "type": true
   },
   "ignore": ["src/components/ui/**/*"],
-  "ignoreDependencies": ["@prisma/client"],
-  "ignoreBinaries": ["sleep"],
+  "ignoreDependencies": [
+    "@prisma/client",
+    "@radix-ui/react-scroll-area",
+    "@radix-ui/react-select",
+    "@radix-ui/react-slider",
+    "radix-ui"
+  ],
   "tags": ["-lintignore"],
   "ignoreMembers": ["^runtime$", "^maxDuration$"]
 }

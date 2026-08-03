@@ -32,11 +32,36 @@ export async function getModelExperimentSummary(
 ): Promise<ModelExperimentSummary | null> {
   const experiment = await prisma.modelExperiment.findUnique({
     where: { id: experimentId },
-    include: {
-      variants: true,
+    select: {
+      id: true,
+      key: true,
+      name: true,
+      status: true,
+      activatedAt: true,
+      completedAt: true,
+      createdAt: true,
+      variants: {
+        select: {
+          id: true,
+          role: true,
+        },
+      },
       pairs: {
-        include: {
-          responses: true,
+        select: {
+          status: true,
+          vote: true,
+          selectedVariantId: true,
+          userId: true,
+          responses: {
+            select: {
+              variantId: true,
+              status: true,
+              outputTokens: true,
+              costUsd: true,
+              timeToFirstTokenMs: true,
+              generationTimeMs: true,
+            },
+          },
           canonicalMessage: { select: { feedback: true } },
         },
       },

@@ -160,6 +160,7 @@ describe("/api/guest/chats route", () => {
     expect(response.status).toBe(201);
     expect(mocks.createGuestChatForSession).toHaveBeenCalledWith({
       title: "Planning",
+      request: expect.any(Request),
     });
     expect(mocks.warmDatabaseConnection).toHaveBeenCalledWith(
       "guest_chat_created",
@@ -209,6 +210,7 @@ describe("/api/guest/chats route", () => {
     expect(response.status).toBe(201);
     expect(mocks.createGuestChatForSession).toHaveBeenCalledWith({
       title: undefined,
+      request: expect.any(Request),
     });
     await expect(response.json()).resolves.toEqual({
       id: "chat-new",

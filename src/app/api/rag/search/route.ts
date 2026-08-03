@@ -6,7 +6,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { RAG } from "@/lib/ai/constants";
-import { getRagContext, searchDocuments, shouldUseRag } from "@/lib/ai/rag";
+import { buildRagContext, searchDocuments, shouldUseRag } from "@/lib/ai/rag";
 import { createLogger } from "@/lib/logger";
 
 const ragLogger = createLogger("ai");
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
 
     // Search for relevant documents
     const results = await searchDocuments(normalizedQuery, limit);
-    const { text: context } = await getRagContext(normalizedQuery);
+    const { text: context } = buildRagContext(results);
 
     return NextResponse.json({
       needsRag,

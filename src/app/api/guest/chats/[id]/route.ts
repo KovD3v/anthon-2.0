@@ -29,7 +29,7 @@ interface RouteParams {
 
 export async function GET(request: Request, { params }: RouteParams) {
   try {
-    const { user } = await authenticateGuest();
+    const { user } = await authenticateGuest(request);
     const { id } = await params;
 
     // Parse pagination parameters
@@ -152,7 +152,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 
 export async function PATCH(request: Request, { params }: RouteParams) {
   try {
-    const { user } = await authenticateGuest();
+    const { user } = await authenticateGuest(request);
     const { id } = await params;
 
     // Verify ownership
@@ -258,9 +258,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 // DELETE - Delete chat
 // -----------------------------------------------------
 
-export async function DELETE(_request: Request, { params }: RouteParams) {
+export async function DELETE(request: Request, { params }: RouteParams) {
   try {
-    const { user } = await authenticateGuest();
+    const { user } = await authenticateGuest(request);
     const { id } = await params;
 
     // Verify ownership

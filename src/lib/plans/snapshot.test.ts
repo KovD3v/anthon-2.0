@@ -75,6 +75,36 @@ describe("plans/snapshot", () => {
     expect(snapshot.policies.voice.maxPerWindow).toBe(50);
   });
 
+  it("keeps upload quota on the winning effective plan when model tier is overridden", () => {
+    const snapshot = resolvePlanSnapshot({
+      subscriptionStatus: "ACTIVE",
+      userRole: "USER",
+      planId: "my-basic-plan",
+      organizationSources: [
+        {
+          sourceId: "org-basic-with-pro-models",
+          sourceLabel: "organization:Acme:BASIC",
+          plan: "BASIC",
+          modelTier: "PRO",
+          limits: {
+            maxRequestsPerDay: 50,
+            maxInputTokensPerDay: 500_000,
+            maxOutputTokensPerDay: 250_000,
+            maxCostPerDay: 3,
+            maxContextMessages: 15,
+          },
+        },
+      ],
+    });
+
+    expect(snapshot.effective.plan).toBe("BASIC");
+    expect(snapshot.effective.modelTier).toBe("PRO");
+    expect(snapshot.policies.uploadLimits).toEqual({
+      maxUploadsPerDay: 25,
+      maxUploadBytesPerDay: 250 * 1024 * 1024,
+    });
+  });
+
   it("keeps sub-agent routing independent from orchestrator fallbacks", () => {
     const snapshot = resolvePlanSnapshot({
       subscriptionStatus: "ACTIVE",

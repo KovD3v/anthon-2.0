@@ -95,14 +95,15 @@ anthon-2.0/
 | `bun run vercel:build` | Vercel production build: migrate, generate Prisma client, and build |
 | `bun run lint`   | Run Biome check          |
 | `bun run typecheck` | Run TypeScript checks without emitting files |
-| `bun run verify` | Run lint, typecheck, and unit tests |
+| `bun run verify` | Run lint, typecheck, and enforced unit coverage |
 | `bun run format` | Format code with Biome   |
 | `bun run test`   | Run unit tests (Vitest)  |
 | `bun run test:integration` | Create an ephemeral Neon branch, migrate, test, and delete it |
+| `bun run test:e2e` | Run guest browser tests on a separate ephemeral Neon branch |
 | `bun run test:coverage:unit` | Run unit coverage |
 | `bun run test:coverage:integration` | Run integration coverage |
 | `bun run test:coverage` | Run unit + integration coverage |
-| `bun run test:all` | Run unit + integration + coverage |
+| `bun run test:all` | Run unit and integration coverage once each |
 | `bun run test:watch` | Run tests in watch mode |
 | `bun run test:ui` | Run tests with Vitest UI |
 

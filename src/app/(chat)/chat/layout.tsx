@@ -136,7 +136,7 @@ export async function getChatSidebarData(): Promise<{
       const guestUser = await prisma.user.findFirst({
         where: {
           isGuest: true,
-          guestAbuseIdHash: tokenHash,
+          guestTokenHash: tokenHash,
           guestConvertedAt: null,
         },
         select: { id: true, role: true },

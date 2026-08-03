@@ -11,6 +11,7 @@ export function resolvePoliciesForEntitlements(
   return {
     modelRouting: routingConfig.modelRouting,
     attachmentRetentionDays: planConfig.attachmentRetentionDays,
+    uploadLimits: planConfig.uploadLimits,
     voice: planConfig.voice,
   };
 }

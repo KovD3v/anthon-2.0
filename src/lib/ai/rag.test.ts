@@ -301,6 +301,15 @@ describe("ai/rag", () => {
     expect(context.chunkCount).toBe(1);
   });
 
+  it("buildRagContext returns an explicit empty-retrieval marker", async () => {
+    const { buildRagContext } = await loadModule();
+
+    expect(buildRagContext([])).toEqual({
+      text: "Nessun documento rilevante trovato.",
+      chunkCount: 0,
+    });
+  });
+
   it("addDocument creates document and inserts only chunks with embeddings", async () => {
     const longContent = `${"a ".repeat(500)}\n\n${"b ".repeat(500)}`;
     const fetchMock = vi.fn().mockResolvedValue(

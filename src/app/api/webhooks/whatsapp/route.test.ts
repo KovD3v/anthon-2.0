@@ -12,6 +12,7 @@ import {
 const mocks = vi.hoisted(() => ({
   waitUntil: vi.fn(),
   prismaMessageFindFirst: vi.fn(),
+  prismaMessageFindUnique: vi.fn(),
   prismaChannelIdentityFindUnique: vi.fn(),
   prismaChannelIdentityUpsert: vi.fn(),
   prismaChannelLinkTokenFindUnique: vi.fn(),
@@ -35,6 +36,9 @@ const mocks = vi.hoisted(() => ({
   ensureConversationThread: vi.fn(),
   checkRateLimit: vi.fn(),
   incrementUsage: vi.fn(),
+  reserveAiUsage: vi.fn(),
+  releaseAiUsageReservation: vi.fn(),
+  reconcileAiUsageForRecovery: vi.fn(),
   streamChat: vi.fn(),
   extractAndSaveMemories: vi.fn(),
   start: vi.fn(),
@@ -58,6 +62,7 @@ vi.mock("@/lib/db", () => ({
     $transaction: mocks.prismaTransaction,
     message: {
       findFirst: mocks.prismaMessageFindFirst,
+      findUnique: mocks.prismaMessageFindUnique,
       create: mocks.prismaMessageCreate,
       update: mocks.prismaMessageUpdate,
       updateMany: mocks.prismaMessageUpdateMany,
@@ -100,6 +105,9 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: mocks.checkRateLimit,
   incrementUsage: mocks.incrementUsage,
+  reserveAiUsage: mocks.reserveAiUsage,
+  releaseAiUsageReservation: mocks.releaseAiUsageReservation,
+  reconcileAiUsageForRecovery: mocks.reconcileAiUsageForRecovery,
 }));
 
 vi.mock("@/lib/ai/orchestrator", () => ({
@@ -380,6 +388,8 @@ describe("/api/webhooks/whatsapp", () => {
 
     mocks.waitUntil.mockReset();
     mocks.prismaMessageFindFirst.mockReset();
+    mocks.prismaMessageFindUnique.mockReset();
+    mocks.prismaMessageFindUnique.mockResolvedValue(null);
     mocks.prismaChannelIdentityFindUnique.mockReset();
     mocks.prismaChannelIdentityUpsert.mockReset();
     mocks.prismaChannelLinkTokenFindUnique.mockReset();
@@ -403,6 +413,12 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.ensureConversationThread.mockReset();
     mocks.checkRateLimit.mockReset();
     mocks.incrementUsage.mockReset();
+    mocks.reserveAiUsage.mockReset();
+    mocks.releaseAiUsageReservation.mockReset();
+    mocks.reconcileAiUsageForRecovery.mockReset();
+    mocks.reserveAiUsage.mockResolvedValue(undefined);
+    mocks.releaseAiUsageReservation.mockResolvedValue(true);
+    mocks.reconcileAiUsageForRecovery.mockResolvedValue({ charged: true });
     mocks.streamChat.mockReset();
     mocks.extractAndSaveMemories.mockReset();
     mocks.start.mockReset();
@@ -426,6 +442,7 @@ describe("/api/webhooks/whatsapp", () => {
       callback({
         message: {
           findFirst: mocks.prismaMessageFindFirst,
+          findUnique: mocks.prismaMessageFindUnique,
           create: mocks.prismaMessageCreate,
           update: mocks.prismaMessageUpdate,
           updateMany: mocks.prismaMessageUpdateMany,
@@ -745,6 +762,14 @@ describe("/api/webhooks/whatsapp", () => {
           externalInboundClaimToken: data.externalInboundClaimToken,
           externalInboundLeaseExpiresAt: data.externalInboundLeaseExpiresAt,
         });
+        return { count: 1 };
+      }
+      if (
+        data.externalInboundLeaseExpiresAt &&
+        data.externalInboundStatus === undefined
+      ) {
+        state.externalInboundLeaseExpiresAt =
+          data.externalInboundLeaseExpiresAt;
         return { count: 1 };
       }
       if (

@@ -37,7 +37,8 @@ model User {
   // Guest / anonymous mode
   // Guest users can chat before registering; they should NOT get the full trial.
   isGuest          Boolean   @default(false)
-  guestAbuseIdHash String?   @unique // e.g. hash of phone number or other identifier
+  guestTokenHash   String?   @unique // hash of the HttpOnly session token
+  guestAbuseIdHash String? // keyed HMAC of a trusted abuse-control identifier
   guestConvertedAt DateTime? // set when the guest account is merged/converted
 
   // Role-based access control
@@ -48,10 +49,14 @@ model User {
   preferences                 Preferences?
   memories                    Memory[]
   messages                    Message[]
+  attachments                 Attachment[]
   chats                       Chat[]
   conversationThreads         ConversationThread[]
   aiTurnTraces                AiTurnTrace[]
   dailyUsage                  DailyUsage[]
+  aiUsageReservations         AiUsageReservation[]
+  dailyUploadUsage            DailyUploadUsage[]
+  uploadReservations          UploadReservation[]
   identities                  ChannelIdentity[]
   consumedLinkTokens          ChannelLinkToken[]           @relation("ChannelLinkTokenConsumedBy")
   subscription                Subscription?
@@ -76,6 +81,7 @@ model User {
 
   @@index([role])
   @@index([isGuest])
+  @@index([guestAbuseIdHash])
   @@index([deletedAt])
   @@index([lastActivityAt])
   @@index([billingSyncedAt])
@@ -335,6 +341,20 @@ enum ExternalInboundProcessingStatus {
   FAILED
 }
 
+enum AiUsageReservationStatus {
+  RESERVED
+  RECONCILED
+  RELEASED
+  EXPIRED
+}
+
+enum UploadReservationStatus {
+  RESERVED
+  COMMITTED
+  RELEASED
+  EXPIRED
+}
+
 // -----------------------------------------------------
 // CHAT (conversation sessions)
 // -----------------------------------------------------
@@ -397,8 +417,17 @@ model Message {
   mediaUrl  String? // Media URL: images, audio, video, documents, stickers
   mediaType String? // MIME type e.g.: image/jpeg, audio/ogg
 
-  externalMessageId String? // External message ID from WhatsApp/Telegram/Instagram
-  metadata          Json? // Dynamic payload (location, template params, button events, etc.)
+  externalMessageId        String? // External message ID from WhatsApp/Telegram/Instagram
+  clientMessageId          String? // Validated AI SDK UI message ID for idempotent web retries
+  clientMessagePayloadHash String? // Stable hash used to reject changed retry payloads without persisting untrusted client data
+  metadata                 Json? // Dynamic payload (location, template params, button events, etc.)
+
+  // Exactly one durable assistant response may be generated for an inbound
+  // message. Provider-delivery retries reuse this row instead of calling AI.
+  sourceInboundMessageId String?             @unique
+  sourceInboundMessage   Message?            @relation("InboundAssistantResponse", fields: [sourceInboundMessageId], references: [id], onDelete: SetNull)
+  generatedResponse      Message?            @relation("InboundAssistantResponse")
+  usageReservation       AiUsageReservation? @relation("AiUsageReservationAssistant")
 
   externalInboundStatus         ExternalInboundProcessingStatus?
   externalInboundClaimToken     String?
@@ -436,6 +465,7 @@ model Message {
   canonicalModelExperimentPair ModelExperimentPair?  @relation("ModelExperimentCanonicalMessage")
 
   @@unique([channel, externalMessageId])
+  @@unique([userId, channel, clientMessageId])
   @@index([userId, channel, createdAt])
   @@index([userId, createdAt(sort: Desc)])
   @@index([chatId, createdAt])
@@ -1016,6 +1046,8 @@ model ArtifactVersion {
 
 model Attachment {
   id                 String              @id @default(cuid())
+  userId             String
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   messageId          String?
   message            Message?            @relation(fields: [messageId], references: [id], onDelete: Cascade)
   voiceGenerationJob VoiceGenerationJob? @relation("VoiceGenerationAttachment")
@@ -1027,6 +1059,7 @@ model Attachment {
 
   createdAt DateTime @default(now())
 
+  @@index([userId])
   @@index([messageId])
 }
 
@@ -1050,6 +1083,88 @@ model DailyUsage {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, date])
+}
+
+model AiUsageReservation {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date       DateTime                 @db.Date
+  requestKey String
+  claimToken String
+  status     AiUsageReservationStatus @default(RESERVED)
+
+  reservedRequests     Int   @default(1)
+  reservedInputTokens  Int   @default(0)
+  reservedOutputTokens Int   @default(0)
+  reservedCostUsd      Float @default(0)
+
+  actualInputTokens     Int?
+  actualOutputTokens    Int?
+  actualReasoningTokens Int?
+  actualCostUsd         Float?
+
+  recoveryText      String?
+  recoveryMetrics   Json?
+  recoveryExpiresAt DateTime?
+
+  assistantMessageId String?
+  assistantMessage   Message?  @relation("AiUsageReservationAssistant", fields: [assistantMessageId], references: [id], onDelete: SetNull)
+  expiresAt          DateTime
+  reconciledAt       DateTime?
+  releasedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([userId, requestKey])
+  @@unique([assistantMessageId])
+  @@index([userId, date, status, expiresAt])
+}
+
+model DailyUploadUsage {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date          DateTime @db.Date
+  uploadCount   Int      @default(0)
+  uploadedBytes BigInt   @default(0)
+  reservedCount Int      @default(0)
+  reservedBytes BigInt   @default(0)
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, date])
+}
+
+model UploadReservation {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date      DateTime                @db.Date
+  byteCount BigInt
+  status    UploadReservationStatus @default(RESERVED)
+  expiresAt DateTime
+
+  committedAt DateTime?
+  releasedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, date, status, expiresAt])
+}
+
+model GuestAbuseBucket {
+  id String @id @default(cuid())
+
+  fingerprintHash String
+  windowStart     DateTime @db.Date
+  createdSessions Int      @default(0)
+  updatedAt       DateTime @updatedAt
+
+  @@unique([fingerprintHash, windowStart])
+  @@index([windowStart])
 }
 
 // -----------------------------------------------------

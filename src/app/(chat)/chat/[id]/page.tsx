@@ -33,7 +33,7 @@ export default async function ChatConversationPage({
       const guestUser = await prisma.user.findFirst({
         where: {
           isGuest: true,
-          guestAbuseIdHash: tokenHash,
+          guestTokenHash: tokenHash,
           guestConvertedAt: null,
         },
         select: { id: true },

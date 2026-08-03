@@ -67,6 +67,7 @@ Routes commonly use helpers from `@/lib/api/responses`:
 {
   chatId: string;
   messages: Array<{
+    id: string; // required for the final user message
     role: "user" | "assistant";
     parts?: Array<
       | { type: "text"; text: string }
@@ -75,6 +76,18 @@ Routes commonly use helpers from `@/lib/api/responses`:
   }>;
 }
 ```
+
+The final user message ID is an idempotency key scoped to the current user. It
+must start with an alphanumeric character and contain at most 128 characters
+from `[A-Za-z0-9._:-]`. Retrying the same ID with the same canonical payload
+replays the saved answer; reusing it in another chat or with changed content
+returns `409`. File parts must reference an
+owner-scoped `attachmentId`. The server uses the attachment's stored URL, MIME
+type, name, and size and does not trust inline client bytes.
+
+`POST /api/upload` accepts one non-empty file up to 10 MiB. It reserves the
+effective plan's daily object and byte quota before storage; quota exhaustion
+returns `429` with current `usage` and `limits`.
 
 `PATCH /api/chat/messages`
 
@@ -118,15 +131,21 @@ Notes:
 
 - Guests cannot upload files in guest chat endpoint.
 - Guest limits differ from authenticated trial limits.
+- New guest-session creation is abuse-limited by a keyed fingerprint of the
+  trusted client address. Missing trusted identity fails closed outside local
+  development; exhaustion returns `429`.
 
 ## RAG API
 
+The legacy RAG document-management methods below are admin-only. The admin UI
+uses `/api/admin/rag` for document management.
+
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| `GET` | `/api/rag/documents` | List RAG documents. |
-| `POST` | `/api/rag/documents` | Add one RAG document. |
-| `DELETE` | `/api/rag/documents?id=...` | Delete one RAG document and chunks. |
-| `PATCH` | `/api/rag/documents` | Backfill missing embeddings. |
+| `GET` | `/api/rag/documents` | List RAG documents (admin-only). |
+| `POST` | `/api/rag/documents` | Add one RAG document (admin-only). |
+| `DELETE` | `/api/rag/documents?id=...` | Delete one RAG document and chunks (admin-only). |
+| `PATCH` | `/api/rag/documents` | Backfill missing embeddings (admin-only). |
 | `POST` | `/api/rag/search` | Semantic search over RAG chunks. |
 
 `POST /api/rag/search` body:
@@ -169,12 +188,13 @@ Notes:
 | `DELETE` | `/api/admin/organizations/[organizationId]` | Delete organization (Clerk + local). |
 | `GET` | `/api/admin/organizations/[organizationId]/audit` | Paginated organization audit events. |
 | `GET` | `/api/admin/elevenlabs/stats` | Voice generation statistics. |
+| `GET` | `/api/admin/health` | Admin-only deep diagnostics for DB, OpenRouter, Clerk, and Blob. |
 
 ## Operations and Maintenance API
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| `GET` | `/api/health` | Health checks for DB, OpenRouter, Clerk, Blob. |
+| `GET` | `/api/health` | Dependency-free public liveness check. |
 | `GET` | `/api/cron/trigger?job=all|consolidate|archive|analyze` | Publish maintenance jobs to QStash (`CRON_SECRET` required). |
 | `GET` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |
 | `POST` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |
@@ -211,7 +231,9 @@ Typical status codes:
 - `401` unauthorized
 - `403` forbidden
 - `404` not found
+- `409` idempotency conflict or another generation is still in progress
 - `429` rate-limited
+- `502` upstream media/transcription failure
 - `500` internal server error
 
 ## Related Documentation

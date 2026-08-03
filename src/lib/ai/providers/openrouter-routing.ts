@@ -100,7 +100,7 @@ function getCachedOpenRouterProviderOptions(
   const options: JSONObject = {
     ...(provider ? { provider } : {}),
     ...(modelId && PRIORITY_SERVICE_TIER_MODEL_IDS.has(modelId)
-      ? { extraBody: { service_tier: "priority" } }
+      ? { service_tier: "priority" }
       : {}),
   };
   providerOptionsCache.set(cacheKey, options);

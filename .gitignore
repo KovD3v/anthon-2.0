@@ -68,3 +68,6 @@ CLAUDE.md
 /scripts/re-embed-rag.ts
 /scripts/test-telegram-webhook.ts
 /scripts/verify-maintenance.ts
+
+# Local Clerk CLI state can contain credentials.
+/.clerk/

@@ -9,6 +9,16 @@ function nextId(prefix: string): string {
 }
 
 export async function resetIntegrationDb() {
+  await prisma.aiUsageReservation.deleteMany();
+  await prisma.uploadReservation.deleteMany();
+  await prisma.dailyUploadUsage.deleteMany();
+  await prisma.guestAbuseBucket.deleteMany();
+  await prisma.modelExperimentResponse.deleteMany();
+  await prisma.modelExperimentPair.deleteMany();
+  await prisma.modelExperimentParticipant.deleteMany();
+  await prisma.modelExperimentVariant.deleteMany();
+  await prisma.modelExperimentAudit.deleteMany();
+  await prisma.modelExperiment.deleteMany();
   await prisma.attachment.deleteMany();
   await prisma.artifactVersion.deleteMany();
   await prisma.artifact.deleteMany();
@@ -38,6 +48,7 @@ export async function createUser(
     email: string | null;
     role: "USER" | "ADMIN" | "SUPER_ADMIN";
     isGuest: boolean;
+    guestTokenHash: string | null;
     guestAbuseIdHash: string | null;
   }> = {},
 ) {
@@ -47,6 +58,7 @@ export async function createUser(
       email: overrides.email ?? `${nextId("user")}@example.test`,
       role: overrides.role ?? "USER",
       isGuest: overrides.isGuest ?? false,
+      guestTokenHash: overrides.guestTokenHash ?? null,
       guestAbuseIdHash: overrides.guestAbuseIdHash ?? null,
     },
   });

@@ -1,12 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { waitUntil } from "@vercel/functions";
-import {
-  createUIMessageStream,
-  createUIMessageStreamResponse,
-  type UIMessage,
-} from "ai";
+import type { UIMessage } from "ai";
 import type { Prisma } from "@/generated/prisma";
 import { generateChatTitle } from "@/lib/ai/chat-title";
+import { loadTrustedRemoteMedia } from "@/lib/ai/multimodal-media";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import {
   isBillingSyncStale,
@@ -15,12 +12,25 @@ import {
 import type { ChannelMessagePart } from "@/lib/channel-flow";
 import { runChannelFlow } from "@/lib/channel-flow";
 import { persistAssistantOutput } from "@/lib/channel-flow/persistence";
+import {
+  claimWebInboundMessage,
+  createWebTextStreamResponse,
+  findExistingWebInboundMessage,
+  getWebClientPayloadHash,
+  isValidWebClientMessageId,
+  textFromPersistedAssistant,
+  WebInboundConflictError,
+} from "@/lib/channel-flow/web-inbound";
+import {
+  resolveOwnedWebMessageParts,
+  WebAttachmentInputError,
+} from "@/lib/channels/web/attachment-input";
 import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { tryCreateModelComparisonResponse } from "@/lib/model-experiments/runtime";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, reconcileAiUsageForRecovery } from "@/lib/rate-limit";
 import { transcribeAudio } from "@/lib/transcription";
 import { decideWebVoiceMode, getVoiceUnavailability } from "@/lib/voice";
 import { getVoicePlanConfig } from "@/lib/voice/config";
@@ -95,6 +105,17 @@ export async function handleWebChatPost(request: Request) {
           return new Response("No user message provided", { status: 400 });
         }
 
+        if (!isValidWebClientMessageId(lastUserMessage.id)) {
+          return Response.json(
+            { error: "A valid user message id is required" },
+            { status: 400 },
+          );
+        }
+        const clientMessageId = lastUserMessage.id;
+        const clientPayloadHash = getWebClientPayloadHash(
+          lastUserMessage.parts,
+        );
+
         const userMessageText =
           lastUserMessage.parts
             ?.map((part) =>
@@ -103,7 +124,7 @@ export async function handleWebChatPost(request: Request) {
             .join("") || "";
         const normalizedUserMessageText = userMessageText.trim();
 
-        const hasAttachments = lastUserMessage.parts?.some(
+        const hasSubmittedAttachments = lastUserMessage.parts?.some(
           (part) => part.type === "file",
         );
 
@@ -114,7 +135,7 @@ export async function handleWebChatPost(request: Request) {
           );
         }
 
-        if (!normalizedUserMessageText && !hasAttachments) {
+        if (!normalizedUserMessageText && !hasSubmittedAttachments) {
           return new Response("Empty message", { status: 400 });
         }
 
@@ -205,6 +226,41 @@ export async function handleWebChatPost(request: Request) {
           chatId,
         });
 
+        let existingInbound: Awaited<
+          ReturnType<typeof findExistingWebInboundMessage>
+        >;
+        try {
+          existingInbound = await findExistingWebInboundMessage({
+            userId: user.id,
+            chatId,
+            conversationThreadId: conversationThread.id,
+            clientMessageId,
+            payloadHash: clientPayloadHash,
+          });
+        } catch (error) {
+          if (error instanceof WebInboundConflictError) {
+            return Response.json(
+              { error: error.message, reason: error.reason },
+              { status: error.status },
+            );
+          }
+          throw error;
+        }
+
+        if (existingInbound?.generatedResponse) {
+          const savedText = textFromPersistedAssistant(
+            existingInbound.generatedResponse,
+          );
+          if (!savedText.trim()) {
+            throw new Error("Persisted assistant response has no text");
+          }
+          requestTimer.split("Idempotent replay complete");
+          return createWebTextStreamResponse(
+            existingInbound.generatedResponse.id,
+            savedText,
+          );
+        }
+
         const shouldSyncSubscription =
           !user.isGuest &&
           isBillingSyncStale(user.billingSyncedAt) &&
@@ -261,19 +317,80 @@ export async function handleWebChatPost(request: Request) {
           (message) => message.role === "user" || message.role === "assistant",
         ).length;
 
-        // Check if message has images
-        const hasImages = lastUserMessage.parts?.some((part) => {
-          if (part.type === "file") {
-            const filePart = part as unknown as { mimeType?: string };
-            return filePart.mimeType?.startsWith("image/");
+        let resolvedMessageParts: Awaited<
+          ReturnType<typeof resolveOwnedWebMessageParts>
+        >;
+        try {
+          resolvedMessageParts = await resolveOwnedWebMessageParts(
+            lastUserMessage,
+            user.id,
+            {
+              allowedExistingInboundMessageId: existingInbound?.id,
+            },
+          );
+        } catch (error) {
+          if (error instanceof WebAttachmentInputError) {
+            return Response.json(
+              { error: "Invalid or inaccessible attachment" },
+              { status: 400 },
+            );
           }
-          return false;
-        });
+          throw error;
+        }
 
-        const messageParts = buildChannelMessageParts(lastUserMessage);
+        const messageParts = resolvedMessageParts.aiParts;
+        const hasAttachments = messageParts.some(
+          (part) => part.type === "file",
+        );
+        const hasImages = messageParts.some(
+          (part) => part.type === "file" && part.mimeType?.startsWith("image/"),
+        );
         const hadAudioAttachment = messageParts.some(
           (part) => part.type === "file" && part.mimeType?.startsWith("audio/"),
         );
+        let inboundClaim: Awaited<ReturnType<typeof claimWebInboundMessage>>;
+        try {
+          inboundClaim = existingInbound
+            ? { message: existingInbound, created: false }
+            : await LatencyLogger.measure(
+                "DB: Claim user message",
+                () =>
+                  claimWebInboundMessage({
+                    userId: user.id,
+                    chatId,
+                    conversationThreadId: conversationThread.id,
+                    clientMessageId,
+                    payloadHash: clientPayloadHash,
+                    parts:
+                      resolvedMessageParts.persistedParts as Prisma.InputJsonValue,
+                    attachmentIds: resolvedMessageParts.attachmentIds,
+                  }),
+                "🌐 Chat API Request",
+              );
+        } catch (error) {
+          if (error instanceof WebInboundConflictError) {
+            return Response.json(
+              { error: error.message, reason: error.reason },
+              { status: error.status },
+            );
+          }
+          throw error;
+        }
+
+        const message = inboundClaim.message;
+        if (message.generatedResponse) {
+          const savedText = textFromPersistedAssistant(
+            message.generatedResponse,
+          );
+          if (!savedText.trim()) {
+            throw new Error("Persisted assistant response has no text");
+          }
+          return createWebTextStreamResponse(
+            message.generatedResponse.id,
+            savedText,
+          );
+        }
+
         let aiMessageParts: ChannelMessagePart[];
         let aiUserMessageText: string;
         let aiHasAudio: boolean;
@@ -301,102 +418,31 @@ export async function handleWebChatPost(request: Request) {
           );
         }
 
-        // Save the user message to the database with parts
-        const message = await LatencyLogger.measure(
-          "DB: Save user message",
-          () =>
-            prisma.message.create({
-              data: {
-                userId: user.id,
-                chatId,
-                conversationThreadId: conversationThread.id,
-                channel: "WEB",
-                direction: "INBOUND",
-                role: "USER",
-                type: "TEXT",
-                parts: lastUserMessage.parts as Prisma.InputJsonValue,
-              },
-            }),
-          "🌐 Chat API Request",
-        );
-
-        waitUntil(
-          trackInboundUserMessageFunnelProgress({
-            userId: user.id,
-            isGuest: user.isGuest,
-            userRole: user.role,
-            channel: "WEB",
-            planId,
-            subscriptionStatus,
-          }).catch((error) =>
-            logger.error(
-              "chat.funnel_tracking_failed",
-              "Failed tracking funnel progress",
-              {
-                error,
-                userId: user.id,
-                messageId: message.id,
-              },
+        if (inboundClaim.created) {
+          waitUntil(
+            trackInboundUserMessageFunnelProgress({
+              userId: user.id,
+              isGuest: user.isGuest,
+              userRole: user.role,
+              channel: "WEB",
+              planId,
+              subscriptionStatus,
+            }).catch((error) =>
+              logger.error(
+                "chat.funnel_tracking_failed",
+                "Failed tracking funnel progress",
+                {
+                  error,
+                  userId: user.id,
+                  messageId: message.id,
+                },
+              ),
             ),
-          ),
-        );
-
-        // Link attachments to the message
-        if (lastUserMessage.parts && Array.isArray(lastUserMessage.parts)) {
-          for (const part of lastUserMessage.parts) {
-            if (part.type === "file") {
-              const filePart = part as unknown as {
-                attachmentId?: string;
-              };
-              if (filePart.attachmentId) {
-                const attachment = await prisma.attachment.findFirst({
-                  where: { id: filePart.attachmentId },
-                  select: {
-                    id: true,
-                    messageId: true,
-                    blobUrl: true,
-                    message: {
-                      select: {
-                        userId: true,
-                      },
-                    },
-                  },
-                });
-
-                if (!attachment) {
-                  continue;
-                }
-
-                if (
-                  attachment.message?.userId &&
-                  attachment.message.userId !== user.id
-                ) {
-                  continue;
-                }
-
-                await prisma.attachment
-                  .update({
-                    where: { id: filePart.attachmentId },
-                    data: { messageId: message.id },
-                  })
-                  .catch((error) =>
-                    logger.error(
-                      "chat.attachment.link_failed",
-                      "Failed to link attachment",
-                      {
-                        error,
-                        attachmentId: filePart.attachmentId,
-                        messageId: message.id,
-                      },
-                    ),
-                  );
-              }
-            }
-          }
+          );
         }
 
         // Auto-generate or refresh chat title if not manually set by user
-        if (!chat.customTitle) {
+        if (inboundClaim.created && !chat.customTitle) {
           const shouldRefresh =
             requestConversationMessageCount === 1 ||
             requestConversationMessageCount === 2 ||
@@ -459,6 +505,7 @@ export async function handleWebChatPost(request: Request) {
           planConfig: voicePlanConfig,
           planId,
           hasAttachments: Boolean(hasAttachments),
+          abortSignal: request.signal,
         });
 
         logger.info(
@@ -499,6 +546,7 @@ export async function handleWebChatPost(request: Request) {
                 ? "direct_media"
                 : "text",
             voiceDecision,
+            abortSignal: request.signal,
             waitUntil,
           });
 
@@ -568,7 +616,7 @@ export async function handleWebChatPost(request: Request) {
             voiceUnavailableReason,
             skipConversationHistory: chat._count.messages === 0,
           },
-          execution: { mode: "stream" },
+          execution: { mode: "stream", abortSignal: request.signal },
           persistence: {
             channel: "WEB",
             saveAssistantMessage: true,
@@ -578,6 +626,20 @@ export async function handleWebChatPost(request: Request) {
             waitUntil,
           },
         });
+
+        if (flowResult.rateLimit) {
+          return Response.json(
+            {
+              error: flowResult.rateLimit.retryable
+                ? "Generation already in progress"
+                : "Rate limit exceeded",
+              reason: flowResult.rateLimit.reason,
+              retryable: flowResult.rateLimit.retryable,
+              upgradeInfo: flowResult.rateLimit.upgradeInfo,
+            },
+            { status: flowResult.rateLimit.retryable ? 409 : 429 },
+          );
+        }
 
         if (!flowResult.streamResult) {
           throw new Error("Missing stream result");
@@ -601,70 +663,6 @@ export async function handleWebChatPost(request: Request) {
   );
 }
 
-function normalizeFilePartData(filePart: {
-  data?: string;
-  url?: string;
-  mimeType?: string;
-}) {
-  if (filePart.data) {
-    return filePart.data;
-  }
-
-  if (!filePart.url) {
-    return undefined;
-  }
-
-  if (
-    filePart.mimeType?.startsWith("image/") ||
-    filePart.mimeType === "application/pdf" ||
-    filePart.mimeType?.startsWith("video/")
-  ) {
-    return filePart.url;
-  }
-
-  if (filePart.url.startsWith("data:") && filePart.url.includes(",")) {
-    return filePart.url.split(",")[1];
-  }
-
-  return undefined;
-}
-
-function buildChannelMessageParts(message: UIMessage): ChannelMessagePart[] {
-  const messageParts: ChannelMessagePart[] = [];
-
-  for (const part of message.parts ?? []) {
-    if (part.type === "text") {
-      messageParts.push({
-        type: "text",
-        text: (part as { text: string }).text || "",
-      });
-      continue;
-    }
-
-    if (part.type === "file") {
-      const filePart = part as unknown as {
-        data?: string;
-        url?: string;
-        mimeType?: string;
-        name?: string;
-        size?: number;
-        attachmentId?: string;
-      };
-      const fileData = normalizeFilePartData(filePart);
-      messageParts.push({
-        type: "file",
-        data: fileData,
-        mimeType: filePart.mimeType,
-        name: filePart.name,
-        size: filePart.size,
-        attachmentId: filePart.attachmentId,
-      });
-    }
-  }
-
-  return messageParts;
-}
-
 async function prepareWebMessageForAi({
   messageParts,
   userId,
@@ -684,11 +682,17 @@ async function prepareWebMessageForAi({
     }
 
     if (!part.data?.trim()) {
-      throw new Error("Web audio message has no base64 payload");
+      throw new Error("Web audio message has no canonical Blob URL");
     }
 
+    const audioBytes = await loadTrustedRemoteMedia({
+      url: part.data,
+      mediaType: part.mimeType,
+      expectedSize: part.size,
+    });
+
     const transcript = await transcribeAudio({
-      base64: part.data,
+      base64: Buffer.from(audioBytes).toString("base64"),
       mimeType: part.mimeType,
       title: "Web Chat",
       userId,
@@ -739,24 +743,11 @@ function hasUnsupportedFilePayload(part: UIMessage["parts"][number]) {
   }
 
   const filePart = part as unknown as {
-    data?: string;
-    url?: string;
-    mimeType?: string;
+    attachmentId?: unknown;
   };
-
-  if (filePart.data) {
-    return false;
-  }
-
-  if (!filePart.url) {
-    return false;
-  }
-
-  if (filePart.mimeType?.startsWith("image/")) {
-    return false;
-  }
-
-  return !filePart.url.startsWith("data:");
+  return (
+    typeof filePart.attachmentId !== "string" || !filePart.attachmentId.trim()
+  );
 }
 
 function getRecentTextMessages(messages: UIMessage[]) {
@@ -846,6 +837,7 @@ async function handleVoiceFirstWebResponse({
   hasAudio,
   inputOrigin,
   voiceDecision,
+  abortSignal,
   waitUntil: schedule,
 }: {
   userId: string;
@@ -863,6 +855,7 @@ async function handleVoiceFirstWebResponse({
   hasAudio?: boolean;
   inputOrigin?: "text" | "transcribed_voice" | "direct_media";
   voiceDecision: Awaited<ReturnType<typeof decideWebVoiceMode>>;
+  abortSignal?: AbortSignal;
   waitUntil?: (promise: Promise<unknown>) => void;
 }) {
   const flowResult = await runChannelFlow({
@@ -896,50 +889,91 @@ async function handleVoiceFirstWebResponse({
       responseMode: "voice",
       voiceEnabled: true,
     },
-    execution: { mode: "text" },
+    execution: { mode: "text", abortSignal },
     persistence: {
       channel: "WEB",
       saveAssistantMessage: false,
     },
   });
 
+  if (flowResult.rateLimit) {
+    return Response.json(
+      {
+        error: flowResult.rateLimit.retryable
+          ? "Generation already in progress"
+          : "Rate limit exceeded",
+        reason: flowResult.rateLimit.reason,
+        retryable: flowResult.rateLimit.retryable,
+        upgradeInfo: flowResult.rateLimit.upgradeInfo,
+      },
+      { status: flowResult.rateLimit.retryable ? 409 : 429 },
+    );
+  }
+
   const assistantText = flowResult.assistantText.trim();
   if (!assistantText || !flowResult.metrics) {
     throw new Error("Voice response generation produced no assistant text");
   }
   const voiceGenerationExpiresAt = getVoiceGenerationExpiry();
-  const assistantMessage = await persistAssistantOutput({
-    userId,
-    chatId,
-    conversationThreadId,
-    userMessageId,
-    channel: "WEB",
-    text: assistantText,
-    userMessageText,
-    metrics: flowResult.metrics,
-    metadata: {
-      responseMode: "voice",
-      transcript: assistantText,
-      ...withVoiceGenerationStatus(
-        {
-          voice: getVoiceDecisionMetadataFields(voiceDecision),
-        },
-        "pending",
-      ),
-    },
-    updateChatTimestamp: true,
-    revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
-    allowMemoryExtraction: true,
-    waitUntil: schedule,
-    voiceGeneration: { expiresAt: voiceGenerationExpiresAt },
-  });
+  let assistantMessage: Awaited<ReturnType<typeof persistAssistantOutput>>;
+  try {
+    assistantMessage = await persistAssistantOutput({
+      userId,
+      chatId,
+      conversationThreadId,
+      userMessageId,
+      channel: "WEB",
+      text: assistantText,
+      userMessageText,
+      metrics: flowResult.metrics,
+      metadata: {
+        responseMode: "voice",
+        transcript: assistantText,
+        ...withVoiceGenerationStatus(
+          {
+            voice: getVoiceDecisionMetadataFields(voiceDecision),
+          },
+          "pending",
+        ),
+      },
+      updateChatTimestamp: true,
+      revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
+      allowMemoryExtraction: true,
+      waitUntil: schedule,
+      usageReservationId: flowResult.usageReservationId,
+      usageReservationClaimToken: flowResult.usageReservationClaimToken,
+      usageAlreadyReconciled: flowResult.usageAlreadyReconciled,
+      voiceGeneration: { expiresAt: voiceGenerationExpiresAt },
+    });
+  } catch (error) {
+    if (
+      flowResult.usageReservationId &&
+      flowResult.usageReservationClaimToken &&
+      !flowResult.usageAlreadyReconciled
+    ) {
+      await reconcileAiUsageForRecovery({
+        reservationId: flowResult.usageReservationId,
+        claimToken: flowResult.usageReservationClaimToken,
+        userId,
+        text: assistantText,
+        metrics: flowResult.metrics,
+      }).catch((recoveryError) =>
+        logger.error(
+          "voice.persistence_recovery_failed",
+          "Failed recording voice-first persistence recovery",
+          { error: recoveryError, userId, chatId },
+        ),
+      );
+    }
+    throw error;
+  }
 
   // Return the persisted transcript immediately; TTS and Blob work continue in
   // the durable worker. A refresh/reconnect reads the same message and its
   // eventual attachment rather than receiving a second assistant message.
   scheduleVoiceGenerationJob(assistantMessage.id, schedule);
 
-  return createTextStreamResponse(assistantMessage.id, assistantText);
+  return createWebTextStreamResponse(assistantMessage.id, assistantText);
 }
 
 function getExplicitVoiceUnavailableReason(
@@ -961,21 +995,4 @@ function getExplicitVoiceUnavailableReason(
     default:
       return undefined;
   }
-}
-
-function createTextStreamResponse(messageId: string, text: string) {
-  const textPartId = `${messageId}-text`;
-  const stream = createUIMessageStream<UIMessage>({
-    execute: ({ writer }) => {
-      writer.write({ type: "start", messageId });
-      writer.write({ type: "start-step" });
-      writer.write({ type: "text-start", id: textPartId });
-      writer.write({ type: "text-delta", id: textPartId, delta: text });
-      writer.write({ type: "text-end", id: textPartId });
-      writer.write({ type: "finish-step" });
-      writer.write({ type: "finish", finishReason: "stop" });
-    },
-  });
-
-  return createUIMessageStreamResponse({ stream });
 }
