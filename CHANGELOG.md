@@ -4,9 +4,11 @@ All notable changes to Anthon 2.0 will be documented in this file.
 
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
-Version numbers describe the application's user-facing behavior and its documented API and channel-integration contracts. Versions before 1.0.0 represent initial development. The historical versions below were reconstructed from verified, non-overlapping Git milestones; their links point to the exact commit ranges because matching release tags did not previously exist.
+Version numbers describe the application's user-facing behavior and its documented API and channel-integration contracts. Versions before 1.0.0 represent initial development. The historical versions below are retrospective release candidates reconstructed from verified, non-overlapping Git milestones; they were not original published releases, and their links point to exact commits or commit ranges because matching release tags did not exist.
 
 ## [Unreleased]
+
+## [0.5.1] - 2026-08-01
 
 July reliability-audit hardening for chat, channels, multimodal inputs, and
 delivery state.
@@ -61,7 +63,7 @@ delivery state.
 findings are pinned or incompatible transitives under Next.js, Prisma Studio,
 AI SDK devtools, Knip, and Vitest; no unsafe cross-major override was applied.
 
-## [0.7.0] - 2026-07-31
+## [0.5.0] - 2026-07-31
 
 Coaching lifecycle, resilient multimodal channels, and evidence-based model promotion.
 
@@ -95,7 +97,7 @@ Coaching lifecycle, resilient multimodal channels, and evidence-based model prom
 
 - Bounded inbound media processing and expanded webhook, multimodal, guest, stateful-chat, and disposable-database regression coverage.
 
-## [0.6.0] - 2026-06-30
+## [0.4.0] - 2026-06-30
 
 Reality-based model selection, provider-aware routing, and faster chat responses.
 
@@ -128,7 +130,7 @@ Reality-based model selection, provider-aware routing, and faster chat responses
 
 - Removed the superseded benchmark implementation after the reality benchmark became canonical.
 
-## [0.5.0] - 2026-05-30
+## [0.3.2] - 2026-05-30
 
 Reliability, validation, usage accounting, and low-latency guest chat.
 
@@ -160,7 +162,7 @@ Reliability, validation, usage accounting, and low-latency guest chat.
 - Required a configured cron secret and moved request validation ahead of authentication, billing, rate-limit, persistence, and external side effects.
 - Strengthened owner and administrator checks across chats, attachments, benchmarks, RAG, users, and preferences.
 
-## [0.4.0] - 2026-03-28
+## [0.3.1] - 2026-03-28
 
 Platform maintainability, a coherent motion system, and database groundwork.
 
@@ -268,11 +270,12 @@ Initial web coaching-chat foundation.
 - Database, OpenRouter, Clerk, and Vercel Blob health checks.
 - Database indexes, direct migration connectivity, structured message persistence, and latency instrumentation.
 
-[Unreleased]: https://github.com/KovD3v/anthon-2.0/compare/a5e410573d6435a2d1ad3207f7ab1dc7669df2e3...HEAD
-[0.7.0]: https://github.com/KovD3v/anthon-2.0/compare/f90c811d6e9b2aaa76857a862fba85821f45b0c3...a5e410573d6435a2d1ad3207f7ab1dc7669df2e3
-[0.6.0]: https://github.com/KovD3v/anthon-2.0/compare/1f04b9919f88ac9c4e07c9cc71467248571c808a...f90c811d6e9b2aaa76857a862fba85821f45b0c3
-[0.5.0]: https://github.com/KovD3v/anthon-2.0/compare/586d2d66d5678d07e7f25c443028e3dac32bdcdf...1f04b9919f88ac9c4e07c9cc71467248571c808a
-[0.4.0]: https://github.com/KovD3v/anthon-2.0/compare/d786582a79936b47e3b01bb7c54afde6146803cb...586d2d66d5678d07e7f25c443028e3dac32bdcdf
+[Unreleased]: https://github.com/KovD3v/anthon-2.0/compare/76213f0...HEAD
+[0.5.1]: https://github.com/KovD3v/anthon-2.0/tree/76213f0
+[0.5.0]: https://github.com/KovD3v/anthon-2.0/compare/f90c811d6e9b2aaa76857a862fba85821f45b0c3...a5e410573d6435a2d1ad3207f7ab1dc7669df2e3
+[0.4.0]: https://github.com/KovD3v/anthon-2.0/compare/1f04b9919f88ac9c4e07c9cc71467248571c808a...f90c811d6e9b2aaa76857a862fba85821f45b0c3
+[0.3.2]: https://github.com/KovD3v/anthon-2.0/compare/586d2d66d5678d07e7f25c443028e3dac32bdcdf...1f04b9919f88ac9c4e07c9cc71467248571c808a
+[0.3.1]: https://github.com/KovD3v/anthon-2.0/compare/d786582a79936b47e3b01bb7c54afde6146803cb...586d2d66d5678d07e7f25c443028e3dac32bdcdf
 [0.3.0]: https://github.com/KovD3v/anthon-2.0/compare/1d56c5a05e8071a94a2685ebd658e7f0152347b6...d786582a79936b47e3b01bb7c54afde6146803cb
 [0.2.0]: https://github.com/KovD3v/anthon-2.0/compare/2ed3a800d43680ab08d4cc0a3b40348fbfc09a66...1d56c5a05e8071a94a2685ebd658e7f0152347b6
 [0.1.0]: https://github.com/KovD3v/anthon-2.0/tree/2ed3a800d43680ab08d4cc0a3b40348fbfc09a66
