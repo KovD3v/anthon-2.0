@@ -1,25 +1,13 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-
-// Routes that require authentication
-// Note: /chat is NOT protected - guests can access via cookie-based auth
-const isProtectedRoute = createRouteMatcher([
-  "/profile(.*)",
-  "/settings(.*)",
-  "/admin(.*)",
-  "/channels(.*)",
-  "/organization(.*)",
-  "/organizzation(.*)",
-]);
-
-// Routes that require admin role
-const _isAdminRoute = createRouteMatcher(["/admin(.*)"]);
+import { isProtectedRoute } from "@/lib/protected-routes";
 
 export default clerkMiddleware(async (auth, req) => {
-  const { userId } = await auth();
+  // This is an early UX redirect, not the authorization boundary. Protected
+  // server resources must continue to check authentication themselves.
+  if (isProtectedRoute(req.nextUrl.pathname)) {
+    const { userId } = await auth();
 
-  // Protect routes that require authentication
-  if (isProtectedRoute(req)) {
     if (!userId) {
       // Redirect to sign-in if not authenticated
       const signInUrl = new URL("/sign-in", req.url);
