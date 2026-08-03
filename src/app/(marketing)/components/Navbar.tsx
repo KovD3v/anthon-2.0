@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  Show,
-  SignInButton,
-  SignUpButton,
-  UserButton,
-  useUser,
-} from "@clerk/nextjs";
+import { Show, UserButton, useUser } from "@clerk/nextjs";
 import { AnimatePresence, m } from "framer-motion";
 import {
   Brain,
@@ -158,14 +152,15 @@ export function Navbar() {
               )}
             </Button>
             <Show when="signed-out">
-              <SignInButton mode="modal">
-                <Button variant="ghost">Accedi</Button>
-              </SignInButton>
-              <SignUpButton mode="modal">
-                <Button className="bg-brand-yellow text-[#171714] hover:bg-brand-yellow/85">
-                  Inizia gratis
-                </Button>
-              </SignUpButton>
+              <Button variant="ghost" asChild>
+                <Link href="/sign-in">Accedi</Link>
+              </Button>
+              <Button
+                className="bg-brand-yellow text-[#171714] hover:bg-brand-yellow/85"
+                asChild
+              >
+                <Link href="/sign-up">Inizia gratis</Link>
+              </Button>
             </Show>
             <Show when="signed-in">
               <UserButton
@@ -310,21 +305,31 @@ export function Navbar() {
                 <div className="space-y-3 border-t border-border pt-3">
                   <Show when="signed-out">
                     <div className="grid grid-cols-2 gap-2">
-                      <SignInButton mode="modal">
-                        <Button
-                          variant="ghost"
-                          className="h-11 justify-center gap-2 rounded-xl border border-border bg-card hover:bg-muted"
+                      <Button
+                        variant="ghost"
+                        className="h-11 justify-center gap-2 rounded-xl border border-border bg-card hover:bg-muted"
+                        asChild
+                      >
+                        <Link
+                          href="/sign-in"
+                          onClick={() => setIsMenuOpen(false)}
                         >
                           <LogIn className="h-4 w-4" />
                           Accedi
-                        </Button>
-                      </SignInButton>
-                      <SignUpButton mode="modal">
-                        <Button className="h-11 justify-center gap-2 rounded-xl bg-brand-yellow text-[#171714] shadow-lg shadow-brand-yellow/20 hover:bg-brand-yellow/85">
+                        </Link>
+                      </Button>
+                      <Button
+                        className="h-11 justify-center gap-2 rounded-xl bg-brand-yellow text-[#171714] hover:bg-brand-yellow/85"
+                        asChild
+                      >
+                        <Link
+                          href="/sign-up"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
                           <Sparkles className="h-4 w-4" />
                           Inizia ora
-                        </Button>
-                      </SignUpButton>
+                        </Link>
+                      </Button>
                     </div>
                   </Show>
 

@@ -160,6 +160,21 @@
 }
 
 @layer utilities {
+  @keyframes auth-step-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .auth-step {
+    animation: auth-step-in 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
   @keyframes scenario-progress {
     from {
       transform: scaleX(0);
@@ -213,6 +228,9 @@
 
   /* Movement is disabled at the component level so brief opacity and color
      transitions can continue to communicate state changes. */
+  .auth-step {
+    animation: none;
+  }
 }
 
 @layer utilities {

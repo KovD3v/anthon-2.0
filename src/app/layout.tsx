@@ -1,3 +1,4 @@
+import { itIT } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Condensed, Geist_Mono } from "next/font/google";
@@ -5,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { IdentifyUser } from "@/components/providers/identify-user";
 import { MotionProvider } from "@/components/providers/motion-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { SessionTaskGuard } from "@/components/providers/session-task-guard";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import "./globals.css";
 
@@ -71,6 +73,7 @@ export default function RootLayout({
             "setup-mfa": "/session-tasks/setup-mfa",
           }}
           localization={{
+            ...itIT,
             locale: "it-IT",
             backButton: "Indietro",
             formButtonPrimary: "Continua",
@@ -196,6 +199,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <IdentifyUser />
+            <SessionTaskGuard />
             <QueryProvider>
               <MotionProvider>{children}</MotionProvider>
             </QueryProvider>
