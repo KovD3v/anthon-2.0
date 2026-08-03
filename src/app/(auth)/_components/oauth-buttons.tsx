@@ -1,13 +1,12 @@
 "use client";
 
 import { useSignIn, useSignUp } from "@clerk/nextjs";
-import { Apple } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getAuthErrorMessage } from "./auth-flow-utils";
 
 const PROVIDERS = [
-  { strategy: "oauth_apple", label: "Apple", icon: Apple },
+  { strategy: "oauth_apple", label: "Apple", icon: AppleIcon },
   { strategy: "oauth_facebook", label: "Facebook", icon: FacebookIcon },
   { strategy: "oauth_google", label: "Google", icon: GoogleIcon },
 ] as const;
@@ -70,6 +69,22 @@ export function OAuthButtons({
         </Button>
       ))}
     </fieldset>
+  );
+}
+
+function AppleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 448 512"
+      className={className}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        fill="currentColor"
+        d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 140.5 4 184.5 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.9-17.9 22.1 0 38.9 17.9 75.9 17.9 48.2-.7 90-82.6 102.2-120.3-64.4-30.3-60.5-88.3-60.9-90.9zM266.1 106.4c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"
+      />
+    </svg>
   );
 }
 
