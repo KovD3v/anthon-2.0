@@ -223,6 +223,36 @@ export function SignUpFlow({ continuation }: { continuation: string }) {
                   hint="Almeno 8 caratteri. Evita password già usate altrove."
                 />
                 <div id="clerk-captcha" />
+                <label className="mx-auto flex max-w-[34rem] cursor-pointer items-start justify-center gap-3 text-center text-sm leading-relaxed text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={legalAccepted}
+                    onChange={(event) => setLegalAccepted(event.target.checked)}
+                    className="mt-1 size-4 shrink-0 accent-primary"
+                    aria-invalid={Boolean(errors.fields.legalAccepted)}
+                  />
+                  <span>
+                    Accetto i{" "}
+                    <a
+                      href={LEGAL_LINKS.terms}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-foreground underline underline-offset-4"
+                    >
+                      Termini
+                    </a>{" "}
+                    e l’
+                    <a
+                      href={LEGAL_LINKS.privacy}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-foreground underline underline-offset-4"
+                    >
+                      Informativa privacy
+                    </a>
+                    .
+                  </span>
+                </label>
                 <AuthErrorSummary
                   message={error || getFieldErrorMessage(errors.fields.captcha)}
                 />
@@ -240,37 +270,6 @@ export function SignUpFlow({ continuation }: { continuation: string }) {
                   Accedi
                 </Link>
               </p>
-
-              <label className="mx-auto flex max-w-[34rem] cursor-pointer items-start justify-center gap-3 text-center text-sm leading-relaxed text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={legalAccepted}
-                  onChange={(event) => setLegalAccepted(event.target.checked)}
-                  className="mt-1 size-4 shrink-0 accent-primary"
-                  aria-invalid={Boolean(errors.fields.legalAccepted)}
-                />
-                <span>
-                  Accetto i{" "}
-                  <a
-                    href={LEGAL_LINKS.terms}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-medium text-foreground underline underline-offset-4"
-                  >
-                    Termini
-                  </a>{" "}
-                  e l’
-                  <a
-                    href={LEGAL_LINKS.privacy}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-medium text-foreground underline underline-offset-4"
-                  >
-                    Informativa privacy
-                  </a>
-                  .
-                </span>
-              </label>
             </div>
           </>
         )}
