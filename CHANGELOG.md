@@ -8,6 +8,11 @@ Version numbers describe the application's user-facing behavior and its document
 
 ## [Unreleased]
 
+### Added
+
+- Added a dedicated Clerk password-reset flow at `/forgot-password` with email verification code, password confirmation, code resend, and automatic session activation.
+- Added an explicit password-reset link to the sign-in page.
+
 ## [0.5.1] - 2026-08-01
 
 July reliability-audit hardening for chat, channels, multimodal inputs, and
