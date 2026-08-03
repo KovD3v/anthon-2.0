@@ -1,8 +1,7 @@
 "use client";
 
 import {
-  SignedIn,
-  SignedOut,
+  Show,
   SignInButton,
   SignUpButton,
   UserButton,
@@ -90,7 +89,7 @@ export function Navbar() {
             >
               Metodo
             </Link>
-            <SignedIn>
+            <Show when="signed-in">
               <Link
                 href="/chat"
                 className="text-muted-foreground transition-colors hover:text-foreground"
@@ -117,7 +116,7 @@ export function Navbar() {
                   Organizzazione
                 </Link>
               )}
-            </SignedIn>
+            </Show>
             <Link
               href="/pricing"
               aria-current={pathname === "/pricing" ? "page" : undefined}
@@ -158,7 +157,7 @@ export function Navbar() {
                 <Moon className="h-4 w-4" />
               )}
             </Button>
-            <SignedOut>
+            <Show when="signed-out">
               <SignInButton mode="modal">
                 <Button variant="ghost">Accedi</Button>
               </SignInButton>
@@ -167,8 +166,8 @@ export function Navbar() {
                   Inizia gratis
                 </Button>
               </SignUpButton>
-            </SignedOut>
-            <SignedIn>
+            </Show>
+            <Show when="signed-in">
               <UserButton
                 appearance={{
                   elements: {
@@ -176,7 +175,7 @@ export function Navbar() {
                   },
                 }}
               />
-            </SignedIn>
+            </Show>
           </div>
 
           {/* Mobile Controls */}
@@ -272,7 +271,7 @@ export function Navbar() {
                     label="Come funziona"
                     onClick={() => setIsMenuOpen(false)}
                   />
-                  <SignedIn>
+                  <Show when="signed-in">
                     <MobileNavLink
                       href="/profile"
                       icon={<User className="h-4 w-4" />}
@@ -293,7 +292,7 @@ export function Navbar() {
                         onClick={() => setIsMenuOpen(false)}
                       />
                     )}
-                  </SignedIn>
+                  </Show>
                   <MobileNavLink
                     href="/chat"
                     icon={<MessageSquare className="h-4 w-4" />}
@@ -309,7 +308,7 @@ export function Navbar() {
                 </nav>
 
                 <div className="space-y-3 border-t border-border pt-3">
-                  <SignedOut>
+                  <Show when="signed-out">
                     <div className="grid grid-cols-2 gap-2">
                       <SignInButton mode="modal">
                         <Button
@@ -327,9 +326,9 @@ export function Navbar() {
                         </Button>
                       </SignUpButton>
                     </div>
-                  </SignedOut>
+                  </Show>
 
-                  <SignedIn>
+                  <Show when="signed-in">
                     <div className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
                       <div className="flex items-center gap-2">
                         <UserButton />
@@ -342,7 +341,7 @@ export function Navbar() {
                       </div>
                       <Settings className="h-4 w-4 text-muted-foreground/50" />
                     </div>
-                  </SignedIn>
+                  </Show>
                 </div>
               </div>
             </m.div>

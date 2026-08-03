@@ -1,7 +1,7 @@
 "use client";
 
-import { useSignIn } from "@clerk/nextjs";
 import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
+import { useSignIn } from "@clerk/nextjs/legacy";
 import { ArrowLeft, CheckCircle2, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
