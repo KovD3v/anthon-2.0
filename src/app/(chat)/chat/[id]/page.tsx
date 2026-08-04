@@ -4,6 +4,7 @@ import { getAuthUser } from "@/lib/auth";
 import { getSharedChat } from "@/lib/chat";
 import { prisma } from "@/lib/db";
 import { getGuestTokenFromCookies, hashGuestToken } from "@/lib/guest-auth";
+import { convertGuestForAuthenticatedUser } from "@/lib/guest-conversion";
 import { ChatConversationClient } from "./chat-conversation-client";
 
 // This page is dynamic because it depends on the current user's authentication state
@@ -24,6 +25,16 @@ export default async function ChatConversationPage({
     // Auth might fail during static generation, which is fine
   }
   let userId = authUser?.id;
+
+  // Layouts and pages render in parallel. The chat layout also starts guest
+  // conversion so the sidebar is correct, but this page must await the same
+  // server-side handoff before checking ownership or it can render a false 404
+  // on the first navigation after signup.
+  if (authUser) {
+    await convertGuestForAuthenticatedUser(authUser.id, {
+      canMutateCookies: false,
+    });
+  }
 
   // Handle guest user if not authenticated
   if (!userId) {
