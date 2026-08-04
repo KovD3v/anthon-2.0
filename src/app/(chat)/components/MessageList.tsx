@@ -556,14 +556,7 @@ export function MessageList({
                         </div>
                       )}
 
-                      <m.div
-                        layout={!shouldReduceMotion}
-                        transition={{
-                          layout: {
-                            duration: 0.18,
-                            ease: [0.77, 0, 0.175, 1],
-                          },
-                        }}
+                      <div
                         className={`relative text-sm leading-relaxed ${
                           /* Only apply bubble styling if there's text or we are editing */
                           comparisonData
@@ -786,7 +779,7 @@ export function MessageList({
                               </div>
                             );
                           })()}
-                      </m.div>
+                      </div>
 
                       {/* Actions Row */}
                       {!comparisonData && (

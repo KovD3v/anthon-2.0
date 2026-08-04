@@ -10,6 +10,7 @@ import { MessageList } from "./MessageList";
 
 const mocks = vi.hoisted(() => ({
   copy: vi.fn(),
+  motionLayoutProps: [] as unknown[],
   toastError: vi.fn(),
 }));
 
@@ -19,6 +20,9 @@ vi.mock("framer-motion", async () => {
     HTMLElement,
     HTMLAttributes<HTMLElement>
   >(function MotionElement({ children, ...props }, ref) {
+    mocks.motionLayoutProps.push(
+      (props as HTMLAttributes<HTMLElement> & Record<string, unknown>).layout,
+    );
     const {
       // Motion-only props are deliberately removed at this test boundary.
       initial: _initial,
@@ -116,10 +120,17 @@ afterEach(() => {
 
 beforeEach(() => {
   mocks.copy.mockReset();
+  mocks.motionLayoutProps.length = 0;
   mocks.toastError.mockReset();
 });
 
 describe("MessageList rendered interactions", () => {
+  it("does not animate measured message geometry", () => {
+    renderMessageList();
+
+    expect(mocks.motionLayoutProps).not.toContain(true);
+  });
+
   it("shows feedback only for persisted message ids", () => {
     const view = renderMessageList({ feedbackMessageIds: new Set() });
 
