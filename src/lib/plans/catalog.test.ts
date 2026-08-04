@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { PLAN_CATALOG } from "./catalog";
 
 describe("plan catalog progression", () => {
+  it("allows registered trial users 75 requests per day", () => {
+    expect(PLAN_CATALOG.TRIAL.limits.maxRequestsPerDay).toBe(75);
+  });
+
   it("never reduces enforced guest entitlements after registration", () => {
     const guest = PLAN_CATALOG.GUEST;
     const trial = PLAN_CATALOG.TRIAL;

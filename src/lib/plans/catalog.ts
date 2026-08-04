@@ -68,7 +68,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
   TRIAL: {
     modelTier: "TRIAL",
     limits: {
-      maxRequestsPerDay: 10,
+      maxRequestsPerDay: 75,
       maxInputTokensPerDay: 100_000,
       maxOutputTokensPerDay: 50_000,
       maxCostPerDay: 0.5,
