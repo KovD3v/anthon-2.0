@@ -5,6 +5,7 @@ import { useClerk } from "@clerk/nextjs";
 import { DefaultChatTransport } from "ai";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -371,6 +372,16 @@ export function ChatConversationClient({
     }
     return { message: chatError.message };
   })();
+
+  useEffect(() => {
+    if (!chatError) return;
+
+    posthog.captureException(chatError, {
+      chat_id: chatId,
+      chat_status: status,
+      is_guest: isGuest,
+    });
+  }, [chatError, chatId, isGuest, status]);
 
   const maybeActivateClerkTrial = useCallback(async () => {
     if (

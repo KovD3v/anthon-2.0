@@ -57,22 +57,6 @@ vi.mock("./MemoizedMarkdown", () => ({
 }));
 vi.mock("./ModelComparisonCard", () => ({ ModelComparisonCard: () => null }));
 vi.mock("./VoiceResponse", () => ({ VoiceResponse: () => null }));
-vi.mock("./hooks/useMessageVirtualizer", () => ({
-  useMessageVirtualizer: (count: number) => ({
-    parentRef: { current: null },
-    rowVirtualizer: {
-      getTotalSize: () => count * 100,
-      getVirtualItems: () =>
-        Array.from({ length: count }, (_, index) => ({
-          index,
-          key: index,
-          start: index * 100,
-        })),
-      measureElement: () => undefined,
-    },
-  }),
-}));
-
 const userMessage: ChatUIMessage = {
   id: "user-1",
   role: "user",

@@ -44,7 +44,6 @@ import {
 } from "../chat/chat-reactivity-ui";
 import { AttachmentPreview } from "./Attachments";
 import { AudioPlayer } from "./AudioPlayer";
-import { useMessageVirtualizer } from "./hooks/useMessageVirtualizer";
 import { MemoizedMarkdown } from "./MemoizedMarkdown";
 import { ModelComparisonCard } from "./ModelComparisonCard";
 import { VoiceResponse } from "./VoiceResponse";
@@ -197,9 +196,7 @@ export function MessageList({
     pendingLabel: assistantPendingLabel,
     latestMessage,
   });
-  const { parentRef, rowVirtualizer } = useMessageVirtualizer(
-    visibleMessages.length,
-  );
+  const parentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (status !== "submitted") {
@@ -337,14 +334,11 @@ export function MessageList({
     }
   }
 
-  // Virtualize the message list for better performance with many messages
-  // (useVirtualizer is encapsulated in useMessageVirtualizer hook)
-
   // Auto-scroll to bottom when messages load or new message arrives
   useEffect(() => {
     // Scroll to bottom on initial load or when new messages are added
     if (messages.length > 0 && parentRef.current) {
-      // Use setTimeout to ensure virtualizer has calculated heights
+      // Let the newly rendered message finish layout before scrolling.
       const timeoutId = setTimeout(() => {
         if (parentRef.current) {
           parentRef.current.scrollTop = parentRef.current.scrollHeight;
@@ -352,7 +346,7 @@ export function MessageList({
       }, 50);
       return () => clearTimeout(timeoutId);
     }
-  }, [messages.length, parentRef.current]);
+  }, [messages.length]);
 
   const handleScroll = useCallback(() => {
     if (!parentRef.current) return;
@@ -363,14 +357,14 @@ export function MessageList({
     if (scrollTop < 100 && hasMoreMessages && !isLoadingMore && onLoadMore) {
       onLoadMore();
     }
-  }, [parentRef, hasMoreMessages, isLoadingMore, onLoadMore]);
+  }, [hasMoreMessages, isLoadingMore, onLoadMore]);
 
   useEffect(() => {
     const container = parentRef.current;
     if (!container) return;
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [handleScroll, parentRef.current]);
+  }, [handleScroll]);
 
   function scrollToBottom() {
     parentRef.current?.scrollTo({
@@ -413,15 +407,8 @@ export function MessageList({
               </Button>
             </div>
           )}
-          <div
-            style={{
-              height: `${rowVirtualizer.getTotalSize()}px`,
-              width: "100%",
-              position: "relative",
-            }}
-          >
-            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const message = visibleMessages[virtualRow.index];
+          <div>
+            {visibleMessages.map((message, messageIndex) => {
               const isEditing = editingMessageId === message.id;
               const messageText = getMessageText(message);
               const comparisonData = getModelComparisonData(message.parts);
@@ -485,17 +472,9 @@ export function MessageList({
 
               return (
                 <div
-                  key={virtualRow.key}
-                  data-index={virtualRow.index}
+                  key={message.id}
+                  data-index={messageIndex}
                   data-message-role={message.role}
-                  ref={rowVirtualizer.measureElement}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
                 >
                   <m.div
                     initial={
