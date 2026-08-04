@@ -61,7 +61,12 @@ export async function convertGuestForAuthenticatedUser(
     return "retryable_failure";
   }
 
-  revalidateTag(`chats-${userId}`, "max");
+  // Chat layouts can perform the migration while rendering the authenticated
+  // route. Next.js 16 rejects cache invalidation from that render context;
+  // the route-handler callers keep the normal revalidation behavior.
+  if (canMutateCookies) {
+    revalidateTag(`chats-${userId}`, "max");
+  }
   if (canMutateCookies) await clearGuestCookie();
   conversionLogger.info(
     "guest.migration_success",

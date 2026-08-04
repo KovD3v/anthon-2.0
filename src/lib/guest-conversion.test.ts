@@ -101,5 +101,6 @@ describe("convertGuestForAuthenticatedUser", () => {
       }),
     ).resolves.toBe("migrated");
     expect(mocks.clearGuestCookie).not.toHaveBeenCalled();
+    expect(mocks.revalidateTag).not.toHaveBeenCalled();
   });
 });
