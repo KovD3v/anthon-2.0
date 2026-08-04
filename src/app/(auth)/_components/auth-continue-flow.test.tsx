@@ -7,6 +7,7 @@ import { AuthContinueFlow } from "./auth-continue-flow";
 
 const mocks = vi.hoisted(() => ({
   router: { replace: vi.fn() },
+  auth: { isLoaded: true, isSignedIn: false },
   signIn: {
     status: "needs_identifier",
     supportedSecondFactors: [],
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
     mfa: {},
   },
   signUp: {
+    id: "sua_test",
     status: "missing_requirements",
     firstName: null,
     lastName: null,
@@ -29,6 +31,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
 vi.mock("@clerk/nextjs", () => ({
+  useAuth: () => mocks.auth,
   useSignIn: () => ({ signIn: mocks.signIn, fetchStatus: "idle" }),
   useSignUp: () => ({
     signUp: mocks.signUp,
@@ -46,6 +49,9 @@ vi.mock("@clerk/nextjs", () => ({
 
 describe("AuthContinueFlow", () => {
   beforeEach(() => {
+    mocks.auth.isLoaded = true;
+    mocks.auth.isSignedIn = false;
+    mocks.signUp.id = "sua_test";
     mocks.signUp.status = "missing_requirements";
     mocks.signUp.missingFields = ["legal_accepted"];
     mocks.signUp.unverifiedFields = [];
@@ -80,5 +86,21 @@ describe("AuthContinueFlow", () => {
       locale: "it-IT",
     });
     expect(mocks.router.replace).toHaveBeenCalledWith("/chat/thread_1");
+  });
+
+  it("does not submit when the OAuth sign-up session is missing", () => {
+    mocks.signUp.id = undefined;
+
+    render(<AuthContinueFlow continuation="/chat/thread_1" />);
+
+    expect(
+      screen.getByRole("heading", { name: "Riprendi l’accesso" }),
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole("link", { name: "Ricomincia registrazione" })
+        .getAttribute("href"),
+    ).toBe("/sign-up?redirect_url=%2Fchat%2Fthread_1");
+    expect(mocks.signUp.update).not.toHaveBeenCalled();
   });
 });

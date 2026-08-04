@@ -1,8 +1,10 @@
 "use client";
 
-import { useSignIn, useSignUp } from "@clerk/nextjs";
+import { useAuth, useSignIn, useSignUp } from "@clerk/nextjs";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { LEGAL_LINKS } from "@/lib/legal-links";
 import {
   AuthErrorSummary,
@@ -20,8 +22,14 @@ import { MfaChallenge } from "./mfa-challenge";
 
 export function AuthContinueFlow({ continuation }: { continuation: string }) {
   const router = useRouter();
+  const { isLoaded: authLoaded, isSignedIn } = useAuth();
   const { signIn, fetchStatus: signInFetchStatus } = useSignIn();
   const { signUp, errors, fetchStatus } = useSignUp();
+  const continuationQuery = new URLSearchParams({
+    redirect_url: continuation,
+  }).toString();
+  const restartSignUpHref = `/sign-up?${continuationQuery}`;
+  const signInHref = `/sign-in?${continuationQuery}`;
   const [firstName, setFirstName] = useState(signUp.firstName ?? "");
   const [lastName, setLastName] = useState(signUp.lastName ?? "");
   const [email, setEmail] = useState(signUp.emailAddress ?? "");
@@ -33,6 +41,24 @@ export function AuthContinueFlow({ continuation }: { continuation: string }) {
     signUp.unverifiedFields.includes("email_address"),
   );
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (authLoaded && isSignedIn) router.replace(continuation);
+  }, [authLoaded, continuation, isSignedIn, router]);
+
+  if (!authLoaded || isSignedIn) {
+    return (
+      <AuthFormPanel>
+        <AuthHeader
+          title="Verifichiamo l’accesso"
+          description="Stiamo recuperando la tua sessione."
+        />
+        <output className="text-sm text-muted-foreground" aria-live="polite">
+          Accesso in corso…
+        </output>
+      </AuthFormPanel>
+    );
+  }
 
   async function finalizeSignUp() {
     const { error: finalizeError } = await signUp.finalize({
@@ -68,9 +94,33 @@ export function AuthContinueFlow({ continuation }: { continuation: string }) {
     );
   }
 
+  if (!signUp.id) {
+    return (
+      <AuthFormPanel>
+        <AuthHeader
+          title="Riprendi l’accesso"
+          description="La sessione di registrazione non è più disponibile. Ricomincia per entrare in Anthon."
+        />
+        <div className="space-y-3">
+          <Button asChild className="h-11 w-full font-semibold">
+            <Link href={restartSignUpHref}>Ricomincia registrazione</Link>
+          </Button>
+          <Button variant="outline" asChild className="h-11 w-full">
+            <Link href={signInHref}>Accedi</Link>
+          </Button>
+        </div>
+      </AuthFormPanel>
+    );
+  }
+
   async function submitRequirements(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
+    if (!signUp.id) {
+      router.replace(restartSignUpHref);
+      return;
+    }
 
     const needsLegal = signUp.missingFields.includes("legal_accepted");
     if (needsLegal && !legalAccepted) {
@@ -112,6 +162,12 @@ export function AuthContinueFlow({ continuation }: { continuation: string }) {
   async function verifyEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
+    if (!signUp.id) {
+      router.replace(restartSignUpHref);
+      return;
+    }
+
     const { error: verificationError } =
       await signUp.verifications.verifyEmailCode({ code: code.trim() });
     if (verificationError) {
