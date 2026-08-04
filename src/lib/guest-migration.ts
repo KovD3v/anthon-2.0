@@ -86,6 +86,18 @@ export async function migrateGuestToUser(
       });
       migratedCounts.chats = chatsResult.count;
 
+      // Conversation threads and traces are user-owned too. Keep them aligned
+      // with the chats/messages moved above so the next web turn resolves the
+      // existing thread instead of trying to create a duplicate chatId.
+      await tx.conversationThread.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: targetUserId },
+      });
+      await tx.aiTurnTrace.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: targetUserId },
+      });
+
       // 3. Migrate Memories with recency-based conflict resolution
       const guestMemories = await tx.memory.findMany({
         where: { userId: guestUserId },

@@ -15,6 +15,8 @@ import { migrateGuestToUser } from "./guest-migration";
 type Tx = {
   message: { updateMany: ReturnType<typeof vi.fn> };
   chat: { updateMany: ReturnType<typeof vi.fn> };
+  conversationThread: { updateMany: ReturnType<typeof vi.fn> };
+  aiTurnTrace: { updateMany: ReturnType<typeof vi.fn> };
   memory: {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
@@ -57,6 +59,10 @@ function buildTx(): Tx {
   return {
     message: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
     chat: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    conversationThread: {
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    aiTurnTrace: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
     memory: {
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue(null),
@@ -151,6 +157,14 @@ describe("lib/guest-migration", () => {
       dailyUsage: 0,
       profile: false,
       preferences: false,
+    });
+    expect(tx.conversationThread.updateMany).toHaveBeenCalledWith({
+      where: { userId: "guest-1" },
+      data: { userId: "user-1" },
+    });
+    expect(tx.aiTurnTrace.updateMany).toHaveBeenCalledWith({
+      where: { userId: "guest-1" },
+      data: { userId: "user-1" },
     });
     expect(tx.user.update).toHaveBeenCalledWith({
       where: { id: "guest-1" },
