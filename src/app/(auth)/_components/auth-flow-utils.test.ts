@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  AUTH_REQUEST_TIMEOUT_MESSAGE,
+  AuthRequestTimeoutError,
   getAuthErrorMessage,
   getFieldErrorMessage,
   maskEmail,
+  withAuthRequestTimeout,
 } from "./auth-flow-utils";
 
 describe("auth flow utilities", () => {
@@ -23,5 +26,24 @@ describe("auth flow utilities", () => {
 
   it("masks email addresses", () => {
     expect(maskEmail("tommaso@example.com")).toBe("to•••••@example.com");
+  });
+
+  it("rejects stalled auth requests with a user-facing timeout", async () => {
+    vi.useFakeTimers();
+    const pendingRequest = withAuthRequestTimeout(
+      new Promise<never>(() => {}),
+      100,
+    );
+    const rejection = expect(pendingRequest).rejects.toBeInstanceOf(
+      AuthRequestTimeoutError,
+    );
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    await rejection;
+    expect(new AuthRequestTimeoutError().message).toBe(
+      AUTH_REQUEST_TIMEOUT_MESSAGE,
+    );
+    vi.useRealTimers();
   });
 });

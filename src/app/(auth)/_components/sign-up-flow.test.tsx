@@ -87,6 +87,32 @@ describe("SignUpFlow", () => {
     ).toBeTruthy();
   });
 
+  it("stops loading and shows a localized error when Clerk rejects", async () => {
+    mocks.signUp.password.mockRejectedValue({
+      errors: [{ code: "captcha_unavailable" }],
+    });
+    const user = userEvent.setup();
+    render(<SignUpFlow continuation="/chat/chat_123" />);
+
+    await user.click(screen.getByRole("checkbox"));
+    await user.type(screen.getByLabelText("Email"), "new@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(
+      screen.getByRole("button", { name: "Crea il mio account" }),
+    );
+
+    expect(screen.getByRole("alert").textContent).toContain(
+      "La verifica di sicurezza non è riuscita",
+    );
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Crea il mio account",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+  });
+
   it("verifies the email, finalizes, and preserves the guest chat", async () => {
     mocks.signUp.verifications.verifyEmailCode.mockImplementation(async () => {
       mocks.signUp.status = "complete";

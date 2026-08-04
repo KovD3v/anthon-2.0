@@ -17,8 +17,10 @@ import {
 import {
   getAuthErrorMessage,
   getFieldErrorMessage,
+  getUnknownAuthErrorMessage,
   maskEmail,
   navigateAfterAuth,
+  withAuthRequestTimeout,
 } from "./auth-flow-utils";
 import { AuthFormPanel, AuthHeader, AuthStepTransition } from "./auth-shell";
 import { OAuthButtons } from "./oauth-buttons";
@@ -28,13 +30,14 @@ type SignUpStep = "details" | "verification";
 export function SignUpFlow({ continuation }: { continuation: string }) {
   const router = useRouter();
   const { isLoaded, isSignedIn } = useAuth();
-  const { signUp, errors, fetchStatus } = useSignUp();
+  const { signUp, errors } = useSignUp();
   const [step, setStep] = useState<SignUpStep>("details");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [resendSeconds, setResendSeconds] = useState(0);
 
   useEffect(() => {
@@ -51,17 +54,19 @@ export function SignUpFlow({ continuation }: { continuation: string }) {
   }, [resendSeconds]);
 
   async function finalize() {
-    const { error: finalizeError } = await signUp.finalize({
-      navigate: ({ session, decorateUrl }) => {
-        if (session?.currentTask) return;
-        navigateAfterAuth(router, continuation, decorateUrl);
-      },
-    });
-    if (finalizeError) setError(getAuthErrorMessage(finalizeError));
+    return withAuthRequestTimeout(
+      signUp.finalize({
+        navigate: ({ session, decorateUrl }) => {
+          if (session?.currentTask) return;
+          navigateAfterAuth(router, continuation, decorateUrl);
+        },
+      }),
+    );
   }
 
   async function submitDetails(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSubmitting) return;
     setError(null);
     const normalizedEmail = email.trim();
 
@@ -78,60 +83,100 @@ export function SignUpFlow({ continuation }: { continuation: string }) {
       return;
     }
 
-    const { error: passwordError } = await signUp.password({
-      emailAddress: normalizedEmail,
-      password,
-      legalAccepted: true,
-      locale: "it-IT",
-    });
-    if (passwordError) {
-      setError(getAuthErrorMessage(passwordError));
-      return;
-    }
+    setIsSubmitting(true);
+    try {
+      const { error: passwordError } = await withAuthRequestTimeout(
+        signUp.password({
+          emailAddress: normalizedEmail,
+          password,
+          legalAccepted: true,
+          locale: "it-IT",
+        }),
+      );
+      if (passwordError) {
+        setError(getAuthErrorMessage(passwordError));
+        return;
+      }
 
-    const { error: sendError } = await signUp.verifications.sendEmailCode();
-    if (sendError) {
-      setError(getAuthErrorMessage(sendError));
-      return;
-    }
+      const { error: sendError } = await withAuthRequestTimeout(
+        signUp.verifications.sendEmailCode(),
+      );
+      if (sendError) {
+        setError(getAuthErrorMessage(sendError));
+        return;
+      }
 
-    setEmail(normalizedEmail);
-    setResendSeconds(30);
-    setStep("verification");
+      setEmail(normalizedEmail);
+      setResendSeconds(30);
+      setStep("verification");
+    } catch (authError) {
+      setError(getUnknownAuthErrorMessage(authError));
+      if (
+        authError instanceof Error &&
+        authError.name === "AuthRequestTimeoutError"
+      ) {
+        try {
+          await withAuthRequestTimeout(Promise.resolve(signUp.reset()), 2_000);
+        } catch {
+          // A full page reload remains available if Clerk cannot reset its pending request.
+        }
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   async function verifyEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSubmitting) return;
     setError(null);
     if (!code.trim()) {
       setError("Inserisci il codice ricevuto via email.");
       return;
     }
 
-    const { error: verificationError } =
-      await signUp.verifications.verifyEmailCode({ code: code.trim() });
-    if (verificationError) {
-      setError(getAuthErrorMessage(verificationError));
-      return;
-    }
+    setIsSubmitting(true);
+    try {
+      const { error: verificationError } = await withAuthRequestTimeout(
+        signUp.verifications.verifyEmailCode({ code: code.trim() }),
+      );
+      if (verificationError) {
+        setError(getAuthErrorMessage(verificationError));
+        return;
+      }
 
-    if (signUp.status === "complete") {
-      await finalize();
-      return;
-    }
+      if (signUp.status === "complete") {
+        const { error: finalizeError } = await finalize();
+        if (finalizeError) setError(getAuthErrorMessage(finalizeError));
+        return;
+      }
 
-    setError("La registrazione richiede ancora alcune informazioni.");
+      setError("La registrazione richiede ancora alcune informazioni.");
+    } catch (authError) {
+      setError(getUnknownAuthErrorMessage(authError));
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   async function resendCode() {
-    if (resendSeconds > 0) return;
+    if (resendSeconds > 0 || isSubmitting) return;
     setError(null);
-    const { error: sendError } = await signUp.verifications.sendEmailCode();
-    if (sendError) {
-      setError(getAuthErrorMessage(sendError));
-      return;
+    setIsSubmitting(true);
+    try {
+      const { error: sendError } = await withAuthRequestTimeout(
+        signUp.verifications.sendEmailCode(),
+      );
+      if (sendError) {
+        setError(getAuthErrorMessage(sendError));
+        return;
+      }
+      setResendSeconds(30);
+    } catch (authError) {
+      setError(getUnknownAuthErrorMessage(authError));
+    } finally {
+      setIsSubmitting(false);
     }
-    setResendSeconds(30);
   }
 
   async function editEmail() {
@@ -160,7 +205,7 @@ export function SignUpFlow({ continuation }: { continuation: string }) {
                 autoFocus
               />
               <AuthErrorSummary message={error} />
-              <AuthSubmitButton loading={fetchStatus === "fetching"}>
+              <AuthSubmitButton loading={isSubmitting}>
                 Verifica email
               </AuthSubmitButton>
             </form>
@@ -170,7 +215,7 @@ export function SignUpFlow({ continuation }: { continuation: string }) {
                 variant="ghost"
                 className="min-h-11"
                 onClick={resendCode}
-                disabled={resendSeconds > 0 || fetchStatus === "fetching"}
+                disabled={resendSeconds > 0 || isSubmitting}
               >
                 {resendSeconds > 0
                   ? `Nuovo codice tra ${resendSeconds}s`
@@ -256,7 +301,7 @@ export function SignUpFlow({ continuation }: { continuation: string }) {
                 <AuthErrorSummary
                   message={error || getFieldErrorMessage(errors.fields.captcha)}
                 />
-                <AuthSubmitButton loading={fetchStatus === "fetching"}>
+                <AuthSubmitButton loading={isSubmitting}>
                   Crea il mio account
                 </AuthSubmitButton>
               </form>
