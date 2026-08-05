@@ -406,6 +406,31 @@ describe("ai/orchestrator", () => {
     expect(mocks.buildThreadContext).not.toHaveBeenCalled();
   });
 
+  it("keeps empty RAG retrieval out of paired prompts and telemetry", async () => {
+    mocks.shouldUseRag.mockResolvedValue(true);
+    mocks.getRagContext.mockResolvedValue({
+      text: "Nessun documento rilevante trovato.",
+      chunkCount: 0,
+    });
+
+    const prepared = await prepareChatTurn({
+      userId: "user-1",
+      chatId: "chat-rag-empty-paired",
+      conversationThreadId: "thread-1",
+      userMessageId: "message-1",
+      userMessage: "Dammi una risposta breve usando i documenti caricati",
+      effectiveEntitlements: baseEntitlements as never,
+      skipConversationHistory: true,
+    });
+
+    expect(prepared.ragUsed).toBe(false);
+    expect(prepared.ragChunksCount).toBe(0);
+    expect(prepared.systemPrompt).not.toContain("RAG CONTEXT");
+    expect(prepared.systemPrompt).not.toContain(
+      "Nessun documento rilevante trovato.",
+    );
+  });
+
   it("builds stream payload for text messages and skips entitlement lookup when prefetched", async () => {
     const abortController = new AbortController();
     const prefetchedEntitlements = {
@@ -716,6 +741,52 @@ describe("ai/orchestrator", () => {
     expect(mocks.createMemoryTools).not.toHaveBeenCalled();
     expect(mocks.createUserContextTools).not.toHaveBeenCalled();
     expect(streamInput.maxOutputTokens).toBe(96);
+  });
+
+  it("does not mark RAG as used when retrieval returns no chunks", async () => {
+    mocks.shouldUseRag.mockResolvedValue(true);
+    mocks.getRagContext.mockResolvedValue({
+      text: "Nessun documento rilevante trovato.",
+      chunkCount: 0,
+    });
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-rag-empty",
+      userMessage: "Dammi una risposta breve usando i documenti caricati",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      onEnd: (step: {
+        text: string;
+        usage?: {
+          inputTokens?: number;
+          outputTokens?: number;
+          totalTokens?: number;
+        };
+        providerMetadata?: Record<string, unknown>;
+      }) => Promise<void>;
+    };
+    expect(streamInput.instructions).not.toContain("RAG CONTEXT");
+    expect(streamInput.instructions).not.toContain(
+      "Nessun documento rilevante trovato.",
+    );
+
+    await streamInput.onEnd({
+      text: "answer",
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      providerMetadata: {},
+    });
+
+    expect(mocks.extractAIMetrics).toHaveBeenCalledWith(
+      "google/gemini-test",
+      expect.any(Number),
+      expect.objectContaining({
+        ragUsed: false,
+        ragChunksCount: 0,
+      }),
+    );
   });
 
   it("routes a compact quality prompt suite without sending complex requests to simple fast mode", async () => {

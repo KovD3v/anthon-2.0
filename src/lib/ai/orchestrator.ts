@@ -1561,9 +1561,11 @@ export async function streamChat({
                 "📚 RAG: Get context",
                 () => getRagContext(userMessage),
               );
-              ragContext = ragResult.text;
-              ragUsed = true;
               ragChunksCount = ragResult.chunkCount;
+              if (ragResult.chunkCount > 0) {
+                ragContext = ragResult.text;
+                ragUsed = true;
+              }
             }
           } catch (error) {
             aiLogger.error("ai.rag.error", "RAG enrichment failed", {
@@ -2196,7 +2198,10 @@ export async function prepareChatTurn({
             (await shouldUseRag(userMessage, { userId }));
           if (!needsRag) return { text: undefined, chunkCount: 0 };
           const result = await getRagContext(userMessage);
-          return { text: result.text, chunkCount: result.chunkCount };
+          return {
+            text: result.chunkCount > 0 ? result.text : undefined,
+            chunkCount: result.chunkCount,
+          };
         } catch (error) {
           aiLogger.warn(
             "model_comparison.rag_failed",
@@ -2207,7 +2212,7 @@ export async function prepareChatTurn({
         }
       })()
     : { text: undefined, chunkCount: 0 };
-  const ragUsed = Boolean(ragResult.text);
+  const ragUsed = ragResult.chunkCount > 0;
   const currentDate = new Date().toLocaleDateString("it-IT", {
     weekday: "long",
     year: "numeric",

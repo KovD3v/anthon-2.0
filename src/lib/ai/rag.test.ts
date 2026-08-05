@@ -278,6 +278,29 @@ describe("ai/rag", () => {
     );
   });
 
+  it("accepts matches above the calibrated similarity threshold only", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ embedding: [0.1, 0.2, 0.3] }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.queryRawUnsafe.mockResolvedValue([
+      { content: "Above threshold", title: "Doc A", similarity: 0.56 },
+      { content: "At threshold", title: "Doc B", similarity: 0.55 },
+    ]);
+
+    const { searchDocuments } = await loadModule();
+    const result = await searchDocuments("query text", 5);
+
+    expect(result).toEqual([
+      { content: "Above threshold", title: "Doc A", similarity: 0.56 },
+    ]);
+  });
+
   it("getRagContext formats search results for prompt injection", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
