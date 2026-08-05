@@ -5,7 +5,7 @@ export function Footer() {
   return (
     <footer className="border-t bg-background py-12 md:py-16">
       <div className="container mx-auto px-4 md:px-6">
-        <div className="grid grid-cols-1 gap-10 md:grid-cols-[1.3fr_0.8fr_0.8fr]">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-[1.3fr_repeat(3,0.8fr)]">
           <div className="max-w-sm space-y-4">
             <div className="flex items-center gap-2 font-bold text-xl">
               <Brain className="h-6 w-6 text-brand-yellow" />
@@ -92,6 +92,30 @@ export function Footer() {
                   className="text-muted-foreground hover:text-foreground"
                 >
                   Crea un account
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="font-display mb-4 text-lg font-bold uppercase tracking-wide">
+              Legale
+            </h3>
+            <ul className="space-y-2 text-sm">
+              <li>
+                <Link
+                  href="/terms"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Condizioni d'uso
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/privacy"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Informativa privacy
                 </Link>
               </li>
             </ul>
