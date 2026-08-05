@@ -15,6 +15,8 @@ Version numbers describe the application's user-facing behavior and its document
   SMS/TOTP/backup-code MFA, OAuth requirements, and password recovery.
 - Added allowlisted post-auth continuations, legal URL validation, bot-protection
   placement, session-task routes, and focused auth regression coverage.
+- Added automatic PostHog source-map uploads during production builds, with
+  uploaded maps removed afterward.
 
 ### Changed
 
@@ -32,6 +34,14 @@ Version numbers describe the application's user-facing behavior and its document
   update loops, including cache invalidation during active chat rendering. See
   [React error #185](https://react.dev/errors/185) for the original error
   reference.
+- Moved system messages from conversation history into model instructions so
+  summaries remain available without sending unsupported system-role messages
+  through the AI SDK.
+- Suppressed expected rate-limit and in-progress generation rejections from
+  chat error reporting and failure toasts while continuing to report unexpected
+  failures.
+- Backfilled missing user email addresses from Clerk even when a local profile
+  already has a name, and invalidated the cached auth result after syncing.
 - Preserved conversation threads during guest migration and waited for guest
   conversion to finish before loading the authenticated chat.
 - Added bounded, recoverable authentication requests for signup, verification,
