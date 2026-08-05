@@ -82,6 +82,8 @@ describe("lib/auth", () => {
     mocks.clerkClient.mockResolvedValue({
       users: {
         getUser: vi.fn().mockResolvedValue({
+          primaryEmailAddress: { emailAddress: "user@example.com" },
+          emailAddresses: [{ emailAddress: "user@example.com" }],
           firstName: "John",
           lastName: "Doe",
         }),
@@ -157,6 +159,34 @@ describe("lib/auth", () => {
     });
     expect(mocks.waitUntil).toHaveBeenCalledTimes(1);
     expect(result.user?.id).toBe("user-new");
+  });
+
+  it("syncs a missing email from Clerk even when the profile already has a name", async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      clerkId: "clerk-1",
+      email: null,
+      role: "USER",
+      createdAt: "2026-02-16T10:00:00.000Z",
+    });
+
+    await getAuthUser();
+    const syncPromise = mocks.waitUntil.mock.calls[0]?.[0] as Promise<void>;
+    await syncPromise;
+
+    await vi.waitFor(() => {
+      expect(mocks.clerkClient).toHaveBeenCalledTimes(1);
+      expect(mocks.userUpdate).toHaveBeenCalledWith({
+        where: { id: "user-1" },
+        data: { email: "user@example.com" },
+      });
+      expect(mocks.profileFindUnique).toHaveBeenCalledWith({
+        where: { userId: "user-1" },
+        select: { name: true },
+      });
+      expect(mocks.profileUpsert).not.toHaveBeenCalled();
+      expect(mocks.revalidateTag).toHaveBeenCalledWith("user-auth", "max");
+    });
   });
 
   it("handles dynamic server usage errors without failing auth", async () => {

@@ -5,7 +5,7 @@
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { waitUntil } from "@vercel/functions";
-import { unstable_cache } from "next/cache";
+import { revalidateTag, unstable_cache } from "next/cache";
 import type { UserRole } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 import { createLogger, getLogContext } from "@/lib/logger";
@@ -112,19 +112,22 @@ export async function getAuthUser(): Promise<AuthResult> {
             createdAt: true,
           },
         });
-        const createdUserId = user.id;
-
-        // Sync profile asynchronously (wrapped with waitUntil for serverless)
-        waitUntil(
-          syncUserProfileFromClerk(clerkId, createdUserId).catch((error) => {
-            authLogger.error(
-              "auth.profile_sync.background_failed",
-              "Background profile sync failed",
-              { error, clerkId, userId: createdUserId },
-            );
-          }),
-        );
       }
+    }
+
+    if (user.email === null) {
+      const userId = user.id;
+
+      // Sync missing Clerk data asynchronously (wrapped with waitUntil for serverless)
+      waitUntil(
+        syncUserFromClerk(clerkId, userId).catch((error) => {
+          authLogger.error(
+            "auth.user_sync.background_failed",
+            "Background user sync failed",
+            { error, clerkId, userId },
+          );
+        }),
+      );
     }
 
     logAuthState("auth.authenticated", "Authenticated user resolved", {
@@ -165,32 +168,46 @@ export async function getAuthUser(): Promise<AuthResult> {
 }
 
 /**
- * Sync user profile from Clerk asynchronously.
+ * Sync missing user data from Clerk asynchronously.
  * This is called in the background to avoid blocking the main request.
  */
-async function syncUserProfileFromClerk(
+async function syncUserFromClerk(
   clerkId: string,
   userId: string,
 ): Promise<void> {
   try {
-    // Check if profile already exists with a name
-    const profile = await prisma.profile.findUnique({
-      where: { userId },
-      select: { name: true },
-    });
-
-    // Skip if profile already has a name
-    if (profile?.name) {
-      return;
-    }
-
     // Fetch user data from Clerk
     const client = await clerkClient();
-    const clerkUser = await client.users.getUser(clerkId);
+    const [clerkUser, profile] = await Promise.all([
+      client.users.getUser(clerkId),
+      prisma.profile.findUnique({
+        where: { userId },
+        select: { name: true },
+      }),
+    ]);
+    const email =
+      clerkUser.primaryEmailAddress?.emailAddress ??
+      clerkUser.emailAddresses[0]?.emailAddress;
     const firstName = clerkUser.firstName;
     const lastName = clerkUser.lastName;
 
-    if (firstName || lastName) {
+    if (email) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { email },
+      });
+      revalidateTag("user-auth", "max");
+      authLogger.info(
+        "auth.user_sync.email_completed",
+        "Synced email from Clerk",
+        {
+          userId,
+          clerkId,
+        },
+      );
+    }
+
+    if (!profile?.name && (firstName || lastName)) {
       const fullName = [firstName, lastName].filter(Boolean).join(" ");
       await prisma.profile.upsert({
         where: { userId },
@@ -212,8 +229,8 @@ async function syncUserProfileFromClerk(
     }
   } catch (error) {
     authLogger.error(
-      "auth.profile_sync.failed",
-      "Error syncing user profile from Clerk",
+      "auth.user_sync.failed",
+      "Error syncing user data from Clerk",
       {
         error,
         userId,
