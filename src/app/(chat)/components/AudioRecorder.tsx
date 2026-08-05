@@ -206,7 +206,9 @@ export function AudioRecorder({
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
   };
 
   const isRecording = recordingState === "recording";
@@ -227,19 +229,30 @@ export function AudioRecorder({
     <div className="relative flex min-w-0 items-center gap-2">
       {statusLabel && (
         <output
-          className={`hidden max-w-[190px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs shadow-sm sm:flex ${
+          className={`max-w-[190px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs shadow-sm ${
             isRecording
-              ? "border-red-500/25 bg-red-500/10 text-red-600 dark:text-red-300"
-              : "border-primary/15 bg-primary/5 text-muted-foreground"
+              ? "flex border-red-500/25 bg-red-500/10 font-medium text-red-600 dark:text-red-300"
+              : "hidden border-primary/15 bg-primary/5 text-muted-foreground sm:flex"
           }`}
+          aria-label={statusLabel}
           aria-live="polite"
         >
           <span
             className={`h-2 w-2 shrink-0 rounded-full ${
               isRecording ? "animate-pulse bg-red-500" : "bg-primary"
             }`}
+            aria-hidden="true"
           />
-          <span className="truncate">{statusLabel}</span>
+          {isRecording ? (
+            <time
+              className="font-mono tabular-nums"
+              dateTime={`PT${recordingDuration}S`}
+            >
+              {durationLabel}
+            </time>
+          ) : (
+            <span className="truncate">{statusLabel}</span>
+          )}
         </output>
       )}
 
