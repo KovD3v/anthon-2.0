@@ -62,7 +62,12 @@ describe("AudioRecorder", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByText("00:00").tagName).toBe("TIME");
+    const timer = screen.getByText("00:00");
+    expect(timer.tagName).toBe("TIME");
+    expect(timer.className).toContain("font-mono");
+    expect(timer.className).not.toContain("border");
+    expect(timer.className).not.toContain("bg-");
+    expect(screen.queryByText("Registrazione in corso")).toBeNull();
 
     act(() => {
       vi.advanceTimersByTime(1_000);

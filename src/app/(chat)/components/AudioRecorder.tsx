@@ -5,10 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { AttachmentData } from "@/types/chat";
-import {
-  CHAT_REACTIVITY_COPY,
-  getAudioRecorderStatusLabel,
-} from "../chat/chat-reactivity-ui";
+import { CHAT_REACTIVITY_COPY } from "../chat/chat-reactivity-ui";
 
 interface AudioRecorderProps {
   onRecordingComplete: (attachment: AttachmentData) => void;
@@ -217,43 +214,20 @@ export function AudioRecorder({
     recordingState === "uploading" ||
     recordingState === "requesting";
   const durationLabel = formatDuration(recordingDuration);
-  const statusLabel = getAudioRecorderStatusLabel({
-    state: recordingState,
-    duration: durationLabel,
-  });
   const buttonLabel = isRecording
     ? "Ferma registrazione"
     : "Registra messaggio vocale";
 
   return (
     <div className="relative flex min-w-0 items-center gap-2">
-      {statusLabel && (
-        <output
-          className={`max-w-[190px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs shadow-sm ${
-            isRecording
-              ? "flex border-red-500/25 bg-red-500/10 font-medium text-red-600 dark:text-red-300"
-              : "hidden border-primary/15 bg-primary/5 text-muted-foreground sm:flex"
-          }`}
-          aria-label={statusLabel}
+      {isRecording && (
+        <time
+          className="px-1 text-xs font-mono tabular-nums text-red-600 dark:text-red-300"
+          dateTime={`PT${recordingDuration}S`}
           aria-live="polite"
         >
-          <span
-            className={`h-2 w-2 shrink-0 rounded-full ${
-              isRecording ? "animate-pulse bg-red-500" : "bg-primary"
-            }`}
-            aria-hidden="true"
-          />
-          {isRecording ? (
-            <time
-              className="font-mono tabular-nums"
-              dateTime={`PT${recordingDuration}S`}
-            >
-              {durationLabel}
-            </time>
-          ) : (
-            <span className="truncate">{statusLabel}</span>
-          )}
-        </output>
+          {durationLabel}
+        </time>
       )}
 
       <Button
@@ -268,7 +242,7 @@ export function AudioRecorder({
         onClick={handleClick}
         disabled={disabled || isProcessing}
         title={buttonLabel}
-        aria-label={statusLabel ?? buttonLabel}
+        aria-label={buttonLabel}
       >
         {isProcessing ? (
           <Loader2 className="h-4 w-4 animate-spin" />

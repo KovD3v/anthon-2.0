@@ -5,7 +5,6 @@ import {
   getAssistantMessageLifecycle,
   getAssistantPendingLabel,
   getAssistantToolFeedback,
-  getAudioRecorderStatusLabel,
   shouldAnimateAssistantMessageMount,
   shouldRenderAssistantPendingRow,
 } from "./chat-reactivity-ui";
@@ -178,23 +177,6 @@ describe("getAssistantPendingLabel", () => {
         displayState: "content",
       }),
     ).toBe(true);
-  });
-});
-
-describe("getAudioRecorderStatusLabel", () => {
-  it("exposes the full voice recording lifecycle as user-facing feedback", () => {
-    expect(
-      getAudioRecorderStatusLabel({ state: "requesting", duration: "0:00" }),
-    ).toBe("Attivo il microfono");
-    expect(
-      getAudioRecorderStatusLabel({ state: "recording", duration: "0:07" }),
-    ).toBe("Registrazione in corso 0:07");
-    expect(
-      getAudioRecorderStatusLabel({ state: "converting", duration: "0:07" }),
-    ).toBe("Preparo l'audio");
-    expect(
-      getAudioRecorderStatusLabel({ state: "uploading", duration: "0:07" }),
-    ).toBe("Carico l'audio");
   });
 });
 

@@ -263,7 +263,12 @@ describe("chat mobile viewport layout", () => {
     expect(chatInput).toContain("CHAT_REACTIVITY_COPY.uploadUploading");
     expect(chatInput).toContain('aria-live="polite"');
     expect(chatInput).toContain("const cannotSubmit =");
-    expect(audioRecorder).toContain("getAudioRecorderStatusLabel");
+    expect(audioRecorder).toContain("font-mono tabular-nums");
+    expect(audioRecorder).toContain("dateTime=");
+    expect(audioRecorder).toContain("recordingDuration");
+    expect(audioRecorder).not.toContain("Registrazione in corso");
+    expect(audioRecorder).not.toContain("Attivo il microfono");
+    expect(audioRecorder).not.toContain("Carico l'audio");
     expect(audioRecorder).toContain('"converting"');
     expect(audioRecorder).toContain('"uploading"');
   });
