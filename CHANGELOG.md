@@ -23,6 +23,19 @@ Version numbers describe the application's user-facing behavior and its document
   components to explicit routes.
 - Kept Clerk account and organization components while presenting rare session
   tasks inside the Anthon shell.
+- Raised the registered-user daily message allowance to support beta usage.
+
+### Fixed
+
+- Throttled streamed chat rendering and removed remaining layout and render
+  update loops, including cache invalidation during active chat rendering.
+- Preserved conversation threads during guest migration and waited for guest
+  conversion to finish before loading the authenticated chat.
+- Added bounded, recoverable authentication requests for signup, verification,
+  and resend flows, with localized feedback when security checks fail or stall.
+- Added a recovery path for missing OAuth continuation sessions, allowing users
+  to restart registration or sign in without submitting against an invalid
+  session.
 
 ## [0.5.1] - 2026-08-01
 
