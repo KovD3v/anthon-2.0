@@ -27,8 +27,11 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
-- Throttled streamed chat rendering and removed remaining layout and render
-  update loops, including cache invalidation during active chat rendering.
+- Fixed the production `Minified React error #185` during streamed chat
+  rendering by throttling UI updates and removing remaining layout and render
+  update loops, including cache invalidation during active chat rendering. See
+  [React error #185](https://react.dev/errors/185) for the original error
+  reference.
 - Preserved conversation threads during guest migration and waited for guest
   conversion to finish before loading the authenticated chat.
 - Added bounded, recoverable authentication requests for signup, verification,
