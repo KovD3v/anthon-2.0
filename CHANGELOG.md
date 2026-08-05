@@ -10,6 +10,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Added
 
+- Added Italian Terms of Use and Privacy pages covering AI limitations, acceptable use, channels, data processing, retention, cookies, GDPR rights, and account deletion.
+- Added public footer links to the Terms of Use and Privacy pages.
 - Added an Italian Anthon authentication shell and custom Clerk Core 3 flows for
   password and social sign-in, registration, email verification, client trust,
   SMS/TOTP/backup-code MFA, OAuth requirements, and password recovery.
