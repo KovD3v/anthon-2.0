@@ -19,6 +19,7 @@ Version numbers describe the application's user-facing behavior and its document
   placement, session-task routes, and focused auth regression coverage.
 - Added automatic PostHog source-map uploads during production builds, with
   uploaded maps removed afterward.
+- Added a live elapsed-time indicator while recording voice messages.
 
 ### Changed
 
@@ -28,6 +29,10 @@ Version numbers describe the application's user-facing behavior and its document
 - Kept Clerk account and organization components while presenting rare session
   tasks inside the Anthon shell.
 - Raised the registered-user daily message allowance to support beta usage.
+- Reworked voice-message composition so a recorded or uploaded audio file
+  replaces the text composer with a compact inline player and removal action.
+- Simplified recording feedback and refined audio controls, progress, metadata,
+  and error states inside the composer.
 
 ### Fixed
 
@@ -51,6 +56,10 @@ Version numbers describe the application's user-facing behavior and its document
 - Added a recovery path for missing OAuth continuation sessions, allowing users
   to restart registration or sign in without submitting against an invalid
   session.
+- Calibrated semantic retrieval and corrected RAG usage telemetry so retrieval
+  is reported only when matching context chunks are actually included.
+- Kept top-center notifications aligned with the active chat column when the
+  desktop sidebar is open, while respecting mobile safe-area offsets.
 
 ## [0.5.1] - 2026-08-01
 
