@@ -70,6 +70,7 @@
 
 :root {
   --radius: 0.625rem;
+  --toast-center-offset: 0px;
   --background: oklch(0.975 0.012 89);
   --foreground: oklch(0.17 0.012 82);
   --card: oklch(0.995 0.006 86);
@@ -138,6 +139,40 @@
   --sidebar-accent-foreground: oklch(0.965 0.012 88);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.87 0.18 96);
+}
+
+/* Keep centered notifications aligned with the active chat column on desktop. */
+.toaster[data-sonner-toaster][data-x-position="center"] {
+  left: calc(50% + var(--toast-center-offset, 0px));
+}
+
+@media (min-width: 601px) {
+  .toaster[data-sonner-toaster][data-x-position="center"] {
+    right: auto;
+    max-width: calc(100vw - 2rem);
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-width: 600px) {
+  .toaster[data-sonner-toaster][data-x-position="center"] {
+    left: var(--mobile-offset-left);
+    right: var(--mobile-offset-right);
+    transform: none;
+    width: auto;
+  }
+
+  .toaster[data-sonner-toaster][data-x-position="center"] [data-sonner-toast] {
+    left: 0;
+    right: 0;
+    width: 100%;
+  }
+}
+
+@media (min-width: 768px) {
+  html[data-chat-sidebar="open"] {
+    --toast-center-offset: 9rem;
+  }
 }
 
 @layer base {

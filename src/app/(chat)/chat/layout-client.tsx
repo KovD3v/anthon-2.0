@@ -161,6 +161,20 @@ export function LayoutClient({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
 
+  useEffect(() => {
+    const root = document.documentElement;
+
+    if (isSidebarOpen) {
+      root.dataset.chatSidebar = "open";
+    } else {
+      delete root.dataset.chatSidebar;
+    }
+
+    return () => {
+      delete root.dataset.chatSidebar;
+    };
+  }, [isSidebarOpen]);
+
   // API base path switches based on auth mode
   const apiBase = isGuest ? "/api/guest" : "/api";
 

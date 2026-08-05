@@ -171,6 +171,27 @@ describe("chat mobile viewport layout", () => {
     );
   });
 
+  it("aligns desktop notifications with the active chat column", () => {
+    const css = readFileSync("src/app/globals.css", "utf8");
+    const layoutClient = readFileSync(
+      "src/app/(chat)/chat/layout-client.tsx",
+      "utf8",
+    );
+    const conversationClient = readFileSync(
+      "src/app/(chat)/chat/[id]/chat-conversation-client.tsx",
+      "utf8",
+    );
+
+    expect(css).toContain("--toast-center-offset: 0px;");
+    expect(css).toContain(
+      '.toaster[data-sonner-toaster][data-x-position="center"]',
+    );
+    expect(css).toContain("left: calc(50% + var(--toast-center-offset, 0px));");
+    expect(css).toContain('html[data-chat-sidebar="open"]');
+    expect(layoutClient).toContain('root.dataset.chatSidebar = "open";');
+    expect(conversationClient).toContain("var(--toast-center-offset, 0px)");
+  });
+
   it("keeps the composer outside a single scrollable empty-state content region", () => {
     const conversationClient = readFileSync(
       "src/app/(chat)/chat/[id]/chat-conversation-client.tsx",

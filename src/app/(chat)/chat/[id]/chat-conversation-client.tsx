@@ -729,7 +729,12 @@ export function ChatConversationClient({
       )}
 
       {formattedError && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 min-w-75 max-w-md rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400 shadow-xl backdrop-blur-sm">
+        <div
+          className="fixed bottom-24 -translate-x-1/2 z-50 min-w-75 max-w-md rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400 shadow-xl backdrop-blur-sm"
+          style={{
+            left: "calc(50% + var(--toast-center-offset, 0px))",
+          }}
+        >
           {formattedError.title && (
             <div className="mb-1 font-semibold">{formattedError.title}</div>
           )}
