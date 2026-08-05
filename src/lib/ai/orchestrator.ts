@@ -83,6 +83,43 @@ const WEB_SEARCH_BRIEF_RESULTS = 3;
 const WEB_SEARCH_BRIEF_SNIPPET_CHARS = 160;
 const WEB_SEARCH_DIRECT_MAX_OUTPUT_TOKENS = 120;
 
+function modelMessageContentToText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+
+  return content
+    .map((part) => {
+      if (!part || typeof part !== "object") return "";
+      const text = "text" in part ? part.text : undefined;
+      return typeof text === "string" ? text : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function moveSystemMessagesToInstructions(
+  systemPrompt: string,
+  messages: ModelMessage[],
+) {
+  const systemContext = messages
+    .filter((message) => message.role === "system")
+    .map((message) => modelMessageContentToText(message.content).trim())
+    .filter(Boolean)
+    .join("\n\n");
+  const nonSystemMessages = messages.filter(
+    (message) => message.role !== "system",
+  );
+
+  if (!systemContext) {
+    return { systemPrompt, messages: nonSystemMessages };
+  }
+
+  return {
+    systemPrompt: `${systemPrompt}\n\nCONVERSATION HISTORY CONTEXT\n${systemContext}`,
+    messages: nonSystemMessages,
+  };
+}
+
 const PROMPT_IDENTITY = `You are Anthon, an AI mental coach for sports performance.
 You help athletes, coaches, and parents improve mindset, technique, motivation, and performance.
 
@@ -1785,12 +1822,18 @@ export async function streamChat({
 
   // Add the new user message
   const messages: ModelMessage[] = [...conversationHistory, lastMessage];
+  const normalizedConversation = moveSystemMessagesToInstructions(
+    systemPrompt,
+    messages,
+  );
+  const effectiveSystemPrompt = normalizedConversation.systemPrompt;
+  const effectiveMessages = normalizedConversation.messages;
   const attachTurnTrace = (metrics: AIMetrics) => {
     metrics.turnPlan = turnPlan as unknown as Record<string, unknown>;
     metrics.tracePayload = {
       userMessage,
-      systemPrompt,
-      messages: messages as unknown as Record<string, unknown>,
+      systemPrompt: effectiveSystemPrompt,
+      messages: effectiveMessages as unknown as Record<string, unknown>,
       classifier: promptModuleClassifier,
       history: {
         scope: turnPlan.history.scope,
@@ -1839,15 +1882,15 @@ export async function streamChat({
   const toolTiming: ToolTimingMetrics = {};
 
   const hasDirectMultimodalMedia = hasSupportedOpenRouterMedia(
-    messages,
+    effectiveMessages,
     modelId,
   );
 
   if (hasDirectMultimodalMedia) {
     const completionPromise = runOpenRouterMultimodalCompletion({
       modelId,
-      systemPrompt,
-      messages,
+      systemPrompt: effectiveSystemPrompt,
+      messages: effectiveMessages,
       startTime,
       ragUsed,
       ragChunksCount,
@@ -1879,8 +1922,8 @@ export async function streamChat({
   const result = streamText({
     model,
     abortSignal,
-    instructions: systemPrompt,
-    messages,
+    instructions: effectiveSystemPrompt,
+    messages: effectiveMessages,
     tools,
     maxOutputTokens: directWebSearchEvidence
       ? WEB_SEARCH_DIRECT_MAX_OUTPUT_TOKENS
@@ -2226,6 +2269,10 @@ export async function prepareChatTurn({
   ) {
     history.pop();
   }
+  const normalizedConversation = moveSystemMessagesToInstructions(
+    systemPrompt,
+    [...history, { role: "user", content: userMessage }],
+  );
   return {
     userId,
     chatId,
@@ -2235,8 +2282,8 @@ export async function prepareChatTurn({
     planId,
     userRole,
     effectiveModelTier: effectiveEntitlements.modelTier,
-    systemPrompt,
-    messages: [...history, { role: "user", content: userMessage }],
+    systemPrompt: normalizedConversation.systemPrompt,
+    messages: normalizedConversation.messages,
     turnPlan,
     promptMode,
     ragUsed,
@@ -2300,12 +2347,16 @@ export function executePreparedChatTurn({
     userRole: prepared.userRole,
     promptMode: prepared.promptMode,
   };
+  const normalizedConversation = moveSystemMessagesToInstructions(
+    prepared.systemPrompt,
+    prepared.messages,
+  );
 
   return streamText({
     model,
     abortSignal,
-    instructions: prepared.systemPrompt,
-    messages: prepared.messages,
+    instructions: normalizedConversation.systemPrompt,
+    messages: normalizedConversation.messages,
     temperature: generationConfig.temperature,
     topP: generationConfig.topP,
     maxOutputTokens:

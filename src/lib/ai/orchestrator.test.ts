@@ -334,7 +334,10 @@ describe("ai/orchestrator", () => {
         userRole: "USER",
         effectiveModelTier: "BASIC",
         systemPrompt: "coach prompt",
-        messages: [{ role: "user", content: "help me focus" }],
+        messages: [
+          { role: "system", content: "previous thread summary" },
+          { role: "user", content: "help me focus" },
+        ],
         turnPlan: {
           responseLength: "brief",
         } as never,
@@ -353,7 +356,11 @@ describe("ai/orchestrator", () => {
     });
 
     expect(mocks.streamText).toHaveBeenCalledWith(
-      expect.objectContaining({ abortSignal: abortController.signal }),
+      expect.objectContaining({
+        abortSignal: abortController.signal,
+        messages: [{ role: "user", content: "help me focus" }],
+        instructions: expect.stringContaining("previous thread summary"),
+      }),
     );
   });
 
@@ -466,6 +473,36 @@ describe("ai/orchestrator", () => {
     expect(
       countOccurrences(streamInput.instructions, "user-memories-data"),
     ).toBe(1);
+  });
+
+  it("moves system history into instructions before calling the AI SDK", async () => {
+    mocks.buildConversationContext.mockResolvedValueOnce([
+      { role: "system", content: "previous thread summary" },
+      { role: "user", content: "previous question" },
+      { role: "assistant", content: "previous answer" },
+    ]);
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-with-summary",
+      userMessage: "new question",
+      effectiveEntitlements: baseEntitlements as never,
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    expect(streamInput.messages).toEqual([
+      { role: "user", content: "previous question" },
+      { role: "assistant", content: "previous answer" },
+      { role: "user", content: "new question" },
+    ]);
+    expect(streamInput.instructions).toContain("CONVERSATION HISTORY CONTEXT");
+    expect(streamInput.instructions).toContain("previous thread summary");
+    expect(streamInput.messages).not.toContainEqual(
+      expect.objectContaining({ role: "system" }),
+    );
   });
 
   it("keeps contextual short follow-ups on the full plan", async () => {
