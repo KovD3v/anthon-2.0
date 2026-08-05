@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, m } from "framer-motion";
-import { Send, Square } from "lucide-react";
+import { Send, Square, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { useDebouncedCallback } from "@/hooks/useDebounce";
 import type { AttachmentData } from "@/types/chat";
 import { CHAT_REACTIVITY_COPY } from "../chat/chat-reactivity-ui";
 import { AttachmentButton, AttachmentPreview } from "./Attachments";
+import { AudioPlayer } from "./AudioPlayer";
 import { AudioRecorder } from "./AudioRecorder";
 
 interface ChatInputProps {
@@ -40,6 +41,12 @@ export function ChatInput({
     null,
   );
   const externallyDisabled = Boolean(disabledReason);
+  const audioAttachment = attachments.find((attachment) =>
+    attachment.contentType.startsWith("audio/"),
+  );
+  const documentAttachments = attachments.filter(
+    (attachment) => !attachment.contentType.startsWith("audio/"),
+  );
   const cannotSubmit =
     externallyDisabled ||
     isUploading ||
@@ -136,26 +143,31 @@ export function ChatInput({
       return;
     }
 
-    setAttachments([
-      ...attachments,
-      {
-        id: data.id,
-        name: data.name,
-        contentType: data.contentType,
-        size: data.size,
-        url: data.url,
-      },
-    ]);
+    const attachment = {
+      id: data.id,
+      name: data.name,
+      contentType: data.contentType,
+      size: data.size,
+      url: data.url,
+    };
+
+    if (attachment.contentType.startsWith("audio/")) {
+      setInput("");
+      setAttachments([attachment]);
+    } else {
+      setAttachments((current) => [...current, attachment]);
+    }
     toast.success(CHAT_REACTIVITY_COPY.uploadSuccess);
     resetFileUploadState();
   };
 
   const handleRemoveAttachment = (id: string) => {
-    setAttachments(attachments.filter((a) => a.id !== id));
+    setAttachments((current) => current.filter((a) => a.id !== id));
   };
 
   const handleRecordingComplete = (attachment: AttachmentData) => {
-    setAttachments([...attachments, attachment]);
+    setInput("");
+    setAttachments([attachment]);
   };
 
   const uploadStatus = uploadingFileName
@@ -165,9 +177,9 @@ export function ChatInput({
   return (
     <div className="relative mx-auto w-full min-w-0 shrink-0 max-w-3xl px-3 sm:px-4 pb-6 sm:pb-8 pt-2 safe-area-bottom">
       {/* Attachment previews */}
-      {attachments.length > 0 && (
+      {documentAttachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
-          {attachments.map((attachment) => (
+          {documentAttachments.map((attachment) => (
             <AttachmentPreview
               key={attachment.id}
               attachment={attachment}
@@ -212,7 +224,7 @@ export function ChatInput({
         />
 
         {/* Attachment button - hidden for guests */}
-        {!disableAttachments && (
+        {!disableAttachments && !audioAttachment && (
           <div className="pb-1 pl-1">
             <AttachmentButton
               onClick={() => fileInputRef.current?.click()}
@@ -223,7 +235,7 @@ export function ChatInput({
         )}
 
         {/* Microphone button for voice recording - hidden for guests */}
-        {!disableAttachments && (
+        {!disableAttachments && !audioAttachment && (
           <div className="pb-1">
             <AudioRecorder
               onRecordingComplete={handleRecordingComplete}
@@ -232,23 +244,45 @@ export function ChatInput({
           </div>
         )}
 
-        <textarea
-          id="messaggio-chat"
-          ref={textareaRef}
-          value={input}
-          aria-label="Scrivi un messaggio"
-          onChange={(e) => {
-            const nextInput = e.target.value;
-            setInput(nextInput);
-            onInputWarmup?.(nextInput);
-            adjustHeight();
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={disabledReason ?? "Scrivi un messaggio…"}
-          rows={1}
-          className="min-w-0 flex-1 resize-none bg-transparent px-2 py-3 text-sm outline-none placeholder:text-muted-foreground/50 max-h-[200px] overflow-y-auto scrollbar-none"
-          disabled={externallyDisabled || isLoading || isUploading}
-        />
+        {audioAttachment ? (
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            <AudioPlayer
+              src={audioAttachment.url}
+              name={audioAttachment.name}
+              mimeType={audioAttachment.contentType}
+              className="min-w-0 flex-1"
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-9 w-9 shrink-0 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => handleRemoveAttachment(audioAttachment.id)}
+              disabled={externallyDisabled || isLoading}
+              aria-label={`Rimuovi ${audioAttachment.name}`}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <textarea
+            id="messaggio-chat"
+            ref={textareaRef}
+            value={input}
+            aria-label="Scrivi un messaggio"
+            onChange={(e) => {
+              const nextInput = e.target.value;
+              setInput(nextInput);
+              onInputWarmup?.(nextInput);
+              adjustHeight();
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={disabledReason ?? "Scrivi un messaggio…"}
+            rows={1}
+            className="min-w-0 flex-1 resize-none bg-transparent px-2 py-3 text-sm outline-none placeholder:text-muted-foreground/50 max-h-[200px] overflow-y-auto scrollbar-none"
+            disabled={externallyDisabled || isLoading || isUploading}
+          />
+        )}
         <div className="grid pb-1 pr-1">
           <AnimatePresence initial={false} mode="popLayout">
             <m.div
