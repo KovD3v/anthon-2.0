@@ -10,6 +10,7 @@ interface AudioPlayerProps {
   name?: string;
   mimeType?: string;
   className?: string;
+  variant?: "default" | "composer";
 }
 
 export function AudioPlayer({
@@ -17,6 +18,7 @@ export function AudioPlayer({
   name,
   mimeType,
   className,
+  variant = "default",
 }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressTrackRef = useRef<HTMLDivElement>(null);
@@ -150,19 +152,23 @@ export function AudioPlayer({
   };
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const isComposer = variant === "composer";
 
   // Error state
   if (hasError) {
     return (
       <output
         className={cn(
-          "flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs",
+          "flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive",
+          isComposer && "min-w-0 flex-1 border-0 bg-transparent px-2",
           className,
         )}
       >
         <VolumeX className="h-4 w-4" />
-        <span>
-          Audio non disponibile. Puoi leggere la trascrizione qui sotto.
+        <span className="truncate">
+          {isComposer
+            ? "Audio non disponibile"
+            : "Audio non disponibile. Puoi leggere la trascrizione qui sotto."}
         </span>
       </output>
     );
@@ -171,10 +177,10 @@ export function AudioPlayer({
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-2 p-2 pr-4 rounded-2xl overflow-hidden transition-[background-color,border-color,box-shadow] duration-200",
-        "bg-zinc-800 border border-zinc-700 shadow-sm",
-        "hover:bg-zinc-750",
-        "min-w-[200px]",
+        "group relative flex items-center overflow-hidden transition-[background-color,border-color,box-shadow] duration-200",
+        isComposer
+          ? "min-w-0 gap-3 rounded-full px-1 py-0.5"
+          : "min-w-[200px] gap-2 rounded-2xl border border-zinc-700 bg-zinc-800 p-2 pr-4 shadow-sm hover:bg-zinc-750",
         className,
       )}
     >
@@ -186,9 +192,12 @@ export function AudioPlayer({
         type="button"
         size="icon"
         className={cn(
-          "h-10 w-10 shrink-0 rounded-full shadow-md transition-transform duration-200 motion-reduce:transition-none motion-reduce:active:scale-100",
-          "bg-white text-black hover:bg-zinc-200 [@media(hover:hover)_and_(pointer:fine)_and_(prefers-reduced-motion:no-preference)]:hover:scale-105 active:scale-95",
-          "flex items-center justify-center focus-visible:ring-1 focus-visible:ring-white",
+          "flex shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-200 motion-reduce:transition-none motion-reduce:active:scale-100",
+          isComposer
+            ? isPlaying
+              ? "h-9 w-9 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:ring-1 focus-visible:ring-primary active:scale-95"
+              : "h-9 w-9 border border-primary/25 bg-primary/10 text-primary shadow-none hover:bg-primary/20 focus-visible:ring-1 focus-visible:ring-primary active:scale-95"
+            : "h-10 w-10 bg-white text-black shadow-md hover:bg-zinc-200 focus-visible:ring-1 focus-visible:ring-white [@media(hover:hover)_and_(pointer:fine)_and_(prefers-reduced-motion:no-preference)]:hover:scale-105 active:scale-95",
         )}
         onClick={togglePlayPause}
         disabled={!isLoaded && !hasError}
@@ -202,11 +211,19 @@ export function AudioPlayer({
       </Button>
 
       {/* Content */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center gap-1.5 py-0.5">
+      <div
+        className={cn(
+          "flex min-w-0 flex-1 flex-col justify-center py-0.5",
+          isComposer ? "gap-1" : "gap-1.5",
+        )}
+      >
         {/* Progress Bar Container */}
         <div
           ref={progressTrackRef}
-          className="h-4 flex items-center cursor-pointer group/progress relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full"
+          className={cn(
+            "group/progress relative flex cursor-pointer items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            isComposer ? "h-3" : "h-4",
+          )}
           onClick={handleProgressClick}
           role="slider"
           tabIndex={0}
@@ -228,32 +245,59 @@ export function AudioPlayer({
           }}
         >
           {/* Background Line */}
-          <div className="w-full h-1 bg-zinc-600 rounded-full overflow-hidden">
+          <div
+            className={cn(
+              "w-full overflow-hidden rounded-full",
+              isComposer ? "h-0.5 bg-border" : "h-1 bg-zinc-600",
+            )}
+          >
             {/* Active Progress */}
             <div
-              className="h-full origin-left rounded-full bg-white transition-transform duration-100 ease-out"
+              className={cn(
+                "h-full origin-left rounded-full transition-transform duration-100 ease-out",
+                isComposer ? "bg-primary" : "bg-white",
+              )}
               style={{ transform: `scaleX(${progress / 100})` }}
             />
           </div>
 
           {/* Scrub Handle (Visible on Hover) */}
           <div
-            className="absolute h-3 w-3 bg-white rounded-full shadow-sm opacity-0 group-hover/progress:opacity-100 transition-opacity duration-200 pointer-events-none"
+            className={cn(
+              "pointer-events-none absolute rounded-full opacity-0 shadow-sm transition-opacity duration-200 group-hover/progress:opacity-100",
+              isComposer ? "h-2 w-2 bg-primary" : "h-3 w-3 bg-white",
+            )}
             style={{
               left: 0,
-              transform: `translateX(${Math.max(0, progressTrackWidth - 12) * (progress / 100)}px)`,
+              transform: `translateX(${Math.max(0, progressTrackWidth - (isComposer ? 8 : 12)) * (progress / 100)}px)`,
             }}
           />
         </div>
 
         {/* Metadata */}
         <div className="flex items-center justify-between gap-2 text-[11px] font-medium leading-none">
-          <div className="flex items-center gap-1.5 text-zinc-300 min-w-0">
-            <span className="truncate">
+          <div
+            className={cn(
+              "flex min-w-0 items-center gap-1.5",
+              isComposer ? "text-foreground/70" : "text-zinc-300",
+            )}
+          >
+            <span
+              className={cn(
+                "truncate",
+                isComposer &&
+                  "text-[9px] font-semibold uppercase tracking-[0.14em]",
+              )}
+            >
               {name ? name.replace(/^recording_\d+\.wav$/, "Vocale") : "Audio"}
             </span>
           </div>
-          <span className="text-zinc-500 tabular-nums shrink-0 font-mono tracking-tight text-[10px]">
+          <span
+            className={cn(
+              "shrink-0 font-mono text-[10px] tabular-nums tracking-tight",
+              isComposer ? "text-muted-foreground/60" : "text-zinc-500",
+            )}
+          >
             {formatTime(currentTime)} / {formatTime(duration)}
           </span>
         </div>

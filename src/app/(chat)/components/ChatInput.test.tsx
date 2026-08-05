@@ -43,8 +43,10 @@ vi.mock("./Attachments", () => ({
 }));
 
 vi.mock("./AudioPlayer", () => ({
-  AudioPlayer: ({ name }: { name: string }) => (
-    <div data-testid="audio-preview">{name}</div>
+  AudioPlayer: ({ name, variant }: { name: string; variant: string }) => (
+    <div data-testid="audio-preview" data-variant={variant}>
+      {name}
+    </div>
   ),
 }));
 
@@ -106,6 +108,9 @@ describe("ChatInput audio attachments", () => {
 
     expect((await screen.findByTestId("audio-preview")).textContent).toBe(
       uploadedAudio.name,
+    );
+    expect(screen.getByTestId("audio-preview").dataset.variant).toBe(
+      "composer",
     );
     expect(
       screen.queryByRole("textbox", { name: "Scrivi un messaggio" }),

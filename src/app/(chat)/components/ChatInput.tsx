@@ -251,12 +251,13 @@ export function ChatInput({
               name={audioAttachment.name}
               mimeType={audioAttachment.contentType}
               className="min-w-0 flex-1"
+              variant="composer"
             />
             <Button
               type="button"
               size="icon"
               variant="ghost"
-              className="h-9 w-9 shrink-0 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              className="h-8 w-8 shrink-0 rounded-full text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
               onClick={() => handleRemoveAttachment(audioAttachment.id)}
               disabled={externallyDisabled || isLoading}
               aria-label={`Rimuovi ${audioAttachment.name}`}
