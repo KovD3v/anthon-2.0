@@ -27,6 +27,26 @@ async function waitForResponsePersisted(page: Page, text: string) {
 }
 
 test.describe("guest chat beta smoke", () => {
+  test("supports consecutive turns without reloading", async ({ page }) => {
+    await openEmptyGuestChat(page);
+
+    const firstPrompt = "Primo turno consecutivo E2E";
+    await sendMessage(page, firstPrompt);
+    await expect(
+      page.getByText("Risposta E2E completata.", { exact: true }),
+    ).toBeVisible();
+    await waitForResponsePersisted(page, "Risposta E2E completata.");
+
+    const secondPrompt = "Secondo turno consecutivo E2E";
+    await sendMessage(page, secondPrompt);
+    await expect(page.getByText(secondPrompt, { exact: true })).toBeVisible();
+    await waitForResponsePersisted(page, "token-119");
+    await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(
+      2,
+    );
+    await expect(page.getByText(/React error #185/i)).toHaveCount(0);
+  });
+
   test("streams, restores context, and persists feedback after reload", async ({
     page,
   }) => {

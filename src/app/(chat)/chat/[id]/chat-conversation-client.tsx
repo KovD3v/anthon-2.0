@@ -185,6 +185,10 @@ export function ChatConversationClient({
   } = useChat<AnthonUIMessage>({
     id: chatId,
     messages: initialMessages,
+    // Rendering Markdown for every stream chunk can exhaust React's nested
+    // update limit on longer, consecutive turns. Batch visual updates while
+    // preserving the underlying stream and final response.
+    throttle: 50,
     messageMetadataSchema,
     dataPartSchemas: modelComparisonDataPartSchemas,
     transport,

@@ -281,6 +281,14 @@ beforeEach(() => {
 });
 
 describe("ChatConversationClient pagination and recovery", () => {
+  it("throttles streaming renders to avoid exhausting React's update depth", () => {
+    renderConversation();
+
+    expect(mocks.captureChatOptions).toHaveBeenCalledWith(
+      expect.objectContaining({ throttle: 50 }),
+    );
+  });
+
   it("keeps submission settled until persisted messages are refreshed", async () => {
     vi.stubGlobal(
       "fetch",

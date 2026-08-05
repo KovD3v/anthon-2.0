@@ -48,6 +48,11 @@ function chooseResponse(payload: OpenRouterRequest) {
   if (lastUserText.includes("recupero-e2e")) {
     return "Il flusso è di nuovo operativo.";
   }
+  if (lastUserText.includes("Secondo turno consecutivo E2E")) {
+    return Array.from({ length: 120 }, (_, index) => `token-${index}`).join(
+      " ",
+    );
+  }
   if (lastUserText.toLowerCase().includes("zaffiro")) {
     return "Ho memorizzato la parola chiave zaffiro.";
   }
@@ -166,6 +171,9 @@ const server = createServer(async (request, response) => {
     const isSlow = getLastUserText(payload.messages).includes(
       "risposta-lenta-e2e",
     );
+    const isBurst = getLastUserText(payload.messages).includes(
+      "Secondo turno consecutivo E2E",
+    );
 
     for (const chunk of chunks) {
       if (response.destroyed) return;
@@ -174,7 +182,9 @@ const server = createServer(async (request, response) => {
           `data: ${JSON.stringify(streamChunk(payload, id, chunk, null))}\n\n`,
         ),
       );
-      await delay(isSlow ? 250 : 35);
+      if (!isBurst) {
+        await delay(isSlow ? 250 : 35);
+      }
     }
 
     if (response.destroyed) return;
