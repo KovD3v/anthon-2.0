@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   updateCachedChat: vi.fn(),
   captureChatOptions: vi.fn(),
+  captureException: vi.fn(),
   chatState: {
     error: null as Error | null,
     status: "ready" as "ready" | "error",
@@ -73,6 +74,10 @@ vi.mock("sonner", () => ({
   }),
 }));
 
+vi.mock("posthog-js", () => ({
+  default: { captureException: mocks.captureException },
+}));
+
 vi.mock("@/hooks/use-confirm", () => ({
   useConfirm: () => ({
     confirm: mocks.confirm,
@@ -102,7 +107,10 @@ vi.mock("@/lib/chat-client", () => ({
 }));
 
 vi.mock("@/lib/rate-limit/paywall", () => ({
-  getPaywallCardContent: () => null,
+  getPaywallCardContent: (payload: { error?: string }) =>
+    payload.error === "Rate limit exceeded"
+      ? { message: "Limite raggiunto" }
+      : null,
 }));
 
 vi.mock("../../../(chat)/components/ChatHeader", () => ({
@@ -373,6 +381,74 @@ describe("ChatConversationClient pagination and recovery", () => {
 
     expect(mocks.clearError).toHaveBeenCalledOnce();
     expect(mocks.sendMessage).toHaveBeenCalledOnce();
+  });
+
+  it("does not log or toast an expected rate-limit rejection", async () => {
+    const rateLimitError = new Error(
+      JSON.stringify({
+        error: "Rate limit exceeded",
+        reason: "Daily request limit reached",
+      }),
+    );
+    mocks.sendMessage.mockRejectedValueOnce(rateLimitError);
+    const consoleError = vi.mocked(console.error);
+    const user = userEvent.setup();
+    renderConversation();
+
+    const input = screen.getByRole<HTMLInputElement>("textbox", {
+      name: "Messaggio di test",
+    });
+    await user.type(input, "Domanda oltre il limite");
+    await user.click(screen.getByRole("button", { name: "Invia test" }));
+
+    await waitFor(() => expect(input.value).toBe("Domanda oltre il limite"));
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  it("does not report expected generation conflicts or rate limits", async () => {
+    const { rerender } = renderConversation();
+
+    mocks.chatState.status = "error";
+    mocks.chatState.error = new Error(
+      JSON.stringify({
+        error: "Generation already in progress",
+        retryable: true,
+      }),
+    );
+    rerender(
+      <ChatConversationClient
+        chatId="chat-1"
+        initialChatData={initialChatData}
+      />,
+    );
+
+    await waitFor(() => expect(mocks.captureException).not.toHaveBeenCalled());
+
+    mocks.chatState.error = new Error(
+      JSON.stringify({ error: "Rate limit exceeded" }),
+    );
+    rerender(
+      <ChatConversationClient
+        chatId="chat-1"
+        initialChatData={initialChatData}
+      />,
+    );
+
+    await waitFor(() => expect(mocks.captureException).not.toHaveBeenCalled());
+  });
+
+  it("reports unexpected chat failures", async () => {
+    mocks.chatState.status = "error";
+    mocks.chatState.error = new Error("offline");
+    renderConversation();
+
+    await waitFor(() =>
+      expect(mocks.captureException).toHaveBeenCalledWith(
+        mocks.chatState.error,
+        expect.objectContaining({ chat_id: "chat-1" }),
+      ),
+    );
   });
 
   it("prepends an older page without disturbing current message order", async () => {

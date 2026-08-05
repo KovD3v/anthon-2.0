@@ -74,6 +74,20 @@ const modelComparisonDataPartSchemas = {
   }),
 };
 
+function isExpectedChatRejection(error: Error, isGuest: boolean) {
+  try {
+    const payload = JSON.parse(error.message);
+
+    return (
+      getPaywallCardContent(payload, isGuest) !== null ||
+      (payload?.retryable === true &&
+        payload?.error === "Generation already in progress")
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function ChatConversationClient({
   chatId,
   initialChatData,
@@ -378,7 +392,7 @@ export function ChatConversationClient({
   })();
 
   useEffect(() => {
-    if (!chatError) return;
+    if (!chatError || isExpectedChatRejection(chatError, isGuest)) return;
 
     posthog.captureException(chatError, {
       chat_id: chatId,
@@ -506,6 +520,9 @@ export function ChatConversationClient({
     } catch (error) {
       setIsResponseSettling(false);
       setInput(submittedInput);
+      if (error instanceof Error && isExpectedChatRejection(error, isGuest)) {
+        return;
+      }
       console.error("Failed to send chat message:", error);
       toast.error("Invio messaggio fallito");
     } finally {
