@@ -36,6 +36,7 @@
     "@clerk/localizations": "4.13.10",
     "@clerk/nextjs": "7",
     "@openrouter/ai-sdk-provider": "3.0.0",
+    "@posthog/nextjs-config": "^1.9.68",
     "@prisma/adapter-pg": "7.9.1",
     "@prisma/client": "7.9.1",
     "@radix-ui/react-alert-dialog": "^1.1.15",
