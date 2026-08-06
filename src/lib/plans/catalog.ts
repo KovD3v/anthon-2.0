@@ -32,7 +32,7 @@ const DEFAULT_VOICE_CADENCE: VoicePlanConfig["cadence"] = {
   maxAutomaticPerHour: 3,
   maxConsecutiveAudio: 2,
   antiDroughtTurns: 8,
-  naturalConfidence: 0.7,
+  naturalConfidence: 0.6,
   antiDroughtConfidence: 0.6,
 };
 
