@@ -171,6 +171,19 @@ describe("chat mobile viewport layout", () => {
     );
   });
 
+  it("releases the mobile page lock as soon as navigation leaves chat", () => {
+    const layoutClient = readFileSync(
+      "src/app/(chat)/chat/layout-client.tsx",
+      "utf8",
+    );
+
+    expect(layoutClient).toContain(
+      'pathname === "/chat" || pathname?.startsWith("/chat/") === true',
+    );
+    expect(layoutClient).toContain("isMobile && isSidebarOpen && isChatRoute");
+    expect(layoutClient).toContain("[isSidebarOpen, pathname]");
+  });
+
   it("aligns desktop notifications with the active chat column", () => {
     const css = readFileSync("src/app/globals.css", "utf8");
     const layoutClient = readFileSync(

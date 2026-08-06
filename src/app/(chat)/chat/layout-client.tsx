@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
+import { installDocumentScrollLock } from "@/lib/document-scroll-lock";
 import { installChatViewportSizing } from "@/lib/visual-viewport";
 import type { Chat, ChatData, UsageData } from "@/types/chat";
 import { ChatList } from "../../(chat)/components/ChatList";
@@ -297,12 +298,13 @@ export function LayoutClient({
   // Handle mobile scroll locking
   useEffect(() => {
     const isMobile = window.innerWidth <= 768;
-    if (isMobile && isSidebarOpen) {
-      document.documentElement.classList.add("no-scroll");
-    } else {
-      document.documentElement.classList.remove("no-scroll");
-    }
-  }, [isSidebarOpen]);
+    const isChatRoute =
+      pathname === "/chat" || pathname?.startsWith("/chat/") === true;
+    return installDocumentScrollLock(
+      document.documentElement,
+      isMobile && isSidebarOpen && isChatRoute,
+    );
+  }, [isSidebarOpen, pathname]);
 
   // Pre-fetch chat data on hover
   async function preFetchChat(id: string) {
