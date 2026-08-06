@@ -33,6 +33,8 @@ Version numbers describe the application's user-facing behavior and its document
   replaces the text composer with a compact inline player and removal action.
 - Simplified recording feedback and refined audio controls, progress, metadata,
   and error states inside the composer.
+- Tuned natural voice-cadence selection with a lower confidence threshold for
+  more responsive automatic voice delivery.
 
 ### Fixed
 
@@ -60,6 +62,11 @@ Version numbers describe the application's user-facing behavior and its document
   is reported only when matching context chunks are actually included.
 - Kept top-center notifications aligned with the active chat column when the
   desktop sidebar is open, while respecting mobile safe-area offsets.
+- Narrowed preference-write intent detection so ordinary conversational uses of
+  preference language do not create persistent preferences while explicit
+  response-style requests continue to work.
+- Restored mobile page scrolling by scoping sidebar scroll locking to chat
+  routes and cleaning it up when the sidebar closes or navigation leaves chat.
 
 ## [0.5.1] - 2026-08-01
 
