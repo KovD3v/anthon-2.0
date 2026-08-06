@@ -151,6 +151,14 @@ describe("ai/intent", () => {
     expect(
       matchesPreferenceWriteIntent("D'ora in poi usa un tono diretto"),
     ).toBe(true);
+    expect(
+      matchesPreferenceWriteIntent("Preferirei risposte più concise"),
+    ).toBe(true);
+    expect(
+      matchesPreferenceWriteIntent(
+        "Io preferirei parlarne qui e risolvere con te",
+      ),
+    ).toBe(false);
     expect(matchesProfileWriteIntent("Che esercizi mi consigli?")).toBe(false);
   });
 

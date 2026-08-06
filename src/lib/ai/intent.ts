@@ -85,7 +85,7 @@ export function matchesProfileWriteIntent(message: string) {
 }
 
 export function matchesPreferenceWriteIntent(message: string) {
-  return /\b(preferisco|preferirei|da\s+ora|d'ora\s+in\s+poi|rispondimi\s+sempre|parlami\s+sempre|tono\s+(diretto|empatico|tecnico|motivazionale)|modalit[aà]\s+(concisa|elaborata|sfidante|supportiva)|lingua\s+(italiana|inglese|spagnola|francese|tedesca)|usa\s+un\s+tono|sii\s+(diretto|empatico|tecnico|motivazionale|conciso|supportivo))\b/i.test(
+  return /\b((?:preferisco|preferirei)(?:\s+(?:che\s+tu\s+)?(?:rispondessi|risponda|rispondere|parlassi|parlare|scrivessi|scrivere)|\s+(?:un\s+)?tono|\s+(?:una\s+)?modalit[aà]|\s+(?:risposte?|messaggi?)\s+(?:pi[uù]\s+)?(?:brevi|concise|concisi|dirette|diretti|empatiche|empatici|tecniche|tecnici|motivazionali|elaborate|elaborati|sfidanti|supportive|supportivi))|da\s+ora|d'ora\s+in\s+poi|rispondimi\s+sempre|parlami\s+sempre|tono\s+(diretto|empatico|tecnico|motivazionale)|modalit[aà]\s+(concisa|elaborata|sfidante|supportiva)|lingua\s+(italiana|inglese|spagnola|francese|tedesca)|usa\s+un\s+tono|sii\s+(diretto|empatico|tecnico|motivazionale|conciso|supportivo))\b/i.test(
     message,
   );
 }
