@@ -66,7 +66,8 @@ Version numbers describe the application's user-facing behavior and its document
   preference language do not create persistent preferences while explicit
   response-style requests continue to work.
 - Restored mobile page scrolling by scoping sidebar scroll locking to chat
-  routes and cleaning it up when the sidebar closes or navigation leaves chat.
+  routes, cleaning it up when the sidebar closes or navigation leaves chat,
+  and allowing the chat launcher to scroll independently on compact viewports.
 
 ## [0.5.1] - 2026-08-01
 
