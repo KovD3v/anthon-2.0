@@ -4,13 +4,8 @@ Anthon assegna a ogni utente un piano effettivo. Il piano determina quote AI,
 contesto conversazionale, upload, conservazione degli allegati e accesso alla
 voce.
 
-I piani personali supportati sono:
-
-- `GUEST`
-- `TRIAL`
-- `BASIC`
-- `BASIC_PLUS`
-- `PRO`
+I piani personali supportati sono Guest, Trial, Basic, Basic Plus e Pro. Nel
+codice Basic Plus è identificato come `BASIC_PLUS`.
 
 ## Panoramica
 
@@ -30,95 +25,32 @@ Ogni file può avere una dimensione massima di 10 MiB.
 
 ## Quote AI
 
-| Piano | Token input/giorno | Token output/giorno | Costo massimo/giorno |
-| --- | ---: | ---: | ---: |
-| **Guest** | 20.000 | 10.000 | $0,05 |
-| **Trial** | 100.000 | 50.000 | $0,50 |
-| **Basic** | 500.000 | 250.000 | $3,00 |
-| **Basic Plus** | 800.000 | 400.000 | $5,00 |
-| **Pro** | 2.000.000 | 1.000.000 | $15,00 |
+| Piano | Input/giorno | Output/giorno | Costo orchestratore stimato | Budget giornaliero |
+| --- | ---: | ---: | ---: | ---: |
+| **Guest** | 20.000 | 10.000 | $0,0094 | $0,05 |
+| **Trial** | 100.000 | 50.000 | $0,0469 | $0,50 |
+| **Basic** | 500.000 | 250.000 | $0,2345 | $3,00 |
+| **Basic Plus** | 800.000 | 400.000 | $0,3753 | $5,00 |
+| **Pro** | 2.000.000 | 1.000.000 | $0,9382 | $15,00 |
 
-Le soglie di costo sono limiti tecnici di consumo AI e non corrispondono al
-prezzo dell'abbonamento. Una richiesta viene bloccata quando raggiunge una
-qualsiasi delle quote applicabili: richieste, token o costo.
+La stima usa la media ponderata OpenRouter rilevata il 7 agosto 2026:
+`$0,04103/M` token input e `$0,8561/M` token output. Assume il consumo completo
+di entrambe le quote giornaliere:
+
+```text
+costo = input × $0,04103/M + output × $0,8561/M
+```
+
+Il budget giornaliero è una soglia di sicurezza configurata nel catalogo, non
+il prezzo dell'abbonamento. Il sistema contabilizza il costo effettivo delle
+generazioni e blocca nuovi turni quando viene raggiunto il primo limite tra
+richieste, token e budget.
+
+La stima riguarda solo l'orchestratore. Non include fallback, sub-agent,
+immagini, ricerca web, trascrizione, sintesi vocale, storage e infrastruttura.
+Inoltre, la media OpenRouter incorpora il caching e può cambiare nel tempo.
 
 Le quote giornaliere si azzerano alle `00:00 UTC`.
-
-### Origine del costo massimo giornaliero
-
-Il costo massimo giornaliero non viene calcolato dinamicamente a partire dal
-prezzo dell'abbonamento, dal numero di richieste o dalle quote token. È un
-budget operativo configurato manualmente per ciascun piano nel catalogo:
-
-```ts
-GUEST:      0.05
-TRIAL:      0.50
-BASIC:      3.00
-BASIC_PLUS: 5.00
-PRO:       15.00
-```
-
-Durante l'utilizzo, il sistema registra il costo effettivo in USD restituito o
-calcolato per le generazioni AI e lo somma nel consumo giornaliero dell'utente.
-Prima di accettare un nuovo turno confronta quindi:
-
-```text
-costo accumulato oggi >= budget giornaliero del piano
-```
-
-Se la condizione è vera, la richiesta viene bloccata per superamento del limite
-di spesa. Le prenotazioni delle generazioni in corso vengono incluse nel
-controllo per evitare che richieste concorrenti superino il budget.
-
-Queste soglie funzionano quindi come protezione economica indipendente dalle
-quote token. Non esiste nel repository una formula che dimostri che
-`500.000` token in ingresso e `250.000` in uscita equivalgano, per esempio, ai
-`$3,00` di Basic: modello, fallback, reasoning, strumenti e voce possono avere
-costi differenti. Per ridefinire le soglie in modo economico occorre partire
-da costo medio osservato per turno, utilizzo giornaliero atteso, margine e
-prezzo del piano.
-
-### Stima con la media ponderata OpenRouter
-
-Snapshot OpenRouter fornito il 7 agosto 2026 per l'orchestratore:
-
-| Metrica | Prezzo medio ponderato |
-| --- | ---: |
-| Input | $0,04103 per milione di token |
-| Output | $0,8561 per milione di token |
-
-La media ponderata rappresenta il prezzo effettivo medio osservato da
-OpenRouter, incluso l'effetto del prompt caching e della distribuzione del
-traffico tra provider. Non è un listino garantito e può cambiare nel tempo.
-
-Applicando questi prezzi alle quote token giornaliere, la formula è:
-
-```text
-costo input  = token input  / 1.000.000 × $0,04103
-costo output = token output / 1.000.000 × $0,8561
-costo totale = costo input + costo output
-```
-
-| Piano | Costo input | Costo output | Totale stimato | Limite attuale | Copertura del limite |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| **Guest** | $0,00082 | $0,00856 | **$0,00938** | $0,05 | 5,33× |
-| **Trial** | $0,00410 | $0,04281 | **$0,04691** | $0,50 | 10,66× |
-| **Basic** | $0,02052 | $0,21403 | **$0,23454** | $3,00 | 12,79× |
-| **Basic Plus** | $0,03282 | $0,34244 | **$0,37526** | $5,00 | 13,32× |
-| **Pro** | $0,08206 | $0,85610 | **$0,93816** | $15,00 | 15,99× |
-
-Il totale stimato assume che l'utente consumi nello stesso giorno sia tutta la
-quota input sia tutta la quota output. Con questa media, il costo è dominato
-dai token in uscita.
-
-Il rapporto di copertura indica quante volte il limite attuale contiene il
-costo teorico dell'orchestratore. Non rappresenta il margine netto del piano:
-il calcolo non include fallback, sub-agent, immagini, ricerca web,
-trascrizione, sintesi vocale, storage o altri costi infrastrutturali.
-
-Per l'enforcement deve restare autorevole il costo effettivo registrato per
-ogni generazione. Questa stima è adatta alla pianificazione economica, ma non
-deve sostituire la contabilizzazione runtime.
 
 ## Funzionalità
 
