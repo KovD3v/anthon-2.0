@@ -16,15 +16,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { duration } from "@/lib/motion";
 import { getCreateChatButtonState } from "../chat/create-chat-ui";
-
-interface Chat {
-  id: string;
-  title: string;
-  messageCount: number;
-}
+import {
+  groupChatsByPeriod,
+  type SidebarChat,
+} from "./chat-periods";
 
 interface ChatListProps {
-  chats: Chat[];
+  chats: SidebarChat[];
   isLoading: boolean;
   isCreatingChat: boolean;
   currentChatId: string | null;
@@ -54,6 +52,7 @@ export function ChatList({
     isCreating: isCreatingChat,
     idleLabel: "Nuova Chat",
   });
+  const chatGroups = groupChatsByPeriod(chats);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -111,22 +110,44 @@ export function ChatList({
               <span>Conversazioni</span>
               <span>{chats.length}</span>
             </div>
-            <ul className="space-y-1">
-              <AnimatePresence mode="popLayout">
-                {chats.map((chat) => (
-                  <ChatItem
-                    key={chat.id}
-                    chat={chat}
-                    isActive={chat.id === currentChatId}
-                    isDeleting={deletingChatId === chat.id}
-                    onDelete={() => onDelete(chat.id)}
-                    onClick={() => onSelect(chat.id)}
-                    onPreFetch={() => onPreFetch(chat.id)}
-                    onRename={(newTitle) => onRename(chat.id, newTitle)}
-                  />
-                ))}
-              </AnimatePresence>
-            </ul>
+            <div className="space-y-3">
+              {chatGroups.map(({ period, label, chats: periodChats }) => {
+                const headingId = `chat-period-${period}`;
+
+                return (
+                  <section key={period} aria-labelledby={headingId}>
+                    <div className="mb-1.5 flex items-center gap-2 px-2">
+                      <h3
+                        id={headingId}
+                        className="shrink-0 text-[0.65rem] font-medium uppercase tracking-[0.12em] text-muted-foreground/75"
+                      >
+                        {label}
+                      </h3>
+                      <div
+                        aria-hidden="true"
+                        className="h-px min-w-0 flex-1 bg-border/60 dark:bg-white/10"
+                      />
+                    </div>
+                    <ul className="space-y-1">
+                      <AnimatePresence mode="popLayout">
+                        {periodChats.map((chat) => (
+                          <ChatItem
+                            key={chat.id}
+                            chat={chat}
+                            isActive={chat.id === currentChatId}
+                            isDeleting={deletingChatId === chat.id}
+                            onDelete={() => onDelete(chat.id)}
+                            onClick={() => onSelect(chat.id)}
+                            onPreFetch={() => onPreFetch(chat.id)}
+                            onRename={(newTitle) => onRename(chat.id, newTitle)}
+                          />
+                        ))}
+                      </AnimatePresence>
+                    </ul>
+                  </section>
+                );
+              })}
+            </div>
           </>
         )}
       </div>
@@ -143,7 +164,7 @@ function ChatItem({
   onPreFetch,
   onRename,
 }: {
-  chat: Chat;
+  chat: SidebarChat;
   isActive: boolean;
   isDeleting: boolean;
   onDelete: () => void;
