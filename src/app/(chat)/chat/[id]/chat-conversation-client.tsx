@@ -116,6 +116,7 @@ export function ChatConversationClient({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSubmitInFlight, setIsSubmitInFlight] = useState(false);
   const [isResponseSettling, setIsResponseSettling] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [comparisonDeltas, setComparisonDeltas] = useState<
     Record<string, Partial<Record<ModelComparisonSlot, string>>>
@@ -576,9 +577,12 @@ export function ChatConversationClient({
       onAutoClose: async () => {
         if (deleteStateRef.current?.cancelled) return;
         try {
-          const response = await fetch(`/api/chat/messages?id=${messageId}`, {
-            method: "DELETE",
-          });
+          const response = await fetch(
+            `${apiBase}/chat/messages?id=${messageId}`,
+            {
+              method: "DELETE",
+            },
+          );
           if (response.ok) {
             await refreshChatData();
           } else {
@@ -635,6 +639,14 @@ export function ChatConversationClient({
   };
 
   const handleRegenerate = async () => {
+    if (
+      (status !== "ready" && status !== "error") ||
+      submitInFlightRef.current ||
+      isRegenerating
+    ) {
+      return;
+    }
+
     const lastAssistantIdx = [...streamingMessages]
       .reverse()
       .findIndex((m) => m.role === "assistant");
@@ -649,17 +661,60 @@ export function ChatConversationClient({
     const userText = extractTextFromParts(userMessage.parts);
     if (!userText) return;
 
+    const userMessageIndex = streamingMessages.findIndex(
+      (message) => message.id === userMessage.id,
+    );
+    if (userMessageIndex === -1) return;
+
+    const previousMessages = streamingMessages;
+    let deleteSucceeded = false;
+    submitInFlightRef.current = true;
+    setIsSubmitInFlight(true);
+    setIsResponseSettling(true);
+    setIsRegenerating(true);
+    if (status === "error") {
+      clearError();
+    }
+
+    // Keep the original prompt in place, but remove the old answer before the
+    // delete request finishes. sendMessage(messageId) will replace this user
+    // message instead of appending a second one when the request starts.
+    setMessages(streamingMessages.slice(0, userMessageIndex + 1));
+
     try {
-      const response = await fetch(`/api/chat/messages?id=${userMessage.id}`, {
-        method: "DELETE",
-      });
-      if (response.ok) {
-        await refreshChatData();
-        sendMessage({ text: userText });
+      const response = await fetch(
+        `${apiBase}/chat/messages?id=${userMessage.id}`,
+        {
+          method: "DELETE",
+        },
+      );
+      if (!response.ok) {
+        throw new Error(
+          `Regenerate delete failed with status ${response.status}`,
+        );
       }
+      deleteSucceeded = true;
+      await sendMessage({ text: userText, messageId: userMessage.id });
     } catch (err) {
+      if (!deleteSucceeded) {
+        setMessages(previousMessages);
+      } else {
+        const refreshedMessages = await refreshChatData();
+        if (refreshedMessages) {
+          setMessages(refreshedMessages);
+        }
+      }
+
+      setIsResponseSettling(false);
+      if (err instanceof Error && isExpectedChatRejection(err, isGuest)) {
+        return;
+      }
       console.error("Regenerate error:", err);
       toast.error("Impossibile rigenerare la risposta");
+    } finally {
+      submitInFlightRef.current = false;
+      setIsSubmitInFlight(false);
+      setIsRegenerating(false);
     }
   };
 
@@ -667,7 +722,8 @@ export function ChatConversationClient({
     status === "streaming" ||
     status === "submitted" ||
     isSubmitInFlight ||
-    isResponseSettling;
+    isResponseSettling ||
+    isRegenerating;
   const isEmptyIdle = streamingMessages.length === 0 && !isLoading;
 
   return (
@@ -700,6 +756,7 @@ export function ChatConversationClient({
           messages={streamingMessages}
           status={status}
           isLoading={isLoading}
+          isRegenerating={isRegenerating}
           editingMessageId={editingMessageId}
           deletingMessageId={deletingMessageId}
           editContent={editContent}

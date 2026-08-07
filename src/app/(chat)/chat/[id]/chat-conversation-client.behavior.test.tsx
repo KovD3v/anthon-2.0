@@ -150,6 +150,7 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
   EmptyChatWelcome: () => <div>Chat vuota</div>,
   MessageList: ({
     messages,
+    isRegenerating,
     editingMessageId,
     deletingMessageId,
     isLoadingMore,
@@ -162,6 +163,7 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
     feedbackMessageIds,
   }: ComponentProps<"div"> & {
     messages: Array<{ id: string; parts: Array<{ text?: string }> }>;
+    isRegenerating?: boolean;
     editingMessageId: string | null;
     deletingMessageId: string | null;
     isLoadingMore: boolean;
@@ -180,6 +182,7 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
             feedbackMessageIds?.has(messages.at(-1)?.id ?? ""),
         )}
       </output>
+      <output data-testid="regenerating">{String(isRegenerating)}</output>
       <ol aria-label="Messaggi">
         {messages.map((message) => (
           <li key={message.id}>{message.parts[0]?.text}</li>
@@ -581,5 +584,44 @@ describe("ChatConversationClient pagination and recovery", () => {
 
     expect(mocks.confirm).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("replaces the retried prompt instead of appending a duplicate", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    let resolveSend: () => void = () => {};
+    mocks.sendMessage.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveSend = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    renderConversation();
+
+    await user.click(screen.getByRole("button", { name: "Rigenera" }));
+
+    await waitFor(() => {
+      expect(mocks.setMessages).toHaveBeenCalledWith([
+        expect.objectContaining({ id: "user-new" }),
+      ]);
+      expect(mocks.sendMessage).toHaveBeenCalledWith({
+        text: "Domanda nuova",
+        messageId: "user-new",
+      });
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/guest/chat/messages?id=user-new",
+      {
+        method: "DELETE",
+      },
+    );
+    expect(screen.getByTestId("regenerating").textContent).toBe("true");
+
+    await act(async () => resolveSend());
+    await waitFor(() =>
+      expect(screen.getByTestId("regenerating").textContent).toBe("false"),
+    );
   });
 });

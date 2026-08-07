@@ -259,4 +259,20 @@ describe("MessageList rendered interactions", () => {
     );
     expect(screen.queryByText("Sto preparando la risposta")).toBeNull();
   });
+
+  it("shows a dedicated replacement state while regenerating", () => {
+    renderMessageList({
+      messages: [userMessage],
+      isLoading: true,
+      isRegenerating: true,
+    });
+
+    expect(screen.getByText("Rigenero la risposta")).toBeTruthy();
+    expect(
+      screen.getByText("Sostituisco la risposta precedente."),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Rigenera risposta" }),
+    ).toBeNull();
+  });
 });

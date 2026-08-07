@@ -7,6 +7,8 @@ export const ASSISTANT_READING_MAX_MS = 700;
 export const CHAT_REACTIVITY_COPY = {
   assistantReading: "Leggo il contesto",
   assistantPreparing: "Sto preparando la risposta",
+  assistantRegenerating: "Rigenero la risposta",
+  assistantRegeneratingDetail: "Sostituisco la risposta precedente.",
   assistantWorkingDetail: "La risposta sta arrivando.",
   uploadTooLarge: "File troppo grande. Dimensione massima: 10MB.",
   uploadUploading: "Carico il file",

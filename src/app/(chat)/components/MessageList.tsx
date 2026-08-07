@@ -61,6 +61,7 @@ interface MessageListProps {
   messages: ExtendedMessage[];
   status: ChatRequestStatus;
   isLoading: boolean;
+  isRegenerating?: boolean;
   editingMessageId: string | null;
   deletingMessageId: string | null;
   onEditStart: (id: string, content: string) => void;
@@ -139,6 +140,7 @@ export function MessageList({
   messages,
   status,
   isLoading,
+  isRegenerating = false,
   editingMessageId,
   deletingMessageId,
   onEditStart,
@@ -179,6 +181,9 @@ export function MessageList({
     latestMessage,
     submittedElapsedMs,
   });
+  const pendingAssistantLabel = isRegenerating
+    ? CHAT_REACTIVITY_COPY.assistantRegenerating
+    : assistantPendingLabel;
   const visibleMessages = useMemo(
     () =>
       messages.filter(
@@ -186,16 +191,18 @@ export function MessageList({
           getAssistantMessageLifecycle({
             message,
             isLatest: index === messages.length - 1,
-            pendingLabel: assistantPendingLabel,
+            pendingLabel: pendingAssistantLabel,
             hasRenderableAttachment: hasPersistedAudioAttachment(message),
           }) !== "hidden",
       ),
-    [messages, assistantPendingLabel],
+    [messages, pendingAssistantLabel],
   );
-  const shouldShowPendingRow = shouldRenderAssistantPendingRow({
-    pendingLabel: assistantPendingLabel,
-    latestMessage,
-  });
+  const shouldShowPendingRow =
+    isRegenerating ||
+    shouldRenderAssistantPendingRow({
+      pendingLabel: pendingAssistantLabel,
+      latestMessage,
+    });
   const parentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1011,17 +1018,25 @@ export function MessageList({
               aria-live="polite"
             >
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background text-primary shadow-xs ring-1 ring-inset ring-border/70 dark:ring-white/10">
-                <Brain className="h-5 w-5 animate-pulse" />
+                {isRegenerating ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Brain className="h-5 w-5 animate-pulse" />
+                )}
               </div>
               <div className="flex max-w-[85%] flex-col gap-2">
                 <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-sm bg-[#c4cd4c] px-4 py-3 text-sm text-black shadow-sm">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
+                  {!isRegenerating && (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
+                  )}
                   <div className="flex flex-col">
                     <span className="font-medium text-black">
-                      {assistantPendingLabel}
+                      {pendingAssistantLabel}
                     </span>
                     <span className="text-xs text-black/70">
-                      {CHAT_REACTIVITY_COPY.assistantWorkingDetail}
+                      {isRegenerating
+                        ? CHAT_REACTIVITY_COPY.assistantRegeneratingDetail
+                        : CHAT_REACTIVITY_COPY.assistantWorkingDetail}
                     </span>
                   </div>
                 </div>
