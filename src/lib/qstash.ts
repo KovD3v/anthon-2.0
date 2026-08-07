@@ -25,6 +25,37 @@ function getQStashReceiver() {
   return new Receiver({ currentSigningKey, nextSigningKey });
 }
 
+function isLoopbackUrl(value: string): boolean {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    return (
+      hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function getQueueBaseUrl(): string {
+  const configuredUrl = process.env.APP_URL?.trim();
+  const vercelHost =
+    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() ||
+    process.env.VERCEL_URL?.trim();
+
+  if (configuredUrl && (!isLoopbackUrl(configuredUrl) || !vercelHost)) {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+
+  if (vercelHost) {
+    const vercelUrl = vercelHost.startsWith("http")
+      ? vercelHost
+      : `https://${vercelHost}`;
+    return vercelUrl.replace(/\/+$/, "");
+  }
+
+  return "http://localhost:3000";
+}
+
 /**
  * Verifies that the request is coming from QStash.
  * Throws an error if invalid.
@@ -67,7 +98,7 @@ export async function publishToQueue(
     retries?: number;
   },
 ) {
-  const appUrl = process.env.APP_URL || "http://localhost:3000"; // Fallback for local dev
+  const appUrl = getQueueBaseUrl();
   const destinationUrl = `${appUrl}/${endpoint}`;
 
   qstashLogger.info("publish", "Publishing to queue", { destinationUrl });
