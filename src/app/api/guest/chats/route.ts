@@ -14,8 +14,6 @@ import { createLogger } from "@/lib/logger";
 
 const guestLogger = createLogger("auth");
 
-export const runtime = "nodejs";
-
 // -----------------------------------------------------
 // GET - List all chats for guest user
 // -----------------------------------------------------

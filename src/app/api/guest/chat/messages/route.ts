@@ -6,8 +6,6 @@ import { deletePrivateVoiceBlobsForMessages } from "@/lib/voice/attachment-clean
 
 const guestMessageLogger = createLogger("auth");
 
-export const runtime = "nodejs";
-
 function chatMessageSuffixWhere(
   userId: string,
   chatId: string | null,

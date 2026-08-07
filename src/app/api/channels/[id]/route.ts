@@ -14,8 +14,6 @@ import { createLogger } from "@/lib/logger";
 
 const channelsLogger = createLogger("webhook");
 
-export const runtime = "nodejs";
-
 type RouteParams = {
   params: Promise<{ id: string }>;
 };

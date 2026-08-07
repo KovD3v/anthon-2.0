@@ -164,6 +164,11 @@ export function buildE2EProcessEnv({
   testDatabaseUrl: string;
   branchId: string;
 }) {
+  const appUrl =
+    childProcessEnv.INSTANT_NAV_RIG === "1"
+      ? "http://localhost:3200"
+      : "http://localhost:3100";
+
   return {
     ...childProcessEnv,
     DATABASE_URL: testDatabaseUrl,
@@ -171,10 +176,13 @@ export function buildE2EProcessEnv({
     E2E_EPHEMERAL_BRANCH_ID: branchId,
     OPENROUTER_API_KEY: "e2e-local-key",
     OPENROUTER_BASE_URL: "http://127.0.0.1:4317/api/v1",
-    NEXT_PUBLIC_APP_URL: "http://localhost:3100",
+    NEXT_PUBLIC_APP_URL: appUrl,
     // Every Playwright test gets a fresh guest, while all local requests share
     // the same development-only abuse identity. Keep production's cap intact.
     GUEST_CREATIONS_PER_IP_PER_DAY: "100",
+    ...(childProcessEnv.INSTANT_NAV_RIG === "1"
+      ? { TRUST_PROXY_HEADERS: "true" }
+      : {}),
   } satisfies NodeJS.ProcessEnv;
 }
 

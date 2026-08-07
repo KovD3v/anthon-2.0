@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
     mfa: {},
   },
   signUp: {
-    id: "sua_test",
+    id: "sua_test" as string | undefined,
     status: "missing_requirements",
     firstName: null,
     lastName: null,

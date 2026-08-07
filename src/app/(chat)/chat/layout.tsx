@@ -28,7 +28,10 @@ export default function ChatLayout({
 
 function ChatLayoutSkeleton() {
   return (
-    <div className="flex chat-mobile-viewport overflow-hidden">
+    <div
+      className="flex chat-mobile-viewport overflow-hidden"
+      data-testid="chat-layout-shell"
+    >
       <aside className="hidden w-72 shrink-0 overflow-hidden border-r border-border/50 bg-background/80 backdrop-blur-xl dark:border-white/10 dark:bg-muted/40 md:block">
         <SidebarSkeleton />
       </aside>

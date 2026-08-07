@@ -1,4 +1,6 @@
 import { formatDistanceToNow } from "date-fns";
+import { cacheLife } from "next/cache";
+import { connection } from "next/server";
 import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 import { getQStashEvents } from "@/lib/qstash";
 import {
@@ -8,11 +10,20 @@ import {
   triggerConsolidateMemories,
 } from "./actions";
 
-// Revalidate every minute
-export const revalidate = 60;
+// TODO: Cache Components adoption. Refactor this route so this opt-out can be removed.
+// See: https://nextjs.org/docs/app/guides/migrating-to-cache-components
+export const instant = false;
+
+async function getCachedQStashEvents() {
+  "use cache";
+  cacheLife({ stale: 30, revalidate: 60, expire: 3600 });
+  return getQStashEvents();
+}
 
 export default async function JobsPage() {
-  const { events } = await getQStashEvents();
+  // TODO: Cache Components adoption. Added to unblock the build: remove this connection() to re-trigger the error and review the fix options.
+  await connection();
+  const { events } = await getCachedQStashEvents();
 
   return (
     <div className="p-6 space-y-8">

@@ -1,7 +1,11 @@
 import { ArrowUpRight, Brain, Mail } from "lucide-react";
 import Link from "next/link";
+import { connection } from "next/server";
 
-export function Footer() {
+export async function Footer() {
+  // TODO: Cache Components adoption. Added to unblock the build: remove this connection() to re-trigger the error and review the fix options.
+  await connection();
+
   return (
     <footer className="border-t bg-background py-12 md:py-16">
       <div className="container mx-auto px-4 md:px-6">

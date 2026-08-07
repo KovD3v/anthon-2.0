@@ -3,8 +3,6 @@ import {
   handleTelegramWebhookPost,
 } from "@/lib/channels/telegram/webhook-handler";
 
-export const runtime = "nodejs";
-
 export async function GET() {
   return handleTelegramWebhookGet();
 }

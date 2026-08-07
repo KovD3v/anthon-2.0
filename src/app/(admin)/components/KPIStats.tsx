@@ -5,11 +5,14 @@ import {
   MessageSquare,
   Users,
 } from "lucide-react";
+import { connection } from "next/server";
 import { AnimatedGrid, AnimatedGridItem } from "@/components/ui/animated-grid";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getOverviewStats, getStartDate } from "@/lib/admin";
 
 export async function KPIStats() {
+  // TODO: Cache Components adoption. Added to unblock the build: remove this connection() to re-trigger the error and review the fix options.
+  await connection();
   const startDate = getStartDate("30d");
   const stats = await getOverviewStats(startDate);
 

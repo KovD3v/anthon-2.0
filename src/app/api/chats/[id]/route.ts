@@ -17,8 +17,6 @@ import { deletePrivateVoiceBlobsForMessages } from "@/lib/voice/attachment-clean
 
 const chatsLogger = createLogger("ai");
 
-export const runtime = "nodejs";
-
 interface RouteParams {
   params: Promise<{ id: string }>;
 }

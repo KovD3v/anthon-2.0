@@ -3,6 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Condensed, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { Suspense } from "react";
 import { IdentifyUser } from "@/components/providers/identify-user";
 import { MotionProvider } from "@/components/providers/motion-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
@@ -199,7 +200,9 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <IdentifyUser />
-            <SessionTaskGuard />
+            <Suspense fallback={null}>
+              <SessionTaskGuard />
+            </Suspense>
             <QueryProvider>
               <MotionProvider>{children}</MotionProvider>
             </QueryProvider>

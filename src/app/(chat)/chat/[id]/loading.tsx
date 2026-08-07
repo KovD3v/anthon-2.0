@@ -3,7 +3,10 @@ import { PageWrapper } from "@/components/ui/page-wrapper";
 export default function ChatConversationLoading() {
   return (
     <PageWrapper className="flex min-h-0 flex-1 flex-col">
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-linear-to-b from-background to-muted/20">
+      <div
+        className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-linear-to-b from-background to-muted/20"
+        data-testid="chat-conversation-shell"
+      >
         <div className="border-b border-border/50 bg-background/60 px-4 py-3 backdrop-blur-xl">
           <div className="mx-auto flex max-w-3xl items-center gap-3">
             <div className="size-8 animate-pulse rounded-full bg-muted/45" />

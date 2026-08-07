@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   clerkClient: vi.fn(),
   waitUntil: vi.fn(),
   revalidateTag: vi.fn(),
+  unstableRethrow: vi.fn(),
   userFindUnique: vi.fn(),
   userCreate: vi.fn(),
   userUpdate: vi.fn(),
@@ -24,6 +25,10 @@ vi.mock("@vercel/functions", () => ({
 vi.mock("next/cache", () => ({
   unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
   revalidateTag: mocks.revalidateTag,
+}));
+
+vi.mock("next/navigation", () => ({
+  unstable_rethrow: mocks.unstableRethrow,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -54,6 +59,7 @@ describe("lib/auth", () => {
     mocks.clerkClient.mockReset();
     mocks.waitUntil.mockReset();
     mocks.revalidateTag.mockReset();
+    mocks.unstableRethrow.mockReset();
     mocks.userFindUnique.mockReset();
     mocks.userCreate.mockReset();
     mocks.userUpdate.mockReset();
@@ -61,6 +67,14 @@ describe("lib/auth", () => {
     mocks.profileUpsert.mockReset();
 
     mocks.auth.mockResolvedValue({ userId: "clerk-1" });
+    mocks.unstableRethrow.mockImplementation((error: unknown) => {
+      if (
+        error instanceof Error &&
+        (error as Error & { digest?: string }).digest === "DYNAMIC_SERVER_USAGE"
+      ) {
+        throw error;
+      }
+    });
     mocks.waitUntil.mockImplementation(() => {});
     mocks.userFindUnique.mockResolvedValue({
       id: "user-1",
@@ -189,15 +203,14 @@ describe("lib/auth", () => {
     });
   });
 
-  it("handles dynamic server usage errors without failing auth", async () => {
+  it("rethrows Next.js dynamic server usage interruptions", async () => {
     const dynamicError = new Error("Dynamic server usage");
     (dynamicError as Error & { digest: string }).digest =
       "DYNAMIC_SERVER_USAGE";
     mocks.auth.mockRejectedValue(dynamicError);
 
-    const result = await getAuthUser();
-
-    expect(result).toEqual({ user: null, error: null });
+    await expect(getAuthUser()).rejects.toBe(dynamicError);
+    expect(mocks.unstableRethrow).toHaveBeenCalledWith(dynamicError);
   });
 
   it("returns generic auth error on unexpected exceptions", async () => {

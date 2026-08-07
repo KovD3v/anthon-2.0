@@ -21,7 +21,6 @@ import {
 
 const cronLogger = createLogger("maintenance");
 
-export const runtime = "nodejs";
 export const maxDuration = 60; // Allow up to 60 seconds
 
 const DEFAULT_USER_BATCH_SIZE = 25;

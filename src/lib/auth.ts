@@ -6,6 +6,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { waitUntil } from "@vercel/functions";
 import { revalidateTag, unstable_cache } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import type { UserRole } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 import { createLogger, getLogContext } from "@/lib/logger";
@@ -148,18 +149,7 @@ export async function getAuthUser(): Promise<AuthResult> {
       error: null,
     };
   } catch (error: unknown) {
-    if (
-      error instanceof Error &&
-      ((error as { digest?: string }).digest === "DYNAMIC_SERVER_USAGE" ||
-        error.message.includes("Dynamic server usage"))
-    ) {
-      authLogger.warn(
-        "auth.dynamic_server_usage",
-        "Dynamic server usage while resolving auth",
-        { message: error.message },
-      );
-      return { user: null, error: null };
-    }
+    unstable_rethrow(error);
     authLogger.error("auth.resolve_failed", "Error resolving auth user", {
       error,
     });

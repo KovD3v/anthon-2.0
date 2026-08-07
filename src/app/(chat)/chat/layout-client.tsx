@@ -551,6 +551,7 @@ export function LayoutClient({
       <div
         ref={chatViewportRef}
         className="flex chat-mobile-viewport overflow-hidden"
+        data-testid="chat-layout-shell"
       >
         {/* Mobile Backdrop */}
         <button

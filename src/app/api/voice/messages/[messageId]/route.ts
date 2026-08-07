@@ -8,8 +8,6 @@ import {
 
 const voiceLogger = createLogger("voice");
 
-export const runtime = "nodejs";
-
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ messageId: string }> },

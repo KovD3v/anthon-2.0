@@ -26,7 +26,6 @@ import {
 
 const uploadLogger = createLogger("ai");
 
-export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // Max file size: 10MB

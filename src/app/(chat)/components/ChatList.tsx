@@ -234,6 +234,7 @@ function ChatItem({
       {/* Full area clickable link */}
       <Link
         href={`/chat/${chat.id}`}
+        data-testid={`chat-link-${chat.id}`}
         prefetch={true}
         onClick={onClick}
         className={`flex w-full items-center gap-2 rounded-xl px-3 py-3 sm:py-2.5 text-sm transition-[background-color,color,box-shadow,transform] active:scale-[0.98] ${

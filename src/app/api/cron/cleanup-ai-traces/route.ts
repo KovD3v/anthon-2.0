@@ -3,8 +3,6 @@ import { createLogger } from "@/lib/logger";
 
 const cronLogger = createLogger("maintenance");
 
-export const runtime = "nodejs";
-
 export async function POST(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   if (

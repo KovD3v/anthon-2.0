@@ -24,7 +24,11 @@ const allowedDevOrigins = ["**.*", ...(additionalAllowedDevOrigins ?? [])];
 const nextConfig: NextConfig = {
   /* config options here */
   allowedDevOrigins,
+  cacheComponents: true,
   reactCompiler: true,
+  experimental: {
+    exposeTestingApiInProductionBuild: process.env.EXPOSE_TESTING_API === "1",
+  },
   turbopack: {
     root: projectRoot,
   },

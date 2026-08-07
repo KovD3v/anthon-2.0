@@ -2,9 +2,14 @@ import { createHash } from "node:crypto";
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { migrateGuestToUser } from "@/lib/guest-migration";
+
+// TODO: Cache Components adoption. Refactor this route so this opt-out can be removed.
+// See: https://nextjs.org/docs/app/guides/migrating-to-cache-components
+export const instant = false;
 
 // Error state icons
 function ErrorIcon() {
@@ -155,6 +160,8 @@ export default async function WhatsAppLinkTokenPage({
     );
   }
 
+  // TODO: Cache Components adoption. Added to unblock the build: remove this connection() to re-trigger the error and review the fix options.
+  await connection();
   // biome-ignore lint/complexity/useDateNow: Date.now() is flagged as impure by React Doctor in this page.
   const nowMs = Number(new Date());
 

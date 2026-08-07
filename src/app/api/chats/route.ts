@@ -13,8 +13,6 @@ import { createLogger } from "@/lib/logger";
 
 const chatsLogger = createLogger("ai");
 
-export const runtime = "nodejs";
-
 // -----------------------------------------------------
 // GET - List all chats for the current user
 // -----------------------------------------------------

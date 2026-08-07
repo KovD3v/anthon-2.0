@@ -15,7 +15,6 @@ import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import { getDailyUsage } from "@/lib/rate-limit";
 import { getEffectivePlanId } from "@/lib/rate-limit/config";
 
-export const runtime = "nodejs";
 const logger = createLogger("usage");
 
 export async function GET(request: Request) {

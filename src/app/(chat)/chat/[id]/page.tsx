@@ -7,10 +7,6 @@ import { getGuestTokenFromCookies, hashGuestToken } from "@/lib/guest-auth";
 import { convertGuestForAuthenticatedUser } from "@/lib/guest-conversion";
 import { ChatConversationClient } from "./chat-conversation-client";
 
-// This page is dynamic because it depends on the current user's authentication state
-// and guest status (via cookies).
-export const dynamic = "force-dynamic";
-
 export default async function ChatConversationPage({
   params,
 }: {
@@ -65,7 +61,11 @@ export default async function ChatConversationPage({
 
   return (
     <PageWrapper className="flex min-h-0 flex-1 flex-col">
-      <ChatConversationClient chatId={id} initialChatData={chatData} />
+      <div className="contents" data-testid="chat-conversation-shell">
+        <div className="contents" data-testid="chat-conversation-content">
+          <ChatConversationClient chatId={id} initialChatData={chatData} />
+        </div>
+      </div>
     </PageWrapper>
   );
 }

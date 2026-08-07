@@ -10,6 +10,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Added
 
+- Added production-build instant-navigation regression coverage for guest chat
+  links and direct conversation loads on desktop and mobile, backed by an
+  ephemeral Neon branch.
 - Added period-based grouping to the chat sidebar for today, yesterday, the
   last 7 days, the last 30 days, and older conversations.
 - Added Italian Terms of Use and Privacy pages covering AI limitations, acceptable use, channels, data processing, retention, cookies, GDPR rights, and account deletion.
@@ -25,6 +28,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Upgraded to Next.js 16.3 and React 19.2.8, enabled Cache Components, and
+  migrated `/chat` and `/chat/[id]` to partial prerendering with meaningful
+  layout and conversation fallbacks while dynamic data streams.
 - Upgraded `@clerk/nextjs` to v7, moved the provider inside `<body>`, migrated
   auth conditions to `Show`, and changed marketing auth actions from modal
   components to explicit routes.

@@ -8,7 +8,6 @@ import { getExistingGuestUser } from "@/lib/guest-auth";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { getDailyUsage, getRateLimitsForUser } from "@/lib/rate-limit";
 
-export const runtime = "nodejs";
 const logger = createLogger("usage");
 
 export async function GET(request: Request) {

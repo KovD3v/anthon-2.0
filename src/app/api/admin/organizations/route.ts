@@ -16,8 +16,6 @@ import {
   type OrganizationContractInput,
 } from "@/lib/organizations/types";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 const organizationsLogger = createLogger("organizations");
 
 function getErrorDetails(error: unknown): {

@@ -1,6 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const appUrl = "http://localhost:3100";
+const isInstantNavRig = process.env.INSTANT_NAV_RIG === "1";
+const appUrl =
+  process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+  (isInstantNavRig ? "http://localhost:3200" : "http://localhost:3100");
 
 export default defineConfig({
   testDir: "./e2e",
@@ -31,7 +34,9 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
-      command: "bun run dev --hostname localhost --port 3100",
+      command: isInstantNavRig
+        ? "bun run start --hostname localhost --port 3200"
+        : "bun run dev --hostname localhost --port 3100",
       url: `${appUrl}/chat`,
       reuseExistingServer: false,
       timeout: 120_000,

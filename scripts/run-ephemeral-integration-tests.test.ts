@@ -225,4 +225,20 @@ describe("ephemeral Neon integration runner", () => {
       GUEST_CREATIONS_PER_IP_PER_DAY: "100",
     });
   });
+
+  it("configures the isolated instant-navigation production rig", () => {
+    const env = buildE2EProcessEnv({
+      childProcessEnv: {
+        NODE_ENV: "test",
+        INSTANT_NAV_RIG: "1",
+      },
+      testDatabaseUrl: "ephemeral-url",
+      branchId: "br-e2e",
+    });
+
+    expect(env).toMatchObject({
+      NEXT_PUBLIC_APP_URL: "http://localhost:3200",
+      TRUST_PROXY_HEADERS: "true",
+    });
+  });
 });

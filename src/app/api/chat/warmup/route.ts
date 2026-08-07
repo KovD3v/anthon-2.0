@@ -1,8 +1,6 @@
 import { waitUntil } from "@vercel/functions";
 import { warmDatabaseConnection } from "@/lib/db";
 
-export const runtime = "nodejs";
-
 async function readBody(request: Request): Promise<{ chatId?: unknown }> {
   try {
     return (await request.json()) as { chatId?: unknown };

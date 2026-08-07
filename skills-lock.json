@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "skills": {
+    "next-dev-loop": {
+      "source": "vercel/next.js",
+      "ref": "canary",
+      "sourceType": "github",
+      "skillPath": "skills/next-dev-loop/SKILL.md",
+      "computedHash": "5b567d2e521056db6b8b37c46c6b2b9c72de5192c0daeb351c966d61e0702630"
+    }
+  }
+}

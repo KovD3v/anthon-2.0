@@ -4,7 +4,6 @@ import { processVoiceGenerationJob } from "@/lib/voice/generation-jobs";
 
 const voiceLogger = createLogger("voice");
 
-export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
