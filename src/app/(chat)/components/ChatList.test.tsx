@@ -33,9 +33,7 @@ function localIso(daysAgo: number) {
   return date.toISOString();
 }
 
-function renderChatList(
-  chats: ComponentProps<typeof ChatList>["chats"],
-) {
+function renderChatList(chats: ComponentProps<typeof ChatList>["chats"]) {
   return render(
     <ChatList
       chats={chats}

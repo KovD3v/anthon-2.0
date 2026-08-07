@@ -30,10 +30,7 @@ function localDayNumber(date: Date) {
   );
 }
 
-export function getChatPeriod(
-  updatedAt: string,
-  now = new Date(),
-): ChatPeriod {
+export function getChatPeriod(updatedAt: string, now = new Date()): ChatPeriod {
   const updatedDate = new Date(updatedAt);
   if (
     Number.isNaN(updatedDate.getTime()) ||

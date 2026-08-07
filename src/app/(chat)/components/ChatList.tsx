@@ -16,10 +16,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { duration } from "@/lib/motion";
 import { getCreateChatButtonState } from "../chat/create-chat-ui";
-import {
-  groupChatsByPeriod,
-  type SidebarChat,
-} from "./chat-periods";
+import { groupChatsByPeriod, type SidebarChat } from "./chat-periods";
 
 interface ChatListProps {
   chats: SidebarChat[];
