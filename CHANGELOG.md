@@ -10,6 +10,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Added
 
+- Added period-based grouping to the chat sidebar for today, yesterday, the
+  last 7 days, the last 30 days, and older conversations.
 - Added Italian Terms of Use and Privacy pages covering AI limitations, acceptable use, channels, data processing, retention, cookies, GDPR rights, and account deletion.
 - Added public footer links to the Terms of Use and Privacy pages.
 - Added an Italian Anthon authentication shell and custom Clerk Core 3 flows for
@@ -38,6 +40,12 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Kept the original prompt in place during response regeneration, replacing the
+  previous answer and showing a dedicated retry state instead of duplicating
+  messages.
+- Aligned voice-mode responses with the audio delivered to the user, avoiding
+  future-tense promises about preparing or sending another voice note.
+- Normalized QStash deduplication IDs before publishing queued voice jobs.
 - Fixed the production `Minified React error #185` during streamed chat
   rendering by throttling UI updates and removing remaining layout and render
   update loops, including cache invalidation during active chat rendering. See
