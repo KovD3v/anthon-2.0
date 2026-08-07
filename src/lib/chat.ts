@@ -210,45 +210,53 @@ export const getSharedChat = cache(
           },
           orderBy: { createdAt: "asc" },
         });
-    const mappedMessages: ChatMessage[] = messagesToReturn.map((m) => ({
-      id: m.id,
-      role: m.role.toLowerCase() as "user" | "assistant",
-      content: getTextFromParts(m.parts),
-      parts: m.parts,
-      createdAt: m.createdAt.toISOString(),
-      model: isModelComparisonCanonical(m.metadata)
-        ? undefined
-        : (m.model ?? undefined),
-      usage:
-        m.inputTokens !== null
-          ? {
-              inputTokens: m.inputTokens,
-              outputTokens: m.outputTokens ?? 0,
-              cost: m.costUsd || 0,
-              generationTimeMs: m.generationTimeMs || undefined,
-              reasoningTimeMs: m.reasoningTimeMs || undefined,
-            }
-          : undefined,
-      ragUsed: m.ragUsed || undefined,
-      toolCalls: m.toolCalls,
-      feedback: normalizeMessageFeedback(m.feedback),
-      feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
-      voice: m.voiceGenerationJob
-        ? {
-            status: m.voiceGenerationJob.status,
-            ...(m.voiceGenerationJob.errorCode
-              ? { errorCode: m.voiceGenerationJob.errorCode }
-              : {}),
-            isExplicitRequest: isExplicitVoiceRequest(m.metadata),
-          }
-        : undefined,
-      attachments: m.attachments.map((attachment) => ({
-        ...attachment,
-        blobUrl: attachment.contentType.startsWith("audio/")
-          ? `/api/voice/messages/${m.id}`
-          : attachment.blobUrl,
-      })),
-    }));
+    const mappedMessages: ChatMessage[] = messagesToReturn.map((m) => {
+      const voiceReasonCode = getVoiceReasonCode(m.metadata);
+
+      return {
+        id: m.id,
+        role: m.role.toLowerCase() as "user" | "assistant",
+        content: getTextFromParts(m.parts),
+        parts: m.parts,
+        createdAt: m.createdAt.toISOString(),
+        model: isModelComparisonCanonical(m.metadata)
+          ? undefined
+          : (m.model ?? undefined),
+        usage:
+          m.inputTokens !== null
+            ? {
+                inputTokens: m.inputTokens,
+                outputTokens: m.outputTokens ?? 0,
+                cost: m.costUsd || 0,
+                generationTimeMs: m.generationTimeMs || undefined,
+                reasoningTimeMs: m.reasoningTimeMs || undefined,
+              }
+            : undefined,
+        ragUsed: m.ragUsed || undefined,
+        toolCalls: m.toolCalls,
+        feedback: normalizeMessageFeedback(m.feedback),
+        feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
+        voice:
+          m.voiceGenerationJob || voiceReasonCode
+            ? {
+                ...(m.voiceGenerationJob
+                  ? { status: m.voiceGenerationJob.status }
+                  : {}),
+                ...(m.voiceGenerationJob?.errorCode
+                  ? { errorCode: m.voiceGenerationJob.errorCode }
+                  : {}),
+                ...(voiceReasonCode ? { reasonCode: voiceReasonCode } : {}),
+                isExplicitRequest: isExplicitVoiceRequest(m.metadata),
+              }
+            : undefined,
+        attachments: m.attachments.map((attachment) => ({
+          ...attachment,
+          blobUrl: attachment.contentType.startsWith("audio/")
+            ? `/api/voice/messages/${m.id}`
+            : attachment.blobUrl,
+        })),
+      };
+    });
     for (const pair of unresolvedComparisons) {
       const responseByVariant = new Map(
         pair.responses.map((response) => [response.variantId, response]),
@@ -313,6 +321,16 @@ function isExplicitVoiceRequest(metadata: unknown): boolean {
     typeof voice === "object" &&
     (voice as { category?: unknown }).category === "VOICE_REQUIRED"
   );
+}
+
+function getVoiceReasonCode(metadata: unknown): string | undefined {
+  if (!metadata || typeof metadata !== "object") return undefined;
+
+  const voice = (metadata as { voice?: unknown }).voice;
+  if (!voice || typeof voice !== "object") return undefined;
+
+  const reasonCode = (voice as { reasonCode?: unknown }).reasonCode;
+  return typeof reasonCode === "string" ? reasonCode : undefined;
 }
 
 function isModelComparisonCanonical(metadata: unknown): boolean {

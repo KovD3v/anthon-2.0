@@ -200,6 +200,10 @@ describe("lib/chat", () => {
         metadata: {
           feedback: { reason: "wrong_fact" },
           modelComparisonPairId: "pair-1",
+          voice: {
+            category: "VOICE_REQUIRED",
+            reasonCode: "PLAN_NOT_ELIGIBLE",
+          },
         },
         attachments: [
           {
@@ -311,6 +315,10 @@ describe("lib/chat", () => {
       ragUsed: undefined,
       feedback: -1,
       feedbackReason: "wrong_fact",
+      voice: {
+        isExplicitRequest: true,
+        reasonCode: "PLAN_NOT_ELIGIBLE",
+      },
       attachments: [
         {
           id: "att-1",

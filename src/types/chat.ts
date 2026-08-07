@@ -117,8 +117,9 @@ export interface ChatMessage {
   toolCalls?: unknown;
   attachments?: StoredAttachment[];
   voice?: {
-    status: "PENDING" | "PROCESSING" | "READY" | "FAILED" | "CANCELLED";
+    status?: "PENDING" | "PROCESSING" | "READY" | "FAILED" | "CANCELLED";
     errorCode?: string;
+    reasonCode?: string;
     /** True only when the user explicitly asked for an audio reply. */
     isExplicitRequest?: boolean;
   };
