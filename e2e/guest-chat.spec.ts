@@ -27,6 +27,38 @@ async function waitForResponsePersisted(page: Page, text: string) {
 }
 
 test.describe("guest chat beta smoke", () => {
+  test("allows scrolling through the mobile chat launcher", async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!isMobile, "Mobile launcher regression");
+
+    await page.goto("/chat");
+    await expect(
+      page.getByRole("heading", { name: "Benvenuto!" }),
+    ).toBeVisible();
+
+    const lastStarter = page.getByRole("button", {
+      name: /Voglio ritrovare fiducia/,
+    });
+    const initialBox = await lastStarter.boundingBox();
+    expect(initialBox).not.toBeNull();
+
+    const gestureTarget = await page
+      .getByRole("button", { name: /Mi blocco dopo un errore/ })
+      .boundingBox();
+    expect(gestureTarget).not.toBeNull();
+    await page.mouse.move(
+      (gestureTarget?.x ?? 0) + (gestureTarget?.width ?? 0) / 2,
+      (gestureTarget?.y ?? 0) + (gestureTarget?.height ?? 0) / 2,
+    );
+    await page.mouse.wheel(0, 700);
+
+    await expect
+      .poll(async () => (await lastStarter.boundingBox())?.y)
+      .toBeLessThan(initialBox?.y ?? 0);
+  });
+
   test("supports consecutive turns without reloading", async ({ page }) => {
     await openEmptyGuestChat(page);
 

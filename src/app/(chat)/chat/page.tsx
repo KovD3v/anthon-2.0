@@ -76,7 +76,7 @@ export default function ChatPage() {
       : null;
 
   return (
-    <PageWrapper className="flex flex-1 flex-col">
+    <PageWrapper className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 sm:p-8">
         <div className="w-full max-w-4xl text-center">
           <div className="mb-8">
