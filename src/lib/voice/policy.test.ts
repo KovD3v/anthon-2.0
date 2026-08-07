@@ -16,10 +16,24 @@ describe("voice/policy", () => {
     ).toBe("TEXT");
   });
 
-  it("returns a stable user-facing provider message", () => {
-    expect(getVoiceUnavailability("PROVIDER_UNAVAILABLE")).toEqual({
-      code: "PROVIDER_UNAVAILABLE",
-      userMessage: "Voice is temporarily unavailable, so I'm replying in text.",
-    });
+  it.each([
+    [
+      "PLAN_NOT_ELIGIBLE" as const,
+      "Ho ricevuto e trascritto il tuo messaggio vocale. Le risposte vocali non sono ancora disponibili durante la prova, quindi ti rispondo in testo.",
+    ],
+    [
+      "QUIET_MODE" as const,
+      "Le risposte vocali sono disattivate nelle tue preferenze, quindi ti rispondo in testo.",
+    ],
+    [
+      "PROVIDER_UNAVAILABLE" as const,
+      "Le risposte vocali non sono temporaneamente disponibili, quindi ti rispondo in testo.",
+    ],
+    [
+      "QUOTA_REACHED" as const,
+      "Hai raggiunto il limite attuale di risposte vocali, quindi ti rispondo in testo.",
+    ],
+  ])("returns Italian user-facing copy for %s", (code, userMessage) => {
+    expect(getVoiceUnavailability(code)).toEqual({ code, userMessage });
   });
 });

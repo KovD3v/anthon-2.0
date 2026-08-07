@@ -27,13 +27,13 @@ export function getVoiceUnavailability(
 ): VoiceUnavailability {
   const messages: Record<VoiceUnavailableCode, string> = {
     PLAN_NOT_ELIGIBLE:
-      "I can't send a voice response with your current plan, so I'm replying in text.",
+      "Ho ricevuto e trascritto il tuo messaggio vocale. Le risposte vocali non sono ancora disponibili durante la prova, quindi ti rispondo in testo.",
     QUIET_MODE:
-      "Voice responses are disabled in your preferences, so I'm replying in text.",
+      "Le risposte vocali sono disattivate nelle tue preferenze, quindi ti rispondo in testo.",
     PROVIDER_UNAVAILABLE:
-      "Voice is temporarily unavailable, so I'm replying in text.",
+      "Le risposte vocali non sono temporaneamente disponibili, quindi ti rispondo in testo.",
     QUOTA_REACHED:
-      "You've reached your voice-response limit for now, so I'm replying in text.",
+      "Hai raggiunto il limite attuale di risposte vocali, quindi ti rispondo in testo.",
   };
   return { code, userMessage: messages[code] };
 }
