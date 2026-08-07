@@ -10,6 +10,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Added
 
+- Documented user plan states, daily text and voice limits, OpenRouter cost
+  estimates, plan economics, and the intended Clerk pricing and benefits UX.
 - Added production-build instant-navigation regression coverage for guest chat
   links and direct conversation loads on desktop and mobile, backed by an
   ephemeral Neon branch.
@@ -28,6 +30,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Exposed persisted voice-fallback reasons in chat and linked trial voice
+  fallbacks to the pricing page.
 - Upgraded to Next.js 16.3 and React 19.2.8, enabled Cache Components, and
   migrated `/chat` and `/chat/[id]` to partial prerendering with meaningful
   layout and conversation fallbacks while dynamic data streams.
@@ -46,6 +50,12 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Localized voice-unavailability explanations in Italian for trial, preference,
+  provider, and quota fallbacks.
+- Kept Enter available for multiline messages while retaining explicit sending
+  through the composer button.
+- Kept the mobile chat composer aligned above the software keyboard when iOS
+  pans the visual viewport.
 - Kept the original prompt in place during response regeneration, replacing the
   previous answer and showing a dedicated retry state instead of duplicating
   messages.
