@@ -78,6 +78,48 @@ costi differenti. Per ridefinire le soglie in modo economico occorre partire
 da costo medio osservato per turno, utilizzo giornaliero atteso, margine e
 prezzo del piano.
 
+### Stima con la media ponderata OpenRouter
+
+Snapshot OpenRouter fornito il 7 agosto 2026 per l'orchestratore:
+
+| Metrica | Prezzo medio ponderato |
+| --- | ---: |
+| Input | $0,04103 per milione di token |
+| Output | $0,8561 per milione di token |
+
+La media ponderata rappresenta il prezzo effettivo medio osservato da
+OpenRouter, incluso l'effetto del prompt caching e della distribuzione del
+traffico tra provider. Non è un listino garantito e può cambiare nel tempo.
+
+Applicando questi prezzi alle quote token giornaliere, la formula è:
+
+```text
+costo input  = token input  / 1.000.000 × $0,04103
+costo output = token output / 1.000.000 × $0,8561
+costo totale = costo input + costo output
+```
+
+| Piano | Costo input | Costo output | Totale stimato | Limite attuale | Copertura del limite |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| **Guest** | $0,00082 | $0,00856 | **$0,00938** | $0,05 | 5,33× |
+| **Trial** | $0,00410 | $0,04281 | **$0,04691** | $0,50 | 10,66× |
+| **Basic** | $0,02052 | $0,21403 | **$0,23454** | $3,00 | 12,79× |
+| **Basic Plus** | $0,03282 | $0,34244 | **$0,37526** | $5,00 | 13,32× |
+| **Pro** | $0,08206 | $0,85610 | **$0,93816** | $15,00 | 15,99× |
+
+Il totale stimato assume che l'utente consumi nello stesso giorno sia tutta la
+quota input sia tutta la quota output. Con questa media, il costo è dominato
+dai token in uscita.
+
+Il rapporto di copertura indica quante volte il limite attuale contiene il
+costo teorico dell'orchestratore. Non rappresenta il margine netto del piano:
+il calcolo non include fallback, sub-agent, immagini, ricerca web,
+trascrizione, sintesi vocale, storage o altri costi infrastrutturali.
+
+Per l'enforcement deve restare autorevole il costo effettivo registrato per
+ogni generazione. Questa stima è adatta alla pianificazione economica, ma non
+deve sostituire la contabilizzazione runtime.
+
 ## Funzionalità
 
 | Funzionalità | Guest | Trial | Basic | Basic Plus | Pro |
