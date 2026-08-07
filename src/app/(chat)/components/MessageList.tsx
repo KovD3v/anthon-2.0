@@ -14,6 +14,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -639,6 +640,15 @@ export function MessageList({
                                 className={assistantMarkdownClassName}
                                 content={messageText}
                               />
+                              {message.voice?.reasonCode ===
+                                "PLAN_NOT_ELIGIBLE" && (
+                                <Link
+                                  href="/pricing"
+                                  className="mt-3 inline-flex border-black/10 border-t pt-3 text-xs font-semibold text-black underline underline-offset-4"
+                                >
+                                  Scopri i piani
+                                </Link>
+                              )}
                               {isVoiceGenerationPending && (
                                 <output
                                   className="mt-3 flex items-center gap-2 border-black/10 border-t pt-3 text-xs text-black/70"

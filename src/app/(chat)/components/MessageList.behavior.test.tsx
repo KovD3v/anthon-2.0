@@ -109,6 +109,31 @@ beforeEach(() => {
 });
 
 describe("MessageList rendered interactions", () => {
+  it("links plan-ineligible voice fallbacks to pricing", () => {
+    renderMessageList({
+      messages: [
+        userMessage,
+        {
+          ...assistantMessage,
+          voice: {
+            isExplicitRequest: true,
+            reasonCode: "PLAN_NOT_ELIGIBLE",
+          },
+        },
+      ],
+    });
+
+    expect(
+      screen.getByRole("link", { name: "Scopri i piani" }).getAttribute("href"),
+    ).toBe("/pricing");
+  });
+
+  it("does not show the pricing action on ordinary assistant messages", () => {
+    renderMessageList();
+
+    expect(screen.queryByRole("link", { name: "Scopri i piani" })).toBeNull();
+  });
+
   it("does not animate measured message geometry", () => {
     renderMessageList();
 
