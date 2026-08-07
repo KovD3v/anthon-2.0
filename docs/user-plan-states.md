@@ -1,122 +1,132 @@
-# Stati e piani utente
+# Piani e stati utente
 
-Questo documento descrive gli stati e i piani personali effettivamente
-riconosciuti da Anthon 2.0.
+Anthon assegna a ogni utente un piano effettivo. Il piano determina quote AI,
+contesto conversazionale, upload, conservazione degli allegati e accesso alla
+voce.
 
-Il nome tecnico corretto del piano intermedio è `BASIC_PLUS`; `basci_plus` è
-un refuso. `ADMIN` esiste tecnicamente, ma non è un piano commerciale.
+I piani personali supportati sono:
 
-## Confronto principale
+- `GUEST`
+- `TRIAL`
+- `BASIC`
+- `BASIC_PLUS`
+- `PRO`
 
-| Stato o piano | Destinatario | Richieste AI/giorno | Token input/giorno | Token output/giorno | Costo AI massimo/giorno | Messaggi di contesto | Upload/giorno | Conservazione allegati | Voce |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- |
-| **Guest** | Utente non registrato | 10 | 20.000 | 10.000 | $0,05 | 5 | Nessuno | 1 giorno | No |
-| **Trial** | Utente registrato senza un piano attivo riconosciuto | 75 | 100.000 | 50.000 | $0,50 | 10 | 10 file, massimo 50 MiB totali | 7 giorni | No |
-| **Basic** | Abbonamento Basic attivo | 50 | 500.000 | 250.000 | $3,00 | 15 | 25 file, massimo 250 MiB totali | 30 giorni | Sì, massimo 10 ogni 12 ore |
-| **Basic Plus** | Abbonamento Basic Plus attivo | 50 | 800.000 | 400.000 | $5,00 | 30 | 50 file, massimo 500 MiB totali | 60 giorni | Sì, massimo 20 ogni 12 ore |
-| **Pro** | Abbonamento Pro attivo | 100 | 2.000.000 | 1.000.000 | $15,00 | 100 | 100 file, massimo 2 GiB totali | 180 giorni | Sì, massimo 50 ogni 36 ore |
+> **Nota:** il nome corretto è `BASIC_PLUS`. `basci_plus` non è un identificatore
+> valido.
 
-Il numero di messaggi di contesto indica quanti messaggi recenti possono essere
-passati al modello per generare una risposta. Non è il numero massimo di
-messaggi conservati nella conversazione.
+## Panoramica
 
-Il singolo file è limitato a 10 MiB per tutti i piani che consentono gli
-upload. I valori monetari sono soglie tecniche interne di consumo AI, non il
-prezzo dell'abbonamento.
+| Piano | Utente | Richieste/giorno | Contesto | Upload/giorno | Conservazione | Voce |
+| --- | --- | ---: | ---: | --- | ---: | --- |
+| **Guest** | Non registrato | 10 | 5 messaggi | Non disponibili | 1 giorno | Non disponibile |
+| **Trial** | Registrato, senza piano riconosciuto | 75 | 10 messaggi | 10 file · 50 MiB | 7 giorni | Non disponibile |
+| **Basic** | Abbonato Basic | 50 | 15 messaggi | 25 file · 250 MiB | 30 giorni | 10 risposte ogni 12 ore |
+| **Basic Plus** | Abbonato Basic Plus | 50 | 30 messaggi | 50 file · 500 MiB | 60 giorni | 20 risposte ogni 12 ore |
+| **Pro** | Abbonato Pro | 100 | 100 messaggi | 100 file · 2 GiB | 180 giorni | 50 risposte ogni 36 ore |
 
-## Differenze funzionali
+Il contesto rappresenta il numero massimo di messaggi recenti inviati al
+modello per generare una risposta. Non limita i messaggi conservati nella
+conversazione.
 
-| Funzione | Guest | Trial | Basic | Basic Plus | Pro |
+Ogni file può avere una dimensione massima di 10 MiB.
+
+## Quote AI
+
+| Piano | Token input/giorno | Token output/giorno | Costo massimo/giorno |
+| --- | ---: | ---: | ---: |
+| **Guest** | 20.000 | 10.000 | $0,05 |
+| **Trial** | 100.000 | 50.000 | $0,50 |
+| **Basic** | 500.000 | 250.000 | $3,00 |
+| **Basic Plus** | 800.000 | 400.000 | $5,00 |
+| **Pro** | 2.000.000 | 1.000.000 | $15,00 |
+
+Le soglie di costo sono limiti tecnici di consumo AI e non corrispondono al
+prezzo dell'abbonamento. Una richiesta viene bloccata quando raggiunge una
+qualsiasi delle quote applicabili: richieste, token o costo.
+
+Le quote giornaliere si azzerano alle `00:00 UTC`.
+
+## Funzionalità
+
+| Funzionalità | Guest | Trial | Basic | Basic Plus | Pro |
 | --- | :---: | :---: | :---: | :---: | :---: |
-| Account e conversazioni associate all'utente | No | Sì | Sì | Sì | Sì |
-| Memorie, profilo e preferenze persistenti | No | Sì | Sì | Sì | Sì |
-| RAG e conoscenza documentale | No | Sì | Sì | Sì | Sì |
-| Upload di immagini o allegati | No | Sì | Sì | Sì | Sì |
-| Risposte vocali | No | No | Sì | Sì | Sì |
-| Contesto conversazionale | Minimo | Limitato | Medio | Ampio | Massimo |
-| Protezione anti-abuso aggiuntiva | Sì | No | No | No | No |
+| Conversazioni associate all'account | — | ✓ | ✓ | ✓ | ✓ |
+| Profilo e preferenze persistenti | — | ✓ | ✓ | ✓ | ✓ |
+| Memorie persistenti | — | ✓ | ✓ | ✓ | ✓ |
+| RAG e conoscenza documentale | — | ✓ | ✓ | ✓ | ✓ |
+| Immagini e allegati | — | ✓ | ✓ | ✓ | ✓ |
+| Risposte vocali | — | — | ✓ | ✓ | ✓ |
 
-Gli utenti Guest ricevono un prompt e un contesto ridotti e non possono usare
-le funzionalità persistenti di profilo, memoria e RAG. Gli utenti autenticati
-possono accedere a queste funzionalità quando il piano del turno le richiede.
+Il piano Guest usa un contesto ridotto e non accede a profilo, memorie o RAG.
+Le nuove sessioni Guest sono inoltre limitate, per impostazione predefinita, a
+tre creazioni per indirizzo client attendibile al giorno.
 
-## Modelli AI
+## Determinazione del piano
 
-Tutti i piani usano attualmente lo stesso orchestratore testuale principale e
-lo stesso fallback:
+Il piano effettivo viene risolto nel seguente ordine:
 
-- orchestratore: `openai/gpt-5.6-luna`;
-- fallback: `deepseek/deepseek-v4-flash`;
-- elaborazione delle immagini: `moonshotai/kimi-k2.7-code`;
-- manutenzione: `google/gemini-2.5-flash-lite`.
+1. un utente non autenticato riceve `GUEST`;
+2. un utente con ruolo `ADMIN` o `SUPER_ADMIN` riceve `ADMIN`;
+3. una sottoscrizione `ACTIVE` o `TRIAL` con un `planId` riconosciuto riceve
+   `BASIC`, `BASIC_PLUS` o `PRO`;
+4. un utente registrato senza un piano riconosciuto riceve `TRIAL`;
+5. per un membro di un'organizzazione, il sistema confronta il piano personale
+   con i contratti organizzativi validi e applica la fonte più forte.
 
-I sub-agent cambiano in base al piano:
+### Trial
 
-| Piano | Modello sub-agent |
+`TRIAL` può indicare:
+
+- il livello predefinito di un utente registrato senza abbonamento;
+- lo stato di prova di una sottoscrizione Clerk.
+
+Se una sottoscrizione in prova contiene un `planId` valido, vengono applicati i
+limiti del piano associato. La durata della prova è fornita da Clerk tramite
+`trial_period_days` e non è fissata nel catalogo locale.
+
+### Sottoscrizioni non attive
+
+`CANCELED`, `EXPIRED` e `PAST_DUE` sono stati della sottoscrizione, non piani.
+Se non esiste un'altra fonte valida di entitlement, l'utente riceve `TRIAL`.
+
+### Amministratori
+
+`ADMIN` non è un piano commerciale. I ruoli `ADMIN` e `SUPER_ADMIN` ricevono:
+
+- richieste, token, costo e upload senza limiti;
+- fino a 100 messaggi di contesto;
+- conservazione degli allegati per 10 anni;
+- accesso alla voce senza limite numerico.
+
+## Routing dei modelli
+
+| Componente | Modello |
 | --- | --- |
-| Guest | `google/gemini-2.5-flash-lite` |
-| Trial | `google/gemini-2.5-flash-lite` |
-| Basic | `google/gemini-2.5-flash-lite` |
-| **Basic Plus** | **`google/gemini-2.5-flash`** |
-| Pro | `google/gemini-2.5-flash-lite` |
+| Orchestratore testuale | `openai/gpt-5.6-luna` |
+| Fallback orchestratore | `deepseek/deepseek-v4-flash` |
+| Elaborazione immagini | `moonshotai/kimi-k2.7-code` |
+| Manutenzione | `google/gemini-2.5-flash-lite` |
 
-Allo stato attuale Basic Plus usa quindi un sub-agent nominalmente superiore
-a quello configurato per Pro. Questa configurazione merita una verifica se non
-è intenzionale.
+Il sub-agent usa `google/gemini-2.5-flash-lite` per tutti i piani, ad eccezione
+di Basic Plus, che usa `google/gemini-2.5-flash`.
 
-## Risoluzione dello stato effettivo
+## Comportamento delle quote
 
-Il piano applicato non dipende esclusivamente dallo stato della sottoscrizione:
+- Chat, webhook dei canali e upload usano lo stesso piano effettivo.
+- Le quote finite sono protette da prenotazioni atomiche per evitare addebiti
+  duplicati.
+- Un secondo turno simultaneo può ricevere una risposta `409` ritentabile.
+- Un errore di generazione libera la prenotazione della quota.
+- Le quote organizzative non vengono applicate agli utenti Guest o Admin.
 
-1. un utente non autenticato viene risolto come `GUEST`;
-2. `ADMIN` e `SUPER_ADMIN` ricevono i limiti amministrativi;
-3. una sottoscrizione `ACTIVE` o `TRIAL` con un `planId` riconosciuto viene
-   risolta come `BASIC`, `BASIC_PLUS` o `PRO`;
-4. un utente registrato senza un piano riconosciuto ricade su `TRIAL`;
-5. un utente appartenente a un'organizzazione può ricevere entitlement più
-   forti del proprio piano personale.
+## Riferimenti
 
-Di conseguenza, `TRIAL` può descrivere sia il livello gratuito di un utente
-registrato sia lo stato amministrativo di una prova Clerk. Se la prova Clerk
-contiene già un `planId` valido, vengono applicati i limiti del piano indicato.
-
-Gli stati amministrativi `CANCELED`, `EXPIRED` e `PAST_DUE` non costituiscono
-piani separati. In assenza di un'altra fonte valida di entitlement, ricadono
-sui privilegi Trial.
-
-La durata della prova non è fissata nel catalogo locale: viene ricevuta da
-Clerk tramite `trial_period_days`. I test del webhook includono un esempio di
-sette giorni, ma questo non costituisce una durata globale codificata.
-
-## Quote, reset e protezioni
-
-- I contatori giornalieri vengono azzerati alle `00:00 UTC`.
-- Un utente può raggiungere il limite tramite richieste, token oppure costo AI.
-- Le nuove sessioni Guest sono limitate, per impostazione predefinita, a tre
-  creazioni per indirizzo client attendibile e giorno UTC, anche cancellando il
-  cookie.
-- Le richieste AI concorrenti dei piani finiti sono protette da una
-  prenotazione: un secondo turno simultaneo riceve un errore `409` ritentabile.
-- Le quote effettive possono provenire dal piano personale oppure da un
-  contratto organizzativo valido; il resolver seleziona la fonte valida più
-  forte.
-
-## Stato amministratore
-
-`ADMIN` e `SUPER_ADMIN` non sono offerte acquistabili. Ricevono richieste,
-token, costo e upload illimitati, fino a 100 messaggi di contesto e dieci anni
-di conservazione degli allegati.
-
-## Fonti nel repository
-
-- [`src/lib/plans/catalog.ts`](../src/lib/plans/catalog.ts): catalogo canonico
-  di quote, upload, conservazione, voce e routing dei modelli.
-- [`src/lib/plans/resolver.ts`](../src/lib/plans/resolver.ts): risoluzione del
-  piano personale e degli stati di fallback.
-- [`src/lib/ai/turn-plan.ts`](../src/lib/ai/turn-plan.ts): differenze tra turni
+- [`src/lib/plans/catalog.ts`](../src/lib/plans/catalog.ts) — quote, upload,
+  conservazione, voce e routing.
+- [`src/lib/plans/resolver.ts`](../src/lib/plans/resolver.ts) — risoluzione del
+  piano effettivo.
+- [`src/lib/ai/turn-plan.ts`](../src/lib/ai/turn-plan.ts) — capacità dei turni
   Guest e autenticati.
-- [`src/lib/rate-limit/config.ts`](../src/lib/rate-limit/config.ts): accesso
-  alle quote e alla conservazione effettive.
-- [`docs/rate-limiting.md`](./rate-limiting.md): funzionamento delle quote,
-  degli upload e degli entitlement organizzativi.
-- [`docs/ai-system.md`](./ai-system.md): routing dei modelli AI.
+- [`docs/rate-limiting.md`](./rate-limiting.md) — implementazione delle quote.
+- [`docs/ai-system.md`](./ai-system.md) — routing dei modelli AI.
