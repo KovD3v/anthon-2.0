@@ -107,7 +107,7 @@ export async function publishToQueue(
     url: destinationUrl,
     body,
     delay: options?.delay, // seamless delay support
-    deduplicationId: options?.deduplicationId,
+    deduplicationId: options?.deduplicationId?.replaceAll(":", "-"),
     retries: options?.retries,
   });
 }

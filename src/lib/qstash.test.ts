@@ -49,6 +49,24 @@ describe("QStash helpers", () => {
     });
   });
 
+  it("normalizes deduplication IDs to the character set accepted by QStash", async () => {
+    vi.stubEnv("APP_URL", "https://app.example");
+
+    await publishToQueue(
+      "api/queues/voice",
+      { messageId: "message-1" },
+      { deduplicationId: "voice-generation:message-1", retries: 4 },
+    );
+
+    expect(mocks.publishJSON).toHaveBeenCalledWith({
+      url: "https://app.example/api/queues/voice",
+      body: { messageId: "message-1" },
+      delay: undefined,
+      deduplicationId: "voice-generation-message-1",
+      retries: 4,
+    });
+  });
+
   it("binds the signature verification to the destination URL", async () => {
     const request = new Request("https://app.example/api/queues/voice", {
       method: "POST",
