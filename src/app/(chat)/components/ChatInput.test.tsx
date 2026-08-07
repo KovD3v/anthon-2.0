@@ -79,6 +79,31 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("ChatInput keyboard behavior", () => {
+  it("keeps Enter available for a new line without submitting", () => {
+    const { props } = renderChatInput("Prima riga");
+    const textarea = screen.getByRole("textbox", {
+      name: "Scrivi un messaggio",
+    });
+
+    expect(fireEvent.keyDown(textarea, { key: "Enter" })).toBe(true);
+    expect(props.onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.change(textarea, {
+      target: { value: "Prima riga\nSeconda riga" },
+    });
+    expect(props.setInput).toHaveBeenCalledWith("Prima riga\nSeconda riga");
+  });
+
+  it("still submits from the send button", () => {
+    const { props } = renderChatInput("Messaggio");
+
+    fireEvent.click(screen.getByRole("button", { name: "Invia messaggio" }));
+
+    expect(props.onSubmit).toHaveBeenCalledOnce();
+  });
+});
+
 describe("ChatInput audio attachments", () => {
   it("replaces the text composer with uploaded audio and submits it alone", async () => {
     const uploadedAudio: AttachmentData = {
