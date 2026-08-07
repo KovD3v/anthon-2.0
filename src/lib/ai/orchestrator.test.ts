@@ -2146,7 +2146,7 @@ describe("ai/orchestrator", () => {
     await streamChat({
       userId: "user-1",
       chatId: "chat-voice",
-      userMessage: "Mi serve un reset mentale prima della partita",
+      userMessage: "Mandami un vocale",
       responseMode: "voice",
     });
 
@@ -2156,6 +2156,21 @@ describe("ai/orchestrator", () => {
 
     expect(streamInput.instructions).toContain("VOICE RESPONSE MODE");
     expect(streamInput.instructions).toContain("spoken audio");
+    expect(streamInput.instructions).toContain(
+      "The generated text is the exact audio content the user will hear now",
+    );
+    expect(streamInput.instructions).toContain(
+      "Never say that you will send, prepare, record, generate, or provide a voice note/audio later",
+    );
+    expect(streamInput.instructions).toContain(
+      "ask directly what they want to hear",
+    );
+    expect(streamInput.instructions).toContain(
+      "give a concise spoken summary and offer a separate written follow-up",
+    );
+    expect(streamInput.instructions).not.toContain(
+      "say that you will keep it written instead",
+    );
     expect(streamInput.instructions).toContain("Do not use markdown");
   });
 

@@ -469,6 +469,9 @@ async function buildSystemPrompt(
     if (prefetched.responseMode === "voice") {
       guestPrompt += `\n\nVOICE RESPONSE MODE
 - This answer will be converted directly into spoken audio.
+- The generated text is the exact audio content the user will hear now. Speak as the audio itself, not as someone arranging a future recording.
+- Never say that you will send, prepare, record, generate, or provide a voice note/audio later.
+- If the user asks only for a voice note without specifying content, ask directly what they want to hear without referring to preparing or sending another audio.
 - Write for spoken audio, not for the screen.
 - Keep it short: 1 to 4 natural sentences.
 - Do not use markdown, bullets, numbered lists, tables, URLs, code, headings, or formatting.
@@ -558,11 +561,14 @@ async function buildSystemPrompt(
   if (prefetched?.responseMode === "voice") {
     systemPrompt += `\n\nVOICE RESPONSE MODE
 - This answer will be converted directly into spoken audio.
+- The generated text is the exact audio content the user will hear now. Speak as the audio itself, not as someone arranging a future recording.
+- Never say that you will send, prepare, record, generate, or provide a voice note/audio later.
+- If the user asks only for a voice note without specifying content, ask directly what they want to hear without referring to preparing or sending another audio.
 - Write for spoken audio, not for the screen.
 - Keep it short: 1 to 4 natural sentences.
 - Do not use markdown, bullets, numbered lists, tables, URLs, code, headings, or formatting.
 - Use warm, direct Italian when the user writes in Italian.
-- If the answer genuinely needs visible structure, say that you will keep it written instead.`;
+- If the answer genuinely needs visible structure, give a concise spoken summary and offer a separate written follow-up.`;
   } else if (!prefetched?.voiceUnavailableReason) {
     systemPrompt += `\n\nTEXT RESPONSE MODE
 - Answer the requested content directly in text.
@@ -604,6 +610,9 @@ function buildSimpleFastSystemPrompt({
   if (responseMode === "voice") {
     systemPrompt += `\n\nVOICE RESPONSE MODE
 - This answer will be converted directly into spoken audio.
+- The generated text is the exact audio content the user will hear now. Speak as the audio itself, not as someone arranging a future recording.
+- Never say that you will send, prepare, record, generate, or provide a voice note/audio later.
+- If the user asks only for a voice note without specifying content, ask directly what they want to hear without referring to preparing or sending another audio.
 - Write for spoken audio, not for the screen.
 - Keep it short: 1 to 4 natural sentences.
 - Do not use markdown, bullets, numbered lists, tables, URLs, code, headings, or formatting.`;
