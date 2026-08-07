@@ -271,6 +271,7 @@
 @layer utilities {
   .chat-mobile-viewport {
     height: var(--chat-viewport-height, 100dvh);
+    transform: translateY(var(--chat-viewport-offset-top, 0px));
   }
 
   @media (max-width: 767px) {

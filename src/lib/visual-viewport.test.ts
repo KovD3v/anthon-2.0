@@ -16,6 +16,7 @@ describe("getChatViewportSizing", () => {
       },
       output: {
         height: "692px",
+        offsetTop: "0px",
       },
     },
     {
@@ -28,6 +29,7 @@ describe("getChatViewportSizing", () => {
       },
       output: {
         height: "356px",
+        offsetTop: "0px",
       },
     },
     {
@@ -40,6 +42,7 @@ describe("getChatViewportSizing", () => {
       },
       output: {
         height: "812px",
+        offsetTop: "0px",
       },
     },
     {
@@ -52,6 +55,7 @@ describe("getChatViewportSizing", () => {
       },
       output: {
         height: "422px",
+        offsetTop: "0px",
       },
     },
   ])("uses visualViewport metrics for $name", ({ input, output }) => {
@@ -65,6 +69,41 @@ describe("getChatViewportSizing", () => {
       }),
     ).toEqual({
       height: "844px",
+      offsetTop: "0px",
+    });
+  });
+
+  it("tracks an iOS keyboard pan relative to the layout viewport", () => {
+    expect(
+      getChatViewportSizing({
+        innerHeight: 852,
+        scrollY: 0,
+        visualViewport: {
+          height: 422,
+          offsetTop: 118,
+          pageTop: 118,
+        },
+      }),
+    ).toEqual({
+      height: "422px",
+      offsetTop: "118px",
+    });
+  });
+
+  it("uses pageTop when WebKit reports a stale offsetTop", () => {
+    expect(
+      getChatViewportSizing({
+        innerHeight: 852,
+        scrollY: 0,
+        visualViewport: {
+          height: 422,
+          offsetTop: 0,
+          pageTop: 118,
+        },
+      }),
+    ).toEqual({
+      height: "422px",
+      offsetTop: "118px",
     });
   });
 });
@@ -98,6 +137,10 @@ describe("installChatViewportSizing", () => {
     );
 
     expect(setProperty).toHaveBeenCalledWith("--chat-viewport-height", "692px");
+    expect(setProperty).toHaveBeenCalledWith(
+      "--chat-viewport-offset-top",
+      "0px",
+    );
     expect(addVisualListener).toHaveBeenCalledWith("resize", expect.anything());
     expect(addVisualListener).toHaveBeenCalledWith("scroll", expect.anything());
     expect(addWindowListener).toHaveBeenCalledWith("resize", expect.anything());
@@ -117,5 +160,6 @@ describe("installChatViewportSizing", () => {
       expect.anything(),
     );
     expect(removeProperty).toHaveBeenCalledWith("--chat-viewport-height");
+    expect(removeProperty).toHaveBeenCalledWith("--chat-viewport-offset-top");
   });
 });
