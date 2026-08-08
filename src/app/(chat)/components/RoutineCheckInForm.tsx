@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   normalizeRoutineProposal,
   type RoutineCardData,
+  type RoutineCompletionForm,
 } from "@/lib/coaching/routine";
 import { RoutineClientError } from "@/lib/coaching/routine-client";
 
@@ -43,6 +44,16 @@ const OUTCOMES: ReadonlyArray<{
   { outcome: "NOT_HELPFUL", label: "Non ha aiutato" },
 ];
 
+function getStructuredOutcomes(completionForm: RoutineCompletionForm | null) {
+  return OUTCOMES.map((fallback) => ({
+    outcome: fallback.outcome,
+    label:
+      completionForm?.options.find(
+        (option) => option.outcome === fallback.outcome,
+      )?.label ?? fallback.label,
+  }));
+}
+
 export function RoutineCheckInForm({
   routine,
   onSaveOutcome,
@@ -64,7 +75,7 @@ export function RoutineCheckInForm({
   const completionForm = normalizeRoutineProposal(
     routine.proposal,
   ).completionForm;
-  const outcomes = completionForm?.options ?? OUTCOMES;
+  const outcomes = getStructuredOutcomes(completionForm);
   const question = completionForm?.question ?? "Esito del tentativo";
   const isNoteEnabled = completionForm?.noteEnabled ?? true;
   const pendingAttempt =

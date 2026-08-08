@@ -9,6 +9,8 @@ import type {
 import {
   advanceRunner,
   createInitialRunnerState,
+  getBreathingPhase,
+  getElapsedMs,
   getRemainingMs,
   getRoutinePracticeSteps,
   pauseRunner,
@@ -64,6 +66,13 @@ export function RoutineRunner({
       ? getRemainingMs(state, currentStep, now)
       : null;
   const isTimerComplete = currentStep?.kind === "timer" && remainingMs === 0;
+  const breathingPhase =
+    currentStep?.kind === "breathing"
+      ? getBreathingPhase(currentStep, getElapsedMs(state, now))
+      : null;
+  const isBreathingComplete =
+    currentStep?.kind === "breathing" && breathingPhase === null;
+  const isTimedStepComplete = isTimerComplete || isBreathingComplete;
 
   const releaseWakeLock = useCallback(async () => {
     const wakeLock = wakeLockRef.current;
@@ -80,11 +89,11 @@ export function RoutineRunner({
   }, []);
 
   useEffect(() => {
-    if (state.status !== "running" || isTimerComplete) return;
+    if (state.status !== "running" || isTimedStepComplete) return;
 
     const intervalId = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(intervalId);
-  }, [isTimerComplete, state.status]);
+  }, [isTimedStepComplete, state.status]);
 
   useEffect(() => {
     function handleVisibilityChange() {
@@ -100,7 +109,11 @@ export function RoutineRunner({
   }, [releaseWakeLock]);
 
   useEffect(() => {
-    if (state.status !== "running" || !isDocumentVisible || isTimerComplete) {
+    if (
+      state.status !== "running" ||
+      !isDocumentVisible ||
+      isTimedStepComplete
+    ) {
       void releaseWakeLock();
       return;
     }
@@ -124,18 +137,22 @@ export function RoutineRunner({
       cancelled = true;
       void releaseWakeLock();
     };
-  }, [isDocumentVisible, isTimerComplete, releaseWakeLock, state.status]);
+  }, [isDocumentVisible, isTimedStepComplete, releaseWakeLock, state.status]);
 
   useEffect(() => {
-    if (currentStep?.kind !== "timer" || remainingMs !== 0) {
+    if (!isTimedStepComplete || !currentStep) {
       announcedTimerEndIdRef.current = null;
       return;
     }
     if (announcedTimerEndIdRef.current === currentStep.id) return;
 
     announcedTimerEndIdRef.current = currentStep.id;
-    setAnnouncement("Tempo terminato");
-  }, [currentStep, remainingMs]);
+    setAnnouncement(
+      currentStep.kind === "breathing"
+        ? "Respirazione completata"
+        : "Tempo terminato",
+    );
+  }, [currentStep, isTimedStepComplete]);
 
   function updateState(update: (previous: typeof state) => typeof state) {
     setState((previous) => update(previous));
@@ -160,12 +177,20 @@ export function RoutineRunner({
 
   function pause() {
     updateState((previous) => pauseRunner(previous, Date.now()));
-    setAnnouncement("Timer in pausa");
+    setAnnouncement(
+      currentStep?.kind === "breathing"
+        ? "Respirazione in pausa"
+        : "Timer in pausa",
+    );
   }
 
   function start() {
     updateState((previous) => startRunner(previous, Date.now()));
-    setAnnouncement("Timer avviato");
+    setAnnouncement(
+      currentStep?.kind === "breathing"
+        ? "Respirazione avviata"
+        : "Timer avviato",
+    );
   }
 
   function reset() {
@@ -326,18 +351,79 @@ export function RoutineRunner({
                 {currentStep.label}
               </p>
               <p className="mt-1">{currentStep.instruction}</p>
-              <p className="mt-3">
-                La guida a fasi sarà disponibile qui. Segui il ritmo indicato e
-                seleziona Fatto quando hai concluso.
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                className="mt-4 min-h-11 rounded-full px-4"
-                onClick={advance}
-              >
-                Fatto
-              </Button>
+              {breathingPhase ? (
+                <>
+                  <div className="mt-5 flex items-center gap-3">
+                    <div
+                      aria-hidden="true"
+                      className={`size-12 shrink-0 rounded-full border-4 border-primary/50 bg-primary/15 animate-pulse motion-reduce:hidden ${
+                        breathingPhase.phase === "inhale"
+                          ? "scale-110"
+                          : breathingPhase.phase === "exhale"
+                            ? "scale-75"
+                            : "scale-90"
+                      }`}
+                      data-testid="breathing-indicator"
+                    />
+                    <div>
+                      <p
+                        className="font-display text-2xl font-bold uppercase tracking-tight text-foreground"
+                        data-testid="breathing-phase"
+                      >
+                        {breathingPhase.label} ·{" "}
+                        {formatRemainingMs(breathingPhase.remainingMs)}
+                      </p>
+                      <p className="mt-1 text-xs font-medium text-muted-foreground">
+                        Ciclo {breathingPhase.cycle} di {currentStep.cycles}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {state.status === "running" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="min-h-11 rounded-full px-4"
+                        onClick={pause}
+                      >
+                        Pausa
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="min-h-11 rounded-full px-4"
+                        onClick={start}
+                      >
+                        Avvia
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="min-h-11 rounded-full px-4"
+                      onClick={reset}
+                    >
+                      Ripristina
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-medium text-foreground">
+                    Respirazione completata
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="min-h-11 rounded-full px-4"
+                    onClick={advance}
+                  >
+                    Continua
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>

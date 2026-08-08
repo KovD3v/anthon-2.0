@@ -8,6 +8,7 @@ import {
   advanceRunner,
   createInitialRunnerState,
   getBreathingPhase,
+  getElapsedMs,
   getRemainingMs,
   getRoutinePracticeSteps,
   pauseRunner,
@@ -151,10 +152,46 @@ describe("breathing phase contract", () => {
     expect(getBreathingPhase(breathing, 14_000)).toBeNull();
   });
 
-  it("keeps breathing manually completable before the phase UI is introduced", () => {
-    expect(advanceRunner(createInitialRunnerState(), [breathing], 0)).toEqual({
+  it("uses timestamps for phase boundaries, pauses, and a bounded number of cycles", () => {
+    const running = startRunner(createInitialRunnerState(), 1_000);
+
+    expect(
+      getBreathingPhase(breathing, getElapsedMs(running, 3_000)),
+    ).toMatchObject({
+      cycle: 1,
+      phase: "hold-after-inhale",
+      label: "Pausa",
+    });
+    const paused = pauseRunner(running, 3_000);
+    expect(
+      getBreathingPhase(breathing, getElapsedMs(paused, 100_000)),
+    ).toMatchObject({
+      cycle: 1,
+      phase: "hold-after-inhale",
+    });
+    const resumed = startRunner(paused, 100_000);
+    expect(
+      getBreathingPhase(breathing, getElapsedMs(resumed, 108_000)),
+    ).toMatchObject({
+      cycle: 2,
+      phase: "exhale",
+      label: "Espira",
+      remainingMs: 3_000,
+    });
+    expect(
+      getBreathingPhase(breathing, getElapsedMs(resumed, 112_000)),
+    ).toBeNull();
+  });
+
+  it("allows manual advance only after the guided breathing step has finished", () => {
+    const running = startRunner(createInitialRunnerState(), 1_000);
+
+    expect(advanceRunner(running, [breathing, instruction], 14_999)).toBe(
+      running,
+    );
+    expect(advanceRunner(running, [breathing, instruction], 15_000)).toEqual({
       stepIndex: 1,
-      status: "completed",
+      status: "idle",
       elapsedMs: 0,
       startedAt: null,
     });

@@ -82,7 +82,7 @@ export function resetRunner(state: RoutineRunnerState): RoutineRunnerState {
   };
 }
 
-function getElapsedMs(state: RoutineRunnerState, now: number): number {
+export function getElapsedMs(state: RoutineRunnerState, now: number): number {
   if (state.status !== "running" || state.startedAt === null) {
     return state.elapsedMs;
   }
@@ -172,6 +172,13 @@ export function advanceRunner(
   if (
     currentStep.kind === "timer" &&
     getRemainingMs(state, currentStep, now) > 0
+  ) {
+    return state;
+  }
+
+  if (
+    currentStep.kind === "breathing" &&
+    getBreathingPhase(currentStep, getElapsedMs(state, now)) !== null
   ) {
     return state;
   }

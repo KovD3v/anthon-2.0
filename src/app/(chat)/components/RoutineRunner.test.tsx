@@ -122,7 +122,8 @@ describe("RoutineRunner", () => {
     expect(screen.getByRole("status").getAttribute("aria-live")).toBe("polite");
   });
 
-  it("uses a truthful manual fallback for breathing until phase guidance is available", () => {
+  it("derives guided breathing phases from time, stops at the cycle limit, and advances only after completion", () => {
+    vi.useFakeTimers({ now: new Date("2026-08-08T10:00:00.000Z") });
     const { props } = renderRunner({
       routine: {
         ...routine,
@@ -133,27 +134,84 @@ describe("RoutineRunner", () => {
             label: "Respiro",
             instruction: "Segui il ritmo che preferisci.",
             inhaleSeconds: 2,
-            holdAfterInhaleSeconds: 0,
-            exhaleSeconds: 4,
+            holdAfterInhaleSeconds: 1,
+            exhaleSeconds: 3,
             holdAfterExhaleSeconds: 0,
-            cycles: 3,
+            cycles: 2,
           },
         ],
       },
     });
 
     expect(screen.getByText("Respirazione guidata")).toBeTruthy();
-    expect(
-      screen.getByText(/La guida a fasi sarà disponibile qui/),
-    ).toBeTruthy();
+    expect(screen.getByTestId("breathing-phase").textContent).toContain(
+      "Inspira",
+    );
+    expect(screen.getByText("Ciclo 1 di 2")).toBeTruthy();
+    expect(screen.getByTestId("breathing-indicator").className).toContain(
+      "motion-reduce:hidden",
+    );
+    expect(screen.queryByRole("button", { name: "Fatto" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Fatto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Avvia" }));
+    act(() => vi.advanceTimersByTime(2_000));
+    expect(screen.getByTestId("breathing-phase").textContent).toContain(
+      "Pausa",
+    );
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(screen.getByTestId("breathing-phase").textContent).toContain(
+      "Espira",
+    );
+    act(() => vi.advanceTimersByTime(9_000));
 
     expect(props.onComplete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Continua" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Ho completato la routine" }),
     );
     expect(props.onComplete).toHaveBeenCalledOnce();
+  });
+
+  it("recalculates breathing from timestamps after the document returns from background", () => {
+    vi.useFakeTimers({ now: new Date("2026-08-08T10:00:00.000Z") });
+    renderRunner({
+      routine: {
+        ...routine,
+        practiceSteps: [
+          {
+            id: "breath",
+            kind: "breathing",
+            label: "Respiro",
+            instruction: "Segui il ritmo.",
+            inhaleSeconds: 2,
+            holdAfterInhaleSeconds: 1,
+            exhaleSeconds: 3,
+            holdAfterExhaleSeconds: 0,
+            cycles: 2,
+          },
+        ],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Avvia" }));
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    act(() => vi.advanceTimersByTime(3_000));
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+    expect(screen.getByTestId("breathing-phase").textContent).toContain(
+      "Espira",
+    );
+    expect(
+      screen.getByTestId("breathing-phase").getAttribute("aria-live"),
+    ).toBeNull();
   });
 
   it("stops ticking and releases Wake Lock when a timer reaches zero", async () => {

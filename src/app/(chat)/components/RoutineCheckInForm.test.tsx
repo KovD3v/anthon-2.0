@@ -173,6 +173,41 @@ describe("RoutineCheckInForm", () => {
     expect(props.onCreateAttempt).not.toHaveBeenCalled();
   });
 
+  it("uses the same three canonical PATCH mappings for a structured scale form", async () => {
+    const interactiveProposal = interactiveRoutine.proposal as Extract<
+      RoutineCardData["proposal"],
+      { formatVersion: 2 }
+    >;
+    const scaleRoutine: RoutineCardData = {
+      ...interactiveRoutine,
+      proposal: {
+        ...interactiveProposal,
+        steps: interactiveProposal.steps.map((step) =>
+          step.kind === "form" ? { ...step, mode: "scale" as const } : step,
+        ),
+      },
+      latestAttempt: {
+        id: "attempt-scale",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    };
+    const user = userEvent.setup();
+    const { props } = renderForm(scaleRoutine);
+
+    expect(screen.queryByRole("slider")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Non ha inciso" }));
+
+    expect(props.onSaveOutcome).toHaveBeenCalledWith(
+      "attempt-scale",
+      "NOT_HELPFUL",
+      null,
+    );
+    expect(props.onCreateAttempt).not.toHaveBeenCalled();
+  });
+
   it("renders no outcome controls when the latest attempt already has an outcome", () => {
     const completedAttemptRoutine: RoutineCardData = {
       ...routine,
