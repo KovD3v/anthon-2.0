@@ -53,9 +53,14 @@ export function RoutineCheckInForm({
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
+  const onFocusedRef = useRef(onFocused);
+  onFocusedRef.current = onFocused;
+  const didAttemptFocusRef = useRef(false);
   const didReportFocusRef = useRef(false);
 
   useEffect(() => {
+    if (didAttemptFocusRef.current) return;
+    didAttemptFocusRef.current = true;
     noteRef.current?.focus();
     if (
       !didReportFocusRef.current &&
@@ -63,9 +68,9 @@ export function RoutineCheckInForm({
       document.activeElement === noteRef.current
     ) {
       didReportFocusRef.current = true;
-      onFocused?.();
+      onFocusedRef.current?.();
     }
-  }, [onFocused]);
+  }, []);
 
   async function submitOutcome(outcome: RoutineAttemptOutcome) {
     if (pendingOutcome) return;

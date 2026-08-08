@@ -284,6 +284,28 @@ describe("chat landing page", () => {
     expect(mocks.createChat).not.toHaveBeenCalled();
   });
 
+  it("clears an archived orphan query without opening its check-in", async () => {
+    mocks.context.activeRoutine = {
+      ...activeRoutine,
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+      status: "ARCHIVED",
+      archivedAt: "2026-08-08T11:00:00.000Z",
+    };
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+
+    render(<ChatPage />);
+
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat"),
+    );
+    expect(
+      screen.queryByRole("group", { name: "Esito del tentativo" }),
+    ).toBeNull();
+    expect(mocks.openRoutineCheckIn).not.toHaveBeenCalled();
+    expect(mocks.createChat).not.toHaveBeenCalled();
+  });
+
   it("never starts a prefilled chat while handling a routine check-in", async () => {
     mocks.context.activeRoutine = {
       ...activeRoutine,

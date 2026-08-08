@@ -498,6 +498,31 @@ describe("/api/chats/[id] route", () => {
     expect(mocks.routineFindMany).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["an owner-visible public chat", "user-1"],
+    ["a foreign public chat", "user-2"],
+  ])("GET rejects targeted source hydration for %s", async (_, userId) => {
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Public Chat",
+      visibility: "PUBLIC",
+      userId,
+      createdAt: new Date("2026-02-16T10:00:00.000Z"),
+      updatedAt: new Date("2026-02-16T11:00:00.000Z"),
+    });
+
+    const response = await GET(
+      new Request(
+        "http://localhost/api/chats/chat-1?sourceAssistantMessageId=assistant-old",
+      ),
+      { params: params() },
+    );
+
+    expect(response.status).toBe(403);
+    expect(mocks.messageFindMany).not.toHaveBeenCalled();
+    expect(mocks.routineFindMany).not.toHaveBeenCalled();
+  });
+
   it("GET keeps a private guest proposal but never hydrates saved routines", async () => {
     const proposal = {
       title: "Reset rapido",

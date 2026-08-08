@@ -126,6 +126,8 @@ export function ChatConversationClient({
   const apiBase = isGuest ? "/api/guest" : "/api";
 
   const [chatData, setChatData] = useState<ChatData>(initialChatData);
+  const chatDataRef = useRef(chatData);
+  chatDataRef.current = chatData;
   const [input, setInput] = useState("");
   const [focusRequestId, setFocusRequestId] = useState(0);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(
@@ -162,27 +164,34 @@ export function ChatConversationClient({
   } | null>(null);
   const requestedCheckInRoutineId =
     searchParams.get("checkInRoutineId")?.trim() ?? null;
-  const queriedCheckInRoutineId = requestedCheckInRoutineId
+  const requestedRoutine = requestedCheckInRoutineId
     ? (chatData.routines.find(
-        (routine) =>
-          routine.id === requestedCheckInRoutineId &&
-          routine.sourceChatId === chatId &&
-          routine.sourceAssistantMessageId !== null,
-      )?.id ?? null)
+        (routine) => routine.id === requestedCheckInRoutineId,
+      ) ?? null)
     : null;
+  const queriedCheckInRoutineId =
+    requestedRoutine?.status === "ACTIVE" &&
+    requestedRoutine.sourceChatId === chatId &&
+    requestedRoutine.sourceAssistantMessageId !== null
+      ? requestedRoutine.id
+      : null;
   const openCheckInRoutineId =
     queriedCheckInRoutineId ??
     (!requestedCheckInRoutineId &&
     returnCheckInRequest?.navigationEpoch === chatNavigationEpoch &&
     chatData.routines.some(
-      (routine) => routine.id === returnCheckInRequest.routineId,
+      (routine) =>
+        routine.id === returnCheckInRequest.routineId &&
+        routine.status === "ACTIVE",
     )
       ? returnCheckInRequest.routineId
       : null);
   const targetSourceAssistantMessageId =
     !isGuest &&
     requestedCheckInRoutineId &&
+    requestedRoutine === null &&
     activeRoutine?.id === requestedCheckInRoutineId &&
+    activeRoutine.status === "ACTIVE" &&
     activeRoutine.sourceChatId === chatId
       ? activeRoutine.sourceAssistantMessageId
       : null;
@@ -342,16 +351,19 @@ export function ChatConversationClient({
       setSourceHydration(null);
       return;
     }
+    const hydrationRequestKey = targetSourceAssistantMessageId
+      ? `${requestedCheckInRoutineId}:${targetSourceAssistantMessageId}`
+      : null;
     if (
       openCheckInRoutineId ||
       !targetSourceAssistantMessageId ||
-      sourceHydrationRequestRef.current === requestedCheckInRoutineId
+      sourceHydrationRequestRef.current === hydrationRequestKey
     ) {
       return;
     }
 
     let cancelled = false;
-    sourceHydrationRequestRef.current = requestedCheckInRoutineId;
+    sourceHydrationRequestRef.current = hydrationRequestKey;
     setSourceHydration({
       routineId: requestedCheckInRoutineId,
       status: "loading",
@@ -381,6 +393,7 @@ export function ChatConversationClient({
         const sourceRoutine = parsedRoutines.data.find(
           (routine) =>
             routine.id === requestedCheckInRoutineId &&
+            routine.status === "ACTIVE" &&
             routine.sourceChatId === chatId &&
             routine.sourceAssistantMessageId === targetSourceAssistantMessageId,
         );
@@ -417,7 +430,7 @@ export function ChatConversationClient({
           };
         };
         if (!cancelled) {
-          const merged = mergeSource(chatData);
+          const merged = mergeSource(chatDataRef.current);
           setChatData(mergeSource);
           setMessages(convertToUIMessages(merged.messages));
           setSourceHydration({
@@ -438,10 +451,12 @@ export function ChatConversationClient({
 
     return () => {
       cancelled = true;
+      if (sourceHydrationRequestRef.current === hydrationRequestKey) {
+        sourceHydrationRequestRef.current = null;
+      }
     };
   }, [
     apiBase,
-    chatData,
     chatId,
     openCheckInRoutineId,
     requestedCheckInRoutineId,

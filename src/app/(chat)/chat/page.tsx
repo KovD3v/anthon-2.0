@@ -76,6 +76,8 @@ export default function ChatPage() {
   } | null>(null);
   const prefilledPrompt = searchParams.get("q")?.trim() ?? "";
   const checkInRoutineId = searchParams.get("checkInRoutineId")?.trim() ?? "";
+  const returningActiveRoutine =
+    activeRoutine?.status === "ACTIVE" ? activeRoutine : null;
 
   useEffect(() => {
     if (
@@ -100,25 +102,31 @@ export default function ChatPage() {
     if (handledCheckInParamRef.current === checkInRoutineId) return;
     handledCheckInParamRef.current = checkInRoutineId;
 
-    if (!activeRoutine || activeRoutine.id !== checkInRoutineId) {
+    if (
+      !returningActiveRoutine ||
+      returningActiveRoutine.id !== checkInRoutineId
+    ) {
       router.replace("/chat");
       return;
     }
 
-    if (activeRoutine.sourceChatId && activeRoutine.sourceAssistantMessageId) {
-      openRoutineCheckIn(activeRoutine);
+    if (
+      returningActiveRoutine.sourceChatId &&
+      returningActiveRoutine.sourceAssistantMessageId
+    ) {
+      openRoutineCheckIn(returningActiveRoutine);
       return;
     }
 
     setLandingCheckInRequest({
-      routineId: activeRoutine.id,
+      routineId: returningActiveRoutine.id,
       navigationEpoch: chatNavigationEpoch,
     });
   }, [
-    activeRoutine,
     chatNavigationEpoch,
     checkInRoutineId,
     openRoutineCheckIn,
+    returningActiveRoutine,
     router,
   ]);
 
@@ -178,11 +186,12 @@ export default function ChatPage() {
         )[0]
       : null;
   const landingCheckInRoutine =
-    activeRoutine?.id === landingCheckInRequest?.routineId &&
+    returningActiveRoutine?.id === landingCheckInRequest?.routineId &&
     landingCheckInRequest?.navigationEpoch === chatNavigationEpoch
-      ? activeRoutine
+      ? returningActiveRoutine
       : null;
-  const hasReturningPath = mostRecentChat !== null || activeRoutine !== null;
+  const hasReturningPath =
+    mostRecentChat !== null || returningActiveRoutine !== null;
 
   return (
     <PageWrapper className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -225,7 +234,8 @@ export default function ChatPage() {
                 Riprendi il percorso
               </p>
               <h2 className="font-display mt-2 text-2xl font-bold uppercase leading-none">
-                {mostRecentChat?.title ?? activeRoutine?.proposal.title}
+                {mostRecentChat?.title ??
+                  returningActiveRoutine?.proposal.title}
               </h2>
               {coachingGoal && (
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -254,8 +264,8 @@ export default function ChatPage() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    if (activeRoutine) {
-                      openRoutineCheckIn(activeRoutine);
+                    if (returningActiveRoutine) {
+                      openRoutineCheckIn(returningActiveRoutine);
                       return;
                     }
                     createChat({

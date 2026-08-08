@@ -293,4 +293,16 @@ describe("GET /api/coaching/routines", () => {
     expect(response.status).toBe(403);
     expect(mocks.getActiveRoutineForReturn).not.toHaveBeenCalled();
   });
+
+  it("returns 401 when the active selector request is unauthenticated", async () => {
+    mocks.getAuthUser.mockResolvedValue({
+      user: null,
+      error: "Not authenticated",
+    });
+
+    const response = await GET();
+
+    expect(response.status).toBe(401);
+    expect(mocks.getActiveRoutineForReturn).not.toHaveBeenCalled();
+  });
 });

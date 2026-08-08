@@ -1153,6 +1153,109 @@ describe("ChatConversationClient routine lifecycle", () => {
     );
   });
 
+  it("finishes target hydration when pagination updates chat data in flight", async () => {
+    const olderRoutine: RoutineCardData = {
+      ...activeRoutine,
+      sourceAssistantMessageId: "assistant-old",
+    };
+    mocks.activeRoutine = olderRoutine;
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    const pendingHydration = deferredResponse();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("sourceAssistantMessageId=assistant-old")) {
+        return pendingHydration.promise;
+      }
+      if (url.includes("cursor=cursor-1")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              messages: [
+                {
+                  id: "user-between",
+                  role: "user",
+                  content: "Domanda intermedia",
+                  parts: [],
+                  createdAt: "2026-07-10T11:00:00.000Z",
+                },
+              ],
+              routines: [],
+              pagination: { hasMore: false, nextCursor: null },
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    renderConversation({ ...initialChatData, routines: [] });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/chats/chat-1?sourceAssistantMessageId=assistant-old",
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "Carica precedenti" }));
+    await screen.findByText("Domanda intermedia");
+
+    pendingHydration.resolve(
+      new Response(
+        JSON.stringify({
+          ...initialChatData,
+          messages: [
+            {
+              id: "assistant-old",
+              role: "assistant",
+              content: "Routine precedente",
+              parts: [],
+              createdAt: "2026-07-01T10:00:00.000Z",
+            },
+          ],
+          routines: [olderRoutine],
+          pagination: { hasMore: false, nextCursor: null },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+        "routine-1",
+      ),
+    );
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat/chat-1"),
+    );
+  });
+
+  it("clears a matching archived source query without hydrating or opening it", async () => {
+    const archivedRoutine: RoutineCardData = {
+      ...activeRoutine,
+      status: "ARCHIVED",
+      archivedAt: "2026-08-08T11:00:00.000Z",
+    };
+    mocks.activeRoutine = activeRoutine;
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderConversation({ ...initialChatData, routines: [archivedRoutine] });
+
+    expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+      "NONE",
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Check-in routine aperto" }),
+    ).toBeNull();
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat/chat-1"),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("clears an unknown source routine query without opening a form", async () => {
     mocks.searchParams = new URLSearchParams("checkInRoutineId=stale-routine");
 
