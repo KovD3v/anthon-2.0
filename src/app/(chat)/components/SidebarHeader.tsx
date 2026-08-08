@@ -9,7 +9,7 @@ interface SidebarHeaderProps {
 
 export function SidebarHeader({ onCollapse }: SidebarHeaderProps) {
   return (
-    <div className="flex h-14 items-center justify-between border-b border-border/50 dark:border-white/10 bg-background/80 dark:bg-background/40 backdrop-blur-md px-4 transition-all">
+    <div className="flex h-14 items-center justify-between border-b border-border/50 bg-background/80 px-4 backdrop-blur-md dark:border-white/10 dark:bg-background/40">
       <div className="flex min-w-0 items-center gap-2">
         <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-primary/20 to-primary/10 shadow-sm ring-1 ring-border dark:ring-white/20">
           <Brain className="h-5 w-5 text-primary" />

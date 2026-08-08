@@ -247,31 +247,31 @@ describe("chat mobile viewport layout", () => {
     );
   });
 
-  it("does not derive the first sidebar render from window width", () => {
+  it("uses the viewport media subscription to choose the mobile sidebar", () => {
     const layoutClient = readFileSync(
       "src/app/(chat)/chat/layout-client.tsx",
       "utf8",
     );
 
+    expect(layoutClient).toContain("useSyncExternalStore(");
     expect(layoutClient).toContain(
-      "const [isSidebarOpen, setIsSidebarOpen] = useState(false);",
+      'const MOBILE_SIDEBAR_MEDIA_QUERY = "(max-width: 767px)";',
     );
-    expect(layoutClient).not.toContain(
-      "const [isSidebarOpen, setIsSidebarOpen] = useState(() => {",
-    );
+    expect(layoutClient).toContain("getServerMobileSidebarSnapshot");
   });
 
-  it("releases the mobile page lock as soon as navigation leaves chat", () => {
+  it("delegates mobile drawer focus and page locking to Radix", () => {
     const layoutClient = readFileSync(
       "src/app/(chat)/chat/layout-client.tsx",
       "utf8",
     );
 
     expect(layoutClient).toContain(
-      'pathname === "/chat" || pathname?.startsWith("/chat/") === true',
+      "<Sheet\n            open={isMobileSidebarOpen}",
     );
-    expect(layoutClient).toContain("isMobile && isSidebarOpen && isChatRoute");
-    expect(layoutClient).toContain("[isSidebarOpen, pathname]");
+    expect(layoutClient).toContain("onCloseAutoFocus");
+    expect(layoutClient).not.toContain("installDocumentScrollLock");
+    expect(layoutClient).not.toContain("aria-hidden={!isSidebarOpen}");
   });
 
   it("aligns desktop notifications with the active chat column", () => {

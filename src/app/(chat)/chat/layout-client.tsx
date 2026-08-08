@@ -11,16 +11,22 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   useTransition,
 } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { useConfirm } from "@/hooks/use-confirm";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 import type { RoutineCardData } from "@/lib/coaching/routine";
 import { fetchActiveRoutineForReturn } from "@/lib/coaching/routine-client";
-import { installDocumentScrollLock } from "@/lib/document-scroll-lock";
 import { installChatViewportSizing } from "@/lib/visual-viewport";
 import type { Chat, ChatData, UsageData } from "@/types/chat";
 import { ChatList } from "../../(chat)/components/ChatList";
@@ -41,6 +47,30 @@ interface CreateChatOptions {
 interface GuestConversationNotice {
   remaining?: number;
   registrationHref: string;
+}
+
+const MOBILE_SIDEBAR_MEDIA_QUERY = "(max-width: 767px)";
+
+function subscribeToMobileSidebar(listener: () => void) {
+  const mediaQuery = window.matchMedia(MOBILE_SIDEBAR_MEDIA_QUERY);
+  mediaQuery.addEventListener("change", listener);
+  return () => mediaQuery.removeEventListener("change", listener);
+}
+
+function getMobileSidebarSnapshot() {
+  return window.matchMedia(MOBILE_SIDEBAR_MEDIA_QUERY).matches;
+}
+
+function getServerMobileSidebarSnapshot() {
+  return false;
+}
+
+function useIsMobileSidebarViewport() {
+  return useSyncExternalStore(
+    subscribeToMobileSidebar,
+    getMobileSidebarSnapshot,
+    getServerMobileSidebarSnapshot,
+  );
 }
 
 interface ChatContextType {
@@ -164,6 +194,56 @@ function MobileLandingSidebarTrigger({
   );
 }
 
+interface SidebarContentsProps {
+  chats: Chat[];
+  isLoading: boolean;
+  isCreatingChat: boolean;
+  currentChatId: string | null;
+  deletingChatId: string | null;
+  onDelete: (id: string) => Promise<boolean>;
+  onSelect: (id: string) => void;
+  onCreate: (options?: CreateChatOptions) => Promise<string | null>;
+  onSearch?: () => void;
+  onRename: (id: string, newTitle: string) => Promise<boolean>;
+  onPreFetch: (id: string) => void;
+  onClose: () => void;
+}
+
+function SidebarContents({
+  chats,
+  isLoading,
+  isCreatingChat,
+  currentChatId,
+  deletingChatId,
+  onDelete,
+  onSelect,
+  onCreate,
+  onSearch,
+  onRename,
+  onPreFetch,
+  onClose,
+}: SidebarContentsProps) {
+  return (
+    <div className="flex h-full w-72 flex-col pt-[env(safe-area-inset-top)]">
+      <SidebarHeader onCollapse={onClose} />
+      <ChatList
+        chats={chats}
+        isLoading={isLoading}
+        isCreatingChat={isCreatingChat}
+        currentChatId={currentChatId}
+        deletingChatId={deletingChatId}
+        onDelete={onDelete}
+        onSelect={onSelect}
+        onCreate={onCreate}
+        onSearch={onSearch}
+        onRename={onRename}
+        onPreFetch={onPreFetch}
+      />
+      <SidebarBottom />
+    </div>
+  );
+}
+
 // -----------------------------------------------------
 // Client Layout Component
 // -----------------------------------------------------
@@ -201,7 +281,10 @@ export function LayoutClient({
     useTransition();
   const isCreatingChat =
     isCreateChatRequestPending || isCreateChatNavigationPending;
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const isMobileSidebarViewport = useIsMobileSidebarViewport();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
+  const sidebarReturnFocusRef = useRef<HTMLElement | null>(null);
   const [chatNavigationEpoch, setChatNavigationEpoch] = useState(0);
   const previousPathnameRef = useRef(pathname);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
@@ -218,7 +301,7 @@ export function LayoutClient({
   useEffect(() => {
     const root = document.documentElement;
 
-    if (isSidebarOpen) {
+    if (!isMobileSidebarViewport && isDesktopSidebarOpen) {
       root.dataset.chatSidebar = "open";
     } else {
       delete root.dataset.chatSidebar;
@@ -227,7 +310,13 @@ export function LayoutClient({
     return () => {
       delete root.dataset.chatSidebar;
     };
-  }, [isSidebarOpen]);
+  }, [isDesktopSidebarOpen, isMobileSidebarViewport]);
+
+  useEffect(() => {
+    if (!isMobileSidebarViewport) {
+      setIsMobileSidebarOpen(false);
+    }
+  }, [isMobileSidebarViewport]);
 
   // API base path switches based on auth mode
   const apiBase = isGuest ? "/api/guest" : "/api";
@@ -251,7 +340,17 @@ export function LayoutClient({
           registrationHref: guestRegistrationHref,
         }
       : null;
-  const openSidebar = useCallback(() => setIsSidebarOpen(true), []);
+  const openSidebar = useCallback(() => {
+    if (isMobileSidebarViewport) {
+      sidebarReturnFocusRef.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      setIsMobileSidebarOpen(true);
+      return;
+    }
+    setIsDesktopSidebarOpen(true);
+  }, [isMobileSidebarViewport]);
 
   // Sync state with initial data on change (HMR support)
   useEffect(() => {
@@ -297,12 +396,6 @@ export function LayoutClient({
     if (!guestConversionPending || isGuest) return;
     fetch("/api/guest/convert", { method: "POST" }).catch(() => {});
   }, [guestConversionPending, isGuest]);
-
-  useEffect(() => {
-    if (window.innerWidth >= 768) {
-      setIsSidebarOpen(true);
-    }
-  }, []);
 
   // Keep usage monitor fresh while user is active in chat.
   useEffect(() => {
@@ -357,7 +450,21 @@ export function LayoutClient({
   useKeyboardShortcut({
     key: "/",
     modifiers: ["meta"],
-    callback: () => setIsSidebarOpen((prev) => !prev),
+    callback: () => {
+      if (isMobileSidebarViewport) {
+        setIsMobileSidebarOpen((open) => {
+          if (!open) {
+            sidebarReturnFocusRef.current =
+              document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null;
+          }
+          return !open;
+        });
+        return;
+      }
+      setIsDesktopSidebarOpen((open) => !open);
+    },
   });
 
   useKeyboardShortcut({
@@ -396,17 +503,6 @@ export function LayoutClient({
       console.error("Failed to fetch chats:", error);
     }
   }
-
-  // Handle mobile scroll locking
-  useEffect(() => {
-    const isMobile = window.innerWidth <= 768;
-    const isChatRoute =
-      pathname === "/chat" || pathname?.startsWith("/chat/") === true;
-    return installDocumentScrollLock(
-      document.documentElement,
-      isMobile && isSidebarOpen && isChatRoute,
-    );
-  }, [isSidebarOpen, pathname]);
 
   // Pre-fetch chat data on hover
   async function preFetchChat(id: string) {
@@ -669,53 +765,65 @@ export function LayoutClient({
         className="flex chat-mobile-viewport overflow-hidden"
         data-testid="chat-layout-shell"
       >
-        {/* Mobile Backdrop */}
-        <button
-          type="button"
-          aria-label="Close sidebar"
-          aria-hidden={!isSidebarOpen}
-          tabIndex={isSidebarOpen ? 0 : -1}
-          className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden cursor-default transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:duration-150 ${
-            isSidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
-          }`}
-          onClick={() => setIsSidebarOpen(false)}
-        />
+        {isMobileSidebarViewport && (
+          <Sheet
+            open={isMobileSidebarOpen}
+            onOpenChange={setIsMobileSidebarOpen}
+          >
+            <SheetContent
+              side="left"
+              showCloseButton={false}
+              className="w-72 max-w-[85vw] gap-0 p-0"
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                if (sidebarReturnFocusRef.current?.isConnected) {
+                  sidebarReturnFocusRef.current.focus();
+                }
+              }}
+            >
+              <SheetTitle className="sr-only">Conversazioni</SheetTitle>
+              <SheetDescription className="sr-only">
+                Elenco delle tue conversazioni.
+              </SheetDescription>
+              <SidebarContents
+                chats={chats}
+                isLoading={isLoading}
+                isCreatingChat={isCreatingChat}
+                currentChatId={currentChatId}
+                deletingChatId={deletingChatId}
+                onDelete={deleteChat}
+                onSelect={(id) => {
+                  navigateToChat(id);
+                  setIsMobileSidebarOpen(false);
+                }}
+                onCreate={createChat}
+                onSearch={user ? () => setIsSearchOpen(true) : undefined}
+                onRename={renameChat}
+                onPreFetch={preFetchChat}
+                onClose={() => setIsMobileSidebarOpen(false)}
+              />
+            </SheetContent>
+          </Sheet>
+        )}
 
-        {/* Sidebar */}
-        <aside
-          className={`${
-            isSidebarOpen
-              ? "translate-x-0"
-              : "-translate-x-full md:translate-x-0"
-          } ${
-            isSidebarOpen ? "md:w-72" : "md:w-0"
-          } fixed left-0 top-0 z-50 h-full w-72 shrink-0 overflow-hidden border-r border-border/50 dark:border-white/10 bg-background/80 dark:bg-muted/40 backdrop-blur-xl transition-[transform,width] duration-250 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-[width,opacity] motion-reduce:duration-150 md:relative md:z-auto`}
-        >
-          <div className="flex h-full w-72 flex-col pt-[env(safe-area-inset-top)]">
-            <SidebarHeader onCollapse={() => setIsSidebarOpen(false)} />
-
-            <ChatList
+        {!isMobileSidebarViewport && isDesktopSidebarOpen && (
+          <aside className="hidden h-full w-72 shrink-0 flex-col border-r border-border/50 bg-background/80 backdrop-blur-xl dark:border-white/10 dark:bg-muted/40 md:flex">
+            <SidebarContents
               chats={chats}
               isLoading={isLoading}
               isCreatingChat={isCreatingChat}
               currentChatId={currentChatId}
               deletingChatId={deletingChatId}
               onDelete={deleteChat}
-              onSelect={(id) => {
-                navigateToChat(id);
-                if (window.innerWidth < 768) {
-                  setIsSidebarOpen(false);
-                }
-              }}
+              onSelect={navigateToChat}
               onCreate={createChat}
               onSearch={user ? () => setIsSearchOpen(true) : undefined}
               onRename={renameChat}
               onPreFetch={preFetchChat}
+              onClose={() => setIsDesktopSidebarOpen(false)}
             />
-
-            <SidebarBottom />
-          </div>
-        </aside>
+          </aside>
+        )}
 
         {/* Main Content */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]">

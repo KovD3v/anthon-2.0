@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RoutineCardData } from "@/lib/coaching/routine";
@@ -67,7 +73,6 @@ vi.mock("../components/ChatList", () => ({
 }));
 vi.mock("../components/SearchDialog", () => ({ SearchDialog: () => null }));
 vi.mock("../components/SidebarBottom", () => ({ SidebarBottom: () => null }));
-vi.mock("../components/SidebarHeader", () => ({ SidebarHeader: () => null }));
 vi.mock("../components/UsageBanner", () => ({ UsageBanner: () => null }));
 vi.mock("@/components/ui/confirm-dialog", () => ({
   ConfirmDialog: () => null,
@@ -115,6 +120,10 @@ function RoutineProbe() {
 }
 
 function renderLayout(initialActiveRoutine: RoutineCardData | null) {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: 1024,
+  });
   return render(
     <LayoutClient
       initialChats={[
@@ -204,6 +213,19 @@ beforeEach(() => {
     configurable: true,
     value: 375,
   });
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: query === "(max-width: 767px)" && window.innerWidth <= 767,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -311,6 +333,97 @@ describe("persistent active routine context", () => {
 });
 
 describe("mobile chat landing navigation", () => {
+  it("traps mobile sidebar focus and returns it to the opener after Escape", async () => {
+    mocks.pathname = "/chat";
+    const user = userEvent.setup();
+    renderLanding({
+      isGuest: true,
+      usageData: { ...usageBelowThreshold, tier: "GUEST" },
+      children: <a href="/help">Contenuto principale</a>,
+    });
+
+    const opener = screen.getByRole("button", {
+      name: "Apri la barra laterale",
+    });
+    const mainContentLink = screen.getByText("Contenuto principale");
+    expect(
+      screen.queryByRole("button", { name: "Chiudi la barra laterale" }),
+    ).toBeNull();
+    opener.focus();
+    await user.click(opener);
+
+    const drawer = await screen.findByRole("dialog", {
+      name: "Conversazioni",
+    });
+    await waitFor(() =>
+      expect(drawer.contains(document.activeElement)).toBe(true),
+    );
+
+    await user.tab();
+    await user.tab();
+    expect(document.activeElement).not.toBe(mainContentLink);
+    expect(
+      within(drawer).getAllByRole("button", {
+        name: "Chiudi la barra laterale",
+      }),
+    ).toHaveLength(1);
+
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Conversazioni" }),
+      ).toBeNull(),
+    );
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("closes a mobile drawer that was open before the viewport becomes desktop", async () => {
+    let isMobile = true;
+    const mediaListeners = new Set<() => void>();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: query === "(max-width: 767px)" && isMobile,
+        media: query,
+        onchange: null,
+        addEventListener: (_event: string, listener: () => void) =>
+          mediaListeners.add(listener),
+        removeEventListener: (_event: string, listener: () => void) =>
+          mediaListeners.delete(listener),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    );
+    mocks.pathname = "/chat";
+    const user = userEvent.setup();
+    renderLanding({
+      isGuest: false,
+      usageData: usageBelowThreshold,
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Apri la barra laterale" }),
+    );
+    await screen.findByRole("dialog", { name: "Conversazioni" });
+
+    isMobile = false;
+    for (const listener of mediaListeners) listener();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Conversazioni" }),
+      ).toBeNull(),
+    );
+
+    isMobile = true;
+    for (const listener of mediaListeners) listener();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Conversazioni" }),
+      ).toBeNull(),
+    );
+  });
+
   it.each([
     ["guest", true, { ...usageBelowThreshold, tier: "GUEST" as const }],
     [
@@ -330,8 +443,11 @@ describe("mobile chat landing navigation", () => {
       );
 
       await waitFor(() =>
-        expect(document.documentElement.dataset.chatSidebar).toBe("open"),
+        expect(
+          screen.getByRole("dialog", { name: "Conversazioni" }),
+        ).toBeTruthy(),
       );
+      expect(document.documentElement.dataset.chatSidebar).toBeUndefined();
     },
   );
 
@@ -353,8 +469,11 @@ describe("mobile chat landing navigation", () => {
       );
 
       await waitFor(() =>
-        expect(document.documentElement.dataset.chatSidebar).toBe("open"),
+        expect(
+          screen.getByRole("dialog", { name: "Conversazioni" }),
+        ).toBeTruthy(),
       );
+      expect(document.documentElement.dataset.chatSidebar).toBeUndefined();
     },
   );
 
