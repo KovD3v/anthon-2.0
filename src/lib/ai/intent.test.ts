@@ -11,6 +11,7 @@ import {
   matchesPreferenceWriteIntent,
   matchesProfileWriteIntent,
   matchesRagIntent,
+  matchesRoutineProposalIntent,
   matchesSimpleFastIntent,
   matchesVoiceIntent,
   shouldEnableWebFetchTool,
@@ -207,5 +208,17 @@ describe("ai/intent", () => {
     expect(matchesVoiceIntent("Dimmelo a voce")).toBe(true);
     expect(matchesVoiceIntent("Rispondi con un messaggio vocale")).toBe(true);
     expect(matchesVoiceIntent("Scrivimi una risposta")).toBe(false);
+  });
+
+  it("matches routine proposals without treating explanations as proposals", () => {
+    expect(
+      matchesRoutineProposalIntent(
+        "Ho una gara domani. Preparami una routine mentale breve per gestire la pressione.",
+      ),
+    ).toBe(true);
+    expect(
+      matchesRoutineProposalIntent("Spiegami cos'è una routine mentale"),
+    ).toBe(false);
+    expect(matchesRoutineProposalIntent("Ho una gara domani")).toBe(false);
   });
 });

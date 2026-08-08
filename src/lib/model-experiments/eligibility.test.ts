@@ -104,6 +104,14 @@ describe("model comparison eligibility", () => {
     expect(isSafeModelComparisonTurn(safeTurn, "dimmelo a voce")).toBe(false);
   });
 
+  it("rejects structured routine requests that require the proposal tool", () => {
+    const routineRequest =
+      "Ho una gara domani. Aiutami a preparare una routine mentale breve per arrivare concentrato e gestire la pressione.";
+
+    expect(isCheaplySafeModelComparisonMessage(routineRequest)).toBe(false);
+    expect(isSafeModelComparisonTurn(safeTurn, routineRequest)).toBe(false);
+  });
+
   it("enforces rolling cooldown and attempt cap", () => {
     const now = new Date("2026-07-13T12:00:00Z");
     expect(isParticipantCadenceEligible(undefined, 5, now)).toBe(true);

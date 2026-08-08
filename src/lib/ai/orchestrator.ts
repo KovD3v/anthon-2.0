@@ -22,6 +22,7 @@ import {
   matchesNotesWriteIntent,
   matchesPreferenceWriteIntent,
   matchesProfileWriteIntent,
+  matchesRoutineProposalIntent,
   matchesVoiceIntent,
   shouldEnableWebFetchTool,
   shouldEnableWebSearchTool,
@@ -878,13 +879,6 @@ function toolPlanFromTurnPlan(
   };
 }
 
-const COACHING_ROUTINE_CIRCUMSTANCES =
-  /\b(?:gara|partita|allenamento|errore|pressione|ansia|concentrazione|fiducia|reset|routine|piano)\b/i;
-const CONCRETE_ROUTINE_PRACTICE =
-  /\b(?:routine|piano|passi|step|pratic\w*|esercizio)\b/i;
-const INFORMATIONAL_REQUEST =
-  /\b(?:cos['’]?è|che cos['’]?è|spiega|spiegami|definizione|regole|chi\s+ha|quando|dove|perch[eé]|differenza\s+tra)\b/i;
-
 function shouldEnableRoutineProposal({
   userMessage,
   webSearchEnabled,
@@ -899,9 +893,7 @@ function shouldEnableRoutineProposal({
   benchmarkModelId?: string;
 }) {
   return (
-    COACHING_ROUTINE_CIRCUMSTANCES.test(userMessage) &&
-    CONCRETE_ROUTINE_PRACTICE.test(userMessage) &&
-    !INFORMATIONAL_REQUEST.test(userMessage) &&
+    matchesRoutineProposalIntent(userMessage) &&
     !webSearchEnabled &&
     inputOrigin === "text" &&
     outputMode !== "voice" &&
