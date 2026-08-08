@@ -24,6 +24,37 @@ const routine: RoutineCardData = {
   latestAttempt: null,
 };
 
+const interactiveRoutine: RoutineCardData = {
+  ...routine,
+  formatVersion: 2,
+  proposal: {
+    formatVersion: 2,
+    title: "Reset dopo un errore",
+    trigger: "Quando commetti un errore in gara",
+    durationLabel: "60 secondi",
+    completionCue: "Riparti con lo sguardo sul compito successivo",
+    steps: [
+      {
+        id: "ground",
+        kind: "instruction",
+        text: "Porta l'attenzione al prossimo gesto.",
+      },
+      {
+        id: "outcome",
+        kind: "form",
+        question: "Cosa ti ha lasciato la routine?",
+        mode: "choice",
+        options: [
+          { label: "Mi ha centrato", outcome: "HELPFUL" },
+          { label: "Solo in parte", outcome: "PARTIALLY_HELPFUL" },
+          { label: "Non ha inciso", outcome: "NOT_HELPFUL" },
+        ],
+        noteEnabled: true,
+      },
+    ],
+  },
+};
+
 function renderForm(
   currentRoutine: RoutineCardData = routine,
   overrides: Partial<React.ComponentProps<typeof RoutineCheckInForm>> = {},
@@ -40,6 +71,45 @@ function renderForm(
 afterEach(cleanup);
 
 describe("RoutineCheckInForm", () => {
+  it("uses the terminal routine form and preserves the selected outcome and note after a PATCH failure", async () => {
+    const pendingRoutine: RoutineCardData = {
+      ...interactiveRoutine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    };
+    const user = userEvent.setup();
+    const { props } = renderForm(pendingRoutine, {
+      onSaveOutcome: vi.fn().mockRejectedValue(new Error("offline")),
+    });
+
+    expect(
+      screen.getByRole("group", { name: "Cosa ti ha lasciato la routine?" }),
+    ).toBeTruthy();
+    const note = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Nota facoltativa",
+    });
+    await user.type(note, "Ho perso il ritmo");
+    await user.click(screen.getByRole("button", { name: "Solo in parte" }));
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(note.value).toBe("Ho perso il ritmo");
+    expect(
+      screen
+        .getByRole("button", { name: "Solo in parte" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(props.onSaveOutcome).toHaveBeenCalledWith(
+      "attempt-1",
+      "PARTIALLY_HELPFUL",
+      "Ho perso il ritmo",
+    );
+  });
+
   it("keeps the optional note inert until an explicit outcome is chosen", async () => {
     const user = userEvent.setup();
     const { props } = renderForm();

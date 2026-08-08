@@ -26,6 +26,39 @@ const activeRoutine: RoutineCardData = {
   latestAttempt: null,
 };
 
+const interactiveProposal = {
+  formatVersion: 2 as const,
+  title: "Reset dopo un errore",
+  trigger: "Quando commetti un errore in gara",
+  durationLabel: "60 secondi",
+  completionCue: "Riparti con lo sguardo sul compito successivo",
+  steps: [
+    {
+      id: "ground",
+      kind: "instruction" as const,
+      text: "Porta l'attenzione al prossimo gesto.",
+    },
+    {
+      id: "outcome",
+      kind: "form" as const,
+      question: "Quanto ti è stata utile questa routine?",
+      mode: "choice" as const,
+      options: [
+        { label: "Mi ha aiutato", outcome: "HELPFUL" as const },
+        { label: "In parte", outcome: "PARTIALLY_HELPFUL" as const },
+        { label: "Non mi ha aiutato", outcome: "NOT_HELPFUL" as const },
+      ],
+      noteEnabled: true,
+    },
+  ],
+};
+
+const interactiveRoutine: RoutineCardData = {
+  ...activeRoutine,
+  formatVersion: 2,
+  proposal: interactiveProposal,
+};
+
 function deferredRoutine() {
   let resolve: (routine: RoutineCardData) => void = () => undefined;
   let reject: (error: Error) => void = () => undefined;
@@ -167,6 +200,106 @@ describe("RoutineCard proposal", () => {
 });
 
 describe("RoutineCard active lifecycle", () => {
+  it("starts a runner inline without recording an attempt until the routine finishes", async () => {
+    const user = userEvent.setup();
+    const onCreateAttempt = vi.fn().mockResolvedValue({
+      ...interactiveRoutine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T10:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    });
+    renderProposal({
+      proposal: interactiveProposal,
+      routine: interactiveRoutine,
+      onCreateAttempt,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Avvia routine" }));
+
+    expect(
+      screen.getAllByRole("region", { name: interactiveProposal.title }),
+    ).toHaveLength(2);
+    expect(onCreateAttempt).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Fatto" }));
+
+    expect(screen.getByText("Ho completato la routine")).toBeTruthy();
+    await waitFor(() =>
+      expect(onCreateAttempt).toHaveBeenCalledWith("routine-1"),
+    );
+    expect(
+      screen.getByRole("group", {
+        name: "Quanto ti è stata utile questa routine?",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("pauses locally and restores the launch focus when the inline runner closes", async () => {
+    const user = userEvent.setup();
+    const onCreateAttempt = vi.fn();
+    renderProposal({
+      proposal: interactiveProposal,
+      routine: interactiveRoutine,
+      onCreateAttempt,
+    });
+    const launch = screen.getByRole<HTMLButtonElement>("button", {
+      name: "Avvia routine",
+    });
+
+    await user.click(launch);
+    await user.click(screen.getByRole("button", { name: "Chiudi" }));
+
+    expect(screen.queryByText("Routine guidata")).toBeNull();
+    const restoredLaunch = screen.getByRole("button", {
+      name: "Avvia routine",
+    });
+    await waitFor(() => expect(document.activeElement).toBe(restoredLaunch));
+    expect(onCreateAttempt).not.toHaveBeenCalled();
+  });
+
+  it("keeps the completed runner open and retries its authoritative attempt after a failure", async () => {
+    const user = userEvent.setup();
+    const onCreateAttempt = vi
+      .fn()
+      .mockRejectedValueOnce(new RoutineClientError("Conflitto routine", 409))
+      .mockResolvedValueOnce({
+        ...interactiveRoutine,
+        latestAttempt: {
+          id: "attempt-1",
+          attemptedAt: "2026-08-08T10:00:00.000Z",
+          outcome: null,
+          outcomeNote: null,
+          outcomeRecordedAt: null,
+        },
+      });
+    renderProposal({
+      proposal: interactiveProposal,
+      routine: interactiveRoutine,
+      onCreateAttempt,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Avvia routine" }));
+    await user.click(screen.getByRole("button", { name: "Fatto" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Conflitto routine",
+    );
+    expect(screen.getByText("Ho completato la routine")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Riprova" }));
+
+    await waitFor(() => expect(onCreateAttempt).toHaveBeenCalledTimes(2));
+    expect(
+      screen.getByRole("group", {
+        name: "Quanto ti è stata utile questa routine?",
+      }),
+    ).toBeTruthy();
+  });
+
   it("closes a consumed return check-in and does not reopen it on a later reveal", async () => {
     const view = renderProposal({
       routine: activeRoutine,
@@ -203,25 +336,13 @@ describe("RoutineCard active lifecycle", () => {
     ).toBeNull();
   });
 
-  it("marks one explicit attempt and exposes an accessible pending status", async () => {
-    const pending = deferredRoutine();
-    const onCreateAttempt = vi.fn().mockReturnValue(pending.promise);
-    const user = userEvent.setup();
-    renderProposal({ routine: activeRoutine, onCreateAttempt });
-    const markAttempt = screen.getByRole<HTMLButtonElement>("button", {
-      name: "Segna un tentativo",
-    });
+  it("does not expose the legacy attempt marker as a substitute for starting", () => {
+    renderProposal({ routine: activeRoutine });
 
-    await user.click(markAttempt);
-    await user.click(markAttempt);
-
-    expect(onCreateAttempt).toHaveBeenCalledOnce();
-    expect(onCreateAttempt).toHaveBeenCalledWith("routine-1");
-    expect(markAttempt.disabled).toBe(true);
-    expect(screen.getByText("Registro il tentativo…")).toBeTruthy();
-
-    pending.resolve(activeRoutine);
-    expect(await screen.findByText("Tentativo segnato")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Segna un tentativo" }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Avvia routine" })).toBeTruthy();
   });
 
   it("opens the structured check-in and delegates archiving", async () => {
@@ -231,9 +352,22 @@ describe("RoutineCard active lifecycle", () => {
       archivedAt: "2026-08-08T10:00:00.000Z",
     });
     const user = userEvent.setup();
-    renderProposal({ routine: activeRoutine, onArchive });
+    const completedAttemptRoutine: RoutineCardData = {
+      ...activeRoutine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: "HELPFUL",
+        outcomeNote: null,
+        outcomeRecordedAt: "2026-08-08T09:05:00.000Z",
+      },
+    };
+    renderProposal({
+      routine: completedAttemptRoutine,
+      onArchive,
+      openCheckIn: true,
+    });
 
-    await user.click(screen.getByRole("button", { name: "Com'è andata?" }));
     expect(
       screen.getByRole("group", { name: "Esito del tentativo" }),
     ).toBeTruthy();
@@ -309,7 +443,7 @@ describe("RoutineCard active lifecycle", () => {
   });
 
   it("closes a successful check-in but preserves the note and form after failure", async () => {
-    const onCreateAttempt = vi
+    const onSaveOutcome = vi
       .fn()
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce({
@@ -322,8 +456,18 @@ describe("RoutineCard active lifecycle", () => {
           outcomeRecordedAt: "2026-08-08T09:05:00.000Z",
         },
       });
+    const pendingAttemptRoutine: RoutineCardData = {
+      ...activeRoutine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    };
     const user = userEvent.setup();
-    renderProposal({ routine: activeRoutine, onCreateAttempt });
+    renderProposal({ routine: pendingAttemptRoutine, onSaveOutcome });
 
     await user.click(screen.getByRole("button", { name: "Com'è andata?" }));
     const note = screen.getByRole<HTMLTextAreaElement>("textbox", {
@@ -350,11 +494,7 @@ describe("RoutineCard active lifecycle", () => {
   it("gives every routine action a mobile-sized target", () => {
     renderProposal({ routine: activeRoutine });
 
-    for (const name of [
-      "Segna un tentativo",
-      "Com'è andata?",
-      "Archivia routine",
-    ]) {
+    for (const name of ["Avvia routine", "Archivia routine"]) {
       expect(screen.getByRole("button", { name }).className).toContain(
         "min-h-11",
       );

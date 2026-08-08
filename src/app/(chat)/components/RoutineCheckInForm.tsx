@@ -3,7 +3,10 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { RoutineCardData } from "@/lib/coaching/routine";
+import {
+  normalizeRoutineProposal,
+  type RoutineCardData,
+} from "@/lib/coaching/routine";
 import { RoutineClientError } from "@/lib/coaching/routine-client";
 
 export type RoutineAttemptOutcome =
@@ -32,12 +35,12 @@ interface RoutineCheckInFormProps {
 }
 
 const OUTCOMES: ReadonlyArray<{
-  value: RoutineAttemptOutcome;
+  outcome: RoutineAttemptOutcome;
   label: string;
 }> = [
-  { value: "HELPFUL", label: "Mi ha aiutato" },
-  { value: "PARTIALLY_HELPFUL", label: "In parte" },
-  { value: "NOT_HELPFUL", label: "Non ha aiutato" },
+  { outcome: "HELPFUL", label: "Mi ha aiutato" },
+  { outcome: "PARTIALLY_HELPFUL", label: "In parte" },
+  { outcome: "NOT_HELPFUL", label: "Non ha aiutato" },
 ];
 
 export function RoutineCheckInForm({
@@ -50,6 +53,8 @@ export function RoutineCheckInForm({
   const [note, setNote] = useState("");
   const [pendingOutcome, setPendingOutcome] =
     useState<RoutineAttemptOutcome | null>(null);
+  const [selectedOutcome, setSelectedOutcome] =
+    useState<RoutineAttemptOutcome | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
@@ -57,6 +62,12 @@ export function RoutineCheckInForm({
   onFocusedRef.current = onFocused;
   const didAttemptFocusRef = useRef(false);
   const didReportFocusRef = useRef(false);
+  const completionForm = normalizeRoutineProposal(
+    routine.proposal,
+  ).completionForm;
+  const outcomes = completionForm?.options ?? OUTCOMES;
+  const question = completionForm?.question ?? "Esito del tentativo";
+  const isNoteEnabled = completionForm?.noteEnabled ?? true;
 
   useEffect(() => {
     if (didAttemptFocusRef.current) return;
@@ -75,10 +86,11 @@ export function RoutineCheckInForm({
   async function submitOutcome(outcome: RoutineAttemptOutcome) {
     if (pendingOutcome) return;
 
+    setSelectedOutcome(outcome);
     setError(null);
     setStatus(null);
     setPendingOutcome(outcome);
-    const outcomeNote = note.trim() || null;
+    const outcomeNote = isNoteEnabled ? note.trim() || null : null;
 
     try {
       let updatedRoutine: RoutineCardData;
@@ -111,38 +123,45 @@ export function RoutineCheckInForm({
   return (
     <fieldset className="mt-4 border-border/70 border-t pt-4">
       <legend className="px-1 font-display text-base font-bold uppercase tracking-tight text-foreground">
-        Esito del tentativo
+        {question}
       </legend>
-      <label
-        htmlFor={`routine-note-${routine.id}`}
-        className="mt-3 block text-xs font-medium text-muted-foreground"
-      >
-        Nota facoltativa
-      </label>
-      <textarea
-        ref={noteRef}
-        data-routine-check-in-id={routine.id}
-        id={`routine-note-${routine.id}`}
-        value={note}
-        onChange={(event) => setNote(event.target.value)}
-        rows={3}
-        maxLength={1000}
-        disabled={pendingOutcome !== null}
-        className="mt-1.5 w-full resize-y rounded-xl border border-border/80 bg-background px-3 py-2 text-sm text-foreground outline-none transition-[border-color,box-shadow] focus:border-primary/60 focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
-        placeholder="Cosa hai notato?"
-      />
+      {isNoteEnabled && (
+        <>
+          <label
+            htmlFor={`routine-note-${routine.id}`}
+            className="mt-3 block text-xs font-medium text-muted-foreground"
+          >
+            Nota facoltativa
+          </label>
+          <textarea
+            ref={noteRef}
+            data-routine-check-in-id={routine.id}
+            id={`routine-note-${routine.id}`}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            rows={3}
+            maxLength={1000}
+            disabled={pendingOutcome !== null}
+            className="mt-1.5 w-full resize-y rounded-xl border border-border/80 bg-background px-3 py-2 text-sm text-foreground outline-none transition-[border-color,box-shadow] focus:border-primary/60 focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
+            placeholder="Cosa hai notato?"
+          />
+        </>
+      )}
       <div className="mt-3 flex flex-wrap gap-2">
-        {OUTCOMES.map((outcome) => (
+        {outcomes.map((outcome) => (
           <Button
-            key={outcome.value}
+            key={outcome.outcome}
             type="button"
             size="sm"
-            variant="outline"
+            variant={
+              selectedOutcome === outcome.outcome ? "default" : "outline"
+            }
             className="min-h-11 rounded-full px-4"
             disabled={pendingOutcome !== null}
-            onClick={() => submitOutcome(outcome.value)}
+            aria-pressed={selectedOutcome === outcome.outcome}
+            onClick={() => submitOutcome(outcome.outcome)}
           >
-            {pendingOutcome === outcome.value && (
+            {pendingOutcome === outcome.outcome && (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             )}
             {outcome.label}

@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   normalizeRoutineProposal,
@@ -15,6 +15,7 @@ import {
   RoutineCheckInForm,
   type SaveRoutineOutcome,
 } from "./RoutineCheckInForm";
+import { RoutineRunner } from "./RoutineRunner";
 
 interface RoutineCardProps {
   proposal: RoutineProposal;
@@ -31,7 +32,7 @@ interface RoutineCardProps {
   openCheckIn?: boolean;
 }
 
-type PendingAction = "save" | "attempt" | "archive" | null;
+type PendingAction = "save" | "archive" | null;
 
 export function RoutineCard({
   proposal,
@@ -51,15 +52,26 @@ export function RoutineCard({
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [isCheckInOpen, setIsCheckInOpen] = useState(openCheckIn);
-  const snapshot = routine?.proposal ?? proposal;
+  const [isRunnerOpen, setIsRunnerOpen] = useState(false);
+  const [isCompletionPending, setIsCompletionPending] = useState(false);
+  const [completionError, setCompletionError] = useState<string | null>(null);
+  const [completedRoutine, setCompletedRoutine] =
+    useState<RoutineCardData | null>(null);
+  const startButtonRef = useRef<HTMLButtonElement>(null);
+  const routineAttemptKey = routine?.latestAttempt
+    ? `${routine.latestAttempt.id}:${routine.latestAttempt.outcome ?? "pending"}`
+    : null;
+  const displayedRoutine = completedRoutine ?? routine;
+  const snapshot = displayedRoutine?.proposal ?? proposal;
   const normalizedSnapshot = normalizeRoutineProposal(snapshot);
-  const isArchived = routine?.status === "ARCHIVED";
-  const isActive = routine?.status === "ACTIVE";
-  const hasPendingAttempt = isActive && routine.latestAttempt?.outcome === null;
+  const isArchived = displayedRoutine?.status === "ARCHIVED";
+  const isActive = displayedRoutine?.status === "ACTIVE";
+  const hasPendingAttempt =
+    isActive && displayedRoutine.latestAttempt?.outcome === null;
   const hasRecordedOutcome =
     isActive &&
-    routine.latestAttempt?.outcome !== null &&
-    routine.latestAttempt;
+    displayedRoutine.latestAttempt?.outcome !== null &&
+    displayedRoutine.latestAttempt;
   const lifecycleLabel = isArchived
     ? "Routine archiviata"
     : hasRecordedOutcome
@@ -77,6 +89,14 @@ export function RoutineCard({
       setIsCheckInOpen(false);
     }
   }, [isActive, openCheckIn]);
+
+  useEffect(() => {
+    setCompletedRoutine((current) => {
+      if (!current?.latestAttempt) return current;
+      const currentAttemptKey = `${current.latestAttempt.id}:${current.latestAttempt.outcome ?? "pending"}`;
+      return currentAttemptKey === routineAttemptKey ? null : current;
+    });
+  }, [routineAttemptKey]);
 
   async function runAction(
     action: Exclude<PendingAction, null>,
@@ -98,6 +118,26 @@ export function RoutineCard({
       );
     } finally {
       setPendingAction(null);
+    }
+  }
+
+  async function recordCompletion() {
+    if (!displayedRoutine || isCompletionPending) return;
+
+    setIsCompletionPending(true);
+    setCompletionError(null);
+    try {
+      const updatedRoutine = await onCreateAttempt(displayedRoutine.id);
+      setCompletedRoutine(updatedRoutine);
+      setIsCheckInOpen(true);
+    } catch (cause) {
+      setCompletionError(
+        cause instanceof RoutineClientError
+          ? cause.message
+          : "Non siamo riusciti a registrare il completamento. Riprova.",
+      );
+    } finally {
+      setIsCompletionPending(false);
     }
   }
 
@@ -166,7 +206,7 @@ export function RoutineCard({
         </p>
       </div>
 
-      {!isArchived && (
+      {!isArchived && !isRunnerOpen && (
         <div className="mt-5 flex flex-wrap items-center gap-2">
           {!isActive &&
             (isGuest ? (
@@ -194,29 +234,20 @@ export function RoutineCard({
               </Button>
             ))}
 
-          {isActive && routine && !routine.latestAttempt && (
+          {isActive && displayedRoutine && !displayedRoutine.latestAttempt && (
             <Button
+              ref={startButtonRef}
               type="button"
               size="sm"
               className="min-h-11 rounded-full px-4"
               disabled={pendingAction !== null}
-              onClick={() =>
-                runAction(
-                  "attempt",
-                  () => onCreateAttempt(routine.id),
-                  "Non siamo riusciti a segnare il tentativo. Riprova.",
-                  "Tentativo segnato",
-                )
-              }
+              onClick={() => setIsRunnerOpen(true)}
             >
-              {pendingAction === "attempt" && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              )}
-              Segna un tentativo
+              Avvia routine
             </Button>
           )}
 
-          {(!isActive || !hasRecordedOutcome) && (
+          {(!isActive || hasPendingAttempt) && (
             <Button
               type="button"
               size="sm"
@@ -229,7 +260,7 @@ export function RoutineCard({
             </Button>
           )}
 
-          {isActive && routine?.latestAttempt && (
+          {isActive && displayedRoutine?.latestAttempt && (
             <Button
               type="button"
               size="sm"
@@ -242,7 +273,7 @@ export function RoutineCard({
             </Button>
           )}
 
-          {isActive && routine && !hasPendingAttempt && (
+          {isActive && displayedRoutine && !hasPendingAttempt && (
             <Button
               type="button"
               size="sm"
@@ -252,7 +283,7 @@ export function RoutineCard({
               onClick={() =>
                 runAction(
                   "archive",
-                  () => onArchive(routine.id),
+                  () => onArchive(displayedRoutine.id),
                   "Non siamo riusciti ad archiviare la routine. Riprova.",
                 )
               }
@@ -274,14 +305,6 @@ export function RoutineCard({
           Salvataggio routine…
         </output>
       )}
-      {pendingAction === "attempt" && (
-        <output
-          className="mt-3 block text-xs text-muted-foreground"
-          aria-live="polite"
-        >
-          Registro il tentativo…
-        </output>
-      )}
       {status && !pendingAction && (
         <output
           className="mt-3 block text-xs font-medium text-foreground"
@@ -296,9 +319,53 @@ export function RoutineCard({
         </p>
       )}
 
-      {isActive && routine && isCheckInOpen && (
+      {isRunnerOpen && isActive && displayedRoutine && (
+        <>
+          <RoutineRunner
+            routine={normalizedSnapshot}
+            completionForm={normalizedSnapshot.completionForm}
+            onComplete={() => void recordCompletion()}
+            onClose={() => {
+              setIsRunnerOpen(false);
+              window.requestAnimationFrame(() =>
+                startButtonRef.current?.focus(),
+              );
+            }}
+          />
+          {isCompletionPending && (
+            <output
+              className="mt-3 block text-xs text-muted-foreground"
+              aria-live="polite"
+            >
+              Registro il completamento…
+            </output>
+          )}
+          {completionError && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <p className="text-xs font-medium text-destructive" role="alert">
+                {completionError}
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="min-h-11 rounded-full px-4"
+                disabled={isCompletionPending}
+                onClick={() => void recordCompletion()}
+              >
+                {isCompletionPending && (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                )}
+                Riprova
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+
+      {isActive && displayedRoutine && isCheckInOpen && (
         <RoutineCheckInForm
-          routine={routine}
+          routine={displayedRoutine}
           onCreateAttempt={onCreateAttempt}
           onSaveOutcome={onSaveOutcome}
           onSuccess={() => setIsCheckInOpen(false)}
