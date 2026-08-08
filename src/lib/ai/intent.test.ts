@@ -68,6 +68,18 @@ describe("ai/intent", () => {
       expect(decision.enabled).toBe(false);
     });
 
+    it("gives a direct routine proposal priority over inferred current information", () => {
+      const decision = evaluateWebSearchRule(
+        "Ho una gara domani. Preparami una routine mentale breve per arrivare concentrato e gestire la pressione",
+      );
+
+      expect(decision).toEqual({
+        enabled: false,
+        confidence: "high",
+        reason: "personal_routine_proposal",
+      });
+    });
+
     it("keeps a dated request for a personal routine out of web search", () => {
       const decision = evaluateWebSearchRule(
         "Ho una gara domani, mi serve una routine mentale.",

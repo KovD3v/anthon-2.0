@@ -202,6 +202,13 @@ export function evaluateWebSearchRule(userMessage = ""): WebSearchRuleDecision {
       reason: "live_score_intent",
     };
   }
+  if (matchesRoutineProposalIntent(userMessage)) {
+    return {
+      enabled: false,
+      confidence: "high",
+      reason: "personal_routine_proposal",
+    };
+  }
   if (
     currentInfoIntent.test(userMessage) &&
     !personalPlanningContext.test(userMessage)
