@@ -1,0 +1,21 @@
+-- CreateEnum
+CREATE TYPE "ChatIcon" AS ENUM (
+  'TARGET',
+  'TROPHY',
+  'DUMBBELL',
+  'ACTIVITY',
+  'BRAIN',
+  'HEART_PULSE',
+  'TIMER',
+  'CALENDAR_DAYS',
+  'FLAME',
+  'SHIELD',
+  'USERS',
+  'FOOTPRINTS',
+  'REFRESH_CCW',
+  'MESSAGE_SQUARE'
+);
+
+-- AlterTable
+ALTER TABLE "Chat"
+ADD COLUMN "icon" "ChatIcon" NOT NULL DEFAULT 'MESSAGE_SQUARE';
