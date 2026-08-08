@@ -2,6 +2,7 @@ import type { Prisma } from "@/generated/prisma";
 import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
 import { captureAiTurnTrace } from "@/lib/ai/trace";
+import { getRoutineProposalFromToolCalls } from "@/lib/coaching/routine";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import {
@@ -142,6 +143,7 @@ export async function persistAssistantOutput({
   externalInboundClaimToken,
 }: PersistAssistantOutputInput) {
   const assistantMetadata = buildAssistantMetadata(metadata, metrics);
+  const routineProposal = getRoutineProposalFromToolCalls(metrics.toolCalls);
 
   const persisted = await prisma.$transaction(async (tx) => {
     if (userMessageId && externalInboundClaimToken) {
@@ -181,7 +183,12 @@ export async function persistAssistantOutput({
         direction: "OUTBOUND",
         role: "ASSISTANT",
         type: messageType,
-        parts: [{ type: "text", text }] as Prisma.InputJsonValue,
+        parts: [
+          { type: "text", text },
+          ...(routineProposal
+            ? [{ type: "data-coachingRoutine", data: routineProposal }]
+            : []),
+        ] as Prisma.InputJsonValue,
         ...(mediaUrl ? { mediaUrl } : {}),
         ...(mediaType ? { mediaType } : {}),
         ...(assistantMetadata ? { metadata: assistantMetadata } : {}),

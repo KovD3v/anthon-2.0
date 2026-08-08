@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   buildConversationContext: vi.fn(),
   buildThreadContext: vi.fn(),
   createMemoryTools: vi.fn(),
+  createRoutineProposalTool: vi.fn(),
   formatMemoriesForPrompt: vi.fn(),
   createTinyfishTools: vi.fn(),
   searchTinyfishDirect: vi.fn(),
@@ -81,6 +82,10 @@ vi.mock("@/lib/ai/thread-context", () => ({
 vi.mock("@/lib/ai/tools/memory", () => ({
   createMemoryTools: mocks.createMemoryTools,
   formatMemoriesForPrompt: mocks.formatMemoriesForPrompt,
+}));
+
+vi.mock("@/lib/ai/tools/routine-proposal", () => ({
+  createRoutineProposalTool: mocks.createRoutineProposalTool,
 }));
 
 vi.mock("@/lib/ai/tools/tinyfish", () => ({
@@ -180,6 +185,7 @@ describe("ai/orchestrator", () => {
     mocks.buildConversationContext.mockReset();
     mocks.buildThreadContext.mockReset();
     mocks.createMemoryTools.mockReset();
+    mocks.createRoutineProposalTool.mockReset();
     mocks.formatMemoriesForPrompt.mockReset();
     mocks.createTinyfishTools.mockReset();
     mocks.searchTinyfishDirect.mockReset();
@@ -249,6 +255,9 @@ describe("ai/orchestrator", () => {
       getMemories: "memory-read-tool",
       saveMemory: "memory-tool",
       deleteMemory: "memory-delete-tool",
+    });
+    mocks.createRoutineProposalTool.mockReturnValue({
+      proposeRoutine: "routine-proposal-tool",
     });
     mocks.createUserContextTools.mockReturnValue({
       getUserContext: "context-read-tool",
@@ -686,7 +695,7 @@ describe("ai/orchestrator", () => {
     expect(streamInput.headers?.["x-session-id"]).toBe("chat-session-cache");
   });
 
-  it("keeps complex coaching on full prompt without exposing persistent tools", async () => {
+  it("keeps complex coaching on full prompt without exposing persistent write tools", async () => {
     await streamChat({
       userId: "user-1",
       chatId: "chat-complex-no-write",
@@ -703,11 +712,13 @@ describe("ai/orchestrator", () => {
       tools: Record<string, unknown>;
       maxOutputTokens?: number;
     };
-    expect(streamInput.tools).toEqual({});
+    expect(streamInput.tools).toEqual({
+      proposeRoutine: "routine-proposal-tool",
+    });
     expect(streamInput.instructions).toContain("user-context-data");
     expect(streamInput.instructions).toContain("user-memories-data");
     expect(streamInput.instructions).not.toContain("SAVING DATA");
-    expect(streamInput.instructions).not.toContain("TOOL POLICY");
+    expect(streamInput.instructions).toContain("TOOL POLICY");
     expect(streamInput.maxOutputTokens).toBeUndefined();
   });
 
@@ -1660,6 +1671,111 @@ describe("ai/orchestrator", () => {
     expect(JSON.stringify(streamInput.messages.at(-1))).not.toContain(
       `${TRUSTED_BLOB_ORIGIN}/attachments/user-1/chat-video/clip.mp4`,
     );
+  });
+
+  it("enables one non-persistent routine proposal tool for eligible coaching turns", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-routine-proposal",
+      userMessage:
+        "Dopo un errore in partita perdo fiducia: dammi una routine pratica.",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({ proposeRoutine: "routine-proposal-tool" }),
+    );
+    expect(streamInput.instructions).toContain("proposeRoutine");
+    expect(streamInput.instructions).toContain("never a saved routine");
+    expect(mocks.getModelForUser).toHaveBeenCalledWith(
+      undefined,
+      undefined,
+      "orchestrator",
+      "BASIC",
+      undefined,
+      { parallelToolCalls: false },
+    );
+  });
+
+  it("enables the routine proposal tool for eligible guest coaching turns", async () => {
+    await streamChat({
+      userId: "guest-user-1",
+      chatId: "guest-chat-routine-proposal",
+      isGuest: true,
+      userMessage: "Prima della gara ho ansia: dammi una routine di reset.",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).toEqual({
+      proposeRoutine: "routine-proposal-tool",
+    });
+    expect(streamInput.instructions).toContain("proposeRoutine");
+  });
+
+  it.each([
+    [
+      "direct web-search requests",
+      { userMessage: "Cerca online una routine per la pressione in gara." },
+    ],
+    [
+      "benchmark model-comparison executions",
+      {
+        userMessage:
+          "Dopo un errore in partita perdo fiducia: dammi una routine.",
+        benchmarkModelId: "candidate/model",
+      },
+    ],
+    [
+      "voice turns",
+      {
+        userMessage:
+          "Dopo un errore in partita perdo fiducia: dammi una routine.",
+        responseMode: "voice" as const,
+      },
+    ],
+    [
+      "transcribed voice turns",
+      {
+        userMessage:
+          "Dopo un errore in partita perdo fiducia: dammi una routine.",
+        inputOrigin: "transcribed_voice" as const,
+      },
+    ],
+    [
+      "direct-media attachment turns",
+      {
+        userMessage:
+          "Dopo un errore in partita perdo fiducia: dammi una routine.",
+        messageParts: [
+          {
+            type: "file",
+            data: "data:text/plain;base64,aGVsbG8=",
+            mimeType: "text/plain",
+          },
+        ],
+      },
+    ],
+    [
+      "purely informational turns",
+      { userMessage: "Quali sono le regole del tennis?" },
+    ],
+  ])("does not enable routine proposals for %s", async (_reason, options) => {
+    await streamChat({
+      userId: "user-1",
+      chatId: `chat-routine-excluded-${_reason}`,
+      ...options,
+    });
+
+    const streamInput = mocks.streamText.mock.calls.at(-1)?.[0] as {
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).not.toHaveProperty("proposeRoutine");
   });
 
   it("enables TinyFish only for time-sensitive requests", async () => {

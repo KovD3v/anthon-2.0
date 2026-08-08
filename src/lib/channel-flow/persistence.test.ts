@@ -110,6 +110,92 @@ describe("channel-flow/persistence", () => {
     expect(waitUntil).toHaveBeenCalledTimes(1);
   });
 
+  it("persists a validated routine proposal after the assistant text", async () => {
+    const proposal = {
+      title: "Reset pre-gara",
+      trigger: "Quando sento salire la pressione prima della partita",
+      durationLabel: "2 minuti",
+      steps: ["Fai tre respiri lenti.", "Richiama una parola chiave."],
+      completionCue: "Inizio il primo punto con presenza.",
+    };
+
+    await persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "Prova questa routine.",
+      userMessageText: "Sono in ansia per la partita",
+      metrics: {
+        model: "test-model",
+        inputTokens: 5,
+        outputTokens: 8,
+        reasoningTokens: 0,
+        reasoningContent: "",
+        toolCalls: [
+          {
+            name: "proposeRoutine",
+            args: proposal,
+            result: { proposal },
+          },
+        ],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.02,
+        generationTimeMs: 111,
+        reasoningTimeMs: 22,
+      },
+      allowMemoryExtraction: false,
+    });
+
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          parts: [
+            { type: "text", text: "Prova questa routine." },
+            { type: "data-coachingRoutine", data: proposal },
+          ],
+        }),
+      }),
+    );
+  });
+
+  it("does not persist a routine proposal when tool arguments are invalid", async () => {
+    await persistAssistantOutput({
+      userId: "user-1",
+      channel: "WEB",
+      text: "Prova questa routine.",
+      userMessageText: "Sono in ansia per la partita",
+      metrics: {
+        model: "test-model",
+        inputTokens: 5,
+        outputTokens: 8,
+        reasoningTokens: 0,
+        reasoningContent: "",
+        toolCalls: [
+          {
+            name: "proposeRoutine",
+            args: { title: "x" },
+            result: { proposal: { title: "x" } },
+          },
+        ],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.02,
+        generationTimeMs: 111,
+        reasoningTimeMs: 22,
+      },
+      allowMemoryExtraction: false,
+    });
+
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          parts: [{ type: "text", text: "Prova questa routine." }],
+        }),
+      }),
+    );
+  });
+
   it("creates the durable voice job in the same transaction as its transcript", async () => {
     const expiresAt = new Date("2026-07-14T10:00:00.000Z");
 

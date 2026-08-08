@@ -22,6 +22,7 @@ import {
   matchesNotesWriteIntent,
   matchesPreferenceWriteIntent,
   matchesProfileWriteIntent,
+  matchesVoiceIntent,
   shouldEnableWebFetchTool,
   shouldEnableWebSearchTool,
   type WebSearchRuleDecision,
@@ -54,6 +55,7 @@ import {
   createMemoryTools,
   formatMemoriesForPrompt,
 } from "@/lib/ai/tools/memory";
+import { createRoutineProposalTool } from "@/lib/ai/tools/routine-proposal";
 import {
   createTinyfishTools,
   searchTinyfishDirect,
@@ -229,6 +231,11 @@ function buildWebSearchPolicy(webFetchEnabled: boolean) {
 const PROMPT_RAG_POLICY = `RAG
 - If the RAG CONTEXT section is present and relevant, use it as a base. Do NOT invent sources. Do NOT paste long excerpts.`;
 
+const PROMPT_ROUTINE_PROPOSAL_POLICY = `ROUTINE PROPOSAL
+- Call \`proposeRoutine\` at most once only when the answer contains a concrete two-to-three-step practice.
+- The tool is a proposal, never a saved routine; never claim it was saved.
+- Never infer a proposal from free-form text: only the validated tool call can create the proposal.`;
+
 const PROMPT_DATE_CONTEXT = `DATE
 {{CURRENT_DATE}}`;
 
@@ -248,6 +255,7 @@ type FullPromptModules = {
   userContextEnabled: boolean;
   persistentWritesEnabled: boolean;
   preferenceWritesEnabled: boolean;
+  routineProposalEnabled: boolean;
   ragEnabled: boolean;
 };
 
@@ -287,6 +295,7 @@ function buildFullSystemPromptTemplate(modules: FullPromptModules) {
     PROMPT_SAFETY_LIMITS,
     modules.toolsEnabled ? buildToolPolicy(modules) : undefined,
     modules.persistentWritesEnabled ? PROMPT_MEMORY_WRITE_POLICY : undefined,
+    modules.routineProposalEnabled ? PROMPT_ROUTINE_PROPOSAL_POLICY : undefined,
     modules.webSearchEnabled
       ? buildWebSearchPolicy(modules.webFetchEnabled)
       : undefined,
@@ -408,6 +417,7 @@ type ToolPlan = {
   profileWrite: boolean;
   preferenceWrite: boolean;
   notesWrite: boolean;
+  routineProposal: boolean;
   hasAny: boolean;
   hasPersistentWrites: boolean;
 };
@@ -434,6 +444,7 @@ async function buildSystemPrompt(
     userStyle?: string;
     responseMode?: "text" | "voice";
     isGuest?: boolean;
+    routineProposalEnabled?: boolean;
     promptModules?: FullPromptModules;
   },
 ): Promise<string> {
@@ -486,6 +497,10 @@ async function buildSystemPrompt(
       guestPrompt += `\n\nDETECTED USER STYLE (Mirroring):\n${prefetched.userStyle}`;
     }
 
+    if (prefetched.routineProposalEnabled) {
+      guestPrompt += `\n\n${PROMPT_ROUTINE_PROPOSAL_POLICY}`;
+    }
+
     return guestPrompt;
   }
 
@@ -512,6 +527,7 @@ async function buildSystemPrompt(
       userContextEnabled: true,
       persistentWritesEnabled: true,
       preferenceWritesEnabled: true,
+      routineProposalEnabled: false,
       ragEnabled: Boolean(ragContext),
     },
   );
@@ -677,10 +693,17 @@ function createToolsWithContext(
     : {};
 
   if (options?.isGuest) {
-    return webTools;
+    return {
+      ...webTools,
+      ...(toolPlan.routineProposal ? createRoutineProposalTool() : {}),
+    };
   }
 
   const tools: Record<string, unknown> = { ...webTools };
+
+  if (toolPlan.routineProposal) {
+    Object.assign(tools, createRoutineProposalTool());
+  }
 
   if (toolPlan.memoryRead || toolPlan.memoryWrite || toolPlan.memoryDelete) {
     const memoryTools = createMemoryTools(userId);
@@ -786,6 +809,13 @@ function selectToolPlan({
     profileWrite ||
     preferenceWrite ||
     notesWrite;
+  const routineProposal = shouldEnableRoutineProposal({
+    userMessage,
+    webSearchEnabled,
+    inputOrigin: "text",
+    outputMode: "text",
+    promptProfile: "full",
+  });
 
   return {
     webSearch: webSearchEnabled,
@@ -797,14 +827,17 @@ function selectToolPlan({
     profileWrite,
     preferenceWrite,
     notesWrite,
+    routineProposal,
     hasPersistentWrites,
-    hasAny: webSearchEnabled || memoryRead || hasPersistentWrites,
+    hasAny:
+      webSearchEnabled || memoryRead || hasPersistentWrites || routineProposal,
   };
 }
 
 function toolPlanFromTurnPlan(
   turnPlan: TurnPlan,
   userMessage: string,
+  benchmarkModelId?: string,
 ): ToolPlan {
   const memoryDelete = matchesMemoryDeleteIntent(userMessage);
   const hasPersistentWrites =
@@ -813,6 +846,14 @@ function toolPlanFromTurnPlan(
     turnPlan.capabilities.profileWrite ||
     turnPlan.capabilities.preferenceWrite ||
     turnPlan.capabilities.notesWrite;
+  const routineProposal = shouldEnableRoutineProposal({
+    userMessage,
+    webSearchEnabled: turnPlan.capabilities.webSearch,
+    inputOrigin: turnPlan.inputOrigin,
+    outputMode: turnPlan.outputMode,
+    promptProfile: turnPlan.promptProfile,
+    benchmarkModelId,
+  });
   return {
     webSearch: turnPlan.capabilities.webSearch,
     webFetch: turnPlan.capabilities.webFetch,
@@ -823,12 +864,46 @@ function toolPlanFromTurnPlan(
     profileWrite: turnPlan.capabilities.profileWrite,
     preferenceWrite: turnPlan.capabilities.preferenceWrite,
     notesWrite: turnPlan.capabilities.notesWrite,
+    routineProposal,
     hasPersistentWrites,
     hasAny:
       turnPlan.capabilities.webSearch ||
       turnPlan.capabilities.memoryRead ||
-      hasPersistentWrites,
+      hasPersistentWrites ||
+      routineProposal,
   };
+}
+
+const COACHING_ROUTINE_CIRCUMSTANCES =
+  /\b(?:gara|partita|allenamento|errore|pressione|ansia|concentrazione|fiducia|reset|routine|piano)\b/i;
+const INFORMATIONAL_REQUEST =
+  /\b(?:cos['’]?è|che cos['’]?è|spiega|spiegami|definizione|regole|chi\s+ha|quando|dove|perch[eé])\b/i;
+
+function shouldEnableRoutineProposal({
+  userMessage,
+  webSearchEnabled,
+  inputOrigin,
+  outputMode,
+  promptProfile,
+  benchmarkModelId,
+}: {
+  userMessage: string;
+  webSearchEnabled: boolean;
+  inputOrigin: TurnPlan["inputOrigin"];
+  outputMode: TurnPlan["outputMode"];
+  promptProfile: TurnPlan["promptProfile"];
+  benchmarkModelId?: string;
+}) {
+  return (
+    COACHING_ROUTINE_CIRCUMSTANCES.test(userMessage) &&
+    !INFORMATIONAL_REQUEST.test(userMessage) &&
+    !webSearchEnabled &&
+    inputOrigin === "text" &&
+    outputMode !== "voice" &&
+    promptProfile !== "compact" &&
+    !benchmarkModelId &&
+    !matchesVoiceIntent(userMessage)
+  );
 }
 
 function getSearchOnlyTinyfishLimits(userMessage: string) {
@@ -1409,7 +1484,11 @@ export async function streamChat({
       : turnPlan.promptProfile === "guest"
         ? "guest"
         : "full";
-  const toolPlan = toolPlanFromTurnPlan(turnPlan, userMessage);
+  const toolPlan = toolPlanFromTurnPlan(
+    turnPlan,
+    userMessage,
+    benchmarkModelId,
+  );
   const classifierRagEnabled = Boolean(
     promptModuleClassifier?.accepted && promptModuleClassifier.rag,
   );
@@ -1643,6 +1722,7 @@ export async function streamChat({
         responseMode,
         userStyle: userStyleInstruction,
         isGuest,
+        routineProposalEnabled: toolPlan.routineProposal,
         promptModules: {
           toolsEnabled: toolPlan.hasAny,
           webSearchEnabled: toolPlan.webSearch,
@@ -1650,6 +1730,7 @@ export async function streamChat({
           userContextEnabled,
           persistentWritesEnabled: toolPlan.hasPersistentWrites,
           preferenceWritesEnabled: toolPlan.preferenceWrite,
+          routineProposalEnabled: toolPlan.routineProposal,
           ragEnabled: ragUsed,
         },
       });
@@ -2269,6 +2350,7 @@ export async function prepareChatTurn({
         userContextEnabled: turnPlan.capabilities.userContext,
         persistentWritesEnabled: false,
         preferenceWritesEnabled: false,
+        routineProposalEnabled: false,
         ragEnabled: ragUsed,
       },
     });
