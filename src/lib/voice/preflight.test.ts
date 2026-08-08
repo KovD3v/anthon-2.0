@@ -122,6 +122,22 @@ describe("voice/preflight", () => {
     expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
+  it("keeps structured routine requests in text mode so the routine card can render", async () => {
+    const result = await decideWebVoiceMode({
+      ...baseParams(),
+      userMessage:
+        "Ho una gara domani. Aiutami a preparare una routine mentale breve per arrivare concentrato e gestire la pressione.",
+    });
+
+    expect(result).toMatchObject({
+      mode: "TEXT",
+      category: "TEXT_REQUIRED",
+      reasonCode: "TEXT_REQUIRED",
+      source: "deterministic",
+    });
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
   it("classifies ordinary conversation without requiring keywords", async () => {
     const abortController = new AbortController();
     const result = await decideWebVoiceMode({

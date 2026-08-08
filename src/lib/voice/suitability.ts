@@ -18,6 +18,8 @@ const TABLE_REGEX = /\|[-:]+\|/;
 const DENSE_LIST_REGEX = /(?:^|\n)\s*(?:[-*]|\d+[.)])\s+/gm;
 const EXACT_COMMAND_REGEX =
   /(?:^|\n)\s*(?:bun|npm|npx|pnpm|yarn|git|curl|docker|kubectl)\s+/im;
+const STRUCTURED_COACHING_REGEX =
+  /\b(routine|piano|programma|scheda|esercizio|esercizi|passi|step|reset\s+mentale)\b/i;
 const STRONG_MOMENT_REGEX =
   /\b(ansia|ansioso|panico|paura|stress|calma|calmarmi|respira|respiro|conforto|supporto|motivazione|incoraggia|overwhelm(?:ed|ing)?|anxious|panic|afraid|scared|breathe|breathing|comfort|support|encourag(?:e|ement)|grief|grieving)\b/i;
 
@@ -242,6 +244,17 @@ export function getDeterministicVoiceSuitability(
   }
   if (!params.userMessage.trim()) {
     return { category: "TEXT_PREFERRED", confidence: 1, reason: "empty" };
+  }
+
+  // Structured coaching responses need the visual routine proposal card. Do
+  // not let automatic voice delivery discard that UI-only data part; an
+  // explicit voice request still wins through the branch above.
+  if (STRUCTURED_COACHING_REGEX.test(params.userMessage)) {
+    return {
+      category: "TEXT_REQUIRED",
+      confidence: 1,
+      reason: "technical_or_structured",
+    };
   }
 
   const assistantText = params.assistantText ?? "";
