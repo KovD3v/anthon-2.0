@@ -430,6 +430,58 @@ describe("mobile chat landing navigation", () => {
     );
   });
 
+  it("keeps focus in visible main content when the desktop sidebar was collapsed", async () => {
+    let isMobile = false;
+    const mediaListeners = new Set<() => void>();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: query === "(max-width: 767px)" && isMobile,
+        media: query,
+        onchange: null,
+        addEventListener: (_event: string, listener: () => void) =>
+          mediaListeners.add(listener),
+        removeEventListener: (_event: string, listener: () => void) =>
+          mediaListeners.delete(listener),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    );
+    mocks.pathname = "/chat";
+    const user = userEvent.setup();
+    renderLanding({
+      isGuest: false,
+      usageData: usageBelowThreshold,
+      children: <button type="button">Azione principale</button>,
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Chiudi la barra laterale" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Chiudi la barra laterale" }),
+    ).toBeNull();
+
+    isMobile = true;
+    for (const listener of mediaListeners) listener();
+    await user.click(
+      screen.getByRole("button", { name: "Apri la barra laterale" }),
+    );
+    await screen.findByRole("dialog", { name: "Conversazioni" });
+
+    isMobile = false;
+    for (const listener of mediaListeners) listener();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Conversazioni" }),
+      ).toBeNull(),
+    );
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Azione principale" }),
+    );
+  });
+
   it.each([
     ["guest", true, { ...usageBelowThreshold, tier: "GUEST" as const }],
     [

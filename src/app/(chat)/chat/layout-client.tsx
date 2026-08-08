@@ -92,6 +92,29 @@ function isRenderedVisible(
   return true;
 }
 
+function focusVisibleMainContent(mainContent: HTMLElement | null) {
+  if (!mainContent) return;
+
+  const mainContentControl = Array.from(
+    mainContent.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).find(
+    (element) =>
+      element.dataset.chatSidebarOpener !== "true" &&
+      isRenderedVisible(element),
+  );
+
+  if (mainContentControl) {
+    mainContentControl.focus();
+    return;
+  }
+
+  if (isRenderedVisible(mainContent)) {
+    mainContent.focus();
+  }
+}
+
 interface ChatContextType {
   chats: Chat[];
   coachingGoal: string | null;
@@ -161,6 +184,7 @@ function GuestBanner({
             className="h-9 w-9 shrink-0 md:hidden"
             onClick={onOpenSidebar}
             aria-label="Apri la barra laterale"
+            data-chat-sidebar-opener="true"
           >
             <PanelLeft className="h-4 w-4" />
           </Button>
@@ -206,6 +230,7 @@ function MobileLandingSidebarTrigger({
         className="h-9 w-9"
         onClick={onOpenSidebar}
         aria-label="Apri la barra laterale"
+        data-chat-sidebar-opener="true"
       >
         <PanelLeft className="h-4 w-4" />
       </Button>
@@ -307,6 +332,7 @@ export function LayoutClient({
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const sidebarReturnFocusRef = useRef<HTMLElement | null>(null);
   const desktopSidebarRef = useRef<HTMLElement | null>(null);
+  const mainContentRef = useRef<HTMLElement | null>(null);
   const [chatNavigationEpoch, setChatNavigationEpoch] = useState(0);
   const previousPathnameRef = useRef(pathname);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
@@ -812,7 +838,10 @@ export function LayoutClient({
                   ) ?? null;
                 if (isRenderedVisible(desktopSidebarControl)) {
                   desktopSidebarControl.focus();
+                  return;
                 }
+
+                focusVisibleMainContent(mainContentRef.current);
               }}
             >
               <SheetTitle className="sr-only">Conversazioni</SheetTitle>
@@ -863,7 +892,11 @@ export function LayoutClient({
         )}
 
         {/* Main Content */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
+        <main
+          ref={mainContentRef}
+          tabIndex={-1}
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]"
+        >
           {/* Integrated Header Bar */}
           {!isConversationRoute &&
             (isGuest ? (
@@ -885,7 +918,7 @@ export function LayoutClient({
             />
           ) : null}
           {children}
-        </div>
+        </main>
       </div>
       <SearchDialog
         isOpen={isSearchOpen}
