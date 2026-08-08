@@ -21,7 +21,7 @@ import {
   parseRoutineSourceHydrationPayload,
   type RoutineCardData,
   routineCardDataSchema,
-  routineProposalSchema,
+  storedRoutineProposalSchema,
 } from "@/lib/coaching/routine";
 import {
   archiveRoutine,
@@ -73,7 +73,7 @@ const modelComparisonSlotSchema = z.object({
 });
 
 const chatDataPartSchemas = {
-  coachingRoutine: routineProposalSchema,
+  coachingRoutine: storedRoutineProposalSchema,
   modelComparison: z.object({
     pairId: z.string(),
     noticeRequired: z.boolean(),

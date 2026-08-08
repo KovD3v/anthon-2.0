@@ -898,6 +898,7 @@ model Routine {
   title                    String
   trigger                  String
   durationLabel            String?
+  formatVersion            Int           @default(1)
   steps                    Json
   completionCue            String
   status                   RoutineStatus @default(ACTIVE)

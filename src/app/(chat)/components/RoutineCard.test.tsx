@@ -20,6 +20,7 @@ const activeRoutine: RoutineCardData = {
   sourceChatId: "chat-1",
   sourceAssistantMessageId: "assistant-1",
   status: "ACTIVE",
+  formatVersion: 1,
   proposal,
   archivedAt: null,
   latestAttempt: null,

@@ -767,6 +767,7 @@ describe("ChatConversationClient pagination and recovery", () => {
       sourceChatId: "chat-1",
       sourceAssistantMessageId: "assistant-new",
       status: "ACTIVE" as const,
+      formatVersion: 1 as const,
       proposal: {
         title: "Routine corrente",
         trigger: "Prima del gesto",
@@ -782,6 +783,7 @@ describe("ChatConversationClient pagination and recovery", () => {
       sourceChatId: "chat-1",
       sourceAssistantMessageId: "assistant-old",
       status: "ACTIVE" as const,
+      formatVersion: 1 as const,
       proposal: {
         title: "Routine precedente",
         trigger: "Dopo un errore",
@@ -1003,6 +1005,7 @@ describe("ChatConversationClient pagination and recovery", () => {
       sourceChatId: null,
       sourceAssistantMessageId: null,
       status: "ACTIVE",
+      formatVersion: 1,
       proposal: {
         title: "Reset rapido",
         trigger: "Dopo un errore",
@@ -1088,6 +1091,7 @@ describe("ChatConversationClient routine lifecycle", () => {
     sourceChatId: "chat-1",
     sourceAssistantMessageId: "assistant-new",
     status: "ACTIVE",
+    formatVersion: 1,
     proposal,
     archivedAt: null,
     latestAttempt: null,

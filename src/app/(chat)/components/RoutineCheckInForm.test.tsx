@@ -12,6 +12,7 @@ const routine: RoutineCardData = {
   sourceChatId: "chat-1",
   sourceAssistantMessageId: "assistant-1",
   status: "ACTIVE",
+  formatVersion: 1,
   proposal: {
     title: "Reset dopo un errore",
     trigger: "Quando commetti un errore in gara",

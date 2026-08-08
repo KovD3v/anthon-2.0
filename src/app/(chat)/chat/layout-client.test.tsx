@@ -103,6 +103,7 @@ const sourceRoutine: RoutineCardData = {
   sourceChatId: "source-chat",
   sourceAssistantMessageId: "assistant-source",
   status: "ACTIVE",
+  formatVersion: 1,
   proposal,
   archivedAt: null,
   latestAttempt: null,

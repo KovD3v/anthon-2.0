@@ -4,7 +4,11 @@ import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { RoutineCardData, RoutineProposal } from "@/lib/coaching/routine";
+import {
+  normalizeRoutineProposal,
+  type RoutineCardData,
+  type RoutineProposal,
+} from "@/lib/coaching/routine";
 import { RoutineClientError } from "@/lib/coaching/routine-client";
 import {
   type CreateRoutineAttempt,
@@ -48,6 +52,7 @@ export function RoutineCard({
   const [status, setStatus] = useState<string | null>(null);
   const [isCheckInOpen, setIsCheckInOpen] = useState(openCheckIn);
   const snapshot = routine?.proposal ?? proposal;
+  const normalizedSnapshot = normalizeRoutineProposal(snapshot);
   const isArchived = routine?.status === "ARCHIVED";
   const isActive = routine?.status === "ACTIVE";
   const hasPendingAttempt = isActive && routine.latestAttempt?.outcome === null;
@@ -133,18 +138,19 @@ export function RoutineCard({
             Sequenza
           </p>
           <ol className="mt-1.5 space-y-1.5">
-            {snapshot.steps.map((step, index) => (
-              <li
-                key={`${index}-${step}`}
-                className="flex gap-2 leading-relaxed"
-              >
+            {normalizedSnapshot.practiceSteps.map((step, index) => (
+              <li key={step.id} className="flex gap-2 leading-relaxed">
                 <span
                   className="font-mono text-xs text-muted-foreground"
                   aria-hidden="true"
                 >
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <span>{step}</span>
+                <span>
+                  {step.kind === "instruction"
+                    ? step.text
+                    : `${step.label}: ${step.instruction}`}
+                </span>
               </li>
             ))}
           </ol>

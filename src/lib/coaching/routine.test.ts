@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   getRoutineProposalFromParts,
   getRoutineProposalFromToolCalls,
+  normalizeRoutineProposal,
   parseRoutineSourceHydrationPayload,
   routineCardDataSchema,
   routineProposalSchema,
+  routineProposalV2Schema,
+  storedRoutineProposalSchema,
   toRoutineCardData,
 } from "@/lib/coaching/routine";
 
@@ -16,9 +19,49 @@ const proposal = {
   completionCue: "Riparti con lo sguardo sul compito successivo",
 };
 
+const v2FormStep = {
+  id: "outcome",
+  kind: "form" as const,
+  question: "Quanto ti ha aiutato questa routine?",
+  mode: "choice" as const,
+  options: [
+    { label: "Molto", outcome: "HELPFUL" },
+    { label: "In parte", outcome: "PARTIALLY_HELPFUL" },
+    { label: "Poco", outcome: "NOT_HELPFUL" },
+  ],
+  noteEnabled: true,
+};
+
+const v2Proposal = {
+  formatVersion: 2,
+  title: "Reset dopo un errore",
+  trigger: "Quando commetti un errore in gara",
+  durationLabel: "60 secondi",
+  steps: [
+    {
+      id: "notice",
+      kind: "instruction",
+      text: "Nota il punto di appoggio.",
+    },
+    {
+      id: "reset-breath",
+      kind: "timer",
+      label: "Respiro lento",
+      instruction: "Espira lentamente prima del prossimo gesto.",
+      durationSeconds: 30,
+    },
+    v2FormStep,
+  ],
+  completionCue: "Riparti con lo sguardo sul compito successivo",
+};
+
 describe("routineProposalSchema", () => {
   it("accepts a complete coaching routine proposal", () => {
     expect(routineProposalSchema.parse(proposal)).toEqual(proposal);
+  });
+
+  it("accepts a v2 proposal with typed practice steps and a terminal form", () => {
+    expect(routineProposalSchema.safeParse(v2Proposal).success).toBe(true);
   });
 
   it.each([
@@ -34,6 +77,152 @@ describe("routineProposalSchema", () => {
     ["a 281-character trigger", { ...proposal, trigger: "a".repeat(281) }],
   ])("rejects %s", (_case, input) => {
     expect(routineProposalSchema.safeParse(input).success).toBe(false);
+  });
+});
+
+describe("versioned routine proposals", () => {
+  it("keeps historical string steps readable through the stored union", () => {
+    expect(storedRoutineProposalSchema.parse(proposal)).toEqual(proposal);
+  });
+
+  it("normalizes v1 strings into stable instruction steps", () => {
+    const normalized = normalizeRoutineProposal(proposal);
+
+    expect(normalized.formatVersion).toBe(1);
+    expect(normalized.completionForm).toBeNull();
+    expect(normalized.practiceSteps).toEqual([
+      { id: "instruction-1", kind: "instruction", text: "Fermati" },
+      {
+        id: "instruction-2",
+        kind: "instruction",
+        text: "Espira lentamente",
+      },
+      {
+        id: "instruction-3",
+        kind: "instruction",
+        text: "Scegli il prossimo gesto",
+      },
+    ]);
+  });
+
+  it("normalizes typed v2 steps and excludes its terminal form from practice", () => {
+    const normalized = normalizeRoutineProposal(
+      routineProposalV2Schema.parse(v2Proposal),
+    );
+
+    expect(normalized.formatVersion).toBe(2);
+    expect(normalized.practiceSteps.map((step) => step.id)).toEqual([
+      "notice",
+      "reset-breath",
+    ]);
+    expect(normalized.completionForm?.id).toBe("outcome");
+  });
+
+  it.each([
+    [
+      "an unknown step kind",
+      {
+        ...v2Proposal,
+        steps: [{ id: "unknown", kind: "video", url: "https://example.com" }],
+      },
+    ],
+    ["no practice steps", { ...v2Proposal, steps: [v2FormStep] }],
+    [
+      "more than six practice steps",
+      {
+        ...v2Proposal,
+        steps: Array.from({ length: 7 }, (_, index) => ({
+          id: `instruction-${index}`,
+          kind: "instruction",
+          text: "Resta sul prossimo gesto.",
+        })),
+      },
+    ],
+    [
+      "a timer shorter than five seconds",
+      {
+        ...v2Proposal,
+        steps: [{ ...v2Proposal.steps[1], durationSeconds: 4 }],
+      },
+    ],
+    [
+      "breathing outside cycle and second limits",
+      {
+        ...v2Proposal,
+        steps: [
+          {
+            id: "breathe",
+            kind: "breathing",
+            label: "Respiro",
+            instruction: "Segui il ritmo.",
+            inhaleSeconds: 31,
+            exhaleSeconds: 2,
+            holdAfterInhaleSeconds: 0,
+            holdAfterExhaleSeconds: 0,
+            cycles: 13,
+          },
+        ],
+      },
+    ],
+    [
+      "a non-terminal form",
+      {
+        ...v2Proposal,
+        steps: [v2FormStep, v2Proposal.steps[0]],
+      },
+    ],
+    [
+      "a form with fewer than three options",
+      {
+        ...v2Proposal,
+        steps: [
+          {
+            ...v2FormStep,
+            options: v2FormStep.options.slice(0, 2),
+          },
+        ],
+      },
+    ],
+    [
+      "a form with more than three options",
+      {
+        ...v2Proposal,
+        steps: [
+          {
+            ...v2FormStep,
+            options: [
+              ...v2FormStep.options,
+              { label: "Altro", outcome: "HELPFUL" },
+            ],
+          },
+        ],
+      },
+    ],
+    [
+      "duplicate outcome mappings",
+      {
+        ...v2Proposal,
+        steps: [
+          {
+            ...v2FormStep,
+            options: [
+              { label: "Molto", outcome: "HELPFUL" },
+              { label: "In parte", outcome: "HELPFUL" },
+              { label: "Poco", outcome: "NOT_HELPFUL" },
+            ],
+          },
+        ],
+      },
+    ],
+    [
+      "duplicate step ids",
+      {
+        ...v2Proposal,
+        steps: [v2Proposal.steps[0], { ...v2Proposal.steps[1], id: "notice" }],
+      },
+    ],
+  ])("rejects %s", (_case, input) => {
+    expect(routineProposalV2Schema.safeParse(input).success).toBe(false);
   });
 });
 
@@ -96,6 +285,7 @@ describe("targeted routine source hydration", () => {
     sourceChatId: "chat-1",
     sourceAssistantMessageId: "assistant-1",
     status: "ACTIVE" as const,
+    formatVersion: 1 as const,
     proposal,
     archivedAt: null,
     latestAttempt: null,
@@ -180,6 +370,7 @@ describe("toRoutineCardData", () => {
     sourceChatId: "chat-1",
     sourceAssistantMessageId: "message-1",
     status: "ACTIVE" as const,
+    formatVersion: 1,
     title: proposal.title,
     trigger: proposal.trigger,
     durationLabel: proposal.durationLabel,
@@ -205,6 +396,7 @@ describe("toRoutineCardData", () => {
       sourceChatId: "chat-1",
       sourceAssistantMessageId: "message-1",
       status: "ACTIVE",
+      formatVersion: 1,
       proposal,
       archivedAt: null,
       latestAttempt: {
