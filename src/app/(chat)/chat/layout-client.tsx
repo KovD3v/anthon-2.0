@@ -27,10 +27,14 @@ import { useConfirm } from "@/hooks/use-confirm";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 import { normalizeChatIcon } from "@/lib/chat-icons";
 import type { RoutineCardData } from "@/lib/coaching/routine";
-import { fetchActiveRoutineForReturn } from "@/lib/coaching/routine-client";
+import {
+  fetchActiveRoutineForReturn,
+  fetchRoutineCollection,
+} from "@/lib/coaching/routine-client";
 import { installChatViewportSizing } from "@/lib/visual-viewport";
 import type { Chat, ChatData, UsageData } from "@/types/chat";
 import { ChatList } from "../../(chat)/components/ChatList";
+import { RoutineSidebarShelf } from "../../(chat)/components/RoutineSidebarShelf";
 import { SearchDialog } from "../../(chat)/components/SearchDialog";
 import { SidebarBottom } from "../../(chat)/components/SidebarBottom";
 import { SidebarHeader } from "../../(chat)/components/SidebarHeader";
@@ -120,6 +124,9 @@ interface ChatContextType {
   chats: Chat[];
   coachingGoal: string | null;
   activeRoutine: RoutineCardData | null;
+  routineCollection: RoutineCardData[];
+  routineCollectionError: string | null;
+  isRoutineCollectionLoading: boolean;
   isLoading: boolean;
   isCreatingChat: boolean;
   currentChatId: string | null;
@@ -136,6 +143,8 @@ interface ChatContextType {
   consumePendingInitialMessage: (chatId: string) => string | null;
   updateActiveRoutine: (routine: RoutineCardData) => void;
   refreshActiveRoutine: () => Promise<RoutineCardData | null>;
+  refreshRoutineCollection: () => Promise<RoutineCardData[]>;
+  navigateToRoutine: (routine: RoutineCardData) => void;
   openRoutineCheckIn: (routine: RoutineCardData) => void;
   openSidebar: () => void;
   guestConversationNotice: GuestConversationNotice | null;
@@ -252,6 +261,12 @@ interface SidebarContentsProps {
   onRename: (id: string, newTitle: string) => Promise<boolean>;
   onPreFetch: (id: string) => void;
   onClose: () => void;
+  isGuest: boolean;
+  routineCollection: RoutineCardData[];
+  routineCollectionError: string | null;
+  isRoutineCollectionLoading: boolean;
+  onRetryRoutineCollection: () => void;
+  onNavigateToRoutine: (routine: RoutineCardData) => void;
 }
 
 function SidebarContents({
@@ -267,24 +282,48 @@ function SidebarContents({
   onRename,
   onPreFetch,
   onClose,
+  isGuest,
+  routineCollection,
+  routineCollectionError,
+  isRoutineCollectionLoading,
+  onRetryRoutineCollection,
+  onNavigateToRoutine,
 }: SidebarContentsProps) {
   return (
     <div className="flex h-full w-72 flex-col pt-[env(safe-area-inset-top)]">
-      <SidebarHeader onCollapse={onClose} />
-      <ChatList
-        chats={chats}
-        isLoading={isLoading}
-        isCreatingChat={isCreatingChat}
-        currentChatId={currentChatId}
-        deletingChatId={deletingChatId}
-        onDelete={onDelete}
-        onSelect={onSelect}
-        onCreate={onCreate}
-        onSearch={onSearch}
-        onRename={onRename}
-        onPreFetch={onPreFetch}
-      />
-      <SidebarBottom />
+      <div className="shrink-0" data-testid="sidebar-header-actions">
+        <SidebarHeader onCollapse={onClose} />
+      </div>
+      <div
+        className="min-h-0 flex-1 overflow-hidden"
+        data-testid="sidebar-chat-list"
+      >
+        <ChatList
+          chats={chats}
+          isLoading={isLoading}
+          isCreatingChat={isCreatingChat}
+          currentChatId={currentChatId}
+          deletingChatId={deletingChatId}
+          onDelete={onDelete}
+          onSelect={onSelect}
+          onCreate={onCreate}
+          onSearch={onSearch}
+          onRename={onRename}
+          onPreFetch={onPreFetch}
+        />
+      </div>
+      {!isGuest ? (
+        <RoutineSidebarShelf
+          routines={routineCollection}
+          isLoading={isRoutineCollectionLoading}
+          error={routineCollectionError}
+          onRetry={onRetryRoutineCollection}
+          onNavigate={onNavigateToRoutine}
+        />
+      ) : null}
+      <div className="shrink-0" data-testid="sidebar-profile">
+        <SidebarBottom />
+      </div>
     </div>
   );
 }
@@ -323,6 +362,15 @@ export function LayoutClient({
     initialActiveRoutine,
   );
   const activeRoutineRefreshIdRef = useRef(0);
+  const [routineCollection, setRoutineCollection] = useState<RoutineCardData[]>(
+    [],
+  );
+  const [routineCollectionError, setRoutineCollectionError] = useState<
+    string | null
+  >(null);
+  const [isRoutineCollectionLoading, setIsRoutineCollectionLoading] =
+    useState(false);
+  const routineCollectionRefreshIdRef = useRef(0);
   const [isLoading, _setIsLoading] = useState(false);
   const [isCreateChatRequestPending, setIsCreateChatRequestPending] =
     useState(false);
@@ -425,11 +473,52 @@ export function LayoutClient({
     setActiveRoutine(initialActiveRoutine);
   }, [initialActiveRoutine]);
 
+  const refreshRoutineCollection = useCallback(async () => {
+    if (isGuest) return [];
+
+    const refreshId = routineCollectionRefreshIdRef.current + 1;
+    routineCollectionRefreshIdRef.current = refreshId;
+    setIsRoutineCollectionLoading(true);
+    setRoutineCollectionError(null);
+
+    try {
+      const [active, archived] = await Promise.all([
+        fetchRoutineCollection({ status: "ACTIVE", limit: 12 }),
+        fetchRoutineCollection({ status: "ARCHIVED", limit: 12 }),
+      ]);
+      const routines = [...active.routines, ...archived.routines];
+      if (routineCollectionRefreshIdRef.current === refreshId) {
+        setRoutineCollection(routines);
+        setIsRoutineCollectionLoading(false);
+      }
+      return routines;
+    } catch {
+      if (routineCollectionRefreshIdRef.current === refreshId) {
+        setRoutineCollectionError("Routine non disponibili");
+        setIsRoutineCollectionLoading(false);
+      }
+      return [];
+    }
+  }, [isGuest]);
+
+  useEffect(() => {
+    if (!isGuest) {
+      void refreshRoutineCollection();
+    }
+  }, [isGuest, refreshRoutineCollection]);
+
   const updateActiveRoutine = useCallback((routine: RoutineCardData) => {
     activeRoutineRefreshIdRef.current += 1;
+    routineCollectionRefreshIdRef.current += 1;
+    setIsRoutineCollectionLoading(false);
+    setRoutineCollectionError(null);
     setActiveRoutine((current) => {
       if (routine.status === "ACTIVE") return routine;
       return current?.id === routine.id ? null : current;
+    });
+    setRoutineCollection((current) => {
+      const withoutRoutine = current.filter((item) => item.id !== routine.id);
+      return [routine, ...withoutRoutine];
     });
   }, []);
 
@@ -441,15 +530,23 @@ export function LayoutClient({
     if (activeRoutineRefreshIdRef.current === refreshId) {
       setActiveRoutine(routine);
     }
+    void refreshRoutineCollection();
     return routine;
-  }, [isGuest]);
+  }, [isGuest, refreshRoutineCollection]);
 
-  const openRoutineCheckIn = useCallback(
+  const navigateToRoutine = useCallback(
     (routine: RoutineCardData) => {
-      router.push(getRoutineCheckInHref(routine), { scroll: false });
+      if (isMobileSidebarViewport) {
+        setIsMobileSidebarOpen(false);
+      }
+      startChatNavigation(() => {
+        router.push(getRoutineCheckInHref(routine), { scroll: false });
+      });
     },
-    [router],
+    [isMobileSidebarViewport, router],
   );
+
+  const openRoutineCheckIn = navigateToRoutine;
 
   useEffect(() => {
     if (!guestConversionPending || isGuest) return;
@@ -822,6 +919,11 @@ export function LayoutClient({
         consumePendingInitialMessage,
         updateActiveRoutine,
         refreshActiveRoutine,
+        routineCollection,
+        routineCollectionError,
+        isRoutineCollectionLoading,
+        refreshRoutineCollection,
+        navigateToRoutine,
         openRoutineCheckIn,
         openSidebar,
         guestConversationNotice,
@@ -883,6 +985,14 @@ export function LayoutClient({
                 onRename={renameChat}
                 onPreFetch={preFetchChat}
                 onClose={() => setIsMobileSidebarOpen(false)}
+                isGuest={isGuest}
+                routineCollection={routineCollection}
+                routineCollectionError={routineCollectionError}
+                isRoutineCollectionLoading={isRoutineCollectionLoading}
+                onRetryRoutineCollection={() => {
+                  void refreshRoutineCollection();
+                }}
+                onNavigateToRoutine={navigateToRoutine}
               />
             </SheetContent>
           </Sheet>
@@ -906,6 +1016,14 @@ export function LayoutClient({
               onRename={renameChat}
               onPreFetch={preFetchChat}
               onClose={() => setIsDesktopSidebarOpen(false)}
+              isGuest={isGuest}
+              routineCollection={routineCollection}
+              routineCollectionError={routineCollectionError}
+              isRoutineCollectionLoading={isRoutineCollectionLoading}
+              onRetryRoutineCollection={() => {
+                void refreshRoutineCollection();
+              }}
+              onNavigateToRoutine={navigateToRoutine}
             />
           </aside>
         )}

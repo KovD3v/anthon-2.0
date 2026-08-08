@@ -187,6 +187,7 @@ describe("chat layout sidebar data", () => {
       sourceChatId: null,
       sourceAssistantMessageId: null,
       status: "ACTIVE",
+      formatVersion: 1,
       proposal: {
         title: "Reset dopo un errore",
         trigger: "Quando commetti un errore in gara",

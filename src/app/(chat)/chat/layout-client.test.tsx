@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
   routerRefresh: vi.fn(),
   fetchActiveRoutineForReturn: vi.fn(),
+  fetchRoutineCollection: vi.fn(),
   pathname: "/chat/source-chat",
 }));
 
@@ -27,10 +28,16 @@ vi.mock("next/link", () => ({
   default: ({
     children,
     href,
+    onClick,
   }: {
     children: React.ReactNode;
     href: string;
-  }) => <a href={href}>{children}</a>,
+    onClick?: () => void;
+  }) => (
+    <a href={href} onClick={onClick}>
+      {children}
+    </a>
+  ),
 }));
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
@@ -63,6 +70,7 @@ vi.mock("@/lib/visual-viewport", () => ({
 }));
 vi.mock("@/lib/coaching/routine-client", () => ({
   fetchActiveRoutineForReturn: mocks.fetchActiveRoutineForReturn,
+  fetchRoutineCollection: mocks.fetchRoutineCollection,
 }));
 vi.mock("../components/ChatList", () => ({
   ChatList: ({
@@ -127,6 +135,20 @@ function RoutineProbe() {
         onClick={() => activeRoutine && openRoutineCheckIn(activeRoutine)}
       >
         Apri check-in
+      </button>
+    </div>
+  );
+}
+
+function RoutineCollectionProbe() {
+  const { routineCollection, refreshRoutineCollection } = useChatContext();
+  return (
+    <div>
+      <output data-testid="routine-collection">
+        {routineCollection.map((routine) => routine.id).join("|")}
+      </output>
+      <button type="button" onClick={() => void refreshRoutineCollection()}>
+        Aggiorna raccolta routine
       </button>
     </div>
   );
@@ -243,8 +265,29 @@ function deferredRoutine() {
   return { promise, resolve };
 }
 
+function deferredRoutineCollection() {
+  let resolve: (collection: {
+    routines: RoutineCardData[];
+    total: number;
+    nextCursor: null;
+  }) => void = () => undefined;
+  const promise = new Promise<{
+    routines: RoutineCardData[];
+    total: number;
+    nextCursor: null;
+  }>((resolver) => {
+    resolve = resolver;
+  });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.fetchRoutineCollection.mockResolvedValue({
+    routines: [],
+    total: 0,
+    nextCursor: null,
+  });
   mocks.pathname = "/chat/source-chat";
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
@@ -445,7 +488,160 @@ describe("persistent active routine context", () => {
   });
 });
 
+describe("routine sidebar collection context", () => {
+  it("loads only an authenticated collection and keeps sidebar regions stable", async () => {
+    mocks.fetchRoutineCollection
+      .mockResolvedValueOnce({
+        routines: [sourceRoutine],
+        total: 1,
+        nextCursor: null,
+      })
+      .mockResolvedValueOnce({
+        routines: [],
+        total: 0,
+        nextCursor: null,
+      });
+
+    renderLayout(sourceRoutine, <RoutineCollectionProbe />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-collection").textContent).toBe(
+        "routine-source",
+      ),
+    );
+    expect(mocks.fetchRoutineCollection).toHaveBeenNthCalledWith(1, {
+      status: "ACTIVE",
+      limit: 12,
+    });
+    expect(mocks.fetchRoutineCollection).toHaveBeenNthCalledWith(2, {
+      status: "ARCHIVED",
+      limit: 12,
+    });
+
+    const header = screen.getByTestId("sidebar-header-actions");
+    const chats = screen.getByTestId("sidebar-chat-list");
+    const shelf = screen.getByTestId("routine-sidebar-shelf");
+    const profile = screen.getByTestId("sidebar-profile");
+    expect(chats.className).toContain("min-h-0");
+    expect(shelf.className).toContain("shrink-0");
+    expect(
+      header.compareDocumentPosition(shelf) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      shelf.compareDocumentPosition(profile) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("does not expose or fetch a routine collection for guests", async () => {
+    mocks.pathname = "/chat";
+    renderLanding({ isGuest: true, usageData: usageBelowThreshold });
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("routine-sidebar-shelf")).toBeNull(),
+    );
+    expect(mocks.fetchRoutineCollection).not.toHaveBeenCalled();
+  });
+
+  it("shows a quiet retry when collection loading fails", async () => {
+    mocks.fetchRoutineCollection
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({ routines: [], total: 0, nextCursor: null })
+      .mockResolvedValue({
+        routines: [sourceRoutine],
+        total: 1,
+        nextCursor: null,
+      });
+    const user = userEvent.setup();
+    renderLayout(sourceRoutine);
+
+    await screen.findByRole("button", { name: "Riprova routine" });
+    await user.click(screen.getByRole("button", { name: "Riprova routine" }));
+    await waitFor(() => expect(screen.getByText("Reset rapido")).toBeTruthy());
+  });
+
+  it("ignores an older collection response after a newer refresh", async () => {
+    const firstActive = deferredRoutineCollection();
+    const firstArchived = deferredRoutineCollection();
+    const secondActive = deferredRoutineCollection();
+    const secondArchived = deferredRoutineCollection();
+    mocks.fetchRoutineCollection
+      .mockReturnValueOnce(firstActive.promise)
+      .mockReturnValueOnce(firstArchived.promise)
+      .mockReturnValueOnce(secondActive.promise)
+      .mockReturnValueOnce(secondArchived.promise);
+    const user = userEvent.setup();
+    renderLayout(sourceRoutine, <RoutineCollectionProbe />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Aggiorna raccolta routine" }),
+    );
+    secondActive.resolve({
+      routines: [{ ...sourceRoutine, id: "routine-newer" }],
+      total: 1,
+      nextCursor: null,
+    });
+    secondArchived.resolve({ routines: [], total: 0, nextCursor: null });
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-collection").textContent).toBe(
+        "routine-newer",
+      ),
+    );
+
+    firstActive.resolve({
+      routines: [{ ...sourceRoutine, id: "routine-older" }],
+      total: 1,
+      nextCursor: null,
+    });
+    firstArchived.resolve({ routines: [], total: 0, nextCursor: null });
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-collection").textContent).toBe(
+        "routine-newer",
+      ),
+    );
+  });
+});
+
 describe("mobile chat landing navigation", () => {
+  it("closes the mobile shelf before navigating and restores the opener focus", async () => {
+    mocks.pathname = "/chat";
+    mocks.fetchRoutineCollection
+      .mockResolvedValueOnce({
+        routines: [sourceRoutine],
+        total: 1,
+        nextCursor: null,
+      })
+      .mockResolvedValueOnce({ routines: [], total: 0, nextCursor: null });
+    const user = userEvent.setup();
+    renderLanding({ isGuest: false, usageData: usageBelowThreshold });
+
+    const opener = screen.getByRole("button", {
+      name: "Apri la barra laterale",
+    });
+    opener.focus();
+    await user.click(opener);
+    const drawer = await screen.findByRole("dialog", {
+      name: "Conversazioni",
+    });
+    await within(drawer).findByText("Reset rapido");
+    await user.click(
+      within(drawer).getByRole("button", { name: "Espandi routine" }),
+    );
+    await user.click(
+      within(drawer).getByRole("link", { name: /Reset rapido/ }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Conversazioni" }),
+      ).toBeNull(),
+    );
+    expect(mocks.routerPush).toHaveBeenLastCalledWith(
+      "/chat/source-chat?checkInRoutineId=routine-source",
+      { scroll: false },
+    );
+    expect(document.activeElement).toBe(opener);
+  });
+
   it("closes the mobile sheet only after selecting a search result", async () => {
     mocks.pathname = "/chat";
     const user = userEvent.setup();
