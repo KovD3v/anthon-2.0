@@ -9,263 +9,78 @@
   "scenarios": [
     {
       "id": "pre_competition_pressure",
-      "conceptGroups": [
-        [
-          "finale",
-          "gara"
-        ],
-        [
-          "pressione",
-          "ansia"
-        ]
-      ],
-      "acceptedIcons": [
-        "TROPHY",
-        "BRAIN",
-        "SHIELD"
-      ],
-      "inappropriateIcons": [
-        "CALENDAR_DAYS",
-        "USERS",
-        "MESSAGE_SQUARE"
-      ]
+      "conceptGroups": [["finale", "gara"], ["pressione", "ansia"]],
+      "acceptedIcons": ["TROPHY", "BRAIN", "SHIELD"],
+      "inappropriateIcons": ["CALENDAR_DAYS", "USERS", "MESSAGE_SQUARE"]
     },
     {
       "id": "post_mistake_reset",
-      "conceptGroups": [
-        [
-          "errore",
-          "fallo"
-        ],
-        [
-          "reset",
-          "ripartenza"
-        ]
-      ],
-      "acceptedIcons": [
-        "REFRESH_CCW",
-        "BRAIN"
-      ],
-      "inappropriateIcons": [
-        "TROPHY",
-        "CALENDAR_DAYS",
-        "MESSAGE_SQUARE"
-      ]
+      "conceptGroups": [["errore", "fallo"], ["reset", "ripartenza"]],
+      "acceptedIcons": ["REFRESH_CCW", "BRAIN"],
+      "inappropriateIcons": ["TROPHY", "CALENDAR_DAYS", "MESSAGE_SQUARE"]
     },
     {
       "id": "short_mental_routine",
-      "conceptGroups": [
-        [
-          "routine"
-        ],
-        [
-          "servizio",
-          "trenta secondi"
-        ]
-      ],
-      "acceptedIcons": [
-        "BRAIN",
-        "TIMER"
-      ],
-      "inappropriateIcons": [
-        "USERS",
-        "HEART_PULSE",
-        "MESSAGE_SQUARE"
-      ]
+      "conceptGroups": [["routine"], ["servizio", "trenta secondi"]],
+      "acceptedIcons": ["BRAIN", "TIMER"],
+      "inappropriateIcons": ["USERS", "HEART_PULSE", "MESSAGE_SQUARE"]
     },
     {
       "id": "lost_motivation",
-      "conceptGroups": [
-        [
-          "motivazione",
-          "costanza"
-        ],
-        [
-          "allenamenti"
-        ]
-      ],
-      "acceptedIcons": [
-        "FLAME",
-        "BRAIN"
-      ],
-      "inappropriateIcons": [
-        "TROPHY",
-        "USERS",
-        "MESSAGE_SQUARE"
-      ]
+      "conceptGroups": [["motivazione", "costanza"], ["allenamenti"]],
+      "acceptedIcons": ["FLAME", "BRAIN"],
+      "inappropriateIcons": ["TROPHY", "USERS", "MESSAGE_SQUARE"]
     },
     {
       "id": "weekly_training_plan",
-      "conceptGroups": [
-        [
-          "settimana",
-          "settimanale"
-        ],
-        [
-          "allenamenti",
-          "piano"
-        ]
-      ],
-      "acceptedIcons": [
-        "CALENDAR_DAYS",
-        "DUMBBELL",
-        "ACTIVITY"
-      ],
-      "inappropriateIcons": [
-        "TROPHY",
-        "USERS",
-        "MESSAGE_SQUARE"
-      ]
+      "conceptGroups": [["settimana", "settimanale"], ["allenamenti", "piano"]],
+      "acceptedIcons": ["CALENDAR_DAYS", "DUMBBELL", "ACTIVITY"],
+      "inappropriateIcons": ["TROPHY", "USERS", "MESSAGE_SQUARE"]
     },
     {
       "id": "injury_safety_warning",
-      "conceptGroups": [
-        [
-          "ginocchio",
-          "dolore"
-        ],
-        [
-          "corsa"
-        ]
-      ],
-      "acceptedIcons": [
-        "HEART_PULSE",
-        "SHIELD",
-        "ACTIVITY"
-      ],
-      "inappropriateIcons": [
-        "FLAME",
-        "TROPHY",
-        "MESSAGE_SQUARE"
-      ]
+      "conceptGroups": [["ginocchio", "dolore"], ["corsa"]],
+      "acceptedIcons": ["HEART_PULSE", "SHIELD", "ACTIVITY"],
+      "inappropriateIcons": ["FLAME", "TROPHY", "MESSAGE_SQUARE"]
     },
     {
       "id": "talk_with_coach",
       "conceptGroups": [
-        [
-          "coach",
-          "allenatore"
-        ],
-        [
-          "parlare",
-          "confronto",
-          "vergogna"
-        ]
+        ["coach", "allenatore"],
+        ["parlare", "confronto", "vergogna"]
       ],
-      "acceptedIcons": [
-        "USERS",
-        "BRAIN",
-        "SHIELD"
-      ],
-      "inappropriateIcons": [
-        "TIMER",
-        "CALENDAR_DAYS",
-        "MESSAGE_SQUARE"
-      ]
+      "acceptedIcons": ["USERS", "BRAIN", "SHIELD"],
+      "inappropriateIcons": ["TIMER", "CALENDAR_DAYS", "MESSAGE_SQUARE"]
     },
     {
       "id": "team_dynamics",
-      "conceptGroups": [
-        [
-          "squadra",
-          "compagni"
-        ],
-        [
-          "fiducia"
-        ]
-      ],
-      "acceptedIcons": [
-        "USERS",
-        "SHIELD"
-      ],
-      "inappropriateIcons": [
-        "FOOTPRINTS",
-        "TIMER",
-        "MESSAGE_SQUARE"
-      ]
+      "conceptGroups": [["squadra", "compagni"], ["fiducia"]],
+      "acceptedIcons": ["USERS", "SHIELD"],
+      "inappropriateIcons": ["FOOTPRINTS", "TIMER", "MESSAGE_SQUARE"]
     },
     {
       "id": "race_pace_timing",
-      "conceptGroups": [
-        [
-          "ritmo",
-          "passo"
-        ],
-        [
-          "dieci chilometri",
-          "10 km"
-        ]
-      ],
-      "acceptedIcons": [
-        "TIMER",
-        "FOOTPRINTS"
-      ],
-      "inappropriateIcons": [
-        "USERS",
-        "DUMBBELL",
-        "MESSAGE_SQUARE"
-      ]
+      "conceptGroups": [["ritmo", "passo"], ["dieci chilometri", "10 km"]],
+      "acceptedIcons": ["TIMER", "FOOTPRINTS"],
+      "inappropriateIcons": ["USERS", "DUMBBELL", "MESSAGE_SQUARE"]
     },
     {
       "id": "running_goal",
-      "conceptGroups": [
-        [
-          "mezza maratona"
-        ],
-        [
-          "due ore",
-          "ottobre"
-        ]
-      ],
-      "acceptedIcons": [
-        "FOOTPRINTS",
-        "TARGET",
-        "TIMER"
-      ],
-      "inappropriateIcons": [
-        "USERS",
-        "DUMBBELL",
-        "MESSAGE_SQUARE"
-      ]
+      "conceptGroups": [["mezza maratona"], ["due ore", "ottobre"]],
+      "acceptedIcons": ["FOOTPRINTS", "TARGET", "TIMER"],
+      "inappropriateIcons": ["USERS", "DUMBBELL", "MESSAGE_SQUARE"]
     },
     {
       "id": "confidence_after_loss",
-      "conceptGroups": [
-        [
-          "fiducia",
-          "sicurezza"
-        ],
-        [
-          "sconfitta"
-        ]
-      ],
-      "acceptedIcons": [
-        "SHIELD",
-        "BRAIN",
-        "REFRESH_CCW"
-      ],
-      "inappropriateIcons": [
-        "CALENDAR_DAYS",
-        "USERS",
-        "MESSAGE_SQUARE"
-      ]
+      "conceptGroups": [["fiducia", "sicurezza"], ["sconfitta"]],
+      "acceptedIcons": ["SHIELD", "BRAIN", "REFRESH_CCW"],
+      "inappropriateIcons": ["CALENDAR_DAYS", "USERS", "MESSAGE_SQUARE"]
     },
     {
       "id": "vague_opening",
-      "conceptGroups": [
-        [
-          "parlare",
-          "confronto"
-        ]
-      ],
-      "acceptedIcons": [
-        "MESSAGE_SQUARE"
-      ],
-      "inappropriateIcons": [
-        "TROPHY",
-        "HEART_PULSE",
-        "DUMBBELL"
-      ]
+      "conceptGroups": [["parlare", "confronto"]],
+      "acceptedIcons": ["MESSAGE_SQUARE"],
+      "inappropriateIcons": ["TROPHY", "HEART_PULSE", "DUMBBELL"]
     }
   ],
   "attemptsPerModel": 24,
