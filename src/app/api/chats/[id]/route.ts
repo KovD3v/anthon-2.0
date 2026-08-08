@@ -7,9 +7,10 @@
  */
 
 import { revalidateTag } from "next/cache";
-import { generateChatTitle } from "@/lib/ai/chat-title";
+import { generateChatMetadata } from "@/lib/ai/chat-title";
 import { getAuthUser } from "@/lib/auth";
 import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
+import type { ChatIcon } from "@/lib/chat-icons";
 import {
   areRoutineProposalsEqual,
   getRoutineProposalFromParts,
@@ -87,6 +88,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       select: {
         id: true,
         title: true,
+        icon: true,
         visibility: true,
         userId: true,
         createdAt: true,
@@ -251,6 +253,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       return Response.json({
         id: chat.id,
         title: chat.title ?? "Nuova Chat",
+        icon: chat.icon,
         visibility: chat.visibility,
         isOwner: true,
         createdAt: chat.createdAt.toISOString(),
@@ -275,6 +278,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     return Response.json({
       id: chat.id,
       title: chat.title ?? "Nuova Chat",
+      icon: chat.icon,
       visibility: chat.visibility,
       isOwner: chat.userId === user.id,
       createdAt: chat.createdAt.toISOString(),
@@ -457,6 +461,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     const generateTitle = body.generateTitle;
 
     let newTitle = title;
+    let newIcon: ChatIcon | undefined;
 
     // Auto-generate title from first message if requested
     if (generateTitle && !title) {
@@ -468,7 +473,13 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
       const firstUserText = getTextFromParts(firstUserMessage?.parts);
       if (firstUserText) {
-        newTitle = await generateChatTitle(firstUserText, { userId: user.id });
+        const generated = await generateChatMetadata(
+          [{ role: "user", text: firstUserText }],
+          firstUserText,
+          { userId: user.id },
+        );
+        newTitle = generated.title;
+        newIcon = generated.icon;
       }
     }
 
@@ -476,12 +487,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       where: { id },
       data: {
         ...(newTitle !== undefined && { title: newTitle }),
+        ...(newIcon !== undefined && { icon: newIcon }),
         ...(visibility && { visibility }),
         ...(title !== undefined && !generateTitle && { customTitle: true }),
       },
       select: {
         id: true,
         title: true,
+        icon: true,
         visibility: true,
         updatedAt: true,
       },
@@ -493,6 +506,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     return Response.json({
       id: updatedChat.id,
       title: updatedChat.title ?? "Nuova Chat",
+      icon: updatedChat.icon,
       visibility: updatedChat.visibility,
       updatedAt: updatedChat.updatedAt.toISOString(),
     });

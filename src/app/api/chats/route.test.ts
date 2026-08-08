@@ -59,6 +59,7 @@ describe("/api/chats route", () => {
       {
         id: "chat-1",
         title: null,
+        icon: "TARGET",
         visibility: "PRIVATE",
         createdAt: new Date("2026-02-16T10:00:00.000Z"),
         updatedAt: new Date("2026-02-16T11:00:00.000Z"),
@@ -68,6 +69,7 @@ describe("/api/chats route", () => {
     mocks.chatCreate.mockResolvedValue({
       id: "chat-2",
       title: "My chat",
+      icon: "TROPHY",
       visibility: "PUBLIC",
       createdAt: new Date("2026-02-16T12:00:00.000Z"),
       updatedAt: new Date("2026-02-16T12:00:00.000Z"),
@@ -92,6 +94,7 @@ describe("/api/chats route", () => {
         {
           id: "chat-1",
           title: "Nuova Chat",
+          icon: "TARGET",
           visibility: "PRIVATE",
           createdAt: "2026-02-16T10:00:00.000Z",
           updatedAt: "2026-02-16T11:00:00.000Z",
@@ -105,6 +108,7 @@ describe("/api/chats route", () => {
       select: {
         id: true,
         title: true,
+        icon: true,
         visibility: true,
         createdAt: true,
         updatedAt: true,
@@ -159,6 +163,7 @@ describe("/api/chats route", () => {
     mocks.chatCreate.mockResolvedValue({
       id: "chat-3",
       title: null,
+      icon: "MESSAGE_SQUARE",
       visibility: "PRIVATE",
       createdAt: new Date("2026-02-16T12:00:00.000Z"),
       updatedAt: new Date("2026-02-16T12:00:00.000Z"),
@@ -177,6 +182,7 @@ describe("/api/chats route", () => {
       select: {
         id: true,
         title: true,
+        icon: true,
         visibility: true,
         createdAt: true,
         updatedAt: true,
@@ -186,6 +192,7 @@ describe("/api/chats route", () => {
     await expect(response.json()).resolves.toEqual({
       id: "chat-3",
       title: "Nuova Chat",
+      icon: "MESSAGE_SQUARE",
       visibility: "PRIVATE",
       createdAt: "2026-02-16T12:00:00.000Z",
       updatedAt: "2026-02-16T12:00:00.000Z",
@@ -208,6 +215,7 @@ describe("/api/chats route", () => {
       select: {
         id: true,
         title: true,
+        icon: true,
         visibility: true,
         createdAt: true,
         updatedAt: true,
@@ -238,6 +246,7 @@ describe("/api/chats route", () => {
       select: {
         id: true,
         title: true,
+        icon: true,
         visibility: true,
         createdAt: true,
         updatedAt: true,

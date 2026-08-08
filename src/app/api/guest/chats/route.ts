@@ -34,6 +34,7 @@ export async function GET(request?: Request) {
           select: {
             id: true,
             title: true,
+            icon: true,
             visibility: true,
             createdAt: true,
             updatedAt: true,
@@ -48,6 +49,7 @@ export async function GET(request?: Request) {
       chats: chats.map((chat) => ({
         id: chat.id,
         title: chat.title ?? "Nuova Chat",
+        icon: chat.icon,
         visibility: chat.visibility,
         createdAt: chat.createdAt.toISOString(),
         updatedAt: chat.updatedAt.toISOString(),
@@ -99,6 +101,7 @@ export async function POST(request: Request) {
       {
         id: chat.id,
         title: chat.title ?? "Nuova Chat",
+        icon: chat.icon,
         visibility: chat.visibility,
         createdAt: chat.createdAt.toISOString(),
         updatedAt: chat.updatedAt.toISOString(),

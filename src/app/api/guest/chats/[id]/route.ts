@@ -7,8 +7,9 @@
  */
 
 import { revalidateTag } from "next/cache";
-import { generateChatTitle } from "@/lib/ai/chat-title";
+import { generateChatMetadata } from "@/lib/ai/chat-title";
 import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
+import type { ChatIcon } from "@/lib/chat-icons";
 import { prisma } from "@/lib/db";
 import { authenticateGuest } from "@/lib/guest-auth";
 import { createLogger } from "@/lib/logger";
@@ -55,6 +56,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       select: {
         id: true,
         title: true,
+        icon: true,
         visibility: true,
         userId: true,
         createdAt: true,
@@ -97,6 +99,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     return Response.json({
       id: chat.id,
       title: chat.title ?? "Nuova Chat",
+      icon: chat.icon,
       visibility: chat.visibility,
       isOwner: true,
       isGuest: true,
@@ -186,6 +189,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     const generateTitle = body.generateTitle;
 
     let newTitle = title;
+    let newIcon: ChatIcon | undefined;
 
     // Auto-generate title if requested
     if (generateTitle && !title) {
@@ -198,7 +202,13 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       if (firstUserMessage) {
         const text = getTextFromParts(firstUserMessage.parts);
         if (text) {
-          newTitle = await generateChatTitle(text, { userId: user.id });
+          const generated = await generateChatMetadata(
+            [{ role: "user", text }],
+            text,
+            { userId: user.id },
+          );
+          newTitle = generated.title;
+          newIcon = generated.icon;
         }
       }
     }
@@ -207,11 +217,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       where: { id },
       data: {
         ...(newTitle !== undefined && { title: newTitle }),
+        ...(newIcon !== undefined && { icon: newIcon }),
+        ...(title !== undefined && !generateTitle && { customTitle: true }),
         // Guests cannot change visibility
       },
       select: {
         id: true,
         title: true,
+        icon: true,
         visibility: true,
         updatedAt: true,
       },
@@ -222,6 +235,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     return Response.json({
       id: updatedChat.id,
       title: updatedChat.title ?? "Nuova Chat",
+      icon: updatedChat.icon,
       visibility: updatedChat.visibility,
       updatedAt: updatedChat.updatedAt.toISOString(),
       isGuest: true,

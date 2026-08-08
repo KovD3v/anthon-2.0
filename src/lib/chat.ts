@@ -52,6 +52,7 @@ export const getSharedChats = cache(async (userId: string): Promise<Chat[]> => {
         select: {
           id: true,
           title: true,
+          icon: true,
           visibility: true,
           createdAt: true,
           updatedAt: true,
@@ -64,6 +65,7 @@ export const getSharedChats = cache(async (userId: string): Promise<Chat[]> => {
       return chats.map((chat) => ({
         id: chat.id,
         title: chat.title ?? "Nuova Chat",
+        icon: chat.icon,
         visibility: chat.visibility as "PRIVATE" | "PUBLIC",
         createdAt: chat.createdAt.toISOString(),
         updatedAt: chat.updatedAt.toISOString(),
@@ -99,6 +101,7 @@ export const getSharedChat = cache(
         select: {
           id: true,
           title: true,
+          icon: true,
           visibility: true,
           userId: true,
           createdAt: true,
@@ -345,6 +348,7 @@ export const getSharedChat = cache(
     return {
       id: chat.id,
       title: chat.title ?? "Nuova Chat",
+      icon: chat.icon,
       visibility: chat.visibility,
       isOwner: chat.userId === userId,
       createdAt: chat.createdAt.toISOString(),

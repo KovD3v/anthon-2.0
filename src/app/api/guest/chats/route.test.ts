@@ -57,6 +57,7 @@ describe("/api/guest/chats route", () => {
       chat: {
         id: "chat-new",
         title: "Hello",
+        icon: "FLAME",
         visibility: "PRIVATE",
         createdAt: new Date("2026-02-16T12:00:00.000Z"),
         updatedAt: new Date("2026-02-16T12:00:00.000Z"),
@@ -71,6 +72,7 @@ describe("/api/guest/chats route", () => {
       {
         id: "chat-1",
         title: null,
+        icon: "MESSAGE_SQUARE",
         visibility: "PRIVATE",
         createdAt: new Date("2026-02-16T10:00:00.000Z"),
         updatedAt: new Date("2026-02-16T11:00:00.000Z"),
@@ -79,6 +81,7 @@ describe("/api/guest/chats route", () => {
       {
         id: "chat-2",
         title: "Trip plan",
+        icon: "CALENDAR_DAYS",
         visibility: "PRIVATE",
         createdAt: new Date("2026-02-15T10:00:00.000Z"),
         updatedAt: new Date("2026-02-15T11:00:00.000Z"),
@@ -105,6 +108,7 @@ describe("/api/guest/chats route", () => {
       select: {
         id: true,
         title: true,
+        icon: true,
         visibility: true,
         createdAt: true,
         updatedAt: true,
@@ -119,6 +123,7 @@ describe("/api/guest/chats route", () => {
         {
           id: "chat-1",
           title: "Nuova Chat",
+          icon: "MESSAGE_SQUARE",
           visibility: "PRIVATE",
           createdAt: "2026-02-16T10:00:00.000Z",
           updatedAt: "2026-02-16T11:00:00.000Z",
@@ -127,6 +132,7 @@ describe("/api/guest/chats route", () => {
         {
           id: "chat-2",
           title: "Trip plan",
+          icon: "CALENDAR_DAYS",
           visibility: "PRIVATE",
           createdAt: "2026-02-15T10:00:00.000Z",
           updatedAt: "2026-02-15T11:00:00.000Z",
@@ -197,6 +203,7 @@ describe("/api/guest/chats route", () => {
       chat: {
         id: "chat-new",
         title: null,
+        icon: "MESSAGE_SQUARE",
         visibility: "PRIVATE",
         createdAt: new Date("2026-02-16T12:00:00.000Z"),
         updatedAt: new Date("2026-02-16T12:00:00.000Z"),
@@ -215,6 +222,7 @@ describe("/api/guest/chats route", () => {
     await expect(response.json()).resolves.toEqual({
       id: "chat-new",
       title: "Nuova Chat",
+      icon: "MESSAGE_SQUARE",
       visibility: "PRIVATE",
       createdAt: "2026-02-16T12:00:00.000Z",
       updatedAt: "2026-02-16T12:00:00.000Z",

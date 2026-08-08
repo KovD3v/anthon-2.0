@@ -7,6 +7,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
+import type { ChatIcon } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 import {
   type GuestCreationReservation,
@@ -35,6 +36,7 @@ export interface GuestUser {
 interface GuestChatRow {
   id: string;
   title: string | null;
+  icon: ChatIcon;
   visibility: "PRIVATE" | "PUBLIC";
   createdAt: Date;
   updatedAt: Date;
@@ -306,6 +308,7 @@ export async function createGuestChatForSession(input: {
             select: {
               id: true,
               title: true,
+              icon: true,
               visibility: true,
               createdAt: true,
               updatedAt: true,
@@ -394,6 +397,7 @@ function createGuestWithChat({
     select: {
       id: true,
       title: true,
+      icon: true,
       visibility: true,
       createdAt: true,
       updatedAt: true,
