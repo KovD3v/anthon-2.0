@@ -4,7 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { useClerk } from "@clerk/nextjs";
 import { DefaultChatTransport } from "ai";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -112,12 +112,14 @@ export function ChatConversationClient({
 }) {
   const clerk = useClerk();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     renameChat,
     isGuest,
     getCachedChat,
     updateCachedChat,
     consumePendingInitialMessage,
+    updateActiveRoutine,
   } = useChatContext();
   const apiBase = isGuest ? "/api/guest" : "/api";
 
@@ -146,6 +148,44 @@ export function ChatConversationClient({
   const pendingInitialMessageSubmittedRef = useRef(false);
   const voiceGenerationPollAttemptsRef = useRef(0);
   const routineAttemptActionIdsRef = useRef(new Map<string, string>());
+  const cleanedCheckInRoutineIdRef = useRef<string | null>(null);
+  const requestedCheckInRoutineId =
+    searchParams.get("checkInRoutineId")?.trim() ?? null;
+  const openCheckInRoutineId = requestedCheckInRoutineId
+    ? (chatData.routines.find(
+        (routine) =>
+          routine.id === requestedCheckInRoutineId &&
+          routine.sourceChatId === chatId &&
+          routine.sourceAssistantMessageId !== null,
+      )?.id ?? null)
+    : null;
+
+  useEffect(() => {
+    if (!requestedCheckInRoutineId) {
+      cleanedCheckInRoutineIdRef.current = null;
+      return;
+    }
+    if (cleanedCheckInRoutineIdRef.current === requestedCheckInRoutineId) {
+      return;
+    }
+
+    if (!openCheckInRoutineId) {
+      cleanedCheckInRoutineIdRef.current = requestedCheckInRoutineId;
+      router.replace(`/chat/${encodeURIComponent(chatId)}`);
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLElement &&
+      activeElement
+        .closest("[data-routine-check-in-id]")
+        ?.getAttribute("data-routine-check-in-id") === openCheckInRoutineId
+    ) {
+      cleanedCheckInRoutineIdRef.current = requestedCheckInRoutineId;
+      router.replace(`/chat/${encodeURIComponent(chatId)}`);
+    }
+  }, [chatId, openCheckInRoutineId, requestedCheckInRoutineId, router]);
 
   // Initial messages from server data
   const initialMessages = convertToUIMessages(chatData.messages);
@@ -366,9 +406,10 @@ export function ChatConversationClient({
       }
       setChatData(refreshed.data);
       setMessages(refreshed.messages);
+      updateActiveRoutine(refreshedRoutine);
       return refreshedRoutine;
     },
-    [loadRoutineChatData, setMessages],
+    [loadRoutineChatData, setMessages, updateActiveRoutine],
   );
 
   const handleSaveRoutine = useCallback(
@@ -997,6 +1038,7 @@ export function ChatConversationClient({
           onArchiveRoutine={handleArchiveRoutine}
           onTryRoutineNow={handleTryRoutineNow}
           onAdaptRoutine={handleAdaptRoutine}
+          openCheckInRoutineId={openCheckInRoutineId}
           hasMoreMessages={chatData.pagination?.hasMore ?? false}
           isLoadingMore={isLoadingMore}
           onLoadMore={loadMoreMessages}

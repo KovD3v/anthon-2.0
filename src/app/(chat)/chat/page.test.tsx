@@ -1,17 +1,33 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { RoutineCardData } from "@/lib/coaching/routine";
 import type { Chat } from "@/types/chat";
 import ChatPage from "./page";
 
 const mocks = vi.hoisted(() => ({
   createChat: vi.fn(),
   navigateToChat: vi.fn(),
+  openRoutineCheckIn: vi.fn(),
+  updateActiveRoutine: vi.fn(),
+  routerPush: vi.fn(),
+  routerReplace: vi.fn(),
+  createRoutineAttempt: vi.fn(),
+  saveRoutineOutcome: vi.fn(),
+  searchParams: new URLSearchParams(),
   context: {
     chats: [] as Chat[],
     coachingGoal: null as string | null,
     isGuest: false,
+    activeRoutine: null as RoutineCardData | null,
   },
 }));
 
@@ -19,13 +35,23 @@ vi.mock("@clerk/nextjs", () => ({
   useUser: () => ({ user: { firstName: "Luca" } }),
 }));
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({
+    push: mocks.routerPush,
+    replace: mocks.routerReplace,
+  }),
+  useSearchParams: () => mocks.searchParams,
+}));
+vi.mock("@/lib/coaching/routine-client", () => ({
+  createRoutineAttempt: mocks.createRoutineAttempt,
+  saveRoutineOutcome: mocks.saveRoutineOutcome,
 }));
 vi.mock("./layout-client", () => ({
   useChatContext: () => ({
     ...mocks.context,
     createChat: mocks.createChat,
     navigateToChat: mocks.navigateToChat,
+    openRoutineCheckIn: mocks.openRoutineCheckIn,
+    updateActiveRoutine: mocks.updateActiveRoutine,
   }),
 }));
 
@@ -38,15 +64,61 @@ const chat = (id: string, title: string, updatedAt: string): Chat => ({
   messageCount: 2,
 });
 
+const activeRoutine: RoutineCardData = {
+  id: "routine-1",
+  sourceChatId: "chat-1",
+  sourceAssistantMessageId: "assistant-1",
+  status: "ACTIVE",
+  proposal: {
+    title: "Reset dopo un errore",
+    trigger: "Quando commetti un errore in gara",
+    durationLabel: "60 secondi",
+    steps: ["Fermati", "Espira lentamente", "Scegli il prossimo gesto"],
+    completionCue: "Riparti con lo sguardo sul compito successivo",
+  },
+  archivedAt: null,
+  latestAttempt: null,
+};
+
 describe("chat landing page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.context.chats = [];
     mocks.context.coachingGoal = null;
     mocks.context.isGuest = false;
+    mocks.context.activeRoutine = null;
+    mocks.searchParams = new URLSearchParams();
+    mocks.createRoutineAttempt.mockResolvedValue(activeRoutine);
+    mocks.saveRoutineOutcome.mockResolvedValue(activeRoutine);
   });
 
   afterEach(cleanup);
+
+  it("builds only known internal routes for source and orphan check-ins", async () => {
+    const { getRoutineCheckInHref } =
+      await vi.importActual<typeof import("./layout-client")>(
+        "./layout-client",
+      );
+
+    expect(getRoutineCheckInHref(activeRoutine)).toBe(
+      "/chat/chat-1?checkInRoutineId=routine-1",
+    );
+    expect(
+      getRoutineCheckInHref({
+        ...activeRoutine,
+        sourceAssistantMessageId: null,
+      }),
+    ).toBe("/chat?checkInRoutineId=routine-1");
+    expect(
+      getRoutineCheckInHref({
+        ...activeRoutine,
+        id: "routine?next=javascript:alert(1)",
+        sourceChatId: "../outside",
+      }),
+    ).toBe(
+      "/chat/..%2Foutside?checkInRoutineId=routine%3Fnext%3Djavascript%3Aalert%281%29",
+    );
+  });
 
   it("keeps starter situations for a new authenticated user", () => {
     render(<ChatPage />);
@@ -98,5 +170,96 @@ describe("chat landing page", () => {
     });
     expect(options.initialMessage).not.toContain("Titolo privato");
     expect(options.initialMessage).not.toContain("Obiettivo privato");
+  });
+
+  it("routes a returning check-in to its source routine instead of creating a chat", () => {
+    mocks.context.chats = [
+      chat("chat-1", "Preparazione finale", "2026-07-31T08:00:00.000Z"),
+    ];
+    mocks.context.activeRoutine = activeRoutine;
+    render(<ChatPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Com'è andata?" }));
+
+    expect(mocks.openRoutineCheckIn).toHaveBeenCalledWith(activeRoutine);
+    expect(mocks.createChat).not.toHaveBeenCalled();
+  });
+
+  it("opens an orphan routine check-in on the landing without creating a chat", async () => {
+    const orphanRoutine = {
+      ...activeRoutine,
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+    };
+    const updatedRoutine = {
+      ...orphanRoutine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: "HELPFUL" as const,
+        outcomeNote: null,
+        outcomeRecordedAt: "2026-08-08T09:01:00.000Z",
+      },
+    };
+    mocks.context.activeRoutine = orphanRoutine;
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    mocks.createRoutineAttempt.mockResolvedValue(updatedRoutine);
+    vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(
+      "00000000-0000-4000-8000-000000000001",
+    );
+    const user = userEvent.setup();
+
+    render(<ChatPage />);
+
+    expect(
+      await screen.findAllByRole("heading", { name: "Reset dopo un errore" }),
+    ).not.toHaveLength(0);
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat"),
+    );
+    await user.click(screen.getByRole("button", { name: "Mi ha aiutato" }));
+
+    expect(mocks.createRoutineAttempt).toHaveBeenCalledWith(
+      "routine-1",
+      "00000000-0000-4000-8000-000000000001",
+      "HELPFUL",
+      null,
+    );
+    expect(mocks.updateActiveRoutine).toHaveBeenCalledWith(updatedRoutine);
+    expect(mocks.createChat).not.toHaveBeenCalled();
+  });
+
+  it("clears a stale routine query and leaves the starter choices available", async () => {
+    mocks.context.activeRoutine = {
+      ...activeRoutine,
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+    };
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=stale-routine");
+
+    render(<ChatPage />);
+
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat"),
+    );
+    expect(screen.queryByText("Esito del tentativo")).toBeNull();
+    expect(screen.getByText("Ho una gara domani")).toBeTruthy();
+    expect(mocks.createChat).not.toHaveBeenCalled();
+  });
+
+  it("never starts a prefilled chat while handling a routine check-in", async () => {
+    mocks.context.activeRoutine = {
+      ...activeRoutine,
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+    };
+    mocks.searchParams = new URLSearchParams(
+      "checkInRoutineId=routine-1&q=contenuto+non+attendibile",
+    );
+
+    render(<ChatPage />);
+
+    await screen.findByText("Esito del tentativo");
+    expect(mocks.createChat).not.toHaveBeenCalled();
   });
 });

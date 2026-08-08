@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -17,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
+import type { RoutineCardData } from "@/lib/coaching/routine";
 import { installDocumentScrollLock } from "@/lib/document-scroll-lock";
 import { installChatViewportSizing } from "@/lib/visual-viewport";
 import type { Chat, ChatData, UsageData } from "@/types/chat";
@@ -38,6 +40,7 @@ interface CreateChatOptions {
 interface ChatContextType {
   chats: Chat[];
   coachingGoal: string | null;
+  activeRoutine: RoutineCardData | null;
   isLoading: boolean;
   isCreatingChat: boolean;
   currentChatId: string | null;
@@ -51,6 +54,8 @@ interface ChatContextType {
   renameChat: (id: string, newTitle: string) => Promise<boolean>;
   updateCachedChat: (id: string, data: Partial<ChatData>) => void;
   consumePendingInitialMessage: (chatId: string) => string | null;
+  updateActiveRoutine: (routine: RoutineCardData) => void;
+  openRoutineCheckIn: (routine: RoutineCardData) => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -61,6 +66,16 @@ export function useChatContext() {
     throw new Error("useChatContext must be used within ChatLayout");
   }
   return context;
+}
+
+export function getRoutineCheckInHref(routine: RoutineCardData): string {
+  const query = new URLSearchParams({
+    checkInRoutineId: routine.id,
+  }).toString();
+  if (routine.sourceChatId && routine.sourceAssistantMessageId) {
+    return `/chat/${encodeURIComponent(routine.sourceChatId)}?${query}`;
+  }
+  return `/chat?${query}`;
 }
 
 // -----------------------------------------------------
@@ -135,6 +150,7 @@ export function LayoutClient({
   initialChats,
   initialUsageData,
   initialCoachingGoal,
+  initialActiveRoutine,
   guestConversionPending,
   isGuest,
 }: {
@@ -142,6 +158,7 @@ export function LayoutClient({
   initialChats: Chat[];
   initialUsageData: UsageData | null;
   initialCoachingGoal: string | null;
+  initialActiveRoutine: RoutineCardData | null;
   guestConversionPending: boolean;
   isGuest: boolean;
 }) {
@@ -149,6 +166,9 @@ export function LayoutClient({
   const router = useRouter();
   const pathname = usePathname();
   const [chats, setChats] = useState<Chat[]>(initialChats);
+  const [activeRoutine, setActiveRoutine] = useState<RoutineCardData | null>(
+    initialActiveRoutine,
+  );
   const [isLoading, _setIsLoading] = useState(false);
   const [isCreateChatRequestPending, setIsCreateChatRequestPending] =
     useState(false);
@@ -190,6 +210,24 @@ export function LayoutClient({
   useEffect(() => {
     setUsageData(initialUsageData);
   }, [initialUsageData]);
+
+  useEffect(() => {
+    setActiveRoutine(initialActiveRoutine);
+  }, [initialActiveRoutine]);
+
+  const updateActiveRoutine = useCallback((routine: RoutineCardData) => {
+    setActiveRoutine((current) => {
+      if (routine.status === "ACTIVE") return routine;
+      return current?.id === routine.id ? null : current;
+    });
+  }, []);
+
+  const openRoutineCheckIn = useCallback(
+    (routine: RoutineCardData) => {
+      router.push(getRoutineCheckInHref(routine), { scroll: false });
+    },
+    [router],
+  );
 
   useEffect(() => {
     if (!guestConversionPending || isGuest) return;
@@ -534,6 +572,7 @@ export function LayoutClient({
       value={{
         chats,
         coachingGoal: initialCoachingGoal,
+        activeRoutine,
         isLoading,
         isCreatingChat,
         currentChatId,
@@ -547,6 +586,8 @@ export function LayoutClient({
         renameChat,
         updateCachedChat,
         consumePendingInitialMessage,
+        updateActiveRoutine,
+        openRoutineCheckIn,
       }}
     >
       <div

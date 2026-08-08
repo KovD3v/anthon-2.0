@@ -11,11 +11,14 @@ const mocks = vi.hoisted(() => ({
   getSharedUsageData: vi.fn(),
   convertGuestForAuthenticatedUser: vi.fn(),
   getUserControlledCoachingGoal: vi.fn(),
+  prismaRoutineFindFirst: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
   getAuthUser: mocks.getAuthUser,
 }));
+
+vi.mock("server-only", () => ({}));
 
 vi.mock("@/lib/chat", () => ({
   getSharedChats: mocks.getSharedChats,
@@ -23,6 +26,9 @@ vi.mock("@/lib/chat", () => ({
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    routine: {
+      findFirst: mocks.prismaRoutineFindFirst,
+    },
     user: {
       findFirst: mocks.prismaUserFindFirst,
     },
@@ -62,6 +68,7 @@ describe("chat layout sidebar data", () => {
     mocks.getSharedUsageData.mockReset();
     mocks.convertGuestForAuthenticatedUser.mockReset();
     mocks.getUserControlledCoachingGoal.mockReset();
+    mocks.prismaRoutineFindFirst.mockReset();
 
     mocks.getAuthUser.mockResolvedValue({
       user: null,
@@ -70,6 +77,7 @@ describe("chat layout sidebar data", () => {
     mocks.getGuestTokenFromCookies.mockResolvedValue(null);
     mocks.convertGuestForAuthenticatedUser.mockResolvedValue("no_cookie");
     mocks.getUserControlledCoachingGoal.mockResolvedValue(null);
+    mocks.prismaRoutineFindFirst.mockResolvedValue(null);
   });
 
   it("treats unauthenticated first visits without a guest cookie as guest mode", async () => {
@@ -79,6 +87,7 @@ describe("chat layout sidebar data", () => {
       chats: [],
       usageData: null,
       coachingGoal: null,
+      activeRoutine: null,
       guestConversionPending: false,
       isGuest: true,
     });
@@ -88,7 +97,7 @@ describe("chat layout sidebar data", () => {
   it("converts a guest before reading authenticated sidebar data", async () => {
     const order: string[] = [];
     mocks.getAuthUser.mockResolvedValue({
-      user: { id: "user-1", role: "USER" },
+      user: { id: "user-1", role: "USER", isGuest: false },
       error: null,
     });
     mocks.convertGuestForAuthenticatedUser.mockImplementation(async () => {
@@ -115,7 +124,7 @@ describe("chat layout sidebar data", () => {
 
   it("loads the authenticated user's coaching goal", async () => {
     mocks.getAuthUser.mockResolvedValue({
-      user: { id: "user-1", role: "USER" },
+      user: { id: "user-1", role: "USER", isGuest: false },
       error: null,
     });
     mocks.getSharedChats.mockResolvedValue([]);
@@ -126,9 +135,87 @@ describe("chat layout sidebar data", () => {
       chats: [],
       usageData: null,
       coachingGoal: "Restare lucido",
+      activeRoutine: null,
       guestConversionPending: false,
       isGuest: false,
     });
+  });
+
+  it("loads the newest active routine and its latest attempt for a registered user", async () => {
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "user-1", role: "USER", isGuest: false },
+      error: null,
+    });
+    mocks.getSharedChats.mockResolvedValue([]);
+    mocks.getSharedUsageData.mockResolvedValue(null);
+    mocks.prismaRoutineFindFirst.mockResolvedValue({
+      id: "routine-1",
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+      status: "ACTIVE",
+      title: "Reset dopo un errore",
+      trigger: "Quando commetti un errore in gara",
+      durationLabel: "60 secondi",
+      steps: ["Fermati", "Espira lentamente", "Scegli il prossimo gesto"],
+      completionCue: "Riparti con lo sguardo sul compito successivo",
+      archivedAt: null,
+      attempts: [
+        {
+          id: "attempt-1",
+          attemptedAt: new Date("2026-08-08T09:00:00.000Z"),
+          outcome: null,
+          outcomeNote: null,
+          outcomeRecordedAt: null,
+        },
+      ],
+    });
+
+    const result = await getChatSidebarData();
+
+    expect(mocks.prismaRoutineFindFirst).toHaveBeenCalledWith({
+      where: { userId: "user-1", status: "ACTIVE" },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        attempts: { orderBy: { attemptedAt: "desc" }, take: 1 },
+      },
+    });
+    expect(result.activeRoutine).toEqual({
+      id: "routine-1",
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+      status: "ACTIVE",
+      proposal: {
+        title: "Reset dopo un errore",
+        trigger: "Quando commetti un errore in gara",
+        durationLabel: "60 secondi",
+        steps: ["Fermati", "Espira lentamente", "Scegli il prossimo gesto"],
+        completionCue: "Riparti con lo sguardo sul compito successivo",
+      },
+      archivedAt: null,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    });
+  });
+
+  it("never queries active routines for a guest identity", async () => {
+    mocks.getGuestTokenFromCookies.mockResolvedValue("guest-token");
+    mocks.hashGuestToken.mockReturnValue("guest-hash");
+    mocks.prismaUserFindFirst.mockResolvedValue({
+      id: "guest-1",
+      role: "USER",
+    });
+    mocks.getSharedChats.mockResolvedValue([]);
+    mocks.getSharedUsageData.mockResolvedValue(null);
+
+    const result = await getChatSidebarData();
+
+    expect(result.activeRoutine).toBeNull();
+    expect(mocks.prismaRoutineFindFirst).not.toHaveBeenCalled();
   });
 });
 

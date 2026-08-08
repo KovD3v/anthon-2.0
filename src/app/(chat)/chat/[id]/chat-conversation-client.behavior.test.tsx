@@ -9,7 +9,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type ComponentProps, useRef, useState } from "react";
+import { type ComponentProps, useEffect, useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RoutineCardData } from "@/lib/coaching/routine";
 import type { ChatData } from "@/types/chat";
@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   updateCachedChat: vi.fn(),
+  updateActiveRoutine: vi.fn(),
   captureChatOptions: vi.fn(),
   captureException: vi.fn(),
   chatState: {
@@ -32,6 +33,9 @@ const mocks = vi.hoisted(() => ({
   clearError: vi.fn(),
   isGuest: true,
   confirmMode: "auto" as "auto" | "dialog",
+  routerPush: vi.fn(),
+  routerReplace: vi.fn(),
+  searchParams: new URLSearchParams(),
 }));
 
 vi.mock("@ai-sdk/react", () => ({
@@ -66,7 +70,11 @@ vi.mock("next/link", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({
+    push: mocks.routerPush,
+    replace: mocks.routerReplace,
+  }),
+  useSearchParams: () => mocks.searchParams,
 }));
 
 vi.mock("sonner", () => ({
@@ -207,6 +215,7 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
     },
     onTryRoutineNow = () => undefined,
     onAdaptRoutine = () => undefined,
+    openCheckInRoutineId = null,
   }: ComponentProps<"div"> & {
     messages: Array<{ id: string; parts: Array<{ text?: string }> }>;
     isRegenerating?: boolean;
@@ -238,12 +247,17 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
     onArchiveRoutine: (routineId: string) => Promise<RoutineCardData>;
     onTryRoutineNow: (title: string) => void;
     onAdaptRoutine: (title: string) => void;
+    openCheckInRoutineId?: string | null;
   }) => {
     const [archivePending, setArchivePending] = useState(false);
     const [routineActionError, setRoutineActionError] = useState<string | null>(
       null,
     );
     const [routineActionSuccess, setRoutineActionSuccess] = useState(false);
+    const openCheckInRef = useRef<HTMLTextAreaElement>(null);
+    useEffect(() => {
+      openCheckInRef.current?.focus();
+    }, []);
     const runRoutineAction = async (
       operation: () => Promise<RoutineCardData>,
     ) => {
@@ -279,6 +293,16 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
         <output data-testid="routine-render-eligible">
           {String(canRenderRoutineCards)}
         </output>
+        <output data-testid="open-check-in-routine">
+          {openCheckInRoutineId ?? "NONE"}
+        </output>
+        {openCheckInRoutineId && (
+          <textarea
+            ref={openCheckInRef}
+            aria-label="Check-in routine aperto"
+            data-routine-check-in-id={openCheckInRoutineId}
+          />
+        )}
         <output data-testid="feedback-enabled">
           {String(
             canSubmitFeedback &&
@@ -444,6 +468,7 @@ vi.mock("../layout-client", () => ({
     isGuest: mocks.isGuest,
     getCachedChat: () => null,
     updateCachedChat: mocks.updateCachedChat,
+    updateActiveRoutine: mocks.updateActiveRoutine,
     consumePendingInitialMessage: () => null,
   }),
 }));
@@ -507,6 +532,7 @@ beforeEach(() => {
   mocks.chatState.error = null;
   mocks.isGuest = true;
   mocks.confirmMode = "auto";
+  mocks.searchParams = new URLSearchParams();
   mocks.confirm.mockResolvedValue(true);
   mocks.sendMessage.mockResolvedValue(undefined);
   vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -917,6 +943,44 @@ describe("ChatConversationClient routine lifecycle", () => {
     mocks.isGuest = false;
   });
 
+  it("opens only the queried source routine and removes the query after focus", async () => {
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    const data = { ...initialChatData, routines: [activeRoutine] };
+
+    const { rerender } = renderConversation(data);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+        "routine-1",
+      ),
+    );
+    expect(document.activeElement).toBe(
+      screen.getByRole("textbox", { name: "Check-in routine aperto" }),
+    );
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat/chat-1"),
+    );
+
+    rerender(<ChatConversationClient chatId="chat-1" initialChatData={data} />);
+    expect(mocks.routerReplace).toHaveBeenCalledOnce();
+  });
+
+  it("clears an unknown source routine query without opening a form", async () => {
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=stale-routine");
+
+    renderConversation({ ...initialChatData, routines: [activeRoutine] });
+
+    expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+      "NONE",
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Check-in routine aperto" }),
+    ).toBeNull();
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat/chat-1"),
+    );
+  });
+
   it("publishes a saved routine only after its authoritative refresh", async () => {
     const refreshedData = { ...initialChatData, routines: [activeRoutine] };
     const fetchMock = vi
@@ -954,6 +1018,7 @@ describe("ChatConversationClient routine lifecycle", () => {
         body: JSON.stringify({ sourceAssistantMessageId: "assistant-new" }),
       }),
     );
+    expect(mocks.updateActiveRoutine).toHaveBeenCalledWith(activeRoutine);
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/chats/chat-1");
     expect(mocks.setMessages).toHaveBeenCalled();
   });

@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import type { UserRole } from "@/generated/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { getSharedChats } from "@/lib/chat";
+import type { RoutineCardData } from "@/lib/coaching/routine";
+import { getActiveRoutineForReturn } from "@/lib/coaching/routine-return.server";
 import { getUserControlledCoachingGoal } from "@/lib/coaching-context";
 import { prisma } from "@/lib/db";
 import { getGuestTokenFromCookies, hashGuestToken } from "@/lib/guest-auth";
@@ -81,14 +83,21 @@ function ChatLayoutSkeleton() {
 }
 
 async function ChatSidebarData({ children }: { children: React.ReactNode }) {
-  const { chats, usageData, coachingGoal, isGuest, guestConversionPending } =
-    await getChatSidebarData();
+  const {
+    chats,
+    usageData,
+    coachingGoal,
+    activeRoutine,
+    isGuest,
+    guestConversionPending,
+  } = await getChatSidebarData();
 
   return (
     <LayoutClient
       initialChats={chats}
       initialUsageData={usageData}
       initialCoachingGoal={coachingGoal}
+      initialActiveRoutine={activeRoutine}
       guestConversionPending={guestConversionPending}
       isGuest={isGuest}
     >
@@ -101,6 +110,7 @@ export async function getChatSidebarData(): Promise<{
   chats: Chat[];
   usageData: UsageData | null;
   coachingGoal: string | null;
+  activeRoutine: RoutineCardData | null;
   guestConversionPending: boolean;
   isGuest: boolean;
 }> {
@@ -108,6 +118,7 @@ export async function getChatSidebarData(): Promise<{
   let chats: Chat[] = [];
   let usageData: UsageData | null = null;
   let coachingGoal: string | null = null;
+  let activeRoutine: RoutineCardData | null = null;
   let guestConversionPending = false;
   let isGuest = false;
 
@@ -120,6 +131,9 @@ export async function getChatSidebarData(): Promise<{
     guestConversionPending = conversionOutcome !== "no_cookie";
     chats = await getSharedChats(authUser.id);
     usageData = await getSharedUsageData(authUser.id, authUser.role);
+    if (authUser.isGuest === false) {
+      activeRoutine = await getActiveRoutineForReturn(authUser.id);
+    }
     try {
       coachingGoal = await getUserControlledCoachingGoal(authUser.id);
     } catch (error) {
@@ -159,6 +173,7 @@ export async function getChatSidebarData(): Promise<{
     chats,
     usageData,
     coachingGoal,
+    activeRoutine,
     isGuest,
     guestConversionPending,
   };

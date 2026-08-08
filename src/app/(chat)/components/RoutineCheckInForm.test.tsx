@@ -50,6 +50,21 @@ describe("RoutineCheckInForm", () => {
     expect(props.onSaveOutcome).not.toHaveBeenCalled();
   });
 
+  it("focuses the shared form and reports readiness only once", async () => {
+    const onFocused = vi.fn();
+    const { rerender, props } = renderForm(routine, { onFocused });
+
+    await screen.findByRole("textbox", { name: "Nota facoltativa" });
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("textbox", { name: "Nota facoltativa" }),
+    );
+    expect(onFocused).toHaveBeenCalledOnce();
+
+    rerender(<RoutineCheckInForm {...props} onFocused={onFocused} />);
+    expect(onFocused).toHaveBeenCalledOnce();
+  });
+
   it.each([
     ["Mi ha aiutato", "HELPFUL"],
     ["In parte", "PARTIALLY_HELPFUL"],

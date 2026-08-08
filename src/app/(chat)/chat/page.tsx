@@ -9,10 +9,16 @@ import {
   Sparkles,
   Target,
 } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PageWrapper } from "@/components/ui/page-wrapper";
+import {
+  createRoutineAttempt,
+  type RoutineAttemptOutcome,
+  saveRoutineOutcome,
+} from "@/lib/coaching/routine-client";
+import { RoutineCheckInForm } from "../components/RoutineCheckInForm";
 import { useChatContext } from "./layout-client";
 
 const starterPrompts = [
@@ -48,20 +54,106 @@ const starterPrompts = [
  */
 export default function ChatPage() {
   const { user } = useUser();
-  const { createChat, navigateToChat, chats, coachingGoal, isGuest } =
-    useChatContext();
+  const {
+    createChat,
+    navigateToChat,
+    chats,
+    coachingGoal,
+    isGuest,
+    activeRoutine,
+    updateActiveRoutine,
+    openRoutineCheckIn,
+  } = useChatContext();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const startedPrefilledChatRef = useRef(false);
+  const handledCheckInParamRef = useRef<string | null>(null);
+  const routineAttemptActionIdsRef = useRef(new Map<string, string>());
+  const [landingCheckInRoutineId, setLandingCheckInRoutineId] = useState<
+    string | null
+  >(null);
   const prefilledPrompt = searchParams.get("q")?.trim() ?? "";
+  const checkInRoutineId = searchParams.get("checkInRoutineId")?.trim() ?? "";
 
   useEffect(() => {
-    if (!prefilledPrompt || startedPrefilledChatRef.current) return;
+    if (
+      checkInRoutineId ||
+      !prefilledPrompt ||
+      startedPrefilledChatRef.current
+    ) {
+      return;
+    }
     startedPrefilledChatRef.current = true;
     createChat({
       initialMessage: prefilledPrompt,
       title: "Percorso dalla home",
     });
-  }, [createChat, prefilledPrompt]);
+  }, [checkInRoutineId, createChat, prefilledPrompt]);
+
+  useEffect(() => {
+    if (!checkInRoutineId) {
+      handledCheckInParamRef.current = null;
+      return;
+    }
+    if (handledCheckInParamRef.current === checkInRoutineId) return;
+    handledCheckInParamRef.current = checkInRoutineId;
+
+    if (!activeRoutine || activeRoutine.id !== checkInRoutineId) {
+      router.replace("/chat");
+      return;
+    }
+
+    if (activeRoutine.sourceChatId && activeRoutine.sourceAssistantMessageId) {
+      openRoutineCheckIn(activeRoutine);
+      return;
+    }
+
+    setLandingCheckInRoutineId(activeRoutine.id);
+  }, [activeRoutine, checkInRoutineId, openRoutineCheckIn, router]);
+
+  const handleCreateRoutineAttempt = useCallback(
+    async (
+      routineId: string,
+      outcome?: RoutineAttemptOutcome,
+      outcomeNote?: string | null,
+    ) => {
+      const normalizedOutcomeNote = outcomeNote?.trim() || null;
+      const actionKey = JSON.stringify({
+        routineId,
+        outcome: outcome ?? null,
+        outcomeNote: normalizedOutcomeNote,
+      });
+      let clientActionId = routineAttemptActionIdsRef.current.get(actionKey);
+      if (!clientActionId) {
+        clientActionId = crypto.randomUUID();
+        routineAttemptActionIdsRef.current.set(actionKey, clientActionId);
+      }
+
+      const routine = await createRoutineAttempt(
+        routineId,
+        clientActionId,
+        outcome,
+        normalizedOutcomeNote,
+      );
+      routineAttemptActionIdsRef.current.delete(actionKey);
+      updateActiveRoutine(routine);
+      return routine;
+    },
+    [updateActiveRoutine],
+  );
+
+  const handleSaveRoutineOutcome = useCallback(
+    async (
+      attemptId: string,
+      outcome: RoutineAttemptOutcome,
+      outcomeNote?: string | null,
+    ) => {
+      const routine = await saveRoutineOutcome(attemptId, outcome, outcomeNote);
+      updateActiveRoutine(routine);
+      return routine;
+    },
+    [updateActiveRoutine],
+  );
 
   const greeting = isGuest
     ? "Benvenuto!"
@@ -74,6 +166,9 @@ export default function ChatPage() {
             left.id.localeCompare(right.id),
         )[0]
       : null;
+  const landingCheckInRoutine =
+    activeRoutine?.id === landingCheckInRoutineId ? activeRoutine : null;
+  const hasReturningPath = mostRecentChat !== null || activeRoutine !== null;
 
   return (
     <PageWrapper className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -92,13 +187,31 @@ export default function ChatPage() {
             </p>
           </div>
 
-          {mostRecentChat && (
+          {landingCheckInRoutine && (
+            <section className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 p-5 text-left shadow-sm">
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-primary">
+                Check-in routine
+              </p>
+              <h2 className="font-display mt-2 text-2xl font-bold uppercase leading-none">
+                {landingCheckInRoutine.proposal.title}
+              </h2>
+              <RoutineCheckInForm
+                routine={landingCheckInRoutine}
+                onCreateAttempt={handleCreateRoutineAttempt}
+                onSaveOutcome={handleSaveRoutineOutcome}
+                onFocused={() => router.replace("/chat")}
+                onSuccess={() => setLandingCheckInRoutineId(null)}
+              />
+            </section>
+          )}
+
+          {hasReturningPath && (
             <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 p-5 text-left shadow-sm">
               <p className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-primary">
                 Riprendi il percorso
               </p>
               <h2 className="font-display mt-2 text-2xl font-bold uppercase leading-none">
-                {mostRecentChat.title}
+                {mostRecentChat?.title ?? activeRoutine?.proposal.title}
               </h2>
               {coachingGoal && (
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -107,28 +220,36 @@ export default function ChatPage() {
               )}
               <p className="mt-2 text-xs text-muted-foreground">
                 Ultimo aggiornamento{" "}
-                {new Intl.DateTimeFormat("it-IT", {
-                  day: "numeric",
-                  month: "short",
-                }).format(new Date(mostRecentChat.updatedAt))}
+                {mostRecentChat
+                  ? new Intl.DateTimeFormat("it-IT", {
+                      day: "numeric",
+                      month: "short",
+                    }).format(new Date(mostRecentChat.updatedAt))
+                  : "routine salvata"}
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
-                <Button
-                  className="gap-2"
-                  onClick={() => navigateToChat(mostRecentChat.id)}
-                >
-                  Riprendi
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
+                {mostRecentChat && (
+                  <Button
+                    className="gap-2"
+                    onClick={() => navigateToChat(mostRecentChat.id)}
+                  >
+                    Riprendi
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button
                   variant="outline"
-                  onClick={() =>
+                  onClick={() => {
+                    if (activeRoutine) {
+                      openRoutineCheckIn(activeRoutine);
+                      return;
+                    }
                     createChat({
                       title: "Check-in sul percorso",
                       initialMessage:
                         "Vorrei fare un check-in sul mio percorso dall'ultima conversazione. Fammi una domanda alla volta per capire cosa è successo, cosa ha funzionato e dove mi sono bloccato.",
-                    })
-                  }
+                    });
+                  }}
                 >
                   Com&apos;è andata?
                 </Button>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { RoutineCardData } from "@/lib/coaching/routine";
 import { RoutineClientError } from "@/lib/coaching/routine-client";
@@ -28,6 +28,7 @@ interface RoutineCheckInFormProps {
   onCreateAttempt: CreateRoutineAttempt;
   onSaveOutcome: SaveRoutineOutcome;
   onSuccess?: (routine: RoutineCardData) => void;
+  onFocused?: () => void;
 }
 
 const OUTCOMES: ReadonlyArray<{
@@ -44,12 +45,27 @@ export function RoutineCheckInForm({
   onCreateAttempt,
   onSaveOutcome,
   onSuccess,
+  onFocused,
 }: RoutineCheckInFormProps) {
   const [note, setNote] = useState("");
   const [pendingOutcome, setPendingOutcome] =
     useState<RoutineAttemptOutcome | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+  const didReportFocusRef = useRef(false);
+
+  useEffect(() => {
+    noteRef.current?.focus();
+    if (
+      !didReportFocusRef.current &&
+      noteRef.current &&
+      document.activeElement === noteRef.current
+    ) {
+      didReportFocusRef.current = true;
+      onFocused?.();
+    }
+  }, [onFocused]);
 
   async function submitOutcome(outcome: RoutineAttemptOutcome) {
     if (pendingOutcome) return;
@@ -99,6 +115,8 @@ export function RoutineCheckInForm({
         Nota facoltativa
       </label>
       <textarea
+        ref={noteRef}
+        data-routine-check-in-id={routine.id}
         id={`routine-note-${routine.id}`}
         value={note}
         onChange={(event) => setNote(event.target.value)}
