@@ -895,6 +895,9 @@ model Routine {
   sourceChat               Chat?         @relation("RoutineSourceChat", fields: [sourceChatId], references: [id], onDelete: SetNull)
   sourceAssistantMessageId String?
   sourceAssistantMessage   Message?      @relation("RoutineSourceMessage", fields: [sourceAssistantMessageId], references: [id], onDelete: SetNull)
+  derivedFromRoutineId     String?
+  derivedFromRoutine       Routine?      @relation("RoutineAdaptations", fields: [derivedFromRoutineId], references: [id], onDelete: SetNull)
+  adaptations              Routine[]     @relation("RoutineAdaptations")
   title                    String
   trigger                  String
   durationLabel            String?
@@ -910,6 +913,7 @@ model Routine {
   @@unique([userId, sourceAssistantMessageId])
   @@index([userId, status, updatedAt(sort: Desc)])
   @@index([sourceChatId])
+  @@index([derivedFromRoutineId])
 }
 
 model RoutineAttempt {

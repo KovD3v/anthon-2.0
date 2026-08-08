@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => {
   const routineUpdate = vi.fn();
   const routineUpdateMany = vi.fn();
   const attemptFindUnique = vi.fn();
+  const attemptFindMany = vi.fn();
   const attemptCreate = vi.fn();
   const tx = {
     routine: {
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => {
     },
     routineAttempt: {
       findUnique: attemptFindUnique,
+      findMany: attemptFindMany,
       create: attemptCreate,
     },
   };
@@ -23,6 +25,7 @@ const mocks = vi.hoisted(() => {
     routineUpdate,
     routineUpdateMany,
     attemptFindUnique,
+    attemptFindMany,
     attemptCreate,
     transaction: vi.fn(),
     revalidateTag: vi.fn(),
@@ -264,9 +267,107 @@ describe("POST /api/coaching/routines/[routineId]/attempts", () => {
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
-  it("does not expose GET or create an attempt during a plain refresh", () => {
-    expect(route).not.toHaveProperty("GET");
+  it("does not create an attempt during a plain refresh", () => {
     expect(mocks.attemptCreate).not.toHaveBeenCalled();
     expect(mocks.routineUpdateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/coaching/routines/[routineId]/attempts", () => {
+  const historyRequest = (suffix = "") =>
+    new Request(
+      `http://localhost/api/coaching/routines/routine-1/attempts${suffix}`,
+    );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "user-1", isGuest: false },
+      error: null,
+    });
+    mocks.routineFindFirst.mockResolvedValue({ id: "routine-1" });
+    mocks.attemptFindMany.mockResolvedValue([
+      latestAttempt,
+      {
+        ...latestAttempt,
+        id: "attempt-0",
+        attemptedAt: new Date("2026-08-07T09:00:00.000Z"),
+      },
+    ]);
+  });
+
+  it("returns owner-scoped, newest-first attempt history including the owner's note", async () => {
+    const response = await route.GET(historyRequest("?limit=1"), context);
+
+    expect(response.status).toBe(200);
+    expect(mocks.routineFindFirst).toHaveBeenCalledWith({
+      where: { id: "routine-1", userId: "user-1" },
+      select: { id: true },
+    });
+    expect(mocks.attemptFindMany).toHaveBeenCalledWith({
+      where: { routineId: "routine-1" },
+      orderBy: [{ attemptedAt: "desc" }, { id: "desc" }],
+      take: 2,
+      select: {
+        id: true,
+        attemptedAt: true,
+        outcome: true,
+        outcomeNote: true,
+        outcomeRecordedAt: true,
+      },
+    });
+    await expect(response.json()).resolves.toMatchObject({
+      attempts: [
+        { id: "attempt-1", outcome: "HELPFUL", outcomeNote: "Mi ha aiutato" },
+      ],
+      nextCursor: expect.any(String),
+    });
+  });
+
+  it("rejects unauthenticated, guest, and foreign routine history reads", async () => {
+    mocks.getAuthUser.mockResolvedValueOnce({
+      user: null,
+      error: "Unauthorized",
+    });
+    expect((await route.GET(historyRequest(), context)).status).toBe(401);
+
+    mocks.getAuthUser.mockResolvedValueOnce({
+      user: { id: "guest-1", isGuest: true },
+      error: null,
+    });
+    expect((await route.GET(historyRequest(), context)).status).toBe(403);
+
+    mocks.routineFindFirst.mockResolvedValueOnce(null);
+    expect((await route.GET(historyRequest(), context)).status).toBe(404);
+    expect(mocks.attemptFindMany).not.toHaveBeenCalled();
+  });
+
+  it("uses a stable cursor and rejects malformed cursors without querying attempts", async () => {
+    const cursor = Buffer.from(
+      JSON.stringify({
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        id: "attempt-1",
+      }),
+    ).toString("base64url");
+    await route.GET(historyRequest(`?cursor=${cursor}`), context);
+    expect(mocks.attemptFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          routineId: "routine-1",
+          OR: [
+            { attemptedAt: { lt: new Date("2026-08-08T09:00:00.000Z") } },
+            {
+              attemptedAt: new Date("2026-08-08T09:00:00.000Z"),
+              id: { lt: "attempt-1" },
+            },
+          ],
+        },
+      }),
+    );
+    mocks.attemptFindMany.mockClear();
+    expect(
+      (await route.GET(historyRequest("?cursor=not-base64"), context)).status,
+    ).toBe(400);
+    expect(mocks.attemptFindMany).not.toHaveBeenCalled();
   });
 });

@@ -127,9 +127,19 @@ const routineCollectionResponseSchema = z
     nextCursor: z.string().nullable(),
   })
   .strict();
+const routineAttemptHistoryResponseSchema = z
+  .object({
+    attempts: z.array(strictRoutineAttemptSchema),
+    nextCursor: z.string().nullable(),
+  })
+  .strict();
 
 export type RoutineCollectionStatus = "ACTIVE" | "ARCHIVED";
 export type RoutineCollection = z.infer<typeof routineCollectionResponseSchema>;
+export type RoutineAttempt = z.infer<typeof strictRoutineAttemptSchema>;
+export type RoutineAttemptHistory = z.infer<
+  typeof routineAttemptHistoryResponseSchema
+>;
 
 export type RoutineAttemptOutcome =
   | "HELPFUL"
@@ -176,6 +186,27 @@ export async function fetchRoutineCollection(options: {
     `/api/coaching/routines?${params.toString()}`,
   );
   const parsed = routineCollectionResponseSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new RoutineClientError(
+      "Risposta del server non valida. Riprova.",
+      status,
+    );
+  }
+  return parsed.data;
+}
+
+export async function fetchRoutineAttempts(
+  routineId: string,
+  options: { cursor?: string; limit?: number } = {},
+): Promise<RoutineAttemptHistory> {
+  const params = new URLSearchParams();
+  if (options.cursor) params.set("cursor", options.cursor);
+  if (options.limit !== undefined) params.set("limit", String(options.limit));
+  const query = params.size > 0 ? `?${params.toString()}` : "";
+  const { payload, status } = await requestJson(
+    `/api/coaching/routines/${routineId}/attempts${query}`,
+  );
+  const parsed = routineAttemptHistoryResponseSchema.safeParse(payload);
   if (!parsed.success) {
     throw new RoutineClientError(
       "Risposta del server non valida. Riprova.",
@@ -250,10 +281,16 @@ async function requestJson(
 
 export function saveRoutineProposal(
   sourceAssistantMessageId: string,
+  options: { derivedFromRoutineId?: string } = {},
 ): Promise<RoutineCardData> {
   return requestRoutine("/api/coaching/routines", {
     method: "POST",
-    body: JSON.stringify({ sourceAssistantMessageId }),
+    body: JSON.stringify({
+      sourceAssistantMessageId,
+      ...(options.derivedFromRoutineId
+        ? { derivedFromRoutineId: options.derivedFromRoutineId }
+        : {}),
+    }),
   });
 }
 

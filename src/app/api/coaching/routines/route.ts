@@ -20,7 +20,10 @@ import { createLogger } from "@/lib/logger";
 
 const routineLogger = createLogger("ai");
 const createRoutineBodySchema = z
-  .object({ sourceAssistantMessageId: z.string().cuid() })
+  .object({
+    sourceAssistantMessageId: z.string().cuid(),
+    derivedFromRoutineId: z.string().cuid().optional(),
+  })
   .strict();
 const routineInclude = {
   attempts: {
@@ -177,7 +180,7 @@ export async function POST(request: Request) {
     const parsed = createRoutineBodySchema.safeParse(body);
     if (!parsed.success) return badRequest("Invalid request body");
 
-    const { sourceAssistantMessageId } = parsed.data;
+    const { sourceAssistantMessageId, derivedFromRoutineId } = parsed.data;
     const message = await prisma.message.findFirst({
       where: {
         id: sourceAssistantMessageId,
@@ -195,6 +198,14 @@ export async function POST(request: Request) {
         { error: "Validated routine proposal not found" },
         { status: 422 },
       );
+    }
+
+    if (derivedFromRoutineId) {
+      const sourceRoutine = await prisma.routine.findFirst({
+        where: { id: derivedFromRoutineId, userId: user.id },
+        select: { id: true },
+      });
+      if (!sourceRoutine) return notFound();
     }
 
     const uniqueWhere = {
@@ -219,6 +230,7 @@ export async function POST(request: Request) {
           userId: user.id,
           sourceChatId: message.chatId,
           sourceAssistantMessageId,
+          derivedFromRoutineId: derivedFromRoutineId ?? null,
           title: proposal.title,
           trigger: proposal.trigger,
           durationLabel: proposal.durationLabel ?? null,

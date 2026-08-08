@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   getAuthUser: vi.fn(),
   messageFindFirst: vi.fn(),
   routineFindUnique: vi.fn(),
+  routineFindFirst: vi.fn(),
   routineFindMany: vi.fn(),
   routineCount: vi.fn(),
   routineUpsert: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock("@/lib/db", () => ({
     message: { findFirst: mocks.messageFindFirst },
     routine: {
       findUnique: mocks.routineFindUnique,
+      findFirst: mocks.routineFindFirst,
       findMany: mocks.routineFindMany,
       count: mocks.routineCount,
       upsert: mocks.routineUpsert,
@@ -76,6 +78,9 @@ describe("POST /api/coaching/routines", () => {
       ],
     });
     mocks.routineFindUnique.mockResolvedValue(null);
+    mocks.routineFindFirst.mockResolvedValue({
+      id: "cm123456789012345678901235",
+    });
     mocks.routineUpsert.mockResolvedValue(routine);
   });
 
@@ -154,6 +159,7 @@ describe("POST /api/coaching/routines", () => {
         userId: "user-1",
         sourceChatId: "chat-1",
         sourceAssistantMessageId,
+        derivedFromRoutineId: null,
         ...proposal,
       },
       include: {
@@ -176,6 +182,42 @@ describe("POST /api/coaching/routines", () => {
       },
     });
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "max");
+  });
+
+  it("links an adaptation only to an original routine owned by the requester", async () => {
+    const response = await POST(
+      request({
+        sourceAssistantMessageId,
+        derivedFromRoutineId: "cm123456789012345678901235",
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(mocks.routineFindFirst).toHaveBeenCalledWith({
+      where: { id: "cm123456789012345678901235", userId: "user-1" },
+      select: { id: true },
+    });
+    expect(mocks.routineUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          derivedFromRoutineId: "cm123456789012345678901235",
+        }),
+      }),
+    );
+  });
+
+  it("does not link an adaptation to a missing or foreign original routine", async () => {
+    mocks.routineFindFirst.mockResolvedValue(null);
+
+    const response = await POST(
+      request({
+        sourceAssistantMessageId,
+        derivedFromRoutineId: "cm123456789012345678901235",
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(mocks.routineUpsert).not.toHaveBeenCalled();
   });
 
   it("returns the existing owner/message routine with 200 on retry", async () => {

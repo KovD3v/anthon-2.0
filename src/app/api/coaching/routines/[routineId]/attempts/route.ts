@@ -22,6 +22,13 @@ const attemptBodySchema = z
     outcomeNote: z.string().trim().max(1000).nullable().optional(),
   })
   .strict();
+const attemptsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(20).default(10),
+  cursor: z.string().min(1).optional(),
+});
+const attemptCursorSchema = z
+  .object({ attemptedAt: z.iso.datetime(), id: z.string().min(1) })
+  .strict();
 const routineInclude = {
   attempts: {
     orderBy: [{ attemptedAt: "desc" as const }, { id: "desc" as const }],
@@ -39,6 +46,97 @@ function isUniqueViolation(error: unknown): boolean {
     "code" in error &&
     error.code === "P2002"
   );
+}
+
+function encodeAttemptCursor(attemptedAt: Date, id: string): string {
+  return Buffer.from(
+    JSON.stringify({ attemptedAt: attemptedAt.toISOString(), id }),
+  ).toString("base64url");
+}
+
+function decodeAttemptCursor(
+  cursor: string,
+): { attemptedAt: Date; id: string } | null {
+  try {
+    const parsed = attemptCursorSchema.safeParse(
+      JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")),
+    );
+    if (!parsed.success) return null;
+    const attemptedAt = new Date(parsed.data.attemptedAt);
+    return Number.isNaN(attemptedAt.getTime())
+      ? null
+      : { attemptedAt, id: parsed.data.id };
+  } catch {
+    return null;
+  }
+}
+
+export async function GET(request: Request, { params }: RouteContext) {
+  try {
+    const parsedQuery = attemptsQuerySchema.safeParse({
+      limit: new URL(request.url).searchParams.get("limit") ?? undefined,
+      cursor: new URL(request.url).searchParams.get("cursor") ?? undefined,
+    });
+    if (!parsedQuery.success) return badRequest("Invalid attempts query");
+    const cursor = parsedQuery.data.cursor
+      ? decodeAttemptCursor(parsedQuery.data.cursor)
+      : null;
+    if (parsedQuery.data.cursor && !cursor) {
+      return badRequest("Invalid attempts cursor");
+    }
+
+    const { user, error } = await getAuthUser();
+    if (error || !user) return unauthorized(error || "Unauthorized");
+    if (user.isGuest) return forbidden();
+
+    const { routineId } = await params;
+    const routine = await prisma.routine.findFirst({
+      where: { id: routineId, userId: user.id },
+      select: { id: true },
+    });
+    if (!routine) return notFound();
+
+    const attempts = await prisma.routineAttempt.findMany({
+      where: cursor
+        ? {
+            routineId,
+            OR: [
+              { attemptedAt: { lt: cursor.attemptedAt } },
+              { attemptedAt: cursor.attemptedAt, id: { lt: cursor.id } },
+            ],
+          }
+        : { routineId },
+      orderBy: [{ attemptedAt: "desc" }, { id: "desc" }],
+      take: parsedQuery.data.limit + 1,
+      select: {
+        id: true,
+        attemptedAt: true,
+        outcome: true,
+        outcomeNote: true,
+        outcomeRecordedAt: true,
+      },
+    });
+    const hasMore = attempts.length > parsedQuery.data.limit;
+    const visibleAttempts = hasMore
+      ? attempts.slice(0, parsedQuery.data.limit)
+      : attempts;
+    const lastAttempt = visibleAttempts.at(-1);
+
+    return jsonOk({
+      attempts: visibleAttempts,
+      nextCursor:
+        hasMore && lastAttempt
+          ? encodeAttemptCursor(lastAttempt.attemptedAt, lastAttempt.id)
+          : null,
+    });
+  } catch (error) {
+    attemptLogger.error(
+      "coaching.attempt_history_read_failed",
+      "Failed to read coaching routine attempts",
+      { error },
+    );
+    return serverError();
+  }
 }
 
 export async function POST(request: Request, { params }: RouteContext) {

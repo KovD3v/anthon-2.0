@@ -23,6 +23,7 @@ import {
   routineCardDataSchema,
   storedRoutineProposalSchema,
 } from "@/lib/coaching/routine";
+import { trackRoutineAnalytics } from "@/lib/coaching/routine-analytics-client";
 import {
   archiveRoutine,
   createRoutineAttempt,
@@ -155,6 +156,7 @@ export function ChatConversationClient({
   const pendingInitialMessageSubmittedRef = useRef(false);
   const voiceGenerationPollAttemptsRef = useRef(0);
   const routineAttemptActionIdsRef = useRef(new Map<string, string>());
+  const pendingRoutineAdaptationRef = useRef<string | null>(null);
   const cleanedCheckInRoutineIdRef = useRef<string | null>(null);
   const sourceHydrationRequestRef = useRef<string | null>(null);
   const pendingHydrationMessageSyncRef = useRef(false);
@@ -651,8 +653,16 @@ export function ChatConversationClient({
   );
 
   const handleSaveRoutine = useCallback(
-    (sourceAssistantMessageId: string) =>
-      applyRoutineMutation(() => saveRoutineProposal(sourceAssistantMessageId)),
+    async (sourceAssistantMessageId: string) => {
+      const derivedFromRoutineId = pendingRoutineAdaptationRef.current;
+      const routine = await applyRoutineMutation(() =>
+        saveRoutineProposal(sourceAssistantMessageId, {
+          derivedFromRoutineId: derivedFromRoutineId ?? undefined,
+        }),
+      );
+      pendingRoutineAdaptationRef.current = null;
+      return routine;
+    },
     [applyRoutineMutation],
   );
 
@@ -689,15 +699,29 @@ export function ChatConversationClient({
   );
 
   const handleSaveRoutineOutcome = useCallback(
-    (
+    async (
       attemptId: string,
       outcome: RoutineAttemptOutcome,
       outcomeNote?: string | null,
-    ) =>
-      applyRoutineMutation(() =>
-        saveRoutineOutcome(attemptId, outcome, outcomeNote),
-      ),
-    [applyRoutineMutation],
+    ) => {
+      const routine = await applyRoutineMutation(() =>
+          saveRoutineOutcome(attemptId, outcome, outcomeNote),
+        ),
+        completedRoutine = chatData.routines.find(
+          (candidate) => candidate.latestAttempt?.id === attemptId,
+        );
+      if (completedRoutine) {
+        trackRoutineAnalytics({
+          event: "routine_check_in_completed",
+          routineId: completedRoutine.id,
+          formatVersion: completedRoutine.formatVersion,
+          widgetKind: "form",
+          technicalState: "success",
+        });
+      }
+      return routine;
+    },
+    [applyRoutineMutation, chatData.routines],
   );
 
   const handleArchiveRoutine = useCallback(
@@ -727,12 +751,22 @@ export function ChatConversationClient({
     setFocusRequestId((current) => current + 1);
   }, []);
 
-  const handleAdaptRoutine = useCallback((title: string) => {
-    setInput(
-      `Vorrei adattare la routine "${title}" dopo l'ultimo tentativo. Aiutami a renderla più efficace.`,
-    );
-    setFocusRequestId((current) => current + 1);
-  }, []);
+  const handleAdaptRoutine = useCallback(
+    (title: string) => {
+      const origin = chatData.routines.find(
+        (routine) =>
+          routine.proposal.title === title &&
+          routine.latestAttempt !== null &&
+          routine.latestAttempt.outcome !== null,
+      );
+      pendingRoutineAdaptationRef.current = origin?.id ?? null;
+      setInput(
+        `Vorrei adattare la routine "${title}" dopo l'ultimo tentativo. Aiutami a renderla più efficace.`,
+      );
+      setFocusRequestId((current) => current + 1);
+    },
+    [chatData.routines],
+  );
 
   const hasUnresolvedVoiceGeneration = hasPendingVoiceGeneration(
     chatData.messages,

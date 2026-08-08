@@ -9,12 +9,14 @@ import {
   type RoutineCardData,
   type RoutineProposal,
 } from "@/lib/coaching/routine";
+import { trackRoutineAnalytics } from "@/lib/coaching/routine-analytics-client";
 import { RoutineClientError } from "@/lib/coaching/routine-client";
 import {
   type CreateRoutineAttempt,
   RoutineCheckInForm,
   type SaveRoutineOutcome,
 } from "./RoutineCheckInForm";
+import { RoutineHistory } from "./RoutineHistory";
 import { RoutineRunner } from "./RoutineRunner";
 
 interface RoutineCardProps {
@@ -58,6 +60,7 @@ export function RoutineCard({
   const [completedRoutine, setCompletedRoutine] =
     useState<RoutineCardData | null>(null);
   const startButtonRef = useRef<HTMLButtonElement>(null);
+  const proposedRoutineRef = useRef<string | null>(null);
   const routineAttemptKey = routine?.latestAttempt
     ? `${routine.latestAttempt.id}:${routine.latestAttempt.outcome ?? "pending"}`
     : null;
@@ -98,6 +101,18 @@ export function RoutineCard({
     });
   }, [routineAttemptKey]);
 
+  useEffect(() => {
+    if (proposedRoutineRef.current === sourceAssistantMessageId) return;
+    proposedRoutineRef.current = sourceAssistantMessageId;
+    trackRoutineAnalytics({
+      event: "routine_proposed",
+      routineId: sourceAssistantMessageId,
+      formatVersion: normalizedSnapshot.formatVersion,
+      widgetKind: "routine_card",
+      technicalState: "success",
+    });
+  }, [normalizedSnapshot.formatVersion, sourceAssistantMessageId]);
+
   async function runAction(
     action: Exclude<PendingAction, null>,
     operation: () => Promise<RoutineCardData>,
@@ -110,8 +125,9 @@ export function RoutineCard({
     setError(null);
     setStatus(null);
     try {
-      await operation();
+      const routineResult = await operation();
       if (successMessage) setStatus(successMessage);
+      return routineResult;
     } catch (cause) {
       setError(
         cause instanceof RoutineClientError ? cause.message : errorMessage,
@@ -130,6 +146,13 @@ export function RoutineCard({
       const updatedRoutine = await onCreateAttempt(displayedRoutine.id);
       setCompletedRoutine(updatedRoutine);
       setIsCheckInOpen(true);
+      trackRoutineAnalytics({
+        event: "routine_completed",
+        routineId: displayedRoutine.id,
+        formatVersion: normalizedSnapshot.formatVersion,
+        widgetKind: "routine_card",
+        technicalState: "success",
+      });
     } catch (cause) {
       setCompletionError(
         cause instanceof RoutineClientError
@@ -220,11 +243,21 @@ export function RoutineCard({
                 className="min-h-11 rounded-full px-4"
                 disabled={pendingAction !== null}
                 onClick={() =>
-                  runAction(
-                    "save",
-                    () => onSave(sourceAssistantMessageId),
-                    "Non siamo riusciti a salvare la routine. Riprova.",
-                  )
+                  void (async () => {
+                    const savedRoutine = await runAction(
+                      "save",
+                      () => onSave(sourceAssistantMessageId),
+                      "Non siamo riusciti a salvare la routine. Riprova.",
+                    );
+                    if (!savedRoutine) return;
+                    trackRoutineAnalytics({
+                      event: "routine_saved",
+                      routineId: savedRoutine.id,
+                      formatVersion: normalizedSnapshot.formatVersion,
+                      widgetKind: "routine_card",
+                      technicalState: "success",
+                    });
+                  })()
                 }
               >
                 {pendingAction === "save" && (
@@ -241,7 +274,16 @@ export function RoutineCard({
               size="sm"
               className="min-h-11 rounded-full px-4"
               disabled={pendingAction !== null}
-              onClick={() => setIsRunnerOpen(true)}
+              onClick={() => {
+                setIsRunnerOpen(true);
+                trackRoutineAnalytics({
+                  event: "routine_started",
+                  routineId: displayedRoutine.id,
+                  formatVersion: normalizedSnapshot.formatVersion,
+                  widgetKind: "routine_card",
+                  technicalState: "success",
+                });
+              }}
             >
               Avvia routine
             </Button>
@@ -318,6 +360,8 @@ export function RoutineCard({
           {error}
         </p>
       )}
+
+      {displayedRoutine && <RoutineHistory routine={displayedRoutine} />}
 
       {isRunnerOpen && isActive && displayedRoutine && (
         <>
