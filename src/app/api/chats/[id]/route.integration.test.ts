@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import {
   createChat,
   createMessage,
+  createRoutine,
+  createRoutineAttempt,
   createUser,
   resetIntegrationDb,
   toAuthUser,
@@ -144,6 +146,120 @@ describe("integration /api/chats/[id]", () => {
     );
     expect(mocks.revalidateTag).toHaveBeenCalledWith(`chat-${chat.id}`, "max");
     expect(mocks.revalidateTag).toHaveBeenCalledWith(`chats-${user.id}`, "max");
+  });
+
+  it("preserves an orphaned routine without leaking it through public or foreign refreshes", async () => {
+    const owner = await createUser();
+    const viewer = await createUser();
+    const chat = await createChat(owner.id, { title: "Routine source" });
+    const proposal = {
+      title: "Reset dopo un errore",
+      trigger: "Quando perdi un punto importante",
+      durationLabel: "60 secondi",
+      steps: ["Fermati", "Espira lentamente", "Scegli il prossimo gesto"],
+      completionCue: "Riparti sul compito successivo",
+    };
+    const sourceMessage = await createMessage({
+      userId: owner.id,
+      chatId: chat.id,
+      role: "ASSISTANT",
+      createdAt: new Date("2026-08-08T10:00:00.000Z"),
+    });
+    await prisma.message.update({
+      where: { id: sourceMessage.id },
+      data: {
+        parts: [
+          { type: "text", text: "Prova questa routine." },
+          { type: "data-coachingRoutine", data: proposal },
+        ],
+        toolCalls: [{ name: "proposeRoutine", args: proposal }],
+        metadata: { routineProposal: proposal },
+      },
+    });
+    const routine = await createRoutine(owner.id, {
+      sourceChatId: chat.id,
+      sourceAssistantMessageId: sourceMessage.id,
+      title: proposal.title,
+      trigger: proposal.trigger,
+      durationLabel: proposal.durationLabel,
+      steps: proposal.steps,
+      completionCue: proposal.completionCue,
+    });
+    const attempt = await createRoutineAttempt(routine.id, {
+      clientActionId: "orphan-check",
+      attemptedAt: new Date("2026-08-08T10:05:00.000Z"),
+      outcome: "HELPFUL",
+      outcomeNote: "Ha funzionato",
+      outcomeRecordedAt: new Date("2026-08-08T10:06:00.000Z"),
+    });
+
+    mocks.getAuthUser.mockResolvedValue({
+      user: { ...toAuthUser(owner), isGuest: false },
+      error: null,
+    });
+    const ownerRefresh = await GET(
+      new Request(`http://localhost/api/chats/${chat.id}`),
+      routeParams(chat.id),
+    );
+    const ownerBody = await ownerRefresh.json();
+    expect(ownerBody.routines).toHaveLength(1);
+    expect(ownerBody.routines[0].latestAttempt.id).toBe(attempt.id);
+
+    await prisma.chat.update({
+      where: { id: chat.id },
+      data: { visibility: "PUBLIC" },
+    });
+    mocks.getAuthUser.mockResolvedValue({
+      user: { ...toAuthUser(viewer), isGuest: false },
+      error: null,
+    });
+    const publicRefresh = await GET(
+      new Request(`http://localhost/api/chats/${chat.id}`),
+      routeParams(chat.id),
+    );
+    const publicBody = await publicRefresh.json();
+    expect(publicBody.routines).toEqual([]);
+    expect(publicBody.messages[0].parts).toEqual([
+      { type: "text", text: "Prova questa routine." },
+    ]);
+    expect(publicBody.messages[0]).not.toHaveProperty("toolCalls");
+
+    mocks.getAuthUser.mockResolvedValue({
+      user: { ...toAuthUser(owner), isGuest: false },
+      error: null,
+    });
+    const deleteResponse = await DELETE(
+      new Request(`http://localhost/api/chats/${chat.id}`, {
+        method: "DELETE",
+      }),
+      routeParams(chat.id),
+    );
+    expect(deleteResponse.status).toBe(200);
+
+    const orphanedRoutine = await prisma.routine.findUnique({
+      where: { id: routine.id },
+      include: { attempts: true },
+    });
+    expect(orphanedRoutine).toMatchObject({
+      id: routine.id,
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+      title: proposal.title,
+      attempts: [{ id: attempt.id, outcome: "HELPFUL" }],
+    });
+
+    mocks.getAuthUser.mockResolvedValue({
+      user: { ...toAuthUser(viewer), isGuest: false },
+      error: null,
+    });
+    const foreignRefresh = await GET(
+      new Request(`http://localhost/api/chats/${chat.id}`),
+      routeParams(chat.id),
+    );
+    expect(foreignRefresh.status).toBe(404);
+    await expect(foreignRefresh.json()).resolves.toEqual({
+      error: "Chat not found",
+    });
   });
 
   it("DELETE succeeds even when revalidateTag throws", async () => {

@@ -408,6 +408,7 @@ export function LayoutClient({
             createdAt: chat.createdAt,
             updatedAt: chat.updatedAt,
             messages: [],
+            routines: [],
             pagination: {
               hasMore: false,
               nextCursor: null,

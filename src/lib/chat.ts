@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { cache } from "react";
 import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
+import { toRoutineCardData } from "@/lib/coaching/routine";
 import { prisma } from "@/lib/db";
 import type { ModelComparisonData } from "@/lib/model-experiments/types";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
@@ -195,6 +196,32 @@ export const getSharedChat = cache(
 
     messagesToReturn.reverse();
 
+    const canReceiveRoutineProposal =
+      chat.userId === userId && chat.visibility === "PRIVATE";
+    const canReceivePrivateCoachingData =
+      canReceiveRoutineProposal && userData?.isGuest === false;
+    const returnedAssistantMessageIds = messagesToReturn
+      .filter((message) => message.role === "ASSISTANT")
+      .map((message) => message.id);
+    const routines =
+      canReceivePrivateCoachingData && returnedAssistantMessageIds.length > 0
+        ? await prisma.routine.findMany({
+            where: {
+              userId,
+              sourceChatId: chat.id,
+              sourceAssistantMessageId: {
+                in: returnedAssistantMessageIds,
+              },
+            },
+            include: {
+              attempts: {
+                orderBy: { attemptedAt: "desc" },
+                take: 1,
+              },
+            },
+          })
+        : [];
+
     const unresolvedComparisons = cursor
       ? []
       : await prisma.modelExperimentPair.findMany({
@@ -217,7 +244,9 @@ export const getSharedChat = cache(
         id: m.id,
         role: m.role.toLowerCase() as "user" | "assistant",
         content: getTextFromParts(m.parts),
-        parts: m.parts,
+        parts: canReceiveRoutineProposal
+          ? m.parts
+          : withoutCoachingRoutineParts(m.parts),
         createdAt: m.createdAt.toISOString(),
         model: isModelComparisonCanonical(m.metadata)
           ? undefined
@@ -233,7 +262,7 @@ export const getSharedChat = cache(
               }
             : undefined,
         ragUsed: m.ragUsed || undefined,
-        toolCalls: m.toolCalls,
+        ...(canReceiveRoutineProposal ? { toolCalls: m.toolCalls } : {}),
         feedback: normalizeMessageFeedback(m.feedback),
         feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
         voice:
@@ -301,6 +330,7 @@ export const getSharedChat = cache(
       createdAt: chat.createdAt.toISOString(),
       updatedAt: chat.updatedAt.toISOString(),
       messages: mappedMessages,
+      routines: routines.map(toRoutineCardData),
       pagination: {
         hasMore,
         nextCursor,
@@ -311,6 +341,19 @@ export const getSharedChat = cache(
     };
   },
 );
+
+function withoutCoachingRoutineParts(parts: unknown): unknown {
+  if (!Array.isArray(parts)) return parts;
+
+  return parts.filter(
+    (part) =>
+      !(
+        part &&
+        typeof part === "object" &&
+        (part as { type?: unknown }).type === "data-coachingRoutine"
+      ),
+  );
+}
 
 function isExplicitVoiceRequest(metadata: unknown): boolean {
   if (!metadata || typeof metadata !== "object") return false;

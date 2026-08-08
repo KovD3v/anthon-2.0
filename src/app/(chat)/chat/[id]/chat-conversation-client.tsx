@@ -17,6 +17,7 @@ import {
   extractTextFromParts,
   hasPendingVoiceGeneration,
 } from "@/lib/chat-client";
+import { routineProposalSchema } from "@/lib/coaching/routine";
 import type {
   AnthonUIMessage,
   ModelComparisonSlot,
@@ -57,7 +58,8 @@ const modelComparisonSlotSchema = z.object({
   text: z.string(),
 });
 
-const modelComparisonDataPartSchemas = {
+const chatDataPartSchemas = {
+  coachingRoutine: routineProposalSchema,
   modelComparison: z.object({
     pairId: z.string(),
     noticeRequired: z.boolean(),
@@ -205,7 +207,7 @@ export function ChatConversationClient({
     // preserving the underlying stream and final response.
     throttle: 50,
     messageMetadataSchema,
-    dataPartSchemas: modelComparisonDataPartSchemas,
+    dataPartSchemas: chatDataPartSchemas,
     transport,
     onData: (part) => {
       if (part.type !== "data-modelComparisonDelta") return;

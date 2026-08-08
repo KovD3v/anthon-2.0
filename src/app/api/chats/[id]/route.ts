@@ -10,6 +10,7 @@ import { revalidateTag } from "next/cache";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { getAuthUser } from "@/lib/auth";
 import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
+import { toRoutineCardData } from "@/lib/coaching/routine";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { getTextFromParts } from "@/lib/utils/message-parts";
@@ -128,6 +129,32 @@ export async function GET(request: Request, { params }: RouteParams) {
     // Reverse to chronological order for display
     messagesToReturn.reverse();
 
+    const canReceiveRoutineProposal =
+      chat.userId === user.id && chat.visibility === "PRIVATE";
+    const canReceivePrivateCoachingData =
+      canReceiveRoutineProposal && user.isGuest === false;
+    const returnedAssistantMessageIds = messagesToReturn
+      .filter((message) => message.role === "ASSISTANT")
+      .map((message) => message.id);
+    const routines =
+      canReceivePrivateCoachingData && returnedAssistantMessageIds.length > 0
+        ? await prisma.routine.findMany({
+            where: {
+              userId: user.id,
+              sourceChatId: chat.id,
+              sourceAssistantMessageId: {
+                in: returnedAssistantMessageIds,
+              },
+            },
+            include: {
+              attempts: {
+                orderBy: { attemptedAt: "desc" },
+                take: 1,
+              },
+            },
+          })
+        : [];
+
     return Response.json({
       id: chat.id,
       title: chat.title ?? "Nuova Chat",
@@ -138,7 +165,9 @@ export async function GET(request: Request, { params }: RouteParams) {
       messages: messagesToReturn.map((m) => ({
         id: m.id,
         role: m.role.toLowerCase(),
-        parts: m.parts,
+        parts: canReceiveRoutineProposal
+          ? m.parts
+          : withoutCoachingRoutineParts(m.parts),
         createdAt: m.createdAt.toISOString(),
         model: m.model,
         usage:
@@ -152,7 +181,7 @@ export async function GET(request: Request, { params }: RouteParams) {
               }
             : undefined,
         ragUsed: m.ragUsed,
-        toolCalls: m.toolCalls,
+        ...(canReceiveRoutineProposal ? { toolCalls: m.toolCalls } : {}),
         feedback: m.feedback,
         feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
         voice: m.voiceGenerationJob
@@ -175,11 +204,25 @@ export async function GET(request: Request, { params }: RouteParams) {
         hasMore,
         nextCursor,
       },
+      routines: routines.map(toRoutineCardData),
     });
   } catch (err) {
     chatsLogger.error("get.error", "Failed to fetch chat", { error: err });
     return Response.json({ error: "Failed to fetch chat" }, { status: 500 });
   }
+}
+
+function withoutCoachingRoutineParts(parts: unknown): unknown {
+  if (!Array.isArray(parts)) return parts;
+
+  return parts.filter(
+    (part) =>
+      !(
+        part &&
+        typeof part === "object" &&
+        (part as { type?: unknown }).type === "data-coachingRoutine"
+      ),
+  );
 }
 
 function isExplicitVoiceRequest(metadata: unknown): boolean {

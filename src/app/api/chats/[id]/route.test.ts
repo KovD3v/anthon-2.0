@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   chatDelete: vi.fn(),
   messageFindMany: vi.fn(),
   messageFindFirst: vi.fn(),
+  routineFindMany: vi.fn(),
   deletePrivateVoiceBlobsForMessages: vi.fn(),
 }));
 
@@ -35,6 +36,9 @@ vi.mock("@/lib/db", () => ({
       findMany: mocks.messageFindMany,
       findFirst: mocks.messageFindFirst,
     },
+    routine: {
+      findMany: mocks.routineFindMany,
+    },
   },
 }));
 
@@ -58,10 +62,12 @@ describe("/api/chats/[id] route", () => {
     mocks.chatDelete.mockReset();
     mocks.messageFindMany.mockReset();
     mocks.messageFindFirst.mockReset();
+    mocks.routineFindMany.mockReset();
+    mocks.routineFindMany.mockResolvedValue([]);
     mocks.deletePrivateVoiceBlobsForMessages.mockReset();
 
     mocks.getAuthUser.mockResolvedValue({
-      user: { id: "user-1", role: "USER" },
+      user: { id: "user-1", role: "USER", isGuest: false },
       error: null,
     });
 
@@ -306,7 +312,203 @@ describe("/api/chats/[id] route", () => {
         hasMore: true,
         nextCursor: "m2",
       },
+      routines: [],
     });
+  });
+
+  it("GET hydrates routines only for assistant messages in the cursor page", async () => {
+    const proposal = {
+      title: "Reset dopo un errore",
+      trigger: "Quando perdi il punto",
+      durationLabel: "60 secondi",
+      steps: ["Fermati", "Espira lentamente", "Scegli il prossimo gesto"],
+      completionCue: "Riparti sul compito",
+    };
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "assistant-page",
+        role: "ASSISTANT",
+        parts: [{ type: "data-coachingRoutine", data: proposal }],
+        createdAt: new Date("2026-08-08T10:02:00.000Z"),
+        model: null,
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: null,
+        generationTimeMs: null,
+        reasoningTimeMs: null,
+        ragUsed: null,
+        toolCalls: null,
+        feedback: null,
+        metadata: null,
+        attachments: [],
+      },
+      {
+        id: "user-page",
+        role: "USER",
+        parts: [{ type: "text", text: "Aiutami" }],
+        createdAt: new Date("2026-08-08T10:01:00.000Z"),
+        model: null,
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: null,
+        generationTimeMs: null,
+        reasoningTimeMs: null,
+        ragUsed: null,
+        toolCalls: null,
+        feedback: null,
+        metadata: null,
+        attachments: [],
+      },
+    ]);
+    mocks.routineFindMany.mockResolvedValue([
+      {
+        id: "routine-page",
+        sourceChatId: "chat-1",
+        sourceAssistantMessageId: "assistant-page",
+        status: "ACTIVE",
+        title: proposal.title,
+        trigger: proposal.trigger,
+        durationLabel: proposal.durationLabel,
+        steps: proposal.steps,
+        completionCue: proposal.completionCue,
+        archivedAt: null,
+        attempts: [],
+      },
+    ]);
+
+    const response = await GET(
+      new Request("http://localhost/api/chats/chat-1?limit=2&cursor=next-page"),
+      { params: params() },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mocks.routineFindMany).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        sourceChatId: "chat-1",
+        sourceAssistantMessageId: { in: ["assistant-page"] },
+      },
+      include: {
+        attempts: { orderBy: { attemptedAt: "desc" }, take: 1 },
+      },
+    });
+    expect(body.routines).toEqual([
+      {
+        id: "routine-page",
+        sourceChatId: "chat-1",
+        sourceAssistantMessageId: "assistant-page",
+        status: "ACTIVE",
+        proposal,
+        archivedAt: null,
+        latestAttempt: null,
+      },
+    ]);
+    expect(body.messages[1].parts).toEqual([
+      { type: "data-coachingRoutine", data: proposal },
+    ]);
+  });
+
+  it("GET keeps a private guest proposal but never hydrates saved routines", async () => {
+    const proposal = {
+      title: "Reset rapido",
+      trigger: "Prima del servizio",
+      durationLabel: null,
+      steps: ["Espira lentamente", "Guarda il bersaglio"],
+      completionCue: "Inizia il movimento",
+    };
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "user-1", role: "USER", isGuest: true },
+      error: null,
+    });
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "assistant-guest",
+        role: "ASSISTANT",
+        parts: [{ type: "data-coachingRoutine", data: proposal }],
+        createdAt: new Date("2026-08-08T10:02:00.000Z"),
+        model: null,
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: null,
+        generationTimeMs: null,
+        reasoningTimeMs: null,
+        ragUsed: null,
+        toolCalls: null,
+        feedback: null,
+        metadata: null,
+        attachments: [],
+      },
+    ]);
+
+    const response = await GET(
+      new Request("http://localhost/api/chats/chat-1"),
+      { params: params() },
+    );
+    const body = await response.json();
+
+    expect(body.routines).toEqual([]);
+    expect(body.messages[0].parts).toEqual([
+      { type: "data-coachingRoutine", data: proposal },
+    ]);
+    expect(mocks.routineFindMany).not.toHaveBeenCalled();
+  });
+
+  it("GET strips proposal parts and raw tool calls from a public foreign cursor page", async () => {
+    const proposal = {
+      title: "Routine privata",
+      trigger: "Quando sale la tensione",
+      durationLabel: "45 secondi",
+      steps: ["Respira", "Scegli un gesto"],
+      completionCue: "Torna al presente",
+    };
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "viewer-1", role: "USER", isGuest: false },
+      error: null,
+    });
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Shared",
+      visibility: "PUBLIC",
+      userId: "owner-1",
+      createdAt: new Date("2026-08-08T10:00:00.000Z"),
+      updatedAt: new Date("2026-08-08T10:02:00.000Z"),
+    });
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "assistant-public",
+        role: "ASSISTANT",
+        parts: [
+          { type: "text", text: "Testo pubblico" },
+          { type: "data-coachingRoutine", data: proposal },
+        ],
+        createdAt: new Date("2026-08-08T10:02:00.000Z"),
+        model: null,
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: null,
+        generationTimeMs: null,
+        reasoningTimeMs: null,
+        ragUsed: null,
+        toolCalls: [{ name: "proposeRoutine", args: proposal }],
+        feedback: null,
+        metadata: { routineProposal: proposal },
+        attachments: [],
+      },
+    ]);
+
+    const response = await GET(
+      new Request("http://localhost/api/chats/chat-1?cursor=next-page"),
+      { params: params() },
+    );
+    const body = await response.json();
+
+    expect(body.routines).toEqual([]);
+    expect(body.messages[0].parts).toEqual([
+      { type: "text", text: "Testo pubblico" },
+    ]);
+    expect(body.messages[0]).not.toHaveProperty("toolCalls");
+    expect(mocks.routineFindMany).not.toHaveBeenCalled();
   });
 
   it("GET returns 500 on database errors", async () => {

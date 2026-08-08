@@ -5,6 +5,8 @@
  * Import from here instead of defining inline.
  */
 
+import type { RoutineCardData } from "@/lib/coaching/routine";
+
 // -----------------------------------------------------
 // Attachments
 // -----------------------------------------------------
@@ -139,6 +141,7 @@ export interface ChatData {
   createdAt?: string;
   updatedAt?: string;
   messages: ChatMessage[];
+  routines: RoutineCardData[];
   pagination?: {
     hasMore: boolean;
     nextCursor: string | null;

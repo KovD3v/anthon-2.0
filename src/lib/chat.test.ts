@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   chatFindFirst: vi.fn(),
   userFindUnique: vi.fn(),
   messageFindMany: vi.fn(),
+  routineFindMany: vi.fn(),
   modelExperimentPairFindMany: vi.fn(),
   resolveEffectiveEntitlements: vi.fn(),
   getVoicePlanConfig: vi.fn(),
@@ -31,6 +32,9 @@ vi.mock("@/lib/db", () => ({
     message: {
       findMany: mocks.messageFindMany,
     },
+    routine: {
+      findMany: mocks.routineFindMany,
+    },
     modelExperimentPair: {
       findMany: mocks.modelExperimentPairFindMany,
     },
@@ -54,6 +58,8 @@ describe("lib/chat", () => {
     mocks.chatFindFirst.mockReset();
     mocks.userFindUnique.mockReset();
     mocks.messageFindMany.mockReset();
+    mocks.routineFindMany.mockReset();
+    mocks.routineFindMany.mockResolvedValue([]);
     mocks.modelExperimentPairFindMany.mockReset();
     mocks.modelExperimentPairFindMany.mockResolvedValue([]);
     mocks.resolveEffectiveEntitlements.mockReset();
@@ -344,6 +350,222 @@ describe("lib/chat", () => {
       },
       ragUsed: undefined,
     });
+  });
+
+  it("getSharedChat hydrates trusted routine cards for a private authenticated owner", async () => {
+    const proposal = {
+      title: "Reset dopo un errore",
+      trigger: "Quando commetti un errore in gara",
+      durationLabel: "60 secondi",
+      steps: [
+        "Fermati e guarda un punto",
+        "Espira lentamente",
+        "Scegli il prossimo gesto",
+      ],
+      completionCue: "Riparti sul compito successivo",
+    };
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Routine",
+      visibility: "PRIVATE",
+      userId: "user-1",
+      createdAt: new Date("2026-08-08T10:00:00.000Z"),
+      updatedAt: new Date("2026-08-08T10:05:00.000Z"),
+      _count: { messages: 1 },
+    });
+    mocks.userFindUnique.mockResolvedValue({
+      role: "USER",
+      isGuest: false,
+      preferences: null,
+      subscription: null,
+    });
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "assistant-1",
+        role: "ASSISTANT",
+        parts: [
+          { type: "text", text: "Prova questa routine." },
+          { type: "data-coachingRoutine", data: proposal },
+        ],
+        createdAt: new Date("2026-08-08T10:05:00.000Z"),
+        model: "model-a",
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: null,
+        generationTimeMs: null,
+        reasoningTimeMs: null,
+        ragUsed: null,
+        toolCalls: [{ name: "proposeRoutine", args: proposal }],
+        feedback: null,
+        metadata: { routineProposal: proposal },
+        attachments: [],
+      },
+    ]);
+    mocks.routineFindMany.mockResolvedValue([
+      {
+        id: "routine-1",
+        sourceChatId: "chat-1",
+        sourceAssistantMessageId: "assistant-1",
+        status: "ACTIVE",
+        title: proposal.title,
+        trigger: proposal.trigger,
+        durationLabel: proposal.durationLabel,
+        steps: proposal.steps,
+        completionCue: proposal.completionCue,
+        archivedAt: null,
+        attempts: [
+          {
+            id: "attempt-latest",
+            attemptedAt: new Date("2026-08-08T11:00:00.000Z"),
+            outcome: "HELPFUL",
+            outcomeNote: "Mi ha rimesso a fuoco",
+            outcomeRecordedAt: new Date("2026-08-08T11:01:00.000Z"),
+          },
+        ],
+      },
+    ]);
+
+    const result = await getSharedChat("chat-1", "user-1");
+
+    expect(mocks.routineFindMany).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        sourceChatId: "chat-1",
+        sourceAssistantMessageId: { in: ["assistant-1"] },
+      },
+      include: {
+        attempts: { orderBy: { attemptedAt: "desc" }, take: 1 },
+      },
+    });
+    expect(result?.messages[0]?.parts).toEqual([
+      { type: "text", text: "Prova questa routine." },
+      { type: "data-coachingRoutine", data: proposal },
+    ]);
+    expect(result?.routines).toEqual([
+      {
+        id: "routine-1",
+        sourceChatId: "chat-1",
+        sourceAssistantMessageId: "assistant-1",
+        status: "ACTIVE",
+        proposal,
+        archivedAt: null,
+        latestAttempt: {
+          id: "attempt-latest",
+          attemptedAt: "2026-08-08T11:00:00.000Z",
+          outcome: "HELPFUL",
+          outcomeNote: "Mi ha rimesso a fuoco",
+          outcomeRecordedAt: "2026-08-08T11:01:00.000Z",
+        },
+      },
+    ]);
+  });
+
+  it("getSharedChat keeps proposals but not saved routine cards for a guest owner", async () => {
+    const proposal = {
+      title: "Reset rapido",
+      trigger: "Prima del servizio",
+      durationLabel: null,
+      steps: ["Espira lentamente", "Guarda il bersaglio"],
+      completionCue: "Inizia il movimento",
+    };
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "guest-chat",
+      title: null,
+      visibility: "PRIVATE",
+      userId: "guest-1",
+      createdAt: new Date("2026-08-08T10:00:00.000Z"),
+      updatedAt: new Date("2026-08-08T10:05:00.000Z"),
+      _count: { messages: 1 },
+    });
+    mocks.userFindUnique.mockResolvedValue({
+      role: "USER",
+      isGuest: true,
+      preferences: null,
+      subscription: null,
+    });
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "assistant-guest",
+        role: "ASSISTANT",
+        parts: [{ type: "data-coachingRoutine", data: proposal }],
+        createdAt: new Date("2026-08-08T10:05:00.000Z"),
+        model: null,
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: null,
+        generationTimeMs: null,
+        reasoningTimeMs: null,
+        ragUsed: null,
+        toolCalls: null,
+        feedback: null,
+        metadata: null,
+        attachments: [],
+      },
+    ]);
+
+    const result = await getSharedChat("guest-chat", "guest-1");
+
+    expect(result?.messages[0]?.parts).toEqual([
+      { type: "data-coachingRoutine", data: proposal },
+    ]);
+    expect(result?.routines).toEqual([]);
+    expect(mocks.routineFindMany).not.toHaveBeenCalled();
+  });
+
+  it("getSharedChat strips private coaching data from a public non-owner payload", async () => {
+    const proposal = {
+      title: "Routine privata",
+      trigger: "Quando sale la tensione",
+      durationLabel: "45 secondi",
+      steps: ["Respira", "Scegli un gesto"],
+      completionCue: "Torna al presente",
+    };
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "public-chat",
+      title: "Public",
+      visibility: "PUBLIC",
+      userId: "owner-1",
+      createdAt: new Date("2026-08-08T10:00:00.000Z"),
+      updatedAt: new Date("2026-08-08T10:05:00.000Z"),
+      _count: { messages: 1 },
+    });
+    mocks.userFindUnique.mockResolvedValue({
+      role: "USER",
+      isGuest: false,
+      preferences: null,
+      subscription: null,
+    });
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "assistant-public",
+        role: "ASSISTANT",
+        parts: [
+          { type: "text", text: "Testo condivisibile" },
+          { type: "data-coachingRoutine", data: proposal },
+        ],
+        createdAt: new Date("2026-08-08T10:05:00.000Z"),
+        model: null,
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: null,
+        generationTimeMs: null,
+        reasoningTimeMs: null,
+        ragUsed: null,
+        toolCalls: [{ name: "proposeRoutine", args: proposal }],
+        feedback: null,
+        metadata: { routineProposal: proposal },
+        attachments: [],
+      },
+    ]);
+
+    const result = await getSharedChat("public-chat", "viewer-1");
+
+    expect(result?.routines).toEqual([]);
+    expect(result?.messages[0]?.parts).toEqual([
+      { type: "text", text: "Testo condivisibile" },
+    ]);
+    expect(result?.messages[0]).not.toHaveProperty("toolCalls");
+    expect(mocks.routineFindMany).not.toHaveBeenCalled();
   });
 
   it("getSharedChat supports cursor pagination and defaults voice preference for missing user data", async () => {

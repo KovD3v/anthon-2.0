@@ -29,7 +29,8 @@ export function hasPendingVoiceGeneration(
 }
 
 /**
- * Convert database messages to UIMessage format for the AI SDK.
+ * Convert database messages to UIMessage format for the AI SDK while
+ * preserving trusted, server-serialized parts.
  * This function is client-safe.
  */
 export function convertToUIMessages(messages: ChatMessage[]): ChatUIMessage[] {

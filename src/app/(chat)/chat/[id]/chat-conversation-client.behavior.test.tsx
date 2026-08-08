@@ -251,6 +251,7 @@ const initialChatData: ChatData = {
       createdAt: "2026-07-15T12:00:01.000Z",
     },
   ],
+  routines: [],
   pagination: { hasMore: true, nextCursor: "cursor-1" },
 };
 

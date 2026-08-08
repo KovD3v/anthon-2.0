@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import type { RoutineProposal } from "@/lib/coaching/routine";
 
 export type ModelComparisonSlot = "A" | "B";
 export type ModelComparisonChoice = ModelComparisonSlot | "TIE";
@@ -27,6 +28,7 @@ export interface ModelComparisonDeltaData {
 export type AnthonUIMessage = UIMessage<
   unknown,
   {
+    coachingRoutine: RoutineProposal;
     modelComparison: ModelComparisonData;
     modelComparisonDelta: ModelComparisonDeltaData;
   }
