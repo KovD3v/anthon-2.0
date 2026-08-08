@@ -424,7 +424,10 @@ describe("/api/chats/[id] route", () => {
       {
         id: "assistant-old",
         role: "ASSISTANT",
-        parts: [{ type: "data-coachingRoutine", data: proposal }],
+        parts: [
+          { type: "text", text: "Prova questa routine." },
+          { type: "data-coachingRoutine", data: proposal },
+        ],
         createdAt: new Date("2026-07-01T10:00:00.000Z"),
         model: null,
         inputTokens: null,
@@ -436,7 +439,7 @@ describe("/api/chats/[id] route", () => {
         toolCalls: null,
         feedback: null,
         metadata: null,
-        attachments: [],
+        attachments: [{}],
       },
     ]);
     mocks.routineFindMany.mockResolvedValue([
@@ -457,7 +460,7 @@ describe("/api/chats/[id] route", () => {
 
     const response = await GET(
       new Request(
-        "http://localhost/api/chats/chat-1?sourceAssistantMessageId=assistant-old",
+        "http://localhost/api/chats/chat-1?sourceAssistantMessageId=assistant-old&routineId=routine-old",
       ),
       { params: params() },
     );
@@ -474,10 +477,121 @@ describe("/api/chats/[id] route", () => {
         take: 1,
       }),
     );
+    expect(mocks.routineFindMany).toHaveBeenCalledWith({
+      where: {
+        id: "routine-old",
+        userId: "user-1",
+        sourceChatId: "chat-1",
+        sourceAssistantMessageId: "assistant-old",
+      },
+      include: {
+        attempts: {
+          orderBy: [{ attemptedAt: "desc" }, { id: "desc" }],
+          take: 1,
+        },
+      },
+      take: 2,
+    });
     expect(body.messages).toHaveLength(1);
-    expect(body.messages[0].id).toBe("assistant-old");
+    expect(body.messages[0]).toEqual({
+      id: "assistant-old",
+      role: "assistant",
+      content: null,
+      parts: [
+        { type: "text", text: "Prova questa routine." },
+        { type: "data-coachingRoutine", data: proposal },
+      ],
+      createdAt: "2026-07-01T10:00:00.000Z",
+    });
     expect(body.routines[0].id).toBe("routine-old");
     expect(body.pagination).toEqual({ hasMore: false, nextCursor: null });
+  });
+
+  it.each([
+    [
+      "no matching routine card part",
+      [
+        {
+          id: "assistant-old",
+          role: "ASSISTANT",
+          parts: [],
+          createdAt: new Date("2026-07-01T10:00:00.000Z"),
+          attachments: [],
+        },
+      ],
+    ],
+    [
+      "an unrelated extra message",
+      [
+        {
+          id: "assistant-old",
+          role: "ASSISTANT",
+          parts: [
+            { type: "text", text: "Prova questa routine." },
+            {
+              type: "data-coachingRoutine",
+              data: {
+                title: "Reset lontano",
+                trigger: "Dopo un errore",
+                durationLabel: null,
+                steps: ["Fermati", "Espira"],
+                completionCue: "Riparti",
+              },
+            },
+          ],
+          createdAt: new Date("2026-07-01T10:00:00.000Z"),
+          attachments: [],
+        },
+        {
+          id: "unrelated",
+          role: "USER",
+          parts: [{ type: "text", text: "Unrelated" }],
+          createdAt: new Date("2026-07-01T10:01:00.000Z"),
+          attachments: [],
+        },
+      ],
+    ],
+  ])("GET rejects targeted hydration with %s", async (_, messages) => {
+    mocks.messageFindMany.mockResolvedValue(messages);
+    mocks.routineFindMany.mockResolvedValue([
+      {
+        id: "routine-old",
+        sourceChatId: "chat-1",
+        sourceAssistantMessageId: "assistant-old",
+        status: "ACTIVE",
+        title: "Reset lontano",
+        trigger: "Dopo un errore",
+        durationLabel: null,
+        steps: ["Fermati", "Espira"],
+        completionCue: "Riparti",
+        archivedAt: null,
+        attempts: [],
+      },
+    ]);
+
+    const response = await GET(
+      new Request(
+        "http://localhost/api/chats/chat-1?sourceAssistantMessageId=assistant-old&routineId=routine-old",
+      ),
+      { params: params() },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      error: "Routine source not found",
+    });
+  });
+
+  it("GET requires a routine id for targeted hydration", async () => {
+    const response = await GET(
+      new Request(
+        "http://localhost/api/chats/chat-1?sourceAssistantMessageId=assistant-old",
+      ),
+      { params: params() },
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.chatFindFirst).not.toHaveBeenCalled();
   });
 
   it("GET rejects guest access to targeted routine source hydration", async () => {
@@ -488,7 +602,7 @@ describe("/api/chats/[id] route", () => {
 
     const response = await GET(
       new Request(
-        "http://localhost/api/chats/chat-1?sourceAssistantMessageId=assistant-old",
+        "http://localhost/api/chats/chat-1?sourceAssistantMessageId=assistant-old&routineId=routine-old",
       ),
       { params: params() },
     );
@@ -513,7 +627,7 @@ describe("/api/chats/[id] route", () => {
 
     const response = await GET(
       new Request(
-        "http://localhost/api/chats/chat-1?sourceAssistantMessageId=assistant-old",
+        "http://localhost/api/chats/chat-1?sourceAssistantMessageId=assistant-old&routineId=routine-old",
       ),
       { params: params() },
     );

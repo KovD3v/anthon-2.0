@@ -4,8 +4,11 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatUIMessage } from "@/lib/chat-client";
-import type { RoutineCardData } from "@/lib/coaching/routine";
+import { type ChatUIMessage, convertToUIMessages } from "@/lib/chat-client";
+import {
+  parseRoutineSourceHydrationPayload,
+  type RoutineCardData,
+} from "@/lib/coaching/routine";
 import { ASSISTANT_READING_MAX_MS } from "../chat/chat-reactivity-ui";
 import { MessageList } from "./MessageList";
 
@@ -199,6 +202,43 @@ describe("MessageList rendered interactions", () => {
     expect(
       container.textContent?.indexOf("Prova questa routine."),
     ).toBeLessThan(container.textContent?.indexOf(routineProposal.title) ?? -1);
+  });
+
+  it("renders a canonical hydrated card without retaining unsafe attachment fields", () => {
+    const parsed = parseRoutineSourceHydrationPayload(
+      {
+        messages: [
+          {
+            id: "assistant-1",
+            role: "assistant",
+            parts: [
+              { type: "text", text: "Prova questa routine." },
+              routinePart,
+            ],
+            createdAt: "2026-08-08T10:00:00.000Z",
+            attachments: [{}],
+          },
+        ],
+        routines: [activeRoutine],
+      },
+      {
+        routineId: "routine-1",
+        sourceChatId: "chat-1",
+        sourceAssistantMessageId: "assistant-1",
+      },
+    );
+
+    expect(parsed).not.toBeNull();
+    if (!parsed) throw new Error("Expected canonical routine source data");
+    renderMessageList({
+      messages: convertToUIMessages([parsed.message]),
+      routines: [parsed.routine],
+      openCheckInRoutineId: "routine-1",
+    });
+
+    expect(
+      screen.getByRole("textbox", { name: "Nota facoltativa" }),
+    ).toBeTruthy();
   });
 
   it.each([

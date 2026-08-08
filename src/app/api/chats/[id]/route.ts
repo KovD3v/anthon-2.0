@@ -10,7 +10,11 @@ import { revalidateTag } from "next/cache";
 import { generateChatTitle } from "@/lib/ai/chat-title";
 import { getAuthUser } from "@/lib/auth";
 import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
-import { toRoutineCardData } from "@/lib/coaching/routine";
+import {
+  areRoutineProposalsEqual,
+  getRoutineProposalFromParts,
+  toRoutineCardData,
+} from "@/lib/coaching/routine";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { getTextFromParts } from "@/lib/utils/message-parts";
@@ -41,6 +45,20 @@ export async function GET(request: Request, { params }: RouteParams) {
   const sourceAssistantMessageId = url.searchParams.get(
     "sourceAssistantMessageId",
   );
+  const routineId = url.searchParams.get("routineId");
+  if (
+    (sourceAssistantMessageId === null) !== (routineId === null) ||
+    sourceAssistantMessageId?.trim() === "" ||
+    routineId?.trim() === ""
+  ) {
+    return Response.json(
+      {
+        error:
+          "sourceAssistantMessageId and routineId must be provided together",
+      },
+      { status: 400 },
+    );
+  }
   const rawLimit = url.searchParams.get("limit");
   let limit = 50;
 
@@ -156,13 +174,20 @@ export async function GET(request: Request, { params }: RouteParams) {
     const routines =
       canReceivePrivateCoachingData && returnedAssistantMessageIds.length > 0
         ? await prisma.routine.findMany({
-            where: {
-              userId: user.id,
-              sourceChatId: chat.id,
-              sourceAssistantMessageId: {
-                in: returnedAssistantMessageIds,
-              },
-            },
+            where: sourceAssistantMessageId
+              ? {
+                  id: routineId as string,
+                  userId: user.id,
+                  sourceChatId: chat.id,
+                  sourceAssistantMessageId,
+                }
+              : {
+                  userId: user.id,
+                  sourceChatId: chat.id,
+                  sourceAssistantMessageId: {
+                    in: returnedAssistantMessageIds,
+                  },
+                },
             include: {
               attempts: {
                 orderBy: [
@@ -172,8 +197,63 @@ export async function GET(request: Request, { params }: RouteParams) {
                 take: 1,
               },
             },
+            ...(sourceAssistantMessageId ? { take: 2 } : {}),
           })
         : [];
+
+    if (sourceAssistantMessageId) {
+      const sourceMessage = messagesToReturn[0];
+      const sourceRoutine = routines[0];
+      if (
+        messagesToReturn.length !== 1 ||
+        sourceMessage?.id !== sourceAssistantMessageId ||
+        sourceMessage?.role !== "ASSISTANT" ||
+        routines.length !== 1 ||
+        !sourceRoutine
+      ) {
+        return Response.json(
+          { error: "Routine source not found" },
+          { status: 404 },
+        );
+      }
+
+      const routineCard = toRoutineCardData(sourceRoutine);
+      const sourceProposal = getRoutineProposalFromParts(sourceMessage.parts);
+      const sourceText = getRoutineSourceText(sourceMessage.parts);
+      if (
+        !sourceProposal ||
+        !sourceText ||
+        !areRoutineProposalsEqual(sourceProposal, routineCard.proposal)
+      ) {
+        return Response.json(
+          { error: "Routine source not found" },
+          { status: 404 },
+        );
+      }
+
+      return Response.json({
+        id: chat.id,
+        title: chat.title ?? "Nuova Chat",
+        visibility: chat.visibility,
+        isOwner: true,
+        createdAt: chat.createdAt.toISOString(),
+        updatedAt: chat.updatedAt.toISOString(),
+        messages: [
+          {
+            id: sourceMessage.id,
+            role: "assistant",
+            content: null,
+            parts: [
+              { type: "text", text: sourceText },
+              { type: "data-coachingRoutine", data: sourceProposal },
+            ],
+            createdAt: sourceMessage.createdAt.toISOString(),
+          },
+        ],
+        pagination: { hasMore: false, nextCursor: null },
+        routines: [routineCard],
+      });
+    }
 
     return Response.json({
       id: chat.id,
@@ -243,6 +323,24 @@ function withoutCoachingRoutineParts(parts: unknown): unknown {
         (part as { type?: unknown }).type === "data-coachingRoutine"
       ),
   );
+}
+
+function getRoutineSourceText(parts: unknown): string | null {
+  if (!Array.isArray(parts)) return null;
+
+  for (const part of parts) {
+    if (
+      part &&
+      typeof part === "object" &&
+      (part as { type?: unknown }).type === "text" &&
+      typeof (part as { text?: unknown }).text === "string" &&
+      (part as { text: string }).text.trim().length > 0
+    ) {
+      return (part as { text: string }).text;
+    }
+  }
+
+  return null;
 }
 
 function isExplicitVoiceRequest(metadata: unknown): boolean {

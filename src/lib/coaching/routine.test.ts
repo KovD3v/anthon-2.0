@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getRoutineProposalFromParts,
   getRoutineProposalFromToolCalls,
+  parseRoutineSourceHydrationPayload,
   routineCardDataSchema,
   routineProposalSchema,
   toRoutineCardData,
@@ -86,6 +87,90 @@ describe("routine proposal extraction", () => {
     ["invalid", [{ name: "proposeRoutine", args: { ...proposal, title: "" } }]],
   ])("returns null when the proposeRoutine tool call is %s", (_case, calls) => {
     expect(getRoutineProposalFromToolCalls(calls)).toBeNull();
+  });
+});
+
+describe("targeted routine source hydration", () => {
+  const routine = {
+    id: "routine-1",
+    sourceChatId: "chat-1",
+    sourceAssistantMessageId: "assistant-1",
+    status: "ACTIVE" as const,
+    proposal,
+    archivedAt: null,
+    latestAttempt: null,
+  };
+  const message = {
+    id: "assistant-1",
+    role: "assistant",
+    content: "Un valore non usato dal ritorno",
+    parts: [
+      { type: "text", text: "Prova questa routine." },
+      { type: "data-coachingRoutine", data: proposal },
+    ],
+    createdAt: "2026-08-08T10:00:00.000Z",
+  };
+  const expected = {
+    routineId: "routine-1",
+    sourceChatId: "chat-1",
+    sourceAssistantMessageId: "assistant-1",
+  };
+
+  it("returns one canonical render-safe message and omits unsupported fields", () => {
+    const parsed = parseRoutineSourceHydrationPayload(
+      {
+        messages: [{ ...message, attachments: [{}], voice: { status: 42 } }],
+        routines: [routine],
+      },
+      expected,
+    );
+
+    expect(parsed).toEqual({
+      message: {
+        id: "assistant-1",
+        role: "assistant",
+        content: null,
+        parts: [
+          { type: "text", text: "Prova questa routine." },
+          { type: "data-coachingRoutine", data: proposal },
+        ],
+        createdAt: "2026-08-08T10:00:00.000Z",
+      },
+      routine,
+    });
+    expect(parsed?.message).not.toHaveProperty("attachments");
+    expect(parsed?.message).not.toHaveProperty("voice");
+  });
+
+  it.each([
+    ["an empty card part list", [{ ...message, parts: [] }]],
+    [
+      "a different routine proposal",
+      [
+        {
+          ...message,
+          parts: [
+            { type: "text", text: "Prova questa routine." },
+            {
+              type: "data-coachingRoutine",
+              data: { ...proposal, title: "Routine diversa" },
+            },
+          ],
+        },
+      ],
+    ],
+    ["an unrelated extra message", [message, { ...message, id: "other" }]],
+    [
+      "a duplicate id with a late user role",
+      [message, { ...message, role: "user" }],
+    ],
+  ])("rejects %s", (_case, messages) => {
+    expect(
+      parseRoutineSourceHydrationPayload(
+        { messages, routines: [routine] },
+        expected,
+      ),
+    ).toBeNull();
   });
 });
 

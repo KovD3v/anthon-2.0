@@ -143,7 +143,10 @@ vi.mock("@/lib/chat-client", () => ({
     messages.map((message) => ({
       id: message.id,
       role: message.role,
-      parts: [{ type: "text", text: message.content ?? "" }],
+      parts:
+        Array.isArray(message.parts) && message.parts.length > 0
+          ? message.parts
+          : [{ type: "text", text: message.content ?? "" }],
     })),
   extractTextFromParts: (parts: Array<{ type: string; text?: string }>) =>
     parts.find((part) => part.type === "text")?.text ?? "",
@@ -226,7 +229,10 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
     onAdaptRoutine = () => undefined,
     openCheckInRoutineId = null,
   }: ComponentProps<"div"> & {
-    messages: Array<{ id: string; parts: Array<{ text?: string }> }>;
+    messages: Array<{
+      id: string;
+      parts: Array<{ text?: string; data?: { title?: string } }>;
+    }>;
     isRegenerating?: boolean;
     editingMessageId: string | null;
     deletingMessageId: string | null;
@@ -317,7 +323,9 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
         <output data-testid="regenerating">{String(isRegenerating)}</output>
         <ol aria-label="Messaggi">
           {messages.map((message) => (
-            <li key={message.id}>{message.parts[0]?.text}</li>
+            <li key={message.id}>
+              {message.parts[0]?.text ?? message.parts[0]?.data?.title}
+            </li>
           ))}
         </ol>
         <button type="button" disabled={isLoadingMore} onClick={onLoadMore}>
@@ -1045,6 +1053,19 @@ describe("ChatConversationClient routine lifecycle", () => {
     archivedAt: null,
     latestAttempt: null,
   };
+  const sourceMessage = (
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> => ({
+    id: "assistant-old",
+    role: "assistant",
+    content: null,
+    parts: [
+      { type: "text", text: "Routine precedente" },
+      { type: "data-coachingRoutine", data: proposal },
+    ],
+    createdAt: "2026-07-01T10:00:00.000Z",
+    ...overrides,
+  });
 
   beforeEach(() => {
     mocks.isGuest = false;
@@ -1124,7 +1145,7 @@ describe("ChatConversationClient routine lifecycle", () => {
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/chats/chat-1?sourceAssistantMessageId=assistant-old",
+        "/api/chats/chat-1?routineId=routine-1&sourceAssistantMessageId=assistant-old",
       ),
     );
     expect(mocks.routerReplace).not.toHaveBeenCalled();
@@ -1133,15 +1154,7 @@ describe("ChatConversationClient routine lifecycle", () => {
       new Response(
         JSON.stringify({
           ...initialChatData,
-          messages: [
-            {
-              id: "assistant-old",
-              role: "assistant",
-              content: "Routine precedente",
-              parts: [],
-              createdAt: "2026-07-01T10:00:00.000Z",
-            },
-          ],
+          messages: [sourceMessage()],
           routines: [olderRoutine],
           pagination: { hasMore: false, nextCursor: null },
         }),
@@ -1201,7 +1214,7 @@ describe("ChatConversationClient routine lifecycle", () => {
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/chats/chat-1?sourceAssistantMessageId=assistant-old",
+        "/api/chats/chat-1?routineId=routine-1&sourceAssistantMessageId=assistant-old",
       ),
     );
     await user.click(screen.getByRole("button", { name: "Carica precedenti" }));
@@ -1211,15 +1224,7 @@ describe("ChatConversationClient routine lifecycle", () => {
       new Response(
         JSON.stringify({
           ...initialChatData,
-          messages: [
-            {
-              id: "assistant-old",
-              role: "assistant",
-              content: "Routine precedente",
-              parts: [],
-              createdAt: "2026-07-01T10:00:00.000Z",
-            },
-          ],
+          messages: [sourceMessage()],
           routines: [olderRoutine],
           pagination: { hasMore: false, nextCursor: null },
         }),
@@ -1287,15 +1292,7 @@ describe("ChatConversationClient routine lifecycle", () => {
         new Response(
           JSON.stringify({
             ...initialChatData,
-            messages: [
-              {
-                id: "assistant-old",
-                role: "assistant",
-                content: "Routine precedente",
-                parts: [],
-                createdAt: "2026-07-01T10:00:00.000Z",
-              },
-            ],
+            messages: [sourceMessage()],
             routines: [olderRoutine],
             pagination: { hasMore: false, nextCursor: null },
           }),
@@ -1413,6 +1410,41 @@ describe("ChatConversationClient routine lifecycle", () => {
     ],
     ["a null message entry", [null]],
     ["a malformed message entry", [{ id: "assistant-old", role: "assistant" }]],
+    ["a source without its routine card part", [sourceMessage({ parts: [] })]],
+    [
+      "a source with a different routine card part",
+      [
+        sourceMessage({
+          parts: [
+            { type: "text", text: "Routine precedente" },
+            {
+              type: "data-coachingRoutine",
+              data: { ...proposal, title: "Routine diversa" },
+            },
+          ],
+        }),
+      ],
+    ],
+    [
+      "a valid target plus an unrelated message",
+      [
+        sourceMessage(),
+        {
+          id: "user-unrelated",
+          role: "user",
+          content: "Messaggio estraneo",
+          parts: [{ type: "text", text: "Messaggio estraneo" }],
+          createdAt: "2026-07-01T10:01:00.000Z",
+        },
+      ],
+    ],
+    [
+      "a duplicate target overwritten by a user message",
+      [
+        sourceMessage(),
+        sourceMessage({ role: "user", content: "Duplicato non attendibile" }),
+      ],
+    ],
   ])("falls back safely for %s", async (_, messages) => {
     const olderRoutine: RoutineCardData = {
       ...activeRoutine,
@@ -1445,13 +1477,54 @@ describe("ChatConversationClient routine lifecycle", () => {
     expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
       "NONE",
     );
-    expect(
-      screen.queryByRole("textbox", { name: "Check-in routine aperto" }),
-    ).toBeNull();
     expect(mocks.updateCachedChat).not.toHaveBeenCalledWith(
       "chat-1",
       expect.objectContaining({ routines: [olderRoutine] }),
     );
+  });
+
+  it("drops unsupported source fields before merging a valid hydrated card", async () => {
+    const olderRoutine: RoutineCardData = {
+      ...activeRoutine,
+      sourceAssistantMessageId: "assistant-old",
+    };
+    mocks.activeRoutine = olderRoutine;
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ...initialChatData,
+            messages: [sourceMessage({ attachments: [{}] })],
+            routines: [olderRoutine],
+            pagination: { hasMore: false, nextCursor: null },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    renderConversation({ ...initialChatData, routines: [] });
+
+    await waitFor(() =>
+      expect(
+        mocks.updateCachedChat.mock.calls.some(([, data]) =>
+          (data as ChatData).messages.some(
+            (message) => message.id === "assistant-old",
+          ),
+        ),
+      ).toBe(true),
+    );
+    const cachedChat = mocks.updateCachedChat.mock.calls.findLast(([, data]) =>
+      (data as ChatData).messages.some(
+        (message) => message.id === "assistant-old",
+      ),
+    )?.[1] as ChatData;
+    expect(
+      cachedChat.messages.find((message) => message.id === "assistant-old"),
+    ).not.toHaveProperty("attachments");
+    expect(mocks.routerReplace).toHaveBeenCalledWith("/chat/chat-1");
   });
 
   it("clears to the landing when the active hydration target disappears", async () => {

@@ -28,6 +28,30 @@ export const routineCardDataSchema = z.object({
   latestAttempt: routineAttemptCardDataSchema.nullable(),
 });
 
+const routineSourcePartSchema = z.object({
+  type: z.literal("data-coachingRoutine"),
+  data: routineProposalSchema,
+});
+
+const routineSourceTextPartSchema = z.object({
+  type: z.literal("text"),
+  text: z.string().min(1),
+});
+
+const routineSourceMessageSchema = z.object({
+  id: z.string().min(1),
+  role: z.literal("assistant"),
+  parts: z.tuple([routineSourceTextPartSchema, routineSourcePartSchema]),
+  createdAt: z.iso.datetime(),
+});
+
+const routineSourceHydrationPayloadSchema = z
+  .object({
+    messages: z.tuple([routineSourceMessageSchema]),
+    routines: z.tuple([routineCardDataSchema]),
+  })
+  .passthrough();
+
 export type RoutineCardData = {
   id: string;
   sourceChatId: string | null;
@@ -43,6 +67,28 @@ export type RoutineCardData = {
     outcomeRecordedAt: string | null;
   } | null;
 };
+
+export interface RoutineSourceHydrationTarget {
+  routineId: string;
+  sourceChatId: string;
+  sourceAssistantMessageId: string;
+}
+
+export interface CanonicalRoutineSourceMessage {
+  id: string;
+  role: "assistant";
+  content: null;
+  parts: [
+    { type: "text"; text: string },
+    { type: "data-coachingRoutine"; data: RoutineProposal },
+  ];
+  createdAt: string;
+}
+
+export interface RoutineSourceHydrationData {
+  message: CanonicalRoutineSourceMessage;
+  routine: RoutineCardData;
+}
 
 type RoutineCardRecord = {
   id: string;
@@ -66,6 +112,55 @@ type RoutineCardRecord = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+export function areRoutineProposalsEqual(
+  left: RoutineProposal,
+  right: RoutineProposal,
+): boolean {
+  return (
+    left.title === right.title &&
+    left.trigger === right.trigger &&
+    (left.durationLabel ?? null) === (right.durationLabel ?? null) &&
+    left.completionCue === right.completionCue &&
+    left.steps.length === right.steps.length &&
+    left.steps.every((step, index) => step === right.steps[index])
+  );
+}
+
+export function parseRoutineSourceHydrationPayload(
+  payload: unknown,
+  expected: RoutineSourceHydrationTarget,
+): RoutineSourceHydrationData | null {
+  const parsed = routineSourceHydrationPayloadSchema.safeParse(payload);
+  if (!parsed.success) return null;
+
+  const message = parsed.data.messages[0];
+  const routine = parsed.data.routines[0];
+  const proposal = message.parts[1].data;
+  if (
+    message.id !== expected.sourceAssistantMessageId ||
+    routine.id !== expected.routineId ||
+    routine.sourceChatId !== expected.sourceChatId ||
+    routine.sourceAssistantMessageId !== expected.sourceAssistantMessageId ||
+    !areRoutineProposalsEqual(proposal, routine.proposal)
+  ) {
+    return null;
+  }
+
+  return {
+    message: {
+      id: message.id,
+      role: "assistant",
+      content: null,
+      parts: [
+        { type: "text", text: message.parts[0].text },
+        { type: "data-coachingRoutine", data: proposal },
+      ],
+      createdAt: message.createdAt,
+    },
+    routine,
+  };
 }
 
 export function getRoutineProposalFromParts(
