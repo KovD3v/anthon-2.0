@@ -26,15 +26,25 @@ function getStatusLabel(routine: RoutineCardData) {
 
 export function RoutineSidebarShelf({
   routines,
+  activeTotal = null,
+  activeNextCursor = null,
+  archivedNextCursor = null,
   isLoading,
+  loadingMoreStatus = null,
   error,
   onRetry,
+  onLoadMore = () => {},
   onNavigate,
 }: {
   routines: RoutineCardData[];
+  activeTotal?: number | null;
+  activeNextCursor?: string | null;
+  archivedNextCursor?: string | null;
   isLoading: boolean;
+  loadingMoreStatus?: "ACTIVE" | "ARCHIVED" | null;
   error: string | null;
   onRetry: () => void;
+  onLoadMore?: (status: "ACTIVE" | "ARCHIVED") => void;
   onNavigate: (routine: RoutineCardData) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -48,9 +58,14 @@ export function RoutineSidebarShelf({
     [routines],
   );
   const visibleRoutines = showArchived ? archivedRoutines : activeRoutines;
+  const visibleStatus = showArchived ? "ARCHIVED" : "ACTIVE";
+  const visibleNextCursor = showArchived
+    ? archivedNextCursor
+    : activeNextCursor;
   const latestRoutine = activeRoutines[0] ?? archivedRoutines[0] ?? null;
-  const activeLabel = `${activeRoutines.length} ${
-    activeRoutines.length === 1 ? "attiva" : "attive"
+  const activeCount = activeTotal ?? activeRoutines.length;
+  const activeLabel = `${activeCount} ${
+    activeCount === 1 ? "attiva" : "attive"
   }`;
 
   return (
@@ -130,6 +145,20 @@ export function RoutineSidebarShelf({
                   : "Nessuna routine attiva"}
               </p>
             )}
+            {visibleNextCursor ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="mt-2 w-full text-xs"
+                disabled={loadingMoreStatus !== null}
+                onClick={() => onLoadMore(visibleStatus)}
+              >
+                {loadingMoreStatus === visibleStatus
+                  ? "Caricamento routine…"
+                  : "Carica altre routine"}
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}

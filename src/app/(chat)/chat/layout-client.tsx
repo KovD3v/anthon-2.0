@@ -30,6 +30,7 @@ import type { RoutineCardData } from "@/lib/coaching/routine";
 import {
   fetchActiveRoutineForReturn,
   fetchRoutineCollection,
+  type RoutineCollectionStatus,
 } from "@/lib/coaching/routine-client";
 import { installChatViewportSizing } from "@/lib/visual-viewport";
 import type { Chat, ChatData, UsageData } from "@/types/chat";
@@ -124,9 +125,10 @@ interface ChatContextType {
   chats: Chat[];
   coachingGoal: string | null;
   activeRoutine: RoutineCardData | null;
-  routineCollection: RoutineCardData[];
+  routineCollection: RoutineCollectionState;
   routineCollectionError: string | null;
   isRoutineCollectionLoading: boolean;
+  routineCollectionLoadingMoreStatus: RoutineCollectionStatus | null;
   isLoading: boolean;
   isCreatingChat: boolean;
   currentChatId: string | null;
@@ -143,12 +145,30 @@ interface ChatContextType {
   consumePendingInitialMessage: (chatId: string) => string | null;
   updateActiveRoutine: (routine: RoutineCardData) => void;
   refreshActiveRoutine: () => Promise<RoutineCardData | null>;
-  refreshRoutineCollection: () => Promise<RoutineCardData[]>;
+  refreshRoutineCollection: () => Promise<RoutineCollectionState>;
+  loadMoreRoutineCollection: (status: RoutineCollectionStatus) => Promise<void>;
   navigateToRoutine: (routine: RoutineCardData) => void;
   openRoutineCheckIn: (routine: RoutineCardData) => void;
   openSidebar: () => void;
   guestConversationNotice: GuestConversationNotice | null;
 }
+
+interface RoutineCollectionSegment {
+  total: number | null;
+  nextCursor: string | null;
+}
+
+interface RoutineCollectionState {
+  routines: RoutineCardData[];
+  active: RoutineCollectionSegment;
+  archived: RoutineCollectionSegment;
+}
+
+const emptyRoutineCollection: RoutineCollectionState = {
+  routines: [],
+  active: { total: null, nextCursor: null },
+  archived: { total: null, nextCursor: null },
+};
 
 const ChatContext = createContext<ChatContextType | null>(null);
 
@@ -262,10 +282,12 @@ interface SidebarContentsProps {
   onPreFetch: (id: string) => void;
   onClose: () => void;
   isGuest: boolean;
-  routineCollection: RoutineCardData[];
+  routineCollection: RoutineCollectionState;
   routineCollectionError: string | null;
   isRoutineCollectionLoading: boolean;
+  routineCollectionLoadingMoreStatus: RoutineCollectionStatus | null;
   onRetryRoutineCollection: () => void;
+  onLoadMoreRoutineCollection: (status: RoutineCollectionStatus) => void;
   onNavigateToRoutine: (routine: RoutineCardData) => void;
 }
 
@@ -286,7 +308,9 @@ function SidebarContents({
   routineCollection,
   routineCollectionError,
   isRoutineCollectionLoading,
+  routineCollectionLoadingMoreStatus,
   onRetryRoutineCollection,
+  onLoadMoreRoutineCollection,
   onNavigateToRoutine,
 }: SidebarContentsProps) {
   return (
@@ -314,10 +338,15 @@ function SidebarContents({
       </div>
       {!isGuest ? (
         <RoutineSidebarShelf
-          routines={routineCollection}
+          routines={routineCollection.routines}
+          activeTotal={routineCollection.active.total}
+          activeNextCursor={routineCollection.active.nextCursor}
+          archivedNextCursor={routineCollection.archived.nextCursor}
           isLoading={isRoutineCollectionLoading}
+          loadingMoreStatus={routineCollectionLoadingMoreStatus}
           error={routineCollectionError}
           onRetry={onRetryRoutineCollection}
+          onLoadMore={onLoadMoreRoutineCollection}
           onNavigate={onNavigateToRoutine}
         />
       ) : null}
@@ -362,15 +391,23 @@ export function LayoutClient({
     initialActiveRoutine,
   );
   const activeRoutineRefreshIdRef = useRef(0);
-  const [routineCollection, setRoutineCollection] = useState<RoutineCardData[]>(
-    [],
+  const [routineCollection, setRoutineCollection] =
+    useState<RoutineCollectionState>(emptyRoutineCollection);
+  const routineCollectionRef = useRef<RoutineCollectionState>(
+    emptyRoutineCollection,
   );
   const [routineCollectionError, setRoutineCollectionError] = useState<
     string | null
   >(null);
   const [isRoutineCollectionLoading, setIsRoutineCollectionLoading] =
     useState(false);
+  const [
+    routineCollectionLoadingMoreStatus,
+    setRoutineCollectionLoadingMoreStatus,
+  ] = useState<RoutineCollectionStatus | null>(null);
   const routineCollectionRefreshIdRef = useRef(0);
+  const routineCollectionPageLoadingRef =
+    useRef<RoutineCollectionStatus | null>(null);
   const [isLoading, _setIsLoading] = useState(false);
   const [isCreateChatRequestPending, setIsCreateChatRequestPending] =
     useState(false);
@@ -473,12 +510,25 @@ export function LayoutClient({
     setActiveRoutine(initialActiveRoutine);
   }, [initialActiveRoutine]);
 
+  const applyRoutineCollection = useCallback(
+    (update: (current: RoutineCollectionState) => RoutineCollectionState) => {
+      setRoutineCollection((current) => {
+        const next = update(current);
+        routineCollectionRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
+
   const refreshRoutineCollection = useCallback(async () => {
-    if (isGuest) return [];
+    if (isGuest) return emptyRoutineCollection;
 
     const refreshId = routineCollectionRefreshIdRef.current + 1;
     routineCollectionRefreshIdRef.current = refreshId;
+    routineCollectionPageLoadingRef.current = null;
     setIsRoutineCollectionLoading(true);
+    setRoutineCollectionLoadingMoreStatus(null);
     setRoutineCollectionError(null);
 
     try {
@@ -486,20 +536,94 @@ export function LayoutClient({
         fetchRoutineCollection({ status: "ACTIVE", limit: 12 }),
         fetchRoutineCollection({ status: "ARCHIVED", limit: 12 }),
       ]);
-      const routines = [...active.routines, ...archived.routines];
+      const collection = {
+        routines: [...active.routines, ...archived.routines],
+        active: { total: active.total, nextCursor: active.nextCursor },
+        archived: { total: archived.total, nextCursor: archived.nextCursor },
+      };
       if (routineCollectionRefreshIdRef.current === refreshId) {
-        setRoutineCollection(routines);
+        applyRoutineCollection(() => collection);
         setIsRoutineCollectionLoading(false);
       }
-      return routines;
+      return collection;
     } catch {
       if (routineCollectionRefreshIdRef.current === refreshId) {
         setRoutineCollectionError("Routine non disponibili");
         setIsRoutineCollectionLoading(false);
       }
-      return [];
+      return emptyRoutineCollection;
     }
-  }, [isGuest]);
+  }, [applyRoutineCollection, isGuest]);
+
+  const loadMoreRoutineCollection = useCallback(
+    async (status: RoutineCollectionStatus) => {
+      if (isGuest || routineCollectionPageLoadingRef.current !== null) return;
+
+      const segment =
+        status === "ACTIVE"
+          ? routineCollectionRef.current.active
+          : routineCollectionRef.current.archived;
+      if (!segment.nextCursor) return;
+
+      const refreshId = routineCollectionRefreshIdRef.current + 1;
+      routineCollectionRefreshIdRef.current = refreshId;
+      routineCollectionPageLoadingRef.current = status;
+      setRoutineCollectionLoadingMoreStatus(status);
+      setRoutineCollectionError(null);
+
+      try {
+        const page = await fetchRoutineCollection({
+          status,
+          cursor: segment.nextCursor,
+          limit: 12,
+        });
+        if (routineCollectionRefreshIdRef.current === refreshId) {
+          applyRoutineCollection((current) => {
+            const currentStatusRoutines = current.routines.filter(
+              (routine) => routine.status === status,
+            );
+            const otherRoutines = current.routines.filter(
+              (routine) => routine.status !== status,
+            );
+            const existingIds = new Set(
+              currentStatusRoutines.map((routine) => routine.id),
+            );
+            const nextStatusRoutines = [
+              ...currentStatusRoutines,
+              ...page.routines.filter(
+                (routine) => !existingIds.has(routine.id),
+              ),
+            ];
+            const nextSegment = {
+              total: page.total,
+              nextCursor: page.nextCursor,
+            };
+            return status === "ACTIVE"
+              ? {
+                  routines: [...nextStatusRoutines, ...otherRoutines],
+                  active: nextSegment,
+                  archived: current.archived,
+                }
+              : {
+                  routines: [...otherRoutines, ...nextStatusRoutines],
+                  active: current.active,
+                  archived: nextSegment,
+                };
+          });
+        }
+      } catch {
+        if (routineCollectionRefreshIdRef.current === refreshId) {
+          setRoutineCollectionError("Routine non disponibili");
+        }
+      } finally {
+        if (routineCollectionRefreshIdRef.current === refreshId) {
+          routineCollectionPageLoadingRef.current = null;
+          setRoutineCollectionLoadingMoreStatus(null);
+        }
+      }
+    },
+    [applyRoutineCollection, isGuest],
+  );
 
   useEffect(() => {
     if (!isGuest) {
@@ -507,20 +631,31 @@ export function LayoutClient({
     }
   }, [isGuest, refreshRoutineCollection]);
 
-  const updateActiveRoutine = useCallback((routine: RoutineCardData) => {
-    activeRoutineRefreshIdRef.current += 1;
-    routineCollectionRefreshIdRef.current += 1;
-    setIsRoutineCollectionLoading(false);
-    setRoutineCollectionError(null);
-    setActiveRoutine((current) => {
-      if (routine.status === "ACTIVE") return routine;
-      return current?.id === routine.id ? null : current;
-    });
-    setRoutineCollection((current) => {
-      const withoutRoutine = current.filter((item) => item.id !== routine.id);
-      return [routine, ...withoutRoutine];
-    });
-  }, []);
+  const updateActiveRoutine = useCallback(
+    (routine: RoutineCardData) => {
+      activeRoutineRefreshIdRef.current += 1;
+      routineCollectionRefreshIdRef.current += 1;
+      routineCollectionPageLoadingRef.current = null;
+      setIsRoutineCollectionLoading(false);
+      setRoutineCollectionLoadingMoreStatus(null);
+      setRoutineCollectionError(null);
+      setActiveRoutine((current) => {
+        if (routine.status === "ACTIVE") return routine;
+        return current?.id === routine.id ? null : current;
+      });
+      applyRoutineCollection((current) => {
+        const withoutRoutine = current.routines.filter(
+          (item) => item.id !== routine.id,
+        );
+        return {
+          routines: [routine, ...withoutRoutine],
+          active: { total: null, nextCursor: null },
+          archived: { total: null, nextCursor: null },
+        };
+      });
+    },
+    [applyRoutineCollection],
+  );
 
   const refreshActiveRoutine = useCallback(async () => {
     if (isGuest) return null;
@@ -922,7 +1057,9 @@ export function LayoutClient({
         routineCollection,
         routineCollectionError,
         isRoutineCollectionLoading,
+        routineCollectionLoadingMoreStatus,
         refreshRoutineCollection,
+        loadMoreRoutineCollection,
         navigateToRoutine,
         openRoutineCheckIn,
         openSidebar,
@@ -989,8 +1126,14 @@ export function LayoutClient({
                 routineCollection={routineCollection}
                 routineCollectionError={routineCollectionError}
                 isRoutineCollectionLoading={isRoutineCollectionLoading}
+                routineCollectionLoadingMoreStatus={
+                  routineCollectionLoadingMoreStatus
+                }
                 onRetryRoutineCollection={() => {
                   void refreshRoutineCollection();
+                }}
+                onLoadMoreRoutineCollection={(status) => {
+                  void loadMoreRoutineCollection(status);
                 }}
                 onNavigateToRoutine={navigateToRoutine}
               />
@@ -1020,8 +1163,14 @@ export function LayoutClient({
               routineCollection={routineCollection}
               routineCollectionError={routineCollectionError}
               isRoutineCollectionLoading={isRoutineCollectionLoading}
+              routineCollectionLoadingMoreStatus={
+                routineCollectionLoadingMoreStatus
+              }
               onRetryRoutineCollection={() => {
                 void refreshRoutineCollection();
+              }}
+              onLoadMoreRoutineCollection={(status) => {
+                void loadMoreRoutineCollection(status);
               }}
               onNavigateToRoutine={navigateToRoutine}
             />

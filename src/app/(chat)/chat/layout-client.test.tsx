@@ -141,14 +141,27 @@ function RoutineProbe() {
 }
 
 function RoutineCollectionProbe() {
-  const { routineCollection, refreshRoutineCollection } = useChatContext();
+  const {
+    routineCollection,
+    refreshRoutineCollection,
+    loadMoreRoutineCollection,
+  } = useChatContext();
   return (
     <div>
       <output data-testid="routine-collection">
-        {routineCollection.map((routine) => routine.id).join("|")}
+        {routineCollection.routines.map((routine) => routine.id).join("|")}
+      </output>
+      <output data-testid="routine-active-total">
+        {routineCollection.active.total ?? "unknown"}
       </output>
       <button type="button" onClick={() => void refreshRoutineCollection()}>
         Aggiorna raccolta routine
+      </button>
+      <button
+        type="button"
+        onClick={() => void loadMoreRoutineCollection("ACTIVE")}
+      >
+        Carica pagina attive
       </button>
     </div>
   );
@@ -596,6 +609,88 @@ describe("routine sidebar collection context", () => {
     await waitFor(() =>
       expect(screen.getByTestId("routine-collection").textContent).toBe(
         "routine-newer",
+      ),
+    );
+  });
+
+  it("appends a cursor page without changing the authoritative active total", async () => {
+    mocks.fetchRoutineCollection
+      .mockResolvedValueOnce({
+        routines: [sourceRoutine],
+        total: 13,
+        nextCursor: "active-next",
+      })
+      .mockResolvedValueOnce({ routines: [], total: 0, nextCursor: null })
+      .mockResolvedValueOnce({
+        routines: [{ ...sourceRoutine, id: "routine-13" }],
+        total: 13,
+        nextCursor: null,
+      });
+    const user = userEvent.setup();
+    renderLayout(sourceRoutine, <RoutineCollectionProbe />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-active-total").textContent).toBe("13"),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Carica pagina attive" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-collection").textContent).toBe(
+        "routine-source|routine-13",
+      ),
+    );
+    expect(screen.getByTestId("routine-active-total").textContent).toBe("13");
+  });
+
+  it("keeps collection metadata and ignores a stale active page after refresh", async () => {
+    const stalePage = deferredRoutineCollection();
+    mocks.fetchRoutineCollection
+      .mockResolvedValueOnce({
+        routines: [sourceRoutine],
+        total: 13,
+        nextCursor: "active-next",
+      })
+      .mockResolvedValueOnce({ routines: [], total: 0, nextCursor: null })
+      .mockReturnValueOnce(stalePage.promise)
+      .mockResolvedValueOnce({
+        routines: [{ ...sourceRoutine, id: "routine-fresh" }],
+        total: 1,
+        nextCursor: null,
+      })
+      .mockResolvedValueOnce({ routines: [], total: 0, nextCursor: null });
+    const user = userEvent.setup();
+    renderLayout(sourceRoutine, <RoutineCollectionProbe />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-active-total").textContent).toBe("13"),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Carica pagina attive" }),
+    );
+    expect(mocks.fetchRoutineCollection).toHaveBeenLastCalledWith({
+      status: "ACTIVE",
+      cursor: "active-next",
+      limit: 12,
+    });
+    await user.click(
+      screen.getByRole("button", { name: "Aggiorna raccolta routine" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-collection").textContent).toBe(
+        "routine-fresh",
+      ),
+    );
+
+    stalePage.resolve({
+      routines: [{ ...sourceRoutine, id: "routine-stale-page" }],
+      total: 13,
+      nextCursor: null,
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-collection").textContent).toBe(
+        "routine-fresh",
       ),
     );
   });

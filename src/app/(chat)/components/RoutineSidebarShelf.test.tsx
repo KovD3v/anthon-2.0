@@ -79,6 +79,38 @@ describe("RoutineSidebarShelf", () => {
     ).toBe("/chat?checkInRoutineId=routine-2");
   });
 
+  it("uses the authoritative active total and requests another page per filter", async () => {
+    const onLoadMore = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <RoutineSidebarShelf
+        routines={[routine("routine-1")]}
+        activeTotal={13}
+        activeNextCursor="active-next"
+        archivedNextCursor="archived-next"
+        isLoading={false}
+        loadingMoreStatus={null}
+        error={null}
+        onRetry={vi.fn()}
+        onLoadMore={onLoadMore}
+        onNavigate={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("13 attive")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Espandi routine" }));
+    await user.click(
+      screen.getByRole("button", { name: "Carica altre routine" }),
+    );
+    expect(onLoadMore).toHaveBeenCalledWith("ACTIVE");
+
+    await user.click(screen.getByRole("button", { name: "Archiviate" }));
+    await user.click(
+      screen.getByRole("button", { name: "Carica altre routine" }),
+    );
+    expect(onLoadMore).toHaveBeenLastCalledWith("ARCHIVED");
+  });
+
   it("renders a quiet empty state and a retry action for collection errors", async () => {
     const onRetry = vi.fn();
     const user = userEvent.setup();
