@@ -253,6 +253,39 @@ describe("MessageList rendered interactions", () => {
     ).toBeTruthy();
   });
 
+  it("passes the clicked persisted routine ID with its title when adapting", async () => {
+    const user = userEvent.setup();
+    const onAdaptRoutine = vi.fn();
+    renderMessageList({
+      messages: [
+        {
+          ...assistantMessage,
+          parts: [{ type: "text", text: "Prova questa routine." }, routinePart],
+        },
+      ],
+      routines: [
+        {
+          ...activeRoutine,
+          latestAttempt: {
+            id: "attempt-1",
+            attemptedAt: "2026-08-08T10:00:00.000Z",
+            outcome: "HELPFUL",
+            outcomeNote: null,
+            outcomeRecordedAt: "2026-08-08T10:00:00.000Z",
+          },
+        },
+      ],
+      onAdaptRoutine,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Adatta la routine" }));
+
+    expect(onAdaptRoutine).toHaveBeenCalledWith(
+      "routine-1",
+      routineProposal.title,
+    );
+  });
+
   it.each([
     [
       "malformed proposal",

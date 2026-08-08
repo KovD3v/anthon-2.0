@@ -113,7 +113,7 @@ interface MessageListProps {
   onSaveRoutineOutcome: SaveRoutineOutcome;
   onArchiveRoutine: (routineId: string) => Promise<RoutineCardData>;
   onTryRoutineNow: (title: string) => void;
-  onAdaptRoutine: (title: string) => void;
+  onAdaptRoutine: (routineId: string, title: string) => void;
   openCheckInRoutineId?: string | null;
   // Lazy loading props
   hasMoreMessages?: boolean;
@@ -811,11 +811,10 @@ export function MessageList({
                               routine?.proposal.title ?? routineProposal.title,
                             )
                           }
-                          onAdapt={() =>
-                            onAdaptRoutine(
-                              routine?.proposal.title ?? routineProposal.title,
-                            )
-                          }
+                          onAdapt={() => {
+                            if (!routine) return;
+                            onAdaptRoutine(routine.id, routine.proposal.title);
+                          }}
                           openCheckIn={openCheckInRoutineId === routine?.id}
                         />
                       )}

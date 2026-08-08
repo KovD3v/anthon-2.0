@@ -7,6 +7,12 @@ import type { RoutineCardData } from "@/lib/coaching/routine";
 import { RoutineClientError } from "@/lib/coaching/routine-client";
 import { RoutineCard } from "./RoutineCard";
 
+const mocks = vi.hoisted(() => ({ trackRoutineAnalytics: vi.fn() }));
+
+vi.mock("@/lib/coaching/routine-analytics-client", () => ({
+  trackRoutineAnalytics: mocks.trackRoutineAnalytics,
+}));
+
 const proposal = {
   title: "Reset dopo un errore",
   trigger: "Quando commetti un errore in gara",
@@ -90,7 +96,11 @@ function renderProposal(
   return { ...render(<RoutineCard {...props} />), props };
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  mocks.trackRoutineAnalytics.mockReset();
+  vi.useRealTimers();
+});
 
 describe("RoutineCard proposal", () => {
   it("renders the actionable coaching snapshot without claiming it is active", () => {
@@ -441,6 +451,70 @@ describe("RoutineCard active lifecycle", () => {
     expect(onAdapt).toHaveBeenCalledOnce();
     expect(onCreateAttempt).not.toHaveBeenCalled();
     expect(onSaveOutcome).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["7 giorni", "2026-08-03T10:00:00.000Z", 7],
+    ["14 giorni", "2026-07-31T10:00:00.000Z", 14],
+  ])(
+    "permits an explicit repeat and emits a content-free restart event within %s",
+    async (_label, attemptedAt, temporalWindowDays) => {
+      vi.spyOn(Date, "now").mockReturnValue(
+        new Date("2026-08-10T10:00:00.000Z").getTime(),
+      );
+      const user = userEvent.setup();
+      renderProposal({
+        routine: {
+          ...activeRoutine,
+          latestAttempt: {
+            id: "attempt-1",
+            attemptedAt,
+            outcome: "HELPFUL",
+            outcomeNote: "Nota privata",
+            outcomeRecordedAt: attemptedAt,
+          },
+        },
+      });
+
+      await user.click(screen.getByRole("button", { name: "Ripeti routine" }));
+
+      expect(mocks.trackRoutineAnalytics).toHaveBeenCalledWith({
+        event: "routine_restarted_within_14d",
+        routineId: "routine-1",
+        formatVersion: 1,
+        widgetKind: "routine_card",
+        temporalWindowDays,
+        technicalState: "success",
+      });
+      expect(
+        JSON.stringify(mocks.trackRoutineAnalytics.mock.calls),
+      ).not.toMatch(/Nota privata|trigger|steps/i);
+    },
+  );
+
+  it("does not emit a restart event outside the 14-day window", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(
+      new Date("2026-08-20T10:00:00.000Z").getTime(),
+    );
+    const user = userEvent.setup();
+    renderProposal({
+      routine: {
+        ...activeRoutine,
+        latestAttempt: {
+          id: "attempt-1",
+          attemptedAt: "2026-08-01T10:00:00.000Z",
+          outcome: "NOT_HELPFUL",
+          outcomeNote: "Privata",
+          outcomeRecordedAt: "2026-08-01T10:00:00.000Z",
+        },
+      },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Ripeti routine" }));
+
+    expect(mocks.trackRoutineAnalytics).not.toHaveBeenCalledWith(
+      expect.objectContaining({ event: "routine_restarted_within_14d" }),
+    );
   });
 
   it("closes a successful check-in but preserves the note and form after failure", async () => {

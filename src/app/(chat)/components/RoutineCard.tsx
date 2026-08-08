@@ -164,6 +164,40 @@ export function RoutineCard({
     }
   }
 
+  function startRoutine() {
+    if (!displayedRoutine || !isActive || hasPendingAttempt) return;
+
+    setIsRunnerOpen(true);
+    trackRoutineAnalytics({
+      event: "routine_started",
+      routineId: displayedRoutine.id,
+      formatVersion: normalizedSnapshot.formatVersion,
+      widgetKind: "routine_card",
+      technicalState: "success",
+    });
+
+    const previousAttempt = displayedRoutine.latestAttempt;
+    if (!previousAttempt?.outcome) return;
+    const elapsedMs =
+      Date.now() - new Date(previousAttempt.attemptedAt).getTime();
+    if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return;
+    const temporalWindowDays =
+      elapsedMs <= 7 * 86_400_000
+        ? 7
+        : elapsedMs <= 14 * 86_400_000
+          ? 14
+          : null;
+    if (!temporalWindowDays) return;
+    trackRoutineAnalytics({
+      event: "routine_restarted_within_14d",
+      routineId: displayedRoutine.id,
+      formatVersion: normalizedSnapshot.formatVersion,
+      widgetKind: "routine_card",
+      temporalWindowDays,
+      technicalState: "success",
+    });
+  }
+
   return (
     <section
       className="mt-3 w-full rounded-2xl border border-border/80 bg-background/95 p-4 text-foreground shadow-xs sm:p-5"
@@ -267,27 +301,20 @@ export function RoutineCard({
               </Button>
             ))}
 
-          {isActive && displayedRoutine && !displayedRoutine.latestAttempt && (
-            <Button
-              ref={startButtonRef}
-              type="button"
-              size="sm"
-              className="min-h-11 rounded-full px-4"
-              disabled={pendingAction !== null}
-              onClick={() => {
-                setIsRunnerOpen(true);
-                trackRoutineAnalytics({
-                  event: "routine_started",
-                  routineId: displayedRoutine.id,
-                  formatVersion: normalizedSnapshot.formatVersion,
-                  widgetKind: "routine_card",
-                  technicalState: "success",
-                });
-              }}
-            >
-              Avvia routine
-            </Button>
-          )}
+          {isActive &&
+            displayedRoutine &&
+            (!displayedRoutine.latestAttempt || hasRecordedOutcome) && (
+              <Button
+                ref={startButtonRef}
+                type="button"
+                size="sm"
+                className="min-h-11 rounded-full px-4"
+                disabled={pendingAction !== null}
+                onClick={startRoutine}
+              >
+                {hasRecordedOutcome ? "Ripeti routine" : "Avvia routine"}
+              </Button>
+            )}
 
           {(!isActive || hasPendingAttempt) && (
             <Button

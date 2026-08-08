@@ -157,6 +157,10 @@ export function ChatConversationClient({
   const voiceGenerationPollAttemptsRef = useRef(0);
   const routineAttemptActionIdsRef = useRef(new Map<string, string>());
   const pendingRoutineAdaptationRef = useRef<string | null>(null);
+  const routineAdaptationDraftRef = useRef<{
+    routineId: string;
+    prompt: string;
+  } | null>(null);
   const cleanedCheckInRoutineIdRef = useRef<string | null>(null);
   const sourceHydrationRequestRef = useRef<string | null>(null);
   const pendingHydrationMessageSyncRef = useRef(false);
@@ -655,13 +659,15 @@ export function ChatConversationClient({
   const handleSaveRoutine = useCallback(
     async (sourceAssistantMessageId: string) => {
       const derivedFromRoutineId = pendingRoutineAdaptationRef.current;
-      const routine = await applyRoutineMutation(() =>
-        saveRoutineProposal(sourceAssistantMessageId, {
-          derivedFromRoutineId: derivedFromRoutineId ?? undefined,
-        }),
-      );
-      pendingRoutineAdaptationRef.current = null;
-      return routine;
+      try {
+        return await applyRoutineMutation(() =>
+          saveRoutineProposal(sourceAssistantMessageId, {
+            derivedFromRoutineId: derivedFromRoutineId ?? undefined,
+          }),
+        );
+      } finally {
+        pendingRoutineAdaptationRef.current = null;
+      }
     },
     [applyRoutineMutation],
   );
@@ -751,22 +757,13 @@ export function ChatConversationClient({
     setFocusRequestId((current) => current + 1);
   }, []);
 
-  const handleAdaptRoutine = useCallback(
-    (title: string) => {
-      const origin = chatData.routines.find(
-        (routine) =>
-          routine.proposal.title === title &&
-          routine.latestAttempt !== null &&
-          routine.latestAttempt.outcome !== null,
-      );
-      pendingRoutineAdaptationRef.current = origin?.id ?? null;
-      setInput(
-        `Vorrei adattare la routine "${title}" dopo l'ultimo tentativo. Aiutami a renderla più efficace.`,
-      );
-      setFocusRequestId((current) => current + 1);
-    },
-    [chatData.routines],
-  );
+  const handleAdaptRoutine = useCallback((routineId: string, title: string) => {
+    const prompt = `Vorrei adattare la routine "${title}" dopo l'ultimo tentativo. Aiutami a renderla più efficace.`;
+    pendingRoutineAdaptationRef.current = null;
+    routineAdaptationDraftRef.current = { routineId, prompt };
+    setInput(prompt);
+    setFocusRequestId((current) => current + 1);
+  }, []);
 
   const hasUnresolvedVoiceGeneration = hasPendingVoiceGeneration(
     chatData.messages,
@@ -1013,6 +1010,12 @@ export function ChatConversationClient({
     setIsSubmitInFlight(true);
     setIsResponseSettling(true);
     const submittedInput = input;
+    const adaptationRoutineId =
+      routineAdaptationDraftRef.current?.prompt === submittedInput
+        ? routineAdaptationDraftRef.current.routineId
+        : null;
+    routineAdaptationDraftRef.current = null;
+    pendingRoutineAdaptationRef.current = null;
 
     try {
       await maybeActivateClerkTrial();
@@ -1037,7 +1040,9 @@ export function ChatConversationClient({
       }
       setInput("");
       await sendMessage({ role: "user", parts });
+      pendingRoutineAdaptationRef.current = adaptationRoutineId;
     } catch (error) {
+      pendingRoutineAdaptationRef.current = null;
       setIsResponseSettling(false);
       setInput(submittedInput);
       if (error instanceof Error && isExpectedChatRejection(error, isGuest)) {

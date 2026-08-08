@@ -276,7 +276,7 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
     ) => Promise<RoutineCardData>;
     onArchiveRoutine: (routineId: string) => Promise<RoutineCardData>;
     onTryRoutineNow: (title: string) => void;
-    onAdaptRoutine: (title: string) => void;
+    onAdaptRoutine: (routineId: string, title: string) => void;
     openCheckInRoutineId?: string | null;
   }) => {
     const [archivePending, setArchivePending] = useState(false);
@@ -426,7 +426,10 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
         <button type="button" onClick={() => onTryRoutineNow("Reset rapido")}>
           Prova ora test
         </button>
-        <button type="button" onClick={() => onAdaptRoutine("Reset rapido")}>
+        <button
+          type="button"
+          onClick={() => onAdaptRoutine("routine-2", "Reset rapido")}
+        >
           Adatta routine test
         </button>
         <button
@@ -2119,6 +2122,135 @@ describe("ChatConversationClient routine lifecycle", () => {
     expect(screen.getByTestId("focus-request").textContent).toBe("1");
     expect(mocks.sendMessage).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("binds an adapted proposal to the clicked routine ID when titles are duplicated", async () => {
+    const completedAttempt = {
+      id: "attempt-1",
+      attemptedAt: "2026-08-08T09:00:00.000Z",
+      outcome: "HELPFUL" as const,
+      outcomeNote: null,
+      outcomeRecordedAt: "2026-08-08T09:01:00.000Z",
+    };
+    const firstRoutine: RoutineCardData = {
+      ...activeRoutine,
+      id: "routine-1",
+      latestAttempt: completedAttempt,
+    };
+    const clickedRoutine: RoutineCardData = {
+      ...firstRoutine,
+      id: "routine-2",
+      latestAttempt: { ...completedAttempt, id: "attempt-2" },
+    };
+    const adaptedRoutine: RoutineCardData = {
+      ...activeRoutine,
+      id: "routine-adapted",
+      sourceAssistantMessageId: "assistant-new",
+    };
+    const refreshedData = {
+      ...initialChatData,
+      routines: [firstRoutine, clickedRoutine, adaptedRoutine],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ routine: adaptedRoutine }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(refreshedData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation({
+      ...initialChatData,
+      routines: [firstRoutine, clickedRoutine],
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Adatta routine test" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Invia test" }));
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce());
+    await user.click(
+      screen.getByRole("button", { name: "Salva routine test" }),
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/coaching/routines",
+      expect.objectContaining({
+        body: JSON.stringify({
+          sourceAssistantMessageId: "assistant-new",
+          derivedFromRoutineId: "routine-2",
+        }),
+      }),
+    );
+  });
+
+  it("clears an armed adaptation context after an unrelated submission", async () => {
+    const adaptedRoutine: RoutineCardData = {
+      ...activeRoutine,
+      id: "routine-saved",
+      sourceAssistantMessageId: "assistant-new",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(initialChatData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ routine: adaptedRoutine }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ ...initialChatData, routines: [adaptedRoutine] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation({ ...initialChatData, routines: [activeRoutine] });
+
+    await user.click(
+      screen.getByRole("button", { name: "Adatta routine test" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Invia test" }));
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce());
+    const chatOptions = mocks.captureChatOptions.mock.calls.at(-1)?.[0] as {
+      onFinish: () => Promise<void>;
+    };
+    await act(() => chatOptions.onFinish());
+    const input = screen.getByRole<HTMLInputElement>("textbox", {
+      name: "Messaggio di test",
+    });
+    await user.type(input, "Una richiesta non collegata");
+    await user.click(screen.getByRole("button", { name: "Invia test" }));
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(2));
+    await user.click(
+      screen.getByRole("button", { name: "Salva routine test" }),
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/coaching/routines",
+      expect.objectContaining({
+        body: JSON.stringify({ sourceAssistantMessageId: "assistant-new" }),
+      }),
+    );
   });
 
   it("archives only after the existing confirmation primitive resolves", async () => {

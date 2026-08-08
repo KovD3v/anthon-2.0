@@ -64,3 +64,22 @@ Implemented the Task 8-owned Prisma, route, client, card/history, and analytics 
 | `prisma migrate diff --from-migrations ... --to-schema ...` | unavailable: repository Prisma config has no `shadowDatabaseUrl`; schema validation/generation and migration SQL test passed instead |
 
 The repository-wide `bun run lint` remains blocked by a pre-existing formatting violation in `.impeccable/hook.cache.json`; the targeted Task 8 Biome check is clean. No unrelated documentation changes were staged.
+
+## Fix round 1 — adaptation binding and restart analytics
+
+### RED → GREEN
+
+- Changed the narrowly authorized `MessageList` callback contract from mutable title-only data to `(routineId, title)` and added a card-render regression proving it passes the clicked persisted ID.
+- Added a duplicate-title regression in `ChatConversationClient`: clicking routine `routine-2`, submitting the exact adaptation prompt, and saving the assistant proposal sends only `derivedFromRoutineId: "routine-2"`.
+- Added a stale-context regression: changing the prefilled adaptation prompt to an unrelated message before submitting clears the draft, so a later save sends no derivation field.
+- Changed the local adaptation lifecycle: the clicked ID is only armed after the exact generated prompt is submitted successfully; every unrelated submit, send failure, and save completion/failure clears the retained context.
+- Added `Ripeti routine` after a recorded outcome, while pending attempts remain gated. Card tests prove content-free `routine_restarted_within_14d` events at seven and fourteen days and no such event after fourteen days.
+
+### Fix-round verification
+
+| Command | Result |
+| --- | --- |
+| Focused Task 8 plus card/message/conversation regressions | 9 files, 153 tests passed |
+| `bun run typecheck` | passed |
+| Targeted `bunx biome check` over fix files | passed |
+| `git diff --check` | passed |
