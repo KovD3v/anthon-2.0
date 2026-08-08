@@ -25,6 +25,8 @@ function SsoCallbackContent() {
     <AuthFormPanel>
       <SsoCallbackStatusContent />
       <AuthenticateWithRedirectCallback
+        signInUrl={`/sign-in?${new URLSearchParams({ redirect_url: continuation })}`}
+        signUpUrl={`/sign-up?${new URLSearchParams({ redirect_url: continuation })}`}
         signInForceRedirectUrl={continuation}
         signUpForceRedirectUrl={continuation}
         continueSignUpUrl={continueUrl}
