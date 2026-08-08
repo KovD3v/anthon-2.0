@@ -389,7 +389,9 @@ describe("MessageList rendered interactions", () => {
       metadata: {
         inputTokens: 40,
         outputTokens: 37,
+        cost: 0.01,
         generationTimeMs: 500,
+        reasoningTimeMs: 75,
       },
     } as ChatUIMessage;
     const annotatedMessage = {

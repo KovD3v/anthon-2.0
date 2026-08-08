@@ -63,10 +63,10 @@ export default function ChatLoading() {
           <div className="flex items-start gap-3">
             <div className="h-8 w-8 animate-pulse rounded-full bg-muted/45" />
             <div className="rounded-2xl rounded-tl-sm border border-border/60 bg-card px-4 py-3">
-              <div className="flex gap-1">
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-black/35 [animation-delay:-0.3s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-black/35 [animation-delay:-0.15s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-black/35" />
+              <div className="flex gap-1" data-testid="assistant-typing-dots">
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:-0.3s] dark:bg-muted-foreground/70" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:-0.15s] dark:bg-muted-foreground/70" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/50 dark:bg-muted-foreground/70" />
               </div>
             </div>
           </div>
