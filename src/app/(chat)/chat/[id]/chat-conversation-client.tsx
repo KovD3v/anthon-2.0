@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { useClerk } from "@clerk/nextjs";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, safeValidateUIMessages } from "ai";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
@@ -58,6 +58,17 @@ interface DeleteSnapshot {
 const VOICE_GENERATION_POLL_INITIAL_DELAY_MS = 750;
 const VOICE_GENERATION_POLL_MAX_ATTEMPTS = 30;
 const routineListSchema = routineCardDataSchema.array();
+const hydrationMessageListSchema = z.array(
+  z
+    .object({
+      id: z.string().min(1),
+      role: z.enum(["user", "assistant"]),
+      content: z.string().nullable().optional(),
+      parts: z.array(z.unknown()),
+      createdAt: z.string().refine((value) => !Number.isNaN(Date.parse(value))),
+    })
+    .passthrough(),
+);
 
 const messageMetadataSchema = z.object({
   inputTokens: z.number().optional(),
@@ -393,9 +404,29 @@ export function ChatConversationClient({
         ) {
           throw new Error("Source hydration payload is invalid");
         }
+        const parsedMessages = hydrationMessageListSchema.safeParse(
+          payload.messages,
+        );
         const parsedRoutines = routineListSchema.safeParse(payload.routines);
-        if (!parsedRoutines.success) {
-          throw new Error("Source hydration routines are invalid");
+        if (!parsedMessages.success || !parsedRoutines.success) {
+          throw new Error("Source hydration payload is invalid");
+        }
+        const sourceMessages = parsedMessages.data as ChatData["messages"];
+        const validatedUiMessages =
+          await safeValidateUIMessages<AnthonUIMessage>({
+            messages: convertToUIMessages(sourceMessages),
+            dataSchemas: chatDataPartSchemas,
+          });
+        if (!validatedUiMessages.success) {
+          throw new Error("Source hydration messages are invalid");
+        }
+        const targetSourceMessage = sourceMessages.find(
+          (message) =>
+            message.id === targetSourceAssistantMessageId &&
+            message.role === "assistant",
+        );
+        if (!targetSourceMessage) {
+          throw new Error("Source hydration message is missing");
         }
         const targetedRoutine = parsedRoutines.data.find(
           (routine) =>
@@ -419,7 +450,7 @@ export function ChatConversationClient({
         }
         const sourceRoutine = targetedRoutine;
 
-        const sourceData = payload as ChatData;
+        const sourceData = { ...payload, messages: sourceMessages } as ChatData;
         const mergeSource = (current: ChatData): ChatData => {
           const messagesById = new Map(
             current.messages.map((message) => [message.id, message]),

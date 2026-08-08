@@ -65,9 +65,13 @@ vi.mock("@clerk/nextjs", () => ({
   useClerk: () => ({ billing: {} }),
 }));
 
-vi.mock("ai", () => ({
-  DefaultChatTransport: class DefaultChatTransport {},
-}));
+vi.mock("ai", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("ai")>();
+  return {
+    ...actual,
+    DefaultChatTransport: class DefaultChatTransport {},
+  };
+});
 
 vi.mock("next/link", () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
@@ -1379,6 +1383,75 @@ describe("ChatConversationClient routine lifecycle", () => {
     );
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(mocks.routerReplace).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["an empty message list", []],
+    [
+      "a missing target source message",
+      [
+        {
+          id: "assistant-other",
+          role: "assistant",
+          content: "Altra risposta",
+          parts: [],
+          createdAt: "2026-07-01T09:00:00.000Z",
+        },
+      ],
+    ],
+    [
+      "a target message with the wrong role",
+      [
+        {
+          id: "assistant-old",
+          role: "user",
+          content: "Ruolo non attendibile",
+          parts: [],
+          createdAt: "2026-07-01T10:00:00.000Z",
+        },
+      ],
+    ],
+    ["a null message entry", [null]],
+    ["a malformed message entry", [{ id: "assistant-old", role: "assistant" }]],
+  ])("falls back safely for %s", async (_, messages) => {
+    const olderRoutine: RoutineCardData = {
+      ...activeRoutine,
+      sourceAssistantMessageId: "assistant-old",
+    };
+    mocks.activeRoutine = olderRoutine;
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ...initialChatData,
+            messages,
+            routines: [olderRoutine],
+            pagination: { hasMore: false, nextCursor: null },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    renderConversation({ ...initialChatData, routines: [] });
+
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith(
+        "/chat?checkInRoutineId=routine-1",
+      ),
+    );
+    expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+      "NONE",
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Check-in routine aperto" }),
+    ).toBeNull();
+    expect(mocks.updateCachedChat).not.toHaveBeenCalledWith(
+      "chat-1",
+      expect.objectContaining({ routines: [olderRoutine] }),
+    );
   });
 
   it("clears to the landing when the active hydration target disappears", async () => {
