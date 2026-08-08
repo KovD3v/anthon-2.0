@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/db";
 import {
+  createChat,
   createRoutine,
   createRoutineAttempt,
   createUser,
@@ -24,6 +25,7 @@ vi.mock("next/cache", () => ({
 import { PATCH as saveOutcome } from "@/app/api/coaching/attempts/[attemptId]/route";
 import { POST as createAttempt } from "@/app/api/coaching/routines/[routineId]/attempts/route";
 import { PATCH as archiveRoutine } from "@/app/api/coaching/routines/[routineId]/route";
+import { GET as listRoutines } from "@/app/api/coaching/routines/route";
 
 const clientActionId = "11111111-1111-4111-8111-111111111111";
 
@@ -239,5 +241,76 @@ describe("integration coaching routine lifecycle serialization", () => {
     expect(retry.status).toBe(200);
     expect(afterFirst.archivedAt).not.toBeNull();
     expect(afterRetry).toEqual(afterFirst);
+  });
+
+  it("lists only the owner private collection in updatedAt/id cursor order", async () => {
+    const owner = await prisma.user.findFirstOrThrow();
+    const foreign = await createUser();
+    const publicChat = await createChat(owner.id, { visibility: "PUBLIC" });
+    const first = await createRoutine(owner.id, {
+      title: "Older routine",
+      sourceChatId: null,
+    });
+    const second = await createRoutine(owner.id, {
+      title: "Newer routine",
+      sourceChatId: null,
+    });
+    await createRoutine(foreign.id, { title: "Foreign routine" });
+    await createRoutine(owner.id, {
+      title: "Public source routine",
+      sourceChatId: publicChat.id,
+    });
+    await prisma.routine.update({
+      where: { id: first.id },
+      data: { updatedAt: new Date("2026-08-08T08:00:00.000Z") },
+    });
+    await prisma.routine.update({
+      where: { id: second.id },
+      data: { updatedAt: new Date("2026-08-08T09:00:00.000Z") },
+    });
+
+    const firstPage = await listRoutines(
+      new Request(
+        "http://localhost/api/coaching/routines?mode=collection&status=ACTIVE&limit=1",
+      ),
+    );
+    expect(firstPage.status).toBe(200);
+    const firstPayload = await firstPage.json();
+    expect(firstPayload.total).toBe(2);
+    expect(firstPayload.routines).toHaveLength(1);
+    expect(firstPayload.routines[0].id).toBe(second.id);
+    expect(firstPayload.routines[0]).not.toHaveProperty("sourceChat");
+    expect(firstPayload.routines[0]).not.toHaveProperty("messages");
+    expect(firstPayload.nextCursor).toEqual(expect.any(String));
+
+    const secondPage = await listRoutines(
+      new Request(
+        `http://localhost/api/coaching/routines?mode=collection&status=ACTIVE&limit=1&cursor=${encodeURIComponent(firstPayload.nextCursor)}`,
+      ),
+    );
+    await expect(secondPage.json()).resolves.toMatchObject({
+      total: 2,
+      routines: [{ id: first.id }],
+      nextCursor: null,
+    });
+  });
+
+  it("keeps archived collection separate from active collection", async () => {
+    const owner = await prisma.user.findFirstOrThrow();
+    await createRoutine(owner.id, { status: "ACTIVE" });
+    await createRoutine(owner.id, {
+      status: "ARCHIVED",
+      archivedAt: new Date("2026-08-08T10:00:00.000Z"),
+    });
+
+    const response = await listRoutines(
+      new Request(
+        "http://localhost/api/coaching/routines?mode=collection&status=ARCHIVED",
+      ),
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      total: 1,
+      routines: [{ status: "ARCHIVED" }],
+    });
   });
 });

@@ -10,6 +10,16 @@ const routineResponseSchema = z
 const activeRoutineResponseSchema = z
   .object({ routine: routineCardDataSchema.nullable() })
   .strict();
+const routineCollectionResponseSchema = z
+  .object({
+    routines: z.array(routineCardDataSchema),
+    total: z.number().int().nonnegative(),
+    nextCursor: z.string().nullable(),
+  })
+  .strict();
+
+export type RoutineCollectionStatus = "ACTIVE" | "ARCHIVED";
+export type RoutineCollection = z.infer<typeof routineCollectionResponseSchema>;
 
 export type RoutineAttemptOutcome =
   | "HELPFUL"
@@ -27,44 +37,42 @@ export class RoutineClientError extends Error {
 }
 
 export async function fetchActiveRoutineForReturn(): Promise<RoutineCardData | null> {
-  let response: Response;
-  try {
-    response = await fetch("/api/coaching/routines", {
-      cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch {
-    throw new RoutineClientError(
-      "Connessione non disponibile. Controlla la rete e riprova.",
-      null,
-    );
-  }
-
-  if (!response.ok) {
-    throw new RoutineClientError(
-      messageForStatus(response.status),
-      response.status,
-    );
-  }
-
-  let payload: unknown;
-  try {
-    payload = await response.json();
-  } catch {
-    throw new RoutineClientError(
-      "Risposta del server non valida. Riprova.",
-      response.status,
-    );
-  }
-
+  const { payload, status } = await requestJson(
+    "/api/coaching/routines?mode=return",
+  );
   const parsed = activeRoutineResponseSchema.safeParse(payload);
   if (!parsed.success) {
     throw new RoutineClientError(
       "Risposta del server non valida. Riprova.",
-      response.status,
+      status,
     );
   }
   return parsed.data.routine;
+}
+
+export async function fetchRoutineCollection(options: {
+  status: RoutineCollectionStatus;
+  cursor?: string;
+  limit?: number;
+}): Promise<RoutineCollection> {
+  const params = new URLSearchParams({
+    mode: "collection",
+    status: options.status,
+  });
+  if (options.cursor) params.set("cursor", options.cursor);
+  if (options.limit !== undefined) params.set("limit", String(options.limit));
+
+  const { payload, status } = await requestJson(
+    `/api/coaching/routines?${params.toString()}`,
+  );
+  const parsed = routineCollectionResponseSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new RoutineClientError(
+      "Risposta del server non valida. Riprova.",
+      status,
+    );
+  }
+  return parsed.data;
 }
 
 function messageForStatus(status: number): string {
@@ -81,10 +89,27 @@ async function requestRoutine(
   url: string,
   init: RequestInit,
 ): Promise<RoutineCardData> {
+  const { payload, status } = await requestJson(url, init);
+
+  const parsed = routineResponseSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new RoutineClientError(
+      "Risposta del server non valida. Riprova.",
+      status,
+    );
+  }
+  return parsed.data.routine;
+}
+
+async function requestJson(
+  url: string,
+  init: RequestInit = {},
+): Promise<{ payload: unknown; status: number }> {
   let response: Response;
   try {
     response = await fetch(url, {
       ...init,
+      cache: "no-store",
       headers: { "Content-Type": "application/json", ...init.headers },
     });
   } catch {
@@ -110,15 +135,7 @@ async function requestRoutine(
       response.status,
     );
   }
-
-  const parsed = routineResponseSchema.safeParse(payload);
-  if (!parsed.success) {
-    throw new RoutineClientError(
-      "Risposta del server non valida. Riprova.",
-      response.status,
-    );
-  }
-  return parsed.data.routine;
+  return { payload, status: response.status };
 }
 
 export function saveRoutineProposal(

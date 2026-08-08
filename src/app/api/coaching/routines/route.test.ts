@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   getAuthUser: vi.fn(),
   messageFindFirst: vi.fn(),
   routineFindUnique: vi.fn(),
+  routineFindMany: vi.fn(),
+  routineCount: vi.fn(),
   routineUpsert: vi.fn(),
   getActiveRoutineForReturn: vi.fn(),
   revalidateTag: vi.fn(),
@@ -15,6 +17,8 @@ vi.mock("@/lib/db", () => ({
     message: { findFirst: mocks.messageFindFirst },
     routine: {
       findUnique: mocks.routineFindUnique,
+      findMany: mocks.routineFindMany,
+      count: mocks.routineCount,
       upsert: mocks.routineUpsert,
     },
   },
@@ -165,6 +169,7 @@ describe("POST /api/coaching/routines", () => {
         sourceChatId: "chat-1",
         sourceAssistantMessageId,
         status: "ACTIVE",
+        formatVersion: 1,
         proposal,
         archivedAt: null,
         latestAttempt: null,
@@ -304,5 +309,122 @@ describe("GET /api/coaching/routines", () => {
 
     expect(response.status).toBe(401);
     expect(mocks.getActiveRoutineForReturn).not.toHaveBeenCalled();
+  });
+
+  it("returns an owner-scoped collection split by status without source content", async () => {
+    mocks.routineCount.mockResolvedValue(1);
+    mocks.routineFindMany.mockResolvedValue([
+      {
+        ...routine,
+        status: "ARCHIVED" as const,
+        formatVersion: 1,
+        title: proposal.title,
+        trigger: proposal.trigger,
+        durationLabel: proposal.durationLabel,
+        steps: proposal.steps,
+        completionCue: proposal.completionCue,
+        attempts: [],
+      },
+    ]);
+
+    const response = await GET(
+      new Request(
+        "http://localhost/api/coaching/routines?mode=collection&status=ARCHIVED&limit=1",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.routineCount).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        status: "ARCHIVED",
+        OR: [
+          { sourceChatId: null },
+          {
+            sourceChat: {
+              is: { userId: "user-1", visibility: "PRIVATE" },
+            },
+          },
+        ],
+      },
+    });
+    expect(mocks.routineFindMany).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        status: "ARCHIVED",
+        OR: [
+          { sourceChatId: null },
+          {
+            sourceChat: {
+              is: { userId: "user-1", visibility: "PRIVATE" },
+            },
+          },
+        ],
+      },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      take: 2,
+      include: {
+        attempts: {
+          orderBy: [{ attemptedAt: "desc" }, { id: "desc" }],
+          take: 1,
+        },
+      },
+    });
+    await expect(response.json()).resolves.toEqual({
+      routines: [
+        {
+          id: "routine-1",
+          sourceChatId: "chat-1",
+          sourceAssistantMessageId,
+          status: "ARCHIVED",
+          formatVersion: 1,
+          proposal,
+          archivedAt: null,
+          latestAttempt: null,
+        },
+      ],
+      total: 1,
+      nextCursor: null,
+    });
+  });
+
+  it.each([
+    "UNKNOWN",
+    "ACTIVE&limit=0",
+    "ACTIVE&limit=21",
+    "ACTIVE&cursor=not-a-cursor",
+  ])("returns 400 for an invalid collection query: %s", async (query) => {
+    const response = await GET(
+      new Request(
+        `http://localhost/api/coaching/routines?mode=collection&status=${query}`,
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.routineFindMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects collection access for unauthenticated users and guests", async () => {
+    mocks.getAuthUser.mockResolvedValueOnce({ user: null, error: "No auth" });
+    await expect(
+      GET(
+        new Request(
+          "http://localhost/api/coaching/routines?mode=collection&status=ACTIVE",
+        ),
+      ),
+    ).resolves.toHaveProperty("status", 401);
+
+    mocks.getAuthUser.mockResolvedValueOnce({
+      user: { id: "guest-1", isGuest: true },
+      error: null,
+    });
+    await expect(
+      GET(
+        new Request(
+          "http://localhost/api/coaching/routines?mode=collection&status=ACTIVE",
+        ),
+      ),
+    ).resolves.toHaveProperty("status", 403);
+    expect(mocks.routineCount).not.toHaveBeenCalled();
   });
 });

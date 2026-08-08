@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fetchActiveRoutineForReturn,
+  fetchRoutineCollection,
   RoutineClientError,
 } from "./routine-client";
 
@@ -15,6 +16,7 @@ describe("fetchActiveRoutineForReturn", () => {
       sourceChatId: null,
       sourceAssistantMessageId: null,
       status: "ACTIVE",
+      formatVersion: 1,
       proposal: {
         title: "Reset rapido",
         trigger: "Dopo un errore",
@@ -34,10 +36,13 @@ describe("fetchActiveRoutineForReturn", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(fetchActiveRoutineForReturn()).resolves.toEqual(routine);
-    expect(fetchMock).toHaveBeenCalledWith("/api/coaching/routines", {
-      cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/coaching/routines?mode=return",
+      {
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   });
 
   it("accepts an authoritative empty selector", async () => {
@@ -64,6 +69,50 @@ describe("fetchActiveRoutineForReturn", () => {
     );
 
     await expect(fetchActiveRoutineForReturn()).rejects.toEqual(
+      new RoutineClientError("Risposta del server non valida. Riprova.", 200),
+    );
+  });
+
+  it("fetches a strict paginated routine collection", async () => {
+    const payload = {
+      routines: [],
+      total: 0,
+      nextCursor: null,
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(payload), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      fetchRoutineCollection({ status: "ARCHIVED", cursor: "abc", limit: 2 }),
+    ).resolves.toEqual(payload);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/coaching/routines?mode=collection&status=ARCHIVED&cursor=abc&limit=2",
+      { cache: "no-store", headers: { "Content-Type": "application/json" } },
+    );
+  });
+
+  it("uses RoutineClientError for collection status and schema failures", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("{}", { status: 503 })),
+    );
+    await expect(fetchRoutineCollection({ status: "ACTIVE" })).rejects.toEqual(
+      new RoutineClientError("Operazione non riuscita. Riprova.", 503),
+    );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ routines: [{ unsafe: true }] }), {
+          status: 200,
+        }),
+      ),
+    );
+    await expect(fetchRoutineCollection({ status: "ACTIVE" })).rejects.toEqual(
       new RoutineClientError("Risposta del server non valida. Riprova.", 200),
     );
   });
