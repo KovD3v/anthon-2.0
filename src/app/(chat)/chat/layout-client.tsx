@@ -73,6 +73,25 @@ function useIsMobileSidebarViewport() {
   );
 }
 
+function isRenderedVisible(
+  element: HTMLElement | null,
+): element is HTMLElement {
+  if (!element?.isConnected) return false;
+
+  for (
+    let currentElement: HTMLElement | null = element;
+    currentElement;
+    currentElement = currentElement.parentElement
+  ) {
+    const styles = window.getComputedStyle(currentElement);
+    if (styles.display === "none" || styles.visibility === "hidden") {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 interface ChatContextType {
   chats: Chat[];
   coachingGoal: string | null;
@@ -282,9 +301,12 @@ export function LayoutClient({
   const isCreatingChat =
     isCreateChatRequestPending || isCreateChatNavigationPending;
   const isMobileSidebarViewport = useIsMobileSidebarViewport();
+  const isMobileSidebarViewportRef = useRef(isMobileSidebarViewport);
+  isMobileSidebarViewportRef.current = isMobileSidebarViewport;
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const sidebarReturnFocusRef = useRef<HTMLElement | null>(null);
+  const desktopSidebarRef = useRef<HTMLElement | null>(null);
   const [chatNavigationEpoch, setChatNavigationEpoch] = useState(0);
   const previousPathnameRef = useRef(pathname);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
@@ -776,8 +798,20 @@ export function LayoutClient({
               className="w-72 max-w-[85vw] gap-0 p-0"
               onCloseAutoFocus={(event) => {
                 event.preventDefault();
-                if (sidebarReturnFocusRef.current?.isConnected) {
+                if (
+                  isMobileSidebarViewportRef.current &&
+                  isRenderedVisible(sidebarReturnFocusRef.current)
+                ) {
                   sidebarReturnFocusRef.current.focus();
+                  return;
+                }
+
+                const desktopSidebarControl =
+                  desktopSidebarRef.current?.querySelector<HTMLButtonElement>(
+                    'button[aria-label="Chiudi la barra laterale"]',
+                  ) ?? null;
+                if (isRenderedVisible(desktopSidebarControl)) {
+                  desktopSidebarControl.focus();
                 }
               }}
             >
@@ -807,7 +841,10 @@ export function LayoutClient({
         )}
 
         {!isMobileSidebarViewport && isDesktopSidebarOpen && (
-          <aside className="hidden h-full w-72 shrink-0 flex-col border-r border-border/50 bg-background/80 backdrop-blur-xl dark:border-white/10 dark:bg-muted/40 md:flex">
+          <aside
+            ref={desktopSidebarRef}
+            className="hidden h-full w-72 shrink-0 flex-col border-r border-border/50 bg-background/80 backdrop-blur-xl dark:border-white/10 dark:bg-muted/40 md:flex"
+          >
             <SidebarContents
               chats={chats}
               isLoading={isLoading}

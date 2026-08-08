@@ -414,6 +414,12 @@ describe("mobile chat landing navigation", () => {
         screen.queryByRole("dialog", { name: "Conversazioni" }),
       ).toBeNull(),
     );
+    const desktopCloseButton = screen.getByRole("button", {
+      name: "Chiudi la barra laterale",
+    });
+    await waitFor(() =>
+      expect(document.activeElement).toBe(desktopCloseButton),
+    );
 
     isMobile = true;
     for (const listener of mediaListeners) listener();
