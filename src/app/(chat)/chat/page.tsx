@@ -12,10 +12,14 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PageWrapper } from "@/components/ui/page-wrapper";
+import { useConfirm } from "@/hooks/use-confirm";
 import {
+  archiveRoutine,
   createRoutineAttempt,
   type RoutineAttemptOutcome,
+  RoutineClientError,
   saveRoutineOutcome,
 } from "@/lib/coaching/routine-client";
 import { RoutineCheckInForm } from "../components/RoutineCheckInForm";
@@ -63,6 +67,7 @@ export default function ChatPage() {
     activeRoutine,
     chatNavigationEpoch,
     refreshActiveRoutine,
+    updateActiveRoutine,
     openRoutineCheckIn,
   } = useChatContext();
   const router = useRouter();
@@ -70,6 +75,12 @@ export default function ChatPage() {
   const startedPrefilledChatRef = useRef(false);
   const handledCheckInParamRef = useRef<string | null>(null);
   const routineAttemptActionIdsRef = useRef(new Map<string, string>());
+  const { confirm, isOpen, options, handleConfirm, handleCancel, setIsOpen } =
+    useConfirm();
+  const [isArchivingRoutine, setIsArchivingRoutine] = useState(false);
+  const [archiveRoutineError, setArchiveRoutineError] = useState<string | null>(
+    null,
+  );
   const [landingCheckInRequest, setLandingCheckInRequest] = useState<{
     routineId: string;
     navigationEpoch: number;
@@ -77,7 +88,7 @@ export default function ChatPage() {
   const prefilledPrompt = searchParams.get("q")?.trim() ?? "";
   const checkInRoutineId = searchParams.get("checkInRoutineId")?.trim() ?? "";
   const returningActiveRoutine =
-    activeRoutine?.status === "ACTIVE" ? activeRoutine : null;
+    !isGuest && activeRoutine?.status === "ACTIVE" ? activeRoutine : null;
 
   useEffect(() => {
     if (
@@ -160,6 +171,42 @@ export default function ChatPage() {
     [refreshActiveRoutine],
   );
 
+  const handleArchiveLandingRoutine = useCallback(
+    async (routineId: string) => {
+      const confirmed = await confirm({
+        title: "Archiviare la routine?",
+        description:
+          "La routine resterà nello storico, ma non sarà più disponibile per nuovi tentativi.",
+        confirmText: "Archivia",
+        cancelText: "Annulla",
+        variant: "destructive",
+      });
+      if (!confirmed) return;
+
+      setIsArchivingRoutine(true);
+      setArchiveRoutineError(null);
+      let archivedRoutine: Awaited<ReturnType<typeof archiveRoutine>>;
+      try {
+        archivedRoutine = await archiveRoutine(routineId);
+      } catch (cause) {
+        setArchiveRoutineError(
+          cause instanceof RoutineClientError
+            ? cause.message
+            : "Non siamo riusciti ad archiviare la routine. Riprova.",
+        );
+        setIsArchivingRoutine(false);
+        return;
+      }
+
+      updateActiveRoutine(archivedRoutine);
+      await refreshActiveRoutine().catch(() => null);
+      setLandingCheckInRequest(null);
+      router.replace("/chat");
+      setIsArchivingRoutine(false);
+    },
+    [confirm, refreshActiveRoutine, router, updateActiveRoutine],
+  );
+
   const greeting = isGuest
     ? "Benvenuto!"
     : `Ciao${user?.firstName ? `, ${user.firstName}` : ""}!`;
@@ -211,6 +258,24 @@ export default function ChatPage() {
                 onFocused={() => router.replace("/chat")}
                 onSuccess={() => setLandingCheckInRequest(null)}
               />
+              <div className="mt-4 border-border/70 border-t pt-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  disabled={isArchivingRoutine}
+                  onClick={() =>
+                    void handleArchiveLandingRoutine(landingCheckInRoutine.id)
+                  }
+                >
+                  Archivia routine
+                </Button>
+                {archiveRoutineError && (
+                  <p className="mt-2 text-sm text-destructive" role="alert">
+                    {archiveRoutineError}
+                  </p>
+                )}
+              </div>
             </section>
           )}
 
@@ -312,12 +377,29 @@ export default function ChatPage() {
           </Button>
           {chats.length > 0 && !mostRecentChat && (
             <p className="mt-6 text-sm text-muted-foreground">
-              Hai {chats.length} conversazion{chats.length !== 1 ? "i" : "e"}.
-              Puoi riprenderle dalla barra laterale.
+              Hai {chats.length} conversazion
+              {chats.length !== 1 ? "i" : "e"}. Puoi riprenderle dalla barra
+              laterale.
             </p>
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setIsOpen(true);
+          } else {
+            handleCancel();
+          }
+        }}
+        onConfirm={handleConfirm}
+        title={options.title}
+        description={options.description}
+        confirmText={options.confirmText}
+        cancelText={options.cancelText}
+        variant={options.variant}
+      />
     </PageWrapper>
   );
 }

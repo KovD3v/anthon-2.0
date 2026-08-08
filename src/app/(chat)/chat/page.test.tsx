@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   refreshActiveRoutine: vi.fn(),
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
+  archiveRoutine: vi.fn(),
+  RoutineClientError: class RoutineClientError extends Error {},
   createRoutineAttempt: vi.fn(),
   saveRoutineOutcome: vi.fn(),
   searchParams: new URLSearchParams(),
@@ -44,7 +47,9 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mocks.searchParams,
 }));
 vi.mock("@/lib/coaching/routine-client", () => ({
+  archiveRoutine: mocks.archiveRoutine,
   createRoutineAttempt: mocks.createRoutineAttempt,
+  RoutineClientError: mocks.RoutineClientError,
   saveRoutineOutcome: mocks.saveRoutineOutcome,
 }));
 vi.mock("./layout-client", () => ({
@@ -92,6 +97,11 @@ describe("chat landing page", () => {
     mocks.context.activeRoutine = null;
     mocks.searchParams = new URLSearchParams();
     mocks.context.chatNavigationEpoch = 0;
+    mocks.archiveRoutine.mockResolvedValue({
+      ...activeRoutine,
+      status: "ARCHIVED",
+      archivedAt: "2026-08-08T11:00:00.000Z",
+    });
     mocks.createRoutineAttempt.mockResolvedValue(activeRoutine);
     mocks.saveRoutineOutcome.mockResolvedValue(activeRoutine);
     mocks.refreshActiveRoutine.mockResolvedValue(activeRoutine);
@@ -139,6 +149,30 @@ describe("chat landing page", () => {
     render(<ChatPage />);
     expect(screen.queryByText("Riprendi il percorso")).toBeNull();
     expect(screen.getByText("Ho una gara domani")).toBeTruthy();
+  });
+
+  it("does not expose or mutate an orphan routine for a guest", async () => {
+    mocks.context.isGuest = true;
+    mocks.context.activeRoutine = {
+      ...activeRoutine,
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+    };
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+
+    render(<ChatPage />);
+
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat"),
+    );
+    expect(
+      screen.queryByRole("group", { name: "Esito del tentativo" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Archivia routine" }),
+    ).toBeNull();
+    expect(screen.queryByText("Riprendi il percorso")).toBeNull();
+    expect(mocks.archiveRoutine).not.toHaveBeenCalled();
   });
 
   it("selects the newest returning chat regardless of input order", () => {
@@ -233,6 +267,187 @@ describe("chat landing page", () => {
     expect(mocks.refreshActiveRoutine).toHaveBeenCalledOnce();
     expect(mocks.updateActiveRoutine).not.toHaveBeenCalled();
     expect(mocks.createChat).not.toHaveBeenCalled();
+  });
+
+  it("archives an orphan routine after accessible confirmation and clears its return", async () => {
+    const orphanRoutine: RoutineCardData = {
+      ...activeRoutine,
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+    };
+    const archivedRoutine: RoutineCardData = {
+      ...orphanRoutine,
+      status: "ARCHIVED",
+      archivedAt: "2026-08-08T11:00:00.000Z",
+    };
+    mocks.context.activeRoutine = orphanRoutine;
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    mocks.archiveRoutine.mockResolvedValue(archivedRoutine);
+    mocks.refreshActiveRoutine.mockResolvedValue(null);
+    mocks.updateActiveRoutine.mockImplementationOnce((routine) => {
+      if (
+        routine.status !== "ACTIVE" &&
+        mocks.context.activeRoutine?.id === routine.id
+      ) {
+        mocks.context.activeRoutine = null;
+      }
+    });
+    const user = userEvent.setup();
+
+    render(<ChatPage />);
+
+    await screen.findByRole("group", { name: "Esito del tentativo" });
+    await user.click(screen.getByRole("button", { name: "Archivia routine" }));
+
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Archiviare la routine?",
+    });
+    expect(mocks.archiveRoutine).not.toHaveBeenCalled();
+    mocks.routerReplace.mockClear();
+    await user.click(within(dialog).getByRole("button", { name: "Archivia" }));
+
+    await waitFor(() =>
+      expect(mocks.archiveRoutine).toHaveBeenCalledWith("routine-1"),
+    );
+    expect(mocks.updateActiveRoutine).toHaveBeenCalledWith(archivedRoutine);
+    expect(mocks.refreshActiveRoutine).toHaveBeenCalledOnce();
+    expect(mocks.routerReplace).toHaveBeenCalledWith("/chat");
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("group", { name: "Esito del tentativo" }),
+      ).toBeNull(),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Archivia routine" }),
+    ).toBeNull();
+    expect(screen.queryByText("Riprendi il percorso")).toBeNull();
+    expect(mocks.createChat).not.toHaveBeenCalled();
+  });
+
+  it("keeps a successful archive complete when the selector refresh fails", async () => {
+    const orphanRoutine: RoutineCardData = {
+      ...activeRoutine,
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+    };
+    const archivedRoutine: RoutineCardData = {
+      ...orphanRoutine,
+      status: "ARCHIVED",
+      archivedAt: "2026-08-08T11:00:00.000Z",
+    };
+    mocks.context.activeRoutine = orphanRoutine;
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    mocks.archiveRoutine.mockResolvedValue(archivedRoutine);
+    mocks.refreshActiveRoutine.mockRejectedValue(new Error("offline"));
+    mocks.updateActiveRoutine.mockImplementationOnce((routine) => {
+      if (
+        routine.status !== "ACTIVE" &&
+        mocks.context.activeRoutine?.id === routine.id
+      ) {
+        mocks.context.activeRoutine = null;
+      }
+    });
+    const user = userEvent.setup();
+
+    render(<ChatPage />);
+
+    await screen.findByRole("group", { name: "Esito del tentativo" });
+    await user.click(screen.getByRole("button", { name: "Archivia routine" }));
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Archiviare la routine?",
+    });
+    mocks.routerReplace.mockClear();
+    await user.click(within(dialog).getByRole("button", { name: "Archivia" }));
+
+    await waitFor(() =>
+      expect(mocks.archiveRoutine).toHaveBeenCalledWith("routine-1"),
+    );
+    expect(mocks.updateActiveRoutine).toHaveBeenCalledWith(archivedRoutine);
+    expect(mocks.refreshActiveRoutine).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat"),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Archivia routine" }),
+    ).toBeNull();
+    expect(screen.queryByText("Riprendi il percorso")).toBeNull();
+  });
+
+  it("keeps an orphan routine retryable when the archive request fails", async () => {
+    mocks.context.activeRoutine = {
+      ...activeRoutine,
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+    };
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    mocks.archiveRoutine.mockRejectedValue(
+      new mocks.RoutineClientError("Archivio non disponibile"),
+    );
+    const user = userEvent.setup();
+
+    render(<ChatPage />);
+
+    await screen.findByRole("group", { name: "Esito del tentativo" });
+    await user.click(screen.getByRole("button", { name: "Archivia routine" }));
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Archiviare la routine?",
+    });
+    mocks.routerReplace.mockClear();
+    await user.click(within(dialog).getByRole("button", { name: "Archivia" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Archivio non disponibile",
+    );
+    expect(mocks.updateActiveRoutine).not.toHaveBeenCalled();
+    expect(mocks.refreshActiveRoutine).not.toHaveBeenCalled();
+    expect(mocks.routerReplace).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("group", { name: "Esito del tentativo" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Archivia routine",
+      }).disabled,
+    ).toBe(false);
+  });
+
+  it("keeps an orphan routine open when archive confirmation is cancelled", async () => {
+    mocks.context.activeRoutine = {
+      ...activeRoutine,
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+    };
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    const user = userEvent.setup();
+
+    render(<ChatPage />);
+
+    await screen.findByRole("group", { name: "Esito del tentativo" });
+    await user.click(screen.getByRole("button", { name: "Archivia routine" }));
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Archiviare la routine?",
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Annulla" }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("alertdialog", {
+          name: "Archiviare la routine?",
+        }),
+      ).toBeNull(),
+    );
+    expect(mocks.archiveRoutine).not.toHaveBeenCalled();
+    expect(mocks.updateActiveRoutine).not.toHaveBeenCalled();
+    expect(mocks.refreshActiveRoutine).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("group", { name: "Esito del tentativo" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Archivia routine",
+      }).disabled,
+    ).toBe(false);
   });
 
   it("uses the landing form when a source return falls back after hydration failure", async () => {
