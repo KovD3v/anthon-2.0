@@ -25,9 +25,14 @@ interface SearchResult {
 interface SearchDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  onResultNavigation?: () => void;
 }
 
-export function SearchDialog({ isOpen, onClose }: SearchDialogProps) {
+export function SearchDialog({
+  isOpen,
+  onClose,
+  onResultNavigation,
+}: SearchDialogProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -66,6 +71,7 @@ export function SearchDialog({ isOpen, onClose }: SearchDialogProps) {
 
   function handleResultClick(result: SearchResult) {
     router.push(`/chat/${result.chatId}`);
+    onResultNavigation?.();
     onClose();
   }
 

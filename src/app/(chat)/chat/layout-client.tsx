@@ -923,6 +923,11 @@ export function LayoutClient({
       <SearchDialog
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
+        onResultNavigation={() => {
+          if (isMobileSidebarViewport) {
+            setIsMobileSidebarOpen(false);
+          }
+        }}
       />
       <ConfirmDialog
         open={isOpen}

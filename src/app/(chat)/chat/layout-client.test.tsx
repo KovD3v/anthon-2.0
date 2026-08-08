@@ -65,13 +65,25 @@ vi.mock("@/lib/coaching/routine-client", () => ({
   fetchActiveRoutineForReturn: mocks.fetchActiveRoutineForReturn,
 }));
 vi.mock("../components/ChatList", () => ({
-  ChatList: ({ onDelete }: { onDelete: (id: string) => Promise<boolean> }) => (
-    <button type="button" onClick={() => void onDelete("source-chat")}>
-      Elimina chat sorgente
-    </button>
+  ChatList: ({
+    onDelete,
+    onSearch,
+  }: {
+    onDelete: (id: string) => Promise<boolean>;
+    onSearch?: () => void;
+  }) => (
+    <>
+      <button type="button" onClick={() => void onDelete("source-chat")}>
+        Elimina chat sorgente
+      </button>
+      {onSearch && (
+        <button type="button" onClick={onSearch}>
+          Cerca nelle conversazioni
+        </button>
+      )}
+    </>
   ),
 }));
-vi.mock("../components/SearchDialog", () => ({ SearchDialog: () => null }));
 vi.mock("../components/SidebarBottom", () => ({ SidebarBottom: () => null }));
 vi.mock("../components/UsageBanner", () => ({ UsageBanner: () => null }));
 vi.mock("@/components/ui/confirm-dialog", () => ({
@@ -238,6 +250,24 @@ beforeEach(() => {
       if (String(input) === "/api/chats") {
         return new Response(JSON.stringify({ chats: [] }), { status: 200 });
       }
+      if (String(input).startsWith("/api/chats/search?")) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                id: "message-result",
+                content: "Risposta trovata",
+                role: "ASSISTANT",
+                createdAt: "2026-08-08T10:00:00.000Z",
+                chatId: "chat-result",
+                chatTitle: "Chat trovata",
+                snippet: "Risposta trovata",
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
       return new Response(null, { status: 500 });
     }),
   );
@@ -333,6 +363,55 @@ describe("persistent active routine context", () => {
 });
 
 describe("mobile chat landing navigation", () => {
+  it("closes the mobile sheet only after selecting a search result", async () => {
+    mocks.pathname = "/chat";
+    const user = userEvent.setup();
+    renderLanding({
+      isGuest: false,
+      usageData: usageBelowThreshold,
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Apri la barra laterale" }),
+    );
+    const sheet = await screen.findByRole("dialog", {
+      name: "Conversazioni",
+    });
+    const searchTrigger = within(sheet).getByRole("button", {
+      name: "Cerca nelle conversazioni",
+    });
+
+    await user.click(searchTrigger);
+    await screen.findByRole("dialog", {
+      name: "Cerca nelle conversazioni",
+    });
+    await user.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Cerca nelle conversazioni" }),
+      ).toBeNull(),
+    );
+    expect(screen.getByRole("dialog", { name: "Conversazioni" })).toBeTruthy();
+    expect(document.activeElement).toBe(searchTrigger);
+
+    await user.click(searchTrigger);
+    await user.type(
+      screen.getByRole("textbox", { name: "Cerca nei messaggi" }),
+      "co",
+    );
+    await user.click(
+      await screen.findByRole("button", { name: /Chat trovata/ }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Conversazioni" }),
+      ).toBeNull(),
+    );
+    expect(mocks.routerPush).toHaveBeenLastCalledWith("/chat/chat-result");
+  });
+
   it("traps mobile sidebar focus and returns it to the opener after Escape", async () => {
     mocks.pathname = "/chat";
     const user = userEvent.setup();
