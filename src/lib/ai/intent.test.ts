@@ -67,6 +67,13 @@ describe("ai/intent", () => {
       expect(decision.enabled).toBe(false);
     });
 
+    it("keeps a dated request for a personal routine out of web search", () => {
+      const decision = evaluateWebSearchRule(
+        "Ho una gara domani, mi serve una routine mentale.",
+      );
+      expect(decision.enabled).toBe(false);
+    });
+
     it("defaults to no search with high confidence", () => {
       const decision = evaluateWebSearchRule("Ciao, come stai?");
       expect(decision).toEqual({
@@ -149,6 +156,14 @@ describe("ai/intent", () => {
       true,
     );
     expect(matchesMemoryReadIntent("Ciao coach")).toBe(false);
+  });
+
+  it("does not treat a coaching context as an explicit memory write", () => {
+    expect(
+      matchesMemoryWriteIntent(
+        "Ho una gara domani, mi serve una routine mentale.",
+      ),
+    ).toBe(false);
   });
 
   it("profile and preference intents detect stable user data", () => {

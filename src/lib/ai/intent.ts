@@ -91,7 +91,7 @@ export function matchesPreferenceWriteIntent(message: string) {
 }
 
 export function matchesMemoryWriteIntent(message: string) {
-  return /\b(ricordati|ricorda\s+che|salva|memorizza|tieni\s+a\s+mente|ho\s+(una|un)\s+(partita|gara|match)|avr[oò]\s+(una|un)\s+(partita|gara|match)|mi\s+alleno\s+(il|la|di|ogni))\b/i.test(
+  return /\b(ricordati|ricorda\s+che|salva|memorizza|tieni\s+a\s+mente)\b/i.test(
     message,
   );
 }
@@ -155,7 +155,7 @@ export function evaluateWebSearchRule(userMessage = ""): WebSearchRuleDecision {
     "i",
   );
   const personalPlanningContext =
-    /\b(mio|mia|miei|mie|questi|queste)\b.{0,60}\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b|\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b.{0,60}\b(mio|mia|miei|mie|questi|queste)\b|\b(aiutami|dammi|prepara|preparare|costruisci|costruire|crea|creare|fammi|voglio)\b.{0,80}\b(routine|reset|piano|esercizio|concentrazione|pressione|focus)\b/i;
+    /\b(mio|mia|miei|mie|questi|queste)\b.{0,60}\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b|\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b.{0,60}\b(mio|mia|miei|mie|questi|queste)\b|\b(aiutami|dammi|prepara|preparare|costruisci|costruire|crea|creare|fammi|voglio|mi\s+serve|ho\s+bisogno(?:\s+di)?|come\s+(?:posso|devo))\b.{0,100}\b(routine|reset|piano|esercizio|concentrazione|pressione|focus)\b/i;
   const ambiguousCurrentInfoIntent =
     /\b(aggiornami|aggiorni|aggiornamento|aggiornamenti|novit[aà]|situazione|status|cosa\s+succede|che\s+succede)\b.{0,80}\b([A-Z][\p{L}'-]{2,}|messi|ronaldo|sinner|inter|milan|juve|juventus|napoli|roma|monza)\b|\b([A-Z][\p{L}'-]{2,}|messi|ronaldo|sinner|inter|milan|juve|juventus|napoli|roma|monza)\b.{0,80}\b(aggiornami|aggiorni|aggiornamento|aggiornamenti|novit[aà]|situazione|status|cosa\s+succede|che\s+succede)\b/iu;
 

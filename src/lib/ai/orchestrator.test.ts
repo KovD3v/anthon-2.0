@@ -1766,6 +1766,28 @@ describe("ai/orchestrator", () => {
     ).toEqual({ activeTools: [], toolChoice: "none" });
   });
 
+  it("keeps a dated personal routine request on the structured proposal path", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-dated-routine-proposal",
+      userMessage: "Ho una gara domani, mi serve una routine mentale.",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      tools: Record<string, unknown>;
+      prepareStep?: (input: {
+        steps: Array<{ toolCalls?: Array<{ toolName?: string }> }>;
+      }) => unknown;
+    };
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({ proposeRoutine: "routine-proposal-tool" }),
+    );
+    expect(streamInput.prepareStep?.({ steps: [] })).toEqual({
+      activeTools: ["proposeRoutine"],
+      toolChoice: { type: "tool", toolName: "proposeRoutine" },
+    });
+  });
+
   it.each([
     [
       "direct web-search requests",
