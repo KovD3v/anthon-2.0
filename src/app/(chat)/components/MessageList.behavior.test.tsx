@@ -341,7 +341,7 @@ describe("MessageList rendered interactions", () => {
     const view = renderMessageList({ feedbackMessageIds: new Set() });
 
     expect(
-      screen.queryByRole("button", { name: "Segna la risposta come utile" }),
+      screen.queryByRole("button", { name: "Pollice su: risposta utile" }),
     ).toBeNull();
 
     view.rerender(
@@ -351,8 +351,114 @@ describe("MessageList rendered interactions", () => {
       />,
     );
     expect(
-      screen.getByRole("button", { name: "Segna la risposta come utile" }),
+      screen.getByRole("button", { name: "Pollice su: risposta utile" }),
     ).toBeTruthy();
+  });
+
+  it("uses icon-only accessible feedback controls and persists positive feedback", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(okResponse);
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderMessageList();
+
+    const positiveButton = screen.getByRole("button", {
+      name: "Pollice su: risposta utile",
+    });
+    const negativeButton = screen.getByRole("button", {
+      name: "Pollice giù: risposta non utile",
+    });
+
+    expect(positiveButton.textContent).toBe("");
+    expect(negativeButton.textContent).toBe("");
+    expect(positiveButton.getAttribute("aria-pressed")).toBe("false");
+    expect(negativeButton.getAttribute("aria-pressed")).toBe("false");
+
+    await user.click(positiveButton);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      messageId: "assistant-1",
+      feedback: 1,
+    });
+    expect(positiveButton.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("renders technical details only from message annotations, never raw metadata", () => {
+    const rawMetadataMessage = {
+      ...assistantMessage,
+      metadata: {
+        inputTokens: 40,
+        outputTokens: 37,
+        generationTimeMs: 500,
+      },
+    } as ChatUIMessage;
+    const annotatedMessage = {
+      ...assistantMessage,
+      annotations: [
+        {
+          inputTokens: 40,
+          outputTokens: 37,
+          cost: 0.01,
+          generationTimeMs: 500,
+        },
+      ],
+    } as ChatUIMessage;
+    const view = renderMessageList({ messages: [rawMetadataMessage] });
+
+    expect(screen.queryByText("77 tokens")).toBeNull();
+    expect(screen.queryByText("Dettagli tecnici")).toBeNull();
+
+    view.rerender(
+      <MessageList {...view.props} messages={[annotatedMessage]} />,
+    );
+
+    expect(screen.getByText("Dettagli tecnici")).toBeTruthy();
+  });
+
+  it("keeps secondary message actions in the overflow menu", async () => {
+    const user = userEvent.setup();
+    const assistantView = renderMessageList({ messages: [assistantMessage] });
+
+    await user.click(
+      screen.getByRole("button", { name: "Altre azioni sul messaggio" }),
+    );
+    expect(
+      screen.getByRole("menuitem", { name: "Copia messaggio" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("menuitem", { name: "Rigenera risposta" }),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("menuitem", { name: "Copia messaggio" }));
+    expect(mocks.copy).toHaveBeenCalledWith("Risposta");
+
+    await user.click(
+      screen.getByRole("button", { name: "Altre azioni sul messaggio" }),
+    );
+    await user.click(
+      screen.getByRole("menuitem", { name: "Rigenera risposta" }),
+    );
+    expect(assistantView.props.onRegenerate).toHaveBeenCalledOnce();
+
+    assistantView.unmount();
+    const userView = renderMessageList({ messages: [userMessage] });
+    await user.click(
+      screen.getByRole("button", { name: "Altre azioni sul messaggio" }),
+    );
+    await user.click(
+      screen.getByRole("menuitem", { name: "Modifica messaggio" }),
+    );
+    expect(userView.props.onEditStart).toHaveBeenCalledWith(
+      "user-1",
+      "Domanda",
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Altre azioni sul messaggio" }),
+    );
+    await user.click(
+      screen.getByRole("menuitem", { name: "Elimina messaggio" }),
+    );
+    expect(userView.props.onDelete).toHaveBeenCalledWith("user-1");
   });
 
   it("submits negative feedback and its selected reason as two requests", async () => {
@@ -362,7 +468,9 @@ describe("MessageList rendered interactions", () => {
     renderMessageList();
 
     await user.click(
-      screen.getByRole("button", { name: "Segna la risposta come non utile" }),
+      screen.getByRole("button", {
+        name: "Pollice giù: risposta non utile",
+      }),
     );
     await user.click(screen.getByRole("button", { name: "Fatto sbagliato" }));
 
@@ -383,7 +491,7 @@ describe("MessageList rendered interactions", () => {
     const user = userEvent.setup();
     renderMessageList();
     const negativeButton = screen.getByRole("button", {
-      name: "Segna la risposta come non utile",
+      name: "Pollice giù: risposta non utile",
     });
 
     await user.click(negativeButton);

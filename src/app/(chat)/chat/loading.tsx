@@ -44,8 +44,8 @@ export default function ChatLoading() {
                   <div
                     className={`space-y-2 rounded-2xl px-5 py-3.5 ${
                       isUser
-                        ? "rounded-tr-sm bg-primary/20"
-                        : "rounded-tl-sm bg-[#c4cd4c]/60"
+                        ? "rounded-tr-sm border border-primary/15 bg-primary/10"
+                        : "rounded-tl-sm border border-border/60 bg-card"
                     }`}
                   >
                     {placeholder.lines.map((width, index) => (
@@ -62,7 +62,7 @@ export default function ChatLoading() {
 
           <div className="flex items-start gap-3">
             <div className="h-8 w-8 animate-pulse rounded-full bg-muted/45" />
-            <div className="rounded-2xl rounded-tl-sm bg-[#c4cd4c]/60 px-4 py-3">
+            <div className="rounded-2xl rounded-tl-sm border border-border/60 bg-card px-4 py-3">
               <div className="flex gap-1">
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-black/35 [animation-delay:-0.3s]" />
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-black/35 [animation-delay:-0.15s]" />

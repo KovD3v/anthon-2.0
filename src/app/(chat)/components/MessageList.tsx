@@ -7,6 +7,7 @@ import {
   Check,
   Copy,
   Loader2,
+  MoreHorizontal,
   Pencil,
   RefreshCw,
   ThumbsDown,
@@ -18,6 +19,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import {
   type ChatUIMessage,
@@ -57,6 +64,7 @@ import type {
   CreateRoutineAttempt,
   SaveRoutineOutcome,
 } from "./RoutineCheckInForm";
+import { TechnicalMetricsDetails } from "./TechnicalMetricsDetails";
 import { VoiceResponse } from "./VoiceResponse";
 
 type ExtendedMessage = ChatUIMessage;
@@ -122,7 +130,7 @@ function hasPersistedAudioAttachment(message: ExtendedMessage) {
 }
 
 const assistantMarkdownClassName =
-  "prose prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-black prose-code:text-black prose-pre:bg-black/10 prose-pre:border prose-pre:border-black/10 prose-pre:rounded-xl";
+  "prose prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-a:text-primary prose-code:text-foreground prose-pre:rounded-xl prose-pre:border prose-pre:border-border/60 prose-pre:bg-muted/60";
 
 const FEEDBACK_REASON_OPTIONS = [
   { value: "linguistic_error", label: "Errore linguistico" },
@@ -615,8 +623,8 @@ export function MessageList({
                             : !isAttachmentOnly || isEditing
                               ? `px-5 py-3.5 shadow-sm ${
                                   isUser
-                                    ? "rounded-2xl rounded-tr-sm bg-primary text-primary-foreground"
-                                    : "rounded-2xl rounded-tl-sm bg-[#c4cd4c] text-black"
+                                    ? "rounded-2xl rounded-tr-sm border border-primary/15 bg-primary/10 text-foreground"
+                                    : "rounded-2xl rounded-tl-sm border border-border/60 bg-card text-foreground"
                                 }`
                               : "p-0 bg-transparent" /* Transparent for standalone attachments */
                         } ${
@@ -669,15 +677,15 @@ export function MessageList({
                             />
                           ) : assistantDisplayState === "pending" ? (
                             <div
-                              className="flex items-center gap-2 text-black"
+                              className="flex items-center gap-2 text-foreground"
                               aria-live="polite"
                             >
-                              <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                               <div className="flex flex-col">
-                                <span className="font-medium text-black">
+                                <span className="font-medium text-foreground">
                                   {assistantPendingLabel}
                                 </span>
-                                <span className="text-xs text-black/70">
+                                <span className="text-xs text-muted-foreground">
                                   {CHAT_REACTIVITY_COPY.assistantWorkingDetail}
                                 </span>
                               </div>
@@ -687,15 +695,15 @@ export function MessageList({
                             <>
                               {assistantToolFeedback && (
                                 <div
-                                  className={`mb-3 flex items-center gap-2 text-black ${
+                                  className={`mb-3 flex items-center gap-2 text-foreground ${
                                     hasText
-                                      ? "border-black/10 border-b pb-3"
+                                      ? "border-border/60 border-b pb-3"
                                       : ""
                                   }`}
                                   aria-live="polite"
                                 >
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
-                                  <span className="font-medium text-black">
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                                  <span className="font-medium text-foreground">
                                     {assistantToolFeedback}
                                   </span>
                                 </div>
@@ -708,14 +716,14 @@ export function MessageList({
                                 "PLAN_NOT_ELIGIBLE" && (
                                 <Link
                                   href="/pricing"
-                                  className="mt-3 inline-flex border-black/10 border-t pt-3 text-xs font-semibold text-black underline underline-offset-4"
+                                  className="mt-3 inline-flex border-border/60 border-t pt-3 text-xs font-semibold text-foreground underline underline-offset-4"
                                 >
                                   Scopri i piani
                                 </Link>
                               )}
                               {isVoiceGenerationPending && (
                                 <output
-                                  className="mt-3 flex items-center gap-2 border-black/10 border-t pt-3 text-xs text-black/70"
+                                  className="mt-3 flex items-center gap-2 border-border/60 border-t pt-3 text-xs text-muted-foreground"
                                   aria-live="polite"
                                 >
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -723,7 +731,7 @@ export function MessageList({
                                 </output>
                               )}
                               {isVoiceGenerationUnavailable && (
-                                <output className="mt-3 border-black/10 border-t pt-3 text-xs text-black/70">
+                                <output className="mt-3 border-border/60 border-t pt-3 text-xs text-muted-foreground">
                                   L&apos;audio non è disponibile; puoi leggere
                                   la risposta qui sopra.
                                 </output>
@@ -780,65 +788,11 @@ export function MessageList({
                           </div>
                         )}
 
-                        {/* Message Metrics (Assistant only) */}
-                        {!isUser &&
-                          (() => {
-                            const annotations = (
-                              message as {
-                                annotations?: unknown[];
-                              }
-                            ).annotations;
-                            const metadata = (
-                              message as {
-                                metadata?: unknown;
-                              }
-                            ).metadata;
-
-                            const metadataUsage = hasUsageMetadata(metadata)
-                              ? metadata
-                              : undefined;
-                            const annotationUsage =
-                              annotations?.find(hasUsageMetadata);
-                            const usageAnn = (metadataUsage ??
-                              annotationUsage) as
-                              | {
-                                  inputTokens?: number;
-                                  outputTokens?: number;
-                                  generationTimeMs?: number;
-                                  reasoningTimeMs?: number;
-                                }
-                              | undefined;
-
-                            if (!usageAnn) return null;
-
-                            const timeInSeconds = usageAnn.generationTimeMs
-                              ? (usageAnn.generationTimeMs / 1000).toFixed(2)
-                              : null;
-
-                            const totalTokens =
-                              (usageAnn.inputTokens || 0) +
-                              (usageAnn.outputTokens || 0);
-
-                            return (
-                              <div className="mt-3 flex items-center gap-4 text-xs text-zinc-700 select-none">
-                                <div className="flex items-center gap-1.5">
-                                  <span>{totalTokens} tokens</span>
-                                  <span className="text-zinc-600">•</span>
-                                  <span>{usageAnn.inputTokens || 0} in</span>
-                                  <span className="text-zinc-600">/</span>
-                                  <span>{usageAnn.outputTokens || 0} out</span>
-                                </div>
-                                {timeInSeconds && (
-                                  <>
-                                    <span className="text-zinc-600">•</span>
-                                    <div className="flex items-center gap-1.5">
-                                      <span>{timeInSeconds}s</span>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            );
-                          })()}
+                        {!isUser && (
+                          <TechnicalMetricsDetails
+                            usage={getUsageFromAnnotations(message)}
+                          />
+                        )}
                       </div>
 
                       {routineProposal && (
@@ -875,128 +829,114 @@ export function MessageList({
                               : "opacity-100"
                           }`}
                         >
-                          {isUser && !isEditing && (
+                          {!isEditing && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-11 w-11 text-muted-foreground hover:text-foreground"
+                                  aria-label="Altre azioni sul messaggio"
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent
+                                align={isUser ? "end" : "start"}
+                              >
+                                {isUser ? (
+                                  <>
+                                    <DropdownMenuItem
+                                      onSelect={() =>
+                                        onEditStart(message.id, messageText)
+                                      }
+                                      disabled={isLoading}
+                                    >
+                                      <Pencil /> Modifica messaggio
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      variant="destructive"
+                                      onSelect={() => onDelete(message.id)}
+                                    >
+                                      {deletingMessageId === message.id ? (
+                                        <Loader2 className="animate-spin" />
+                                      ) : (
+                                        <Trash2 />
+                                      )}
+                                      Elimina messaggio
+                                    </DropdownMenuItem>
+                                  </>
+                                ) : (
+                                  <>
+                                    <DropdownMenuItem
+                                      onSelect={() => copy(messageText)}
+                                    >
+                                      {copied ? <Check /> : <Copy />}
+                                      Copia messaggio
+                                    </DropdownMenuItem>
+                                    {isLastAssistant && !isLoading && (
+                                      <DropdownMenuItem onSelect={onRegenerate}>
+                                        <RefreshCw /> Rigenera risposta
+                                      </DropdownMenuItem>
+                                    )}
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+
+                          {!isUser && canSubmitFeedbackForMessage && (
                             <>
+                              <span className="ml-1 text-xs text-muted-foreground">
+                                {isFeedbackSaving
+                                  ? "Salvataggio…"
+                                  : feedbackValue === 0
+                                    ? "Ti è stata utile?"
+                                    : "Feedback inviato"}
+                              </span>
                               <Button
+                                type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                                onClick={() =>
-                                  onEditStart(message.id, messageText)
-                                }
-                                disabled={isLoading}
-                                aria-label="Modifica messaggio"
+                                className={cn(
+                                  "h-11 w-11 rounded-md",
+                                  feedbackValue === 1
+                                    ? "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
+                                    : "text-muted-foreground hover:text-foreground",
+                                )}
+                                onClick={() => handleFeedback(message.id, 1)}
+                                disabled={isFeedbackSaving}
+                                aria-label="Pollice su: risposta utile"
+                                aria-pressed={feedbackValue === 1}
                               >
-                                <Pencil className="h-3 w-3" />
+                                {isFeedbackSaving && feedbackValue === 1 ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <ThumbsUp className="h-4 w-4" />
+                                )}
                               </Button>
                               <Button
+                                type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                onClick={() => onDelete(message.id)}
-                                aria-label="Elimina messaggio"
+                                className={cn(
+                                  "h-11 w-11 rounded-md",
+                                  feedbackValue === -1
+                                    ? "bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive"
+                                    : "text-muted-foreground hover:text-foreground",
+                                )}
+                                onClick={() => handleFeedback(message.id, -1)}
+                                disabled={isFeedbackSaving}
+                                aria-label="Pollice giù: risposta non utile"
+                                aria-pressed={feedbackValue === -1}
                               >
-                                {deletingMessageId === message.id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                {isFeedbackSaving && feedbackValue === -1 ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
-                                  <Trash2 className="h-3 w-3" />
+                                  <ThumbsDown className="h-4 w-4" />
                                 )}
                               </Button>
                             </>
-                          )}
-
-                          {!isUser && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                                onClick={() => copy(messageText)}
-                                aria-label={
-                                  copied
-                                    ? "Messaggio copiato"
-                                    : "Copia messaggio"
-                                }
-                              >
-                                {copied ? (
-                                  <Check className="h-3 w-3" />
-                                ) : (
-                                  <Copy className="h-3 w-3" />
-                                )}
-                              </Button>
-                              {canSubmitFeedbackForMessage && (
-                                <>
-                                  <span className="ml-1 text-xs text-muted-foreground">
-                                    {isFeedbackSaving
-                                      ? "Salvataggio…"
-                                      : feedbackValue === 0
-                                        ? "Ti è stata utile?"
-                                        : "Feedback inviato"}
-                                  </span>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className={cn(
-                                      "h-7 gap-1 rounded-md px-2 text-xs",
-                                      feedbackValue === 1
-                                        ? "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
-                                        : "text-muted-foreground hover:text-foreground",
-                                    )}
-                                    onClick={() =>
-                                      handleFeedback(message.id, 1)
-                                    }
-                                    disabled={isFeedbackSaving}
-                                    aria-label="Segna la risposta come utile"
-                                    aria-pressed={feedbackValue === 1}
-                                  >
-                                    {isFeedbackSaving && feedbackValue === 1 ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      <ThumbsUp className="h-3 w-3" />
-                                    )}
-                                    Sì
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className={cn(
-                                      "h-7 gap-1 rounded-md px-2 text-xs",
-                                      feedbackValue === -1
-                                        ? "bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive"
-                                        : "text-muted-foreground hover:text-foreground",
-                                    )}
-                                    onClick={() =>
-                                      handleFeedback(message.id, -1)
-                                    }
-                                    disabled={isFeedbackSaving}
-                                    aria-label="Segna la risposta come non utile"
-                                    aria-pressed={feedbackValue === -1}
-                                  >
-                                    {isFeedbackSaving &&
-                                    feedbackValue === -1 ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      <ThumbsDown className="h-3 w-3" />
-                                    )}
-                                    No
-                                  </Button>
-                                </>
-                              )}
-                            </>
-                          )}
-
-                          {isLastAssistant && !isLoading && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                              onClick={onRegenerate}
-                              aria-label="Rigenera risposta"
-                            >
-                              <RefreshCw className="h-3 w-3" />
-                            </Button>
                           )}
                         </div>
                       )}
@@ -1124,15 +1064,15 @@ export function MessageList({
                 )}
               </div>
               <div className="flex max-w-[85%] flex-col gap-2">
-                <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-sm bg-[#c4cd4c] px-4 py-3 text-sm text-black shadow-sm">
+                <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-sm border border-border/60 bg-card px-4 py-3 text-sm text-foreground shadow-sm">
                   {!isRegenerating && (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                   )}
                   <div className="flex flex-col">
-                    <span className="font-medium text-black">
+                    <span className="font-medium text-foreground">
                       {pendingAssistantLabel}
                     </span>
-                    <span className="text-xs text-black/70">
+                    <span className="text-xs text-muted-foreground">
                       {isRegenerating
                         ? CHAT_REACTIVITY_COPY.assistantRegeneratingDetail
                         : CHAT_REACTIVITY_COPY.assistantWorkingDetail}
@@ -1210,9 +1150,15 @@ export function EmptyChatWelcome({ className }: { className?: string }) {
   );
 }
 
+function getUsageFromAnnotations(message: ExtendedMessage) {
+  const annotations = (message as { annotations?: unknown[] }).annotations;
+  return annotations?.find(hasUsageMetadata);
+}
+
 function hasUsageMetadata(value: unknown): value is {
-  inputTokens?: number;
-  outputTokens?: number;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
   generationTimeMs?: number;
   reasoningTimeMs?: number;
 } {
@@ -1221,5 +1167,9 @@ function hasUsageMetadata(value: unknown): value is {
   }
 
   const usage = value as Record<string, unknown>;
-  return usage.inputTokens !== undefined || usage.outputTokens !== undefined;
+  return (
+    typeof usage.inputTokens === "number" &&
+    typeof usage.outputTokens === "number" &&
+    typeof usage.cost === "number"
+  );
 }

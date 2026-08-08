@@ -50,7 +50,7 @@ export function ChatHeader({ chatId, title, onRename }: ChatHeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-10 flex h-12 sm:h-14 items-center justify-between border-b border-border/60 bg-background/40 backdrop-blur-xl px-3 sm:px-4 transition-all dark:border-white/10">
+    <header className="sticky top-0 z-10 flex h-12 items-center justify-between border-b border-border/60 bg-background/40 px-3 backdrop-blur-xl sm:h-14 sm:px-4 dark:border-white/10">
       <div className="flex items-center gap-2 overflow-hidden">
         {isRenaming ? (
           <form
@@ -77,7 +77,7 @@ export function ChatHeader({ chatId, title, onRename }: ChatHeaderProps) {
           <h1 className="flex-1 min-w-0 font-semibold text-foreground/90">
             <button
               type="button"
-              className="w-full text-left truncate cursor-pointer hover:underline underline-offset-4 decoration-muted-foreground/50 transition-all bg-transparent border-0 p-0"
+              className="w-full cursor-pointer truncate border-0 bg-transparent p-0 text-left decoration-muted-foreground/50 underline-offset-4 hover:underline"
               onClick={() => {
                 if (onRename) {
                   setRenameValue(title);
@@ -100,6 +100,7 @@ export function ChatHeader({ chatId, title, onRename }: ChatHeaderProps) {
           className="gap-1.5 text-muted-foreground hover:text-foreground"
           onClick={handleExport}
           disabled={isExporting}
+          aria-label="Esporta conversazione"
         >
           <Download className="h-4 w-4" />
           <span className="hidden sm:inline">Esporta</span>
