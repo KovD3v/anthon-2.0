@@ -99,7 +99,15 @@ describe("channel-flow/run", () => {
     );
   });
 
-  it("adds finish usage metadata to streamed UI responses", async () => {
+  it.each([
+    {
+      name: "when omitted",
+      includeTechnicalMetrics: undefined,
+      expected: false,
+    },
+    { name: "when false", includeTechnicalMetrics: false, expected: false },
+    { name: "when true", includeTechnicalMetrics: true, expected: true },
+  ])("includes finish usage metadata only $name", async (testCase) => {
     let onFinish:
       | ((input: {
           text: string;
@@ -149,7 +157,12 @@ describe("channel-flow/run", () => {
         allowMemoryExtraction: true,
         allowVoiceOutput: true,
       },
-      execution: { mode: "stream" },
+      execution: {
+        mode: "stream",
+        ...(testCase.includeTechnicalMetrics === undefined
+          ? {}
+          : { includeTechnicalMetrics: testCase.includeTechnicalMetrics }),
+      },
       persistence: {
         channel: "WEB",
         saveAssistantMessage: false,
@@ -176,10 +189,114 @@ describe("channel-flow/run", () => {
     const body = await response?.text();
 
     expect(toUIMessageStreamResponse).not.toHaveBeenCalled();
-    expect(body).toContain("inputTokens");
-    expect(body).toContain("123");
-    expect(body).toContain("outputTokens");
-    expect(body).toContain("45");
+    if (testCase.expected) {
+      expect(body).toContain("inputTokens");
+      expect(body).toContain("123");
+      expect(body).toContain("outputTokens");
+      expect(body).toContain("45");
+    } else {
+      expect(body).not.toContain("inputTokens");
+      expect(body).not.toContain("outputTokens");
+    }
+  });
+
+  it.each([
+    {
+      name: "recovery",
+      reservation: {
+        recovery: {
+          text: "recovered answer",
+          metrics: {
+            model: "recovered-model",
+            inputTokens: 10,
+            outputTokens: 4,
+            reasoningTokens: null,
+            reasoningContent: null,
+            toolCalls: null,
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0.01,
+            generationTimeMs: 100,
+            reasoningTimeMs: null,
+          },
+        },
+      },
+    },
+    {
+      name: "persisted replay",
+      reservation: {
+        persistedAssistant: {
+          messageId: "assistant-saved",
+          text: "saved answer",
+          metrics: {
+            model: "saved-model",
+            inputTokens: 8,
+            outputTokens: 3,
+            reasoningTokens: null,
+            reasoningContent: null,
+            toolCalls: null,
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0.01,
+            generationTimeMs: 90,
+            reasoningTimeMs: null,
+          },
+        },
+      },
+    },
+  ])("keeps $name metadata default-deny", async (testCase) => {
+    mocks.reserveAiUsage.mockResolvedValue({
+      allowed: true,
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+      ...testCase.reservation,
+    });
+
+    const result = await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      chatId: "chat-1",
+      userMessageId: "inbound-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: {
+        allowed: true,
+        effectiveEntitlements: {
+          modelTier: "BASIC",
+          uploadLimits: {
+            maxUploadsPerDay: 25,
+            maxUploadBytesPerDay: 250 * 1024 * 1024,
+          },
+          limits: {
+            maxRequestsPerDay: 10,
+            maxInputTokensPerDay: 1_000,
+            maxOutputTokensPerDay: 1_000,
+            maxCostPerDay: 1,
+            maxContextMessages: 20,
+          },
+          sources: [],
+        },
+      },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: true,
+      },
+      execution: { mode: "stream" },
+      persistence: { channel: "WEB", saveAssistantMessage: true },
+    });
+
+    const body = await result.streamResult?.toUIMessageStreamResponse().text();
+
+    expect(body).not.toContain("inputTokens");
+    expect(body).not.toContain("outputTokens");
+    if ("recovery" in testCase.reservation) {
+      expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metrics: expect.objectContaining({ inputTokens: 10 }),
+        }),
+      );
+    }
   });
 
   it("passes memory availability from channel options to the orchestrator", async () => {

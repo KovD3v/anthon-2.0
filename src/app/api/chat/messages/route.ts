@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import { resolveTechnicalMetricsVisibility } from "@/lib/technical-metrics";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 import { deletePrivateVoiceBlobsForMessages } from "@/lib/voice/attachment-cleanup";
 
@@ -43,6 +44,12 @@ export async function GET(request: Request) {
     // Get internal user
     const user = await prisma.user.findUnique({
       where: { clerkId },
+      select: {
+        id: true,
+        role: true,
+        isGuest: true,
+        preferences: { select: { showTechnicalMetrics: true } },
+      },
     });
 
     if (!user) {
@@ -77,6 +84,10 @@ export async function GET(request: Request) {
         outputTokens: true,
         costUsd: true,
         generationTimeMs: true,
+        reasoningTimeMs: true,
+        ragUsed: true,
+        toolCalls: true,
+        chat: { select: { visibility: true } },
       },
     });
 
@@ -88,23 +99,46 @@ export async function GET(request: Request) {
     });
 
     // Convert to UI message format
-    const uiMessages = chronologicalMessages.map((msg) => ({
-      id: msg.id,
-      role: msg.role === "USER" ? "user" : "assistant",
-      content: getTextFromParts(msg.parts) || "",
-      parts: msg.parts,
-      createdAt: msg.createdAt.toISOString(),
-      model: msg.model,
-      usage:
-        msg.inputTokens !== null
+    const uiMessages = chronologicalMessages.map((msg) => {
+      const includeTechnicalMetrics = resolveTechnicalMetricsVisibility({
+        role: user.role,
+        preference: user.preferences?.showTechnicalMetrics,
+        isGuest: user.isGuest,
+        isPrivateOwner: msg.chat?.visibility === "PRIVATE",
+      });
+
+      return {
+        id: msg.id,
+        role: msg.role === "USER" ? "user" : "assistant",
+        content: getTextFromParts(msg.parts) || "",
+        parts: msg.parts,
+        createdAt: msg.createdAt.toISOString(),
+        ...(includeTechnicalMetrics && msg.model !== null
+          ? { model: msg.model }
+          : {}),
+        ...(includeTechnicalMetrics && msg.inputTokens !== null
           ? {
-              inputTokens: msg.inputTokens,
-              outputTokens: msg.outputTokens,
-              cost: msg.costUsd,
-              generationTimeMs: msg.generationTimeMs,
+              usage: {
+                inputTokens: msg.inputTokens,
+                outputTokens: msg.outputTokens ?? 0,
+                cost: msg.costUsd ?? 0,
+                ...(msg.generationTimeMs !== null
+                  ? { generationTimeMs: msg.generationTimeMs }
+                  : {}),
+                ...(msg.reasoningTimeMs !== null
+                  ? { reasoningTimeMs: msg.reasoningTimeMs }
+                  : {}),
+              },
             }
-          : undefined,
-    }));
+          : {}),
+        ...(includeTechnicalMetrics && msg.ragUsed !== null
+          ? { ragUsed: msg.ragUsed }
+          : {}),
+        ...(includeTechnicalMetrics && msg.toolCalls !== null
+          ? { toolCalls: msg.toolCalls }
+          : {}),
+      };
+    });
 
     return NextResponse.json({ messages: uiMessages });
   } catch (error) {

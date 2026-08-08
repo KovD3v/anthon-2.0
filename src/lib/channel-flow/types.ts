@@ -49,6 +49,8 @@ export interface InboundContext {
   };
   execution?: {
     mode?: "stream" | "text";
+    /** Controls diagnostic metadata in UI stream/recovery/replay responses. */
+    includeTechnicalMetrics?: boolean;
     abortSignal?: AbortSignal;
     waitUntil?: (promise: Promise<unknown>) => void;
   };

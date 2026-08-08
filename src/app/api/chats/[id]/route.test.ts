@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   chatFindFirst: vi.fn(),
   chatUpdate: vi.fn(),
   chatDelete: vi.fn(),
+  userFindUnique: vi.fn(),
   messageFindMany: vi.fn(),
   messageFindFirst: vi.fn(),
   routineFindMany: vi.fn(),
@@ -31,6 +32,9 @@ vi.mock("@/lib/db", () => ({
       findFirst: mocks.chatFindFirst,
       update: mocks.chatUpdate,
       delete: mocks.chatDelete,
+    },
+    user: {
+      findUnique: mocks.userFindUnique,
     },
     message: {
       findMany: mocks.messageFindMany,
@@ -60,6 +64,7 @@ describe("/api/chats/[id] route", () => {
     mocks.chatFindFirst.mockReset();
     mocks.chatUpdate.mockReset();
     mocks.chatDelete.mockReset();
+    mocks.userFindUnique.mockReset();
     mocks.messageFindMany.mockReset();
     mocks.messageFindFirst.mockReset();
     mocks.routineFindMany.mockReset();
@@ -69,6 +74,11 @@ describe("/api/chats/[id] route", () => {
     mocks.getAuthUser.mockResolvedValue({
       user: { id: "user-1", role: "USER", isGuest: false },
       error: null,
+    });
+    mocks.userFindUnique.mockResolvedValue({
+      role: "USER",
+      isGuest: false,
+      preferences: { showTechnicalMetrics: true },
     });
 
     mocks.chatFindFirst.mockResolvedValue({
@@ -221,6 +231,14 @@ describe("/api/chats/[id] route", () => {
         updatedAt: true,
       },
     });
+    expect(mocks.userFindUnique).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      select: {
+        role: true,
+        isGuest: true,
+        preferences: { select: { showTechnicalMetrics: true } },
+      },
+    });
     expect(mocks.messageFindMany).toHaveBeenCalledWith({
       where: { chatId: "chat-1" },
       orderBy: { createdAt: "desc" },
@@ -273,10 +291,7 @@ describe("/api/chats/[id] route", () => {
           role: "user",
           parts: [{ type: "text", text: "second" }],
           createdAt: "2026-02-16T11:00:02.000Z",
-          model: null,
-          usage: undefined,
           ragUsed: false,
-          toolCalls: null,
           feedback: null,
           attachments: [],
         },
@@ -315,6 +330,91 @@ describe("/api/chats/[id] route", () => {
       routines: [],
     });
   });
+
+  it.each([
+    {
+      role: "USER",
+      preference: null,
+      isGuest: false,
+      public: false,
+      expected: false,
+    },
+    {
+      role: "USER",
+      preference: true,
+      isGuest: false,
+      public: false,
+      expected: true,
+    },
+    {
+      role: "ADMIN",
+      preference: null,
+      isGuest: false,
+      public: false,
+      expected: true,
+    },
+    {
+      role: "SUPER_ADMIN",
+      preference: true,
+      isGuest: true,
+      public: false,
+      expected: false,
+    },
+    {
+      role: "SUPER_ADMIN",
+      preference: true,
+      isGuest: false,
+      public: true,
+      expected: false,
+    },
+  ] as const)(
+    "GET omits technical fields unless the viewer is authorized: %o",
+    async (testCase) => {
+      mocks.getAuthUser.mockResolvedValue({
+        user: { id: "user-1", role: testCase.role },
+        error: null,
+      });
+      mocks.userFindUnique.mockResolvedValue({
+        role: testCase.role,
+        isGuest: testCase.isGuest,
+        preferences: { showTechnicalMetrics: testCase.preference },
+      });
+      if (testCase.public) {
+        mocks.chatFindFirst.mockResolvedValue({
+          id: "chat-1",
+          title: "Shared",
+          visibility: "PUBLIC",
+          userId: "owner-1",
+          createdAt: new Date("2026-02-16T10:00:00.000Z"),
+          updatedAt: new Date("2026-02-16T11:00:00.000Z"),
+        });
+      }
+
+      const response = await GET(
+        new Request("http://localhost/api/chats/chat-1"),
+        { params: params() },
+      );
+      const body = (await response.json()) as {
+        messages: Array<Record<string, unknown>>;
+      };
+      const assistant = body.messages.find((message) => message.id === "m3");
+
+      if (testCase.expected) {
+        expect(assistant).toMatchObject({
+          model: "gpt-4o-mini",
+          usage: { inputTokens: 10, outputTokens: 12, cost: 0.01 },
+          ragUsed: true,
+          toolCalls: [{ name: "tool" }],
+        });
+      } else {
+        expect(assistant).not.toHaveProperty("model");
+        expect(assistant).not.toHaveProperty("usage");
+        expect(assistant).not.toHaveProperty("ragUsed");
+        expect(assistant).not.toHaveProperty("toolCalls");
+        expect(assistant).not.toHaveProperty("metadata");
+      }
+    },
+  );
 
   it("GET hydrates routines only for assistant messages in the cursor page", async () => {
     const proposal = {
@@ -648,6 +748,11 @@ describe("/api/chats/[id] route", () => {
     mocks.getAuthUser.mockResolvedValue({
       user: { id: "user-1", role: "USER", isGuest: true },
       error: null,
+    });
+    mocks.userFindUnique.mockResolvedValue({
+      role: "USER",
+      isGuest: true,
+      preferences: { showTechnicalMetrics: true },
     });
     mocks.messageFindMany.mockResolvedValue([
       {

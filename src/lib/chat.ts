@@ -5,6 +5,7 @@ import { toRoutineCardData } from "@/lib/coaching/routine";
 import { prisma } from "@/lib/db";
 import type { ModelComparisonData } from "@/lib/model-experiments/types";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
+import { resolveTechnicalMetricsVisibility } from "@/lib/technical-metrics";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 import { getVoicePlanConfig } from "@/lib/voice";
 import type { Chat, ChatData, ChatMessage } from "@/types/chat";
@@ -113,7 +114,9 @@ export const getSharedChat = cache(
         select: {
           role: true,
           isGuest: true,
-          preferences: { select: { voiceEnabled: true } },
+          preferences: {
+            select: { voiceEnabled: true, showTechnicalMetrics: true },
+          },
           subscription: { select: { status: true, planId: true } },
         },
       }),
@@ -198,6 +201,12 @@ export const getSharedChat = cache(
 
     const canReceiveRoutineProposal =
       chat.userId === userId && chat.visibility === "PRIVATE";
+    const canReceiveTechnicalMetrics = resolveTechnicalMetricsVisibility({
+      role: userData?.role ?? "USER",
+      preference: userData?.preferences?.showTechnicalMetrics,
+      isGuest: userData?.isGuest ?? true,
+      isPrivateOwner: canReceiveRoutineProposal,
+    });
     const canReceivePrivateCoachingData =
       canReceiveRoutineProposal && userData?.isGuest === false;
     const returnedAssistantMessageIds = messagesToReturn
@@ -248,21 +257,32 @@ export const getSharedChat = cache(
           ? m.parts
           : withoutCoachingRoutineParts(m.parts),
         createdAt: m.createdAt.toISOString(),
-        model: isModelComparisonCanonical(m.metadata)
-          ? undefined
-          : (m.model ?? undefined),
-        usage:
-          m.inputTokens !== null
-            ? {
+        ...(canReceiveTechnicalMetrics &&
+        !isModelComparisonCanonical(m.metadata) &&
+        m.model !== null
+          ? { model: m.model }
+          : {}),
+        ...(canReceiveTechnicalMetrics && m.inputTokens !== null
+          ? {
+              usage: {
                 inputTokens: m.inputTokens,
                 outputTokens: m.outputTokens ?? 0,
-                cost: m.costUsd || 0,
-                generationTimeMs: m.generationTimeMs || undefined,
-                reasoningTimeMs: m.reasoningTimeMs || undefined,
-              }
-            : undefined,
-        ragUsed: m.ragUsed || undefined,
-        ...(canReceiveRoutineProposal ? { toolCalls: m.toolCalls } : {}),
+                cost: m.costUsd ?? 0,
+                ...(m.generationTimeMs !== null
+                  ? { generationTimeMs: m.generationTimeMs }
+                  : {}),
+                ...(m.reasoningTimeMs !== null
+                  ? { reasoningTimeMs: m.reasoningTimeMs }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(canReceiveTechnicalMetrics && m.ragUsed !== null
+          ? { ragUsed: m.ragUsed }
+          : {}),
+        ...(canReceiveTechnicalMetrics && m.toolCalls !== null
+          ? { toolCalls: m.toolCalls }
+          : {}),
         feedback: normalizeMessageFeedback(m.feedback),
         feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
         voice:

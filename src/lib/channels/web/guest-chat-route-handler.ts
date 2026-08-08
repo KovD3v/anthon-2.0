@@ -370,6 +370,7 @@ export async function handleGuestChatPost(request: Request) {
             mode: "stream",
             abortSignal: request.signal,
             waitUntil,
+            includeTechnicalMetrics: false,
           },
           persistence: {
             channel: "WEB",

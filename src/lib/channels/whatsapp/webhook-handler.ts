@@ -688,7 +688,7 @@ async function handleMessage(
               ? "direct_media"
               : "text",
         },
-        execution: { mode: "text" },
+        execution: { mode: "text", includeTechnicalMetrics: false },
         persistence: {
           channel: "WHATSAPP",
           metadata: {

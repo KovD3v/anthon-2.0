@@ -17,6 +17,7 @@ import {
 } from "@/lib/coaching/routine";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import { resolveTechnicalMetricsVisibility } from "@/lib/technical-metrics";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 import { deletePrivateVoiceBlobsForMessages } from "@/lib/voice/attachment-cleanup";
 
@@ -96,9 +97,25 @@ export async function GET(request: Request, { params }: RouteParams) {
     if (!chat) {
       return Response.json({ error: "Chat not found" }, { status: 404 });
     }
+    const viewer = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        role: true,
+        isGuest: true,
+        preferences: { select: { showTechnicalMetrics: true } },
+      },
+    });
+    const canReceiveTechnicalMetrics = resolveTechnicalMetricsVisibility({
+      role: viewer?.role ?? "USER",
+      preference: viewer?.preferences?.showTechnicalMetrics,
+      isGuest: viewer?.isGuest ?? true,
+      isPrivateOwner: chat.userId === user.id && chat.visibility === "PRIVATE",
+    });
     if (
       sourceAssistantMessageId &&
-      (user.isGuest || chat.userId !== user.id || chat.visibility !== "PRIVATE")
+      (viewer?.isGuest !== false ||
+        chat.userId !== user.id ||
+        chat.visibility !== "PRIVATE")
     ) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -167,7 +184,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     const canReceiveRoutineProposal =
       chat.userId === user.id && chat.visibility === "PRIVATE";
     const canReceivePrivateCoachingData =
-      canReceiveRoutineProposal && user.isGuest === false;
+      canReceiveRoutineProposal && viewer?.isGuest === false;
     const returnedAssistantMessageIds = messagesToReturn
       .filter((message) => message.role === "ASSISTANT")
       .map((message) => message.id);
@@ -269,19 +286,30 @@ export async function GET(request: Request, { params }: RouteParams) {
           ? m.parts
           : withoutCoachingRoutineParts(m.parts),
         createdAt: m.createdAt.toISOString(),
-        model: m.model,
-        usage:
-          m.inputTokens !== null
-            ? {
+        ...(canReceiveTechnicalMetrics && m.model !== null
+          ? { model: m.model }
+          : {}),
+        ...(canReceiveTechnicalMetrics && m.inputTokens !== null
+          ? {
+              usage: {
                 inputTokens: m.inputTokens,
-                outputTokens: m.outputTokens,
-                cost: m.costUsd,
-                generationTimeMs: m.generationTimeMs,
-                reasoningTimeMs: m.reasoningTimeMs,
-              }
-            : undefined,
-        ragUsed: m.ragUsed,
-        ...(canReceiveRoutineProposal ? { toolCalls: m.toolCalls } : {}),
+                outputTokens: m.outputTokens ?? 0,
+                cost: m.costUsd ?? 0,
+                ...(m.generationTimeMs !== null
+                  ? { generationTimeMs: m.generationTimeMs }
+                  : {}),
+                ...(m.reasoningTimeMs !== null
+                  ? { reasoningTimeMs: m.reasoningTimeMs }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(canReceiveTechnicalMetrics && m.ragUsed !== null
+          ? { ragUsed: m.ragUsed }
+          : {}),
+        ...(canReceiveTechnicalMetrics && m.toolCalls !== null
+          ? { toolCalls: m.toolCalls }
+          : {}),
         feedback: m.feedback,
         feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
         voice: m.voiceGenerationJob

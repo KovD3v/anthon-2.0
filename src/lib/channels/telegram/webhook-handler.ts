@@ -667,7 +667,7 @@ async function handleUpdate(update: TelegramUpdate) {
               ? "direct_media"
               : "text",
         },
-        execution: { mode: "text" },
+        execution: { mode: "text", includeTechnicalMetrics: false },
         persistence: {
           channel: "TELEGRAM",
           metadata: {

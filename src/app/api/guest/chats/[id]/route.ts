@@ -80,13 +80,6 @@ export async function GET(request: Request, { params }: RouteParams) {
         role: true,
         parts: true,
         createdAt: true,
-        model: true,
-        inputTokens: true,
-        outputTokens: true,
-        costUsd: true,
-        generationTimeMs: true,
-        ragUsed: true,
-        toolCalls: true,
         feedback: true,
         metadata: true,
         // No attachments for guests
@@ -115,18 +108,6 @@ export async function GET(request: Request, { params }: RouteParams) {
         content: getTextFromParts(m.parts),
         parts: m.parts,
         createdAt: m.createdAt.toISOString(),
-        model: m.model,
-        usage:
-          m.inputTokens !== null
-            ? {
-                inputTokens: m.inputTokens,
-                outputTokens: m.outputTokens,
-                cost: m.costUsd,
-                generationTimeMs: m.generationTimeMs,
-              }
-            : undefined,
-        ragUsed: m.ragUsed,
-        toolCalls: m.toolCalls,
         feedback: m.feedback,
         feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
         attachments: [], // Guests don't have attachments

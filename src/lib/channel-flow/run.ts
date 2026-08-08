@@ -78,6 +78,7 @@ function createPersistedResponse(
   messageId: string,
   text: string,
   metrics: NonNullable<RunChannelFlowResult["metrics"]>,
+  includeTechnicalMetrics: boolean,
 ) {
   const textId = `${messageId}-text`;
   const stream = createUIMessageStream<UIMessage>({
@@ -91,7 +92,9 @@ function createPersistedResponse(
       writer.write({
         type: "finish",
         finishReason: "stop",
-        messageMetadata: finishMetadata(metrics),
+        ...(includeTechnicalMetrics
+          ? { messageMetadata: finishMetadata(metrics) }
+          : {}),
       });
     },
   });
@@ -126,6 +129,8 @@ function withCancellation<T>(
 export async function runChannelFlow(
   ctx: InboundContext,
 ): Promise<RunChannelFlowResult> {
+  const includeTechnicalMetrics =
+    ctx.execution?.includeTechnicalMetrics === true;
   const policyParts = ctx.options.allowAttachments
     ? ctx.parts
     : ctx.parts.filter((part) => part.type === "text");
@@ -351,6 +356,7 @@ export async function runChannelFlow(
                   message.id,
                   recovery.text,
                   recovery.metrics,
+                  includeTechnicalMetrics,
                 ),
             }
           : undefined,
@@ -382,6 +388,7 @@ export async function runChannelFlow(
                   saved.messageId,
                   saved.text,
                   saved.metrics,
+                  includeTechnicalMetrics,
                 ),
             }
           : undefined,
@@ -549,7 +556,9 @@ export async function runChannelFlow(
                 writer.write({
                   type: "finish",
                   finishReason: "stop",
-                  messageMetadata: finishMetadata(finalMetrics),
+                  ...(includeTechnicalMetrics
+                    ? { messageMetadata: finishMetadata(finalMetrics) }
+                    : {}),
                 });
               } catch (error) {
                 await releaseUsageReservationOnce();

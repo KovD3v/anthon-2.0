@@ -156,7 +156,7 @@ describe("lib/chat", () => {
     mocks.userFindUnique.mockResolvedValue({
       role: "USER",
       isGuest: false,
-      preferences: { voiceEnabled: false },
+      preferences: { voiceEnabled: false, showTechnicalMetrics: true },
       subscription: { status: "ACTIVE", planId: "basic_plus" },
     });
     mocks.resolveEffectiveEntitlements.mockResolvedValue({
@@ -316,9 +316,6 @@ describe("lib/chat", () => {
     expect(result?.messages[0]).toMatchObject({
       id: "m2",
       role: "assistant",
-      model: undefined,
-      usage: undefined,
-      ragUsed: undefined,
       feedback: -1,
       feedbackReason: "wrong_fact",
       voice: {
@@ -345,11 +342,125 @@ describe("lib/chat", () => {
         inputTokens: 42,
         outputTokens: 0,
         cost: 0,
-        generationTimeMs: undefined,
-        reasoningTimeMs: undefined,
+        generationTimeMs: 0,
+        reasoningTimeMs: 0,
       },
-      ragUsed: undefined,
     });
+  });
+
+  it.each([
+    {
+      name: "a private USER without an override",
+      role: "USER",
+      preference: null,
+      isGuest: false,
+      visibility: "PRIVATE",
+      isOwner: true,
+      expected: false,
+    },
+    {
+      name: "a private USER with an explicit override",
+      role: "USER",
+      preference: true,
+      isGuest: false,
+      visibility: "PRIVATE",
+      isOwner: true,
+      expected: true,
+    },
+    {
+      name: "a private ADMIN without an override",
+      role: "ADMIN",
+      preference: null,
+      isGuest: false,
+      visibility: "PRIVATE",
+      isOwner: true,
+      expected: true,
+    },
+    {
+      name: "a guest owner",
+      role: "SUPER_ADMIN",
+      preference: true,
+      isGuest: true,
+      visibility: "PRIVATE",
+      isOwner: true,
+      expected: false,
+    },
+    {
+      name: "a public owner",
+      role: "SUPER_ADMIN",
+      preference: true,
+      isGuest: false,
+      visibility: "PUBLIC",
+      isOwner: true,
+      expected: false,
+    },
+    {
+      name: "a public non-owner",
+      role: "SUPER_ADMIN",
+      preference: true,
+      isGuest: false,
+      visibility: "PUBLIC",
+      isOwner: false,
+      expected: false,
+    },
+  ] as const)("gates technical fields for $name", async (testCase) => {
+    const viewerId = "viewer-1";
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Session",
+      visibility: testCase.visibility,
+      userId: testCase.isOwner ? viewerId : "owner-1",
+      createdAt: new Date("2026-08-08T10:00:00.000Z"),
+      updatedAt: new Date("2026-08-08T10:00:00.000Z"),
+      _count: { messages: 1 },
+    });
+    mocks.userFindUnique.mockResolvedValue({
+      role: testCase.role,
+      isGuest: testCase.isGuest,
+      preferences: {
+        voiceEnabled: true,
+        showTechnicalMetrics: testCase.preference,
+      },
+      subscription: null,
+    });
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "assistant-1",
+        role: "ASSISTANT",
+        parts: [{ type: "text", text: "Risposta" }],
+        createdAt: new Date("2026-08-08T10:00:00.000Z"),
+        model: "private-model",
+        inputTokens: 11,
+        outputTokens: 7,
+        costUsd: 0.02,
+        generationTimeMs: 120,
+        reasoningTimeMs: 30,
+        ragUsed: true,
+        toolCalls: [{ name: "search" }],
+        feedback: null,
+        metadata: { raw: "must-not-leak" },
+        voiceGenerationJob: null,
+        attachments: [],
+      },
+    ]);
+
+    const result = await getSharedChat("chat-1", viewerId);
+    const message = result?.messages[0];
+
+    if (testCase.expected) {
+      expect(message).toMatchObject({
+        model: "private-model",
+        usage: { inputTokens: 11, outputTokens: 7, cost: 0.02 },
+        ragUsed: true,
+        toolCalls: [{ name: "search" }],
+      });
+    } else {
+      expect(message).not.toHaveProperty("model");
+      expect(message).not.toHaveProperty("usage");
+      expect(message).not.toHaveProperty("ragUsed");
+      expect(message).not.toHaveProperty("toolCalls");
+      expect(message).not.toHaveProperty("metadata");
+    }
   });
 
   it("getSharedChat hydrates trusted routine cards for a private authenticated owner", async () => {

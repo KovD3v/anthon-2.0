@@ -31,6 +31,7 @@ import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { tryCreateModelComparisonResponse } from "@/lib/model-experiments/runtime";
 import { checkRateLimit, reconcileAiUsageForRecovery } from "@/lib/rate-limit";
+import { resolveTechnicalMetricsVisibility } from "@/lib/technical-metrics";
 import { transcribeAudio } from "@/lib/transcription";
 import { decideWebVoiceMode, getVoiceUnavailability } from "@/lib/voice";
 import { getVoicePlanConfig } from "@/lib/voice/config";
@@ -159,6 +160,7 @@ export async function handleWebChatPost(request: Request) {
                 preferences: {
                   select: {
                     voiceEnabled: true,
+                    showTechnicalMetrics: true,
                   },
                 },
               },
@@ -185,6 +187,7 @@ export async function handleWebChatPost(request: Request) {
                 preferences: {
                   select: {
                     voiceEnabled: true,
+                    showTechnicalMetrics: true,
                   },
                 },
               },
@@ -206,6 +209,7 @@ export async function handleWebChatPost(request: Request) {
                 id: true,
                 title: true,
                 customTitle: true,
+                visibility: true,
                 _count: { select: { messages: true } },
               },
             }),
@@ -616,7 +620,16 @@ export async function handleWebChatPost(request: Request) {
             voiceUnavailableReason,
             skipConversationHistory: chat._count.messages === 0,
           },
-          execution: { mode: "stream", abortSignal: request.signal },
+          execution: {
+            mode: "stream",
+            abortSignal: request.signal,
+            includeTechnicalMetrics: resolveTechnicalMetricsVisibility({
+              role: user.role,
+              preference: user.preferences?.showTechnicalMetrics,
+              isGuest: user.isGuest,
+              isPrivateOwner: chat.visibility === "PRIVATE",
+            }),
+          },
           persistence: {
             channel: "WEB",
             saveAssistantMessage: true,

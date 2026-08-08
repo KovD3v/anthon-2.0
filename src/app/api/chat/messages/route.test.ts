@@ -42,7 +42,12 @@ describe("/api/chat/messages route", () => {
     mocks.deletePrivateVoiceBlobsForMessages.mockReset();
 
     mocks.auth.mockResolvedValue({ userId: "clerk_1" });
-    mocks.userFindUnique.mockResolvedValue({ id: "user-1" });
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      isGuest: false,
+      preferences: { showTechnicalMetrics: true },
+    });
     mocks.messageDeleteMany.mockResolvedValue({ count: 2 });
     mocks.deletePrivateVoiceBlobsForMessages.mockResolvedValue(0);
   });
@@ -82,6 +87,10 @@ describe("/api/chat/messages route", () => {
         outputTokens: null,
         costUsd: null,
         generationTimeMs: null,
+        reasoningTimeMs: null,
+        ragUsed: null,
+        toolCalls: null,
+        chat: { visibility: "PRIVATE" },
       },
       {
         id: "m2",
@@ -94,6 +103,10 @@ describe("/api/chat/messages route", () => {
         outputTokens: 25,
         costUsd: 0.02,
         generationTimeMs: 180,
+        reasoningTimeMs: null,
+        ragUsed: null,
+        toolCalls: null,
+        chat: { visibility: "PRIVATE" },
       },
     ]);
 
@@ -119,6 +132,10 @@ describe("/api/chat/messages route", () => {
         outputTokens: true,
         costUsd: true,
         generationTimeMs: true,
+        reasoningTimeMs: true,
+        ragUsed: true,
+        toolCalls: true,
+        chat: { select: { visibility: true } },
       },
     });
     await expect(response.json()).resolves.toEqual({
@@ -129,8 +146,6 @@ describe("/api/chat/messages route", () => {
           content: "hello",
           parts: [{ type: "text", text: "hello" }],
           createdAt: "2026-02-16T10:00:00.000Z",
-          model: null,
-          usage: undefined,
         },
         {
           id: "m2",
@@ -148,6 +163,46 @@ describe("/api/chat/messages route", () => {
         },
       ],
     });
+  });
+
+  it("GET omits diagnostics for a private USER without an override", async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      isGuest: false,
+      preferences: { showTechnicalMetrics: null },
+    });
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "m1",
+        role: "ASSISTANT",
+        parts: [{ type: "text", text: "Risposta" }],
+        createdAt: new Date("2026-02-16T10:00:00.000Z"),
+        model: "private-model",
+        inputTokens: 10,
+        outputTokens: 20,
+        costUsd: 0.03,
+        generationTimeMs: 180,
+        reasoningTimeMs: 22,
+        ragUsed: true,
+        toolCalls: [{ name: "search" }],
+        chat: { visibility: "PRIVATE" },
+      },
+    ]);
+
+    const response = await GET(
+      new Request("http://localhost/api/chat/messages?chatId=chat-1"),
+    );
+    const body = (await response.json()) as {
+      messages: Array<Record<string, unknown>>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.messages[0]).not.toHaveProperty("model");
+    expect(body.messages[0]).not.toHaveProperty("usage");
+    expect(body.messages[0]).not.toHaveProperty("ragUsed");
+    expect(body.messages[0]).not.toHaveProperty("toolCalls");
+    expect(body.messages[0]).not.toHaveProperty("metadata");
   });
 
   it("GET returns the newest 100 messages in chronological order", async () => {
@@ -219,6 +274,10 @@ describe("/api/chat/messages route", () => {
         outputTokens: true,
         costUsd: true,
         generationTimeMs: true,
+        reasoningTimeMs: true,
+        ragUsed: true,
+        toolCalls: true,
+        chat: { select: { visibility: true } },
       },
     });
     await expect(response.json()).resolves.toEqual({ messages: [] });
@@ -268,7 +327,6 @@ describe("/api/chat/messages route", () => {
             { type: "text", text: " e dimmi cosa correggere" },
           ],
           createdAt: "2026-02-16T10:00:00.000Z",
-          model: null,
         },
       ],
     });
