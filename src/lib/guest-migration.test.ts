@@ -420,4 +420,69 @@ describe("lib/guest-migration", () => {
       false,
     );
   });
+
+  it("does not transfer a guest technical-metrics override when creating target preferences", async () => {
+    const tx = buildTx();
+    tx.preferences.findUnique
+      .mockResolvedValueOnce({
+        userId: "guest-1",
+        tone: "friendly",
+        mode: "coach",
+        language: "it",
+        push: true,
+        showTechnicalMetrics: true,
+        updatedAt: new Date("2026-02-12T10:00:00.000Z"),
+      })
+      .mockResolvedValueOnce(null);
+
+    mocks.transaction.mockImplementation(
+      async (fn: (client: Tx) => Promise<unknown>) => await fn(tx),
+    );
+
+    const result = await migrateGuestToUser("guest-1", "user-1");
+
+    expect(result.success).toBe(true);
+    expect(tx.preferences.create).toHaveBeenCalledWith({
+      data: {
+        userId: "user-1",
+        tone: "friendly",
+        mode: "coach",
+        language: "it",
+        push: true,
+        showTechnicalMetrics: null,
+      },
+    });
+  });
+
+  it("does not overwrite a registered user's technical-metrics override", async () => {
+    const tx = buildTx();
+    tx.preferences.findUnique
+      .mockResolvedValueOnce({
+        userId: "guest-1",
+        tone: "friendly",
+        mode: "coach",
+        language: "it",
+        push: true,
+        showTechnicalMetrics: true,
+        updatedAt: new Date("2026-02-12T10:00:00.000Z"),
+      })
+      .mockResolvedValueOnce({
+        userId: "user-1",
+        tone: "friendly",
+        mode: "coach",
+        language: "it",
+        push: true,
+        showTechnicalMetrics: false,
+        updatedAt: new Date("2026-02-10T10:00:00.000Z"),
+      });
+
+    mocks.transaction.mockImplementation(
+      async (fn: (client: Tx) => Promise<unknown>) => await fn(tx),
+    );
+
+    const result = await migrateGuestToUser("guest-1", "user-1");
+
+    expect(result.success).toBe(true);
+    expect(tx.preferences.update).not.toHaveBeenCalled();
+  });
 });

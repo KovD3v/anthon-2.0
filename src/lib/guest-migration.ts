@@ -357,6 +357,7 @@ export async function migrateGuestToUser(
               mode: guestPreferences.mode,
               language: guestPreferences.language,
               push: guestPreferences.push,
+              showTechnicalMetrics: null,
             },
           });
           migratedCounts.preferences = true;

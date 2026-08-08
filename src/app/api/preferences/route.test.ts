@@ -30,11 +30,12 @@ describe("/api/preferences route", () => {
     mocks.preferencesUpsert.mockReset();
 
     mocks.getAuthUser.mockResolvedValue({
-      user: { id: "user-1" },
+      user: { id: "user-1", role: "USER" },
       error: null,
     });
     mocks.userFindUnique.mockResolvedValue({
       id: "user-1",
+      role: "USER",
       preferences: {
         userId: "user-1",
         voiceEnabled: false,
@@ -42,6 +43,7 @@ describe("/api/preferences route", () => {
         mode: "coach",
         language: "EN",
         push: false,
+        showTechnicalMetrics: null,
       },
     });
     mocks.preferencesUpsert.mockResolvedValue({
@@ -51,6 +53,7 @@ describe("/api/preferences route", () => {
       mode: "teacher",
       language: "IT",
       push: true,
+      showTechnicalMetrics: null,
     });
   });
 
@@ -89,11 +92,17 @@ describe("/api/preferences route", () => {
       mode: "coach",
       language: "EN",
       push: false,
+      showTechnicalMetrics: null,
+      effectiveShowTechnicalMetrics: false,
     });
   });
 
   it("GET falls back to defaults when preferences are missing", async () => {
-    mocks.userFindUnique.mockResolvedValue({ id: "user-1", preferences: null });
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      preferences: null,
+    });
 
     const response = await GET();
 
@@ -104,6 +113,62 @@ describe("/api/preferences route", () => {
       mode: null,
       language: "IT",
       push: true,
+      showTechnicalMetrics: null,
+      effectiveShowTechnicalMetrics: false,
+    });
+  });
+
+  it.each([
+    ["ADMIN", true],
+    ["SUPER_ADMIN", true],
+  ] as const)(
+    "GET applies the role default when an %s user has no preferences",
+    async (role, effectiveShowTechnicalMetrics) => {
+      mocks.getAuthUser.mockResolvedValue({
+        user: { id: "user-1", role },
+        error: null,
+      });
+      mocks.userFindUnique.mockResolvedValue({
+        id: "user-1",
+        role,
+        preferences: null,
+      });
+
+      const response = await GET();
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        showTechnicalMetrics: null,
+        effectiveShowTechnicalMetrics,
+      });
+    },
+  );
+
+  it("GET returns an explicit override instead of the admin default", async () => {
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "user-1", role: "ADMIN" },
+      error: null,
+    });
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "ADMIN",
+      preferences: {
+        userId: "user-1",
+        voiceEnabled: false,
+        tone: "friendly",
+        mode: "coach",
+        language: "EN",
+        push: false,
+        showTechnicalMetrics: false,
+      },
+    });
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      showTechnicalMetrics: false,
+      effectiveShowTechnicalMetrics: false,
     });
   });
 
@@ -173,6 +238,7 @@ describe("/api/preferences route", () => {
         mode: null,
         language: "EN",
         push: false,
+        showTechnicalMetrics: null,
       },
     });
   });
@@ -196,8 +262,52 @@ describe("/api/preferences route", () => {
         mode: null,
         language: "IT",
         push: true,
+        showTechnicalMetrics: null,
       },
     });
+  });
+
+  it("PATCH stores an explicit technical-metrics override", async () => {
+    const response = await PATCH(
+      new Request("http://localhost/api/preferences", {
+        method: "PATCH",
+        body: JSON.stringify({ showTechnicalMetrics: true }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.preferencesUpsert).toHaveBeenCalledWith({
+      where: { userId: "user-1" },
+      update: { showTechnicalMetrics: true },
+      create: {
+        userId: "user-1",
+        voiceEnabled: true,
+        tone: null,
+        mode: null,
+        language: "IT",
+        push: true,
+        showTechnicalMetrics: true,
+      },
+    });
+  });
+
+  it("PATCH stores a null technical-metrics override", async () => {
+    const response = await PATCH(
+      new Request("http://localhost/api/preferences", {
+        method: "PATCH",
+        body: JSON.stringify({ showTechnicalMetrics: null }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.preferencesUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: { showTechnicalMetrics: null },
+        create: expect.objectContaining({ showTechnicalMetrics: null }),
+      }),
+    );
   });
 
   it.each([
@@ -206,11 +316,29 @@ describe("/api/preferences route", () => {
     { tone: 123 },
     { mode: false },
     { language: false },
+    { showTechnicalMetrics: "true" },
   ])("PATCH returns 400 for invalid preference types: %o", async (body) => {
     const response = await PATCH(
       new Request("http://localhost/api/preferences", {
         method: "PATCH",
         body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Preferenze non valide",
+    });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    expect(mocks.preferencesUpsert).not.toHaveBeenCalled();
+  });
+
+  it("PATCH returns 400 for unknown preference keys", async () => {
+    const response = await PATCH(
+      new Request("http://localhost/api/preferences", {
+        method: "PATCH",
+        body: JSON.stringify({ unknown: true }),
         headers: { "Content-Type": "application/json" },
       }),
     );

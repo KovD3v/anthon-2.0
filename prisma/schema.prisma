@@ -944,6 +944,7 @@ model Preferences {
   language     String?  @default("IT") // IT, EN, etc.
   push         Boolean? @default(true) // Push notifications enabled by default
   voiceEnabled Boolean? @default(true) // Voice messages enabled (false = Quiet Mode)
+  showTechnicalMetrics Boolean?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

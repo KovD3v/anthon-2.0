@@ -1,7 +1,7 @@
 "use client";
 
 import { useClerk } from "@clerk/nextjs";
-import { Loader2, Trash2, Volume2, VolumeX } from "lucide-react";
+import { Gauge, Loader2, Trash2, Volume2, VolumeX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -17,6 +17,8 @@ interface Preferences {
   mode: string | null;
   language: string | null;
   push: boolean | null;
+  showTechnicalMetrics: boolean | null;
+  effectiveShowTechnicalMetrics: boolean;
 }
 
 export function PreferencesSection() {
@@ -79,6 +81,10 @@ export function PreferencesSection() {
     updatePreference("voiceEnabled", !checked);
   };
 
+  const handleTechnicalMetricsToggle = (checked: boolean) => {
+    updatePreference("showTechnicalMetrics", checked);
+  };
+
   const handleDeleteAccount = async () => {
     setDeleting(true);
     try {
@@ -104,6 +110,8 @@ export function PreferencesSection() {
 
   // "Don't send audio" should be ON when voiceEnabled is false
   const dontSendAudio = preferences?.voiceEnabled === false;
+  const showTechnicalMetrics =
+    preferences?.effectiveShowTechnicalMetrics ?? false;
 
   return (
     <>
@@ -146,6 +154,32 @@ export function PreferencesSection() {
               onCheckedChange={handleVoiceToggle}
               disabled={updating}
               aria-label="Disabilita messaggi audio"
+            />
+          </div>
+
+          <div className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-muted/20">
+            <div className="flex items-center gap-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
+                <Gauge className="h-5 w-5 text-blue-500" />
+              </div>
+              <div className="space-y-0.5">
+                <Label
+                  htmlFor="technical-metrics-toggle"
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  Mostra dettagli tecnici delle risposte
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Visualizza tempi e metriche nelle tue conversazioni private
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="technical-metrics-toggle"
+              checked={showTechnicalMetrics}
+              onCheckedChange={handleTechnicalMetricsToggle}
+              disabled={updating}
+              aria-label="Mostra dettagli tecnici delle risposte"
             />
           </div>
         </div>

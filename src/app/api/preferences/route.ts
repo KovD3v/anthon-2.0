@@ -8,6 +8,7 @@ import {
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import { getDefaultTechnicalMetricsPreference } from "@/lib/technical-metrics";
 
 const preferencesLogger = createLogger("ai");
 
@@ -17,6 +18,7 @@ type PreferencesPatchBody = {
   mode?: string | null;
   language?: string | null;
   push?: boolean | null;
+  showTechnicalMetrics?: boolean | null;
 };
 
 function hasValidPreferenceTypes(body: PreferencesPatchBody): boolean {
@@ -30,7 +32,18 @@ function hasValidPreferenceTypes(body: PreferencesPatchBody): boolean {
     isBooleanOrNull(body.push) &&
     isStringOrNull(body.tone) &&
     isStringOrNull(body.mode) &&
-    isStringOrNull(body.language)
+    isStringOrNull(body.language) &&
+    isBooleanOrNull(body.showTechnicalMetrics) &&
+    Object.keys(body).every((key) =>
+      [
+        "voiceEnabled",
+        "tone",
+        "mode",
+        "language",
+        "push",
+        "showTechnicalMetrics",
+      ].includes(key),
+    )
   );
 }
 
@@ -57,6 +70,10 @@ export async function GET() {
     }
 
     // Return preferences or defaults
+    const showTechnicalMetrics =
+      dbUser.preferences?.showTechnicalMetrics ?? null;
+    const effectiveShowTechnicalMetrics =
+      showTechnicalMetrics ?? getDefaultTechnicalMetricsPreference(dbUser.role);
     const preferences = dbUser.preferences || {
       voiceEnabled: true,
       tone: null,
@@ -65,7 +82,11 @@ export async function GET() {
       push: true,
     };
 
-    return jsonOk(preferences);
+    return jsonOk({
+      ...preferences,
+      showTechnicalMetrics,
+      effectiveShowTechnicalMetrics,
+    });
   } catch (error) {
     preferencesLogger.error("get.error", "Failed to fetch preferences", {
       error,
@@ -104,7 +125,8 @@ export async function PATCH(request: Request) {
       return badRequest("Preferenze non valide");
     }
 
-    const { voiceEnabled, tone, mode, language, push } = body;
+    const { voiceEnabled, tone, mode, language, push, showTechnicalMetrics } =
+      body;
 
     // Find the user by id
     const dbUser = await prisma.user.findUnique({
@@ -125,6 +147,7 @@ export async function PATCH(request: Request) {
         ...(mode !== undefined && { mode }),
         ...(language !== undefined && { language }),
         ...(push !== undefined && { push }),
+        ...(showTechnicalMetrics !== undefined && { showTechnicalMetrics }),
       },
       create: {
         userId: dbUser.id,
@@ -133,10 +156,17 @@ export async function PATCH(request: Request) {
         mode: mode ?? null,
         language: language ?? "IT",
         push: push ?? true,
+        showTechnicalMetrics: showTechnicalMetrics ?? null,
       },
     });
 
-    return jsonOk(preferences);
+    return jsonOk({
+      ...preferences,
+      showTechnicalMetrics: preferences.showTechnicalMetrics ?? null,
+      effectiveShowTechnicalMetrics:
+        preferences.showTechnicalMetrics ??
+        getDefaultTechnicalMetricsPreference(dbUser.role),
+    });
   } catch (error) {
     preferencesLogger.error("patch.error", "Failed to update preferences", {
       error,

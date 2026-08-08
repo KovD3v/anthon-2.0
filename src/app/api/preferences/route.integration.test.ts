@@ -36,6 +36,8 @@ describe("integration /api/preferences", () => {
       mode: string | null;
       language: string;
       push: boolean;
+      showTechnicalMetrics: boolean | null;
+      effectiveShowTechnicalMetrics: boolean;
     };
 
     expect(response.status).toBe(200);
@@ -45,6 +47,8 @@ describe("integration /api/preferences", () => {
       mode: null,
       language: "IT",
       push: true,
+      showTechnicalMetrics: null,
+      effectiveShowTechnicalMetrics: false,
     });
   });
 
@@ -70,6 +74,8 @@ describe("integration /api/preferences", () => {
       push: boolean | null;
       language: string | null;
       voiceEnabled: boolean | null;
+      showTechnicalMetrics: boolean | null;
+      effectiveShowTechnicalMetrics: boolean;
     };
 
     expect(patchResponse.status).toBe(200);
@@ -77,20 +83,65 @@ describe("integration /api/preferences", () => {
     expect(patchBody.push).toBe(false);
     expect(patchBody.language).toBe("IT");
     expect(patchBody.voiceEnabled).toBe(true);
+    expect(patchBody.showTechnicalMetrics).toBeNull();
+    expect(patchBody.effectiveShowTechnicalMetrics).toBe(false);
 
     const savedPreferences = await prisma.preferences.findUnique({
       where: { userId: user.id },
     });
     expect(savedPreferences?.tone).toBe("direct");
     expect(savedPreferences?.push).toBe(false);
+    expect(savedPreferences?.showTechnicalMetrics).toBeNull();
 
     const getResponse = await GET();
     const getBody = (await getResponse.json()) as {
       tone: string | null;
       push: boolean;
+      showTechnicalMetrics: boolean | null;
+      effectiveShowTechnicalMetrics: boolean;
     };
     expect(getResponse.status).toBe(200);
     expect(getBody.tone).toBe("direct");
     expect(getBody.push).toBe(false);
+    expect(getBody.showTechnicalMetrics).toBeNull();
+    expect(getBody.effectiveShowTechnicalMetrics).toBe(false);
+  });
+
+  it("persists an explicit technical-metrics override", async () => {
+    const user = await createUser({ role: "ADMIN" });
+    mocks.getAuthUser.mockResolvedValue({
+      user: toAuthUser(user),
+      error: null,
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/preferences", {
+        method: "PATCH",
+        body: JSON.stringify({ showTechnicalMetrics: false }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const body = (await response.json()) as {
+      showTechnicalMetrics: boolean | null;
+      effectiveShowTechnicalMetrics: boolean;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      id: expect.any(String),
+      userId: user.id,
+      tone: null,
+      mode: null,
+      language: "IT",
+      push: true,
+      voiceEnabled: true,
+      showTechnicalMetrics: false,
+      effectiveShowTechnicalMetrics: false,
+      createdAt: expect.any(String),
+      updatedAt: expect.any(String),
+    });
+    await expect(
+      prisma.preferences.findUnique({ where: { userId: user.id } }),
+    ).resolves.toMatchObject({ showTechnicalMetrics: false });
   });
 });
