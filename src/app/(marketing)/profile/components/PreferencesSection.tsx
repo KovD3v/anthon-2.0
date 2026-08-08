@@ -26,6 +26,7 @@ export function PreferencesSection() {
   const router = useRouter();
   const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [loading, setLoading] = useState(true);
+  const [preferencesLoadError, setPreferencesLoadError] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -38,9 +39,13 @@ export function PreferencesSection() {
         if (response.ok) {
           const data = await response.json();
           setPreferences(data);
+          setPreferencesLoadError(false);
+        } else {
+          setPreferencesLoadError(true);
         }
       } catch (error) {
         console.error("Error fetching preferences:", error);
+        setPreferencesLoadError(true);
         toast.error("Errore nel caricamento delle preferenze");
       } finally {
         setLoading(false);
@@ -170,7 +175,9 @@ export function PreferencesSection() {
                   Mostra dettagli tecnici delle risposte
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Visualizza tempi e metriche nelle tue conversazioni private
+                  {preferencesLoadError
+                    ? "Impossibile caricare questa preferenza."
+                    : "Visualizza tempi e metriche nelle tue conversazioni private"}
                 </p>
               </div>
             </div>
@@ -178,7 +185,7 @@ export function PreferencesSection() {
               id="technical-metrics-toggle"
               checked={showTechnicalMetrics}
               onCheckedChange={handleTechnicalMetricsToggle}
-              disabled={updating}
+              disabled={updating || preferences === null}
               aria-label="Mostra dettagli tecnici delle risposte"
             />
           </div>
