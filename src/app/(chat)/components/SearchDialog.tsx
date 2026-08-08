@@ -78,7 +78,7 @@ export function SearchDialog({ isOpen, onClose }: SearchDialogProps) {
     >
       <DialogContent
         showCloseButton={false}
-        className="top-1/4 w-full max-w-xl gap-0 overflow-hidden rounded-2xl border-border/70 p-0 dark:border-white/10"
+        className="top-1/4 w-[calc(100%-2rem)] max-w-xl translate-y-0 gap-0 overflow-hidden rounded-2xl border-border/70 p-0 dark:border-white/10"
         onOpenAutoFocus={(event) => {
           returnFocusRef.current =
             document.activeElement instanceof HTMLElement

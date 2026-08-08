@@ -24,6 +24,20 @@ function SearchDialogHarness() {
 }
 
 describe("SearchDialog", () => {
+  it("keeps a centered mobile inset without the default vertical translation", async () => {
+    const user = userEvent.setup();
+    render(<SearchDialogHarness />);
+
+    await user.click(screen.getByRole("button", { name: "Apri ricerca" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Cerca nelle conversazioni",
+    });
+    expect(dialog.className).toContain("translate-y-0");
+    expect(dialog.className).toContain("w-[calc(100%-2rem)]");
+    expect(dialog.className).toContain("max-w-xl");
+  });
+
   it("traps keyboard focus and restores the opener after Escape", async () => {
     const user = userEvent.setup();
     render(<SearchDialogHarness />);
