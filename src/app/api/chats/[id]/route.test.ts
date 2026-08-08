@@ -470,6 +470,7 @@ describe("/api/chats/[id] route", () => {
     mocks.routineFindMany.mockResolvedValue([
       {
         id: "routine-page",
+        formatVersion: 1,
         sourceChatId: "chat-1",
         sourceAssistantMessageId: "assistant-page",
         status: "ACTIVE",
@@ -506,6 +507,7 @@ describe("/api/chats/[id] route", () => {
     expect(body.routines).toEqual([
       {
         id: "routine-page",
+        formatVersion: 1,
         sourceChatId: "chat-1",
         sourceAssistantMessageId: "assistant-page",
         status: "ACTIVE",

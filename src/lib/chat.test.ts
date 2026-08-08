@@ -522,6 +522,7 @@ describe("lib/chat", () => {
     mocks.routineFindMany.mockResolvedValue([
       {
         id: "routine-1",
+        formatVersion: 1,
         sourceChatId: "chat-1",
         sourceAssistantMessageId: "assistant-1",
         status: "ACTIVE",
@@ -562,6 +563,7 @@ describe("lib/chat", () => {
     expect(result?.routines).toEqual([
       {
         id: "routine-1",
+        formatVersion: 1,
         sourceChatId: "chat-1",
         sourceAssistantMessageId: "assistant-1",
         status: "ACTIVE",
