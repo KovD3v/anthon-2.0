@@ -374,6 +374,14 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
         <button
           type="button"
           onClick={() =>
+            void runRoutineAction(() => onSaveRoutine("assistant-adapted"))
+          }
+        >
+          Salva routine adattata test
+        </button>
+        <button
+          type="button"
+          onClick={() =>
             void runRoutineAction(() => onCreateRoutineAttempt("routine-1"))
           }
         >
@@ -2145,14 +2153,56 @@ describe("ChatConversationClient routine lifecycle", () => {
     const adaptedRoutine: RoutineCardData = {
       ...activeRoutine,
       id: "routine-adapted",
+      sourceAssistantMessageId: "assistant-adapted",
+    };
+    const adaptationMessage = {
+      id: "assistant-adapted",
+      role: "assistant" as const,
+      content: "Proposta adattata",
+      parts: [
+        { type: "text", text: "Proposta adattata" },
+        { type: "data-coachingRoutine", data: activeRoutine.proposal },
+      ],
+      createdAt: "2026-08-08T10:00:00.000Z",
+    };
+    const streamedData = {
+      ...initialChatData,
+      messages: [...initialChatData.messages, adaptationMessage],
+      routines: [firstRoutine, clickedRoutine],
+    };
+    const existingRoutine = {
+      ...activeRoutine,
+      id: "routine-visible",
       sourceAssistantMessageId: "assistant-new",
     };
-    const refreshedData = {
-      ...initialChatData,
-      routines: [firstRoutine, clickedRoutine, adaptedRoutine],
+    const afterExistingSave = {
+      ...streamedData,
+      routines: [firstRoutine, clickedRoutine, existingRoutine],
+    };
+    const afterAdaptedSave = {
+      ...streamedData,
+      routines: [firstRoutine, clickedRoutine, existingRoutine, adaptedRoutine],
     };
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(streamedData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ routine: existingRoutine }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(afterExistingSave), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ routine: adaptedRoutine }), {
           status: 201,
@@ -2160,7 +2210,7 @@ describe("ChatConversationClient routine lifecycle", () => {
         }),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify(refreshedData), {
+        new Response(JSON.stringify(afterAdaptedSave), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
@@ -2177,17 +2227,33 @@ describe("ChatConversationClient routine lifecycle", () => {
     );
     await user.click(screen.getByRole("button", { name: "Invia test" }));
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce());
+    const chatOptions = mocks.captureChatOptions.mock.calls.at(-1)?.[0] as {
+      onFinish: () => Promise<void>;
+    };
+    await act(() => chatOptions.onFinish());
     await user.click(
       screen.getByRole("button", { name: "Salva routine test" }),
     );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
+      2,
+      "/api/coaching/routines",
+      expect.objectContaining({
+        body: JSON.stringify({ sourceAssistantMessageId: "assistant-new" }),
+      }),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Salva routine adattata test" }),
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
       "/api/coaching/routines",
       expect.objectContaining({
         body: JSON.stringify({
-          sourceAssistantMessageId: "assistant-new",
+          sourceAssistantMessageId: "assistant-adapted",
           derivedFromRoutineId: "routine-2",
         }),
       }),

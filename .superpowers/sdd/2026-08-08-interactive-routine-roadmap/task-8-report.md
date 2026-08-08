@@ -59,6 +59,14 @@ Implemented the Task 8-owned Prisma, route, client, card/history, and analytics 
 | `bun run typecheck` | passed |
 | Targeted `bunx biome check` over Task 8 files | passed |
 | `git diff --check` | passed |
+
+## Fix round 2 — bind adaptation lineage to the assistant source card
+
+- The submitted adaptation state now records the assistant IDs present before the user sends the exact adaptation prompt. It is not a persistence lineage yet.
+- After `onFinish` refreshes chat data, only a newly arrived assistant message carrying `data-coachingRoutine` arms a pair of `{ routineId, sourceAssistantMessageId }`.
+- A save receives `derivedFromRoutineId` only when its own assistant message ID exactly matches that pair. Saving an already visible unsaved card while the adapted response is available omits lineage and leaves the pair for the new proposal.
+- The conversation regression now proves duplicate titles still bind `routine-2`, an existing `assistant-new` card cannot inherit the relation, and only the new `assistant-adapted` proposal sends the verified derivation. Existing stale/unrelated clearing remains covered.
+- Re-ran focused Task 8 suite: 9 files / 153 tests passed; typecheck, targeted Biome, and `git diff --check` passed.
 | `bun run build` | passed; Next production compile and TypeScript completed |
 | Ephemeral integration tests | not run: `NEON_API_KEY`, `NEON_PROJECT_ID`, and development `DATABASE_URL` are unavailable |
 | `prisma migrate diff --from-migrations ... --to-schema ...` | unavailable: repository Prisma config has no `shadowDatabaseUrl`; schema validation/generation and migration SQL test passed instead |

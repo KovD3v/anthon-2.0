@@ -156,10 +156,17 @@ export function ChatConversationClient({
   const pendingInitialMessageSubmittedRef = useRef(false);
   const voiceGenerationPollAttemptsRef = useRef(0);
   const routineAttemptActionIdsRef = useRef(new Map<string, string>());
-  const pendingRoutineAdaptationRef = useRef<string | null>(null);
+  const pendingRoutineAdaptationRef = useRef<{
+    routineId: string;
+    sourceAssistantMessageId: string;
+  } | null>(null);
   const routineAdaptationDraftRef = useRef<{
     routineId: string;
     prompt: string;
+  } | null>(null);
+  const submittedRoutineAdaptationRef = useRef<{
+    routineId: string;
+    assistantMessageIds: Set<string>;
   } | null>(null);
   const cleanedCheckInRoutineIdRef = useRef<string | null>(null);
   const sourceHydrationRequestRef = useRef<string | null>(null);
@@ -326,12 +333,34 @@ export function ChatConversationClient({
         const newMessages = await refreshChatData();
         if (newMessages) {
           setMessages(newMessages);
+          const submittedAdaptation = submittedRoutineAdaptationRef.current;
+          if (submittedAdaptation) {
+            const sourceMessage = [...newMessages]
+              .reverse()
+              .find(
+                (message) =>
+                  message.role === "assistant" &&
+                  !submittedAdaptation.assistantMessageIds.has(message.id) &&
+                  message.parts.some(
+                    (part) => part.type === "data-coachingRoutine",
+                  ),
+              );
+            pendingRoutineAdaptationRef.current = sourceMessage
+              ? {
+                  routineId: submittedAdaptation.routineId,
+                  sourceAssistantMessageId: sourceMessage.id,
+                }
+              : null;
+          }
         }
       } finally {
+        submittedRoutineAdaptationRef.current = null;
         setIsResponseSettling(false);
       }
     },
     onError: () => {
+      submittedRoutineAdaptationRef.current = null;
+      pendingRoutineAdaptationRef.current = null;
       setIsResponseSettling(false);
     },
   });
@@ -658,15 +687,19 @@ export function ChatConversationClient({
 
   const handleSaveRoutine = useCallback(
     async (sourceAssistantMessageId: string) => {
-      const derivedFromRoutineId = pendingRoutineAdaptationRef.current;
+      const adaptation = pendingRoutineAdaptationRef.current;
+      const derivedFromRoutineId =
+        adaptation?.sourceAssistantMessageId === sourceAssistantMessageId
+          ? adaptation.routineId
+          : undefined;
       try {
         return await applyRoutineMutation(() =>
           saveRoutineProposal(sourceAssistantMessageId, {
-            derivedFromRoutineId: derivedFromRoutineId ?? undefined,
+            derivedFromRoutineId,
           }),
         );
       } finally {
-        pendingRoutineAdaptationRef.current = null;
+        if (derivedFromRoutineId) pendingRoutineAdaptationRef.current = null;
       }
     },
     [applyRoutineMutation],
@@ -1016,6 +1049,16 @@ export function ChatConversationClient({
         : null;
     routineAdaptationDraftRef.current = null;
     pendingRoutineAdaptationRef.current = null;
+    submittedRoutineAdaptationRef.current = adaptationRoutineId
+      ? {
+          routineId: adaptationRoutineId,
+          assistantMessageIds: new Set(
+            chatData.messages
+              .filter((message) => message.role === "assistant")
+              .map((message) => message.id),
+          ),
+        }
+      : null;
 
     try {
       await maybeActivateClerkTrial();
@@ -1040,9 +1083,9 @@ export function ChatConversationClient({
       }
       setInput("");
       await sendMessage({ role: "user", parts });
-      pendingRoutineAdaptationRef.current = adaptationRoutineId;
     } catch (error) {
       pendingRoutineAdaptationRef.current = null;
+      submittedRoutineAdaptationRef.current = null;
       setIsResponseSettling(false);
       setInput(submittedInput);
       if (error instanceof Error && isExpectedChatRejection(error, isGuest)) {
