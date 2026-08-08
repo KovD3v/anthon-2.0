@@ -116,4 +116,39 @@ describe("fetchActiveRoutineForReturn", () => {
       new RoutineClientError("Risposta del server non valida. Riprova.", 200),
     );
   });
+
+  it("rejects unexpected nested technical fields in collection cards", async () => {
+    const routine = {
+      id: "routine-1",
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+      status: "ACTIVE",
+      formatVersion: 1,
+      proposal: {
+        title: "Reset rapido",
+        trigger: "Dopo un errore",
+        durationLabel: null,
+        steps: ["Fermati", "Espira"],
+        completionCue: "Riparti",
+      },
+      archivedAt: null,
+      latestAttempt: null,
+      metadata: { model: "internal-model" },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ routines: [routine], total: 1, nextCursor: null }),
+            { status: 200 },
+          ),
+        ),
+    );
+
+    await expect(fetchRoutineCollection({ status: "ACTIVE" })).rejects.toEqual(
+      new RoutineClientError("Risposta del server non valida. Riprova.", 200),
+    );
+  });
 });

@@ -10,9 +10,119 @@ const routineResponseSchema = z
 const activeRoutineResponseSchema = z
   .object({ routine: routineCardDataSchema.nullable() })
   .strict();
+const strictRoutineOutcomeSchema = z.enum([
+  "HELPFUL",
+  "PARTIALLY_HELPFUL",
+  "NOT_HELPFUL",
+]);
+const strictRoutineInstructionStepSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    kind: z.literal("instruction"),
+    text: z.string().min(2).max(240),
+  })
+  .strict();
+const strictRoutineTimerStepSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    kind: z.literal("timer"),
+    label: z.string().min(2).max(80),
+    instruction: z.string().min(2).max(240),
+    durationSeconds: z.number().int().min(5).max(900),
+  })
+  .strict();
+const strictRoutineBreathingStepSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    kind: z.literal("breathing"),
+    label: z.string().min(2).max(80),
+    instruction: z.string().min(2).max(240),
+    inhaleSeconds: z.number().int().min(1).max(30),
+    exhaleSeconds: z.number().int().min(1).max(30),
+    holdAfterInhaleSeconds: z.number().int().min(0).max(30),
+    holdAfterExhaleSeconds: z.number().int().min(0).max(30),
+    cycles: z.number().int().min(1).max(12),
+  })
+  .strict();
+const strictRoutineFormOptionSchema = z
+  .object({
+    label: z.string().min(2).max(80),
+    outcome: strictRoutineOutcomeSchema,
+  })
+  .strict();
+const strictRoutineFormStepSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    kind: z.literal("form"),
+    question: z.string().min(3).max(280),
+    mode: z.enum(["scale", "choice"]),
+    options: z.array(strictRoutineFormOptionSchema).length(3),
+    noteEnabled: z.boolean(),
+  })
+  .strict();
+const strictRoutineV2StepSchema = z.discriminatedUnion("kind", [
+  strictRoutineInstructionStepSchema,
+  strictRoutineTimerStepSchema,
+  strictRoutineBreathingStepSchema,
+  strictRoutineFormStepSchema,
+]);
+const strictRoutineProposalFields = {
+  title: z.string().min(3).max(96),
+  trigger: z.string().min(3).max(280),
+  durationLabel: z.string().min(2).max(80).nullable(),
+  completionCue: z.string().min(3).max(280),
+};
+const strictRoutineProposalV1Schema = z
+  .object({
+    ...strictRoutineProposalFields,
+    steps: z.array(z.string().min(2).max(240)).min(2).max(3),
+  })
+  .strict();
+const strictRoutineProposalV2Schema = z
+  .object({
+    formatVersion: z.literal(2),
+    ...strictRoutineProposalFields,
+    steps: z.array(strictRoutineV2StepSchema).min(1).max(7),
+  })
+  .strict();
+const strictRoutineProposalSchema = z.union([
+  strictRoutineProposalV1Schema,
+  strictRoutineProposalV2Schema,
+]);
+const strictRoutineAttemptSchema = z
+  .object({
+    id: z.string(),
+    attemptedAt: z.iso.datetime(),
+    outcome: strictRoutineOutcomeSchema.nullable(),
+    outcomeNote: z.string().nullable(),
+    outcomeRecordedAt: z.iso.datetime().nullable(),
+  })
+  .strict();
+const strictRoutineCardDataSchema = z
+  .object({
+    id: z.string(),
+    sourceChatId: z.string().nullable(),
+    sourceAssistantMessageId: z.string().nullable(),
+    status: z.enum(["ACTIVE", "ARCHIVED"]),
+    formatVersion: z.union([z.literal(1), z.literal(2)]),
+    proposal: strictRoutineProposalSchema,
+    archivedAt: z.iso.datetime().nullable(),
+    latestAttempt: strictRoutineAttemptSchema.nullable(),
+  })
+  .strict()
+  .superRefine((card, context) => {
+    const proposalVersion = "formatVersion" in card.proposal ? 2 : 1;
+    if (card.formatVersion !== proposalVersion) {
+      context.addIssue({
+        code: "custom",
+        message: "Routine formatVersion must match its proposal",
+        path: ["formatVersion"],
+      });
+    }
+  });
 const routineCollectionResponseSchema = z
   .object({
-    routines: z.array(routineCardDataSchema),
+    routines: z.array(strictRoutineCardDataSchema),
     total: z.number().int().nonnegative(),
     nextCursor: z.string().nullable(),
   })
