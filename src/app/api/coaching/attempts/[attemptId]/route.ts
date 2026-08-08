@@ -28,6 +28,8 @@ const routineInclude = {
 };
 type RouteContext = { params: Promise<{ attemptId: string }> };
 
+class RoutineInactiveError extends Error {}
+
 export async function PATCH(request: Request, { params }: RouteContext) {
   try {
     const { user, error } = await getAuthUser();
@@ -54,22 +56,47 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     if (!attempt) return notFound();
 
     const now = new Date();
-    const routine = await prisma.$transaction(async (tx) => {
-      await tx.routineAttempt.update({
-        where: { id: attempt.id },
-        data: {
-          outcome: parsed.data.outcome,
-          outcomeNote: parsed.data.outcomeNote,
-          outcomeRecordedAt: now,
-        },
-        select: { id: true },
+    const persistOutcome = () =>
+      prisma.$transaction(async (tx) => {
+        const activeRoutine = await tx.routine.updateMany({
+          where: {
+            id: attempt.routineId,
+            userId: user.id,
+            status: "ACTIVE",
+          },
+          data: { updatedAt: now },
+        });
+        if (activeRoutine.count !== 1) throw new RoutineInactiveError();
+
+        await tx.routineAttempt.update({
+          where: { id: attempt.id },
+          data: {
+            outcome: parsed.data.outcome,
+            outcomeNote: parsed.data.outcomeNote,
+            outcomeRecordedAt: now,
+          },
+          select: { id: true },
+        });
+        const activeRecord = await tx.routine.findFirst({
+          where: {
+            id: attempt.routineId,
+            userId: user.id,
+            status: "ACTIVE",
+          },
+          include: routineInclude,
+        });
+        if (!activeRecord) throw new RoutineInactiveError();
+        return activeRecord;
       });
-      return tx.routine.update({
-        where: { id: attempt.routineId },
-        data: { updatedAt: now },
-        include: routineInclude,
-      });
-    });
+    let routine: Awaited<ReturnType<typeof persistOutcome>>;
+    try {
+      routine = await persistOutcome();
+    } catch (error) {
+      if (error instanceof RoutineInactiveError) {
+        return Response.json({ error: "Routine is archived" }, { status: 409 });
+      }
+      throw error;
+    }
 
     if (routine.sourceChatId) {
       revalidateTag(`chat-${routine.sourceChatId}`, "max");

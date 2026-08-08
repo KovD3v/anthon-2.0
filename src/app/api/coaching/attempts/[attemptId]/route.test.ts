@@ -3,16 +3,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
   const attemptFindFirst = vi.fn();
   const attemptUpdate = vi.fn();
-  const routineUpdate = vi.fn();
+  const routineUpdateMany = vi.fn();
+  const routineFindFirst = vi.fn();
   const tx = {
     routineAttempt: { update: attemptUpdate },
-    routine: { update: routineUpdate },
+    routine: {
+      findFirst: routineFindFirst,
+      updateMany: routineUpdateMany,
+    },
   };
   return {
     getAuthUser: vi.fn(),
     attemptFindFirst,
     attemptUpdate,
-    routineUpdate,
+    routineUpdateMany,
+    routineFindFirst,
     transaction: vi.fn(),
     revalidateTag: vi.fn(),
     tx,
@@ -23,7 +28,6 @@ vi.mock("@/lib/auth", () => ({ getAuthUser: mocks.getAuthUser }));
 vi.mock("@/lib/db", () => ({
   prisma: {
     routineAttempt: { findFirst: mocks.attemptFindFirst },
-    routine: { update: mocks.routineUpdate },
     $transaction: mocks.transaction,
   },
 }));
@@ -84,7 +88,8 @@ describe("PATCH /api/coaching/attempts/[attemptId]", () => {
       routineId: "routine-1",
     });
     mocks.attemptUpdate.mockResolvedValue({ id: "attempt-1" });
-    mocks.routineUpdate.mockResolvedValue(routineCardRecord);
+    mocks.routineUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.routineFindFirst.mockResolvedValue(routineCardRecord);
     mocks.transaction.mockImplementation(
       async (callback: (tx: typeof mocks.tx) => unknown) => callback(mocks.tx),
     );
@@ -135,9 +140,12 @@ describe("PATCH /api/coaching/attempts/[attemptId]", () => {
       },
       select: { id: true },
     });
-    expect(mocks.routineUpdate).toHaveBeenCalledWith({
-      where: { id: "routine-1" },
+    expect(mocks.routineUpdateMany).toHaveBeenCalledWith({
+      where: { id: "routine-1", userId: "user-1", status: "ACTIVE" },
       data: { updatedAt: expect.any(Date) },
+    });
+    expect(mocks.routineFindFirst).toHaveBeenCalledWith({
+      where: { id: "routine-1", userId: "user-1", status: "ACTIVE" },
       include: {
         attempts: {
           orderBy: [{ attemptedAt: "desc" }, { id: "desc" }],
@@ -147,9 +155,24 @@ describe("PATCH /api/coaching/attempts/[attemptId]", () => {
     });
     const outcomeTime =
       mocks.attemptUpdate.mock.calls[0]?.[0].data.outcomeRecordedAt;
-    const parentTime = mocks.routineUpdate.mock.calls[0]?.[0].data.updatedAt;
+    const parentTime =
+      mocks.routineUpdateMany.mock.calls[0]?.[0].data.updatedAt;
     expect(parentTime).toBe(outcomeTime);
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "max");
+  });
+
+  it("rejects the outcome when the routine is archived after the preliminary lookup", async () => {
+    mocks.routineUpdateMany.mockResolvedValue({ count: 0 });
+
+    const response = await route.PATCH(request(), context);
+
+    expect(response.status).toBe(409);
+    expect(mocks.routineUpdateMany).toHaveBeenCalledWith({
+      where: { id: "routine-1", userId: "user-1", status: "ACTIVE" },
+      data: { updatedAt: expect.any(Date) },
+    });
+    expect(mocks.attemptUpdate).not.toHaveBeenCalled();
+    expect(mocks.revalidateTag).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -181,6 +204,6 @@ describe("PATCH /api/coaching/attempts/[attemptId]", () => {
   it("does not expose GET or mutate an outcome during a plain refresh", () => {
     expect(route).not.toHaveProperty("GET");
     expect(mocks.attemptUpdate).not.toHaveBeenCalled();
-    expect(mocks.routineUpdate).not.toHaveBeenCalled();
+    expect(mocks.routineUpdateMany).not.toHaveBeenCalled();
   });
 });

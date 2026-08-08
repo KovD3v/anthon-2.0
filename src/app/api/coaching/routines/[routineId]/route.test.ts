@@ -1,12 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  getAuthUser: vi.fn(),
-  routineFindFirst: vi.fn(),
-  routineUpdate: vi.fn(),
-  routineDelete: vi.fn(),
-  revalidateTag: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  const routineFindFirst = vi.fn();
+  const routineUpdateMany = vi.fn();
+  const routineUpdate = vi.fn();
+  const routineDelete = vi.fn();
+  const tx = {
+    routine: {
+      findFirst: routineFindFirst,
+      updateMany: routineUpdateMany,
+    },
+  };
+  return {
+    getAuthUser: vi.fn(),
+    routineFindFirst,
+    routineUpdateMany,
+    routineUpdate,
+    routineDelete,
+    transaction: vi.fn(),
+    revalidateTag: vi.fn(),
+    tx,
+  };
+});
 
 vi.mock("@/lib/auth", () => ({ getAuthUser: mocks.getAuthUser }));
 vi.mock("@/lib/db", () => ({
@@ -16,6 +31,7 @@ vi.mock("@/lib/db", () => ({
       update: mocks.routineUpdate,
       delete: mocks.routineDelete,
     },
+    $transaction: mocks.transaction,
   },
 }));
 vi.mock("next/cache", () => ({ revalidateTag: mocks.revalidateTag }));
@@ -42,6 +58,11 @@ const archivedRoutine = {
   archivedAt: new Date("2026-08-08T09:00:00.000Z"),
   attempts: [],
 };
+const activeRoutine = {
+  ...archivedRoutine,
+  status: "ACTIVE" as const,
+  archivedAt: null,
+};
 const context = { params: Promise.resolve({ routineId: "routine-1" }) };
 const request = (body: unknown = { status: "ARCHIVED" }) =>
   new Request("http://localhost/api/coaching/routines/routine-1", {
@@ -57,8 +78,13 @@ describe("PATCH /api/coaching/routines/[routineId]", () => {
       user: { id: "user-1", isGuest: false },
       error: null,
     });
-    mocks.routineFindFirst.mockResolvedValue({ id: "routine-1" });
-    mocks.routineUpdate.mockResolvedValue(archivedRoutine);
+    mocks.routineFindFirst
+      .mockResolvedValueOnce(activeRoutine)
+      .mockResolvedValue(archivedRoutine);
+    mocks.routineUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.transaction.mockImplementation(
+      async (callback: (tx: typeof mocks.tx) => unknown) => callback(mocks.tx),
+    );
   });
 
   it("returns 401 when unauthenticated and 403 for a guest", async () => {
@@ -77,14 +103,19 @@ describe("PATCH /api/coaching/routines/[routineId]", () => {
   });
 
   it("returns 404 without revealing another user's routine", async () => {
-    mocks.routineFindFirst.mockResolvedValue(null);
+    mocks.routineFindFirst.mockReset().mockResolvedValue(null);
 
     const response = await PATCH(request(), context);
 
     expect(response.status).toBe(404);
     expect(mocks.routineFindFirst).toHaveBeenCalledWith({
       where: { id: "routine-1", userId: "user-1" },
-      select: { id: true },
+      include: {
+        attempts: {
+          orderBy: [{ attemptedAt: "desc" }, { id: "desc" }],
+          take: 1,
+        },
+      },
     });
     expect(mocks.routineUpdate).not.toHaveBeenCalled();
   });
@@ -93,16 +124,11 @@ describe("PATCH /api/coaching/routines/[routineId]", () => {
     const response = await PATCH(request(), context);
 
     expect(response.status).toBe(200);
-    expect(mocks.routineUpdate).toHaveBeenCalledWith({
-      where: { id: "routine-1" },
+    expect(mocks.routineUpdateMany).toHaveBeenCalledWith({
+      where: { id: "routine-1", userId: "user-1", status: "ACTIVE" },
       data: { status: "ARCHIVED", archivedAt: expect.any(Date) },
-      include: {
-        attempts: {
-          orderBy: [{ attemptedAt: "desc" }, { id: "desc" }],
-          take: 1,
-        },
-      },
     });
+    expect(mocks.routineUpdate).not.toHaveBeenCalled();
     expect(mocks.routineDelete).not.toHaveBeenCalled();
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "max");
     await expect(response.json()).resolves.toEqual({
@@ -114,6 +140,24 @@ describe("PATCH /api/coaching/routines/[routineId]", () => {
         proposal,
         archivedAt: "2026-08-08T09:00:00.000Z",
         latestAttempt: null,
+      },
+    });
+  });
+
+  it("returns an already archived routine without rewriting its lifecycle timestamps", async () => {
+    mocks.routineFindFirst.mockReset().mockResolvedValue(archivedRoutine);
+
+    const response = await PATCH(request(), context);
+
+    expect(response.status).toBe(200);
+    expect(mocks.routineUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.routineUpdate).not.toHaveBeenCalled();
+    expect(mocks.revalidateTag).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      routine: {
+        id: "routine-1",
+        status: "ARCHIVED",
+        archivedAt: "2026-08-08T09:00:00.000Z",
       },
     });
   });

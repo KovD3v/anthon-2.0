@@ -28,6 +28,15 @@ const routineInclude = {
   },
 };
 
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2002"
+  );
+}
+
 export async function POST(request: Request) {
   try {
     const { user, error } = await getAuthUser();
@@ -77,21 +86,34 @@ export async function POST(request: Request) {
       return jsonOk({ routine: toRoutineCardData(existing) });
     }
 
-    const routine = await prisma.routine.upsert({
-      where: uniqueWhere,
-      update: {},
-      create: {
-        userId: user.id,
-        sourceChatId: message.chatId,
-        sourceAssistantMessageId,
-        title: proposal.title,
-        trigger: proposal.trigger,
-        durationLabel: proposal.durationLabel ?? null,
-        steps: proposal.steps,
-        completionCue: proposal.completionCue,
-      },
-      include: routineInclude,
-    });
+    const persistRoutine = () =>
+      prisma.routine.upsert({
+        where: uniqueWhere,
+        update: {},
+        create: {
+          userId: user.id,
+          sourceChatId: message.chatId,
+          sourceAssistantMessageId,
+          title: proposal.title,
+          trigger: proposal.trigger,
+          durationLabel: proposal.durationLabel ?? null,
+          steps: proposal.steps,
+          completionCue: proposal.completionCue,
+        },
+        include: routineInclude,
+      });
+    let routine: Awaited<ReturnType<typeof persistRoutine>>;
+    try {
+      routine = await persistRoutine();
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      const concurrentRoutine = await prisma.routine.findUnique({
+        where: uniqueWhere,
+        include: routineInclude,
+      });
+      if (!concurrentRoutine) throw error;
+      return jsonOk({ routine: toRoutineCardData(concurrentRoutine) });
+    }
 
     revalidateTag(`chat-${message.chatId}`, "max");
     return jsonCreated({ routine: toRoutineCardData(routine) });

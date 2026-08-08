@@ -193,6 +193,25 @@ describe("POST /api/coaching/routines", () => {
     expect(mocks.revalidateTag).not.toHaveBeenCalled();
   });
 
+  it("converges a concurrent source upsert onto the existing routine", async () => {
+    mocks.routineFindUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(routine);
+    mocks.routineUpsert.mockRejectedValue(
+      Object.assign(new Error("unique"), { code: "P2002" }),
+    );
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    expect(mocks.routineFindUnique).toHaveBeenCalledTimes(2);
+    expect(mocks.routineUpsert).toHaveBeenCalledTimes(1);
+    expect(mocks.revalidateTag).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      routine: { id: "routine-1" },
+    });
+  });
+
   it.each([
     [{ sourceAssistantMessageId, title: "Client title" }],
     [{ sourceAssistantMessageId, steps: ["Client step"] }],

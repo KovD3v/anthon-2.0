@@ -3,10 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
   const routineFindFirst = vi.fn();
   const routineUpdate = vi.fn();
+  const routineUpdateMany = vi.fn();
   const attemptFindUnique = vi.fn();
   const attemptCreate = vi.fn();
   const tx = {
-    routine: { findFirst: routineFindFirst, update: routineUpdate },
+    routine: {
+      findFirst: routineFindFirst,
+      update: routineUpdate,
+      updateMany: routineUpdateMany,
+    },
     routineAttempt: {
       findUnique: attemptFindUnique,
       create: attemptCreate,
@@ -16,6 +21,7 @@ const mocks = vi.hoisted(() => {
     getAuthUser: vi.fn(),
     routineFindFirst,
     routineUpdate,
+    routineUpdateMany,
     attemptFindUnique,
     attemptCreate,
     transaction: vi.fn(),
@@ -83,13 +89,11 @@ describe("POST /api/coaching/routines/[routineId]/attempts", () => {
       user: { id: "user-1", isGuest: false },
       error: null,
     });
-    mocks.routineFindFirst.mockResolvedValue({
-      id: "routine-1",
-      status: "ACTIVE",
-    });
+    mocks.routineFindFirst.mockResolvedValue(routineCardRecord);
     mocks.attemptFindUnique.mockResolvedValue(null);
     mocks.attemptCreate.mockResolvedValue(latestAttempt);
     mocks.routineUpdate.mockResolvedValue(routineCardRecord);
+    mocks.routineUpdateMany.mockResolvedValue({ count: 1 });
     mocks.transaction.mockImplementation(
       async (callback: (tx: typeof mocks.tx) => unknown) => callback(mocks.tx),
     );
@@ -149,16 +153,16 @@ describe("POST /api/coaching/routines/[routineId]/attempts", () => {
       },
       select: { id: true },
     });
-    expect(mocks.routineUpdate).toHaveBeenCalledWith({
-      where: { id: "routine-1" },
+    expect(mocks.routineUpdateMany).toHaveBeenCalledWith({
+      where: { id: "routine-1", userId: "user-1", status: "ACTIVE" },
       data: { updatedAt: expect.any(Date) },
-      include: {
-        attempts: {
-          orderBy: [{ attemptedAt: "desc" }, { id: "desc" }],
-          take: 1,
-        },
-      },
     });
+    expect(mocks.routineUpdate).not.toHaveBeenCalled();
+    const outcomeTime =
+      mocks.attemptCreate.mock.calls[0]?.[0].data.outcomeRecordedAt;
+    const parentTime =
+      mocks.routineUpdateMany.mock.calls[0]?.[0].data.updatedAt;
+    expect(parentTime).toBe(outcomeTime);
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "max");
     await expect(response.json()).resolves.toMatchObject({
       routine: {
@@ -187,6 +191,20 @@ describe("POST /api/coaching/routines/[routineId]/attempts", () => {
     });
   });
 
+  it("rejects the mutation when the routine is archived after the initial lookup", async () => {
+    mocks.routineUpdateMany.mockResolvedValue({ count: 0 });
+
+    const response = await route.POST(request(), context);
+
+    expect(response.status).toBe(409);
+    expect(mocks.routineUpdateMany).toHaveBeenCalledWith({
+      where: { id: "routine-1", userId: "user-1", status: "ACTIVE" },
+      data: { updatedAt: expect.any(Date) },
+    });
+    expect(mocks.attemptCreate).not.toHaveBeenCalled();
+    expect(mocks.revalidateTag).not.toHaveBeenCalled();
+  });
+
   it("returns a repeated action once with 200 without touching the parent", async () => {
     mocks.attemptFindUnique.mockResolvedValue({ id: "attempt-1" });
     mocks.routineFindFirst
@@ -197,6 +215,7 @@ describe("POST /api/coaching/routines/[routineId]/attempts", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.attemptCreate).not.toHaveBeenCalled();
+    expect(mocks.routineUpdateMany).not.toHaveBeenCalled();
     expect(mocks.routineUpdate).not.toHaveBeenCalled();
     expect(mocks.revalidateTag).not.toHaveBeenCalled();
   });
@@ -248,5 +267,6 @@ describe("POST /api/coaching/routines/[routineId]/attempts", () => {
   it("does not expose GET or create an attempt during a plain refresh", () => {
     expect(route).not.toHaveProperty("GET");
     expect(mocks.attemptCreate).not.toHaveBeenCalled();
+    expect(mocks.routineUpdateMany).not.toHaveBeenCalled();
   });
 });

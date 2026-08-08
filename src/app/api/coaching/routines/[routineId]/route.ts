@@ -41,22 +41,33 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     if (!parsed.success) return badRequest("Invalid request body");
 
     const { routineId } = await params;
-    const ownedRoutine = await prisma.routine.findFirst({
-      where: { id: routineId, userId: user.id },
-      select: { id: true },
-    });
-    if (!ownedRoutine) return notFound();
+    const result = await prisma.$transaction(async (tx) => {
+      const ownerWhere = { id: routineId, userId: user.id };
+      const existing = await tx.routine.findFirst({
+        where: ownerWhere,
+        include: routineInclude,
+      });
+      if (!existing) return { routine: null, transitioned: false };
+      if (existing.status === "ARCHIVED") {
+        return { routine: existing, transitioned: false };
+      }
 
-    const routine = await prisma.routine.update({
-      where: { id: ownedRoutine.id },
-      data: { status: parsed.data.status, archivedAt: new Date() },
-      include: routineInclude,
+      const transition = await tx.routine.updateMany({
+        where: { ...ownerWhere, status: "ACTIVE" },
+        data: { status: parsed.data.status, archivedAt: new Date() },
+      });
+      const routine = await tx.routine.findFirst({
+        where: ownerWhere,
+        include: routineInclude,
+      });
+      return { routine, transitioned: transition.count === 1 };
     });
 
-    if (routine.sourceChatId) {
-      revalidateTag(`chat-${routine.sourceChatId}`, "max");
+    if (!result.routine) return notFound();
+    if (result.transitioned && result.routine.sourceChatId) {
+      revalidateTag(`chat-${result.routine.sourceChatId}`, "max");
     }
-    return jsonOk({ routine: toRoutineCardData(routine) });
+    return jsonOk({ routine: toRoutineCardData(result.routine) });
   } catch (error) {
     routineLogger.error(
       "coaching.routine_archive_failed",

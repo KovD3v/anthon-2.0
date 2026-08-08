@@ -30,6 +30,8 @@ const routineInclude = {
 };
 type RouteContext = { params: Promise<{ routineId: string }> };
 
+class RoutineInactiveError extends Error {}
+
 function isUniqueViolation(error: unknown): boolean {
   return (
     typeof error === "object" &&
@@ -95,6 +97,12 @@ export async function POST(request: Request, { params }: RouteContext) {
         }
 
         const now = new Date();
+        const activeRoutine = await tx.routine.updateMany({
+          where: routineWhere,
+          data: { updatedAt: now },
+        });
+        if (activeRoutine.count !== 1) throw new RoutineInactiveError();
+
         await tx.routineAttempt.create({
           data: {
             routineId,
@@ -105,14 +113,17 @@ export async function POST(request: Request, { params }: RouteContext) {
           },
           select: { id: true },
         });
-        const routine = await tx.routine.update({
-          where: { id: routineId },
-          data: { updatedAt: now },
+        const routine = await tx.routine.findFirst({
+          where: routineWhere,
           include: routineInclude,
         });
+        if (!routine) throw new RoutineInactiveError();
         return { routine, created: true };
       });
     } catch (error) {
+      if (error instanceof RoutineInactiveError) {
+        return Response.json({ error: "Routine is archived" }, { status: 409 });
+      }
       if (!isUniqueViolation(error)) throw error;
 
       const concurrentAttempt = await prisma.routineAttempt.findUnique({
