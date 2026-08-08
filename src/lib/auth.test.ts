@@ -80,6 +80,7 @@ describe("lib/auth", () => {
       id: "user-1",
       clerkId: "clerk-1",
       email: "user@example.com",
+      isGuest: false,
       role: "USER",
       createdAt: "2026-02-16T10:00:00.000Z",
     });
@@ -87,6 +88,7 @@ describe("lib/auth", () => {
       id: "user-1",
       clerkId: "clerk-1",
       email: null,
+      isGuest: false,
       role: "USER",
       createdAt: "2026-02-16T10:00:00.000Z",
     });
@@ -121,10 +123,37 @@ describe("lib/auth", () => {
       id: "user-1",
       clerkId: "clerk-1",
       email: "user@example.com",
+      isGuest: false,
       role: "USER",
     });
     expect(result.user?.createdAt).toBeInstanceOf(Date);
     expect(mocks.userCreate).not.toHaveBeenCalled();
+  });
+
+  it("exposes the persisted guest flag in the authenticated user", async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: "guest-1",
+      clerkId: "clerk-guest",
+      email: null,
+      isGuest: true,
+      role: "USER",
+      createdAt: "2026-02-16T10:00:00.000Z",
+    });
+
+    const result = await getAuthUser();
+
+    expect(result.user?.isGuest).toBe(true);
+    expect(mocks.userFindUnique).toHaveBeenCalledWith({
+      where: { clerkId: "clerk-1" },
+      select: {
+        id: true,
+        clerkId: true,
+        email: true,
+        isGuest: true,
+        role: true,
+        createdAt: true,
+      },
+    });
   });
 
   it("falls back to direct lookup when cached lookup misses", async () => {
@@ -132,6 +161,7 @@ describe("lib/auth", () => {
       id: "user-1",
       clerkId: "clerk-1",
       email: "second@example.com",
+      isGuest: false,
       role: "ADMIN",
       createdAt: "2026-02-16T11:00:00.000Z",
     });
@@ -155,6 +185,7 @@ describe("lib/auth", () => {
       id: "user-new",
       clerkId: "clerk-1",
       email: null,
+      isGuest: false,
       role: "USER",
       createdAt: "2026-02-16T12:00:00.000Z",
     });
@@ -167,6 +198,7 @@ describe("lib/auth", () => {
         id: true,
         clerkId: true,
         email: true,
+        isGuest: true,
         role: true,
         createdAt: true,
       },
@@ -180,6 +212,7 @@ describe("lib/auth", () => {
       id: "user-1",
       clerkId: "clerk-1",
       email: null,
+      isGuest: false,
       role: "USER",
       createdAt: "2026-02-16T10:00:00.000Z",
     });
@@ -258,6 +291,7 @@ describe("lib/auth", () => {
       id: "user-admin",
       clerkId: "clerk-1",
       email: "admin@example.com",
+      isGuest: false,
       role: "ADMIN",
       createdAt: "2026-02-16T10:00:00.000Z",
     });
@@ -273,6 +307,7 @@ describe("lib/auth", () => {
       id: "user-admin",
       clerkId: "clerk-1",
       email: "admin@example.com",
+      isGuest: false,
       role: "ADMIN",
       createdAt: "2026-02-16T10:00:00.000Z",
     });
@@ -291,6 +326,7 @@ describe("lib/auth", () => {
       id: "user-super",
       clerkId: "clerk-1",
       email: "super@example.com",
+      isGuest: false,
       role: "SUPER_ADMIN",
       createdAt: "2026-02-16T10:00:00.000Z",
     });
@@ -306,6 +342,7 @@ describe("lib/auth", () => {
       id: "actor",
       clerkId: "clerk",
       email: null,
+      isGuest: false,
       role: "ADMIN",
       createdAt: new Date(),
     });
@@ -322,6 +359,7 @@ describe("lib/auth", () => {
       id: "actor",
       clerkId: "clerk",
       email: null,
+      isGuest: false,
       role: "SUPER_ADMIN",
       createdAt: new Date(),
     });
@@ -338,6 +376,7 @@ describe("lib/auth", () => {
       id: "actor",
       clerkId: "clerk",
       email: null,
+      isGuest: false,
       role: "SUPER_ADMIN",
       createdAt: new Date(),
     });
@@ -357,6 +396,7 @@ describe("lib/auth", () => {
       id: "actor",
       clerkId: "clerk",
       email: null,
+      isGuest: false,
       role: "SUPER_ADMIN",
       createdAt: new Date(),
     });

@@ -35,6 +35,7 @@ export interface AuthUser {
   id: string;
   clerkId: string;
   email: string | null;
+  isGuest: boolean;
   role: UserRole;
   createdAt: Date;
 }
@@ -56,6 +57,7 @@ const getCachedUserByClerkId = unstable_cache(
         id: true,
         clerkId: true,
         email: true,
+        isGuest: true,
         role: true,
         createdAt: true,
       },
@@ -96,6 +98,7 @@ export async function getAuthUser(): Promise<AuthResult> {
           id: true,
           clerkId: true,
           email: true,
+          isGuest: true,
           role: true,
           createdAt: true,
         },
@@ -109,6 +112,7 @@ export async function getAuthUser(): Promise<AuthResult> {
             id: true,
             clerkId: true,
             email: true,
+            isGuest: true,
             role: true,
             createdAt: true,
           },
@@ -142,6 +146,7 @@ export async function getAuthUser(): Promise<AuthResult> {
         id: user.id,
         clerkId: user.clerkId ?? "",
         email: user.email,
+        isGuest: user.isGuest,
         role: user.role,
         // unstable_cache serializes Date objects to strings, so we need to convert back
         createdAt: new Date(user.createdAt),
