@@ -54,6 +54,7 @@ function chat(id: string, daysAgo: number) {
   return {
     id,
     title: id,
+    icon: "FOOTPRINTS" as const,
     messageCount: 1,
     updatedAt: localIso(daysAgo),
   };
@@ -78,6 +79,11 @@ describe("ChatList period sections", () => {
       screen.queryByRole("heading", { name: "Ultimi 7 giorni" }),
     ).toBeNull();
     expect(screen.getByRole("link", { name: "oggi" })).toBeTruthy();
+    expect(
+      screen
+        .getByTestId("chat-link-oggi")
+        .querySelector('[data-chat-icon="FOOTPRINTS"]'),
+    ).toBeTruthy();
     expect(screen.getByRole("link", { name: "vecchia" })).toBeTruthy();
   });
 });

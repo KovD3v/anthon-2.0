@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/sheet";
 import { useConfirm } from "@/hooks/use-confirm";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
+import { normalizeChatIcon } from "@/lib/chat-icons";
 import type { RoutineCardData } from "@/lib/coaching/routine";
 import { fetchActiveRoutineForReturn } from "@/lib/coaching/routine-client";
 import { installChatViewportSizing } from "@/lib/visual-viewport";
@@ -312,7 +313,12 @@ export function LayoutClient({
   const { user } = useUser();
   const router = useRouter();
   const pathname = usePathname();
-  const [chats, setChats] = useState<Chat[]>(initialChats);
+  const [chats, setChats] = useState<Chat[]>(() =>
+    initialChats.map((chat) => ({
+      ...chat,
+      icon: normalizeChatIcon(chat.icon),
+    })),
+  );
   const [activeRoutine, setActiveRoutine] = useState<RoutineCardData | null>(
     initialActiveRoutine,
   );
@@ -402,7 +408,12 @@ export function LayoutClient({
 
   // Sync state with initial data on change (HMR support)
   useEffect(() => {
-    setChats(initialChats);
+    setChats(
+      initialChats.map((chat) => ({
+        ...chat,
+        icon: normalizeChatIcon(chat.icon),
+      })),
+    );
   }, [initialChats]);
 
   useEffect(() => {
@@ -545,7 +556,13 @@ export function LayoutClient({
       const response = await fetch(`${apiBase}/chats`);
       if (response.ok) {
         const data = await response.json();
-        setChats(data.chats || []);
+        const nextChats = Array.isArray(data.chats) ? data.chats : [];
+        setChats(
+          nextChats.map((chat: Chat) => ({
+            ...chat,
+            icon: normalizeChatIcon(chat.icon),
+          })),
+        );
       }
     } catch (error) {
       console.error("Failed to fetch chats:", error);
@@ -637,6 +654,7 @@ export function LayoutClient({
         const newChat: Chat = {
           id: chat.id,
           title: chat.title ?? "Nuova Chat",
+          icon: normalizeChatIcon(chat.icon),
           visibility: chat.visibility,
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,
@@ -649,6 +667,7 @@ export function LayoutClient({
           chatCacheRef.current.set(chat.id, {
             id: chat.id,
             title: newChat.title,
+            icon: newChat.icon,
             visibility: newChat.visibility,
             isOwner: true,
             createdAt: chat.createdAt,

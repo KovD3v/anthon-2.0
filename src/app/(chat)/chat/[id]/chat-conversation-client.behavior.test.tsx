@@ -509,6 +509,7 @@ vi.mock("../layout-client", () => ({
 const initialChatData: ChatData = {
   id: "chat-1",
   title: "Test",
+  icon: "BRAIN",
   visibility: "PRIVATE",
   isOwner: true,
   messages: [
@@ -588,6 +589,7 @@ describe("ChatConversationClient pagination and recovery", () => {
 
     expect(mocks.captureHeaderProps).toHaveBeenLastCalledWith(
       expect.objectContaining({
+        icon: "BRAIN",
         onOpenSidebar: mocks.openSidebar,
         guestConversationNotice: {
           remaining: 2,

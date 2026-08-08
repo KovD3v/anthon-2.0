@@ -131,7 +131,30 @@ function RoutineProbe() {
   );
 }
 
-function renderLayout(initialActiveRoutine: RoutineCardData | null) {
+function ChatStateProbe() {
+  const { chats, createChat, renameChat } = useChatContext();
+  return (
+    <div>
+      <output data-testid="chat-state">
+        {chats.map((chat) => `${chat.id}:${chat.title}:${chat.icon}`).join("|")}
+      </output>
+      <button type="button" onClick={() => void createChat()}>
+        Crea chat
+      </button>
+      <button
+        type="button"
+        onClick={() => void renameChat("source-chat", "Titolo rinominato")}
+      >
+        Rinomina chat
+      </button>
+    </div>
+  );
+}
+
+function renderLayout(
+  initialActiveRoutine: RoutineCardData | null,
+  children: React.ReactNode = <RoutineProbe />,
+) {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
     value: 1024,
@@ -142,6 +165,7 @@ function renderLayout(initialActiveRoutine: RoutineCardData | null) {
         {
           id: "source-chat",
           title: "Chat sorgente",
+          icon: "BRAIN",
           visibility: "PRIVATE",
           createdAt: "2026-08-08T08:00:00.000Z",
           updatedAt: "2026-08-08T09:00:00.000Z",
@@ -154,7 +178,7 @@ function renderLayout(initialActiveRoutine: RoutineCardData | null) {
       guestConversionPending={false}
       isGuest={false}
     >
-      <RoutineProbe />
+      {children}
     </LayoutClient>,
   );
 }
@@ -276,6 +300,64 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+});
+
+describe("conversation icon state", () => {
+  it("preserves the icon when a chat is renamed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).startsWith("/api/usage"))
+          return new Response(null, { status: 500 });
+        return Response.json({
+          id: "source-chat",
+          title: "Titolo rinominato",
+          icon: "BRAIN",
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderLayout(null, <ChatStateProbe />);
+
+    await user.click(screen.getByRole("button", { name: "Rinomina chat" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("chat-state").textContent).toContain(
+        "source-chat:Titolo rinominato:BRAIN",
+      ),
+    );
+  });
+
+  it("uses the API icon for a newly created chat", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).startsWith("/api/usage"))
+          return new Response(null, { status: 500 });
+        return Response.json(
+          {
+            id: "chat-new",
+            title: "Preparazione maratona",
+            icon: "FOOTPRINTS",
+            visibility: "PRIVATE",
+            createdAt: "2026-08-08T10:00:00.000Z",
+            updatedAt: "2026-08-08T10:00:00.000Z",
+          },
+          { status: 201 },
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderLayout(null, <ChatStateProbe />);
+
+    await user.click(screen.getByRole("button", { name: "Crea chat" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("chat-state").textContent).toContain(
+        "chat-new:Preparazione maratona:FOOTPRINTS",
+      ),
+    );
+  });
 });
 
 describe("persistent active routine context", () => {

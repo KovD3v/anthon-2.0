@@ -66,6 +66,7 @@ vi.mock("./layout-client", () => ({
 const chat = (id: string, title: string, updatedAt: string): Chat => ({
   id,
   title,
+  icon: "MESSAGE_SQUARE",
   updatedAt,
   createdAt: updatedAt,
   visibility: "PRIVATE",

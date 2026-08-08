@@ -1220,6 +1220,7 @@ export function ChatConversationClient({
       <ChatHeader
         chatId={chatId}
         title={chatData.title}
+        icon={chatData.icon}
         onOpenSidebar={openSidebar}
         guestConversationNotice={guestConversationNotice}
         onRename={async (id, newTitle) => {

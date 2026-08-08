@@ -5,10 +5,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import type { ChatIcon as ChatIconKey } from "@/lib/chat-icons";
+import { ChatIcon } from "./ChatIcon";
 
 interface ChatHeaderProps {
   chatId: string;
   title: string;
+  icon: ChatIconKey;
   onRename?: (id: string, newTitle: string) => Promise<boolean>;
   onOpenSidebar?: () => void;
   guestConversationNotice?: {
@@ -20,6 +23,7 @@ interface ChatHeaderProps {
 export function ChatHeader({
   chatId,
   title,
+  icon,
   onRename,
   onOpenSidebar,
   guestConversationNotice,
@@ -76,6 +80,11 @@ export function ChatHeader({
             <PanelLeft className="h-4 w-4" />
           </Button>
         )}
+        <ChatIcon
+          icon={icon}
+          className="size-4 shrink-0 text-primary"
+          data-testid="chat-header-icon"
+        />
         {isRenaming ? (
           <form
             onSubmit={async (e) => {
@@ -98,7 +107,7 @@ export function ChatHeader({
             />
           </form>
         ) : (
-          <h1 className="flex-1 min-w-0 font-semibold text-foreground/90">
+          <h1 className="min-w-0 flex-1 font-semibold text-foreground/90">
             <button
               type="button"
               className="w-full cursor-pointer truncate border-0 bg-transparent p-0 text-left decoration-muted-foreground/50 underline-offset-4 hover:underline"

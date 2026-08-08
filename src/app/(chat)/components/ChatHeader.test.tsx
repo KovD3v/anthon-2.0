@@ -6,12 +6,20 @@ import { ChatHeader } from "./ChatHeader";
 
 describe("ChatHeader", () => {
   it("names the export action for mobile assistive technology", () => {
-    render(<ChatHeader chatId="chat-1" title="Allenamento" />);
+    render(<ChatHeader chatId="chat-1" title="Allenamento" icon="DUMBBELL" />);
 
     expect(
       screen.getByRole("button", { name: "Esporta conversazione" }),
     ).toBeTruthy();
     expect(screen.getByText("Esporta").className).toContain("sm:inline");
+    expect(
+      screen.getByTestId("chat-header-icon").getAttribute("data-chat-icon"),
+    ).toBe("DUMBBELL");
+    expect(
+      screen.getByRole("button", {
+        name: "Rinomina conversazione: Allenamento",
+      }),
+    ).toBeTruthy();
   });
 
   it("keeps the compact guest registration status visible on a 390px viewport", () => {
@@ -24,6 +32,7 @@ describe("ChatHeader", () => {
       <ChatHeader
         chatId="chat-1"
         title="Allenamento"
+        icon="DUMBBELL"
         onOpenSidebar={() => undefined}
         guestConversationNotice={{
           remaining: 2,
@@ -51,6 +60,7 @@ describe("ChatHeader", () => {
       <ChatHeader
         chatId="chat-1"
         title="Allenamento"
+        icon="DUMBBELL"
         guestConversationNotice={{
           remaining: 2,
           registrationHref: "/sign-up?redirect_url=%2Fchat%2Fchat-1",
