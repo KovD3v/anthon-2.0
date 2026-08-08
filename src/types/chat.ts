@@ -5,6 +5,7 @@
  * Import from here instead of defining inline.
  */
 
+import type { ChatIcon } from "@/lib/chat-icons";
 import type { RoutineCardData } from "@/lib/coaching/routine";
 
 // -----------------------------------------------------
@@ -136,6 +137,7 @@ export interface ChatMessage {
 export interface ChatData {
   id: string;
   title: string;
+  icon: ChatIcon;
   visibility: string;
   isOwner: boolean;
   createdAt?: string;
@@ -159,6 +161,7 @@ export interface ChatData {
 export interface Chat {
   id: string;
   title: string;
+  icon: ChatIcon;
   visibility: "PRIVATE" | "PUBLIC";
   createdAt: string;
   updatedAt: string;

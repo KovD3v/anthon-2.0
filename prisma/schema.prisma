@@ -365,6 +365,23 @@ enum ChatVisibility {
   PUBLIC
 }
 
+enum ChatIcon {
+  TARGET
+  TROPHY
+  DUMBBELL
+  ACTIVITY
+  BRAIN
+  HEART_PULSE
+  TIMER
+  CALENDAR_DAYS
+  FLAME
+  SHIELD
+  USERS
+  FOOTPRINTS
+  REFRESH_CCW
+  MESSAGE_SQUARE
+}
+
 model Chat {
   id     String @id @default(cuid())
   userId String
@@ -372,6 +389,7 @@ model Chat {
 
   title       String? // Auto-generated or user-provided
   customTitle Boolean        @default(false)
+  icon        ChatIcon       @default(MESSAGE_SQUARE)
   visibility  ChatVisibility @default(PRIVATE)
 
   messages             Message[]

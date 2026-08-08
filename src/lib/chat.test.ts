@@ -76,6 +76,7 @@ describe("lib/chat", () => {
       {
         id: "chat-2",
         title: "Recent Chat",
+        icon: "TROPHY",
         visibility: "PUBLIC",
         createdAt: new Date("2026-02-16T10:00:00.000Z"),
         updatedAt: new Date("2026-02-16T12:00:00.000Z"),
@@ -84,6 +85,7 @@ describe("lib/chat", () => {
       {
         id: "chat-1",
         title: null,
+        icon: "MESSAGE_SQUARE",
         visibility: "PRIVATE",
         createdAt: new Date("2026-02-15T09:00:00.000Z"),
         updatedAt: new Date("2026-02-15T09:30:00.000Z"),
@@ -104,6 +106,7 @@ describe("lib/chat", () => {
       select: {
         id: true,
         title: true,
+        icon: true,
         visibility: true,
         createdAt: true,
         updatedAt: true,
@@ -116,6 +119,7 @@ describe("lib/chat", () => {
       {
         id: "chat-2",
         title: "Recent Chat",
+        icon: "TROPHY",
         visibility: "PUBLIC",
         createdAt: "2026-02-16T10:00:00.000Z",
         updatedAt: "2026-02-16T12:00:00.000Z",
@@ -124,6 +128,7 @@ describe("lib/chat", () => {
       {
         id: "chat-1",
         title: "Nuova Chat",
+        icon: "MESSAGE_SQUARE",
         visibility: "PRIVATE",
         createdAt: "2026-02-15T09:00:00.000Z",
         updatedAt: "2026-02-15T09:30:00.000Z",
@@ -147,6 +152,7 @@ describe("lib/chat", () => {
     mocks.chatFindFirst.mockResolvedValue({
       id: "chat-1",
       title: null,
+      icon: "BRAIN",
       visibility: "PRIVATE",
       userId: "user-1",
       createdAt: new Date("2026-02-14T12:00:00.000Z"),
@@ -303,6 +309,7 @@ describe("lib/chat", () => {
     expect(result).toMatchObject({
       id: "chat-1",
       title: "Nuova Chat",
+      icon: "BRAIN",
       visibility: "PRIVATE",
       isOwner: true,
       pagination: {

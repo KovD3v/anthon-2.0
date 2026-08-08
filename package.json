@@ -25,6 +25,7 @@
     "test:ui": "vitest --ui",
     "postinstall": "prisma generate",
     "knip": "knip",
+    "eval:chat-metadata": "bun run scripts/evaluate-chat-metadata-models.ts",
     "analyze": "next experimental-analyze"
   },
   "prisma": {

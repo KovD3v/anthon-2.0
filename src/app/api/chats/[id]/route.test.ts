@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   revalidateTag: vi.fn(),
-  generateChatTitle: vi.fn(),
+  generateChatMetadata: vi.fn(),
   getAuthUser: vi.fn(),
   chatFindFirst: vi.fn(),
   chatUpdate: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/lib/ai/chat-title", () => ({
-  generateChatTitle: mocks.generateChatTitle,
+  generateChatMetadata: mocks.generateChatMetadata,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -59,7 +59,7 @@ function params(id = "chat-1"): Promise<{ id: string }> {
 describe("/api/chats/[id] route", () => {
   beforeEach(() => {
     mocks.revalidateTag.mockReset();
-    mocks.generateChatTitle.mockReset();
+    mocks.generateChatMetadata.mockReset();
     mocks.getAuthUser.mockReset();
     mocks.chatFindFirst.mockReset();
     mocks.chatUpdate.mockReset();
@@ -84,6 +84,7 @@ describe("/api/chats/[id] route", () => {
     mocks.chatFindFirst.mockResolvedValue({
       id: "chat-1",
       title: "My Chat",
+      icon: "BRAIN",
       visibility: "PRIVATE",
       userId: "user-1",
       createdAt: new Date("2026-02-16T10:00:00.000Z"),
@@ -158,10 +159,14 @@ describe("/api/chats/[id] route", () => {
     mocks.messageFindFirst.mockResolvedValue({
       parts: [{ type: "text", text: "How do I test this route?" }],
     });
-    mocks.generateChatTitle.mockResolvedValue("Generated Title");
+    mocks.generateChatMetadata.mockResolvedValue({
+      title: "Generated Title",
+      icon: "TARGET",
+    });
     mocks.chatUpdate.mockResolvedValue({
       id: "chat-1",
       title: "Generated Title",
+      icon: "TARGET",
       visibility: "PUBLIC",
       updatedAt: new Date("2026-02-16T12:00:00.000Z"),
     });
@@ -225,6 +230,7 @@ describe("/api/chats/[id] route", () => {
       select: {
         id: true,
         title: true,
+        icon: true,
         visibility: true,
         userId: true,
         createdAt: true,
@@ -281,6 +287,7 @@ describe("/api/chats/[id] route", () => {
     await expect(response.json()).resolves.toEqual({
       id: "chat-1",
       title: "My Chat",
+      icon: "BRAIN",
       visibility: "PRIVATE",
       isOwner: true,
       createdAt: "2026-02-16T10:00:00.000Z",
@@ -1037,7 +1044,8 @@ describe("/api/chats/[id] route", () => {
       orderBy: { createdAt: "asc" },
       select: { parts: true },
     });
-    expect(mocks.generateChatTitle).toHaveBeenCalledWith(
+    expect(mocks.generateChatMetadata).toHaveBeenCalledWith(
+      [{ role: "user", text: "How do I test this route?" }],
       "How do I test this route?",
       { userId: "user-1" },
     );
@@ -1045,11 +1053,13 @@ describe("/api/chats/[id] route", () => {
       where: { id: "chat-1" },
       data: {
         title: "Generated Title",
+        icon: "TARGET",
         visibility: "PUBLIC",
       },
       select: {
         id: true,
         title: true,
+        icon: true,
         visibility: true,
         updatedAt: true,
       },
@@ -1059,6 +1069,7 @@ describe("/api/chats/[id] route", () => {
     await expect(response.json()).resolves.toEqual({
       id: "chat-1",
       title: "Generated Title",
+      icon: "TARGET",
       visibility: "PUBLIC",
       updatedAt: "2026-02-16T12:00:00.000Z",
     });
@@ -1073,7 +1084,7 @@ describe("/api/chats/[id] route", () => {
       { params: params() },
     );
 
-    expect(mocks.generateChatTitle).not.toHaveBeenCalled();
+    expect(mocks.generateChatMetadata).not.toHaveBeenCalled();
     expect(mocks.chatUpdate).toHaveBeenCalledWith({
       where: { id: "chat-1" },
       data: {
@@ -1083,6 +1094,7 @@ describe("/api/chats/[id] route", () => {
       select: {
         id: true,
         title: true,
+        icon: true,
         visibility: true,
         updatedAt: true,
       },

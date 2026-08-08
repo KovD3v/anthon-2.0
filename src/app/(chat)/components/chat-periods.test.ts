@@ -10,7 +10,13 @@ function localIso(daysAgo: number) {
 }
 
 function chat(id: string, updatedAt: string) {
-  return { id, title: id, messageCount: 1, updatedAt };
+  return {
+    id,
+    title: id,
+    icon: "MESSAGE_SQUARE" as const,
+    messageCount: 1,
+    updatedAt,
+  };
 }
 
 describe("getChatPeriod", () => {

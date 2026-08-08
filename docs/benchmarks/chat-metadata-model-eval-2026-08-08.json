@@ -1,0 +1,1783 @@
+{
+  "generatedAt": "2026-08-08T19:34:30.761Z",
+  "region": "Italy local client network",
+  "models": [
+    "inclusionai/ling-3.0-flash",
+    "qwen/qwen3.7-flash",
+    "deepseek/deepseek-v4-flash"
+  ],
+  "scenarios": [
+    {
+      "id": "pre_competition_pressure",
+      "conceptGroups": [["finale", "gara"], ["pressione", "ansia"]],
+      "acceptedIcons": ["TROPHY", "BRAIN", "SHIELD"],
+      "inappropriateIcons": ["CALENDAR_DAYS", "USERS", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "post_mistake_reset",
+      "conceptGroups": [["errore", "fallo"], ["reset", "ripartenza"]],
+      "acceptedIcons": ["REFRESH_CCW", "BRAIN"],
+      "inappropriateIcons": ["TROPHY", "CALENDAR_DAYS", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "short_mental_routine",
+      "conceptGroups": [["routine"], ["servizio", "trenta secondi"]],
+      "acceptedIcons": ["BRAIN", "TIMER"],
+      "inappropriateIcons": ["USERS", "HEART_PULSE", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "lost_motivation",
+      "conceptGroups": [["motivazione", "costanza"], ["allenamenti"]],
+      "acceptedIcons": ["FLAME", "BRAIN"],
+      "inappropriateIcons": ["TROPHY", "USERS", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "weekly_training_plan",
+      "conceptGroups": [["settimana", "settimanale"], ["allenamenti", "piano"]],
+      "acceptedIcons": ["CALENDAR_DAYS", "DUMBBELL", "ACTIVITY"],
+      "inappropriateIcons": ["TROPHY", "USERS", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "injury_safety_warning",
+      "conceptGroups": [["ginocchio", "dolore"], ["corsa"]],
+      "acceptedIcons": ["HEART_PULSE", "SHIELD", "ACTIVITY"],
+      "inappropriateIcons": ["FLAME", "TROPHY", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "talk_with_coach",
+      "conceptGroups": [
+        ["coach", "allenatore"],
+        ["parlare", "confronto", "vergogna"]
+      ],
+      "acceptedIcons": ["USERS", "BRAIN", "SHIELD"],
+      "inappropriateIcons": ["TIMER", "CALENDAR_DAYS", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "team_dynamics",
+      "conceptGroups": [["squadra", "compagni"], ["fiducia"]],
+      "acceptedIcons": ["USERS", "SHIELD"],
+      "inappropriateIcons": ["FOOTPRINTS", "TIMER", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "race_pace_timing",
+      "conceptGroups": [["ritmo", "passo"], ["dieci chilometri", "10 km"]],
+      "acceptedIcons": ["TIMER", "FOOTPRINTS"],
+      "inappropriateIcons": ["USERS", "DUMBBELL", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "running_goal",
+      "conceptGroups": [["mezza maratona"], ["due ore", "ottobre"]],
+      "acceptedIcons": ["FOOTPRINTS", "TARGET", "TIMER"],
+      "inappropriateIcons": ["USERS", "DUMBBELL", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "confidence_after_loss",
+      "conceptGroups": [["fiducia", "sicurezza"], ["sconfitta"]],
+      "acceptedIcons": ["SHIELD", "BRAIN", "REFRESH_CCW"],
+      "inappropriateIcons": ["CALENDAR_DAYS", "USERS", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "vague_opening",
+      "conceptGroups": [["parlare", "confronto"]],
+      "acceptedIcons": ["MESSAGE_SQUARE"],
+      "inappropriateIcons": ["TROPHY", "HEART_PULSE", "DUMBBELL"]
+    }
+  ],
+  "attemptsPerModel": 24,
+  "attempts": [
+    {
+      "anonymousId": "attempt-001",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "pre_competition_pressure",
+      "pass": 1,
+      "durationMs": 1236,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 0.5,
+      "costUsd": 0.00008134,
+      "inputTokens": 535,
+      "outputTokens": 23,
+      "output": {
+        "title": "Pressione prima della finale",
+        "icon": "TIMER"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 535,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 23,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 558,
+            "cost": 0.00008134,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008134
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-002",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "pre_competition_pressure",
+      "pass": 1,
+      "durationMs": 30,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-003",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "pre_competition_pressure",
+      "pass": 1,
+      "durationMs": 19,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-004",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "post_mistake_reset",
+      "pass": 1,
+      "durationMs": 29,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-005",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "post_mistake_reset",
+      "pass": 1,
+      "durationMs": 18,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-006",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "post_mistake_reset",
+      "pass": 1,
+      "durationMs": 941,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00008428,
+      "inputTokens": 542,
+      "outputTokens": 30,
+      "output": {
+        "title": "Reset mentale dopo doppio fallo",
+        "icon": "REFRESH_CCW"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 542,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 30,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 572,
+            "cost": 0.00008428,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008428
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-007",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "short_mental_routine",
+      "pass": 1,
+      "durationMs": 755,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00008162,
+      "inputTokens": 533,
+      "outputTokens": 25,
+      "output": {
+        "title": "Routine mentale pre-servizio",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 533,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 25,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 558,
+            "cost": 0.00008162,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008162
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-008",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "short_mental_routine",
+      "pass": 1,
+      "durationMs": 22,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-009",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "short_mental_routine",
+      "pass": 1,
+      "durationMs": 25,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-010",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "lost_motivation",
+      "pass": 1,
+      "durationMs": 21,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-011",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "lost_motivation",
+      "pass": 1,
+      "durationMs": 19,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-012",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "lost_motivation",
+      "pass": 1,
+      "durationMs": 785,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.0000462,
+      "inputTokens": 534,
+      "outputTokens": 26,
+      "output": {
+        "title": "Riprendere la motivazione persa",
+        "icon": "FLAME"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 534,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 560,
+            "cost": 0.0000462,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000462
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-013",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "weekly_training_plan",
+      "pass": 1,
+      "durationMs": 1437,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00008288,
+      "inputTokens": 538,
+      "outputTokens": 27,
+      "output": {
+        "title": "Pianificazione tre allenamenti settimanali",
+        "icon": "CALENDAR_DAYS"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 538,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 27,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 565,
+            "cost": 0.00008288,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008288
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-014",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "weekly_training_plan",
+      "pass": 1,
+      "durationMs": 24,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-015",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "weekly_training_plan",
+      "pass": 1,
+      "durationMs": 22,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-016",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "injury_safety_warning",
+      "pass": 1,
+      "durationMs": 23,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-017",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "injury_safety_warning",
+      "pass": 1,
+      "durationMs": 19,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-018",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "injury_safety_warning",
+      "pass": 1,
+      "durationMs": 781,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004802,
+      "inputTokens": 535,
+      "outputTokens": 32,
+      "output": {
+        "title": "Dolore acuto al ginocchio durante corsa",
+        "icon": "HEART_PULSE"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 535,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 32,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 567,
+            "cost": 0.00004802,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004802
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-019",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "talk_with_coach",
+      "pass": 1,
+      "durationMs": 685,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00004592,
+      "inputTokens": 534,
+      "outputTokens": 25,
+      "output": {
+        "title": "Vergogna dopo le sconfitte",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 534,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 25,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 559,
+            "cost": 0.00004592,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004592
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-020",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "talk_with_coach",
+      "pass": 1,
+      "durationMs": 19,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-021",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "talk_with_coach",
+      "pass": 1,
+      "durationMs": 22,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-022",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "team_dynamics",
+      "pass": 1,
+      "durationMs": 32,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-023",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "team_dynamics",
+      "pass": 1,
+      "durationMs": 25,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-024",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "team_dynamics",
+      "pass": 1,
+      "durationMs": 634,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004564,
+      "inputTokens": 538,
+      "outputTokens": 22,
+      "output": {
+        "title": "Ricostruire fiducia in squadra",
+        "icon": "SHIELD"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 538,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 22,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 560,
+            "cost": 0.00004564,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004564
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-025",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "race_pace_timing",
+      "pass": 1,
+      "durationMs": 843,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00008344,
+      "inputTokens": 540,
+      "outputTokens": 28,
+      "output": {
+        "title": "Gestione del ritmo nei dieci chilometri",
+        "icon": "TIMER"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 540,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 28,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 568,
+            "cost": 0.00008344,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008344
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-026",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "race_pace_timing",
+      "pass": 1,
+      "durationMs": 19,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-027",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "race_pace_timing",
+      "pass": 1,
+      "durationMs": 25,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-028",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "running_goal",
+      "pass": 1,
+      "durationMs": 21,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-029",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "running_goal",
+      "pass": 1,
+      "durationMs": 21,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-030",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "running_goal",
+      "pass": 1,
+      "durationMs": 658,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004466,
+      "inputTokens": 535,
+      "outputTokens": 20,
+      "output": {
+        "title": "Prima mezza maratona sotto due ore",
+        "icon": "TARGET"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 535,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 20,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 555,
+            "cost": 0.00004466,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004466
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-031",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "confidence_after_loss",
+      "pass": 1,
+      "durationMs": 670,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004704,
+      "inputTokens": 536,
+      "outputTokens": 28,
+      "output": {
+        "title": "Sfiducia nei colpi dopo sconfitta",
+        "icon": "SHIELD"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 536,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 28,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 564,
+            "cost": 0.00004704,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004704
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-032",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "confidence_after_loss",
+      "pass": 1,
+      "durationMs": 25,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-033",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "confidence_after_loss",
+      "pass": 1,
+      "durationMs": 20,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-034",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "vague_opening",
+      "pass": 1,
+      "durationMs": 21,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-035",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "vague_opening",
+      "pass": 1,
+      "durationMs": 18,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-036",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "vague_opening",
+      "pass": 1,
+      "durationMs": 861,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.0000434,
+      "inputTokens": 526,
+      "outputTokens": 20,
+      "output": {
+        "title": "Richiesta di parlare subito",
+        "icon": "MESSAGE_SQUARE"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 526,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 20,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 546,
+            "cost": 0.0000434,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000434
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-037",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "pre_competition_pressure",
+      "pass": 2,
+      "durationMs": 21,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-038",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "pre_competition_pressure",
+      "pass": 2,
+      "durationMs": 20,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-039",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "pre_competition_pressure",
+      "pass": 2,
+      "durationMs": 733,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 0.5,
+      "costUsd": 0.00004634,
+      "inputTokens": 535,
+      "outputTokens": 26,
+      "output": {
+        "title": "Pressione prima della finale",
+        "icon": "HEART_PULSE"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 535,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 561,
+            "cost": 0.00004634,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004634
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-040",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "post_mistake_reset",
+      "pass": 2,
+      "durationMs": 851,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004732,
+      "inputTokens": 542,
+      "outputTokens": 26,
+      "output": {
+        "title": "Reset mentale dopo doppio fallo",
+        "icon": "REFRESH_CCW"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 542,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 568,
+            "cost": 0.00004732,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004732
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-041",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "post_mistake_reset",
+      "pass": 2,
+      "durationMs": 19,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-042",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "post_mistake_reset",
+      "pass": 2,
+      "durationMs": 22,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-043",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "short_mental_routine",
+      "pass": 2,
+      "durationMs": 22,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-044",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "short_mental_routine",
+      "pass": 2,
+      "durationMs": 20,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-045",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "short_mental_routine",
+      "pass": 2,
+      "durationMs": 639,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004578,
+      "inputTokens": 533,
+      "outputTokens": 25,
+      "output": {
+        "title": "Routine mentale pre-servizio",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 533,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 25,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 558,
+            "cost": 0.00004578,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004578
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-046",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "lost_motivation",
+      "pass": 2,
+      "durationMs": 693,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.0000462,
+      "inputTokens": 534,
+      "outputTokens": 26,
+      "output": {
+        "title": "Riprendere la motivazione persa",
+        "icon": "FLAME"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 534,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 560,
+            "cost": 0.0000462,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000462
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-047",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "lost_motivation",
+      "pass": 2,
+      "durationMs": 23,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-048",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "lost_motivation",
+      "pass": 2,
+      "durationMs": 22,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-049",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "weekly_training_plan",
+      "pass": 2,
+      "durationMs": 25,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-050",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "weekly_training_plan",
+      "pass": 2,
+      "durationMs": 20,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-051",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "weekly_training_plan",
+      "pass": 2,
+      "durationMs": 774,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004816,
+      "inputTokens": 538,
+      "outputTokens": 31,
+      "output": {
+        "title": "Pianificazione tre allenamenti settimanali",
+        "icon": "CALENDAR_DAYS"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 538,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 31,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 569,
+            "cost": 0.00004816,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004816
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-052",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "injury_safety_warning",
+      "pass": 2,
+      "durationMs": 738,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.0000469,
+      "inputTokens": 535,
+      "outputTokens": 28,
+      "output": {
+        "title": "Dolore acuto al ginocchio in corsa",
+        "icon": "HEART_PULSE"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 535,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 28,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 563,
+            "cost": 0.0000469,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000469
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-053",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "injury_safety_warning",
+      "pass": 2,
+      "durationMs": 20,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-054",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "injury_safety_warning",
+      "pass": 2,
+      "durationMs": 22,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-055",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "talk_with_coach",
+      "pass": 2,
+      "durationMs": 22,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-056",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "talk_with_coach",
+      "pass": 2,
+      "durationMs": 21,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-057",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "talk_with_coach",
+      "pass": 2,
+      "durationMs": 709,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00004592,
+      "inputTokens": 534,
+      "outputTokens": 25,
+      "output": {
+        "title": "Vergogna dopo le sconfitte",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 534,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 25,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 559,
+            "cost": 0.00004592,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004592
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-058",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "team_dynamics",
+      "pass": 2,
+      "durationMs": 594,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.0000448,
+      "inputTokens": 538,
+      "outputTokens": 19,
+      "output": {
+        "title": "Ricostruire fiducia in squadra",
+        "icon": "SHIELD"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 538,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 19,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 557,
+            "cost": 0.0000448,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000448
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-059",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "team_dynamics",
+      "pass": 2,
+      "durationMs": 22,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-060",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "team_dynamics",
+      "pass": 2,
+      "durationMs": 21,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-061",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "race_pace_timing",
+      "pass": 2,
+      "durationMs": 20,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-062",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "race_pace_timing",
+      "pass": 2,
+      "durationMs": 24,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-063",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "race_pace_timing",
+      "pass": 2,
+      "durationMs": 819,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00008344,
+      "inputTokens": 540,
+      "outputTokens": 28,
+      "output": {
+        "title": "Gestione del ritmo nei dieci chilometri",
+        "icon": "TIMER"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 540,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 28,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 568,
+            "cost": 0.00008344,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008344
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-064",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "running_goal",
+      "pass": 2,
+      "durationMs": 609,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004466,
+      "inputTokens": 535,
+      "outputTokens": 20,
+      "output": {
+        "title": "Prima mezza maratona sotto due ore",
+        "icon": "TARGET"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 535,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 20,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 555,
+            "cost": 0.00004466,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004466
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-065",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "running_goal",
+      "pass": 2,
+      "durationMs": 18,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-066",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "running_goal",
+      "pass": 2,
+      "durationMs": 29,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-067",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "confidence_after_loss",
+      "pass": 2,
+      "durationMs": 19,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-068",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "confidence_after_loss",
+      "pass": 2,
+      "durationMs": 18,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-069",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "confidence_after_loss",
+      "pass": 2,
+      "durationMs": 986,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004732,
+      "inputTokens": 536,
+      "outputTokens": 29,
+      "output": {
+        "title": "Sfiducia nei colpi dopo la sconfitta",
+        "icon": "SHIELD"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 536,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 29,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 565,
+            "cost": 0.00004732,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004732
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-070",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "vague_opening",
+      "pass": 2,
+      "durationMs": 735,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00007896,
+      "inputTokens": 526,
+      "outputTokens": 19,
+      "output": {
+        "title": "Parlare un attimo",
+        "icon": "MESSAGE_SQUARE"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 526,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 19,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 545,
+            "cost": 0.00007896,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00007896
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-071",
+      "model": "qwen/qwen3.7-flash",
+      "scenarioId": "vague_opening",
+      "pass": 2,
+      "durationMs": 21,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    },
+    {
+      "anonymousId": "attempt-072",
+      "model": "inclusionai/ling-3.0-flash",
+      "scenarioId": "vague_opening",
+      "pass": 2,
+      "durationMs": 21,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_APICallError",
+      "errorMessage": "No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection"
+    }
+  ],
+  "summaries": [
+    {
+      "model": "deepseek/deepseek-v4-flash",
+      "eligible": true,
+      "attempts": 24,
+      "successes": 24,
+      "successRate": 1,
+      "titleScore": 0.9167,
+      "iconScore": 0.9208,
+      "totalCostUsd": 0.00136024,
+      "averageCostUsd": 0.00005668,
+      "latencyMs": {
+        "p50": 738,
+        "p95": 1236
+      },
+      "errors": {},
+      "decisionScore": 1
+    },
+    {
+      "model": "inclusionai/ling-3.0-flash",
+      "eligible": false,
+      "attempts": 24,
+      "successes": 0,
+      "successRate": 0,
+      "titleScore": 0,
+      "iconScore": 0,
+      "totalCostUsd": 0,
+      "averageCostUsd": 0,
+      "latencyMs": {
+        "p50": null,
+        "p95": null
+      },
+      "errors": {
+        "AI_APICallError": 24
+      },
+      "decisionScore": 0
+    },
+    {
+      "model": "qwen/qwen3.7-flash",
+      "eligible": false,
+      "attempts": 24,
+      "successes": 0,
+      "successRate": 0,
+      "titleScore": 0,
+      "iconScore": 0,
+      "totalCostUsd": 0,
+      "averageCostUsd": 0,
+      "latencyMs": {
+        "p50": null,
+        "p95": null
+      },
+      "errors": {
+        "AI_APICallError": 24
+      },
+      "decisionScore": 0
+    }
+  ],
+  "reviewComplete": true,
+  "decision": {
+    "selectedModel": "deepseek/deepseek-v4-flash",
+    "reason": "deepseek/deepseek-v4-flash was the only eligible candidate: 24/24 valid outputs, blinded title score 0.9167, icon score 0.9208, p50 738 ms, and $0.00136024 total cost."
+  }
+}

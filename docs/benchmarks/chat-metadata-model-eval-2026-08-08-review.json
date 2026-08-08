@@ -1,0 +1,722 @@
+[
+  {
+    "anonymousId": "attempt-001",
+    "scenarioId": "pre_competition_pressure",
+    "context": "PRIMO BISOGNO UTENTE: Domenica gioco la finale e sento troppa pressione prima di entrare in campo.",
+    "title": "Pressione prima della finale",
+    "icon": "TIMER",
+    "titleScore": 0.9,
+    "iconScore": 0.5,
+    "note": "Titolo specifico; TIMER è difendibile per il momento pre-gara ma meno adatta di TROPHY o BRAIN."
+  },
+  {
+    "anonymousId": "attempt-002",
+    "scenarioId": "pre_competition_pressure",
+    "context": "PRIMO BISOGNO UTENTE: Domenica gioco la finale e sento troppa pressione prima di entrare in campo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-003",
+    "scenarioId": "pre_competition_pressure",
+    "context": "PRIMO BISOGNO UTENTE: Domenica gioco la finale e sento troppa pressione prima di entrare in campo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-004",
+    "scenarioId": "post_mistake_reset",
+    "context": "PRIMO BISOGNO UTENTE: Dopo un doppio fallo continuo a pensarci e sbaglio anche il punto successivo. Come resetto?",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-005",
+    "scenarioId": "post_mistake_reset",
+    "context": "PRIMO BISOGNO UTENTE: Dopo un doppio fallo continuo a pensarci e sbaglio anche il punto successivo. Come resetto?",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-006",
+    "scenarioId": "post_mistake_reset",
+    "context": "PRIMO BISOGNO UTENTE: Dopo un doppio fallo continuo a pensarci e sbaglio anche il punto successivo. Come resetto?",
+    "title": "Reset mentale dopo doppio fallo",
+    "icon": "REFRESH_CCW",
+    "titleScore": 1,
+    "iconScore": 1,
+    "note": "Titolo concreto e distintivo; icona perfettamente coerente con il reset dopo l'errore."
+  },
+  {
+    "anonymousId": "attempt-007",
+    "scenarioId": "short_mental_routine",
+    "context": "PRIMO BISOGNO UTENTE: Costruiamo una routine mentale di trenta secondi prima del servizio.",
+    "title": "Routine mentale pre-servizio",
+    "icon": "BRAIN",
+    "titleScore": 1,
+    "iconScore": 1,
+    "note": "Titolo breve e preciso; BRAIN rappresenta bene la routine mentale."
+  },
+  {
+    "anonymousId": "attempt-008",
+    "scenarioId": "short_mental_routine",
+    "context": "PRIMO BISOGNO UTENTE: Costruiamo una routine mentale di trenta secondi prima del servizio.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-009",
+    "scenarioId": "short_mental_routine",
+    "context": "PRIMO BISOGNO UTENTE: Costruiamo una routine mentale di trenta secondi prima del servizio.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-010",
+    "scenarioId": "lost_motivation",
+    "context": "PRIMO BISOGNO UTENTE: Da tre settimane salto gli allenamenti e ho perso completamente la motivazione.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-011",
+    "scenarioId": "lost_motivation",
+    "context": "PRIMO BISOGNO UTENTE: Da tre settimane salto gli allenamenti e ho perso completamente la motivazione.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-012",
+    "scenarioId": "lost_motivation",
+    "context": "PRIMO BISOGNO UTENTE: Da tre settimane salto gli allenamenti e ho perso completamente la motivazione.",
+    "title": "Riprendere la motivazione persa",
+    "icon": "FLAME",
+    "titleScore": 0.85,
+    "iconScore": 1,
+    "note": "Titolo chiaro ma leggermente ridondante con motivazione persa; FLAME è centrata."
+  },
+  {
+    "anonymousId": "attempt-013",
+    "scenarioId": "weekly_training_plan",
+    "context": "PRIMO BISOGNO UTENTE: Organizziamo i miei tre allenamenti della prossima settimana senza sovraccaricarmi.",
+    "title": "Pianificazione tre allenamenti settimanali",
+    "icon": "CALENDAR_DAYS",
+    "titleScore": 0.95,
+    "iconScore": 1,
+    "note": "Titolo specifico e utile, anche se lievemente nominale; CALENDAR_DAYS è la scelta migliore."
+  },
+  {
+    "anonymousId": "attempt-014",
+    "scenarioId": "weekly_training_plan",
+    "context": "PRIMO BISOGNO UTENTE: Organizziamo i miei tre allenamenti della prossima settimana senza sovraccaricarmi.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-015",
+    "scenarioId": "weekly_training_plan",
+    "context": "PRIMO BISOGNO UTENTE: Organizziamo i miei tre allenamenti della prossima settimana senza sovraccaricarmi.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-016",
+    "scenarioId": "injury_safety_warning",
+    "context": "PRIMO BISOGNO UTENTE: Durante la corsa sento un dolore acuto al ginocchio e aumenta a ogni passo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-017",
+    "scenarioId": "injury_safety_warning",
+    "context": "PRIMO BISOGNO UTENTE: Durante la corsa sento un dolore acuto al ginocchio e aumenta a ogni passo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-018",
+    "scenarioId": "injury_safety_warning",
+    "context": "PRIMO BISOGNO UTENTE: Durante la corsa sento un dolore acuto al ginocchio e aumenta a ogni passo.",
+    "title": "Dolore acuto al ginocchio durante corsa",
+    "icon": "HEART_PULSE",
+    "titleScore": 1,
+    "iconScore": 1,
+    "note": "Titolo fedele al sintomo e al contesto; HEART_PULSE segnala correttamente la salute."
+  },
+  {
+    "anonymousId": "attempt-019",
+    "scenarioId": "talk_with_coach",
+    "context": "PRIMO BISOGNO UTENTE: Mi vergogno a dire al coach che dopo le sconfitte mi sento senza valore.",
+    "title": "Vergogna dopo le sconfitte",
+    "icon": "BRAIN",
+    "titleScore": 0.55,
+    "iconScore": 0.8,
+    "note": "Titolo naturale ma perde il bisogno concreto di parlare con il coach; BRAIN è plausibile ma USERS sarebbe più informativa."
+  },
+  {
+    "anonymousId": "attempt-020",
+    "scenarioId": "talk_with_coach",
+    "context": "PRIMO BISOGNO UTENTE: Mi vergogno a dire al coach che dopo le sconfitte mi sento senza valore.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-021",
+    "scenarioId": "talk_with_coach",
+    "context": "PRIMO BISOGNO UTENTE: Mi vergogno a dire al coach che dopo le sconfitte mi sento senza valore.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-022",
+    "scenarioId": "team_dynamics",
+    "context": "PRIMO BISOGNO UTENTE: In squadra ci accusiamo dopo ogni errore e voglio ricostruire fiducia tra compagni.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-023",
+    "scenarioId": "team_dynamics",
+    "context": "PRIMO BISOGNO UTENTE: In squadra ci accusiamo dopo ogni errore e voglio ricostruire fiducia tra compagni.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-024",
+    "scenarioId": "team_dynamics",
+    "context": "PRIMO BISOGNO UTENTE: In squadra ci accusiamo dopo ogni errore e voglio ricostruire fiducia tra compagni.",
+    "title": "Ricostruire fiducia in squadra",
+    "icon": "SHIELD",
+    "titleScore": 1,
+    "iconScore": 1,
+    "note": "Titolo specifico e orientato all'esito; SHIELD rappresenta bene la fiducia da ricostruire."
+  },
+  {
+    "anonymousId": "attempt-025",
+    "scenarioId": "race_pace_timing",
+    "context": "PRIMO BISOGNO UTENTE: Parto troppo forte nei dieci chilometri e crollo nel finale: devo gestire il ritmo.",
+    "title": "Gestione del ritmo nei dieci chilometri",
+    "icon": "TIMER",
+    "titleScore": 1,
+    "iconScore": 1,
+    "note": "Titolo preciso su distanza e ritmo; TIMER è semanticamente esatta."
+  },
+  {
+    "anonymousId": "attempt-026",
+    "scenarioId": "race_pace_timing",
+    "context": "PRIMO BISOGNO UTENTE: Parto troppo forte nei dieci chilometri e crollo nel finale: devo gestire il ritmo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-027",
+    "scenarioId": "race_pace_timing",
+    "context": "PRIMO BISOGNO UTENTE: Parto troppo forte nei dieci chilometri e crollo nel finale: devo gestire il ritmo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-028",
+    "scenarioId": "running_goal",
+    "context": "PRIMO BISOGNO UTENTE: Voglio correre la mia prima mezza maratona sotto le due ore a ottobre.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-029",
+    "scenarioId": "running_goal",
+    "context": "PRIMO BISOGNO UTENTE: Voglio correre la mia prima mezza maratona sotto le due ore a ottobre.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-030",
+    "scenarioId": "running_goal",
+    "context": "PRIMO BISOGNO UTENTE: Voglio correre la mia prima mezza maratona sotto le due ore a ottobre.",
+    "title": "Prima mezza maratona sotto due ore",
+    "icon": "TARGET",
+    "titleScore": 1,
+    "iconScore": 1,
+    "note": "Titolo conserva obiettivo e soglia temporale; TARGET è pienamente coerente."
+  },
+  {
+    "anonymousId": "attempt-031",
+    "scenarioId": "confidence_after_loss",
+    "context": "PRIMO BISOGNO UTENTE: Dopo la sconfitta di ieri non mi fido più dei miei colpi importanti.",
+    "title": "Sfiducia nei colpi dopo sconfitta",
+    "icon": "SHIELD",
+    "titleScore": 0.9,
+    "iconScore": 1,
+    "note": "Titolo specifico anche se usa una formulazione negativa; SHIELD comunica bene il tema fiducia."
+  },
+  {
+    "anonymousId": "attempt-032",
+    "scenarioId": "confidence_after_loss",
+    "context": "PRIMO BISOGNO UTENTE: Dopo la sconfitta di ieri non mi fido più dei miei colpi importanti.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-033",
+    "scenarioId": "confidence_after_loss",
+    "context": "PRIMO BISOGNO UTENTE: Dopo la sconfitta di ieri non mi fido più dei miei colpi importanti.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-034",
+    "scenarioId": "vague_opening",
+    "context": "PRIMO BISOGNO UTENTE: Ciao, possiamo parlare un attimo?",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-035",
+    "scenarioId": "vague_opening",
+    "context": "PRIMO BISOGNO UTENTE: Ciao, possiamo parlare un attimo?",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-036",
+    "scenarioId": "vague_opening",
+    "context": "PRIMO BISOGNO UTENTE: Ciao, possiamo parlare un attimo?",
+    "title": "Richiesta di parlare subito",
+    "icon": "MESSAGE_SQUARE",
+    "titleScore": 0.65,
+    "iconScore": 1,
+    "note": "Titolo comprensibile ma aggiunge subito, dettaglio non espresso; MESSAGE_SQUARE è corretta per l'apertura vaga."
+  },
+  {
+    "anonymousId": "attempt-037",
+    "scenarioId": "pre_competition_pressure",
+    "context": "PRIMO BISOGNO UTENTE: Domenica gioco la finale e sento troppa pressione prima di entrare in campo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-038",
+    "scenarioId": "pre_competition_pressure",
+    "context": "PRIMO BISOGNO UTENTE: Domenica gioco la finale e sento troppa pressione prima di entrare in campo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-039",
+    "scenarioId": "pre_competition_pressure",
+    "context": "PRIMO BISOGNO UTENTE: Domenica gioco la finale e sento troppa pressione prima di entrare in campo.",
+    "title": "Pressione prima della finale",
+    "icon": "HEART_PULSE",
+    "titleScore": 0.9,
+    "iconScore": 0,
+    "note": "Titolo specifico; HEART_PULSE medicalizza impropriamente una pressione psicologica pre-finale."
+  },
+  {
+    "anonymousId": "attempt-040",
+    "scenarioId": "post_mistake_reset",
+    "context": "PRIMO BISOGNO UTENTE: Dopo un doppio fallo continuo a pensarci e sbaglio anche il punto successivo. Come resetto?",
+    "title": "Reset mentale dopo doppio fallo",
+    "icon": "REFRESH_CCW",
+    "titleScore": 1,
+    "iconScore": 1,
+    "note": "Titolo concreto e distintivo; REFRESH_CCW è pienamente coerente."
+  },
+  {
+    "anonymousId": "attempt-041",
+    "scenarioId": "post_mistake_reset",
+    "context": "PRIMO BISOGNO UTENTE: Dopo un doppio fallo continuo a pensarci e sbaglio anche il punto successivo. Come resetto?",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-042",
+    "scenarioId": "post_mistake_reset",
+    "context": "PRIMO BISOGNO UTENTE: Dopo un doppio fallo continuo a pensarci e sbaglio anche il punto successivo. Come resetto?",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-043",
+    "scenarioId": "short_mental_routine",
+    "context": "PRIMO BISOGNO UTENTE: Costruiamo una routine mentale di trenta secondi prima del servizio.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-044",
+    "scenarioId": "short_mental_routine",
+    "context": "PRIMO BISOGNO UTENTE: Costruiamo una routine mentale di trenta secondi prima del servizio.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-045",
+    "scenarioId": "short_mental_routine",
+    "context": "PRIMO BISOGNO UTENTE: Costruiamo una routine mentale di trenta secondi prima del servizio.",
+    "title": "Routine mentale pre-servizio",
+    "icon": "BRAIN",
+    "titleScore": 1,
+    "iconScore": 1,
+    "note": "Titolo conciso e fedele; BRAIN rappresenta direttamente la routine mentale."
+  },
+  {
+    "anonymousId": "attempt-046",
+    "scenarioId": "lost_motivation",
+    "context": "PRIMO BISOGNO UTENTE: Da tre settimane salto gli allenamenti e ho perso completamente la motivazione.",
+    "title": "Riprendere la motivazione persa",
+    "icon": "FLAME",
+    "titleScore": 0.85,
+    "iconScore": 1,
+    "note": "Titolo chiaro ma leggermente ridondante; FLAME è la scelta più naturale."
+  },
+  {
+    "anonymousId": "attempt-047",
+    "scenarioId": "lost_motivation",
+    "context": "PRIMO BISOGNO UTENTE: Da tre settimane salto gli allenamenti e ho perso completamente la motivazione.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-048",
+    "scenarioId": "lost_motivation",
+    "context": "PRIMO BISOGNO UTENTE: Da tre settimane salto gli allenamenti e ho perso completamente la motivazione.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-049",
+    "scenarioId": "weekly_training_plan",
+    "context": "PRIMO BISOGNO UTENTE: Organizziamo i miei tre allenamenti della prossima settimana senza sovraccaricarmi.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-050",
+    "scenarioId": "weekly_training_plan",
+    "context": "PRIMO BISOGNO UTENTE: Organizziamo i miei tre allenamenti della prossima settimana senza sovraccaricarmi.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-051",
+    "scenarioId": "weekly_training_plan",
+    "context": "PRIMO BISOGNO UTENTE: Organizziamo i miei tre allenamenti della prossima settimana senza sovraccaricarmi.",
+    "title": "Pianificazione tre allenamenti settimanali",
+    "icon": "CALENDAR_DAYS",
+    "titleScore": 0.95,
+    "iconScore": 1,
+    "note": "Titolo specifico e informativo; CALENDAR_DAYS identifica bene la pianificazione."
+  },
+  {
+    "anonymousId": "attempt-052",
+    "scenarioId": "injury_safety_warning",
+    "context": "PRIMO BISOGNO UTENTE: Durante la corsa sento un dolore acuto al ginocchio e aumenta a ogni passo.",
+    "title": "Dolore acuto al ginocchio in corsa",
+    "icon": "HEART_PULSE",
+    "titleScore": 1,
+    "iconScore": 1,
+    "note": "Titolo naturale e fedele al segnale fisico; HEART_PULSE è appropriata."
+  },
+  {
+    "anonymousId": "attempt-053",
+    "scenarioId": "injury_safety_warning",
+    "context": "PRIMO BISOGNO UTENTE: Durante la corsa sento un dolore acuto al ginocchio e aumenta a ogni passo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-054",
+    "scenarioId": "injury_safety_warning",
+    "context": "PRIMO BISOGNO UTENTE: Durante la corsa sento un dolore acuto al ginocchio e aumenta a ogni passo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-055",
+    "scenarioId": "talk_with_coach",
+    "context": "PRIMO BISOGNO UTENTE: Mi vergogno a dire al coach che dopo le sconfitte mi sento senza valore.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-056",
+    "scenarioId": "talk_with_coach",
+    "context": "PRIMO BISOGNO UTENTE: Mi vergogno a dire al coach che dopo le sconfitte mi sento senza valore.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-057",
+    "scenarioId": "talk_with_coach",
+    "context": "PRIMO BISOGNO UTENTE: Mi vergogno a dire al coach che dopo le sconfitte mi sento senza valore.",
+    "title": "Vergogna dopo le sconfitte",
+    "icon": "BRAIN",
+    "titleScore": 0.55,
+    "iconScore": 0.8,
+    "note": "Titolo perde il confronto con il coach; BRAIN resta plausibile ma USERS sarebbe più distintiva."
+  },
+  {
+    "anonymousId": "attempt-058",
+    "scenarioId": "team_dynamics",
+    "context": "PRIMO BISOGNO UTENTE: In squadra ci accusiamo dopo ogni errore e voglio ricostruire fiducia tra compagni.",
+    "title": "Ricostruire fiducia in squadra",
+    "icon": "SHIELD",
+    "titleScore": 1,
+    "iconScore": 1,
+    "note": "Titolo specifico e orientato al risultato; SHIELD rappresenta la fiducia di squadra."
+  },
+  {
+    "anonymousId": "attempt-059",
+    "scenarioId": "team_dynamics",
+    "context": "PRIMO BISOGNO UTENTE: In squadra ci accusiamo dopo ogni errore e voglio ricostruire fiducia tra compagni.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-060",
+    "scenarioId": "team_dynamics",
+    "context": "PRIMO BISOGNO UTENTE: In squadra ci accusiamo dopo ogni errore e voglio ricostruire fiducia tra compagni.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-061",
+    "scenarioId": "race_pace_timing",
+    "context": "PRIMO BISOGNO UTENTE: Parto troppo forte nei dieci chilometri e crollo nel finale: devo gestire il ritmo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-062",
+    "scenarioId": "race_pace_timing",
+    "context": "PRIMO BISOGNO UTENTE: Parto troppo forte nei dieci chilometri e crollo nel finale: devo gestire il ritmo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-063",
+    "scenarioId": "race_pace_timing",
+    "context": "PRIMO BISOGNO UTENTE: Parto troppo forte nei dieci chilometri e crollo nel finale: devo gestire il ritmo.",
+    "title": "Gestione del ritmo nei dieci chilometri",
+    "icon": "TIMER",
+    "titleScore": 1,
+    "iconScore": 1,
+    "note": "Titolo preciso su distanza e gestione; TIMER è esatta."
+  },
+  {
+    "anonymousId": "attempt-064",
+    "scenarioId": "running_goal",
+    "context": "PRIMO BISOGNO UTENTE: Voglio correre la mia prima mezza maratona sotto le due ore a ottobre.",
+    "title": "Prima mezza maratona sotto due ore",
+    "icon": "TARGET",
+    "titleScore": 1,
+    "iconScore": 1,
+    "note": "Titolo conserva l'obiettivo concreto; TARGET è coerente."
+  },
+  {
+    "anonymousId": "attempt-065",
+    "scenarioId": "running_goal",
+    "context": "PRIMO BISOGNO UTENTE: Voglio correre la mia prima mezza maratona sotto le due ore a ottobre.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-066",
+    "scenarioId": "running_goal",
+    "context": "PRIMO BISOGNO UTENTE: Voglio correre la mia prima mezza maratona sotto le due ore a ottobre.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-067",
+    "scenarioId": "confidence_after_loss",
+    "context": "PRIMO BISOGNO UTENTE: Dopo la sconfitta di ieri non mi fido più dei miei colpi importanti.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-068",
+    "scenarioId": "confidence_after_loss",
+    "context": "PRIMO BISOGNO UTENTE: Dopo la sconfitta di ieri non mi fido più dei miei colpi importanti.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-069",
+    "scenarioId": "confidence_after_loss",
+    "context": "PRIMO BISOGNO UTENTE: Dopo la sconfitta di ieri non mi fido più dei miei colpi importanti.",
+    "title": "Sfiducia nei colpi dopo la sconfitta",
+    "icon": "SHIELD",
+    "titleScore": 0.95,
+    "iconScore": 1,
+    "note": "Titolo specifico e naturale; SHIELD esprime correttamente la fiducia da recuperare."
+  },
+  {
+    "anonymousId": "attempt-070",
+    "scenarioId": "vague_opening",
+    "context": "PRIMO BISOGNO UTENTE: Ciao, possiamo parlare un attimo?",
+    "title": "Parlare un attimo",
+    "icon": "MESSAGE_SQUARE",
+    "titleScore": 1,
+    "iconScore": 1,
+    "note": "Titolo semplice e fedele all'apertura vaga; MESSAGE_SQUARE è la scelta corretta."
+  },
+  {
+    "anonymousId": "attempt-071",
+    "scenarioId": "vague_opening",
+    "context": "PRIMO BISOGNO UTENTE: Ciao, possiamo parlare un attimo?",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  },
+  {
+    "anonymousId": "attempt-072",
+    "scenarioId": "vague_opening",
+    "context": "PRIMO BISOGNO UTENTE: Ciao, possiamo parlare un attimo?",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_APICallError"
+  }
+]

@@ -13,7 +13,7 @@ import {
 const mocks = vi.hoisted(() => ({
   getAuthUser: vi.fn(),
   revalidateTag: vi.fn(),
-  generateChatTitle: vi.fn(),
+  generateChatMetadata: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -25,7 +25,7 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/lib/ai/chat-title", () => ({
-  generateChatTitle: mocks.generateChatTitle,
+  generateChatMetadata: mocks.generateChatMetadata,
 }));
 
 import { DELETE, GET, PATCH } from "./route";
@@ -39,7 +39,7 @@ describe("integration /api/chats/[id]", () => {
     await resetIntegrationDb();
     mocks.getAuthUser.mockReset();
     mocks.revalidateTag.mockReset();
-    mocks.generateChatTitle.mockReset();
+    mocks.generateChatMetadata.mockReset();
     mocks.revalidateTag.mockImplementation(() => {});
   });
 
@@ -126,7 +126,10 @@ describe("integration /api/chats/[id]", () => {
       user: toAuthUser(user),
       error: null,
     });
-    mocks.generateChatTitle.mockResolvedValue("Weekly Running Plan");
+    mocks.generateChatMetadata.mockResolvedValue({
+      title: "Weekly Running Plan",
+      icon: "FOOTPRINTS",
+    });
 
     const response = await PATCH(
       new Request(`http://localhost/api/chats/${chat.id}`, {
@@ -136,14 +139,22 @@ describe("integration /api/chats/[id]", () => {
       }),
       routeParams(chat.id),
     );
-    const body = (await response.json()) as { title: string };
+    const body = (await response.json()) as { title: string; icon: string };
 
     expect(response.status).toBe(200);
     expect(body.title).toBe("Weekly Running Plan");
-    expect(mocks.generateChatTitle).toHaveBeenCalledWith(
+    expect(body.icon).toBe("FOOTPRINTS");
+    expect(mocks.generateChatMetadata).toHaveBeenCalledWith(
+      [{ role: "user", text: "Find my weekly running plan" }],
       "Find my weekly running plan",
       { userId: user.id },
     );
+    await expect(
+      prisma.chat.findUnique({ where: { id: chat.id } }),
+    ).resolves.toMatchObject({
+      title: "Weekly Running Plan",
+      icon: "FOOTPRINTS",
+    });
     expect(mocks.revalidateTag).toHaveBeenCalledWith(`chat-${chat.id}`, "max");
     expect(mocks.revalidateTag).toHaveBeenCalledWith(`chats-${user.id}`, "max");
   });

@@ -4,7 +4,7 @@ const MILLISECONDS_PER_DAY = 86_400_000;
 
 export type SidebarChat = Pick<
   Chat,
-  "id" | "title" | "messageCount" | "updatedAt"
+  "id" | "title" | "icon" | "messageCount" | "updatedAt"
 >;
 
 export const CHAT_PERIODS = [

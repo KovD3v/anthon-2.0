@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { waitUntil } from "@vercel/functions";
 import type { UIMessage } from "ai";
 import type { Prisma } from "@/generated/prisma";
-import { generateChatTitle } from "@/lib/ai/chat-title";
+import { generateChatMetadata } from "@/lib/ai/chat-title";
 import { loadTrustedRemoteMedia } from "@/lib/ai/multimodal-media";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import {
@@ -447,42 +447,40 @@ export async function handleWebChatPost(request: Request) {
 
         // Auto-generate or refresh chat title if not manually set by user
         if (inboundClaim.created && !chat.customTitle) {
-          const shouldRefresh =
-            requestConversationMessageCount === 1 ||
-            requestConversationMessageCount === 2 ||
-            requestConversationMessageCount === 4 ||
-            (requestConversationMessageCount > 0 &&
-              requestConversationMessageCount % 5 === 0);
+          const shouldRefresh = [1, 2, 4].includes(
+            requestConversationMessageCount,
+          );
 
           if (shouldRefresh) {
-            // Use the last few messages for better context on refresh
-            const context = messages
-              .slice(-3)
+            const metadataMessages = messages
               .map((m) => {
-                const content =
+                const text =
                   m.parts
                     ?.map((p) =>
                       p.type === "text" ? (p as { text: string }).text : "",
                     )
-                    .join("") || "";
-                return `${m.role.toUpperCase()}: ${content}`;
+                    .join("")
+                    .trim() || "";
+                if ((m.role !== "user" && m.role !== "assistant") || !text) {
+                  return null;
+                }
+                return { role: m.role, text };
               })
-              .filter((entry) => entry.replace(/^[A-Z]+:\s*/, "").trim())
-              .join("\n");
+              .filter((message) => message !== null);
 
             waitUntil(
-              generateChatTitle(context || aiUserMessageText, {
+              generateChatMetadata(metadataMessages, aiUserMessageText, {
                 userId: user.id,
-              }).then((title) => {
+              }).then(({ title, icon }) => {
                 prisma.chat
                   .update({
                     where: { id: chatId },
-                    data: { title },
+                    data: { title, icon },
                   })
                   .catch((error) =>
                     logger.error(
-                      "chat.title.update_failed",
-                      "Failed updating generated chat title",
+                      "chat.metadata.update_failed",
+                      "Failed updating generated chat metadata",
                       { error, chatId },
                     ),
                   );

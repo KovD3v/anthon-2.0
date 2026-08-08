@@ -18,6 +18,15 @@ describe("database migrations", () => {
     expect(allMigrationSql()).toMatch(/"customTitle"\s+BOOLEAN\s+NOT NULL/i);
   });
 
+  it("creates the ChatIcon enum and a required Chat.icon fallback", () => {
+    const sql = allMigrationSql();
+
+    expect(sql).toMatch(/CREATE TYPE "ChatIcon" AS ENUM/i);
+    expect(sql).toMatch(
+      /ADD COLUMN "icon" "ChatIcon" NOT NULL DEFAULT 'MESSAGE_SQUARE'/i,
+    );
+  });
+
   it("repairs Memory.category drift idempotently", () => {
     const sql = allMigrationSql();
 

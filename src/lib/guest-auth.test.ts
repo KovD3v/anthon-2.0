@@ -198,6 +198,7 @@ describe("lib/guest-auth", () => {
     mocks.chatCreate.mockResolvedValue({
       id: "chat-new",
       title: "Performance check",
+      icon: "TARGET",
       visibility: "PRIVATE",
       createdAt: new Date("2026-02-16T12:00:00.000Z"),
       updatedAt: new Date("2026-02-16T12:00:00.000Z"),
@@ -217,6 +218,7 @@ describe("lib/guest-auth", () => {
     expect(result.user.id).toBe("guest-new");
     expect(result.isNew).toBe(true);
     expect(result.chat.id).toBe("chat-new");
+    expect(result.chat.icon).toBe("TARGET");
     expect(mocks.userCreate).not.toHaveBeenCalled();
     expect(mocks.userFindFirst).not.toHaveBeenCalled();
     expect(mocks.chatCreate).toHaveBeenCalledWith({
@@ -234,6 +236,7 @@ describe("lib/guest-auth", () => {
       },
       select: expect.objectContaining({
         id: true,
+        icon: true,
         user: {
           select: {
             id: true,
@@ -265,6 +268,7 @@ describe("lib/guest-auth", () => {
     mocks.chatCreate.mockResolvedValue({
       id: "chat-existing",
       title: null,
+      icon: "MESSAGE_SQUARE",
       visibility: "PRIVATE",
       createdAt: new Date("2026-02-16T12:00:00.000Z"),
       updatedAt: new Date("2026-02-16T12:00:00.000Z"),
@@ -287,6 +291,7 @@ describe("lib/guest-auth", () => {
       },
       select: expect.objectContaining({
         id: true,
+        icon: true,
       }),
     });
     expect(mocks.cookieSet).not.toHaveBeenCalled();

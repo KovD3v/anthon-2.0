@@ -1,21 +1,13 @@
 "use client";
 
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
-import {
-  Check,
-  Loader2,
-  MessageSquare,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Check, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { duration } from "@/lib/motion";
 import { getCreateChatButtonState } from "../chat/create-chat-ui";
+import { ChatIcon } from "./ChatIcon";
 import { groupChatsByPeriod, type SidebarChat } from "./chat-periods";
 
 interface ChatListProps {
@@ -243,7 +235,8 @@ function ChatItem({
             : "text-muted-foreground hover:text-foreground hover:bg-accent dark:hover:bg-white/5"
         }`}
       >
-        <MessageSquare
+        <ChatIcon
+          icon={chat.icon}
           className={`h-4 w-4 shrink-0 transition-colors ${
             isActive
               ? "text-primary"
