@@ -166,6 +166,42 @@ describe("RoutineCard proposal", () => {
 });
 
 describe("RoutineCard active lifecycle", () => {
+  it("closes a consumed return check-in and does not reopen it on a later reveal", async () => {
+    const view = renderProposal({
+      routine: activeRoutine,
+      openCheckIn: true,
+    });
+
+    expect(
+      screen.getByRole("group", { name: "Esito del tentativo" }),
+    ).toBeTruthy();
+
+    view.rerender(
+      <RoutineCard
+        {...view.props}
+        routine={activeRoutine}
+        openCheckIn={false}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("group", { name: "Esito del tentativo" }),
+      ).toBeNull(),
+    );
+
+    view.rerender(
+      <RoutineCard
+        {...view.props}
+        routine={activeRoutine}
+        openCheckIn={false}
+      />,
+    );
+    expect(
+      screen.queryByRole("group", { name: "Esito del tentativo" }),
+    ).toBeNull();
+  });
+
   it("marks one explicit attempt and exposes an accessible pending status", async () => {
     const pending = deferredRoutine();
     const onCreateAttempt = vi.fn().mockReturnValue(pending.promise);

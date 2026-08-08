@@ -390,7 +390,10 @@ describe("/api/chats/[id] route", () => {
         sourceAssistantMessageId: { in: ["assistant-page"] },
       },
       include: {
-        attempts: { orderBy: { attemptedAt: "desc" }, take: 1 },
+        attempts: {
+          orderBy: [{ attemptedAt: "desc" }, { id: "desc" }],
+          take: 1,
+        },
       },
     });
     expect(body.routines).toEqual([
@@ -407,6 +410,92 @@ describe("/api/chats/[id] route", () => {
     expect(body.messages[1].parts).toEqual([
       { type: "data-coachingRoutine", data: proposal },
     ]);
+  });
+
+  it("GET hydrates one authenticated owner routine source outside the current page", async () => {
+    const proposal = {
+      title: "Reset lontano",
+      trigger: "Dopo un errore",
+      durationLabel: null,
+      steps: ["Fermati", "Espira"],
+      completionCue: "Riparti",
+    };
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "assistant-old",
+        role: "ASSISTANT",
+        parts: [{ type: "data-coachingRoutine", data: proposal }],
+        createdAt: new Date("2026-07-01T10:00:00.000Z"),
+        model: null,
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: null,
+        generationTimeMs: null,
+        reasoningTimeMs: null,
+        ragUsed: null,
+        toolCalls: null,
+        feedback: null,
+        metadata: null,
+        attachments: [],
+      },
+    ]);
+    mocks.routineFindMany.mockResolvedValue([
+      {
+        id: "routine-old",
+        sourceChatId: "chat-1",
+        sourceAssistantMessageId: "assistant-old",
+        status: "ACTIVE",
+        title: proposal.title,
+        trigger: proposal.trigger,
+        durationLabel: proposal.durationLabel,
+        steps: proposal.steps,
+        completionCue: proposal.completionCue,
+        archivedAt: null,
+        attempts: [],
+      },
+    ]);
+
+    const response = await GET(
+      new Request(
+        "http://localhost/api/chats/chat-1?sourceAssistantMessageId=assistant-old",
+      ),
+      { params: params() },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mocks.messageFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          chatId: "chat-1",
+          id: "assistant-old",
+          role: "ASSISTANT",
+        },
+        take: 1,
+      }),
+    );
+    expect(body.messages).toHaveLength(1);
+    expect(body.messages[0].id).toBe("assistant-old");
+    expect(body.routines[0].id).toBe("routine-old");
+    expect(body.pagination).toEqual({ hasMore: false, nextCursor: null });
+  });
+
+  it("GET rejects guest access to targeted routine source hydration", async () => {
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "guest-1", role: "USER", isGuest: true },
+      error: null,
+    });
+
+    const response = await GET(
+      new Request(
+        "http://localhost/api/chats/chat-1?sourceAssistantMessageId=assistant-old",
+      ),
+      { params: params() },
+    );
+
+    expect(response.status).toBe(403);
+    expect(mocks.messageFindMany).not.toHaveBeenCalled();
+    expect(mocks.routineFindMany).not.toHaveBeenCalled();
   });
 
   it("GET keeps a private guest proposal but never hydrates saved routines", async () => {

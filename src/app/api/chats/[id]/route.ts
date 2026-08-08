@@ -38,6 +38,9 @@ export async function GET(request: Request, { params }: RouteParams) {
   // Parse pagination parameters
   const url = new URL(request.url);
   const cursor = url.searchParams.get("cursor"); // Message ID to fetch before
+  const sourceAssistantMessageId = url.searchParams.get(
+    "sourceAssistantMessageId",
+  );
   const rawLimit = url.searchParams.get("limit");
   let limit = 50;
 
@@ -75,17 +78,31 @@ export async function GET(request: Request, { params }: RouteParams) {
     if (!chat) {
       return Response.json({ error: "Chat not found" }, { status: 404 });
     }
+    if (
+      sourceAssistantMessageId &&
+      (user.isGuest || chat.userId !== user.id || chat.visibility !== "PRIVATE")
+    ) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     // Fetch messages with cursor-based pagination
     // Fetch newest first, then reverse for chronological display
     const messages = await prisma.message.findMany({
-      where: { chatId: id },
-      orderBy: { createdAt: "desc" }, // Newest first
-      take: limit + 1, // Extra to check for hasMore
-      ...(cursor && {
-        cursor: { id: cursor },
-        skip: 1, // Skip the cursor message itself
-      }),
+      where: {
+        chatId: id,
+        ...(sourceAssistantMessageId
+          ? { id: sourceAssistantMessageId, role: "ASSISTANT" as const }
+          : {}),
+      },
+      orderBy: sourceAssistantMessageId
+        ? [{ createdAt: "desc" }, { id: "desc" }]
+        : { createdAt: "desc" }, // Newest first
+      take: sourceAssistantMessageId ? 1 : limit + 1,
+      ...(!sourceAssistantMessageId &&
+        cursor && {
+          cursor: { id: cursor },
+          skip: 1, // Skip the cursor message itself
+        }),
       select: {
         id: true,
         role: true,
@@ -120,7 +137,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     });
 
     // Determine if more messages exist
-    const hasMore = messages.length > limit;
+    const hasMore = !sourceAssistantMessageId && messages.length > limit;
     const messagesToReturn = hasMore ? messages.slice(0, -1) : messages;
     const nextCursor = hasMore
       ? messagesToReturn[messagesToReturn.length - 1]?.id
@@ -148,7 +165,10 @@ export async function GET(request: Request, { params }: RouteParams) {
             },
             include: {
               attempts: {
-                orderBy: { attemptedAt: "desc" },
+                orderBy: [
+                  { attemptedAt: "desc" as const },
+                  { id: "desc" as const },
+                ],
                 take: 1,
               },
             },

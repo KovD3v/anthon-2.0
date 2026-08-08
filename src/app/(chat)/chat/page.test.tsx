@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   navigateToChat: vi.fn(),
   openRoutineCheckIn: vi.fn(),
   updateActiveRoutine: vi.fn(),
+  refreshActiveRoutine: vi.fn(),
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
   createRoutineAttempt: vi.fn(),
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => ({
     coachingGoal: null as string | null,
     isGuest: false,
     activeRoutine: null as RoutineCardData | null,
+    chatNavigationEpoch: 0,
   },
 }));
 
@@ -52,6 +54,7 @@ vi.mock("./layout-client", () => ({
     navigateToChat: mocks.navigateToChat,
     openRoutineCheckIn: mocks.openRoutineCheckIn,
     updateActiveRoutine: mocks.updateActiveRoutine,
+    refreshActiveRoutine: mocks.refreshActiveRoutine,
   }),
 }));
 
@@ -88,8 +91,10 @@ describe("chat landing page", () => {
     mocks.context.isGuest = false;
     mocks.context.activeRoutine = null;
     mocks.searchParams = new URLSearchParams();
+    mocks.context.chatNavigationEpoch = 0;
     mocks.createRoutineAttempt.mockResolvedValue(activeRoutine);
     mocks.saveRoutineOutcome.mockResolvedValue(activeRoutine);
+    mocks.refreshActiveRoutine.mockResolvedValue(activeRoutine);
   });
 
   afterEach(cleanup);
@@ -225,8 +230,40 @@ describe("chat landing page", () => {
       "HELPFUL",
       null,
     );
-    expect(mocks.updateActiveRoutine).toHaveBeenCalledWith(updatedRoutine);
+    expect(mocks.refreshActiveRoutine).toHaveBeenCalledOnce();
+    expect(mocks.updateActiveRoutine).not.toHaveBeenCalled();
     expect(mocks.createChat).not.toHaveBeenCalled();
+  });
+
+  it("does not restore a consumed orphan check-in after navigating away and back", async () => {
+    mocks.context.activeRoutine = {
+      ...activeRoutine,
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+    };
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    const view = render(<ChatPage />);
+
+    await screen.findByRole("group", { name: "Esito del tentativo" });
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat"),
+    );
+
+    mocks.searchParams = new URLSearchParams();
+    view.rerender(<ChatPage />);
+    expect(
+      screen.getByRole("group", { name: "Esito del tentativo" }),
+    ).toBeTruthy();
+
+    mocks.context.chatNavigationEpoch += 1;
+    view.rerender(<ChatPage />);
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("group", { name: "Esito del tentativo" }),
+      ).toBeNull(),
+    );
+    expect(mocks.routerReplace).toHaveBeenCalledOnce();
   });
 
   it("clears a stale routine query and leaves the starter choices available", async () => {

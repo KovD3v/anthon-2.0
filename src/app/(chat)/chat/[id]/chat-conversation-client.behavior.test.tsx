@@ -9,7 +9,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type ComponentProps, useEffect, useRef, useState } from "react";
+import { type ComponentProps, useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RoutineCardData } from "@/lib/coaching/routine";
 import type { ChatData } from "@/types/chat";
@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   updateCachedChat: vi.fn(),
   updateActiveRoutine: vi.fn(),
+  refreshActiveRoutine: vi.fn(),
   captureChatOptions: vi.fn(),
   captureException: vi.fn(),
   chatState: {
@@ -35,7 +36,10 @@ const mocks = vi.hoisted(() => ({
   confirmMode: "auto" as "auto" | "dialog",
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
+  routerRefresh: vi.fn(),
   searchParams: new URLSearchParams(),
+  activeRoutine: null as RoutineCardData | null,
+  chatNavigationEpoch: 0,
 }));
 
 vi.mock("@ai-sdk/react", () => ({
@@ -73,6 +77,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: mocks.routerPush,
     replace: mocks.routerReplace,
+    refresh: mocks.routerRefresh,
   }),
   useSearchParams: () => mocks.searchParams,
 }));
@@ -254,10 +259,6 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
       null,
     );
     const [routineActionSuccess, setRoutineActionSuccess] = useState(false);
-    const openCheckInRef = useRef<HTMLTextAreaElement>(null);
-    useEffect(() => {
-      openCheckInRef.current?.focus();
-    }, []);
     const runRoutineAction = async (
       operation: () => Promise<RoutineCardData>,
     ) => {
@@ -298,7 +299,7 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
         </output>
         {openCheckInRoutineId && (
           <textarea
-            ref={openCheckInRef}
+            ref={(element) => element?.focus()}
             aria-label="Check-in routine aperto"
             data-routine-check-in-id={openCheckInRoutineId}
           />
@@ -469,6 +470,9 @@ vi.mock("../layout-client", () => ({
     getCachedChat: () => null,
     updateCachedChat: mocks.updateCachedChat,
     updateActiveRoutine: mocks.updateActiveRoutine,
+    refreshActiveRoutine: mocks.refreshActiveRoutine,
+    activeRoutine: mocks.activeRoutine,
+    chatNavigationEpoch: mocks.chatNavigationEpoch,
     consumePendingInitialMessage: () => null,
   }),
 }));
@@ -533,7 +537,10 @@ beforeEach(() => {
   mocks.isGuest = true;
   mocks.confirmMode = "auto";
   mocks.searchParams = new URLSearchParams();
+  mocks.activeRoutine = null;
+  mocks.chatNavigationEpoch = 0;
   mocks.confirm.mockResolvedValue(true);
+  mocks.refreshActiveRoutine.mockResolvedValue(null);
   mocks.sendMessage.mockResolvedValue(undefined);
   vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
@@ -792,6 +799,62 @@ describe("ChatConversationClient pagination and recovery", () => {
     );
   });
 
+  it("deduplicates a target-hydrated source when normal pagination reaches it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            messages: [
+              {
+                id: "assistant-old",
+                role: "assistant",
+                content: "Routine precedente",
+                parts: [],
+                createdAt: "2026-07-01T10:00:00.000Z",
+              },
+              {
+                id: "user-between",
+                role: "user",
+                content: "Domanda intermedia",
+                parts: [],
+                createdAt: "2026-07-10T11:00:00.000Z",
+              },
+            ],
+            routines: [],
+            pagination: { hasMore: false, nextCursor: null },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    renderConversation({
+      ...initialChatData,
+      messages: [
+        {
+          id: "assistant-old",
+          role: "assistant",
+          content: "Routine precedente",
+          parts: [],
+          createdAt: "2026-07-01T10:00:00.000Z",
+        },
+        ...initialChatData.messages,
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: "Carica precedenti" }));
+
+    await waitFor(() =>
+      expect(messageOrder()).toEqual([
+        "Routine precedente",
+        "Domanda intermedia",
+        "Domanda nuova",
+        "Risposta nuova",
+      ]),
+    );
+  });
+
   it("allows only one pagination request while a page is loading", async () => {
     const pending = deferredResponse();
     const fetchMock = vi.fn().mockReturnValue(pending.promise);
@@ -881,6 +944,44 @@ describe("ChatConversationClient pagination and recovery", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it("refreshes the authoritative active routine after deleting its source message range", async () => {
+    const orphanRoutine: RoutineCardData = {
+      id: "routine-1",
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+      status: "ACTIVE",
+      proposal: {
+        title: "Reset rapido",
+        trigger: "Dopo un errore",
+        durationLabel: null,
+        steps: ["Fermati", "Espira"],
+        completionCue: "Riparti",
+      },
+      archivedAt: null,
+      latestAttempt: null,
+    };
+    mocks.refreshActiveRoutine.mockResolvedValue(orphanRoutine);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ...initialChatData, routines: [] }), {
+          status: 200,
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation();
+
+    await user.click(screen.getByRole("button", { name: "Elimina" }));
+    const deleteOptions = mocks.toast.mock.calls[0]?.[1] as {
+      onAutoClose: () => Promise<void>;
+    };
+    await act(() => deleteOptions.onAutoClose());
+
+    expect(mocks.refreshActiveRoutine).toHaveBeenCalledOnce();
+  });
+
   it("replaces the retried prompt instead of appending a duplicate", async () => {
     const fetchMock = vi
       .fn()
@@ -965,6 +1066,93 @@ describe("ChatConversationClient routine lifecycle", () => {
     expect(mocks.routerReplace).toHaveBeenCalledOnce();
   });
 
+  it("keeps a consumed source form for the current visit but not after navigation back", async () => {
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    const data = { ...initialChatData, routines: [activeRoutine] };
+    const view = renderConversation(data);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+        "routine-1",
+      ),
+    );
+    mocks.searchParams = new URLSearchParams();
+    view.rerender(
+      <ChatConversationClient chatId="chat-1" initialChatData={data} />,
+    );
+    expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+      "routine-1",
+    );
+
+    mocks.chatNavigationEpoch += 1;
+    view.rerender(
+      <ChatConversationClient chatId="chat-1" initialChatData={data} />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+        "NONE",
+      ),
+    );
+    view.rerender(
+      <ChatConversationClient chatId="chat-1" initialChatData={data} />,
+    );
+    expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+      "NONE",
+    );
+    expect(mocks.routerReplace).toHaveBeenCalledOnce();
+  });
+
+  it("target-hydrates an older active source before consuming the return query", async () => {
+    const olderRoutine: RoutineCardData = {
+      ...activeRoutine,
+      sourceAssistantMessageId: "assistant-old",
+    };
+    mocks.activeRoutine = olderRoutine;
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    const pending = deferredResponse();
+    const fetchMock = vi.fn().mockReturnValue(pending.promise);
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderConversation({ ...initialChatData, routines: [] });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/chats/chat-1?sourceAssistantMessageId=assistant-old",
+      ),
+    );
+    expect(mocks.routerReplace).not.toHaveBeenCalled();
+
+    pending.resolve(
+      new Response(
+        JSON.stringify({
+          ...initialChatData,
+          messages: [
+            {
+              id: "assistant-old",
+              role: "assistant",
+              content: "Routine precedente",
+              parts: [],
+              createdAt: "2026-07-01T10:00:00.000Z",
+            },
+          ],
+          routines: [olderRoutine],
+          pagination: { hasMore: false, nextCursor: null },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+        "routine-1",
+      ),
+    );
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat/chat-1"),
+    );
+  });
+
   it("clears an unknown source routine query without opening a form", async () => {
     mocks.searchParams = new URLSearchParams("checkInRoutineId=stale-routine");
 
@@ -1018,7 +1206,8 @@ describe("ChatConversationClient routine lifecycle", () => {
         body: JSON.stringify({ sourceAssistantMessageId: "assistant-new" }),
       }),
     );
-    expect(mocks.updateActiveRoutine).toHaveBeenCalledWith(activeRoutine);
+    expect(mocks.refreshActiveRoutine).toHaveBeenCalledOnce();
+    expect(mocks.updateActiveRoutine).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/chats/chat-1");
     expect(mocks.setMessages).toHaveBeenCalled();
   });
@@ -1471,6 +1660,12 @@ describe("ChatConversationClient routine lifecycle", () => {
           { status: 200, headers: { "Content-Type": "application/json" } },
         ),
       );
+    const nextActiveRoutine: RoutineCardData = {
+      ...activeRoutine,
+      id: "routine-older-active",
+      sourceAssistantMessageId: "assistant-older-active",
+    };
+    mocks.refreshActiveRoutine.mockResolvedValue(nextActiveRoutine);
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     renderConversation({ ...initialChatData, routines: [activeRoutine] });
@@ -1498,6 +1693,8 @@ describe("ChatConversationClient routine lifecycle", () => {
         body: JSON.stringify({ status: "ARCHIVED" }),
       }),
     );
+    expect(mocks.refreshActiveRoutine).toHaveBeenCalledOnce();
+    expect(mocks.updateActiveRoutine).not.toHaveBeenCalled();
   });
 
   it.each(["cancel button", "Escape"] as const)(

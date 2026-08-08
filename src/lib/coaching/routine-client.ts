@@ -7,6 +7,9 @@ import {
 const routineResponseSchema = z
   .object({ routine: routineCardDataSchema })
   .strict();
+const activeRoutineResponseSchema = z
+  .object({ routine: routineCardDataSchema.nullable() })
+  .strict();
 
 export type RoutineAttemptOutcome =
   | "HELPFUL"
@@ -21,6 +24,47 @@ export class RoutineClientError extends Error {
     super(message);
     this.name = "RoutineClientError";
   }
+}
+
+export async function fetchActiveRoutineForReturn(): Promise<RoutineCardData | null> {
+  let response: Response;
+  try {
+    response = await fetch("/api/coaching/routines", {
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch {
+    throw new RoutineClientError(
+      "Connessione non disponibile. Controlla la rete e riprova.",
+      null,
+    );
+  }
+
+  if (!response.ok) {
+    throw new RoutineClientError(
+      messageForStatus(response.status),
+      response.status,
+    );
+  }
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new RoutineClientError(
+      "Risposta del server non valida. Riprova.",
+      response.status,
+    );
+  }
+
+  const parsed = activeRoutineResponseSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new RoutineClientError(
+      "Risposta del server non valida. Riprova.",
+      response.status,
+    );
+  }
+  return parsed.data.routine;
 }
 
 function messageForStatus(status: number): string {

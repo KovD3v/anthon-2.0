@@ -174,9 +174,12 @@ describe("chat layout sidebar data", () => {
 
     expect(mocks.prismaRoutineFindFirst).toHaveBeenCalledWith({
       where: { userId: "user-1", status: "ACTIVE" },
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       include: {
-        attempts: { orderBy: { attemptedAt: "desc" }, take: 1 },
+        attempts: {
+          orderBy: [{ attemptedAt: "desc" }, { id: "desc" }],
+          take: 1,
+        },
       },
     });
     expect(result.activeRoutine).toEqual({

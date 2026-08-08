@@ -68,6 +68,8 @@ export function RoutineCard({
   useEffect(() => {
     if (openCheckIn && isActive) {
       setIsCheckInOpen(true);
+    } else if (!openCheckIn) {
+      setIsCheckInOpen(false);
     }
   }, [isActive, openCheckIn]);
 

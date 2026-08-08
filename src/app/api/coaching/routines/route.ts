@@ -14,6 +14,7 @@ import {
   getRoutineProposalFromParts,
   toRoutineCardData,
 } from "@/lib/coaching/routine";
+import { getActiveRoutineForReturn } from "@/lib/coaching/routine-return.server";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 
@@ -35,6 +36,24 @@ function isUniqueViolation(error: unknown): boolean {
     "code" in error &&
     error.code === "P2002"
   );
+}
+
+export async function GET() {
+  try {
+    const { user, error } = await getAuthUser();
+    if (error || !user) return unauthorized(error || "Unauthorized");
+    if (user.isGuest) return forbidden();
+
+    const routine = await getActiveRoutineForReturn(user.id);
+    return jsonOk({ routine });
+  } catch (error) {
+    routineLogger.error(
+      "coaching.active_routine_read_failed",
+      "Failed to read active coaching routine",
+      { error },
+    );
+    return serverError();
+  }
 }
 
 export async function POST(request: Request) {

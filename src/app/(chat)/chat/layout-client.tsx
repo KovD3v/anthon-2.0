@@ -19,6 +19,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 import type { RoutineCardData } from "@/lib/coaching/routine";
+import { fetchActiveRoutineForReturn } from "@/lib/coaching/routine-client";
 import { installDocumentScrollLock } from "@/lib/document-scroll-lock";
 import { installChatViewportSizing } from "@/lib/visual-viewport";
 import type { Chat, ChatData, UsageData } from "@/types/chat";
@@ -44,6 +45,7 @@ interface ChatContextType {
   isLoading: boolean;
   isCreatingChat: boolean;
   currentChatId: string | null;
+  chatNavigationEpoch: number;
   isGuest: boolean;
   createChat: (options?: CreateChatOptions) => Promise<string | null>;
   deleteChat: (id: string) => Promise<boolean>;
@@ -55,6 +57,7 @@ interface ChatContextType {
   updateCachedChat: (id: string, data: Partial<ChatData>) => void;
   consumePendingInitialMessage: (chatId: string) => string | null;
   updateActiveRoutine: (routine: RoutineCardData) => void;
+  refreshActiveRoutine: () => Promise<RoutineCardData | null>;
   openRoutineCheckIn: (routine: RoutineCardData) => void;
 }
 
@@ -169,6 +172,7 @@ export function LayoutClient({
   const [activeRoutine, setActiveRoutine] = useState<RoutineCardData | null>(
     initialActiveRoutine,
   );
+  const activeRoutineRefreshIdRef = useRef(0);
   const [isLoading, _setIsLoading] = useState(false);
   const [isCreateChatRequestPending, setIsCreateChatRequestPending] =
     useState(false);
@@ -178,9 +182,18 @@ export function LayoutClient({
   const isCreatingChat =
     isCreateChatRequestPending || isCreateChatNavigationPending;
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [chatNavigationEpoch, setChatNavigationEpoch] = useState(0);
+  const previousPathnameRef = useRef(pathname);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
+
+  useEffect(() => {
+    if (previousPathnameRef.current !== pathname) {
+      previousPathnameRef.current = pathname;
+      setChatNavigationEpoch((current) => current + 1);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -212,15 +225,28 @@ export function LayoutClient({
   }, [initialUsageData]);
 
   useEffect(() => {
+    activeRoutineRefreshIdRef.current += 1;
     setActiveRoutine(initialActiveRoutine);
   }, [initialActiveRoutine]);
 
   const updateActiveRoutine = useCallback((routine: RoutineCardData) => {
+    activeRoutineRefreshIdRef.current += 1;
     setActiveRoutine((current) => {
       if (routine.status === "ACTIVE") return routine;
       return current?.id === routine.id ? null : current;
     });
   }, []);
+
+  const refreshActiveRoutine = useCallback(async () => {
+    if (isGuest) return null;
+    const refreshId = activeRoutineRefreshIdRef.current + 1;
+    activeRoutineRefreshIdRef.current = refreshId;
+    const routine = await fetchActiveRoutineForReturn();
+    if (activeRoutineRefreshIdRef.current === refreshId) {
+      setActiveRoutine(routine);
+    }
+    return routine;
+  }, [isGuest]);
 
   const openRoutineCheckIn = useCallback(
     (routine: RoutineCardData) => {
@@ -544,6 +570,12 @@ export function LayoutClient({
         setChats((prev) => prev.filter((c) => c.id !== id));
         chatCacheRef.current.delete(id);
 
+        try {
+          await refreshActiveRoutine();
+        } catch {
+          router.refresh();
+        }
+
         // Navigate away if we just deleted the current chat
         if (currentChatId === id) {
           router.push("/chat");
@@ -576,6 +608,7 @@ export function LayoutClient({
         isLoading,
         isCreatingChat,
         currentChatId,
+        chatNavigationEpoch,
         isGuest,
         createChat,
         deleteChat,
@@ -587,6 +620,7 @@ export function LayoutClient({
         updateCachedChat,
         consumePendingInitialMessage,
         updateActiveRoutine,
+        refreshActiveRoutine,
         openRoutineCheckIn,
       }}
     >

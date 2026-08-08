@@ -119,7 +119,9 @@ export function ChatConversationClient({
     getCachedChat,
     updateCachedChat,
     consumePendingInitialMessage,
-    updateActiveRoutine,
+    activeRoutine,
+    chatNavigationEpoch,
+    refreshActiveRoutine,
   } = useChatContext();
   const apiBase = isGuest ? "/api/guest" : "/api";
 
@@ -149,9 +151,18 @@ export function ChatConversationClient({
   const voiceGenerationPollAttemptsRef = useRef(0);
   const routineAttemptActionIdsRef = useRef(new Map<string, string>());
   const cleanedCheckInRoutineIdRef = useRef<string | null>(null);
+  const sourceHydrationRequestRef = useRef<string | null>(null);
+  const [sourceHydration, setSourceHydration] = useState<{
+    routineId: string;
+    status: "loading" | "complete" | "failed";
+  } | null>(null);
+  const [returnCheckInRequest, setReturnCheckInRequest] = useState<{
+    routineId: string;
+    navigationEpoch: number;
+  } | null>(null);
   const requestedCheckInRoutineId =
     searchParams.get("checkInRoutineId")?.trim() ?? null;
-  const openCheckInRoutineId = requestedCheckInRoutineId
+  const queriedCheckInRoutineId = requestedCheckInRoutineId
     ? (chatData.routines.find(
         (routine) =>
           routine.id === requestedCheckInRoutineId &&
@@ -159,33 +170,22 @@ export function ChatConversationClient({
           routine.sourceAssistantMessageId !== null,
       )?.id ?? null)
     : null;
-
-  useEffect(() => {
-    if (!requestedCheckInRoutineId) {
-      cleanedCheckInRoutineIdRef.current = null;
-      return;
-    }
-    if (cleanedCheckInRoutineIdRef.current === requestedCheckInRoutineId) {
-      return;
-    }
-
-    if (!openCheckInRoutineId) {
-      cleanedCheckInRoutineIdRef.current = requestedCheckInRoutineId;
-      router.replace(`/chat/${encodeURIComponent(chatId)}`);
-      return;
-    }
-
-    const activeElement = document.activeElement;
-    if (
-      activeElement instanceof HTMLElement &&
-      activeElement
-        .closest("[data-routine-check-in-id]")
-        ?.getAttribute("data-routine-check-in-id") === openCheckInRoutineId
-    ) {
-      cleanedCheckInRoutineIdRef.current = requestedCheckInRoutineId;
-      router.replace(`/chat/${encodeURIComponent(chatId)}`);
-    }
-  }, [chatId, openCheckInRoutineId, requestedCheckInRoutineId, router]);
+  const openCheckInRoutineId =
+    queriedCheckInRoutineId ??
+    (!requestedCheckInRoutineId &&
+    returnCheckInRequest?.navigationEpoch === chatNavigationEpoch &&
+    chatData.routines.some(
+      (routine) => routine.id === returnCheckInRequest.routineId,
+    )
+      ? returnCheckInRequest.routineId
+      : null);
+  const targetSourceAssistantMessageId =
+    !isGuest &&
+    requestedCheckInRoutineId &&
+    activeRoutine?.id === requestedCheckInRoutineId &&
+    activeRoutine.sourceChatId === chatId
+      ? activeRoutine.sourceAssistantMessageId
+      : null;
 
   // Initial messages from server data
   const initialMessages = convertToUIMessages(chatData.messages);
@@ -226,13 +226,23 @@ export function ChatConversationClient({
         const data = await response.json();
         const olderRoutines = (data.routines ?? []) as ChatData["routines"];
         setChatData((prev) => {
+          const messagesById = new Map(
+            prev.messages.map((message) => [message.id, message]),
+          );
+          for (const message of data.messages as ChatData["messages"]) {
+            messagesById.set(message.id, message);
+          }
           const existingRoutineIds = new Set(
             prev.routines.map((routine) => routine.id),
           );
 
           return {
             ...prev,
-            messages: [...data.messages, ...prev.messages],
+            messages: [...messagesById.values()].sort(
+              (left, right) =>
+                Date.parse(left.createdAt) - Date.parse(right.createdAt) ||
+                left.id.localeCompare(right.id),
+            ),
             routines: [
               ...prev.routines,
               ...olderRoutines.filter(
@@ -304,6 +314,177 @@ export function ChatConversationClient({
     },
   });
 
+  useEffect(() => {
+    if (queriedCheckInRoutineId) {
+      setReturnCheckInRequest({
+        routineId: queriedCheckInRoutineId,
+        navigationEpoch: chatNavigationEpoch,
+      });
+      return;
+    }
+    if (
+      requestedCheckInRoutineId &&
+      returnCheckInRequest?.routineId !== requestedCheckInRoutineId
+    ) {
+      setReturnCheckInRequest(null);
+    }
+  }, [
+    chatNavigationEpoch,
+    queriedCheckInRoutineId,
+    requestedCheckInRoutineId,
+    returnCheckInRequest?.routineId,
+  ]);
+
+  useEffect(() => {
+    if (!requestedCheckInRoutineId) {
+      cleanedCheckInRoutineIdRef.current = null;
+      sourceHydrationRequestRef.current = null;
+      setSourceHydration(null);
+      return;
+    }
+    if (
+      openCheckInRoutineId ||
+      !targetSourceAssistantMessageId ||
+      sourceHydrationRequestRef.current === requestedCheckInRoutineId
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    sourceHydrationRequestRef.current = requestedCheckInRoutineId;
+    setSourceHydration({
+      routineId: requestedCheckInRoutineId,
+      status: "loading",
+    });
+
+    void (async () => {
+      try {
+        const query = new URLSearchParams({
+          sourceAssistantMessageId: targetSourceAssistantMessageId,
+        });
+        const response = await fetch(`${apiBase}/chats/${chatId}?${query}`);
+        if (!response.ok) throw new Error("Source hydration failed");
+        const payload: unknown = await response.json();
+        if (
+          typeof payload !== "object" ||
+          payload === null ||
+          !("messages" in payload) ||
+          !Array.isArray(payload.messages) ||
+          !("routines" in payload)
+        ) {
+          throw new Error("Source hydration payload is invalid");
+        }
+        const parsedRoutines = routineListSchema.safeParse(payload.routines);
+        if (!parsedRoutines.success) {
+          throw new Error("Source hydration routines are invalid");
+        }
+        const sourceRoutine = parsedRoutines.data.find(
+          (routine) =>
+            routine.id === requestedCheckInRoutineId &&
+            routine.sourceChatId === chatId &&
+            routine.sourceAssistantMessageId === targetSourceAssistantMessageId,
+        );
+        if (!sourceRoutine) {
+          if (!cancelled) {
+            setSourceHydration({
+              routineId: requestedCheckInRoutineId,
+              status: "complete",
+            });
+          }
+          return;
+        }
+
+        const sourceData = payload as ChatData;
+        const mergeSource = (current: ChatData): ChatData => {
+          const messagesById = new Map(
+            current.messages.map((message) => [message.id, message]),
+          );
+          for (const message of sourceData.messages) {
+            messagesById.set(message.id, message);
+          }
+          const routinesById = new Map(
+            current.routines.map((routine) => [routine.id, routine]),
+          );
+          routinesById.set(sourceRoutine.id, sourceRoutine);
+          return {
+            ...current,
+            messages: [...messagesById.values()].sort(
+              (left, right) =>
+                Date.parse(left.createdAt) - Date.parse(right.createdAt) ||
+                left.id.localeCompare(right.id),
+            ),
+            routines: [...routinesById.values()],
+          };
+        };
+        if (!cancelled) {
+          const merged = mergeSource(chatData);
+          setChatData(mergeSource);
+          setMessages(convertToUIMessages(merged.messages));
+          setSourceHydration({
+            routineId: requestedCheckInRoutineId,
+            status: "complete",
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setSourceHydration({
+            routineId: requestedCheckInRoutineId,
+            status: "failed",
+          });
+          toast.error("Non siamo riusciti ad aprire la routine salvata");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiBase,
+    chatData,
+    chatId,
+    openCheckInRoutineId,
+    requestedCheckInRoutineId,
+    setMessages,
+    targetSourceAssistantMessageId,
+  ]);
+
+  useEffect(() => {
+    if (!requestedCheckInRoutineId) return;
+    if (cleanedCheckInRoutineIdRef.current === requestedCheckInRoutineId) {
+      return;
+    }
+
+    if (!openCheckInRoutineId) {
+      const isHydratingTarget =
+        targetSourceAssistantMessageId !== null &&
+        (sourceHydration?.routineId !== requestedCheckInRoutineId ||
+          sourceHydration.status === "loading");
+      if (isHydratingTarget || sourceHydration?.status === "failed") return;
+      cleanedCheckInRoutineIdRef.current = requestedCheckInRoutineId;
+      router.replace(`/chat/${encodeURIComponent(chatId)}`);
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLElement &&
+      activeElement
+        .closest("[data-routine-check-in-id]")
+        ?.getAttribute("data-routine-check-in-id") === openCheckInRoutineId
+    ) {
+      cleanedCheckInRoutineIdRef.current = requestedCheckInRoutineId;
+      router.replace(`/chat/${encodeURIComponent(chatId)}`);
+    }
+  }, [
+    chatId,
+    openCheckInRoutineId,
+    requestedCheckInRoutineId,
+    router,
+    sourceHydration,
+    targetSourceAssistantMessageId,
+  ]);
+
   const hasBlockingModelComparison = streamingMessages.some((message) =>
     message.parts.some(
       (part) =>
@@ -371,6 +552,7 @@ export function ChatConversationClient({
             const refreshed = await loadRoutineChatData();
             setChatData(refreshed.data);
             setMessages(refreshed.messages);
+            await refreshActiveRoutine();
           } catch {
             // Recovery refresh is best effort; preserve the actionable conflict.
           }
@@ -406,10 +588,10 @@ export function ChatConversationClient({
       }
       setChatData(refreshed.data);
       setMessages(refreshed.messages);
-      updateActiveRoutine(refreshedRoutine);
+      await refreshActiveRoutine();
       return refreshedRoutine;
     },
-    [loadRoutineChatData, setMessages, updateActiveRoutine],
+    [loadRoutineChatData, refreshActiveRoutine, setMessages],
   );
 
   const handleSaveRoutine = useCallback(
@@ -832,6 +1014,11 @@ export function ChatConversationClient({
           );
           if (response.ok) {
             await refreshChatData();
+            try {
+              await refreshActiveRoutine();
+            } catch {
+              router.refresh();
+            }
           } else {
             if (deleteStateRef.current) {
               setMessages(deleteStateRef.current.previousMessages);

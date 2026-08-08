@@ -61,7 +61,8 @@ export default function ChatPage() {
     coachingGoal,
     isGuest,
     activeRoutine,
-    updateActiveRoutine,
+    chatNavigationEpoch,
+    refreshActiveRoutine,
     openRoutineCheckIn,
   } = useChatContext();
   const router = useRouter();
@@ -69,9 +70,10 @@ export default function ChatPage() {
   const startedPrefilledChatRef = useRef(false);
   const handledCheckInParamRef = useRef<string | null>(null);
   const routineAttemptActionIdsRef = useRef(new Map<string, string>());
-  const [landingCheckInRoutineId, setLandingCheckInRoutineId] = useState<
-    string | null
-  >(null);
+  const [landingCheckInRequest, setLandingCheckInRequest] = useState<{
+    routineId: string;
+    navigationEpoch: number;
+  } | null>(null);
   const prefilledPrompt = searchParams.get("q")?.trim() ?? "";
   const checkInRoutineId = searchParams.get("checkInRoutineId")?.trim() ?? "";
 
@@ -108,8 +110,17 @@ export default function ChatPage() {
       return;
     }
 
-    setLandingCheckInRoutineId(activeRoutine.id);
-  }, [activeRoutine, checkInRoutineId, openRoutineCheckIn, router]);
+    setLandingCheckInRequest({
+      routineId: activeRoutine.id,
+      navigationEpoch: chatNavigationEpoch,
+    });
+  }, [
+    activeRoutine,
+    chatNavigationEpoch,
+    checkInRoutineId,
+    openRoutineCheckIn,
+    router,
+  ]);
 
   const handleCreateRoutineAttempt = useCallback(
     async (
@@ -136,10 +147,10 @@ export default function ChatPage() {
         normalizedOutcomeNote,
       );
       routineAttemptActionIdsRef.current.delete(actionKey);
-      updateActiveRoutine(routine);
+      await refreshActiveRoutine();
       return routine;
     },
-    [updateActiveRoutine],
+    [refreshActiveRoutine],
   );
 
   const handleSaveRoutineOutcome = useCallback(
@@ -149,10 +160,10 @@ export default function ChatPage() {
       outcomeNote?: string | null,
     ) => {
       const routine = await saveRoutineOutcome(attemptId, outcome, outcomeNote);
-      updateActiveRoutine(routine);
+      await refreshActiveRoutine();
       return routine;
     },
-    [updateActiveRoutine],
+    [refreshActiveRoutine],
   );
 
   const greeting = isGuest
@@ -167,7 +178,10 @@ export default function ChatPage() {
         )[0]
       : null;
   const landingCheckInRoutine =
-    activeRoutine?.id === landingCheckInRoutineId ? activeRoutine : null;
+    activeRoutine?.id === landingCheckInRequest?.routineId &&
+    landingCheckInRequest?.navigationEpoch === chatNavigationEpoch
+      ? activeRoutine
+      : null;
   const hasReturningPath = mostRecentChat !== null || activeRoutine !== null;
 
   return (
@@ -200,7 +214,7 @@ export default function ChatPage() {
                 onCreateAttempt={handleCreateRoutineAttempt}
                 onSaveOutcome={handleSaveRoutineOutcome}
                 onFocused={() => router.replace("/chat")}
-                onSuccess={() => setLandingCheckInRoutineId(null)}
+                onSuccess={() => setLandingCheckInRequest(null)}
               />
             </section>
           )}

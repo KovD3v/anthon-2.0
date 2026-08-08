@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   messageFindFirst: vi.fn(),
   routineFindUnique: vi.fn(),
   routineUpsert: vi.fn(),
+  getActiveRoutineForReturn: vi.fn(),
   revalidateTag: vi.fn(),
 }));
 
@@ -19,11 +20,14 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("next/cache", () => ({ revalidateTag: mocks.revalidateTag }));
+vi.mock("@/lib/coaching/routine-return.server", () => ({
+  getActiveRoutineForReturn: mocks.getActiveRoutineForReturn,
+}));
 vi.mock("@/lib/logger", () => ({
   createLogger: () => ({ error: vi.fn() }),
 }));
 
-import { POST } from "./route";
+import { GET, POST } from "./route";
 
 const sourceAssistantMessageId = "cm123456789012345678901234";
 const proposal = {
@@ -239,5 +243,54 @@ describe("POST /api/coaching/routines", () => {
 
     expect(response.status).toBe(400);
     expect(mocks.messageFindFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/coaching/routines", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "user-1", isGuest: false },
+      error: null,
+    });
+    mocks.getActiveRoutineForReturn.mockResolvedValue({
+      id: "routine-1",
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+      status: "ACTIVE",
+      proposal,
+      archivedAt: null,
+      latestAttempt: null,
+    });
+  });
+
+  it("returns only the authenticated owner's card-safe active selector", async () => {
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    expect(mocks.getActiveRoutineForReturn).toHaveBeenCalledWith("user-1");
+    await expect(response.json()).resolves.toEqual({
+      routine: {
+        id: "routine-1",
+        sourceChatId: null,
+        sourceAssistantMessageId: null,
+        status: "ACTIVE",
+        proposal,
+        archivedAt: null,
+        latestAttempt: null,
+      },
+    });
+  });
+
+  it("rejects guests without querying private routine state", async () => {
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "guest-1", isGuest: true },
+      error: null,
+    });
+
+    const response = await GET();
+
+    expect(response.status).toBe(403);
+    expect(mocks.getActiveRoutineForReturn).not.toHaveBeenCalled();
   });
 });
