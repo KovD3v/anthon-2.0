@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { RoutineCardData } from "@/lib/coaching/routine";
 import {
@@ -37,41 +37,55 @@ export function RoutineHistory({ routine }: { routine: RoutineCardData }) {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isLoadingRef = useRef(false);
+  const latestAttemptKey = routine.latestAttempt
+    ? `${routine.latestAttempt.id}:${routine.latestAttempt.outcome ?? "pending"}`
+    : null;
 
-  async function load(cursor?: string) {
-    if (isLoading) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const page = await fetchRoutineAttempts(
-        routine.id,
-        cursor ? { cursor } : {},
-      );
-      setAttempts((current) => {
-        const merged = cursor ? [...current, ...page.attempts] : page.attempts;
-        return Array.from(
-          new Map(merged.map((attempt) => [attempt.id, attempt])).values(),
+  const load = useCallback(
+    async (cursor?: string, _attemptVersion?: string | null) => {
+      if (isLoadingRef.current) return;
+      isLoadingRef.current = true;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const page = await fetchRoutineAttempts(
+          routine.id,
+          cursor ? { cursor } : {},
         );
-      });
-      setNextCursor(page.nextCursor);
-    } catch (cause) {
-      setError(
-        cause instanceof RoutineClientError
-          ? cause.message
-          : "Non siamo riusciti a caricare lo storico. Riprova.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }
+        setAttempts((current) => {
+          const merged = cursor
+            ? [...current, ...page.attempts]
+            : page.attempts;
+          return Array.from(
+            new Map(merged.map((attempt) => [attempt.id, attempt])).values(),
+          );
+        });
+        setNextCursor(page.nextCursor);
+      } catch (cause) {
+        setError(
+          cause instanceof RoutineClientError
+            ? cause.message
+            : "Non siamo riusciti a caricare lo storico. Riprova.",
+        );
+      } finally {
+        isLoadingRef.current = false;
+        setIsLoading(false);
+      }
+    },
+    [routine.id],
+  );
 
   function toggle() {
-    setIsOpen((open) => {
-      const next = !open;
-      if (next && attempts.length === 0) void load();
-      return next;
-    });
+    setIsOpen((open) => !open);
   }
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setAttempts([]);
+    setNextCursor(null);
+    void load(undefined, latestAttemptKey);
+  }, [isOpen, latestAttemptKey, load]);
 
   return (
     <div className="mt-4 border-border/70 border-t pt-3">

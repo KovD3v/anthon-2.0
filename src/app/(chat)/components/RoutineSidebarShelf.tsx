@@ -82,7 +82,7 @@ export function RoutineSidebarShelf({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-xs"
+              className="min-h-11 min-w-11 px-2 text-xs"
               onClick={() => setIsExpanded(false)}
               aria-label="Riduci routine"
             >
@@ -98,7 +98,7 @@ export function RoutineSidebarShelf({
               type="button"
               variant={showArchived ? "ghost" : "secondary"}
               size="sm"
-              className="h-7 px-2 text-xs"
+              className="min-h-11 min-w-11 px-2 text-xs"
               aria-pressed={!showArchived}
               onClick={() => setShowArchived(false)}
             >
@@ -108,7 +108,7 @@ export function RoutineSidebarShelf({
               type="button"
               variant={showArchived ? "secondary" : "ghost"}
               size="sm"
-              className="h-7 px-2 text-xs"
+              className="min-h-11 min-w-11 px-2 text-xs"
               aria-pressed={showArchived}
               onClick={() => setShowArchived(true)}
             >
@@ -190,7 +190,7 @@ export function RoutineSidebarShelf({
           type="button"
           variant="ghost"
           size="icon"
-          className="size-8 shrink-0"
+          className="min-h-11 min-w-11 shrink-0"
           onClick={() => setIsExpanded((expanded) => !expanded)}
           aria-label={isExpanded ? "Riduci routine" : "Espandi routine"}
         >
@@ -211,7 +211,7 @@ export function RoutineSidebarShelf({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 px-1.5 text-xs"
+            className="min-h-11 min-w-11 px-1.5 text-xs"
             onClick={onRetry}
             aria-label="Riprova routine"
           >

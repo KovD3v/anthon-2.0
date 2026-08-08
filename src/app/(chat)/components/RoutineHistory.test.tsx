@@ -107,4 +107,44 @@ describe("RoutineHistory", () => {
     });
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
+
+  it("reloads visible history after the routine receives a new outcome", async () => {
+    const { rerender } = render(<RoutineHistory routine={routine} />);
+    fireEvent.click(screen.getByRole("button", { name: "Storico tentativi" }));
+    await waitFor(() =>
+      expect(mocks.fetchRoutineAttempts).toHaveBeenCalledTimes(1),
+    );
+    mocks.fetchRoutineAttempts.mockResolvedValueOnce({
+      attempts: [
+        {
+          id: "attempt-new",
+          attemptedAt: "2026-08-09T09:00:00.000Z",
+          outcome: "NOT_HELPFUL",
+          outcomeNote: null,
+          outcomeRecordedAt: "2026-08-09T09:01:00.000Z",
+        },
+      ],
+      nextCursor: null,
+    });
+
+    rerender(
+      <RoutineHistory
+        routine={{
+          ...routine,
+          latestAttempt: {
+            id: "attempt-new",
+            attemptedAt: "2026-08-09T09:00:00.000Z",
+            outcome: "NOT_HELPFUL",
+            outcomeNote: null,
+            outcomeRecordedAt: "2026-08-09T09:01:00.000Z",
+          },
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(mocks.fetchRoutineAttempts).toHaveBeenCalledTimes(2),
+    );
+    expect(screen.getByText(/^Ultimo esito: Non mi ha aiutato$/)).toBeTruthy();
+  });
 });

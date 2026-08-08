@@ -98,11 +98,26 @@ function renderProposal(
 
 afterEach(() => {
   cleanup();
+  window.sessionStorage.clear();
   mocks.trackRoutineAnalytics.mockReset();
   vi.useRealTimers();
 });
 
 describe("RoutineCard proposal", () => {
+  it("tracks a proposal once across a card remount", () => {
+    const first = renderProposal();
+    expect(mocks.trackRoutineAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "routine_proposed" }),
+    );
+    first.unmount();
+    renderProposal();
+    expect(
+      mocks.trackRoutineAnalytics.mock.calls.filter(
+        ([event]) => event.event === "routine_proposed",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("renders the actionable coaching snapshot without claiming it is active", () => {
     renderProposal();
 

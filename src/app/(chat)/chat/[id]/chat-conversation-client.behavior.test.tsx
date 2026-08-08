@@ -1157,6 +1157,107 @@ describe("ChatConversationClient routine lifecycle", () => {
     expect(mocks.routerReplace).toHaveBeenCalledOnce();
   });
 
+  it("resolves and opens a second active routine outside the loaded chat page", async () => {
+    const remoteRoutine: RoutineCardData = {
+      ...pendingActiveRoutine,
+      id: "routine-2",
+      sourceAssistantMessageId: "assistant-second",
+    };
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-2");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url === "/api/coaching/routines/routine-2") {
+          return new Response(JSON.stringify({ routine: remoteRoutine }), {
+            status: 200,
+          });
+        }
+        if (
+          url ===
+          "/api/chats/chat-1?routineId=routine-2&sourceAssistantMessageId=assistant-second"
+        ) {
+          return new Response(
+            JSON.stringify({
+              ...initialChatData,
+              messages: [sourceMessage({ id: "assistant-second" })],
+              routines: [remoteRoutine],
+              pagination: { hasMore: false, nextCursor: null },
+            }),
+            { status: 200 },
+          );
+        }
+        throw new Error(`Unexpected request: ${url}`);
+      }),
+    );
+
+    renderConversation({ ...initialChatData, routines: [] });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+        "routine-2",
+      ),
+    );
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat/chat-1"),
+    );
+  });
+
+  it("resolves an archived routine outside the loaded chat page without opening a check-in", async () => {
+    const remoteRoutine: RoutineCardData = {
+      ...activeRoutine,
+      id: "routine-archive",
+      sourceAssistantMessageId: "assistant-archive",
+      status: "ARCHIVED",
+      archivedAt: "2026-08-08T11:00:00.000Z",
+    };
+    mocks.searchParams = new URLSearchParams(
+      "checkInRoutineId=routine-archive",
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url === "/api/coaching/routines/routine-archive") {
+          return new Response(JSON.stringify({ routine: remoteRoutine }), {
+            status: 200,
+          });
+        }
+        if (
+          url ===
+          "/api/chats/chat-1?routineId=routine-archive&sourceAssistantMessageId=assistant-archive"
+        ) {
+          return new Response(
+            JSON.stringify({
+              ...initialChatData,
+              messages: [sourceMessage({ id: "assistant-archive" })],
+              routines: [remoteRoutine],
+              pagination: { hasMore: false, nextCursor: null },
+            }),
+            { status: 200 },
+          );
+        }
+        throw new Error(`Unexpected request: ${url}`);
+      }),
+    );
+
+    renderConversation({ ...initialChatData, routines: [] });
+
+    await waitFor(() =>
+      expect(
+        mocks.updateCachedChat.mock.calls.some(([, data]) =>
+          (data as ChatData).messages.some(
+            (message) => message.id === "assistant-archive",
+          ),
+        ),
+      ).toBe(true),
+    );
+    expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+      "NONE",
+    );
+    expect(mocks.routerReplace).toHaveBeenCalledWith("/chat/chat-1");
+  });
+
   it("keeps a consumed source form for the current visit but not after navigation back", async () => {
     mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
     const data = { ...initialChatData, routines: [pendingActiveRoutine] };
@@ -1620,7 +1721,7 @@ describe("ChatConversationClient routine lifecycle", () => {
     );
   });
 
-  it("clears a matching archived source query without hydrating or opening it", async () => {
+  it("hydrates a matching archived source without opening a check-in", async () => {
     const archivedRoutine: RoutineCardData = {
       ...activeRoutine,
       status: "ARCHIVED",
@@ -1628,7 +1729,17 @@ describe("ChatConversationClient routine lifecycle", () => {
     };
     mocks.activeRoutine = activeRoutine;
     mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...initialChatData,
+          messages: [sourceMessage({ id: "assistant-new" })],
+          routines: [archivedRoutine],
+          pagination: { hasMore: false, nextCursor: null },
+        }),
+        { status: 200 },
+      ),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     renderConversation({ ...initialChatData, routines: [archivedRoutine] });
@@ -1640,9 +1751,20 @@ describe("ChatConversationClient routine lifecycle", () => {
       screen.queryByRole("textbox", { name: "Check-in routine aperto" }),
     ).toBeNull();
     await waitFor(() =>
+      expect(
+        mocks.updateCachedChat.mock.calls.some(([, data]) =>
+          (data as ChatData).messages.some(
+            (message) => message.id === "assistant-new",
+          ),
+        ),
+      ).toBe(true),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/chats/chat-1?routineId=routine-1&sourceAssistantMessageId=assistant-new",
+    );
+    await waitFor(() =>
       expect(mocks.routerReplace).toHaveBeenCalledWith("/chat/chat-1"),
     );
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("clears an unknown source routine query without opening a form", async () => {

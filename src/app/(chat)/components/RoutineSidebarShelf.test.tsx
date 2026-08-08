@@ -54,6 +54,9 @@ describe("RoutineSidebarShelf", () => {
     expect(screen.getByTestId("routine-sidebar-shelf").className).toContain(
       "shrink-0",
     );
+    expect(
+      screen.getByRole("button", { name: "Espandi routine" }).className,
+    ).toContain("min-h-11");
   });
 
   it("expands upward with active/archive filter and owner-safe source href", async () => {
@@ -69,6 +72,9 @@ describe("RoutineSidebarShelf", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Espandi routine" }));
+    expect(
+      screen.getAllByRole("button", { name: "Riduci routine" })[0].className,
+    ).toContain("min-w-11");
     expect(screen.getByRole("button", { name: "Archiviate" })).toBeTruthy();
     expect(
       screen.getByRole("link", { name: /Reset rapido/ }).getAttribute("href"),

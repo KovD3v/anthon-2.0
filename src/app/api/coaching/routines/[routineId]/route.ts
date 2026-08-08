@@ -25,6 +25,28 @@ const routineInclude = {
 };
 type RouteContext = { params: Promise<{ routineId: string }> };
 
+export async function GET(_request: Request, { params }: RouteContext) {
+  try {
+    const { user, error } = await getAuthUser();
+    if (error || !user) return unauthorized(error || "Unauthorized");
+    if (user.isGuest) return forbidden();
+    const { routineId } = await params;
+    const routine = await prisma.routine.findFirst({
+      where: { id: routineId, userId: user.id },
+      include: routineInclude,
+    });
+    if (!routine) return notFound();
+    return jsonOk({ routine: toRoutineCardData(routine) });
+  } catch (error) {
+    routineLogger.error(
+      "coaching.routine_read_failed",
+      "Failed to read coaching routine",
+      { error },
+    );
+    return serverError();
+  }
+}
+
 export async function PATCH(request: Request, { params }: RouteContext) {
   try {
     const { user, error } = await getAuthUser();

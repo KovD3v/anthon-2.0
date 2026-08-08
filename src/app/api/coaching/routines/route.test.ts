@@ -160,6 +160,7 @@ describe("POST /api/coaching/routines", () => {
         sourceChatId: "chat-1",
         sourceAssistantMessageId,
         derivedFromRoutineId: null,
+        formatVersion: 1,
         ...proposal,
       },
       include: {
@@ -182,6 +183,55 @@ describe("POST /api/coaching/routines", () => {
       },
     });
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "max");
+  });
+
+  it("persists and reads back a v2 proposal with formatVersion 2", async () => {
+    const v2Proposal = {
+      formatVersion: 2 as const,
+      title: proposal.title,
+      trigger: proposal.trigger,
+      durationLabel: proposal.durationLabel,
+      completionCue: proposal.completionCue,
+      steps: [
+        { id: "ground", kind: "instruction" as const, text: "Fermati" },
+        {
+          id: "outcome",
+          kind: "form" as const,
+          question: "Quanto ti è stata utile?",
+          mode: "choice" as const,
+          options: [
+            { label: "Sì", outcome: "HELPFUL" as const },
+            { label: "In parte", outcome: "PARTIALLY_HELPFUL" as const },
+            { label: "No", outcome: "NOT_HELPFUL" as const },
+          ],
+          noteEnabled: false,
+        },
+      ],
+    };
+    mocks.messageFindFirst.mockResolvedValue({
+      chatId: "chat-1",
+      parts: [{ type: "data-coachingRoutine", data: v2Proposal }],
+    });
+    mocks.routineUpsert.mockResolvedValue({
+      ...routine,
+      formatVersion: 2,
+      steps: v2Proposal.steps,
+      attempts: [],
+    });
+
+    const response = await POST(request());
+
+    expect(mocks.routineUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          formatVersion: 2,
+          steps: v2Proposal.steps,
+        }),
+      }),
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      routine: { formatVersion: 2, proposal: { formatVersion: 2 } },
+    });
   });
 
   it("links an adaptation only to an original routine owned by the requester", async () => {

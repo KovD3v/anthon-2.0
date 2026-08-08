@@ -103,7 +103,10 @@ export function RoutineCard({
 
   useEffect(() => {
     if (proposedRoutineRef.current === sourceAssistantMessageId) return;
+    const storageKey = `routine-proposed:${sourceAssistantMessageId}`;
+    if (window.sessionStorage.getItem(storageKey)) return;
     proposedRoutineRef.current = sourceAssistantMessageId;
+    window.sessionStorage.setItem(storageKey, "1");
     trackRoutineAnalytics({
       event: "routine_proposed",
       routineId: sourceAssistantMessageId,

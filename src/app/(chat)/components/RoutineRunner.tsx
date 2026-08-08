@@ -59,6 +59,7 @@ export function RoutineRunner({
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
   const announcedTimerEndIdRef = useRef<string | null>(null);
+  const announcedBreathingPhaseRef = useRef<string | null>(null);
   const completionSubmittedRef = useRef(false);
   const currentStep = practiceSteps[state.stepIndex] ?? null;
   const remainingMs =
@@ -153,6 +154,14 @@ export function RoutineRunner({
         : "Tempo terminato",
     );
   }, [currentStep, isTimedStepComplete]);
+
+  useEffect(() => {
+    if (state.status !== "running" || !currentStep || !breathingPhase) return;
+    const key = `${currentStep.id}:${breathingPhase.cycle}:${breathingPhase.phase}`;
+    if (announcedBreathingPhaseRef.current === key) return;
+    announcedBreathingPhaseRef.current = key;
+    setAnnouncement(`${breathingPhase.label}, ciclo ${breathingPhase.cycle}`);
+  }, [breathingPhase, currentStep, state.status]);
 
   function updateState(update: (previous: typeof state) => typeof state) {
     setState((previous) => update(previous));

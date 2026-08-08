@@ -39,7 +39,7 @@ vi.mock("@/lib/logger", () => ({
   createLogger: () => ({ error: vi.fn() }),
 }));
 
-import { PATCH } from "./route";
+import { GET, PATCH } from "./route";
 
 const proposal = {
   title: "Reset dopo un errore",
@@ -186,5 +186,20 @@ describe("PATCH /api/coaching/routines/[routineId]", () => {
 
     expect(response.status).toBe(400);
     expect(mocks.routineUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/coaching/routines/[routineId]", () => {
+  it("returns the requested owner's routine for source hydration", async () => {
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "user-1", isGuest: false },
+      error: null,
+    });
+    mocks.routineFindFirst.mockResolvedValue(activeRoutine);
+    const response = await GET(new Request("http://localhost"), context);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      routine: { id: "routine-1" },
+    });
   });
 });

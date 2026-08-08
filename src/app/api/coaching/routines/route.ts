@@ -234,6 +234,7 @@ export async function POST(request: Request) {
           title: proposal.title,
           trigger: proposal.trigger,
           durationLabel: proposal.durationLabel ?? null,
+          formatVersion: "formatVersion" in proposal ? 2 : 1,
           steps: proposal.steps,
           completionCue: proposal.completionCue,
         },

@@ -179,6 +179,10 @@ export function ChatConversationClient({
     routineId: string;
     navigationEpoch: number;
   } | null>(null);
+  const [resolvedRequestedRoutine, setResolvedRequestedRoutine] =
+    useState<RoutineCardData | null>(null);
+  const [isResolvingRequestedRoutine, setIsResolvingRequestedRoutine] =
+    useState(false);
   const requestedCheckInRoutineId =
     searchParams.get("checkInRoutineId")?.trim() ?? null;
   const requestedRoutine = requestedCheckInRoutineId
@@ -186,6 +190,44 @@ export function ChatConversationClient({
         (routine) => routine.id === requestedCheckInRoutineId,
       ) ?? null)
     : null;
+  useEffect(() => {
+    if (
+      !requestedCheckInRoutineId ||
+      requestedRoutine ||
+      activeRoutine?.id === requestedCheckInRoutineId
+    ) {
+      setResolvedRequestedRoutine(null);
+      setIsResolvingRequestedRoutine(false);
+      return;
+    }
+    let cancelled = false;
+    setIsResolvingRequestedRoutine(true);
+    void fetch(`/api/coaching/routines/${requestedCheckInRoutineId}`)
+      .then(async (response) => {
+        if (!response.ok) return null;
+        const payload: unknown = await response.json();
+        const parsed = z
+          .object({ routine: routineCardDataSchema })
+          .safeParse(payload);
+        return parsed.success ? parsed.data.routine : null;
+      })
+      .then((routine) => {
+        if (!cancelled) setResolvedRequestedRoutine(routine);
+      })
+      .catch(() => {
+        if (!cancelled) setResolvedRequestedRoutine(null);
+      })
+      .finally(() => {
+        if (!cancelled) setIsResolvingRequestedRoutine(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeRoutine, requestedCheckInRoutineId, requestedRoutine]);
+  const requestedSourceRoutine =
+    requestedRoutine ??
+    (activeRoutine?.id === requestedCheckInRoutineId ? activeRoutine : null) ??
+    resolvedRequestedRoutine;
   const queriedCheckInRoutineId =
     requestedRoutine?.status === "ACTIVE" &&
     requestedRoutine.latestAttempt?.outcome === null &&
@@ -208,12 +250,8 @@ export function ChatConversationClient({
   const targetSourceAssistantMessageId =
     !isGuest &&
     requestedCheckInRoutineId &&
-    requestedRoutine === null &&
-    activeRoutine?.id === requestedCheckInRoutineId &&
-    activeRoutine.status === "ACTIVE" &&
-    activeRoutine.latestAttempt?.outcome === null &&
-    activeRoutine.sourceChatId === chatId
-      ? activeRoutine.sourceAssistantMessageId
+    requestedSourceRoutine?.sourceChatId === chatId
+      ? requestedSourceRoutine.sourceAssistantMessageId
       : null;
 
   // Initial messages from server data
@@ -434,17 +472,6 @@ export function ChatConversationClient({
         if (!parsedSource)
           throw new Error("Source hydration payload is invalid");
         const sourceRoutine = parsedSource.routine;
-        if (sourceRoutine.status !== "ACTIVE") {
-          if (!cancelled) {
-            setSourceHydration({
-              routineId: requestedCheckInRoutineId,
-              status: "complete",
-            });
-            cleanedCheckInRoutineIdRef.current = requestedCheckInRoutineId;
-            routerRef.current.replace("/chat");
-          }
-          return;
-        }
         const validatedUiMessages =
           await safeValidateUIMessages<AnthonUIMessage>({
             messages: convertToUIMessages([parsedSource.message]),
@@ -541,6 +568,7 @@ export function ChatConversationClient({
         targetSourceAssistantMessageId === null &&
         sourceHydration?.routineId === requestedCheckInRoutineId &&
         sourceHydration.status === "loading";
+      if (isResolvingRequestedRoutine) return;
       if (lostActiveHydrationTarget) {
         cleanedCheckInRoutineIdRef.current = requestedCheckInRoutineId;
         router.replace("/chat");
@@ -571,6 +599,7 @@ export function ChatConversationClient({
     openCheckInRoutineId,
     requestedCheckInRoutineId,
     requestedRoutine,
+    isResolvingRequestedRoutine,
     router,
     sourceHydration,
     targetSourceAssistantMessageId,

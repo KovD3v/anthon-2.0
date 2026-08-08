@@ -154,14 +154,17 @@ describe("RoutineRunner", () => {
     expect(screen.queryByRole("button", { name: "Fatto" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Avvia" }));
+    expect(screen.getByText("Inspira, ciclo 1")).toBeTruthy();
     act(() => vi.advanceTimersByTime(2_000));
     expect(screen.getByTestId("breathing-phase").textContent).toContain(
       "Pausa",
     );
+    expect(screen.getByText("Pausa, ciclo 1")).toBeTruthy();
     act(() => vi.advanceTimersByTime(1_000));
     expect(screen.getByTestId("breathing-phase").textContent).toContain(
       "Espira",
     );
+    expect(screen.getByText("Espira, ciclo 1")).toBeTruthy();
     act(() => vi.advanceTimersByTime(9_000));
 
     expect(props.onComplete).not.toHaveBeenCalled();
