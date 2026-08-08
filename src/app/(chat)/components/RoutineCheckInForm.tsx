@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { RoutineCardData } from "@/lib/coaching/routine";
+import { RoutineClientError } from "@/lib/coaching/routine-client";
 
 export type RoutineAttemptOutcome =
   | "HELPFUL"
@@ -26,6 +27,7 @@ interface RoutineCheckInFormProps {
   routine: RoutineCardData;
   onCreateAttempt: CreateRoutineAttempt;
   onSaveOutcome: SaveRoutineOutcome;
+  onSuccess?: (routine: RoutineCardData) => void;
 }
 
 const OUTCOMES: ReadonlyArray<{
@@ -41,6 +43,7 @@ export function RoutineCheckInForm({
   routine,
   onCreateAttempt,
   onSaveOutcome,
+  onSuccess,
 }: RoutineCheckInFormProps) {
   const [note, setNote] = useState("");
   const [pendingOutcome, setPendingOutcome] =
@@ -57,14 +60,28 @@ export function RoutineCheckInForm({
     const outcomeNote = note.trim() || null;
 
     try {
+      let updatedRoutine: RoutineCardData;
       if (routine.latestAttempt?.outcome === null) {
-        await onSaveOutcome(routine.latestAttempt.id, outcome, outcomeNote);
+        updatedRoutine = await onSaveOutcome(
+          routine.latestAttempt.id,
+          outcome,
+          outcomeNote,
+        );
       } else {
-        await onCreateAttempt(routine.id, outcome, outcomeNote);
+        updatedRoutine = await onCreateAttempt(
+          routine.id,
+          outcome,
+          outcomeNote,
+        );
       }
+      onSuccess?.(updatedRoutine);
       setStatus("Esito registrato");
-    } catch {
-      setError("Non siamo riusciti a registrare l'esito. Riprova.");
+    } catch (cause) {
+      setError(
+        cause instanceof RoutineClientError
+          ? cause.message
+          : "Non siamo riusciti a registrare l'esito. Riprova.",
+      );
     } finally {
       setPendingOutcome(null);
     }
@@ -98,7 +115,7 @@ export function RoutineCheckInForm({
             type="button"
             size="sm"
             variant="outline"
-            className="rounded-full"
+            className="min-h-11 rounded-full px-4"
             disabled={pendingOutcome !== null}
             onClick={() => submitOutcome(outcome.value)}
           >

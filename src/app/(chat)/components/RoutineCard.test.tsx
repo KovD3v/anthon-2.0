@@ -4,6 +4,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RoutineCardData } from "@/lib/coaching/routine";
+import { RoutineClientError } from "@/lib/coaching/routine-client";
 import { RoutineCard } from "./RoutineCard";
 
 const proposal = {
@@ -48,6 +49,7 @@ function renderProposal(
     onSaveOutcome: vi.fn().mockResolvedValue(activeRoutine),
     onArchive: vi.fn().mockResolvedValue(activeRoutine),
     onTryNow: vi.fn(),
+    onAdapt: vi.fn(),
     ...overrides,
   };
 
@@ -130,6 +132,26 @@ describe("RoutineCard proposal", () => {
     expect(screen.queryByText("Routine attiva")).toBeNull();
   });
 
+  it("preserves status-aware routine client copy", async () => {
+    const user = userEvent.setup();
+    renderProposal({
+      onSave: vi
+        .fn()
+        .mockRejectedValue(
+          new RoutineClientError(
+            "La proposta non è più valida. Aggiorna la chat e riprova.",
+            422,
+          ),
+        ),
+    });
+
+    await user.click(screen.getByRole("button", { name: "Salva routine" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "La proposta non è più valida. Aggiorna la chat e riprova.",
+    );
+  });
+
   it("prefills the composer without creating an attempt", async () => {
     const user = userEvent.setup();
     const onTryNow = vi.fn();
@@ -181,5 +203,124 @@ describe("RoutineCard active lifecycle", () => {
 
     await user.click(screen.getByRole("button", { name: "Archivia routine" }));
     expect(onArchive).toHaveBeenCalledWith("routine-1");
+  });
+
+  it("distinguishes a pending attempt and prioritizes check-in and adaptation", () => {
+    const pendingAttemptRoutine: RoutineCardData = {
+      ...activeRoutine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    };
+
+    renderProposal({ routine: pendingAttemptRoutine });
+
+    expect(screen.getByText("Tentativo segnato")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Com'è andata?" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Adatta la routine" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Segna un tentativo" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Archivia routine" }),
+    ).toBeNull();
+  });
+
+  it("distinguishes a recorded outcome and adapts without mutating the routine", async () => {
+    const completedRoutine: RoutineCardData = {
+      ...activeRoutine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: "HELPFUL",
+        outcomeNote: "Mi sono sentito presente",
+        outcomeRecordedAt: "2026-08-08T09:05:00.000Z",
+      },
+    };
+    const onAdapt = vi.fn();
+    const onCreateAttempt = vi.fn();
+    const onSaveOutcome = vi.fn();
+    const user = userEvent.setup();
+
+    renderProposal({
+      routine: completedRoutine,
+      onAdapt,
+      onCreateAttempt,
+      onSaveOutcome,
+    });
+
+    expect(screen.getByText("Esito registrato")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Com'è andata?" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Segna un tentativo" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Archivia routine" }),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Adatta la routine" }));
+
+    expect(onAdapt).toHaveBeenCalledOnce();
+    expect(onCreateAttempt).not.toHaveBeenCalled();
+    expect(onSaveOutcome).not.toHaveBeenCalled();
+  });
+
+  it("closes a successful check-in but preserves the note and form after failure", async () => {
+    const onCreateAttempt = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({
+        ...activeRoutine,
+        latestAttempt: {
+          id: "attempt-1",
+          attemptedAt: "2026-08-08T09:00:00.000Z",
+          outcome: "PARTIALLY_HELPFUL",
+          outcomeNote: "  Ho perso il ritmo  ",
+          outcomeRecordedAt: "2026-08-08T09:05:00.000Z",
+        },
+      });
+    const user = userEvent.setup();
+    renderProposal({ routine: activeRoutine, onCreateAttempt });
+
+    await user.click(screen.getByRole("button", { name: "Com'è andata?" }));
+    const note = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Nota facoltativa",
+    });
+    await user.type(note, "Ho perso il ritmo");
+    await user.click(screen.getByRole("button", { name: "In parte" }));
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(note.value).toBe("Ho perso il ritmo");
+    expect(
+      screen.getByRole("group", { name: "Esito del tentativo" }),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "In parte" }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("group", { name: "Esito del tentativo" }),
+      ).toBeNull(),
+    );
+  });
+
+  it("gives every routine action a mobile-sized target", () => {
+    renderProposal({ routine: activeRoutine });
+
+    for (const name of [
+      "Segna un tentativo",
+      "Com'è andata?",
+      "Archivia routine",
+    ]) {
+      expect(screen.getByRole("button", { name }).className).toContain(
+        "min-h-11",
+      );
+    }
   });
 });

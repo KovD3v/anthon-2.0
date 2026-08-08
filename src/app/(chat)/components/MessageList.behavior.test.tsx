@@ -119,6 +119,7 @@ function renderMessageList(
     onSaveRoutineOutcome: vi.fn().mockResolvedValue(activeRoutine),
     onArchiveRoutine: vi.fn().mockResolvedValue(activeRoutine),
     onTryRoutineNow: vi.fn(),
+    onAdaptRoutine: vi.fn(),
     ...overrides,
   };
 

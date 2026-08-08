@@ -5,7 +5,6 @@ import { Send, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { useDebouncedCallback } from "@/hooks/useDebounce";
 import type { AttachmentData } from "@/types/chat";
 import { CHAT_REACTIVITY_COPY } from "../chat/chat-reactivity-ui";
 import { AttachmentButton, AttachmentPreview } from "./Attachments";
@@ -57,24 +56,20 @@ export function ChatInput({
     (!input.trim() && attachments.length === 0);
 
   useEffect(() => {
-    if (
-      focusRequestId === undefined ||
-      focusRequestId === previousFocusRequestIdRef.current
-    ) {
-      return;
-    }
-
-    previousFocusRequestIdRef.current = focusRequestId;
-    textareaRef.current?.focus();
-  }, [focusRequestId]);
-
-  const adjustHeight = useDebouncedCallback(() => {
     const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = "auto";
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+    if (!textarea) return;
+
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+
+    if (
+      focusRequestId !== undefined &&
+      focusRequestId !== previousFocusRequestIdRef.current
+    ) {
+      previousFocusRequestIdRef.current = focusRequestId;
+      textarea.focus();
     }
-  }, 16); // ~60fps debounce
+  });
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -272,7 +267,6 @@ export function ChatInput({
               const nextInput = e.target.value;
               setInput(nextInput);
               onInputWarmup?.(nextInput);
-              adjustHeight();
             }}
             placeholder={disabledReason ?? "Scrivi un messaggio…"}
             rows={1}

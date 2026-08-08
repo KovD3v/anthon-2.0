@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { RoutineCardData, RoutineProposal } from "@/lib/coaching/routine";
+import { RoutineClientError } from "@/lib/coaching/routine-client";
 import {
   type CreateRoutineAttempt,
   RoutineCheckInForm,
@@ -22,6 +23,7 @@ interface RoutineCardProps {
   onSaveOutcome: SaveRoutineOutcome;
   onArchive: (routineId: string) => Promise<RoutineCardData>;
   onTryNow: () => void;
+  onAdapt: () => void;
   openCheckIn?: boolean;
 }
 
@@ -38,6 +40,7 @@ export function RoutineCard({
   onSaveOutcome,
   onArchive,
   onTryNow,
+  onAdapt,
   openCheckIn = false,
 }: RoutineCardProps) {
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
@@ -47,6 +50,20 @@ export function RoutineCard({
   const snapshot = routine?.proposal ?? proposal;
   const isArchived = routine?.status === "ARCHIVED";
   const isActive = routine?.status === "ACTIVE";
+  const hasPendingAttempt = isActive && routine.latestAttempt?.outcome === null;
+  const hasRecordedOutcome =
+    isActive &&
+    routine.latestAttempt?.outcome !== null &&
+    routine.latestAttempt;
+  const lifecycleLabel = isArchived
+    ? "Routine archiviata"
+    : hasRecordedOutcome
+      ? "Esito registrato"
+      : hasPendingAttempt
+        ? "Tentativo segnato"
+        : isActive
+          ? "Routine attiva"
+          : "Routine proposta";
 
   useEffect(() => {
     if (openCheckIn && isActive) {
@@ -68,8 +85,10 @@ export function RoutineCard({
     try {
       await operation();
       if (successMessage) setStatus(successMessage);
-    } catch {
-      setError(errorMessage);
+    } catch (cause) {
+      setError(
+        cause instanceof RoutineClientError ? cause.message : errorMessage,
+      );
     } finally {
       setPendingAction(null);
     }
@@ -82,11 +101,7 @@ export function RoutineCard({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {isArchived
-            ? "Routine archiviata"
-            : isActive
-              ? "Routine attiva"
-              : "Routine proposta"}
+          {lifecycleLabel}
         </p>
         {snapshot.durationLabel && (
           <span className="rounded-full border border-border/70 px-2.5 py-1 text-xs text-muted-foreground">
@@ -147,14 +162,14 @@ export function RoutineCard({
         <div className="mt-5 flex flex-wrap items-center gap-2">
           {!isActive &&
             (isGuest ? (
-              <Button asChild size="sm" className="rounded-full">
+              <Button asChild size="sm" className="min-h-11 rounded-full px-4">
                 <Link href={registrationHref}>Salva routine</Link>
               </Button>
             ) : (
               <Button
                 type="button"
                 size="sm"
-                className="rounded-full"
+                className="min-h-11 rounded-full px-4"
                 disabled={pendingAction !== null}
                 onClick={() =>
                   runAction(
@@ -171,11 +186,11 @@ export function RoutineCard({
               </Button>
             ))}
 
-          {isActive && routine && (
+          {isActive && routine && !routine.latestAttempt && (
             <Button
               type="button"
               size="sm"
-              className="rounded-full"
+              className="min-h-11 rounded-full px-4"
               disabled={pendingAction !== null}
               onClick={() =>
                 runAction(
@@ -193,23 +208,38 @@ export function RoutineCard({
             </Button>
           )}
 
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="rounded-full"
-            disabled={pendingAction !== null}
-            onClick={isActive ? () => setIsCheckInOpen(true) : onTryNow}
-          >
-            {isActive ? "Com'è andata?" : "La provo ora"}
-          </Button>
+          {(!isActive || !hasRecordedOutcome) && (
+            <Button
+              type="button"
+              size="sm"
+              variant={hasPendingAttempt ? "default" : "outline"}
+              className="min-h-11 rounded-full px-4"
+              disabled={pendingAction !== null}
+              onClick={isActive ? () => setIsCheckInOpen(true) : onTryNow}
+            >
+              {isActive ? "Com'è andata?" : "La provo ora"}
+            </Button>
+          )}
 
-          {isActive && routine && (
+          {isActive && routine?.latestAttempt && (
+            <Button
+              type="button"
+              size="sm"
+              variant={hasRecordedOutcome ? "default" : "outline"}
+              className="min-h-11 rounded-full px-4"
+              disabled={pendingAction !== null}
+              onClick={onAdapt}
+            >
+              Adatta la routine
+            </Button>
+          )}
+
+          {isActive && routine && !hasPendingAttempt && (
             <Button
               type="button"
               size="sm"
               variant="ghost"
-              className="rounded-full text-muted-foreground hover:text-destructive"
+              className="min-h-11 rounded-full px-4 text-muted-foreground hover:text-destructive"
               disabled={pendingAction !== null}
               onClick={() =>
                 runAction(
@@ -263,6 +293,7 @@ export function RoutineCard({
           routine={routine}
           onCreateAttempt={onCreateAttempt}
           onSaveOutcome={onSaveOutcome}
+          onSuccess={() => setIsCheckInOpen(false)}
         />
       )}
     </section>

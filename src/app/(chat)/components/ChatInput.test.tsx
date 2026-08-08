@@ -7,6 +7,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AttachmentData } from "@/types/chat";
@@ -98,6 +99,67 @@ describe("ChatInput keyboard behavior", () => {
     view.rerender(<ChatInput {...props} focusRequestId={1} />);
 
     expect(document.activeElement).toBe(textarea);
+    expect(props.onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("keeps a focus request pending while audio hides the textarea", async () => {
+    const props = {
+      input: "Inizio ora la routine",
+      isLoading: false,
+      focusRequestId: 0,
+      setInput: vi.fn(),
+      onSubmit: vi.fn(),
+      onStop: vi.fn(),
+    };
+    const user = userEvent.setup();
+    const view = render(<ChatInput {...props} />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Registra messaggio vocale" }),
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Scrivi un messaggio" }),
+    ).toBeNull();
+
+    view.rerender(<ChatInput {...props} focusRequestId={1} />);
+    await user.click(
+      screen.getByRole("button", { name: `Rimuovi ${recordedAudio.name}` }),
+    );
+
+    const restoredTextarea = await screen.findByRole("textbox", {
+      name: "Scrivi un messaggio",
+    });
+    await waitFor(() => expect(document.activeElement).toBe(restoredTextarea));
+    expect(props.onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("resizes the textarea when an external routine prefill changes input", async () => {
+    const props = {
+      input: "",
+      isLoading: false,
+      focusRequestId: 0,
+      setInput: vi.fn(),
+      onSubmit: vi.fn(),
+      onStop: vi.fn(),
+    };
+    const view = render(<ChatInput {...props} />);
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Scrivi un messaggio",
+    });
+    Object.defineProperty(textarea, "scrollHeight", {
+      configurable: true,
+      value: 144,
+    });
+
+    view.rerender(
+      <ChatInput
+        {...props}
+        input="Inizio ora la routine: Reset rapido. Ti aggiorno dopo il tentativo."
+        focusRequestId={1}
+      />,
+    );
+
+    await waitFor(() => expect(textarea.style.height).toBe("144px"));
     expect(props.onSubmit).not.toHaveBeenCalled();
   });
 

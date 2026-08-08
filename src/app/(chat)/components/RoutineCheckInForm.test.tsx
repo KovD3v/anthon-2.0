@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RoutineCardData } from "@/lib/coaching/routine";
+import { RoutineClientError } from "@/lib/coaching/routine-client";
 import { RoutineCheckInForm } from "./RoutineCheckInForm";
 
 const routine: RoutineCardData = {
@@ -138,5 +139,35 @@ describe("RoutineCheckInForm", () => {
         name: "Mi ha aiutato",
       }).disabled,
     ).toBe(false);
+  });
+
+  it("preserves status-aware conflict copy", async () => {
+    const user = userEvent.setup();
+    renderForm(routine, {
+      onCreateAttempt: vi
+        .fn()
+        .mockRejectedValue(
+          new RoutineClientError(
+            "La routine non è più attiva. Aggiorna la chat e riprova.",
+            409,
+          ),
+        ),
+    });
+
+    await user.click(screen.getByRole("button", { name: "Mi ha aiutato" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "La routine non è più attiva. Aggiorna la chat e riprova.",
+    );
+  });
+
+  it("gives each outcome a mobile-sized action target", () => {
+    renderForm();
+
+    for (const name of ["Mi ha aiutato", "In parte", "Non ha aiutato"]) {
+      expect(screen.getByRole("button", { name }).className).toContain(
+        "min-h-11",
+      );
+    }
   });
 });

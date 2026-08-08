@@ -9,7 +9,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentProps } from "react";
+import { type ComponentProps, useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RoutineCardData } from "@/lib/coaching/routine";
 import type { ChatData } from "@/types/chat";
@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   },
   clearError: vi.fn(),
   isGuest: true,
+  confirmMode: "auto" as "auto" | "dialog",
 }));
 
 vi.mock("@ai-sdk/react", () => ({
@@ -81,19 +82,43 @@ vi.mock("posthog-js", () => ({
 }));
 
 vi.mock("@/hooks/use-confirm", () => ({
-  useConfirm: () => ({
-    confirm: mocks.confirm,
-    isOpen: false,
-    options: {
+  useConfirm: () => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [options, setOptions] = useState({
       title: "",
       description: "",
       confirmText: "",
       cancelText: "",
-      variant: "default",
-    },
-    handleConfirm: vi.fn(),
-    setIsOpen: vi.fn(),
-  }),
+      variant: "default" as "default" | "destructive",
+    });
+    const resolveRef = useRef<((value: boolean) => void) | null>(null);
+
+    return {
+      confirm: (nextOptions: typeof options) => {
+        const automaticDecision = mocks.confirm(nextOptions);
+        if (mocks.confirmMode === "auto") return automaticDecision;
+
+        setOptions(nextOptions);
+        setIsOpen(true);
+        return new Promise<boolean>((resolve) => {
+          resolveRef.current = resolve;
+        });
+      },
+      isOpen,
+      options,
+      handleConfirm: () => {
+        resolveRef.current?.(true);
+        resolveRef.current = null;
+        setIsOpen(false);
+      },
+      handleCancel: () => {
+        resolveRef.current?.(false);
+        resolveRef.current = null;
+        setIsOpen(false);
+      },
+      setIsOpen,
+    };
+  },
 }));
 
 vi.mock("@/lib/chat-client", () => ({
@@ -181,6 +206,7 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
       throw new Error("Routine archive callback missing");
     },
     onTryRoutineNow = () => undefined,
+    onAdaptRoutine = () => undefined,
   }: ComponentProps<"div"> & {
     messages: Array<{ id: string; parts: Array<{ text?: string }> }>;
     isRegenerating?: boolean;
@@ -211,103 +237,201 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
     ) => Promise<RoutineCardData>;
     onArchiveRoutine: (routineId: string) => Promise<RoutineCardData>;
     onTryRoutineNow: (title: string) => void;
-  }) => (
-    <div>
-      <output data-testid="routine-state">
-        {routines[0]
-          ? `${routines[0].status}:${routines[0].latestAttempt?.outcome ?? "NO_OUTCOME"}`
-          : "PROPOSED"}
-      </output>
-      <output data-testid="routine-render-eligible">
-        {String(canRenderRoutineCards)}
-      </output>
-      <output data-testid="feedback-enabled">
-        {String(
-          canSubmitFeedback &&
-            feedbackMessageIds?.has(messages.at(-1)?.id ?? ""),
+    onAdaptRoutine: (title: string) => void;
+  }) => {
+    const [archivePending, setArchivePending] = useState(false);
+    const [routineActionError, setRoutineActionError] = useState<string | null>(
+      null,
+    );
+    const [routineActionSuccess, setRoutineActionSuccess] = useState(false);
+    const runRoutineAction = async (
+      operation: () => Promise<RoutineCardData>,
+    ) => {
+      setRoutineActionError(null);
+      setRoutineActionSuccess(false);
+      try {
+        await operation();
+        setRoutineActionSuccess(true);
+      } catch (error) {
+        setRoutineActionError(
+          error instanceof Error ? error.message : "Errore routine",
+        );
+      }
+    };
+
+    return (
+      <div>
+        {routineActionError && (
+          <output data-testid="routine-action-error">
+            {routineActionError}
+          </output>
         )}
-      </output>
-      <output data-testid="regenerating">{String(isRegenerating)}</output>
-      <ol aria-label="Messaggi">
-        {messages.map((message) => (
-          <li key={message.id}>{message.parts[0]?.text}</li>
-        ))}
-      </ol>
-      <button type="button" disabled={isLoadingMore} onClick={onLoadMore}>
-        {isLoadingMore ? "Caricamento" : "Carica precedenti"}
-      </button>
-      <button
-        type="button"
-        onClick={() => onEditStart("user-new", "Domanda nuova")}
-      >
-        Modifica
-      </button>
-      {editingMessageId && (
-        <button type="button" onClick={onEditSave}>
-          Salva modifica
+        {routineActionSuccess && (
+          <output data-testid="routine-action-success">
+            Azione routine completata
+          </output>
+        )}
+        <output data-testid="routine-state">
+          {routines[0]
+            ? `${routines[0].status}:${routines[0].latestAttempt?.outcome ?? "NO_OUTCOME"}`
+            : "PROPOSED"}
+        </output>
+        <output data-testid="routine-render-eligible">
+          {String(canRenderRoutineCards)}
+        </output>
+        <output data-testid="feedback-enabled">
+          {String(
+            canSubmitFeedback &&
+              feedbackMessageIds?.has(messages.at(-1)?.id ?? ""),
+          )}
+        </output>
+        <output data-testid="regenerating">{String(isRegenerating)}</output>
+        <ol aria-label="Messaggi">
+          {messages.map((message) => (
+            <li key={message.id}>{message.parts[0]?.text}</li>
+          ))}
+        </ol>
+        <button type="button" disabled={isLoadingMore} onClick={onLoadMore}>
+          {isLoadingMore ? "Caricamento" : "Carica precedenti"}
         </button>
-      )}
-      <button type="button" onClick={() => onDelete("user-new")}>
-        {deletingMessageId ? "Eliminazione" : "Elimina"}
-      </button>
-      <button type="button" onClick={onRegenerate}>
-        Rigenera
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          void onSaveRoutine("assistant-new").catch(() => undefined)
-        }
-      >
-        Salva routine test
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          void onCreateRoutineAttempt("routine-1").catch(() => undefined)
-        }
-      >
-        Segna tentativo test
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          void onCreateRoutineAttempt(
-            "routine-1",
-            "HELPFUL",
-            "Nota test",
-          ).catch(() => undefined)
-        }
-      >
-        Primo esito test
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          void onSaveRoutineOutcome("attempt-1", "HELPFUL", "Nota test").catch(
-            () => undefined,
-          )
-        }
-      >
-        Aggiorna esito test
-      </button>
-      <button type="button" onClick={() => onTryRoutineNow("Reset rapido")}>
-        Prova ora test
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          void onArchiveRoutine("routine-1").catch(() => undefined)
-        }
-      >
-        Archivia routine test
-      </button>
-    </div>
-  ),
+        <button
+          type="button"
+          onClick={() => onEditStart("user-new", "Domanda nuova")}
+        >
+          Modifica
+        </button>
+        {editingMessageId && (
+          <button type="button" onClick={onEditSave}>
+            Salva modifica
+          </button>
+        )}
+        <button type="button" onClick={() => onDelete("user-new")}>
+          {deletingMessageId ? "Eliminazione" : "Elimina"}
+        </button>
+        <button type="button" onClick={onRegenerate}>
+          Rigenera
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void runRoutineAction(() => onSaveRoutine("assistant-new"))
+          }
+        >
+          Salva routine test
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void runRoutineAction(() => onCreateRoutineAttempt("routine-1"))
+          }
+        >
+          Segna tentativo test
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void runRoutineAction(() =>
+              onCreateRoutineAttempt("routine-1", "HELPFUL", "Nota test"),
+            )
+          }
+        >
+          Primo esito test
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void runRoutineAction(() =>
+              onCreateRoutineAttempt("routine-1", "HELPFUL", "  Nota test  "),
+            )
+          }
+        >
+          Primo esito con spazi test
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void runRoutineAction(() =>
+              onCreateRoutineAttempt(
+                "routine-1",
+                "PARTIALLY_HELPFUL",
+                "Nota diversa",
+              ),
+            )
+          }
+        >
+          Esito cambiato test
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void runRoutineAction(() =>
+              onSaveRoutineOutcome("attempt-1", "HELPFUL", "Nota test"),
+            )
+          }
+        >
+          Aggiorna esito test
+        </button>
+        <button type="button" onClick={() => onTryRoutineNow("Reset rapido")}>
+          Prova ora test
+        </button>
+        <button type="button" onClick={() => onAdaptRoutine("Reset rapido")}>
+          Adatta routine test
+        </button>
+        <button
+          type="button"
+          disabled={archivePending}
+          onClick={async () => {
+            setArchivePending(true);
+            try {
+              await onArchiveRoutine("routine-1");
+            } catch {
+              // The production card renders the recoverable error.
+            } finally {
+              setArchivePending(false);
+            }
+          }}
+        >
+          {archivePending
+            ? "Archiviazione routine test"
+            : "Archivia routine test"}
+        </button>
+      </div>
+    );
+  },
 }));
 
 vi.mock("@/components/ui/confirm-dialog", () => ({
-  ConfirmDialog: () => null,
+  ConfirmDialog: ({
+    open,
+    onOpenChange,
+    onConfirm,
+    title,
+    confirmText,
+    cancelText,
+  }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onConfirm: () => void;
+    title: string;
+    confirmText?: string;
+    cancelText?: string;
+  }) =>
+    open ? (
+      <div
+        role="dialog"
+        aria-label={title}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onOpenChange(false);
+        }}
+      >
+        <button type="button" onClick={() => onOpenChange(false)}>
+          {cancelText}
+        </button>
+        <button type="button" onClick={onConfirm}>
+          {confirmText}
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock("../chat-input-warmup", () => ({
@@ -382,6 +506,7 @@ beforeEach(() => {
   mocks.chatState.status = "ready";
   mocks.chatState.error = null;
   mocks.isGuest = true;
+  mocks.confirmMode = "auto";
   mocks.confirm.mockResolvedValue(true);
   mocks.sendMessage.mockResolvedValue(undefined);
   vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -841,16 +966,22 @@ describe("ChatConversationClient routine lifecycle", () => {
     );
   });
 
-  it("keeps the proposal unsaved after a 422 response", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
+  it("refreshes authoritative chat state after a 422 and preserves its useful error", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
         new Response(JSON.stringify({ error: "Proposal invalid" }), {
           status: 422,
           headers: { "Content-Type": "application/json" },
         }),
-      ),
-    );
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(initialChatData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     renderConversation();
 
@@ -858,9 +989,122 @@ describe("ChatConversationClient routine lifecycle", () => {
       screen.getByRole("button", { name: "Salva routine test" }),
     );
 
-    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(screen.getByTestId("routine-state").textContent).toBe("PROPOSED");
+    expect(screen.getByTestId("routine-action-error").textContent).toBe(
+      "La proposta non è più valida. Aggiorna la chat e riprova.",
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/chats/chat-1");
+    expect(mocks.setMessages).toHaveBeenCalled();
+  });
+
+  it("refreshes an archived routine after a 409 before exposing the conflict", async () => {
+    const archivedRoutine: RoutineCardData = {
+      ...activeRoutine,
+      status: "ARCHIVED",
+      archivedAt: "2026-08-08T11:00:00.000Z",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Routine is archived" }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ ...initialChatData, routines: [archivedRoutine] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation({ ...initialChatData, routines: [activeRoutine] });
+
+    await user.click(
+      screen.getByRole("button", { name: "Segna tentativo test" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-state").textContent).toBe(
+        "ARCHIVED:NO_OUTCOME",
+      ),
+    );
+    expect(screen.getByTestId("routine-action-error").textContent).toBe(
+      "La routine non è più attiva. Aggiorna la chat e riprova.",
+    );
+    expect(mocks.setMessages).toHaveBeenCalled();
+  });
+
+  it("rejects a successful mutation when the required chat refresh fails", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ routine: activeRoutine }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockRejectedValueOnce(new Error("refresh offline"));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation();
+
+    await user.click(
+      screen.getByRole("button", { name: "Salva routine test" }),
+    );
+
+    expect(
+      (await screen.findByTestId("routine-action-error")).textContent,
+    ).toBe(
+      "Routine aggiornata, ma non siamo riusciti ad aggiornare la chat. Riprova.",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(mocks.setMessages).not.toHaveBeenCalled();
+  });
+
+  it("does not announce success when refresh returns stale routine state", async () => {
+    const attemptedRoutine: RoutineCardData = {
+      ...activeRoutine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T10:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ routine: attemptedRoutine }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ ...initialChatData, routines: [activeRoutine] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation({ ...initialChatData, routines: [activeRoutine] });
+
+    await user.click(
+      screen.getByRole("button", { name: "Segna tentativo test" }),
+    );
+
+    expect(await screen.findByTestId("routine-action-error")).toHaveProperty(
+      "textContent",
+      "La chat non mostra ancora l'ultimo aggiornamento della routine. Riprova.",
+    );
+    expect(screen.queryByTestId("routine-action-success")).toBeNull();
+    expect(screen.getByTestId("routine-state").textContent).toBe(
+      "ACTIVE:NO_OUTCOME",
+    );
   });
 
   it("rejects a malformed success payload without showing a saved routine", async () => {
@@ -886,11 +1130,21 @@ describe("ChatConversationClient routine lifecycle", () => {
   });
 
   it("reuses the same client action id when an attempt gets a 409 and is retried", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: "Routine is archived" }), {
-        status: 409,
-        headers: { "Content-Type": "application/json" },
-      }),
+    const fetchMock = vi.fn().mockImplementation((url: string) =>
+      Promise.resolve(
+        url === "/api/chats/chat-1"
+          ? new Response(
+              JSON.stringify({ ...initialChatData, routines: [activeRoutine] }),
+              {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              },
+            )
+          : new Response(JSON.stringify({ error: "Routine is archived" }), {
+              status: 409,
+              headers: { "Content-Type": "application/json" },
+            }),
+      ),
     );
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -900,12 +1154,12 @@ describe("ChatConversationClient routine lifecycle", () => {
     });
 
     await user.click(attempt);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    await user.click(attempt);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await user.click(attempt);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
 
     const firstBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
-    const retryBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    const retryBody = JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body));
     expect(firstBody.clientActionId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
@@ -913,6 +1167,43 @@ describe("ChatConversationClient routine lifecycle", () => {
     expect(screen.getByTestId("routine-state").textContent).toBe(
       "ACTIVE:NO_OUTCOME",
     );
+  });
+
+  it("reuses one client action id only for the same normalized check-in payload", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("offline"));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation({ ...initialChatData, routines: [activeRoutine] });
+
+    await user.click(screen.getByRole("button", { name: "Primo esito test" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await user.click(
+      screen.getByRole("button", { name: "Primo esito con spazi test" }),
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    const firstBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    const retryBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(retryBody.clientActionId).toBe(firstBody.clientActionId);
+    expect(retryBody.outcomeNote).toBe("Nota test");
+  });
+
+  it("generates a new client action id when the failed check-in payload changes", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("offline"));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation({ ...initialChatData, routines: [activeRoutine] });
+
+    await user.click(screen.getByRole("button", { name: "Primo esito test" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await user.click(
+      screen.getByRole("button", { name: "Esito cambiato test" }),
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    const firstBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    const changedBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(changedBody.clientActionId).not.toBe(firstBody.clientActionId);
   });
 
   it("keeps the pending attempt unchanged after a network outcome failure", async () => {
@@ -1015,6 +1306,28 @@ describe("ChatConversationClient routine lifecycle", () => {
     expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 
+  it("prefills an adaptation request without mutating or sending", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation({ ...initialChatData, routines: [activeRoutine] });
+
+    await user.click(
+      screen.getByRole("button", { name: "Adatta routine test" }),
+    );
+
+    expect(
+      screen.getByRole<HTMLInputElement>("textbox", {
+        name: "Messaggio di test",
+      }).value,
+    ).toBe(
+      'Vorrei adattare la routine "Reset rapido" dopo l\'ultimo tentativo. Aiutami a renderla più efficace.',
+    );
+    expect(screen.getByTestId("focus-request").textContent).toBe("1");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("archives only after the existing confirmation primitive resolves", async () => {
     const archivedRoutine: RoutineCardData = {
       ...activeRoutine,
@@ -1063,4 +1376,43 @@ describe("ChatConversationClient routine lifecycle", () => {
       }),
     );
   });
+
+  it.each(["cancel button", "Escape"] as const)(
+    "resolves archive cancellation from %s and restores the action without PATCH",
+    async (dismissal) => {
+      mocks.confirmMode = "dialog";
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderConversation({ ...initialChatData, routines: [activeRoutine] });
+
+      await user.click(
+        screen.getByRole("button", { name: "Archivia routine test" }),
+      );
+
+      expect(
+        screen.getByRole<HTMLButtonElement>("button", {
+          name: "Archiviazione routine test",
+        }).disabled,
+      ).toBe(true);
+
+      if (dismissal === "cancel button") {
+        await user.click(screen.getByRole("button", { name: "Annulla" }));
+      } else {
+        fireEvent.keyDown(
+          screen.getByRole("dialog", { name: "Archiviare la routine?" }),
+          { key: "Escape" },
+        );
+      }
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole<HTMLButtonElement>("button", {
+            name: "Archivia routine test",
+          }).disabled,
+        ).toBe(false),
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
 });

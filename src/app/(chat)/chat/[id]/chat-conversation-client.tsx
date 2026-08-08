@@ -19,12 +19,14 @@ import {
 } from "@/lib/chat-client";
 import {
   type RoutineCardData,
+  routineCardDataSchema,
   routineProposalSchema,
 } from "@/lib/coaching/routine";
 import {
   archiveRoutine,
   createRoutineAttempt,
   type RoutineAttemptOutcome,
+  RoutineClientError,
   saveRoutineOutcome,
   saveRoutineProposal,
 } from "@/lib/coaching/routine-client";
@@ -55,6 +57,7 @@ interface DeleteSnapshot {
 
 const VOICE_GENERATION_POLL_INITIAL_DELAY_MS = 750;
 const VOICE_GENERATION_POLL_MAX_ATTEMPTS = 30;
+const routineListSchema = routineCardDataSchema.array();
 
 const messageMetadataSchema = z.object({
   inputTokens: z.number().optional(),
@@ -134,7 +137,8 @@ export function ChatConversationClient({
   const [comparisonDeltas, setComparisonDeltas] = useState<
     Record<string, Partial<Record<ModelComparisonSlot, string>>>
   >({});
-  const { confirm, isOpen, options, handleConfirm, setIsOpen } = useConfirm();
+  const { confirm, isOpen, options, handleConfirm, handleCancel, setIsOpen } =
+    useConfirm();
 
   const trialActivationAttemptedRef = useRef(false);
   const trialActivationInFlightRef = useRef(false);
@@ -276,11 +280,57 @@ export function ChatConversationClient({
     }
   }, [refreshChatData, setMessages]);
 
+  const refreshRoutineChatData = useCallback(async (): Promise<ChatData> => {
+    try {
+      const response = await fetch(`${apiBase}/chats/${chatId}`);
+      if (!response.ok) {
+        throw new Error(`Chat refresh failed with ${response.status}`);
+      }
+
+      const payload: unknown = await response.json();
+      if (
+        typeof payload !== "object" ||
+        payload === null ||
+        !("messages" in payload) ||
+        !Array.isArray(payload.messages) ||
+        !("routines" in payload)
+      ) {
+        throw new Error("Chat refresh payload is invalid");
+      }
+      const parsedRoutines = routineListSchema.safeParse(payload.routines);
+      if (!parsedRoutines.success) {
+        throw new Error("Chat refresh routines are invalid");
+      }
+
+      const data = { ...payload, routines: parsedRoutines.data } as ChatData;
+      const refreshedMessages = convertToUIMessages(data.messages);
+      setChatData(data);
+      setMessages(refreshedMessages);
+      return data;
+    } catch {
+      throw new RoutineClientError(
+        "Non siamo riusciti ad aggiornare lo stato della routine. Riprova.",
+        null,
+      );
+    }
+  }, [apiBase, chatId, setMessages]);
+
   const applyRoutineMutation = useCallback(
     async (
       operation: () => Promise<RoutineCardData>,
     ): Promise<RoutineCardData> => {
-      const routine = await operation();
+      let routine: RoutineCardData;
+      try {
+        routine = await operation();
+      } catch (cause) {
+        if (
+          cause instanceof RoutineClientError &&
+          (cause.status === 409 || cause.status === 422)
+        ) {
+          await refreshRoutineChatData();
+        }
+        throw cause;
+      }
       setChatData((current) => {
         const matchingIndex = current.routines.findIndex(
           (candidate) =>
@@ -298,13 +348,35 @@ export function ChatConversationClient({
         return { ...current, routines };
       });
 
-      const refreshedMessages = await refreshChatData();
-      if (refreshedMessages) {
-        setMessages(refreshedMessages);
+      let refreshedData: ChatData;
+      try {
+        refreshedData = await refreshRoutineChatData();
+      } catch {
+        throw new RoutineClientError(
+          "Routine aggiornata, ma non siamo riusciti ad aggiornare la chat. Riprova.",
+          null,
+        );
       }
-      return routine;
+
+      const refreshedRoutine = refreshedData.routines.find(
+        (candidate) =>
+          candidate.id === routine.id ||
+          (routine.sourceAssistantMessageId !== null &&
+            candidate.sourceAssistantMessageId ===
+              routine.sourceAssistantMessageId),
+      );
+      if (
+        !refreshedRoutine ||
+        JSON.stringify(refreshedRoutine) !== JSON.stringify(routine)
+      ) {
+        throw new RoutineClientError(
+          "La chat non mostra ancora l'ultimo aggiornamento della routine. Riprova.",
+          null,
+        );
+      }
+      return refreshedRoutine;
     },
-    [refreshChatData, setMessages],
+    [refreshRoutineChatData],
   );
 
   const handleSaveRoutine = useCallback(
@@ -319,7 +391,12 @@ export function ChatConversationClient({
       outcome?: RoutineAttemptOutcome,
       outcomeNote?: string | null,
     ) => {
-      const actionKey = `${routineId}:${outcome ? "check-in" : "attempt"}`;
+      const normalizedOutcomeNote = outcomeNote?.trim() || null;
+      const actionKey = JSON.stringify({
+        routineId,
+        outcome: outcome ?? null,
+        outcomeNote: normalizedOutcomeNote,
+      });
       let clientActionId = routineAttemptActionIdsRef.current.get(actionKey);
       if (!clientActionId) {
         clientActionId = crypto.randomUUID();
@@ -327,7 +404,12 @@ export function ChatConversationClient({
       }
 
       const routine = await applyRoutineMutation(() =>
-        createRoutineAttempt(routineId, clientActionId, outcome, outcomeNote),
+        createRoutineAttempt(
+          routineId,
+          clientActionId,
+          outcome,
+          normalizedOutcomeNote,
+        ),
       );
       routineAttemptActionIdsRef.current.delete(actionKey);
       return routine;
@@ -371,6 +453,13 @@ export function ChatConversationClient({
 
   const handleTryRoutineNow = useCallback((title: string) => {
     setInput(`Inizio ora la routine: ${title}. Ti aggiorno dopo il tentativo.`);
+    setFocusRequestId((current) => current + 1);
+  }, []);
+
+  const handleAdaptRoutine = useCallback((title: string) => {
+    setInput(
+      `Vorrei adattare la routine "${title}" dopo l'ultimo tentativo. Aiutami a renderla più efficace.`,
+    );
     setFocusRequestId((current) => current + 1);
   }, []);
 
@@ -915,6 +1004,7 @@ export function ChatConversationClient({
           onSaveRoutineOutcome={handleSaveRoutineOutcome}
           onArchiveRoutine={handleArchiveRoutine}
           onTryRoutineNow={handleTryRoutineNow}
+          onAdaptRoutine={handleAdaptRoutine}
           hasMoreMessages={chatData.pagination?.hasMore ?? false}
           isLoadingMore={isLoadingMore}
           onLoadMore={loadMoreMessages}
@@ -981,7 +1071,13 @@ export function ChatConversationClient({
 
       <ConfirmDialog
         open={isOpen}
-        onOpenChange={setIsOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setIsOpen(true);
+          } else {
+            handleCancel();
+          }
+        }}
         onConfirm={handleConfirm}
         title={options.title}
         description={options.description}
