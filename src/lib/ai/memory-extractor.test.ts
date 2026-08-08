@@ -77,6 +77,31 @@ describe("ai/memory-extractor", () => {
     expect(mocks.invalidateMemoriesForPromptCache).not.toHaveBeenCalled();
   });
 
+  it("lets the post-generation model decide which facts deserve memory", async () => {
+    mocks.generateText.mockResolvedValue({
+      text: JSON.stringify({ facts: [] }),
+    });
+
+    await extractAndSaveMemories(
+      "user-1",
+      "Domani ho una gara importante e vorrei gestire meglio la pressione.",
+      "Possiamo costruire una routine breve per il pre-gara.",
+    );
+
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instructions: expect.stringContaining(
+          "La scelta di cosa salvare è del modello",
+        ),
+      }),
+    );
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instructions: expect.stringContaining("non usare solo parole chiave"),
+      }),
+    );
+  });
+
   it("saves only high-confidence facts, invalidates cache, and updates activity", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-02-17T15:00:00.000Z"));

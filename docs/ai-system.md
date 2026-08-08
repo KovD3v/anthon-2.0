@@ -41,6 +41,8 @@ The AI subsystem powers chat generation, retrieval, personalization, and backgro
 7. Build system prompt with the selected modules.
 8. Run `streamText` with the selected tools and callbacks.
 9. Persist usage metrics, model info, token/cost telemetry, and tool timing.
+10. After the assistant output is persisted, run the model-driven memory pass
+    in the background; it never delays the first response.
 
 ### Toolset
 
@@ -48,8 +50,9 @@ The orchestrator composes tools from three factories:
 
 - `createMemoryTools(userId)`:
   - `getMemories`
-  - `saveMemory`
   - `deleteMemory`
+- `saveMemory` semantics are handled by the post-generation memory extractor,
+  not exposed in the streaming tool loop.
 - `createUserContextTools(userId)`:
   - `getUserContext`
   - `updateProfile`
@@ -59,9 +62,11 @@ The orchestrator composes tools from three factories:
   - `tinyfishSearch`
   - `tinyfishFetch`
 
-The orchestrator does not expose every tool on every turn. `selectToolPlan`
-enables memory/profile writes only when the message asks for persistent changes,
-enables `tinyfishSearch` for current or explicit web-search intent, and enables
+The orchestrator does not expose every tool on every turn. Profile and
+preference tools are enabled only when the message asks for persistent changes.
+Memory extraction is model-driven and runs after the answer; keywords are only
+hints for prompt planning, not a requirement for saving a useful fact.
+`tinyfishSearch` is enabled for current or explicit web-search intent, and
 `tinyfishFetch` only when URL/page/source reading is useful.
 
 ### Prompt modes

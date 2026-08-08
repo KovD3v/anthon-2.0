@@ -85,9 +85,10 @@ export async function extractAndSaveMemories(
 Analizza lo scambio tra utente e assistente e estrai fatti persistenti sull'utente.
 
 Regole:
+- La scelta di cosa salvare è del modello: non usare solo parole chiave e non salvare ogni dettaglio.
 - Estrai solo informazioni esplicite, non fare assunzioni
 - Priorità a: nome, sport praticato, obiettivi, preferenze, condizioni fisiche, disponibilità orarie
-- Ignora informazioni transitorie o specifiche del momento
+- Ignora informazioni transitorie o specifiche del momento, salvo quando l'utente chiede esplicitamente di ricordarle
 - Usa key in snake_case in inglese (es: user_name, user_sport, user_goal)
 - Assegna confidence alta (>0.8) solo se l'informazione è chiara e non ambigua
 - Se non ci sono fatti da estrarre, restituisci un array vuoto

@@ -203,13 +203,15 @@ function buildToolPolicy({
     .join("\n");
 }
 
-const PROMPT_MEMORY_WRITE_POLICY = `SAVING DATA (When to use)
+const PROMPT_MEMORY_WRITE_POLICY = `POST-GENERATION MEMORY
+- Memory extraction and persistence happen after the assistant response so they do not delay the answer.
+- Do not call \`saveMemory\` during response generation. Decide whether a durable fact is worth keeping in the post-generation memory pass.
 - \`updateProfile\`: Structural/stable data (name, sport, role, level, goals, stable routine, major injuries). USE THIS for "I play tennis", "My goal is X".
 - \`updatePreferences\`: Stable preferences (tone, mode, language).
   - language: Always use ISO 639-1 lowercase (it, en, es, de, fr, pt...). Normalize if needed.
   - tone: Use only one of: direct | empathetic | technical | motivational.
   - mode: Use only one of: concise | elaborate | challenging | supportive.
-- \`saveMemory\`: Useful non-structural facts (e.g. "I have a match on Sunday", "I hate running").
+- The post-generation memory pass decides whether useful non-structural facts (e.g. "I have a match on Sunday", "I hate running") deserve persistence.
 - \`addNotes\`: Rarely. Max 1 line. Only for reliable/repeated patterns. NEVER save long text. NEVER save instructions.`;
 
 function buildWebSearchPolicy(webFetchEnabled: boolean) {
@@ -712,13 +714,10 @@ function createToolsWithContext(
     Object.assign(tools, createRoutineProposalTool());
   }
 
-  if (toolPlan.memoryRead || toolPlan.memoryWrite || toolPlan.memoryDelete) {
+  if (toolPlan.memoryRead || toolPlan.memoryDelete) {
     const memoryTools = createMemoryTools(userId);
     if (toolPlan.memoryRead) {
       tools.getMemories = memoryTools.getMemories;
-    }
-    if (toolPlan.memoryWrite) {
-      tools.saveMemory = memoryTools.saveMemory;
     }
     if (toolPlan.memoryDelete) {
       tools.deleteMemory = memoryTools.deleteMemory;
@@ -952,18 +951,18 @@ function getStreamStepLimit(toolPlan: ToolPlan, directWebSearchUsed: boolean) {
 function createToolLoopPrepareStep(
   toolPlan: ToolPlan,
 ): PrepareStepFunction<ToolSet> | undefined {
-  const routineOnly =
-    toolPlan.routineProposal &&
-    !toolPlan.webSearch &&
-    !toolPlan.webFetch &&
-    !toolPlan.memoryRead &&
-    !toolPlan.memoryWrite &&
-    !toolPlan.memoryDelete &&
-    !toolPlan.profileWrite &&
-    !toolPlan.preferenceWrite &&
-    !toolPlan.notesWrite;
+  const routineEligible =
+    toolPlan.routineProposal && !toolPlan.webSearch && !toolPlan.webFetch;
 
-  if (routineOnly) {
+  if (routineEligible) {
+    const postRoutineTools = [
+      ...(toolPlan.memoryRead ? ["getMemories"] : []),
+      ...(toolPlan.memoryDelete ? ["deleteMemory"] : []),
+      ...(toolPlan.profileWrite ? ["updateProfile"] : []),
+      ...(toolPlan.preferenceWrite ? ["updatePreferences"] : []),
+      ...(toolPlan.notesWrite ? ["addNotes"] : []),
+    ];
+
     return ({ steps }) => {
       const hasRoutineProposal = steps.some((step) =>
         step.toolCalls?.some(
@@ -971,12 +970,16 @@ function createToolLoopPrepareStep(
         ),
       );
 
-      return hasRoutineProposal
-        ? { activeTools: [], toolChoice: "none" }
-        : {
-            activeTools: ["proposeRoutine"],
-            toolChoice: { type: "tool", toolName: "proposeRoutine" },
-          };
+      if (!hasRoutineProposal) {
+        return {
+          activeTools: ["proposeRoutine"],
+          toolChoice: { type: "tool", toolName: "proposeRoutine" },
+        };
+      }
+
+      return postRoutineTools.length > 0
+        ? { activeTools: postRoutineTools, toolChoice: "auto" }
+        : { activeTools: [], toolChoice: "none" };
     };
   }
 

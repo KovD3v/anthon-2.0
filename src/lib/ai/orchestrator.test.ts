@@ -668,7 +668,7 @@ describe("ai/orchestrator", () => {
     );
     expect(streamInput.tools).not.toHaveProperty("saveMemory");
     expect(streamInput.tools).not.toHaveProperty("updatePreferences");
-    expect(streamInput.instructions).toContain("SAVING DATA");
+    expect(streamInput.instructions).toContain("POST-GENERATION MEMORY");
     expect(streamInput.instructions).toContain("user-context-data");
     expect(streamInput.instructions).toContain("user-memories-data");
     expect(streamInput.maxOutputTokens).toBeUndefined();
@@ -811,8 +811,16 @@ describe("ai/orchestrator", () => {
     ];
 
     const fullPrompts = [
-      { text: "Mi chiamo Luca e gioco a tennis", writes: true },
-      { text: "Ricordati che domenica ho una partita", writes: true },
+      {
+        text: "Mi chiamo Luca e gioco a tennis",
+        writes: true,
+        generationTools: true,
+      },
+      {
+        text: "Ricordati che domenica ho una partita",
+        writes: true,
+        generationTools: false,
+      },
       {
         text: "Fammi un piano dettagliato per la settimana",
         writes: false,
@@ -839,6 +847,7 @@ describe("ai/orchestrator", () => {
       {
         text: "Ho 17 anni e il mio obiettivo è migliorare il servizio",
         writes: true,
+        generationTools: true,
       },
     ];
 
@@ -905,12 +914,16 @@ describe("ai/orchestrator", () => {
       }
       if (promptCase.writes) {
         expect(streamInput.instructions, promptCase.text).toContain(
-          "SAVING DATA",
+          "POST-GENERATION MEMORY",
         );
-        expect(streamInput.tools, promptCase.text).not.toEqual({});
+        if (promptCase.generationTools) {
+          expect(streamInput.tools, promptCase.text).not.toEqual({});
+        } else {
+          expect(streamInput.tools, promptCase.text).toEqual({});
+        }
       } else {
         expect(streamInput.instructions, promptCase.text).not.toContain(
-          "SAVING DATA",
+          "POST-GENERATION MEMORY",
         );
       }
       expect(streamInput.maxOutputTokens, promptCase.text).toBeUndefined();
@@ -1782,6 +1795,33 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).toEqual(
       expect.objectContaining({ proposeRoutine: "routine-proposal-tool" }),
     );
+    expect(streamInput.prepareStep?.({ steps: [] })).toEqual({
+      activeTools: ["proposeRoutine"],
+      toolChoice: { type: "tool", toolName: "proposeRoutine" },
+    });
+  });
+
+  it("keeps routine proposals mandatory while deferring memory decisions", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-routine-memory-after-response",
+      userMessage:
+        "Ricordati che la domenica ho una gara. Dammi una routine mentale.",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+      prepareStep?: (input: {
+        steps: Array<{ toolCalls?: Array<{ toolName?: string }> }>;
+      }) => unknown;
+    };
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({ proposeRoutine: "routine-proposal-tool" }),
+    );
+    expect(streamInput.tools).not.toHaveProperty("saveMemory");
+    expect(streamInput.instructions).toContain("POST-GENERATION MEMORY");
+    expect(streamInput.prepareStep).toEqual(expect.any(Function));
     expect(streamInput.prepareStep?.({ steps: [] })).toEqual({
       activeTools: ["proposeRoutine"],
       toolChoice: { type: "tool", toolName: "proposeRoutine" },
