@@ -141,9 +141,11 @@ function renderLayout(initialActiveRoutine: RoutineCardData | null) {
 function renderLanding({
   isGuest,
   usageData,
+  children = <div>Landing chat</div>,
 }: {
   isGuest: boolean;
   usageData: UsageData | null;
+  children?: React.ReactNode;
 }) {
   return render(
     <LayoutClient
@@ -154,8 +156,19 @@ function renderLanding({
       guestConversionPending={false}
       isGuest={isGuest}
     >
-      <div>Landing chat</div>
+      {children}
     </LayoutClient>,
+  );
+}
+
+function GuestNoticeProbe() {
+  const { guestConversationNotice } = useChatContext();
+  return (
+    <output data-testid="guest-conversation-notice">
+      {guestConversationNotice
+        ? `${guestConversationNotice.registrationHref}:${guestConversationNotice.remaining ?? "UNKNOWN"}`
+        : "NONE"}
+    </output>
   );
 }
 
@@ -321,4 +334,43 @@ describe("mobile chat landing navigation", () => {
       );
     },
   );
+
+  it.each(["/chat/usage", "/chat/unexpected/nested"])(
+    "treats %s as non-conversation chrome with a safe guest continuation",
+    async (pathname) => {
+      mocks.pathname = pathname;
+      const user = userEvent.setup();
+      renderLanding({
+        isGuest: true,
+        usageData: { ...usageBelowThreshold, tier: "GUEST" },
+      });
+
+      expect(
+        screen.getByRole("link", { name: "Registrati" }).getAttribute("href"),
+      ).toBe("/sign-up?redirect_url=%2Fchat");
+      await user.click(
+        screen.getByRole("button", { name: "Apri la barra laterale" }),
+      );
+
+      await waitFor(() =>
+        expect(document.documentElement.dataset.chatSidebar).toBe("open"),
+      );
+    },
+  );
+
+  it("keeps a real chat ID in guest conversation mode", () => {
+    mocks.pathname = "/chat/chat-1";
+    renderLanding({
+      isGuest: true,
+      usageData: { ...usageBelowThreshold, tier: "GUEST" },
+      children: <GuestNoticeProbe />,
+    });
+
+    expect(screen.getByTestId("guest-conversation-notice").textContent).toBe(
+      "/sign-up?redirect_url=%2Fchat%2Fchat-1:9",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Apri la barra laterale" }),
+    ).toBeNull();
+  });
 });
