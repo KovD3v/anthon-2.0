@@ -2,7 +2,7 @@
 
 import { AnimatePresence, m } from "framer-motion";
 import { Send, Square, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useDebouncedCallback } from "@/hooks/useDebounce";
@@ -17,6 +17,7 @@ interface ChatInputProps {
   isLoading: boolean;
   disableAttachments?: boolean;
   disabledReason?: string;
+  focusRequestId?: number;
   onInputWarmup?: (value: string) => void;
   setInput: (value: string) => void;
   onSubmit: (e: React.FormEvent, attachments?: AttachmentData[]) => void;
@@ -28,12 +29,14 @@ export function ChatInput({
   isLoading,
   disableAttachments = false,
   disabledReason,
+  focusRequestId,
   onInputWarmup,
   setInput,
   onSubmit,
   onStop,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const previousFocusRequestIdRef = useRef(focusRequestId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState<AttachmentData[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -52,6 +55,18 @@ export function ChatInput({
     isUploading ||
     isLoading ||
     (!input.trim() && attachments.length === 0);
+
+  useEffect(() => {
+    if (
+      focusRequestId === undefined ||
+      focusRequestId === previousFocusRequestIdRef.current
+    ) {
+      return;
+    }
+
+    previousFocusRequestIdRef.current = focusRequestId;
+    textareaRef.current?.focus();
+  }, [focusRequestId]);
 
   const adjustHeight = useDebouncedCallback(() => {
     const textarea = textareaRef.current;

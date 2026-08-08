@@ -17,7 +17,17 @@ import {
   extractTextFromParts,
   hasPendingVoiceGeneration,
 } from "@/lib/chat-client";
-import { routineProposalSchema } from "@/lib/coaching/routine";
+import {
+  type RoutineCardData,
+  routineProposalSchema,
+} from "@/lib/coaching/routine";
+import {
+  archiveRoutine,
+  createRoutineAttempt,
+  type RoutineAttemptOutcome,
+  saveRoutineOutcome,
+  saveRoutineProposal,
+} from "@/lib/coaching/routine-client";
 import type {
   AnthonUIMessage,
   ModelComparisonSlot,
@@ -110,6 +120,7 @@ export function ChatConversationClient({
 
   const [chatData, setChatData] = useState<ChatData>(initialChatData);
   const [input, setInput] = useState("");
+  const [focusRequestId, setFocusRequestId] = useState(0);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(
     null,
   );
@@ -130,6 +141,7 @@ export function ChatConversationClient({
   const submitInFlightRef = useRef(false);
   const pendingInitialMessageSubmittedRef = useRef(false);
   const voiceGenerationPollAttemptsRef = useRef(0);
+  const routineAttemptActionIdsRef = useRef(new Map<string, string>());
 
   // Initial messages from server data
   const initialMessages = convertToUIMessages(chatData.messages);
@@ -263,6 +275,104 @@ export function ChatConversationClient({
       setComparisonDeltas({});
     }
   }, [refreshChatData, setMessages]);
+
+  const applyRoutineMutation = useCallback(
+    async (
+      operation: () => Promise<RoutineCardData>,
+    ): Promise<RoutineCardData> => {
+      const routine = await operation();
+      setChatData((current) => {
+        const matchingIndex = current.routines.findIndex(
+          (candidate) =>
+            candidate.id === routine.id ||
+            (routine.sourceAssistantMessageId !== null &&
+              candidate.sourceAssistantMessageId ===
+                routine.sourceAssistantMessageId),
+        );
+        const routines = [...current.routines];
+        if (matchingIndex === -1) {
+          routines.push(routine);
+        } else {
+          routines[matchingIndex] = routine;
+        }
+        return { ...current, routines };
+      });
+
+      const refreshedMessages = await refreshChatData();
+      if (refreshedMessages) {
+        setMessages(refreshedMessages);
+      }
+      return routine;
+    },
+    [refreshChatData, setMessages],
+  );
+
+  const handleSaveRoutine = useCallback(
+    (sourceAssistantMessageId: string) =>
+      applyRoutineMutation(() => saveRoutineProposal(sourceAssistantMessageId)),
+    [applyRoutineMutation],
+  );
+
+  const handleCreateRoutineAttempt = useCallback(
+    async (
+      routineId: string,
+      outcome?: RoutineAttemptOutcome,
+      outcomeNote?: string | null,
+    ) => {
+      const actionKey = `${routineId}:${outcome ? "check-in" : "attempt"}`;
+      let clientActionId = routineAttemptActionIdsRef.current.get(actionKey);
+      if (!clientActionId) {
+        clientActionId = crypto.randomUUID();
+        routineAttemptActionIdsRef.current.set(actionKey, clientActionId);
+      }
+
+      const routine = await applyRoutineMutation(() =>
+        createRoutineAttempt(routineId, clientActionId, outcome, outcomeNote),
+      );
+      routineAttemptActionIdsRef.current.delete(actionKey);
+      return routine;
+    },
+    [applyRoutineMutation],
+  );
+
+  const handleSaveRoutineOutcome = useCallback(
+    (
+      attemptId: string,
+      outcome: RoutineAttemptOutcome,
+      outcomeNote?: string | null,
+    ) =>
+      applyRoutineMutation(() =>
+        saveRoutineOutcome(attemptId, outcome, outcomeNote),
+      ),
+    [applyRoutineMutation],
+  );
+
+  const handleArchiveRoutine = useCallback(
+    async (routineId: string) => {
+      const confirmed = await confirm({
+        title: "Archiviare la routine?",
+        description:
+          "La routine resterà nello storico, ma non sarà più disponibile per nuovi tentativi.",
+        confirmText: "Archivia",
+        cancelText: "Annulla",
+        variant: "destructive",
+      });
+      if (!confirmed) {
+        const currentRoutine = chatData.routines.find(
+          (routine) => routine.id === routineId,
+        );
+        if (currentRoutine) return currentRoutine;
+        throw new Error("Routine not found");
+      }
+      return applyRoutineMutation(() => archiveRoutine(routineId));
+    },
+    [applyRoutineMutation, chatData.routines, confirm],
+  );
+
+  const handleTryRoutineNow = useCallback((title: string) => {
+    setInput(`Inizio ora la routine: ${title}. Ti aggiorno dopo il tentativo.`);
+    setFocusRequestId((current) => current + 1);
+  }, []);
 
   const hasUnresolvedVoiceGeneration = hasPendingVoiceGeneration(
     chatData.messages,
@@ -794,6 +904,17 @@ export function ChatConversationClient({
           feedbackMessageIds={persistedMessageIds}
           comparisonDeltas={comparisonDeltas}
           onModelComparisonResolved={handleModelComparisonResolved}
+          routines={chatData.routines}
+          isGuest={isGuest}
+          canRenderRoutineCards={
+            chatData.visibility === "PRIVATE" && chatData.isOwner
+          }
+          registrationHref={`/sign-up?redirect_url=${encodeURIComponent(`/chat/${chatId}`)}`}
+          onSaveRoutine={handleSaveRoutine}
+          onCreateRoutineAttempt={handleCreateRoutineAttempt}
+          onSaveRoutineOutcome={handleSaveRoutineOutcome}
+          onArchiveRoutine={handleArchiveRoutine}
+          onTryRoutineNow={handleTryRoutineNow}
           hasMoreMessages={chatData.pagination?.hasMore ?? false}
           isLoadingMore={isLoadingMore}
           onLoadMore={loadMoreMessages}
@@ -841,6 +962,7 @@ export function ChatConversationClient({
 
       <ChatInput
         input={input}
+        focusRequestId={focusRequestId}
         setInput={setInput}
         onInputWarmup={inputWarmup.schedule}
         onSubmit={handleSubmit}

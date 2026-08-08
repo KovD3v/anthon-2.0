@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatUIMessage } from "@/lib/chat-client";
+import type { RoutineCardData } from "@/lib/coaching/routine";
 import { ASSISTANT_READING_MAX_MS } from "../chat/chat-reactivity-ui";
 import { MessageList } from "./MessageList";
 
@@ -69,6 +70,29 @@ const assistantMessage: ChatUIMessage = {
   parts: [{ type: "text", text: "Risposta" }],
 };
 
+const routineProposal = {
+  title: "Reset dopo un errore",
+  trigger: "Quando commetti un errore in gara",
+  durationLabel: "60 secondi",
+  steps: ["Fermati", "Espira lentamente", "Scegli il prossimo gesto"],
+  completionCue: "Riparti con lo sguardo sul compito successivo",
+};
+
+const activeRoutine: RoutineCardData = {
+  id: "routine-1",
+  sourceChatId: "chat-1",
+  sourceAssistantMessageId: "assistant-1",
+  status: "ACTIVE",
+  proposal: routineProposal,
+  archivedAt: null,
+  latestAttempt: null,
+};
+
+const routinePart = {
+  type: "data-coachingRoutine" as const,
+  data: routineProposal,
+};
+
 function renderMessageList(
   overrides: Partial<ComponentProps<typeof MessageList>> = {},
 ) {
@@ -86,6 +110,15 @@ function renderMessageList(
     onDelete: vi.fn(),
     onRegenerate: vi.fn(),
     feedbackEndpoint: "/api/chat/feedback",
+    routines: [],
+    isGuest: false,
+    canRenderRoutineCards: true,
+    registrationHref: "/sign-up?redirect_url=%2Fchat%2Fchat-1",
+    onSaveRoutine: vi.fn().mockResolvedValue(activeRoutine),
+    onCreateRoutineAttempt: vi.fn().mockResolvedValue(activeRoutine),
+    onSaveRoutineOutcome: vi.fn().mockResolvedValue(activeRoutine),
+    onArchiveRoutine: vi.fn().mockResolvedValue(activeRoutine),
+    onTryRoutineNow: vi.fn(),
     ...overrides,
   };
 
@@ -138,6 +171,129 @@ describe("MessageList rendered interactions", () => {
     renderMessageList();
 
     expect(mocks.motionLayoutProps).not.toContain(true);
+  });
+
+  it("does not animate assistant bubble width while streaming", () => {
+    renderMessageList({ status: "streaming", isLoading: true });
+
+    const response = screen.getByText("Risposta");
+    expect(response.parentElement?.className).not.toContain("width");
+  });
+
+  it("renders a validated proposal after its matching assistant response", () => {
+    const { container } = renderMessageList({
+      messages: [
+        userMessage,
+        {
+          ...assistantMessage,
+          parts: [{ type: "text", text: "Prova questa routine." }, routinePart],
+        },
+      ],
+    });
+
+    expect(screen.getByText("Routine proposta")).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: routineProposal.title }),
+    ).toBeTruthy();
+    expect(
+      container.textContent?.indexOf("Prova questa routine."),
+    ).toBeLessThan(container.textContent?.indexOf(routineProposal.title) ?? -1);
+  });
+
+  it.each([
+    [
+      "malformed proposal",
+      {
+        ...assistantMessage,
+        parts: [
+          { type: "text" as const, text: "Proposta incompleta" },
+          {
+            type: "data-coachingRoutine" as const,
+            data: { ...routineProposal, steps: ["Un solo passo"] },
+          },
+        ],
+      },
+      true,
+    ],
+    [
+      "user message",
+      {
+        ...userMessage,
+        parts: [{ type: "text" as const, text: "Io" }, routinePart],
+      },
+      true,
+    ],
+    [
+      "comparison response",
+      {
+        ...assistantMessage,
+        parts: [
+          { type: "text" as const, text: "Confronto" },
+          routinePart,
+          {
+            type: "data-modelComparison" as const,
+            data: {
+              pairId: "pair-1",
+              noticeRequired: false,
+              status: "ready" as const,
+              slots: {
+                A: { status: "completed" as const, text: "A" },
+                B: { status: "completed" as const, text: "B" },
+              },
+            },
+          },
+        ],
+      },
+      true,
+    ],
+    [
+      "audio response",
+      {
+        ...assistantMessage,
+        parts: [
+          { type: "text" as const, text: "Trascrizione audio" },
+          {
+            type: "file" as const,
+            mediaType: "audio/mpeg",
+            url: "/audio.mp3",
+          },
+          routinePart,
+        ],
+      },
+      true,
+    ],
+    [
+      "public payload",
+      {
+        ...assistantMessage,
+        parts: [{ type: "text" as const, text: "Pubblico" }, routinePart],
+      },
+      false,
+    ],
+  ])("does not render a routine card for a %s", (_case, message, canRender) => {
+    renderMessageList({
+      messages: [message as ChatUIMessage],
+      canRenderRoutineCards: canRender,
+    });
+
+    expect(screen.queryByText("Routine proposta")).toBeNull();
+  });
+
+  it("never attaches a routine sourced from another assistant message", () => {
+    renderMessageList({
+      messages: [
+        {
+          ...assistantMessage,
+          parts: [{ type: "text", text: "Proposta" }, routinePart],
+        },
+      ],
+      routines: [
+        { ...activeRoutine, sourceAssistantMessageId: "assistant-other" },
+      ],
+    });
+
+    expect(screen.getByText("Routine proposta")).toBeTruthy();
+    expect(screen.queryByText("Routine attiva")).toBeNull();
   });
 
   it("shows feedback only for persisted message ids", () => {

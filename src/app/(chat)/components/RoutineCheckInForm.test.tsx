@@ -1,0 +1,142 @@
+// @vitest-environment jsdom
+
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { RoutineCardData } from "@/lib/coaching/routine";
+import { RoutineCheckInForm } from "./RoutineCheckInForm";
+
+const routine: RoutineCardData = {
+  id: "routine-1",
+  sourceChatId: "chat-1",
+  sourceAssistantMessageId: "assistant-1",
+  status: "ACTIVE",
+  proposal: {
+    title: "Reset dopo un errore",
+    trigger: "Quando commetti un errore in gara",
+    durationLabel: "60 secondi",
+    steps: ["Fermati", "Espira lentamente", "Scegli il prossimo gesto"],
+    completionCue: "Riparti con lo sguardo sul compito successivo",
+  },
+  archivedAt: null,
+  latestAttempt: null,
+};
+
+function renderForm(
+  currentRoutine: RoutineCardData = routine,
+  overrides: Partial<React.ComponentProps<typeof RoutineCheckInForm>> = {},
+) {
+  const props: React.ComponentProps<typeof RoutineCheckInForm> = {
+    routine: currentRoutine,
+    onCreateAttempt: vi.fn().mockResolvedValue(currentRoutine),
+    onSaveOutcome: vi.fn().mockResolvedValue(currentRoutine),
+    ...overrides,
+  };
+  return { ...render(<RoutineCheckInForm {...props} />), props };
+}
+
+afterEach(cleanup);
+
+describe("RoutineCheckInForm", () => {
+  it("keeps the optional note inert until an explicit outcome is chosen", async () => {
+    const user = userEvent.setup();
+    const { props } = renderForm();
+    const note = screen.getByRole("textbox", { name: "Nota facoltativa" });
+
+    await user.type(note, "Ho ritrovato il ritmo");
+
+    expect(props.onCreateAttempt).not.toHaveBeenCalled();
+    expect(props.onSaveOutcome).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["Mi ha aiutato", "HELPFUL"],
+    ["In parte", "PARTIALLY_HELPFUL"],
+    ["Non ha aiutato", "NOT_HELPFUL"],
+  ] as const)(
+    "creates the first attempt with the %s outcome",
+    async (label, outcome) => {
+      const user = userEvent.setup();
+      const { props } = renderForm();
+
+      await user.type(
+        screen.getByRole("textbox", { name: "Nota facoltativa" }),
+        "Nota dal campo",
+      );
+      await user.click(screen.getByRole("button", { name: label }));
+
+      expect(props.onCreateAttempt).toHaveBeenCalledWith(
+        "routine-1",
+        outcome,
+        "Nota dal campo",
+      );
+      expect(props.onSaveOutcome).not.toHaveBeenCalled();
+    },
+  );
+
+  it("patches the newest pending attempt instead of creating another one", async () => {
+    const pendingAttemptRoutine: RoutineCardData = {
+      ...routine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    };
+    const user = userEvent.setup();
+    const { props } = renderForm(pendingAttemptRoutine);
+
+    await user.click(screen.getByRole("button", { name: "In parte" }));
+
+    expect(props.onSaveOutcome).toHaveBeenCalledWith(
+      "attempt-1",
+      "PARTIALLY_HELPFUL",
+      null,
+    );
+    expect(props.onCreateAttempt).not.toHaveBeenCalled();
+  });
+
+  it("creates a new attempt when the latest one already has an outcome", async () => {
+    const completedAttemptRoutine: RoutineCardData = {
+      ...routine,
+      latestAttempt: {
+        id: "attempt-complete",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: "HELPFUL",
+        outcomeNote: null,
+        outcomeRecordedAt: "2026-08-08T09:05:00.000Z",
+      },
+    };
+    const user = userEvent.setup();
+    const { props } = renderForm(completedAttemptRoutine);
+
+    await user.click(screen.getByRole("button", { name: "Non ha aiutato" }));
+
+    expect(props.onCreateAttempt).toHaveBeenCalledWith(
+      "routine-1",
+      "NOT_HELPFUL",
+      null,
+    );
+    expect(props.onSaveOutcome).not.toHaveBeenCalled();
+  });
+
+  it("announces failure and restores all outcome actions for retry", async () => {
+    const user = userEvent.setup();
+    renderForm(routine, {
+      onCreateAttempt: vi.fn().mockRejectedValue(new Error("offline")),
+    });
+
+    await user.click(screen.getByRole("button", { name: "Mi ha aiutato" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Non siamo riusciti a registrare l'esito. Riprova.",
+    );
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Mi ha aiutato",
+      }).disabled,
+    ).toBe(false);
+  });
+});

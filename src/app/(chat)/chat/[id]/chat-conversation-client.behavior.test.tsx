@@ -11,6 +11,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { RoutineCardData } from "@/lib/coaching/routine";
 import type { ChatData } from "@/types/chat";
 import { ChatConversationClient } from "./chat-conversation-client";
 
@@ -29,6 +30,7 @@ const mocks = vi.hoisted(() => ({
     status: "ready" as "ready" | "error",
   },
   clearError: vi.fn(),
+  isGuest: true,
 }));
 
 vi.mock("@ai-sdk/react", () => ({
@@ -121,15 +123,18 @@ vi.mock("../../../(chat)/components/ChatInput", () => ({
   ChatInput: ({
     input,
     isLoading,
+    focusRequestId,
     onSubmit,
     setInput,
   }: {
     input: string;
     isLoading: boolean;
+    focusRequestId?: number;
     onSubmit: (event: React.FormEvent) => void;
     setInput: (value: string) => void;
   }) => (
     <form onSubmit={onSubmit}>
+      <output data-testid="focus-request">{focusRequestId ?? 0}</output>
       <input
         aria-label="Messaggio di test"
         value={input}
@@ -160,7 +165,22 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
     onDelete,
     onRegenerate,
     canSubmitFeedback,
+    canRenderRoutineCards,
     feedbackMessageIds,
+    routines = [],
+    onSaveRoutine = async () => {
+      throw new Error("Routine save callback missing");
+    },
+    onCreateRoutineAttempt = async () => {
+      throw new Error("Routine attempt callback missing");
+    },
+    onSaveRoutineOutcome = async () => {
+      throw new Error("Routine outcome callback missing");
+    },
+    onArchiveRoutine = async () => {
+      throw new Error("Routine archive callback missing");
+    },
+    onTryRoutineNow = () => undefined,
   }: ComponentProps<"div"> & {
     messages: Array<{ id: string; parts: Array<{ text?: string }> }>;
     isRegenerating?: boolean;
@@ -173,9 +193,34 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
     onDelete: (id: string) => void;
     onRegenerate: () => void;
     canSubmitFeedback: boolean;
+    canRenderRoutineCards?: boolean;
     feedbackMessageIds?: ReadonlySet<string>;
+    routines: RoutineCardData[];
+    onSaveRoutine: (
+      sourceAssistantMessageId: string,
+    ) => Promise<RoutineCardData>;
+    onCreateRoutineAttempt: (
+      routineId: string,
+      outcome?: "HELPFUL" | "PARTIALLY_HELPFUL" | "NOT_HELPFUL",
+      outcomeNote?: string | null,
+    ) => Promise<RoutineCardData>;
+    onSaveRoutineOutcome: (
+      attemptId: string,
+      outcome: "HELPFUL" | "PARTIALLY_HELPFUL" | "NOT_HELPFUL",
+      outcomeNote?: string | null,
+    ) => Promise<RoutineCardData>;
+    onArchiveRoutine: (routineId: string) => Promise<RoutineCardData>;
+    onTryRoutineNow: (title: string) => void;
   }) => (
     <div>
+      <output data-testid="routine-state">
+        {routines[0]
+          ? `${routines[0].status}:${routines[0].latestAttempt?.outcome ?? "NO_OUTCOME"}`
+          : "PROPOSED"}
+      </output>
+      <output data-testid="routine-render-eligible">
+        {String(canRenderRoutineCards)}
+      </output>
       <output data-testid="feedback-enabled">
         {String(
           canSubmitFeedback &&
@@ -208,6 +253,55 @@ vi.mock("../../../(chat)/components/MessageList", () => ({
       <button type="button" onClick={onRegenerate}>
         Rigenera
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          void onSaveRoutine("assistant-new").catch(() => undefined)
+        }
+      >
+        Salva routine test
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          void onCreateRoutineAttempt("routine-1").catch(() => undefined)
+        }
+      >
+        Segna tentativo test
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          void onCreateRoutineAttempt(
+            "routine-1",
+            "HELPFUL",
+            "Nota test",
+          ).catch(() => undefined)
+        }
+      >
+        Primo esito test
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          void onSaveRoutineOutcome("attempt-1", "HELPFUL", "Nota test").catch(
+            () => undefined,
+          )
+        }
+      >
+        Aggiorna esito test
+      </button>
+      <button type="button" onClick={() => onTryRoutineNow("Reset rapido")}>
+        Prova ora test
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          void onArchiveRoutine("routine-1").catch(() => undefined)
+        }
+      >
+        Archivia routine test
+      </button>
     </div>
   ),
 }));
@@ -223,7 +317,7 @@ vi.mock("../chat-input-warmup", () => ({
 vi.mock("../layout-client", () => ({
   useChatContext: () => ({
     renameChat: vi.fn(),
-    isGuest: true,
+    isGuest: mocks.isGuest,
     getCachedChat: () => null,
     updateCachedChat: mocks.updateCachedChat,
     consumePendingInitialMessage: () => null,
@@ -287,6 +381,7 @@ beforeEach(() => {
   }
   mocks.chatState.status = "ready";
   mocks.chatState.error = null;
+  mocks.isGuest = true;
   mocks.confirm.mockResolvedValue(true);
   mocks.sendMessage.mockResolvedValue(undefined);
   vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -671,6 +766,301 @@ describe("ChatConversationClient pagination and recovery", () => {
     await act(async () => resolveSend());
     await waitFor(() =>
       expect(screen.getByTestId("regenerating").textContent).toBe("false"),
+    );
+  });
+});
+
+describe("ChatConversationClient routine lifecycle", () => {
+  const proposal = {
+    title: "Reset rapido",
+    trigger: "Dopo un errore",
+    durationLabel: "60 secondi",
+    steps: ["Fermati", "Espira", "Riparti"],
+    completionCue: "Torni sul gesto successivo",
+  };
+  const activeRoutine: RoutineCardData = {
+    id: "routine-1",
+    sourceChatId: "chat-1",
+    sourceAssistantMessageId: "assistant-new",
+    status: "ACTIVE",
+    proposal,
+    archivedAt: null,
+    latestAttempt: null,
+  };
+
+  beforeEach(() => {
+    mocks.isGuest = false;
+  });
+
+  it("patches from a successful save response and then refreshes messages", async () => {
+    const refreshedData = { ...initialChatData, routines: [activeRoutine] };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ routine: activeRoutine }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(refreshedData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation();
+
+    await user.click(
+      screen.getByRole("button", { name: "Salva routine test" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-state").textContent).toBe(
+        "ACTIVE:NO_OUTCOME",
+      ),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/coaching/routines",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ sourceAssistantMessageId: "assistant-new" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/chats/chat-1");
+    expect(mocks.setMessages).toHaveBeenCalled();
+  });
+
+  it("does not expose routine cards for a private chat the viewer does not own", () => {
+    renderConversation({ ...initialChatData, isOwner: false });
+
+    expect(screen.getByTestId("routine-render-eligible").textContent).toBe(
+      "false",
+    );
+  });
+
+  it("keeps the proposal unsaved after a 422 response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: "Proposal invalid" }), {
+          status: 422,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderConversation();
+
+    await user.click(
+      screen.getByRole("button", { name: "Salva routine test" }),
+    );
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    expect(screen.getByTestId("routine-state").textContent).toBe("PROPOSED");
+    expect(mocks.setMessages).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed success payload without showing a saved routine", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ routine: { id: "invalid" } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderConversation();
+
+    await user.click(
+      screen.getByRole("button", { name: "Salva routine test" }),
+    );
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    expect(screen.getByTestId("routine-state").textContent).toBe("PROPOSED");
+    expect(mocks.setMessages).not.toHaveBeenCalled();
+  });
+
+  it("reuses the same client action id when an attempt gets a 409 and is retried", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: "Routine is archived" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation({ ...initialChatData, routines: [activeRoutine] });
+    const attempt = screen.getByRole("button", {
+      name: "Segna tentativo test",
+    });
+
+    await user.click(attempt);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await user.click(attempt);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    const firstBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    const retryBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(firstBody.clientActionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(retryBody.clientActionId).toBe(firstBody.clientActionId);
+    expect(screen.getByTestId("routine-state").textContent).toBe(
+      "ACTIVE:NO_OUTCOME",
+    );
+  });
+
+  it("keeps the pending attempt unchanged after a network outcome failure", async () => {
+    const pendingRoutine: RoutineCardData = {
+      ...activeRoutine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T10:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    const user = userEvent.setup();
+    renderConversation({ ...initialChatData, routines: [pendingRoutine] });
+
+    await user.click(
+      screen.getByRole("button", { name: "Aggiorna esito test" }),
+    );
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    expect(screen.getByTestId("routine-state").textContent).toBe(
+      "ACTIVE:NO_OUTCOME",
+    );
+    expect(mocks.setMessages).not.toHaveBeenCalled();
+  });
+
+  it("uses the outcome response as truth and refreshes the chat", async () => {
+    const pendingRoutine: RoutineCardData = {
+      ...activeRoutine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T10:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    };
+    const completedRoutine: RoutineCardData = {
+      ...pendingRoutine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T10:00:00.000Z",
+        outcome: "HELPFUL",
+        outcomeNote: "Nota test",
+        outcomeRecordedAt: "2026-08-08T10:05:00.000Z",
+      },
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ routine: completedRoutine }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ ...initialChatData, routines: [completedRoutine] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation({ ...initialChatData, routines: [pendingRoutine] });
+
+    await user.click(
+      screen.getByRole("button", { name: "Aggiorna esito test" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-state").textContent).toBe(
+        "ACTIVE:HELPFUL",
+      ),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/coaching/attempts/attempt-1",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/chats/chat-1");
+    expect(mocks.setMessages).toHaveBeenCalled();
+  });
+
+  it("prefills the routine message and requests composer focus without sending", async () => {
+    const user = userEvent.setup();
+    renderConversation({ ...initialChatData, routines: [activeRoutine] });
+
+    await user.click(screen.getByRole("button", { name: "Prova ora test" }));
+
+    expect(
+      screen.getByRole<HTMLInputElement>("textbox", {
+        name: "Messaggio di test",
+      }).value,
+    ).toBe(
+      "Inizio ora la routine: Reset rapido. Ti aggiorno dopo il tentativo.",
+    );
+    expect(screen.getByTestId("focus-request").textContent).toBe("1");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("archives only after the existing confirmation primitive resolves", async () => {
+    const archivedRoutine: RoutineCardData = {
+      ...activeRoutine,
+      status: "ARCHIVED",
+      archivedAt: "2026-08-08T11:00:00.000Z",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ routine: archivedRoutine }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ ...initialChatData, routines: [archivedRoutine] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation({ ...initialChatData, routines: [activeRoutine] });
+
+    await user.click(
+      screen.getByRole("button", { name: "Archivia routine test" }),
+    );
+
+    expect(mocks.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Archiviare la routine?",
+        confirmText: "Archivia",
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-state").textContent).toBe(
+        "ARCHIVED:NO_OUTCOME",
+      ),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/coaching/routines/routine-1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ status: "ARCHIVED" }),
+      }),
     );
   });
 });

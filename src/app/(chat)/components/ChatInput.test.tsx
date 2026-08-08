@@ -80,6 +80,27 @@ afterEach(() => {
 });
 
 describe("ChatInput keyboard behavior", () => {
+  it("focuses the textarea when a new external focus request arrives", () => {
+    const props = {
+      input: "Inizio ora la routine",
+      isLoading: false,
+      focusRequestId: 0,
+      setInput: vi.fn(),
+      onSubmit: vi.fn(),
+      onStop: vi.fn(),
+    };
+    const view = render(<ChatInput {...props} />);
+    const textarea = screen.getByRole("textbox", {
+      name: "Scrivi un messaggio",
+    });
+    textarea.blur();
+
+    view.rerender(<ChatInput {...props} focusRequestId={1} />);
+
+    expect(document.activeElement).toBe(textarea);
+    expect(props.onSubmit).not.toHaveBeenCalled();
+  });
+
   it("keeps Enter available for a new line without submitting", () => {
     const { props } = renderChatInput("Prima riga");
     const textarea = screen.getByRole("textbox", {

@@ -23,6 +23,11 @@ import {
   type ChatUIMessage,
   normalizeFilePartForPreview,
 } from "@/lib/chat-client";
+import {
+  getRoutineProposalFromParts,
+  type RoutineCardData,
+  type RoutineProposal,
+} from "@/lib/coaching/routine";
 import { formatRelativeTime } from "@/lib/format-time";
 import type {
   ModelComparisonData,
@@ -47,6 +52,11 @@ import { AttachmentPreview } from "./Attachments";
 import { AudioPlayer } from "./AudioPlayer";
 import { MemoizedMarkdown } from "./MemoizedMarkdown";
 import { ModelComparisonCard } from "./ModelComparisonCard";
+import { RoutineCard } from "./RoutineCard";
+import type {
+  CreateRoutineAttempt,
+  SaveRoutineOutcome,
+} from "./RoutineCheckInForm";
 import { VoiceResponse } from "./VoiceResponse";
 
 type ExtendedMessage = ChatUIMessage;
@@ -56,6 +66,12 @@ function getModelComparisonData(parts: ExtendedMessage["parts"]) {
     (candidate) => candidate.type === "data-modelComparison",
   ) as { data?: ModelComparisonData } | undefined;
   return part?.data;
+}
+
+export function getRoutineProposalData(
+  parts: ExtendedMessage["parts"],
+): RoutineProposal | null {
+  return getRoutineProposalFromParts(parts);
 }
 
 interface MessageListProps {
@@ -80,6 +96,16 @@ interface MessageListProps {
     Partial<Record<ModelComparisonSlot, string>>
   >;
   onModelComparisonResolved?: () => Promise<void>;
+  routines: RoutineCardData[];
+  isGuest: boolean;
+  canRenderRoutineCards: boolean;
+  registrationHref: string;
+  onSaveRoutine: (sourceAssistantMessageId: string) => Promise<RoutineCardData>;
+  onCreateRoutineAttempt: CreateRoutineAttempt;
+  onSaveRoutineOutcome: SaveRoutineOutcome;
+  onArchiveRoutine: (routineId: string) => Promise<RoutineCardData>;
+  onTryRoutineNow: (title: string) => void;
+  openCheckInRoutineId?: string | null;
   // Lazy loading props
   hasMoreMessages?: boolean;
   isLoadingMore?: boolean;
@@ -156,6 +182,16 @@ export function MessageList({
   feedbackMessageIds,
   comparisonDeltas = {},
   onModelComparisonResolved,
+  routines,
+  isGuest,
+  canRenderRoutineCards,
+  registrationHref,
+  onSaveRoutine,
+  onCreateRoutineAttempt,
+  onSaveRoutineOutcome,
+  onArchiveRoutine,
+  onTryRoutineNow,
+  openCheckInRoutineId,
   hasMoreMessages = false,
   isLoadingMore = false,
   onLoadMore,
@@ -205,6 +241,15 @@ export function MessageList({
       latestMessage,
     });
   const parentRef = useRef<HTMLDivElement>(null);
+  const routineBySourceMessageId = useMemo(() => {
+    const byMessageId = new Map<string, RoutineCardData>();
+    for (const routine of routines) {
+      if (routine.sourceAssistantMessageId) {
+        byMessageId.set(routine.sourceAssistantMessageId, routine);
+      }
+    }
+    return byMessageId;
+  }, [routines]);
 
   useEffect(() => {
     if (status !== "submitted") {
@@ -449,6 +494,12 @@ export function MessageList({
               );
               const hasText = messageText.trim().length > 0;
               const isAttachmentOnly = hasAttachments && !hasText;
+              const hasAudioFilePart =
+                message.parts?.some((part) =>
+                  normalizeFilePartForPreview(part)?.mimeType.startsWith(
+                    "audio/",
+                  ),
+                ) ?? false;
               const feedbackReasonLabel = getFeedbackReasonLabel(
                 feedbackReasonState[message.id],
               );
@@ -477,6 +528,17 @@ export function MessageList({
                 !isVoiceMessage &&
                 (message.voice?.status === "FAILED" ||
                   message.voice?.status === "CANCELLED");
+              const hasAudioPayload = isVoiceMessage || hasAudioFilePart;
+              const routineProposal =
+                canRenderRoutineCards &&
+                message.role === "assistant" &&
+                !comparisonData &&
+                !hasAudioPayload
+                  ? getRoutineProposalData(message.parts)
+                  : null;
+              const routine = routineProposal
+                ? (routineBySourceMessageId.get(message.id) ?? null)
+                : null;
 
               return (
                 <div
@@ -557,7 +619,7 @@ export function MessageList({
                               : "p-0 bg-transparent" /* Transparent for standalone attachments */
                         } ${
                           assistantDisplayState === "streaming"
-                            ? "min-h-[3.5rem] min-w-40 transition-[min-height,width] duration-150 ease-out"
+                            ? "min-h-[3.5rem] min-w-40 transition-[min-height] duration-150 ease-out"
                             : ""
                         } ${isEditing ? "w-full min-w-75" : ""}`}
                       >
@@ -776,6 +838,26 @@ export function MessageList({
                             );
                           })()}
                       </div>
+
+                      {routineProposal && (
+                        <RoutineCard
+                          proposal={routineProposal}
+                          routine={routine}
+                          sourceAssistantMessageId={message.id}
+                          isGuest={isGuest}
+                          registrationHref={registrationHref}
+                          onSave={onSaveRoutine}
+                          onCreateAttempt={onCreateRoutineAttempt}
+                          onSaveOutcome={onSaveRoutineOutcome}
+                          onArchive={onArchiveRoutine}
+                          onTryNow={() =>
+                            onTryRoutineNow(
+                              routine?.proposal.title ?? routineProposal.title,
+                            )
+                          }
+                          openCheckIn={openCheckInRoutineId === routine?.id}
+                        />
+                      )}
 
                       {/* Actions Row */}
                       {!comparisonData && (

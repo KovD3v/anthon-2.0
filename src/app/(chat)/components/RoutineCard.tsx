@@ -1,0 +1,270 @@
+"use client";
+
+import { Loader2 } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import type { RoutineCardData, RoutineProposal } from "@/lib/coaching/routine";
+import {
+  type CreateRoutineAttempt,
+  RoutineCheckInForm,
+  type SaveRoutineOutcome,
+} from "./RoutineCheckInForm";
+
+interface RoutineCardProps {
+  proposal: RoutineProposal;
+  routine: RoutineCardData | null;
+  sourceAssistantMessageId: string;
+  isGuest: boolean;
+  registrationHref: string;
+  onSave: (sourceAssistantMessageId: string) => Promise<RoutineCardData>;
+  onCreateAttempt: CreateRoutineAttempt;
+  onSaveOutcome: SaveRoutineOutcome;
+  onArchive: (routineId: string) => Promise<RoutineCardData>;
+  onTryNow: () => void;
+  openCheckIn?: boolean;
+}
+
+type PendingAction = "save" | "attempt" | "archive" | null;
+
+export function RoutineCard({
+  proposal,
+  routine,
+  sourceAssistantMessageId,
+  isGuest,
+  registrationHref,
+  onSave,
+  onCreateAttempt,
+  onSaveOutcome,
+  onArchive,
+  onTryNow,
+  openCheckIn = false,
+}: RoutineCardProps) {
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [isCheckInOpen, setIsCheckInOpen] = useState(openCheckIn);
+  const snapshot = routine?.proposal ?? proposal;
+  const isArchived = routine?.status === "ARCHIVED";
+  const isActive = routine?.status === "ACTIVE";
+
+  useEffect(() => {
+    if (openCheckIn && isActive) {
+      setIsCheckInOpen(true);
+    }
+  }, [isActive, openCheckIn]);
+
+  async function runAction(
+    action: Exclude<PendingAction, null>,
+    operation: () => Promise<RoutineCardData>,
+    errorMessage: string,
+    successMessage?: string,
+  ) {
+    if (pendingAction) return;
+
+    setPendingAction(action);
+    setError(null);
+    setStatus(null);
+    try {
+      await operation();
+      if (successMessage) setStatus(successMessage);
+    } catch {
+      setError(errorMessage);
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  return (
+    <section
+      className="mt-3 w-full rounded-2xl border border-border/80 bg-background/95 p-4 text-foreground shadow-xs sm:p-5"
+      aria-labelledby={`routine-title-${sourceAssistantMessageId}`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          {isArchived
+            ? "Routine archiviata"
+            : isActive
+              ? "Routine attiva"
+              : "Routine proposta"}
+        </p>
+        {snapshot.durationLabel && (
+          <span className="rounded-full border border-border/70 px-2.5 py-1 text-xs text-muted-foreground">
+            {snapshot.durationLabel}
+          </span>
+        )}
+      </div>
+
+      <h3
+        id={`routine-title-${sourceAssistantMessageId}`}
+        className="mt-3 font-display text-xl font-bold uppercase leading-none tracking-tight text-foreground"
+      >
+        {snapshot.title}
+      </h3>
+
+      <div className="mt-4 grid gap-4 text-sm sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+        <div>
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Quando
+          </p>
+          <p className="mt-1 leading-relaxed text-foreground/90">
+            {snapshot.trigger}
+          </p>
+        </div>
+        <div>
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Sequenza
+          </p>
+          <ol className="mt-1.5 space-y-1.5">
+            {snapshot.steps.map((step, index) => (
+              <li
+                key={`${index}-${step}`}
+                className="flex gap-2 leading-relaxed"
+              >
+                <span
+                  className="font-mono text-xs text-muted-foreground"
+                  aria-hidden="true"
+                >
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+
+      <div className="mt-4 border-border/70 border-t pt-3">
+        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Segnale di riuscita
+        </p>
+        <p className="mt-1 text-sm leading-relaxed text-foreground/90">
+          {snapshot.completionCue}
+        </p>
+      </div>
+
+      {!isArchived && (
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          {!isActive &&
+            (isGuest ? (
+              <Button asChild size="sm" className="rounded-full">
+                <Link href={registrationHref}>Salva routine</Link>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-full"
+                disabled={pendingAction !== null}
+                onClick={() =>
+                  runAction(
+                    "save",
+                    () => onSave(sourceAssistantMessageId),
+                    "Non siamo riusciti a salvare la routine. Riprova.",
+                  )
+                }
+              >
+                {pendingAction === "save" && (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                )}
+                Salva routine
+              </Button>
+            ))}
+
+          {isActive && routine && (
+            <Button
+              type="button"
+              size="sm"
+              className="rounded-full"
+              disabled={pendingAction !== null}
+              onClick={() =>
+                runAction(
+                  "attempt",
+                  () => onCreateAttempt(routine.id),
+                  "Non siamo riusciti a segnare il tentativo. Riprova.",
+                  "Tentativo segnato",
+                )
+              }
+            >
+              {pendingAction === "attempt" && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              )}
+              Segna un tentativo
+            </Button>
+          )}
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="rounded-full"
+            disabled={pendingAction !== null}
+            onClick={isActive ? () => setIsCheckInOpen(true) : onTryNow}
+          >
+            {isActive ? "Com'è andata?" : "La provo ora"}
+          </Button>
+
+          {isActive && routine && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="rounded-full text-muted-foreground hover:text-destructive"
+              disabled={pendingAction !== null}
+              onClick={() =>
+                runAction(
+                  "archive",
+                  () => onArchive(routine.id),
+                  "Non siamo riusciti ad archiviare la routine. Riprova.",
+                )
+              }
+            >
+              {pendingAction === "archive" && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              )}
+              Archivia routine
+            </Button>
+          )}
+        </div>
+      )}
+
+      {pendingAction === "save" && (
+        <output
+          className="mt-3 block text-xs text-muted-foreground"
+          aria-live="polite"
+        >
+          Salvataggio routine…
+        </output>
+      )}
+      {pendingAction === "attempt" && (
+        <output
+          className="mt-3 block text-xs text-muted-foreground"
+          aria-live="polite"
+        >
+          Registro il tentativo…
+        </output>
+      )}
+      {status && !pendingAction && (
+        <output
+          className="mt-3 block text-xs font-medium text-foreground"
+          aria-live="polite"
+        >
+          {status}
+        </output>
+      )}
+      {error && (
+        <p className="mt-3 text-xs font-medium text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+
+      {isActive && routine && isCheckInOpen && (
+        <RoutineCheckInForm
+          routine={routine}
+          onCreateAttempt={onCreateAttempt}
+          onSaveOutcome={onSaveOutcome}
+        />
+      )}
+    </section>
+  );
+}
