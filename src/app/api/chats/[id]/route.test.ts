@@ -511,6 +511,66 @@ describe("/api/chats/[id] route", () => {
     expect(mocks.routineFindMany).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [
+      "object",
+      {
+        type: "data-coachingRoutine",
+        data: {
+          title: "Routine privata",
+          trigger: "Quando sale la tensione",
+          steps: ["Respira", "Scegli un gesto"],
+          completionCue: "Torna al presente",
+        },
+      },
+    ],
+    ["null", null],
+  ])(
+    "GET fails closed for malformed %s parts in a public foreign payload",
+    async (_label, parts) => {
+      mocks.getAuthUser.mockResolvedValue({
+        user: { id: "viewer-1", role: "USER", isGuest: false },
+        error: null,
+      });
+      mocks.chatFindFirst.mockResolvedValue({
+        id: "chat-1",
+        title: "Shared",
+        visibility: "PUBLIC",
+        userId: "owner-1",
+        createdAt: new Date("2026-08-08T10:00:00.000Z"),
+        updatedAt: new Date("2026-08-08T10:02:00.000Z"),
+      });
+      mocks.messageFindMany.mockResolvedValue([
+        {
+          id: "assistant-malformed",
+          role: "ASSISTANT",
+          parts,
+          createdAt: new Date("2026-08-08T10:02:00.000Z"),
+          model: null,
+          inputTokens: null,
+          outputTokens: null,
+          costUsd: null,
+          generationTimeMs: null,
+          reasoningTimeMs: null,
+          ragUsed: null,
+          toolCalls: null,
+          feedback: null,
+          metadata: null,
+          attachments: [],
+        },
+      ]);
+
+      const response = await GET(
+        new Request("http://localhost/api/chats/chat-1"),
+        { params: params() },
+      );
+      const body = await response.json();
+
+      expect(body.messages[0].parts).toEqual([]);
+      expect(body.routines).toEqual([]);
+    },
+  );
+
   it("GET returns 500 on database errors", async () => {
     mocks.messageFindMany.mockRejectedValue(new Error("db failed"));
 

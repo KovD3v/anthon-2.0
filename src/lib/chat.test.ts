@@ -568,6 +568,60 @@ describe("lib/chat", () => {
     expect(mocks.routineFindMany).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [
+      "object",
+      {
+        type: "data-coachingRoutine",
+        data: {
+          title: "Routine privata",
+          trigger: "Quando sale la tensione",
+          steps: ["Respira", "Scegli un gesto"],
+          completionCue: "Torna al presente",
+        },
+      },
+    ],
+    ["null", null],
+  ])(
+    "getSharedChat fails closed for malformed %s parts in a public payload",
+    async (_label, parts) => {
+      mocks.chatFindFirst.mockResolvedValue({
+        id: "public-chat",
+        title: "Public",
+        visibility: "PUBLIC",
+        userId: "owner-1",
+        createdAt: new Date("2026-08-08T10:00:00.000Z"),
+        updatedAt: new Date("2026-08-08T10:05:00.000Z"),
+        _count: { messages: 1 },
+      });
+      mocks.userFindUnique.mockResolvedValue(null);
+      mocks.messageFindMany.mockResolvedValue([
+        {
+          id: "assistant-malformed",
+          role: "ASSISTANT",
+          parts,
+          createdAt: new Date("2026-08-08T10:05:00.000Z"),
+          model: null,
+          inputTokens: null,
+          outputTokens: null,
+          costUsd: null,
+          generationTimeMs: null,
+          reasoningTimeMs: null,
+          ragUsed: null,
+          toolCalls: null,
+          feedback: null,
+          metadata: null,
+          attachments: [],
+        },
+      ]);
+
+      const result = await getSharedChat("public-chat", "viewer-1");
+
+      expect(result?.messages[0]?.parts).toEqual([]);
+      expect(result?.routines).toEqual([]);
+    },
+  );
+
   it("getSharedChat supports cursor pagination and defaults voice preference for missing user data", async () => {
     mocks.chatFindFirst.mockResolvedValue({
       id: "chat-public",

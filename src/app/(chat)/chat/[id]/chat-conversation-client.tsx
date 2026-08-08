@@ -168,11 +168,24 @@ export function ChatConversationClient({
       );
       if (response.ok) {
         const data = await response.json();
-        setChatData((prev) => ({
-          ...prev,
-          messages: [...data.messages, ...prev.messages],
-          pagination: data.pagination,
-        }));
+        const olderRoutines = (data.routines ?? []) as ChatData["routines"];
+        setChatData((prev) => {
+          const existingRoutineIds = new Set(
+            prev.routines.map((routine) => routine.id),
+          );
+
+          return {
+            ...prev,
+            messages: [...data.messages, ...prev.messages],
+            routines: [
+              ...prev.routines,
+              ...olderRoutines.filter(
+                (routine) => !existingRoutineIds.has(routine.id),
+              ),
+            ],
+            pagination: data.pagination,
+          };
+        });
       }
     } catch (err) {
       console.error("Failed to load more messages:", err);

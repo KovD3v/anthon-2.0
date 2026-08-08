@@ -213,7 +213,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 }
 
 function withoutCoachingRoutineParts(parts: unknown): unknown {
-  if (!Array.isArray(parts)) return parts;
+  if (!Array.isArray(parts)) return [];
 
   return parts.filter(
     (part) =>

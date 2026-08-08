@@ -456,6 +456,36 @@ describe("ChatConversationClient pagination and recovery", () => {
   });
 
   it("prepends an older page without disturbing current message order", async () => {
+    const currentRoutine = {
+      id: "routine-current",
+      sourceChatId: "chat-1",
+      sourceAssistantMessageId: "assistant-new",
+      status: "ACTIVE" as const,
+      proposal: {
+        title: "Routine corrente",
+        trigger: "Prima del gesto",
+        durationLabel: "30 secondi",
+        steps: ["Respira", "Visualizza"],
+        completionCue: "Riparti",
+      },
+      archivedAt: null,
+      latestAttempt: null,
+    };
+    const olderRoutine = {
+      id: "routine-old",
+      sourceChatId: "chat-1",
+      sourceAssistantMessageId: "assistant-old",
+      status: "ACTIVE" as const,
+      proposal: {
+        title: "Routine precedente",
+        trigger: "Dopo un errore",
+        durationLabel: null,
+        steps: ["Fermati", "Scegli il prossimo gesto"],
+        completionCue: "Torna al compito",
+      },
+      archivedAt: null,
+      latestAttempt: null,
+    };
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -477,6 +507,16 @@ describe("ChatConversationClient pagination and recovery", () => {
                 createdAt: "2026-07-15T11:00:01.000Z",
               },
             ],
+            routines: [
+              olderRoutine,
+              {
+                ...currentRoutine,
+                proposal: {
+                  ...currentRoutine.proposal,
+                  title: "Copia obsoleta",
+                },
+              },
+            ],
             pagination: { hasMore: false, nextCursor: null },
           }),
           { status: 200 },
@@ -484,7 +524,7 @@ describe("ChatConversationClient pagination and recovery", () => {
       ),
     );
     const user = userEvent.setup();
-    renderConversation();
+    renderConversation({ ...initialChatData, routines: [currentRoutine] });
 
     await user.click(screen.getByRole("button", { name: "Carica precedenti" }));
 
@@ -495,6 +535,14 @@ describe("ChatConversationClient pagination and recovery", () => {
         "Domanda nuova",
         "Risposta nuova",
       ]),
+    );
+    await waitFor(() =>
+      expect(mocks.updateCachedChat).toHaveBeenLastCalledWith(
+        "chat-1",
+        expect.objectContaining({
+          routines: [currentRoutine, olderRoutine],
+        }),
+      ),
     );
   });
 

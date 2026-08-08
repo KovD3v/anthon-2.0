@@ -253,7 +253,51 @@ describe("/api/guest/chats/[id] route", () => {
         hasMore: true,
         nextCursor: "m2",
       },
+      routines: [],
     });
+  });
+
+  it("GET preserves a private guest proposal while returning no saved routines", async () => {
+    const proposal = {
+      title: "Reset rapido",
+      trigger: "Prima del servizio",
+      durationLabel: null,
+      steps: ["Espira lentamente", "Guarda il bersaglio"],
+      completionCue: "Inizia il movimento",
+    };
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "assistant-guest",
+        role: "ASSISTANT",
+        parts: [
+          { type: "text", text: "Prova questa routine." },
+          { type: "data-coachingRoutine", data: proposal },
+        ],
+        createdAt: new Date("2026-08-08T10:02:00.000Z"),
+        model: null,
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: null,
+        generationTimeMs: null,
+        ragUsed: null,
+        toolCalls: null,
+        feedback: null,
+        metadata: null,
+      },
+    ]);
+
+    const response = await GET(
+      new Request("http://localhost/api/guest/chats/chat-1"),
+      { params: params() },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.routines).toEqual([]);
+    expect(body.messages[0].parts).toEqual([
+      { type: "text", text: "Prova questa routine." },
+      { type: "data-coachingRoutine", data: proposal },
+    ]);
   });
 
   it("GET returns 500 on unexpected errors", async () => {

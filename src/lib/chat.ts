@@ -343,7 +343,7 @@ export const getSharedChat = cache(
 );
 
 function withoutCoachingRoutineParts(parts: unknown): unknown {
-  if (!Array.isArray(parts)) return parts;
+  if (!Array.isArray(parts)) return [];
 
   return parts.filter(
     (part) =>

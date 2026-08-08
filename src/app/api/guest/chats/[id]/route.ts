@@ -135,6 +135,7 @@ export async function GET(request: Request, { params }: RouteParams) {
         hasMore,
         nextCursor,
       },
+      routines: [],
     });
   } catch (err) {
     guestLogger.error("get.error", "Failed to fetch guest chat", {
