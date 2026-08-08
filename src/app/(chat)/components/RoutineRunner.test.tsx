@@ -1,0 +1,158 @@
+// @vitest-environment jsdom
+
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { normalizeRoutineProposal } from "@/lib/coaching/routine";
+import { RoutineRunner } from "./RoutineRunner";
+
+const routine = normalizeRoutineProposal({
+  formatVersion: 2,
+  title: "Reset dopo l'errore",
+  trigger: "Dopo un errore in gara",
+  durationLabel: "5 secondi",
+  completionCue: "Riparti sul gesto successivo.",
+  steps: [
+    {
+      id: "ground",
+      kind: "instruction",
+      text: "Porta l'attenzione al prossimo gesto.",
+    },
+    {
+      id: "reset",
+      kind: "timer",
+      label: "Reset",
+      instruction: "Espira lentamente.",
+      durationSeconds: 5,
+    },
+    {
+      id: "outcome",
+      kind: "form",
+      question: "Quanto ti è stata utile?",
+      mode: "choice",
+      options: [
+        { label: "Mi ha aiutato", outcome: "HELPFUL" },
+        { label: "In parte", outcome: "PARTIALLY_HELPFUL" },
+        { label: "Non mi ha aiutato", outcome: "NOT_HELPFUL" },
+      ],
+      noteEnabled: true,
+    },
+  ],
+});
+
+function renderRunner(
+  overrides: Partial<React.ComponentProps<typeof RoutineRunner>> = {},
+) {
+  const props: React.ComponentProps<typeof RoutineRunner> = {
+    routine,
+    completionForm: routine.completionForm,
+    onComplete: vi.fn(),
+    onClose: vi.fn(),
+    ...overrides,
+  };
+
+  return { ...render(<RoutineRunner {...props} />), props };
+}
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+describe("RoutineRunner", () => {
+  it("keeps completion explicit: an ended timer waits for Continua and never renders the terminal form", () => {
+    vi.useFakeTimers({ now: new Date("2026-08-08T10:00:00.000Z") });
+    const { props } = renderRunner();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fatto" }));
+    expect(
+      screen
+        .getAllByText("Passo 2 di 2")
+        .some((element) => element.getAttribute("role") !== "status"),
+    ).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Avvia" }));
+    act(() => vi.advanceTimersByTime(5_000));
+
+    expect(screen.getByRole("button", { name: "Continua" })).toBeTruthy();
+    expect(props.onComplete).not.toHaveBeenCalled();
+    expect(screen.queryByText("Quanto ti è stata utile?")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continua" }));
+    expect(props.onComplete).toHaveBeenCalledOnce();
+    expect(screen.getByText("Ho completato la routine")).toBeTruthy();
+  });
+
+  it("derives remaining time after a background visibility change without live-announcing every tick", () => {
+    vi.useFakeTimers({ now: new Date("2026-08-08T10:00:00.000Z") });
+    renderRunner({
+      routine: { ...routine, practiceSteps: [routine.practiceSteps[1]] },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Avvia" }));
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    act(() => vi.advanceTimersByTime(5_000));
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+    expect(screen.getByRole("button", { name: "Continua" })).toBeTruthy();
+    expect(screen.getByText("00:00").getAttribute("aria-live")).toBeNull();
+    expect(screen.getByRole("status").getAttribute("aria-live")).toBe("polite");
+  });
+
+  it("supports keyboard actions, 44px controls, and focus return on close", async () => {
+    const user = userEvent.setup();
+    const launch = document.createElement("button");
+    launch.textContent = "Avvia routine";
+    document.body.append(launch);
+    launch.focus();
+    const { props } = renderRunner();
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("region", { name: routine.title }),
+    );
+    expect(
+      screen.getByRole("region", { name: routine.title }).className,
+    ).toContain("motion-reduce:transition-none");
+    for (const name of ["Chiudi", "Fatto"]) {
+      expect(screen.getByRole("button", { name }).className).toContain(
+        "min-h-11",
+      );
+    }
+
+    await user.tab();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Chiudi" }),
+    );
+    await user.tab();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Fatto" }),
+    );
+    await user.keyboard("{Enter}");
+    for (const name of ["Avvia", "Ripristina"]) {
+      expect(screen.getByRole("button", { name }).className).toContain(
+        "min-h-11",
+      );
+    }
+
+    screen.getByRole<HTMLButtonElement>("button", { name: "Chiudi" }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(props.onClose).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(launch);
+    launch.remove();
+  });
+});
