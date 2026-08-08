@@ -89,8 +89,13 @@ describe("RoutineRunner", () => {
     expect(screen.queryByText("Quanto ti è stata utile?")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Continua" }));
+    expect(props.onComplete).not.toHaveBeenCalled();
+    const complete = screen.getByRole("button", {
+      name: "Ho completato la routine",
+    });
+    fireEvent.click(complete);
+    fireEvent.click(complete);
     expect(props.onComplete).toHaveBeenCalledOnce();
-    expect(screen.getByText("Ho completato la routine")).toBeTruthy();
   });
 
   it("derives remaining time after a background visibility change without live-announcing every tick", () => {
@@ -144,8 +149,11 @@ describe("RoutineRunner", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Fatto" }));
 
+    expect(props.onComplete).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ho completato la routine" }),
+    );
     expect(props.onComplete).toHaveBeenCalledOnce();
-    expect(screen.getByText("Ho completato la routine")).toBeTruthy();
   });
 
   it("stops ticking and releases Wake Lock when a timer reaches zero", async () => {

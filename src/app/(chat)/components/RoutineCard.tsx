@@ -83,12 +83,12 @@ export function RoutineCard({
           : "Routine proposta";
 
   useEffect(() => {
-    if (openCheckIn && isActive) {
+    if (openCheckIn && hasPendingAttempt) {
       setIsCheckInOpen(true);
-    } else if (!openCheckIn) {
+    } else if (!hasPendingAttempt) {
       setIsCheckInOpen(false);
     }
-  }, [isActive, openCheckIn]);
+  }, [hasPendingAttempt, openCheckIn]);
 
   useEffect(() => {
     setCompletedRoutine((current) => {
@@ -363,7 +363,7 @@ export function RoutineCard({
         </>
       )}
 
-      {isActive && displayedRoutine && isCheckInOpen && (
+      {hasPendingAttempt && displayedRoutine && isCheckInOpen && (
         <RoutineCheckInForm
           routine={displayedRoutine}
           onCreateAttempt={onCreateAttempt}

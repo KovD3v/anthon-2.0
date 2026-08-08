@@ -45,7 +45,6 @@ const OUTCOMES: ReadonlyArray<{
 
 export function RoutineCheckInForm({
   routine,
-  onCreateAttempt,
   onSaveOutcome,
   onSuccess,
   onFocused,
@@ -68,8 +67,11 @@ export function RoutineCheckInForm({
   const outcomes = completionForm?.options ?? OUTCOMES;
   const question = completionForm?.question ?? "Esito del tentativo";
   const isNoteEnabled = completionForm?.noteEnabled ?? true;
+  const pendingAttempt =
+    routine.latestAttempt?.outcome === null ? routine.latestAttempt : null;
 
   useEffect(() => {
+    if (!pendingAttempt) return;
     if (didAttemptFocusRef.current) return;
     didAttemptFocusRef.current = true;
     noteRef.current?.focus();
@@ -81,10 +83,10 @@ export function RoutineCheckInForm({
       didReportFocusRef.current = true;
       onFocusedRef.current?.();
     }
-  }, []);
+  }, [pendingAttempt]);
 
   async function submitOutcome(outcome: RoutineAttemptOutcome) {
-    if (pendingOutcome) return;
+    if (!pendingAttempt || pendingOutcome) return;
 
     setSelectedOutcome(outcome);
     setError(null);
@@ -93,20 +95,11 @@ export function RoutineCheckInForm({
     const outcomeNote = isNoteEnabled ? note.trim() || null : null;
 
     try {
-      let updatedRoutine: RoutineCardData;
-      if (routine.latestAttempt?.outcome === null) {
-        updatedRoutine = await onSaveOutcome(
-          routine.latestAttempt.id,
-          outcome,
-          outcomeNote,
-        );
-      } else {
-        updatedRoutine = await onCreateAttempt(
-          routine.id,
-          outcome,
-          outcomeNote,
-        );
-      }
+      const updatedRoutine = await onSaveOutcome(
+        pendingAttempt.id,
+        outcome,
+        outcomeNote,
+      );
       onSuccess?.(updatedRoutine);
       setStatus("Esito registrato");
     } catch (cause) {
@@ -118,6 +111,14 @@ export function RoutineCheckInForm({
     } finally {
       setPendingOutcome(null);
     }
+  }
+
+  if (!pendingAttempt) {
+    return (
+      <output className="mt-4 block text-sm text-muted-foreground">
+        Il check-in sarà disponibile dopo il completamento della routine.
+      </output>
+    );
   }
 
   return (

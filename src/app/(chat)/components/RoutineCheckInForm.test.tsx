@@ -110,13 +110,13 @@ describe("RoutineCheckInForm", () => {
     );
   });
 
-  it("keeps the optional note inert until an explicit outcome is chosen", async () => {
-    const user = userEvent.setup();
+  it("renders no outcome controls or creation path without an authoritative pending attempt", () => {
     const { props } = renderForm();
-    const note = screen.getByRole("textbox", { name: "Nota facoltativa" });
 
-    await user.type(note, "Ho ritrovato il ritmo");
-
+    expect(
+      screen.queryByRole("textbox", { name: "Nota facoltativa" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Mi ha aiutato" })).toBeNull();
     expect(props.onCreateAttempt).not.toHaveBeenCalled();
     expect(props.onSaveOutcome).not.toHaveBeenCalled();
   });
@@ -124,7 +124,17 @@ describe("RoutineCheckInForm", () => {
   it("focuses and reports readiness only once across parent rerenders", async () => {
     const onFocused = vi.fn();
     const focusSpy = vi.spyOn(HTMLTextAreaElement.prototype, "focus");
-    const { rerender, props } = renderForm(routine, { onFocused });
+    const pendingRoutine: RoutineCardData = {
+      ...routine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    };
+    const { rerender, props } = renderForm(pendingRoutine, { onFocused });
 
     await screen.findByRole("textbox", { name: "Nota facoltativa" });
 
@@ -138,31 +148,6 @@ describe("RoutineCheckInForm", () => {
     expect(onFocused).toHaveBeenCalledOnce();
     expect(focusSpy).toHaveBeenCalledOnce();
   });
-
-  it.each([
-    ["Mi ha aiutato", "HELPFUL"],
-    ["In parte", "PARTIALLY_HELPFUL"],
-    ["Non ha aiutato", "NOT_HELPFUL"],
-  ] as const)(
-    "creates the first attempt with the %s outcome",
-    async (label, outcome) => {
-      const user = userEvent.setup();
-      const { props } = renderForm();
-
-      await user.type(
-        screen.getByRole("textbox", { name: "Nota facoltativa" }),
-        "Nota dal campo",
-      );
-      await user.click(screen.getByRole("button", { name: label }));
-
-      expect(props.onCreateAttempt).toHaveBeenCalledWith(
-        "routine-1",
-        outcome,
-        "Nota dal campo",
-      );
-      expect(props.onSaveOutcome).not.toHaveBeenCalled();
-    },
-  );
 
   it("patches the newest pending attempt instead of creating another one", async () => {
     const pendingAttemptRoutine: RoutineCardData = {
@@ -188,7 +173,7 @@ describe("RoutineCheckInForm", () => {
     expect(props.onCreateAttempt).not.toHaveBeenCalled();
   });
 
-  it("creates a new attempt when the latest one already has an outcome", async () => {
+  it("renders no outcome controls when the latest attempt already has an outcome", () => {
     const completedAttemptRoutine: RoutineCardData = {
       ...routine,
       latestAttempt: {
@@ -199,23 +184,27 @@ describe("RoutineCheckInForm", () => {
         outcomeRecordedAt: "2026-08-08T09:05:00.000Z",
       },
     };
-    const user = userEvent.setup();
     const { props } = renderForm(completedAttemptRoutine);
 
-    await user.click(screen.getByRole("button", { name: "Non ha aiutato" }));
-
-    expect(props.onCreateAttempt).toHaveBeenCalledWith(
-      "routine-1",
-      "NOT_HELPFUL",
-      null,
-    );
+    expect(screen.queryByRole("button", { name: "Non ha aiutato" })).toBeNull();
+    expect(props.onCreateAttempt).not.toHaveBeenCalled();
     expect(props.onSaveOutcome).not.toHaveBeenCalled();
   });
 
   it("announces failure and restores all outcome actions for retry", async () => {
     const user = userEvent.setup();
-    renderForm(routine, {
-      onCreateAttempt: vi.fn().mockRejectedValue(new Error("offline")),
+    const pendingRoutine: RoutineCardData = {
+      ...routine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    };
+    renderForm(pendingRoutine, {
+      onSaveOutcome: vi.fn().mockRejectedValue(new Error("offline")),
     });
 
     await user.click(screen.getByRole("button", { name: "Mi ha aiutato" }));
@@ -232,8 +221,18 @@ describe("RoutineCheckInForm", () => {
 
   it("preserves status-aware conflict copy", async () => {
     const user = userEvent.setup();
-    renderForm(routine, {
-      onCreateAttempt: vi
+    const pendingRoutine: RoutineCardData = {
+      ...routine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    };
+    renderForm(pendingRoutine, {
+      onSaveOutcome: vi
         .fn()
         .mockRejectedValue(
           new RoutineClientError(
@@ -251,7 +250,16 @@ describe("RoutineCheckInForm", () => {
   });
 
   it("gives each outcome a mobile-sized action target", () => {
-    renderForm();
+    renderForm({
+      ...routine,
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-08T09:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    });
 
     for (const name of ["Mi ha aiutato", "In parte", "Non ha aiutato"]) {
       expect(screen.getByRole("button", { name }).className).toContain(

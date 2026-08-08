@@ -175,6 +175,7 @@ export function ChatConversationClient({
     : null;
   const queriedCheckInRoutineId =
     requestedRoutine?.status === "ACTIVE" &&
+    requestedRoutine.latestAttempt?.outcome === null &&
     requestedRoutine.sourceChatId === chatId &&
     requestedRoutine.sourceAssistantMessageId !== null
       ? requestedRoutine.id
@@ -186,7 +187,8 @@ export function ChatConversationClient({
     chatData.routines.some(
       (routine) =>
         routine.id === returnCheckInRequest.routineId &&
-        routine.status === "ACTIVE",
+        routine.status === "ACTIVE" &&
+        routine.latestAttempt?.outcome === null,
     )
       ? returnCheckInRequest.routineId
       : null);
@@ -196,6 +198,7 @@ export function ChatConversationClient({
     requestedRoutine === null &&
     activeRoutine?.id === requestedCheckInRoutineId &&
     activeRoutine.status === "ACTIVE" &&
+    activeRoutine.latestAttempt?.outcome === null &&
     activeRoutine.sourceChatId === chatId
       ? activeRoutine.sourceAssistantMessageId
       : null;

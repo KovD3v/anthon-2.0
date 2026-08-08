@@ -220,7 +220,18 @@ describe("MessageList rendered interactions", () => {
             attachments: [{}],
           },
         ],
-        routines: [activeRoutine],
+        routines: [
+          {
+            ...activeRoutine,
+            latestAttempt: {
+              id: "attempt-1",
+              attemptedAt: "2026-08-08T09:00:00.000Z",
+              outcome: null,
+              outcomeNote: null,
+              outcomeRecordedAt: null,
+            },
+          },
+        ],
       },
       {
         routineId: "routine-1",

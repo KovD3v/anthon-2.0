@@ -90,6 +90,17 @@ const activeRoutine: RoutineCardData = {
   latestAttempt: null,
 };
 
+const pendingRoutine: RoutineCardData = {
+  ...activeRoutine,
+  latestAttempt: {
+    id: "attempt-1",
+    attemptedAt: "2026-08-08T09:00:00.000Z",
+    outcome: null,
+    outcomeNote: null,
+    outcomeRecordedAt: null,
+  },
+};
+
 describe("chat landing page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -228,26 +239,21 @@ describe("chat landing page", () => {
 
   it("opens an orphan routine check-in on the landing without creating a chat", async () => {
     const orphanRoutine = {
-      ...activeRoutine,
+      ...pendingRoutine,
       sourceChatId: null,
       sourceAssistantMessageId: null,
     };
     const updatedRoutine = {
       ...orphanRoutine,
       latestAttempt: {
-        id: "attempt-1",
-        attemptedAt: "2026-08-08T09:00:00.000Z",
+        ...pendingRoutine.latestAttempt,
         outcome: "HELPFUL" as const,
-        outcomeNote: null,
         outcomeRecordedAt: "2026-08-08T09:01:00.000Z",
       },
     };
     mocks.context.activeRoutine = orphanRoutine;
     mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
-    mocks.createRoutineAttempt.mockResolvedValue(updatedRoutine);
-    vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(
-      "00000000-0000-4000-8000-000000000001",
-    );
+    mocks.saveRoutineOutcome.mockResolvedValue(updatedRoutine);
     const user = userEvent.setup();
 
     render(<ChatPage />);
@@ -260,12 +266,12 @@ describe("chat landing page", () => {
     );
     await user.click(screen.getByRole("button", { name: "Mi ha aiutato" }));
 
-    expect(mocks.createRoutineAttempt).toHaveBeenCalledWith(
-      "routine-1",
-      "00000000-0000-4000-8000-000000000001",
+    expect(mocks.saveRoutineOutcome).toHaveBeenCalledWith(
+      "attempt-1",
       "HELPFUL",
       null,
     );
+    expect(mocks.createRoutineAttempt).not.toHaveBeenCalled();
     expect(mocks.refreshActiveRoutine).toHaveBeenCalledOnce();
     expect(mocks.updateActiveRoutine).not.toHaveBeenCalled();
     expect(mocks.createChat).not.toHaveBeenCalled();
@@ -273,7 +279,7 @@ describe("chat landing page", () => {
 
   it("archives an orphan routine after accessible confirmation and clears its return", async () => {
     const orphanRoutine: RoutineCardData = {
-      ...activeRoutine,
+      ...pendingRoutine,
       sourceChatId: null,
       sourceAssistantMessageId: null,
     };
@@ -328,7 +334,7 @@ describe("chat landing page", () => {
 
   it("keeps a successful archive complete when the selector refresh fails", async () => {
     const orphanRoutine: RoutineCardData = {
-      ...activeRoutine,
+      ...pendingRoutine,
       sourceChatId: null,
       sourceAssistantMessageId: null,
     };
@@ -378,7 +384,7 @@ describe("chat landing page", () => {
 
   it("keeps an orphan routine retryable when the archive request fails", async () => {
     mocks.context.activeRoutine = {
-      ...activeRoutine,
+      ...pendingRoutine,
       sourceChatId: null,
       sourceAssistantMessageId: null,
     };
@@ -416,7 +422,7 @@ describe("chat landing page", () => {
 
   it("keeps an orphan routine open when archive confirmation is cancelled", async () => {
     mocks.context.activeRoutine = {
-      ...activeRoutine,
+      ...pendingRoutine,
       sourceChatId: null,
       sourceAssistantMessageId: null,
     };
@@ -453,7 +459,7 @@ describe("chat landing page", () => {
   });
 
   it("uses the landing form when a source return falls back after hydration failure", async () => {
-    mocks.context.activeRoutine = activeRoutine;
+    mocks.context.activeRoutine = pendingRoutine;
     mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
 
     render(<ChatPage />);
@@ -470,7 +476,7 @@ describe("chat landing page", () => {
 
   it("does not restore a consumed orphan check-in after navigating away and back", async () => {
     mocks.context.activeRoutine = {
-      ...activeRoutine,
+      ...pendingRoutine,
       sourceChatId: null,
       sourceAssistantMessageId: null,
     };
@@ -501,7 +507,7 @@ describe("chat landing page", () => {
 
   it("clears a stale routine query and leaves the starter choices available", async () => {
     mocks.context.activeRoutine = {
-      ...activeRoutine,
+      ...pendingRoutine,
       sourceChatId: null,
       sourceAssistantMessageId: null,
     };
@@ -539,9 +545,26 @@ describe("chat landing page", () => {
     expect(mocks.createChat).not.toHaveBeenCalled();
   });
 
-  it("never starts a prefilled chat while handling a routine check-in", async () => {
+  it("clears a no-attempt routine query without exposing a creation-capable check-in", async () => {
     mocks.context.activeRoutine = {
       ...activeRoutine,
+      sourceChatId: null,
+      sourceAssistantMessageId: null,
+    };
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+
+    render(<ChatPage />);
+
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat"),
+    );
+    expect(screen.queryByRole("button", { name: "Mi ha aiutato" })).toBeNull();
+    expect(mocks.createRoutineAttempt).not.toHaveBeenCalled();
+  });
+
+  it("never starts a prefilled chat while handling a routine check-in", async () => {
+    mocks.context.activeRoutine = {
+      ...pendingRoutine,
       sourceChatId: null,
       sourceAssistantMessageId: null,
     };

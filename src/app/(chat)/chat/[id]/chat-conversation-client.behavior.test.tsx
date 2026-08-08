@@ -1096,6 +1096,16 @@ describe("ChatConversationClient routine lifecycle", () => {
     archivedAt: null,
     latestAttempt: null,
   };
+  const pendingActiveRoutine: RoutineCardData = {
+    ...activeRoutine,
+    latestAttempt: {
+      id: "attempt-1",
+      attemptedAt: "2026-08-08T09:00:00.000Z",
+      outcome: null,
+      outcomeNote: null,
+      outcomeRecordedAt: null,
+    },
+  };
   const sourceMessage = (
     overrides: Record<string, unknown> = {},
   ): Record<string, unknown> => ({
@@ -1116,7 +1126,7 @@ describe("ChatConversationClient routine lifecycle", () => {
 
   it("opens only the queried source routine and removes the query after focus", async () => {
     mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
-    const data = { ...initialChatData, routines: [activeRoutine] };
+    const data = { ...initialChatData, routines: [pendingActiveRoutine] };
 
     const { rerender } = renderConversation(data);
 
@@ -1138,7 +1148,7 @@ describe("ChatConversationClient routine lifecycle", () => {
 
   it("keeps a consumed source form for the current visit but not after navigation back", async () => {
     mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
-    const data = { ...initialChatData, routines: [activeRoutine] };
+    const data = { ...initialChatData, routines: [pendingActiveRoutine] };
     const view = renderConversation(data);
 
     await waitFor(() =>
@@ -1175,7 +1185,7 @@ describe("ChatConversationClient routine lifecycle", () => {
 
   it("target-hydrates an older active source before consuming the return query", async () => {
     const olderRoutine: RoutineCardData = {
-      ...activeRoutine,
+      ...pendingActiveRoutine,
       sourceAssistantMessageId: "assistant-old",
     };
     mocks.activeRoutine = olderRoutine;
@@ -1217,7 +1227,7 @@ describe("ChatConversationClient routine lifecycle", () => {
 
   it("finishes target hydration when pagination updates chat data in flight", async () => {
     const olderRoutine: RoutineCardData = {
-      ...activeRoutine,
+      ...pendingActiveRoutine,
       sourceAssistantMessageId: "assistant-old",
     };
     mocks.activeRoutine = olderRoutine;
@@ -1287,7 +1297,7 @@ describe("ChatConversationClient routine lifecycle", () => {
 
   it("syncs source messages from canonical chat data when pagination settles in the same batch", async () => {
     const olderRoutine: RoutineCardData = {
-      ...activeRoutine,
+      ...pendingActiveRoutine,
       sourceAssistantMessageId: "assistant-old",
     };
     mocks.activeRoutine = olderRoutine;
@@ -1395,7 +1405,7 @@ describe("ChatConversationClient routine lifecycle", () => {
     ],
   ])("falls back to the orphan check-in after %s", async (_, response) => {
     const olderRoutine: RoutineCardData = {
-      ...activeRoutine,
+      ...pendingActiveRoutine,
       sourceAssistantMessageId: "assistant-old",
     };
     mocks.activeRoutine = olderRoutine;
@@ -1490,7 +1500,7 @@ describe("ChatConversationClient routine lifecycle", () => {
     ],
   ])("falls back safely for %s", async (_, messages) => {
     const olderRoutine: RoutineCardData = {
-      ...activeRoutine,
+      ...pendingActiveRoutine,
       sourceAssistantMessageId: "assistant-old",
     };
     mocks.activeRoutine = olderRoutine;
@@ -1528,7 +1538,7 @@ describe("ChatConversationClient routine lifecycle", () => {
 
   it("drops unsupported source fields before merging a valid hydrated card", async () => {
     const olderRoutine: RoutineCardData = {
-      ...activeRoutine,
+      ...pendingActiveRoutine,
       sourceAssistantMessageId: "assistant-old",
     };
     mocks.activeRoutine = olderRoutine;
@@ -1572,7 +1582,7 @@ describe("ChatConversationClient routine lifecycle", () => {
 
   it("clears to the landing when the active hydration target disappears", async () => {
     const olderRoutine: RoutineCardData = {
-      ...activeRoutine,
+      ...pendingActiveRoutine,
       sourceAssistantMessageId: "assistant-old",
     };
     mocks.activeRoutine = olderRoutine;

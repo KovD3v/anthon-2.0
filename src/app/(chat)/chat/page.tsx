@@ -89,6 +89,10 @@ export default function ChatPage() {
   const checkInRoutineId = searchParams.get("checkInRoutineId")?.trim() ?? "";
   const returningActiveRoutine =
     !isGuest && activeRoutine?.status === "ACTIVE" ? activeRoutine : null;
+  const returningPendingCheckInRoutine =
+    returningActiveRoutine?.latestAttempt?.outcome === null
+      ? returningActiveRoutine
+      : null;
 
   useEffect(() => {
     if (
@@ -114,18 +118,23 @@ export default function ChatPage() {
     handledCheckInParamRef.current = checkInRoutineId;
 
     if (
-      !returningActiveRoutine ||
-      returningActiveRoutine.id !== checkInRoutineId
+      !returningPendingCheckInRoutine ||
+      returningPendingCheckInRoutine.id !== checkInRoutineId
     ) {
       router.replace("/chat");
       return;
     }
 
     setLandingCheckInRequest({
-      routineId: returningActiveRoutine.id,
+      routineId: returningPendingCheckInRoutine.id,
       navigationEpoch: chatNavigationEpoch,
     });
-  }, [chatNavigationEpoch, checkInRoutineId, returningActiveRoutine, router]);
+  }, [
+    chatNavigationEpoch,
+    checkInRoutineId,
+    returningPendingCheckInRoutine,
+    router,
+  ]);
 
   const handleCreateRoutineAttempt = useCallback(
     async (
@@ -219,9 +228,9 @@ export default function ChatPage() {
         )[0]
       : null;
   const landingCheckInRoutine =
-    returningActiveRoutine?.id === landingCheckInRequest?.routineId &&
+    returningPendingCheckInRoutine?.id === landingCheckInRequest?.routineId &&
     landingCheckInRequest?.navigationEpoch === chatNavigationEpoch
-      ? returningActiveRoutine
+      ? returningPendingCheckInRoutine
       : null;
   const hasReturningPath =
     mostRecentChat !== null || returningActiveRoutine !== null;

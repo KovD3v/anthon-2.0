@@ -227,10 +227,14 @@ describe("RoutineCard active lifecycle", () => {
 
     await user.click(screen.getByRole("button", { name: "Fatto" }));
 
-    expect(screen.getByText("Ho completato la routine")).toBeTruthy();
+    expect(onCreateAttempt).not.toHaveBeenCalled();
+    await user.click(
+      screen.getByRole("button", { name: "Ho completato la routine" }),
+    );
     await waitFor(() =>
       expect(onCreateAttempt).toHaveBeenCalledWith("routine-1"),
     );
+    expect(onCreateAttempt).toHaveBeenCalledOnce();
     expect(
       screen.getByRole("group", {
         name: "Quanto ti è stata utile questa routine?",
@@ -285,10 +289,17 @@ describe("RoutineCard active lifecycle", () => {
     await user.click(screen.getByRole("button", { name: "Avvia routine" }));
     await user.click(screen.getByRole("button", { name: "Fatto" }));
 
+    expect(onCreateAttempt).not.toHaveBeenCalled();
+    await user.click(
+      screen.getByRole("button", { name: "Ho completato la routine" }),
+    );
+
     expect((await screen.findByRole("alert")).textContent).toBe(
       "Conflitto routine",
     );
-    expect(screen.getByText("Ho completato la routine")).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Ho completato la routine" }),
+    ).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "Riprova" }));
 
@@ -300,15 +311,15 @@ describe("RoutineCard active lifecycle", () => {
     ).toBeTruthy();
   });
 
-  it("closes a consumed return check-in and does not reopen it on a later reveal", async () => {
+  it("does not open a return check-in without an authoritative pending attempt", async () => {
     const view = renderProposal({
       routine: activeRoutine,
       openCheckIn: true,
     });
 
     expect(
-      screen.getByRole("group", { name: "Esito del tentativo" }),
-    ).toBeTruthy();
+      screen.queryByRole("group", { name: "Esito del tentativo" }),
+    ).toBeNull();
 
     view.rerender(
       <RoutineCard
@@ -345,35 +356,25 @@ describe("RoutineCard active lifecycle", () => {
     expect(screen.getByRole("button", { name: "Avvia routine" })).toBeTruthy();
   });
 
-  it("opens the structured check-in and delegates archiving", async () => {
-    const onArchive = vi.fn().mockResolvedValue({
-      ...activeRoutine,
-      status: "ARCHIVED",
-      archivedAt: "2026-08-08T10:00:00.000Z",
-    });
-    const user = userEvent.setup();
-    const completedAttemptRoutine: RoutineCardData = {
+  it("opens the structured check-in only for an authoritative pending attempt", () => {
+    const pendingAttemptRoutine: RoutineCardData = {
       ...activeRoutine,
       latestAttempt: {
         id: "attempt-1",
         attemptedAt: "2026-08-08T09:00:00.000Z",
-        outcome: "HELPFUL",
+        outcome: null,
         outcomeNote: null,
-        outcomeRecordedAt: "2026-08-08T09:05:00.000Z",
+        outcomeRecordedAt: null,
       },
     };
     renderProposal({
-      routine: completedAttemptRoutine,
-      onArchive,
+      routine: pendingAttemptRoutine,
       openCheckIn: true,
     });
 
     expect(
       screen.getByRole("group", { name: "Esito del tentativo" }),
     ).toBeTruthy();
-
-    await user.click(screen.getByRole("button", { name: "Archivia routine" }));
-    expect(onArchive).toHaveBeenCalledWith("routine-1");
   });
 
   it("distinguishes a pending attempt and prioritizes check-in and adaptation", () => {

@@ -57,6 +57,7 @@ export function RoutineRunner({
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
   const announcedTimerEndIdRef = useRef<string | null>(null);
+  const completionSubmittedRef = useRef(false);
   const currentStep = practiceSteps[state.stepIndex] ?? null;
   const remainingMs =
     currentStep?.kind === "timer"
@@ -150,7 +151,6 @@ export function RoutineRunner({
     setNow(timestamp);
     if (nextState.status === "completed") {
       setAnnouncement("Routine completata");
-      onComplete();
       return;
     }
     setAnnouncement(
@@ -171,6 +171,13 @@ export function RoutineRunner({
   function reset() {
     updateState(resetRunner);
     setAnnouncement("");
+  }
+
+  function confirmCompletion() {
+    if (completionSubmittedRef.current) return;
+
+    completionSubmittedRef.current = true;
+    onComplete();
   }
 
   function close() {
@@ -218,6 +225,15 @@ export function RoutineRunner({
           <p className="mt-2 text-sm leading-relaxed text-foreground/90">
             {routine.completionCue}
           </p>
+          <Button
+            type="button"
+            size="sm"
+            className="mt-4 min-h-11 rounded-full px-4"
+            disabled={completionSubmittedRef.current}
+            onClick={confirmCompletion}
+          >
+            Ho completato la routine
+          </Button>
         </div>
       ) : currentStep ? (
         <div className="mt-5 border-border/70 border-t pt-4">
