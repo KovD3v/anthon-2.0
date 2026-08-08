@@ -107,102 +107,117 @@ describe("channel-flow/run", () => {
     },
     { name: "when false", includeTechnicalMetrics: false, expected: false },
     { name: "when true", includeTechnicalMetrics: true, expected: true },
-  ])("includes finish usage metadata only $name", async (testCase) => {
-    let onFinish:
-      | ((input: {
-          text: string;
-          metrics: {
-            model: string;
-            inputTokens: number;
-            outputTokens: number;
-            reasoningTokens: number | null;
-            reasoningContent: string | null;
-            toolCalls: null;
-            ragUsed: boolean;
-            ragChunksCount: number;
-            costUsd: number;
-            generationTimeMs: number;
-            reasoningTimeMs: number | null;
-          };
-        }) => Promise<void>)
-      | undefined;
-    const toUIMessageStreamResponse = vi.fn((_?: StreamResponseOptions) =>
-      Response.json({ ok: true }),
-    );
-    mocks.streamChat.mockImplementation(async (input) => {
-      onFinish = input.onFinish;
-      return {
-        toUIMessageStreamResponse,
-        toUIMessageStream: () =>
-          new ReadableStream({
-            start(controller) {
-              controller.close();
-            },
-          }),
-        textStream: (async function* () {
-          yield "ignored";
-        })(),
-      };
-    });
+  ])(
+    "includes finish usage metadata only $name while persisting metrics",
+    async (testCase) => {
+      let onFinish:
+        | ((input: {
+            text: string;
+            metrics: {
+              model: string;
+              inputTokens: number;
+              outputTokens: number;
+              reasoningTokens: number | null;
+              reasoningContent: string | null;
+              toolCalls: null;
+              ragUsed: boolean;
+              ragChunksCount: number;
+              costUsd: number;
+              generationTimeMs: number;
+              reasoningTimeMs: number | null;
+            };
+          }) => Promise<void>)
+        | undefined;
+      const toUIMessageStreamResponse = vi.fn((_?: StreamResponseOptions) =>
+        Response.json({ ok: true }),
+      );
+      mocks.streamChat.mockImplementation(async (input) => {
+        onFinish = input.onFinish;
+        return {
+          toUIMessageStreamResponse,
+          toUIMessageStream: () =>
+            new ReadableStream({
+              start(controller) {
+                controller.close();
+              },
+            }),
+          textStream: (async function* () {
+            yield "ignored";
+          })(),
+        };
+      });
 
-    const result = await runChannelFlow({
-      channel: "WEB",
-      userId: "user-1",
-      chatId: "chat-1",
-      userMessageText: "hello",
-      parts: [{ type: "text", text: "hello" }],
-      rateLimit: { allowed: true },
-      options: {
-        allowAttachments: true,
-        allowMemoryExtraction: true,
-        allowVoiceOutput: true,
-      },
-      execution: {
-        mode: "stream",
-        ...(testCase.includeTechnicalMetrics === undefined
-          ? {}
-          : { includeTechnicalMetrics: testCase.includeTechnicalMetrics }),
-      },
-      persistence: {
+      const result = await runChannelFlow({
         channel: "WEB",
-        saveAssistantMessage: false,
-      },
-    });
+        userId: "user-1",
+        chatId: "chat-1",
+        userMessageText: "hello",
+        parts: [{ type: "text", text: "hello" }],
+        rateLimit: { allowed: true },
+        options: {
+          allowAttachments: true,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: true,
+        },
+        execution: {
+          mode: "stream",
+          ...(testCase.includeTechnicalMetrics === undefined
+            ? {}
+            : { includeTechnicalMetrics: testCase.includeTechnicalMetrics }),
+        },
+        persistence: {
+          channel: "WEB",
+          saveAssistantMessage: true,
+        },
+      });
 
-    await onFinish?.({
-      text: "assistant",
-      metrics: {
-        model: "z-ai/glm-4.7",
-        inputTokens: 123,
-        outputTokens: 45,
-        reasoningTokens: null,
-        reasoningContent: null,
-        toolCalls: null,
-        ragUsed: false,
-        ragChunksCount: 0,
-        costUsd: 0.01,
-        generationTimeMs: 3210,
-        reasoningTimeMs: null,
-      },
-    });
-    const response = result.streamResult?.toUIMessageStreamResponse();
-    const body = await response?.text();
+      await onFinish?.({
+        text: "assistant",
+        metrics: {
+          model: "z-ai/glm-4.7",
+          inputTokens: 123,
+          outputTokens: 45,
+          reasoningTokens: null,
+          reasoningContent: null,
+          toolCalls: null,
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.01,
+          generationTimeMs: 3210,
+          reasoningTimeMs: null,
+        },
+      });
+      const response = result.streamResult?.toUIMessageStreamResponse();
+      const body = await response?.text();
 
-    expect(toUIMessageStreamResponse).not.toHaveBeenCalled();
-    if (testCase.expected) {
-      expect(body).toContain("inputTokens");
-      expect(body).toContain("123");
-      expect(body).toContain("outputTokens");
-      expect(body).toContain("45");
-    } else {
-      expect(body).not.toContain("inputTokens");
-      expect(body).not.toContain("outputTokens");
-    }
-  });
+      expect(toUIMessageStreamResponse).not.toHaveBeenCalled();
+      if (testCase.expected) {
+        expect(body).toContain("inputTokens");
+        expect(body).toContain("123");
+        expect(body).toContain("outputTokens");
+        expect(body).toContain("45");
+      } else {
+        expect(body).not.toContain("inputTokens");
+        expect(body).not.toContain("outputTokens");
+      }
+      expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: "assistant",
+          metrics: expect.objectContaining({
+            inputTokens: 123,
+            outputTokens: 45,
+            costUsd: 0.01,
+          }),
+        }),
+      );
+    },
+  );
 
   it.each([
     {
-      name: "recovery",
+      name: "recovery by default",
+      includeTechnicalMetrics: undefined,
+      includesTechnicalMetrics: false,
       reservation: {
         recovery: {
           text: "recovered answer",
@@ -223,7 +238,9 @@ describe("channel-flow/run", () => {
       },
     },
     {
-      name: "persisted replay",
+      name: "persisted replay by default",
+      includeTechnicalMetrics: undefined,
+      includesTechnicalMetrics: false,
       reservation: {
         persistedAssistant: {
           messageId: "assistant-saved",
@@ -244,7 +261,54 @@ describe("channel-flow/run", () => {
         },
       },
     },
-  ])("keeps $name metadata default-deny", async (testCase) => {
+    {
+      name: "recovery when explicitly enabled",
+      includeTechnicalMetrics: true,
+      includesTechnicalMetrics: true,
+      reservation: {
+        recovery: {
+          text: "recovered answer",
+          metrics: {
+            model: "recovered-model",
+            inputTokens: 10,
+            outputTokens: 4,
+            reasoningTokens: null,
+            reasoningContent: null,
+            toolCalls: null,
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0.01,
+            generationTimeMs: 100,
+            reasoningTimeMs: null,
+          },
+        },
+      },
+    },
+    {
+      name: "persisted replay when explicitly enabled",
+      includeTechnicalMetrics: true,
+      includesTechnicalMetrics: true,
+      reservation: {
+        persistedAssistant: {
+          messageId: "assistant-saved",
+          text: "saved answer",
+          metrics: {
+            model: "saved-model",
+            inputTokens: 8,
+            outputTokens: 3,
+            reasoningTokens: null,
+            reasoningContent: null,
+            toolCalls: null,
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0.01,
+            generationTimeMs: 90,
+            reasoningTimeMs: null,
+          },
+        },
+      },
+    },
+  ])("exposes $name metadata only when enabled", async (testCase) => {
     mocks.reserveAiUsage.mockResolvedValue({
       allowed: true,
       reservationId: "reservation-1",
@@ -282,14 +346,24 @@ describe("channel-flow/run", () => {
         allowMemoryExtraction: true,
         allowVoiceOutput: true,
       },
-      execution: { mode: "stream" },
+      execution: {
+        mode: "stream",
+        ...(testCase.includeTechnicalMetrics === undefined
+          ? {}
+          : { includeTechnicalMetrics: testCase.includeTechnicalMetrics }),
+      },
       persistence: { channel: "WEB", saveAssistantMessage: true },
     });
 
     const body = await result.streamResult?.toUIMessageStreamResponse().text();
 
-    expect(body).not.toContain("inputTokens");
-    expect(body).not.toContain("outputTokens");
+    if (testCase.includesTechnicalMetrics) {
+      expect(body).toContain("inputTokens");
+      expect(body).toContain("outputTokens");
+    } else {
+      expect(body).not.toContain("inputTokens");
+      expect(body).not.toContain("outputTokens");
+    }
     if ("recovery" in testCase.reservation) {
       expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
         expect.objectContaining({

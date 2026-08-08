@@ -207,52 +207,110 @@ describe("/api/chat/messages route", () => {
 
   it.each([
     {
+      name: "a private ADMIN chat owned by the requester without an override",
+      user: {
+        role: "ADMIN",
+        isGuest: false,
+        preferences: { showTechnicalMetrics: null },
+      },
+      chat: { visibility: "PRIVATE", userId: "user-1" },
+      includesTechnicalMetrics: true,
+    },
+    {
+      name: "a guest ADMIN private chat",
+      user: {
+        role: "ADMIN",
+        isGuest: true,
+        preferences: { showTechnicalMetrics: null },
+      },
+      chat: { visibility: "PRIVATE", userId: "user-1" },
+      includesTechnicalMetrics: false,
+    },
+    {
       name: "a private chat owned by another user",
+      user: {
+        role: "ADMIN",
+        isGuest: false,
+        preferences: { showTechnicalMetrics: null },
+      },
       chat: { visibility: "PRIVATE", userId: "user-2" },
+      includesTechnicalMetrics: false,
     },
     {
       name: "the requester's public chat",
-      chat: { visibility: "PUBLIC", userId: "user-1" },
-    },
-  ])("GET omits every diagnostic for $name", async ({ chat }) => {
-    mocks.userFindUnique.mockResolvedValue({
-      id: "user-1",
-      role: "ADMIN",
-      isGuest: false,
-      preferences: { showTechnicalMetrics: null },
-    });
-    mocks.messageFindMany.mockResolvedValue([
-      {
-        id: "m1",
-        role: "ASSISTANT",
-        parts: [{ type: "text", text: "Risposta" }],
-        createdAt: new Date("2026-02-16T10:00:00.000Z"),
-        model: "private-model",
-        inputTokens: 10,
-        outputTokens: 20,
-        costUsd: 0.03,
-        generationTimeMs: 180,
-        reasoningTimeMs: 22,
-        ragUsed: true,
-        toolCalls: [{ name: "search" }],
-        chat,
+      user: {
+        role: "ADMIN",
+        isGuest: false,
+        preferences: { showTechnicalMetrics: null },
       },
-    ]);
+      chat: { visibility: "PUBLIC", userId: "user-1" },
+      includesTechnicalMetrics: false,
+    },
+    {
+      name: "a public chat owned by another user",
+      user: {
+        role: "ADMIN",
+        isGuest: false,
+        preferences: { showTechnicalMetrics: null },
+      },
+      chat: { visibility: "PUBLIC", userId: "user-2" },
+      includesTechnicalMetrics: false,
+    },
+  ])(
+    "GET exposes diagnostics only for $name",
+    async ({ user, chat, includesTechnicalMetrics }) => {
+      mocks.userFindUnique.mockResolvedValue({
+        id: "user-1",
+        ...user,
+      });
+      mocks.messageFindMany.mockResolvedValue([
+        {
+          id: "m1",
+          role: "ASSISTANT",
+          parts: [{ type: "text", text: "Risposta" }],
+          createdAt: new Date("2026-02-16T10:00:00.000Z"),
+          model: "private-model",
+          inputTokens: 10,
+          outputTokens: 20,
+          costUsd: 0.03,
+          generationTimeMs: 180,
+          reasoningTimeMs: 22,
+          ragUsed: true,
+          toolCalls: [{ name: "search" }],
+          chat,
+        },
+      ]);
 
-    const response = await GET(
-      new Request("http://localhost/api/chat/messages?chatId=chat-1"),
-    );
-    const body = (await response.json()) as {
-      messages: Array<Record<string, unknown>>;
-    };
+      const response = await GET(
+        new Request("http://localhost/api/chat/messages?chatId=chat-1"),
+      );
+      const body = (await response.json()) as {
+        messages: Array<Record<string, unknown>>;
+      };
 
-    expect(response.status).toBe(200);
-    expect(body.messages[0]).not.toHaveProperty("model");
-    expect(body.messages[0]).not.toHaveProperty("usage");
-    expect(body.messages[0]).not.toHaveProperty("ragUsed");
-    expect(body.messages[0]).not.toHaveProperty("toolCalls");
-    expect(body.messages[0]).not.toHaveProperty("metadata");
-  });
+      expect(response.status).toBe(200);
+      if (includesTechnicalMetrics) {
+        expect(body.messages[0]).toMatchObject({
+          model: "private-model",
+          usage: {
+            inputTokens: 10,
+            outputTokens: 20,
+            cost: 0.03,
+            generationTimeMs: 180,
+            reasoningTimeMs: 22,
+          },
+          ragUsed: true,
+          toolCalls: [{ name: "search" }],
+        });
+      } else {
+        expect(body.messages[0]).not.toHaveProperty("model");
+        expect(body.messages[0]).not.toHaveProperty("usage");
+        expect(body.messages[0]).not.toHaveProperty("ragUsed");
+        expect(body.messages[0]).not.toHaveProperty("toolCalls");
+      }
+      expect(body.messages[0]).not.toHaveProperty("metadata");
+    },
+  );
 
   it("GET returns the newest 100 messages in chronological order", async () => {
     const allMessages = Array.from({ length: 101 }, (_, index) => ({
