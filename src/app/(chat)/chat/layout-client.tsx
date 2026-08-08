@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { PanelLeft, Sparkles, UserPlus } from "lucide-react";
+import { Sparkles, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -38,6 +38,11 @@ interface CreateChatOptions {
   title?: string;
 }
 
+interface GuestConversationNotice {
+  remaining?: number;
+  registrationHref: string;
+}
+
 interface ChatContextType {
   chats: Chat[];
   coachingGoal: string | null;
@@ -59,6 +64,8 @@ interface ChatContextType {
   updateActiveRoutine: (routine: RoutineCardData) => void;
   refreshActiveRoutine: () => Promise<RoutineCardData | null>;
   openRoutineCheckIn: (routine: RoutineCardData) => void;
+  openSidebar: () => void;
+  guestConversationNotice: GuestConversationNotice | null;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -87,35 +94,15 @@ export function getRoutineCheckInHref(routine: RoutineCardData): string {
 
 function GuestBanner({
   remaining,
-  showToggle,
-  onToggleSidebar,
+  registrationHref,
 }: {
   remaining?: number;
-  showToggle?: boolean;
-  onToggleSidebar?: () => void;
+  registrationHref: string;
 }) {
-  const pathname = usePathname();
-  const continuation =
-    pathname === "/chat" || /^\/chat\/[^/?#\\]+$/.test(pathname)
-      ? pathname
-      : "/chat";
-  const signUpHref = `/sign-up?redirect_url=${encodeURIComponent(continuation)}`;
-
   return (
     <div className="mx-2 mt-2 md:mx-4 md:mt-4">
       <div className="flex items-center justify-between gap-2 bg-linear-to-r from-primary/10 via-primary/5 to-transparent backdrop-blur-xl border border-primary/20 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl shadow-sm shadow-primary/5">
         <div className="flex items-center gap-2 min-w-0">
-          {showToggle && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 -ml-1 shrink-0"
-              onClick={onToggleSidebar}
-              aria-label="Apri la barra laterale"
-            >
-              <PanelLeft className="h-4 w-4" />
-            </Button>
-          )}
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
             <span className="text-muted-foreground truncate text-sm">
@@ -134,7 +121,7 @@ function GuestBanner({
           variant="default"
           className="gap-1.5 h-8 text-xs shrink-0 rounded-xl px-3"
         >
-          <Link href={signUpHref} aria-label="Registrati">
+          <Link href={registrationHref} aria-label="Registrati">
             <UserPlus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Registrati</span>
           </Link>
@@ -214,6 +201,23 @@ export function LayoutClient({
 
   // Usage tracking state
   const [usageData, setUsageData] = useState(initialUsageData);
+  const isConversationRoute = /^\/chat\/[^/?#\\]+$/.test(pathname ?? "");
+  const safeChatContinuation =
+    pathname === "/chat" || isConversationRoute ? pathname : "/chat";
+  const guestRegistrationHref = `/sign-up?redirect_url=${encodeURIComponent(
+    safeChatContinuation,
+  )}`;
+  const guestRemaining = usageData
+    ? Math.max(0, usageData.limits.maxRequests - usageData.usage.requestCount)
+    : undefined;
+  const guestConversationNotice: GuestConversationNotice | null =
+    isGuest && isConversationRoute
+      ? {
+          remaining: guestRemaining,
+          registrationHref: guestRegistrationHref,
+        }
+      : null;
+  const openSidebar = useCallback(() => setIsSidebarOpen(true), []);
 
   // Sync state with initial data on change (HMR support)
   useEffect(() => {
@@ -622,6 +626,8 @@ export function LayoutClient({
         updateActiveRoutine,
         refreshActiveRoutine,
         openRoutineCheckIn,
+        openSidebar,
+        guestConversationNotice,
       }}
     >
       <div
@@ -680,47 +686,20 @@ export function LayoutClient({
         {/* Main Content */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
           {/* Integrated Header Bar */}
-          {isGuest ? (
+          {isGuest && !isConversationRoute ? (
             <GuestBanner
-              showToggle={!isSidebarOpen}
-              onToggleSidebar={() => setIsSidebarOpen(true)}
-              remaining={
-                usageData
-                  ? Math.max(
-                      0,
-                      usageData.limits.maxRequests -
-                        usageData.usage.requestCount,
-                    )
-                  : undefined
-              }
+              remaining={guestRemaining}
+              registrationHref={guestRegistrationHref}
             />
           ) : usageData ? (
             <UsageBanner
-              showToggle={!isSidebarOpen}
-              onToggleSidebar={() => setIsSidebarOpen(true)}
               usage={usageData.usage}
               limits={usageData.limits}
               tier={usageData.tier}
               subscriptionStatus={usageData.subscriptionStatus}
               entitlements={usageData.entitlements}
             />
-          ) : (
-            !isSidebarOpen && (
-              <div className="mx-2 mt-2 md:mx-4 md:mt-4">
-                <div className="flex h-12 sm:h-14 items-center border border-border/50 dark:border-white/10 bg-background/60 backdrop-blur-xl rounded-2xl px-3 sm:px-4 shadow-sm">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setIsSidebarOpen(true)}
-                    aria-label="Apri la barra laterale"
-                  >
-                    <PanelLeft className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )
-          )}
+          ) : null}
           {children}
         </div>
       </div>

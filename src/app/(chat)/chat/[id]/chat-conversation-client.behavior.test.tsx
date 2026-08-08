@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   updateCachedChat: vi.fn(),
   updateActiveRoutine: vi.fn(),
   refreshActiveRoutine: vi.fn(),
+  openSidebar: vi.fn(),
+  captureHeaderProps: vi.fn(),
   captureChatOptions: vi.fn(),
   captureException: vi.fn(),
   chatState: {
@@ -40,6 +42,10 @@ const mocks = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   activeRoutine: null as RoutineCardData | null,
   chatNavigationEpoch: 0,
+  guestConversationNotice: null as {
+    remaining?: number;
+    registrationHref: string;
+  } | null,
 }));
 
 vi.mock("@ai-sdk/react", () => ({
@@ -161,7 +167,16 @@ vi.mock("@/lib/rate-limit/paywall", () => ({
 }));
 
 vi.mock("../../../(chat)/components/ChatHeader", () => ({
-  ChatHeader: () => null,
+  ChatHeader: (props: {
+    onOpenSidebar?: () => void;
+    guestConversationNotice?: {
+      remaining?: number;
+      registrationHref: string;
+    } | null;
+  }) => {
+    mocks.captureHeaderProps(props);
+    return null;
+  },
 }));
 
 vi.mock("../../../(chat)/components/ChatInput", () => ({
@@ -483,8 +498,10 @@ vi.mock("../layout-client", () => ({
     updateCachedChat: mocks.updateCachedChat,
     updateActiveRoutine: mocks.updateActiveRoutine,
     refreshActiveRoutine: mocks.refreshActiveRoutine,
+    openSidebar: mocks.openSidebar,
     activeRoutine: mocks.activeRoutine,
     chatNavigationEpoch: mocks.chatNavigationEpoch,
+    guestConversationNotice: mocks.guestConversationNotice,
     consumePendingInitialMessage: () => null,
   }),
 }));
@@ -553,6 +570,7 @@ beforeEach(() => {
   mocks.searchParams = new URLSearchParams();
   mocks.activeRoutine = null;
   mocks.chatNavigationEpoch = 0;
+  mocks.guestConversationNotice = null;
   mocks.confirm.mockResolvedValue(true);
   mocks.refreshActiveRoutine.mockResolvedValue(null);
   mocks.sendMessage.mockResolvedValue(undefined);
@@ -560,6 +578,25 @@ beforeEach(() => {
 });
 
 describe("ChatConversationClient pagination and recovery", () => {
+  it("passes the mobile sidebar action and compact guest notice to the conversation header", () => {
+    mocks.guestConversationNotice = {
+      remaining: 2,
+      registrationHref: "/sign-up?redirect_url=%2Fchat%2Fchat-1",
+    };
+
+    renderConversation();
+
+    expect(mocks.captureHeaderProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        onOpenSidebar: mocks.openSidebar,
+        guestConversationNotice: {
+          remaining: 2,
+          registrationHref: "/sign-up?redirect_url=%2Fchat%2Fchat-1",
+        },
+      }),
+    );
+  });
+
   it("throttles streaming renders to avoid exhausting React's update depth", () => {
     renderConversation();
 

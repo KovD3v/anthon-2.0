@@ -4,7 +4,6 @@ import {
   AlertCircle,
   AlertTriangle,
   Clock,
-  PanelLeft,
   TrendingUp,
   X,
   Zap,
@@ -50,14 +49,6 @@ interface UsageBannerProps {
    * Optional class name
    */
   className?: string;
-  /**
-   * Whether to show the sidebar toggle
-   */
-  showToggle?: boolean;
-  /**
-   * Callback to toggle sidebar
-   */
-  onToggleSidebar?: () => void;
 }
 
 /**
@@ -70,8 +61,6 @@ export function UsageBanner({
   subscriptionStatus,
   entitlements,
   className,
-  showToggle,
-  onToggleSidebar,
 }: UsageBannerProps) {
   const [isDismissed, setIsDismissed] = useState(false);
   const [countdown, setCountdown] = useState("");
@@ -139,25 +128,7 @@ export function UsageBanner({
   // Only show the full banner when usage exceeds 70% (unless manually dismissed).
   const shouldShowFullBanner = maxPercent >= 70 && !isDismissed;
 
-  // If we shouldn't show the full banner, check if we need to show the toggle
   if (!shouldShowFullBanner) {
-    if (showToggle) {
-      return (
-        <div className="mx-2 mt-2 md:mx-4 md:mt-4">
-          <div className="flex h-12 sm:h-14 items-center border border-border/50 dark:border-white/10 bg-background/60 backdrop-blur-xl rounded-2xl px-3 sm:px-4 shadow-sm">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={onToggleSidebar}
-              aria-label="Apri la barra laterale"
-            >
-              <PanelLeft className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      );
-    }
     return null;
   }
 
@@ -249,17 +220,6 @@ export function UsageBanner({
         )}
       >
         <div className="flex items-center gap-2 min-w-0">
-          {showToggle && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 -ml-1 shrink-0"
-              onClick={onToggleSidebar}
-              aria-label="Apri la barra laterale"
-            >
-              <PanelLeft className="h-4 w-4" />
-            </Button>
-          )}
           <div className="flex items-center gap-2.5">
             <span className={accentStyle}>{getIcon()}</span>
             <div className="flex flex-col gap-0.5">

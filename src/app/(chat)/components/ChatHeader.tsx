@@ -1,6 +1,7 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { Download, PanelLeft, UserPlus } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,9 +10,20 @@ interface ChatHeaderProps {
   chatId: string;
   title: string;
   onRename?: (id: string, newTitle: string) => Promise<boolean>;
+  onOpenSidebar?: () => void;
+  guestConversationNotice?: {
+    remaining?: number;
+    registrationHref: string;
+  } | null;
 }
 
-export function ChatHeader({ chatId, title, onRename }: ChatHeaderProps) {
+export function ChatHeader({
+  chatId,
+  title,
+  onRename,
+  onOpenSidebar,
+  guestConversationNotice,
+}: ChatHeaderProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(title);
@@ -51,7 +63,19 @@ export function ChatHeader({ chatId, title, onRename }: ChatHeaderProps) {
 
   return (
     <header className="sticky top-0 z-10 flex h-12 items-center justify-between border-b border-border/60 bg-background/40 px-3 backdrop-blur-xl sm:h-14 sm:px-4 dark:border-white/10">
-      <div className="flex items-center gap-2 overflow-hidden">
+      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+        {onOpenSidebar && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 shrink-0 md:hidden"
+            onClick={onOpenSidebar}
+            aria-label="Apri la barra laterale"
+          >
+            <PanelLeft className="h-4 w-4" />
+          </Button>
+        )}
         {isRenaming ? (
           <form
             onSubmit={async (e) => {
@@ -94,6 +118,33 @@ export function ChatHeader({ chatId, title, onRename }: ChatHeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
+        {guestConversationNotice && (
+          <Button
+            asChild
+            size="sm"
+            className="h-9 shrink-0 gap-1.5 px-2 text-xs md:hidden"
+          >
+            <Link
+              href={guestConversationNotice.registrationHref}
+              aria-label={
+                guestConversationNotice.remaining === undefined
+                  ? "Registrati"
+                  : `Registrati: ${guestConversationNotice.remaining} ${
+                      guestConversationNotice.remaining === 1
+                        ? "messaggio rimasto"
+                        : "messaggi rimasti"
+                    }`
+              }
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              <span className="hidden xs:inline">
+                {guestConversationNotice.remaining === undefined
+                  ? "Registrati"
+                  : `${guestConversationNotice.remaining} rimasti`}
+              </span>
+            </Link>
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="sm"

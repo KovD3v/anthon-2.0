@@ -125,6 +125,8 @@ export function ChatConversationClient({
     activeRoutine,
     chatNavigationEpoch,
     refreshActiveRoutine,
+    openSidebar,
+    guestConversationNotice,
   } = useChatContext();
   const apiBase = isGuest ? "/api/guest" : "/api";
 
@@ -1218,6 +1220,8 @@ export function ChatConversationClient({
       <ChatHeader
         chatId={chatId}
         title={chatData.title}
+        onOpenSidebar={openSidebar}
+        guestConversationNotice={guestConversationNotice}
         onRename={async (id, newTitle) => {
           const success = await renameChat(id, newTitle);
           if (success) setChatData((prev) => ({ ...prev, title: newTitle }));

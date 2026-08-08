@@ -397,7 +397,7 @@ describe("chat mobile viewport layout", () => {
     expect(audioRecorder).toContain('"uploading"');
   });
 
-  it("styles Anthon message boxes with the selected brand background and black text", () => {
+  it("uses calm card surfaces for Anthon messages", () => {
     const messageList = readFileSync(
       "src/app/(chat)/components/MessageList.tsx",
       "utf8",
@@ -405,21 +405,58 @@ describe("chat mobile viewport layout", () => {
     const loading = readFileSync("src/app/(chat)/chat/loading.tsx", "utf8");
 
     expect(messageList).toContain(
-      ': "rounded-2xl rounded-tl-sm bg-[#c4cd4c] text-black"',
+      ': "rounded-2xl rounded-tl-sm border border-border/60 bg-card text-foreground"',
     );
     expect(messageList).toContain("assistantMarkdownClassName");
-    expect(messageList).toContain("prose-p:text-black");
-    expect(loading).toContain(': "rounded-tl-sm bg-[#c4cd4c]/60"');
+    expect(messageList).toContain("prose-p:text-foreground");
+    expect(loading).toContain(
+      ': "rounded-tl-sm border border-border/60 bg-card"',
+    );
   });
 
-  it("renders assistant usage metrics in dark gray", () => {
+  it("renders assistant usage only through the compact technical disclosure", () => {
     const messageList = readFileSync(
       "src/app/(chat)/components/MessageList.tsx",
       "utf8",
     );
 
-    expect(messageList).toContain("text-zinc-700");
-    expect(messageList).not.toContain("text-muted-foreground/60");
+    expect(messageList).toContain("TechnicalMetricsDetails");
+    expect(messageList).toContain("getUsageFromAnnotations");
+    expect(messageList).not.toContain("metadataUsage");
+  });
+
+  it("keeps mobile chrome in the conversation header instead of an empty usage shell", () => {
+    const usageBanner = readFileSync(
+      "src/app/(chat)/components/UsageBanner.tsx",
+      "utf8",
+    );
+    const layoutClient = readFileSync(
+      "src/app/(chat)/chat/layout-client.tsx",
+      "utf8",
+    );
+    const chatHeader = readFileSync(
+      "src/app/(chat)/components/ChatHeader.tsx",
+      "utf8",
+    );
+
+    expect(usageBanner).not.toContain("showToggle");
+    expect(usageBanner).not.toContain("onToggleSidebar");
+    expect(usageBanner).toContain(
+      "if (!shouldShowFullBanner) {\n    return null;",
+    );
+    expect(layoutClient).toContain("openSidebar: () => void;");
+    expect(layoutClient).toContain("guestConversationNotice:");
+    expect(layoutClient).toContain("const isConversationRoute =");
+    expect(layoutClient).toContain("isGuest && !isConversationRoute");
+    expect(layoutClient).toContain(
+      'pathname === "/chat" || isConversationRoute ? pathname : "/chat"',
+    );
+    expect(layoutClient).not.toContain("h-12 sm:h-14 items-center");
+    expect(chatHeader).toContain("onOpenSidebar?: () => void;");
+    expect(chatHeader).toContain("guestConversationNotice?:");
+    expect(chatHeader).toContain('aria-label="Apri la barra laterale"');
+    expect(chatHeader).toContain("md:hidden");
+    expect(chatHeader).toContain("registrationHref");
   });
 
   it("clears submitted composer text before awaiting the assistant response", () => {
