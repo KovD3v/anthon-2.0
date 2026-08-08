@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   releaseAiUsageReservation: vi.fn(),
   reconcileAiUsageForRecovery: vi.fn(),
   streamChat: vi.fn(),
-  generateChatTitle: vi.fn(),
+  generateChatMetadata: vi.fn(),
   trackInboundUserMessageFunnelProgress: vi.fn(),
   ensureConversationThread: vi.fn(),
 }));
@@ -73,7 +73,7 @@ vi.mock("@/lib/ai/orchestrator", () => ({
 }));
 
 vi.mock("@/lib/ai/chat-title", () => ({
-  generateChatTitle: mocks.generateChatTitle,
+  generateChatMetadata: mocks.generateChatMetadata,
 }));
 
 vi.mock("@/lib/analytics/funnel", () => ({
@@ -199,7 +199,7 @@ describe("POST /api/guest/chat", () => {
     mocks.releaseAiUsageReservation.mockReset();
     mocks.reconcileAiUsageForRecovery.mockReset();
     mocks.streamChat.mockReset();
-    mocks.generateChatTitle.mockReset();
+    mocks.generateChatMetadata.mockReset();
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
     mocks.ensureConversationThread.mockReset();
 
@@ -245,7 +245,10 @@ describe("POST /api/guest/chat", () => {
     mocks.messageCount.mockResolvedValue(1);
     mocks.chatUpdate.mockResolvedValue({});
     mocks.incrementUsage.mockResolvedValue({});
-    mocks.generateChatTitle.mockResolvedValue("Guest title");
+    mocks.generateChatMetadata.mockResolvedValue({
+      title: "Guest title",
+      icon: "TARGET",
+    });
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.streamChat.mockResolvedValue({
       toUIMessageStream: emptyUiStream,
@@ -623,10 +626,43 @@ describe("POST /api/guest/chat", () => {
     expect(response.status).toBe(200);
     expect(mocks.messageCount).not.toHaveBeenCalled();
     expect(mocks.waitUntil).toHaveBeenCalledTimes(2);
-    expect(mocks.generateChatTitle).toHaveBeenCalledWith("USER: first prompt", {
-      userId: "guest-1",
-    });
+    expect(mocks.generateChatMetadata).toHaveBeenCalledWith(
+      [{ role: "user", text: "first prompt" }],
+      "first prompt",
+      { userId: "guest-1" },
+    );
+    await vi.waitFor(() =>
+      expect(mocks.chatUpdate).toHaveBeenCalledWith({
+        where: { id: "chat-1" },
+        data: { title: "Guest title", icon: "TARGET" },
+      }),
+    );
   });
+
+  it.each([5, 10])(
+    "does not refresh generated metadata automatically at message count %i",
+    async (messageCount) => {
+      mocks.chatFindFirst.mockResolvedValue({
+        id: "chat-1",
+        title: "Titolo stabile",
+        customTitle: false,
+        _count: { messages: messageCount - 1 },
+      });
+
+      const response = await POST(
+        buildRequest({
+          messages: Array.from({ length: messageCount }, (_, index) => ({
+            role: "user",
+            parts: [{ type: "text", text: `prompt ${index + 1}` }],
+          })),
+          chatId: "chat-1",
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(mocks.generateChatMetadata).not.toHaveBeenCalled();
+    },
+  );
 
   it("runs onFinish side effects and does not schedule memory extraction", async () => {
     let streamArgs: Record<string, unknown> | undefined;

@@ -12,7 +12,7 @@
 import { waitUntil } from "@vercel/functions";
 import type { UIMessage } from "ai";
 import type { Prisma, SubscriptionStatus } from "@/generated/prisma";
-import { generateChatTitle } from "@/lib/ai/chat-title";
+import { generateChatMetadata } from "@/lib/ai/chat-title";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import { runChannelFlow } from "@/lib/channel-flow";
 import {
@@ -278,41 +278,40 @@ export async function handleGuestChatPost(request: Request) {
 
         // Auto-generate or refresh chat title if not manually set by user
         if (inboundClaim.created && !chat.customTitle) {
-          const shouldRefresh =
-            requestConversationMessageCount === 1 ||
-            requestConversationMessageCount === 2 ||
-            requestConversationMessageCount === 4 ||
-            (requestConversationMessageCount > 0 &&
-              requestConversationMessageCount % 5 === 0);
+          const shouldRefresh = [1, 2, 4].includes(
+            requestConversationMessageCount,
+          );
 
           if (shouldRefresh) {
-            // Use the last few messages for better context on refresh
-            const context = messages
-              .slice(-3)
+            const metadataMessages = messages
               .map((m) => {
-                const content =
+                const text =
                   m.parts
                     ?.map((p) =>
                       p.type === "text" ? (p as { text: string }).text : "",
                     )
-                    .join("") || "";
-                return `${m.role.toUpperCase()}: ${content}`;
+                    .join("")
+                    .trim() || "";
+                if ((m.role !== "user" && m.role !== "assistant") || !text) {
+                  return null;
+                }
+                return { role: m.role, text };
               })
-              .join("\n");
+              .filter((message) => message !== null);
 
             waitUntil(
-              generateChatTitle(context || userMessageText, {
+              generateChatMetadata(metadataMessages, userMessageText, {
                 userId: user.id,
-              }).then((title) => {
+              }).then(({ title, icon }) => {
                 prisma.chat
                   .update({
                     where: { id: chatId },
-                    data: { title },
+                    data: { title, icon },
                   })
                   .catch((error) =>
                     logger.error(
-                      "guest_chat.title.update_failed",
-                      "Failed updating generated guest chat title",
+                      "guest_chat.metadata.update_failed",
+                      "Failed updating generated guest chat metadata",
                       { error, chatId },
                     ),
                   );

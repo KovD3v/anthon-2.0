@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
   reconcileAiUsageInTransaction: vi.fn(),
   reconcileAiUsageForRecovery: vi.fn(),
   streamChat: vi.fn(),
-  generateChatTitle: vi.fn(),
+  generateChatMetadata: vi.fn(),
   extractAndSaveMemories: vi.fn(),
   trackInboundUserMessageFunnelProgress: vi.fn(),
   isBillingSyncStale: vi.fn(),
@@ -112,7 +112,7 @@ vi.mock("@/lib/ai/orchestrator", () => ({
 }));
 
 vi.mock("@/lib/ai/chat-title", () => ({
-  generateChatTitle: mocks.generateChatTitle,
+  generateChatMetadata: mocks.generateChatMetadata,
 }));
 
 vi.mock("@/lib/ai/memory-extractor", () => ({
@@ -296,7 +296,7 @@ describe("POST /api/chat", () => {
     mocks.reconcileAiUsageInTransaction.mockReset();
     mocks.reconcileAiUsageForRecovery.mockReset();
     mocks.streamChat.mockReset();
-    mocks.generateChatTitle.mockReset();
+    mocks.generateChatMetadata.mockReset();
     mocks.extractAndSaveMemories.mockReset();
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
     mocks.isBillingSyncStale.mockReset();
@@ -412,7 +412,10 @@ describe("POST /api/chat", () => {
         !billingSyncedAt ||
         Date.now() - billingSyncedAt.getTime() > 5 * 60 * 1000,
     );
-    mocks.generateChatTitle.mockResolvedValue("Generated title");
+    mocks.generateChatMetadata.mockResolvedValue({
+      title: "Generated title",
+      icon: "TARGET",
+    });
     mocks.waitUntil.mockImplementation(() => {});
     mocks.decideWebVoiceMode.mockResolvedValue({
       mode: "TEXT",
@@ -1223,9 +1226,17 @@ describe("POST /api/chat", () => {
     expect(response.status).toBe(200);
     expect(mocks.messageCount).not.toHaveBeenCalled();
     expect(mocks.waitUntil).toHaveBeenCalledTimes(2);
-    expect(mocks.generateChatTitle).toHaveBeenCalledWith("USER: first prompt", {
-      userId: "user-1",
-    });
+    expect(mocks.generateChatMetadata).toHaveBeenCalledWith(
+      [{ role: "user", text: "first prompt" }],
+      "first prompt",
+      { userId: "user-1" },
+    );
+    await vi.waitFor(() =>
+      expect(mocks.chatUpdate).toHaveBeenCalledWith({
+        where: { id: "chat-1" },
+        data: { title: "Generated title", icon: "TARGET" },
+      }),
+    );
   });
 
   it("keeps the response successful when title generation fails in waitUntil", async () => {
@@ -1236,7 +1247,9 @@ describe("POST /api/chat", () => {
       customTitle: false,
       _count: { messages: 0 },
     });
-    mocks.generateChatTitle.mockRejectedValue(new Error("title service down"));
+    mocks.generateChatMetadata.mockRejectedValue(
+      new Error("metadata service down"),
+    );
     mocks.waitUntil.mockImplementation((promise: Promise<unknown>) => {
       scheduled.push(promise.catch((error) => error));
     });
@@ -1255,16 +1268,43 @@ describe("POST /api/chat", () => {
 
     expect(response.status).toBe(200);
     await expect(response.text()).resolves.toContain("[DONE]");
-    expect(mocks.generateChatTitle).toHaveBeenCalledWith("USER: first prompt", {
-      userId: "user-1",
-    });
+    expect(mocks.generateChatMetadata).toHaveBeenCalledWith(
+      [{ role: "user", text: "first prompt" }],
+      "first prompt",
+      { userId: "user-1" },
+    );
     expect(scheduled).toHaveLength(2);
     await expect(scheduled[1]).resolves.toEqual(expect.any(Error));
     expect(mocks.chatUpdate).not.toHaveBeenCalledWith({
       where: { id: "chat-1" },
-      data: { title: expect.any(String) },
+      data: { title: expect.any(String), icon: expect.any(String) },
     });
   });
+
+  it.each([5, 10])(
+    "does not refresh generated metadata automatically at message count %i",
+    async (messageCount) => {
+      mocks.chatFindFirst.mockResolvedValue({
+        id: "chat-1",
+        title: "Titolo stabile",
+        customTitle: false,
+        _count: { messages: messageCount - 1 },
+      });
+
+      const response = await POST(
+        buildRequest({
+          messages: Array.from({ length: messageCount }, (_, index) => ({
+            role: "user",
+            parts: [{ type: "text", text: `prompt ${index + 1}` }],
+          })),
+          chatId: "chat-1",
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(mocks.generateChatMetadata).not.toHaveBeenCalled();
+    },
+  );
 
   it("persists a voice-first transcript and queues TTS without waiting for audio", async () => {
     mocks.decideWebVoiceMode.mockResolvedValue({
