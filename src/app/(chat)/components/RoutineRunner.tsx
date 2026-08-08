@@ -62,6 +62,7 @@ export function RoutineRunner({
     currentStep?.kind === "timer"
       ? getRemainingMs(state, currentStep, now)
       : null;
+  const isTimerComplete = currentStep?.kind === "timer" && remainingMs === 0;
 
   const releaseWakeLock = useCallback(async () => {
     const wakeLock = wakeLockRef.current;
@@ -78,11 +79,11 @@ export function RoutineRunner({
   }, []);
 
   useEffect(() => {
-    if (state.status !== "running") return;
+    if (state.status !== "running" || isTimerComplete) return;
 
     const intervalId = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(intervalId);
-  }, [state.status]);
+  }, [isTimerComplete, state.status]);
 
   useEffect(() => {
     function handleVisibilityChange() {
@@ -98,7 +99,7 @@ export function RoutineRunner({
   }, [releaseWakeLock]);
 
   useEffect(() => {
-    if (state.status !== "running" || !isDocumentVisible) {
+    if (state.status !== "running" || !isDocumentVisible || isTimerComplete) {
       void releaseWakeLock();
       return;
     }
@@ -122,7 +123,7 @@ export function RoutineRunner({
       cancelled = true;
       void releaseWakeLock();
     };
-  }, [isDocumentVisible, releaseWakeLock, state.status]);
+  }, [isDocumentVisible, isTimerComplete, releaseWakeLock, state.status]);
 
   useEffect(() => {
     if (currentStep?.kind !== "timer" || remainingMs !== 0) {
@@ -302,8 +303,25 @@ export function RoutineRunner({
 
           {currentStep.kind === "breathing" && (
             <div className="mt-3 text-sm leading-relaxed text-foreground/90">
-              <p className="font-medium text-foreground">{currentStep.label}</p>
+              <p className="font-medium text-foreground">
+                Respirazione guidata
+              </p>
+              <p className="mt-1 font-medium text-foreground">
+                {currentStep.label}
+              </p>
               <p className="mt-1">{currentStep.instruction}</p>
+              <p className="mt-3">
+                La guida a fasi sarà disponibile qui. Segui il ritmo indicato e
+                seleziona Fatto quando hai concluso.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                className="mt-4 min-h-11 rounded-full px-4"
+                onClick={advance}
+              >
+                Fatto
+              </Button>
             </div>
           )}
         </div>

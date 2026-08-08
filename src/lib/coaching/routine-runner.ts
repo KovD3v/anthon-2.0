@@ -170,10 +170,8 @@ export function advanceRunner(
   }
 
   if (
-    (currentStep.kind === "timer" &&
-      getRemainingMs(state, currentStep, now) > 0) ||
-    (currentStep.kind === "breathing" &&
-      getBreathingPhase(currentStep, getElapsedMs(state, now)) !== null)
+    currentStep.kind === "timer" &&
+    getRemainingMs(state, currentStep, now) > 0
   ) {
     return state;
   }

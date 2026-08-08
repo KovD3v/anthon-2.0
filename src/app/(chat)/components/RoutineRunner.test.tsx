@@ -63,6 +63,10 @@ function renderRunner(
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  Object.defineProperty(navigator, "wakeLock", {
+    configurable: true,
+    value: undefined,
+  });
 });
 
 describe("RoutineRunner", () => {
@@ -111,6 +115,67 @@ describe("RoutineRunner", () => {
     expect(screen.getByRole("button", { name: "Continua" })).toBeTruthy();
     expect(screen.getByText("00:00").getAttribute("aria-live")).toBeNull();
     expect(screen.getByRole("status").getAttribute("aria-live")).toBe("polite");
+  });
+
+  it("uses a truthful manual fallback for breathing until phase guidance is available", () => {
+    const { props } = renderRunner({
+      routine: {
+        ...routine,
+        practiceSteps: [
+          {
+            id: "breath",
+            kind: "breathing",
+            label: "Respiro",
+            instruction: "Segui il ritmo che preferisci.",
+            inhaleSeconds: 2,
+            holdAfterInhaleSeconds: 0,
+            exhaleSeconds: 4,
+            holdAfterExhaleSeconds: 0,
+            cycles: 3,
+          },
+        ],
+      },
+    });
+
+    expect(screen.getByText("Respirazione guidata")).toBeTruthy();
+    expect(
+      screen.getByText(/La guida a fasi sarà disponibile qui/),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fatto" }));
+
+    expect(props.onComplete).toHaveBeenCalledOnce();
+    expect(screen.getByText("Ho completato la routine")).toBeTruthy();
+  });
+
+  it("stops ticking and releases Wake Lock when a timer reaches zero", async () => {
+    vi.useFakeTimers({ now: new Date("2026-08-08T10:00:00.000Z") });
+    const release = vi.fn().mockResolvedValue(undefined);
+    const request = vi.fn().mockResolvedValue({ release });
+    const clearIntervalSpy = vi.spyOn(window, "clearInterval");
+    Object.defineProperty(navigator, "wakeLock", {
+      configurable: true,
+      value: { request },
+    });
+    renderRunner({
+      routine: { ...routine, practiceSteps: [routine.practiceSteps[1]] },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Avvia" }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(request).toHaveBeenCalledWith("screen");
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+    act(() => vi.advanceTimersByTime(5_000));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("button", { name: "Continua" })).toBeTruthy();
+    expect(clearIntervalSpy).toHaveBeenCalled();
+    expect(release).toHaveBeenCalledOnce();
   });
 
   it("supports keyboard actions, 44px controls, and focus return on close", async () => {

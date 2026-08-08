@@ -150,4 +150,13 @@ describe("breathing phase contract", () => {
     });
     expect(getBreathingPhase(breathing, 14_000)).toBeNull();
   });
+
+  it("keeps breathing manually completable before the phase UI is introduced", () => {
+    expect(advanceRunner(createInitialRunnerState(), [breathing], 0)).toEqual({
+      stepIndex: 1,
+      status: "completed",
+      elapsedMs: 0,
+      startedAt: null,
+    });
+  });
 });
