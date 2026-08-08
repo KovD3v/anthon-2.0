@@ -87,7 +87,7 @@ export async function GET(request: Request) {
         reasoningTimeMs: true,
         ragUsed: true,
         toolCalls: true,
-        chat: { select: { visibility: true } },
+        chat: { select: { visibility: true, userId: true } },
       },
     });
 
@@ -104,7 +104,8 @@ export async function GET(request: Request) {
         role: user.role,
         preference: user.preferences?.showTechnicalMetrics,
         isGuest: user.isGuest,
-        isPrivateOwner: msg.chat?.visibility === "PRIVATE",
+        isPrivateOwner:
+          msg.chat?.visibility === "PRIVATE" && msg.chat.userId === user.id,
       });
 
       return {
