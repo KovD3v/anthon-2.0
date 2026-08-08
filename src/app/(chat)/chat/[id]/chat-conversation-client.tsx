@@ -280,7 +280,7 @@ export function ChatConversationClient({
     }
   }, [refreshChatData, setMessages]);
 
-  const refreshRoutineChatData = useCallback(async (): Promise<ChatData> => {
+  const loadRoutineChatData = useCallback(async () => {
     try {
       const response = await fetch(`${apiBase}/chats/${chatId}`);
       if (!response.ok) {
@@ -303,17 +303,17 @@ export function ChatConversationClient({
       }
 
       const data = { ...payload, routines: parsedRoutines.data } as ChatData;
-      const refreshedMessages = convertToUIMessages(data.messages);
-      setChatData(data);
-      setMessages(refreshedMessages);
-      return data;
+      return {
+        data,
+        messages: convertToUIMessages(data.messages),
+      };
     } catch {
       throw new RoutineClientError(
         "Non siamo riusciti ad aggiornare lo stato della routine. Riprova.",
         null,
       );
     }
-  }, [apiBase, chatId, setMessages]);
+  }, [apiBase, chatId]);
 
   const applyRoutineMutation = useCallback(
     async (
@@ -327,30 +327,20 @@ export function ChatConversationClient({
           cause instanceof RoutineClientError &&
           (cause.status === 409 || cause.status === 422)
         ) {
-          await refreshRoutineChatData();
+          try {
+            const refreshed = await loadRoutineChatData();
+            setChatData(refreshed.data);
+            setMessages(refreshed.messages);
+          } catch {
+            // Recovery refresh is best effort; preserve the actionable conflict.
+          }
         }
         throw cause;
       }
-      setChatData((current) => {
-        const matchingIndex = current.routines.findIndex(
-          (candidate) =>
-            candidate.id === routine.id ||
-            (routine.sourceAssistantMessageId !== null &&
-              candidate.sourceAssistantMessageId ===
-                routine.sourceAssistantMessageId),
-        );
-        const routines = [...current.routines];
-        if (matchingIndex === -1) {
-          routines.push(routine);
-        } else {
-          routines[matchingIndex] = routine;
-        }
-        return { ...current, routines };
-      });
 
-      let refreshedData: ChatData;
+      let refreshed: Awaited<ReturnType<typeof loadRoutineChatData>>;
       try {
-        refreshedData = await refreshRoutineChatData();
+        refreshed = await loadRoutineChatData();
       } catch {
         throw new RoutineClientError(
           "Routine aggiornata, ma non siamo riusciti ad aggiornare la chat. Riprova.",
@@ -358,7 +348,7 @@ export function ChatConversationClient({
         );
       }
 
-      const refreshedRoutine = refreshedData.routines.find(
+      const refreshedRoutine = refreshed.data.routines.find(
         (candidate) =>
           candidate.id === routine.id ||
           (routine.sourceAssistantMessageId !== null &&
@@ -374,9 +364,11 @@ export function ChatConversationClient({
           null,
         );
       }
+      setChatData(refreshed.data);
+      setMessages(refreshed.messages);
       return refreshedRoutine;
     },
-    [refreshRoutineChatData],
+    [loadRoutineChatData, setMessages],
   );
 
   const handleSaveRoutine = useCallback(

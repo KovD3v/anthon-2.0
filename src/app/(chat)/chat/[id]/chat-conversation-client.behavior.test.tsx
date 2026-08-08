@@ -917,7 +917,7 @@ describe("ChatConversationClient routine lifecycle", () => {
     mocks.isGuest = false;
   });
 
-  it("patches from a successful save response and then refreshes messages", async () => {
+  it("publishes a saved routine only after its authoritative refresh", async () => {
     const refreshedData = { ...initialChatData, routines: [activeRoutine] };
     const fetchMock = vi
       .fn()
@@ -998,6 +998,33 @@ describe("ChatConversationClient routine lifecycle", () => {
     expect(mocks.setMessages).toHaveBeenCalled();
   });
 
+  it("preserves the original 422 error when its recovery refresh also fails", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Proposal invalid" }), {
+          status: 422,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockRejectedValueOnce(new Error("refresh offline"));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation();
+
+    await user.click(
+      screen.getByRole("button", { name: "Salva routine test" }),
+    );
+
+    expect(
+      (await screen.findByTestId("routine-action-error")).textContent,
+    ).toBe("La proposta non è più valida. Aggiorna la chat e riprova.");
+    expect(screen.queryByTestId("routine-action-success")).toBeNull();
+    expect(screen.getByTestId("routine-state").textContent).toBe("PROPOSED");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(mocks.setMessages).not.toHaveBeenCalled();
+  });
+
   it("refreshes an archived routine after a 409 before exposing the conflict", async () => {
     const archivedRoutine: RoutineCardData = {
       ...activeRoutine,
@@ -1037,6 +1064,35 @@ describe("ChatConversationClient routine lifecycle", () => {
     expect(mocks.setMessages).toHaveBeenCalled();
   });
 
+  it("preserves the original 409 error when its recovery refresh also fails", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Routine is archived" }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockRejectedValueOnce(new Error("refresh offline"));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderConversation({ ...initialChatData, routines: [activeRoutine] });
+
+    await user.click(
+      screen.getByRole("button", { name: "Segna tentativo test" }),
+    );
+
+    expect(
+      (await screen.findByTestId("routine-action-error")).textContent,
+    ).toBe("La routine non è più attiva. Aggiorna la chat e riprova.");
+    expect(screen.queryByTestId("routine-action-success")).toBeNull();
+    expect(screen.getByTestId("routine-state").textContent).toBe(
+      "ACTIVE:NO_OUTCOME",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(mocks.setMessages).not.toHaveBeenCalled();
+  });
+
   it("rejects a successful mutation when the required chat refresh fails", async () => {
     const fetchMock = vi
       .fn()
@@ -1062,6 +1118,8 @@ describe("ChatConversationClient routine lifecycle", () => {
     );
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(mocks.setMessages).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("routine-action-success")).toBeNull();
+    expect(screen.getByTestId("routine-state").textContent).toBe("PROPOSED");
   });
 
   it("does not announce success when refresh returns stale routine state", async () => {

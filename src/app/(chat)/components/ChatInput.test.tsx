@@ -133,6 +133,32 @@ describe("ChatInput keyboard behavior", () => {
     expect(props.onSubmit).not.toHaveBeenCalled();
   });
 
+  it("keeps a focus request pending while the textarea is disabled", async () => {
+    const props = {
+      input: "Inizio ora la routine",
+      isLoading: false,
+      disabledReason: "Chat non disponibile",
+      focusRequestId: 0,
+      setInput: vi.fn(),
+      onSubmit: vi.fn(),
+      onStop: vi.fn(),
+    };
+    const view = render(<ChatInput {...props} />);
+    const textarea = screen.getByRole("textbox", {
+      name: "Scrivi un messaggio",
+    });
+
+    view.rerender(<ChatInput {...props} focusRequestId={1} />);
+    expect(document.activeElement).not.toBe(textarea);
+
+    view.rerender(
+      <ChatInput {...props} disabledReason={undefined} focusRequestId={1} />,
+    );
+
+    await waitFor(() => expect(document.activeElement).toBe(textarea));
+    expect(props.onSubmit).not.toHaveBeenCalled();
+  });
+
   it("resizes the textarea when an external routine prefill changes input", async () => {
     const props = {
       input: "",
@@ -161,6 +187,31 @@ describe("ChatInput keyboard behavior", () => {
 
     await waitFor(() => expect(textarea.style.height).toBe("144px"));
     expect(props.onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("does not remeasure or refocus for an unrelated parent rerender", () => {
+    const props = {
+      input: "Inizio ora la routine",
+      isLoading: false,
+      focusRequestId: 0,
+      onInputWarmup: vi.fn(),
+      setInput: vi.fn(),
+      onSubmit: vi.fn(),
+      onStop: vi.fn(),
+    };
+    const view = render(<ChatInput {...props} />);
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Scrivi un messaggio",
+    });
+    const focusSpy = vi.spyOn(textarea, "focus");
+    textarea.style.height = "77px";
+
+    view.rerender(
+      <ChatInput {...props} onInputWarmup={vi.fn()} onStop={vi.fn()} />,
+    );
+
+    expect(textarea.style.height).toBe("77px");
+    expect(focusSpy).not.toHaveBeenCalled();
   });
 
   it("keeps Enter available for a new line without submitting", () => {

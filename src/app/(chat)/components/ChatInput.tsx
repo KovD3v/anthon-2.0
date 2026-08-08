@@ -49,6 +49,9 @@ export function ChatInput({
   const documentAttachments = attachments.filter(
     (attachment) => !attachment.contentType.startsWith("audio/"),
   );
+  const isTextareaAvailable = !audioAttachment;
+  const isTextareaEnabled =
+    isTextareaAvailable && !externallyDisabled && !isUploading && !isLoading;
   const cannotSubmit =
     externallyDisabled ||
     isUploading ||
@@ -56,20 +59,27 @@ export function ChatInput({
     (!input.trim() && attachments.length === 0);
 
   useEffect(() => {
+    if (!isTextareaAvailable) return;
     const textarea = textareaRef.current;
-    if (!textarea) return;
+    if (!textarea || textarea.value !== input) return;
 
     textarea.style.height = "auto";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+  }, [input, isTextareaAvailable]);
 
+  useEffect(() => {
     if (
-      focusRequestId !== undefined &&
-      focusRequestId !== previousFocusRequestIdRef.current
+      !isTextareaEnabled ||
+      focusRequestId === undefined ||
+      focusRequestId === previousFocusRequestIdRef.current
     ) {
-      previousFocusRequestIdRef.current = focusRequestId;
-      textarea.focus();
+      return;
     }
-  });
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    previousFocusRequestIdRef.current = focusRequestId;
+    textarea.focus();
+  }, [focusRequestId, isTextareaEnabled]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
