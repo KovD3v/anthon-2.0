@@ -604,11 +604,13 @@ function buildSimpleFastSystemPrompt({
   userSnapshot,
   userStyle,
   responseMode = "text",
+  routineProposalEnabled = false,
 }: {
   currentDate: string;
   userSnapshot?: string;
   userStyle?: string;
   responseMode?: "text" | "voice";
+  routineProposalEnabled?: boolean;
 }) {
   let systemPrompt = SIMPLE_FAST_SYSTEM_PROMPT_TEMPLATE.replaceAll(
     "{{CURRENT_DATE}}",
@@ -621,6 +623,10 @@ function buildSimpleFastSystemPrompt({
 
   if (userStyle) {
     systemPrompt += `\n\nDETECTED USER STYLE (Mirroring):\n${userStyle}`;
+  }
+
+  if (routineProposalEnabled) {
+    systemPrompt += `\n\n${PROMPT_ROUTINE_PROPOSAL_POLICY}`;
   }
 
   if (responseMode === "voice") {
@@ -814,7 +820,6 @@ function selectToolPlan({
     webSearchEnabled,
     inputOrigin: "text",
     outputMode: "text",
-    promptProfile: "full",
   });
 
   return {
@@ -851,7 +856,6 @@ function toolPlanFromTurnPlan(
     webSearchEnabled: turnPlan.capabilities.webSearch,
     inputOrigin: turnPlan.inputOrigin,
     outputMode: turnPlan.outputMode,
-    promptProfile: turnPlan.promptProfile,
     benchmarkModelId,
   });
   return {
@@ -876,31 +880,31 @@ function toolPlanFromTurnPlan(
 
 const COACHING_ROUTINE_CIRCUMSTANCES =
   /\b(?:gara|partita|allenamento|errore|pressione|ansia|concentrazione|fiducia|reset|routine|piano)\b/i;
+const CONCRETE_ROUTINE_PRACTICE =
+  /\b(?:routine|piano|passi|step|pratic\w*|esercizio)\b/i;
 const INFORMATIONAL_REQUEST =
-  /\b(?:cos['’]?è|che cos['’]?è|spiega|spiegami|definizione|regole|chi\s+ha|quando|dove|perch[eé])\b/i;
+  /\b(?:cos['’]?è|che cos['’]?è|spiega|spiegami|definizione|regole|chi\s+ha|quando|dove|perch[eé]|differenza\s+tra)\b/i;
 
 function shouldEnableRoutineProposal({
   userMessage,
   webSearchEnabled,
   inputOrigin,
   outputMode,
-  promptProfile,
   benchmarkModelId,
 }: {
   userMessage: string;
   webSearchEnabled: boolean;
   inputOrigin: TurnPlan["inputOrigin"];
   outputMode: TurnPlan["outputMode"];
-  promptProfile: TurnPlan["promptProfile"];
   benchmarkModelId?: string;
 }) {
   return (
     COACHING_ROUTINE_CIRCUMSTANCES.test(userMessage) &&
+    CONCRETE_ROUTINE_PRACTICE.test(userMessage) &&
     !INFORMATIONAL_REQUEST.test(userMessage) &&
     !webSearchEnabled &&
     inputOrigin === "text" &&
     outputMode !== "voice" &&
-    promptProfile !== "compact" &&
     !benchmarkModelId &&
     !matchesVoiceIntent(userMessage)
   );
@@ -1705,6 +1709,7 @@ export async function streamChat({
           userSnapshot,
           userStyle: userStyleInstruction,
           responseMode: turnPlan.outputMode,
+          routineProposalEnabled: toolPlan.routineProposal,
         });
       }
 

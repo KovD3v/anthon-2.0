@@ -1718,6 +1718,25 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).toContain("proposeRoutine");
   });
 
+  it("enables the routine proposal tool for eligible compact coaching practice", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-routine-proposal-compact",
+      userMessage:
+        "Consiglio rapido in 3 passi per la concentrazione prima di una gara",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).toEqual({
+      proposeRoutine: "routine-proposal-tool",
+    });
+    expect(streamInput.instructions).toContain("ROUTINE PROPOSAL");
+    expect(streamInput.instructions).toContain("proposeRoutine");
+  });
+
   it.each([
     [
       "direct web-search requests",
@@ -1764,6 +1783,12 @@ describe("ai/orchestrator", () => {
     [
       "purely informational turns",
       { userMessage: "Quali sono le regole del tennis?" },
+    ],
+    [
+      "overlapping informational coaching questions",
+      {
+        userMessage: "Qual è la differenza tra ansia e pressione in gara?",
+      },
     ],
   ])("does not enable routine proposals for %s", async (_reason, options) => {
     await streamChat({
