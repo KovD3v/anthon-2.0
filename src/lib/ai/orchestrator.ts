@@ -2050,9 +2050,7 @@ export async function streamChat({
       ? WEB_SEARCH_DIRECT_MAX_OUTPUT_TOKENS
       : isGuest
         ? 220
-        : turnPlan.responseLength === "brief"
-          ? 96
-          : undefined,
+        : undefined,
     providerOptions: {
       openrouter: {
         promptCaching: true,
@@ -2484,9 +2482,7 @@ export function executePreparedChatTurn({
     messages: normalizedConversation.messages,
     temperature: generationConfig.temperature,
     topP: generationConfig.topP,
-    maxOutputTokens:
-      generationConfig.maxOutputTokens ??
-      (prepared.turnPlan.responseLength === "brief" ? 96 : undefined),
+    maxOutputTokens: generationConfig.maxOutputTokens,
     providerOptions: {
       openrouter: {
         ...baseOptions,

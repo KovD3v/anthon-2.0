@@ -373,6 +373,45 @@ describe("ai/orchestrator", () => {
     );
   });
 
+  it("does not cap brief prepared generations below their visible response", () => {
+    executePreparedChatTurn({
+      prepared: {
+        userId: "user-1",
+        chatId: "chat-brief",
+        conversationThreadId: "thread-brief",
+        userMessageId: "message-brief",
+        userMessage: "Preparami una routine mentale breve per domani",
+        planId: "basic",
+        userRole: "USER",
+        effectiveModelTier: "BASIC",
+        systemPrompt: "coach prompt",
+        messages: [
+          {
+            role: "user",
+            content: "Preparami una routine mentale breve per domani",
+          },
+        ],
+        turnPlan: {
+          responseLength: "brief",
+        } as never,
+        promptMode: "full",
+        ragUsed: false,
+        ragChunksCount: 0,
+      },
+      modelId: "provider/candidate",
+      generationConfig: { fallbacks: false },
+      clerkId: "clerk-1",
+      traceId: "trace-brief",
+      experimentId: "experiment-1",
+      pairId: "pair-brief",
+      role: "CANDIDATE",
+    });
+
+    expect(mocks.streamText).toHaveBeenCalledWith(
+      expect.objectContaining({ maxOutputTokens: undefined }),
+    );
+  });
+
   it("forwards abort signals to experiment prompt preparation", async () => {
     const abortController = new AbortController();
 
@@ -598,7 +637,7 @@ describe("ai/orchestrator", () => {
         content: "La storia la voglio più breve",
       },
     ]);
-    expect(streamInput.maxOutputTokens).toBe(96);
+    expect(streamInput.maxOutputTokens).toBeUndefined();
     expect(streamInput.instructions).toContain("LANGUAGE RULES");
     expect(streamInput.instructions).toContain(
       "Do not mention voice/audio availability",
@@ -751,7 +790,7 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).toEqual({});
     expect(mocks.createMemoryTools).not.toHaveBeenCalled();
     expect(mocks.createUserContextTools).not.toHaveBeenCalled();
-    expect(streamInput.maxOutputTokens).toBe(96);
+    expect(streamInput.maxOutputTokens).toBeUndefined();
   });
 
   it("does not mark RAG as used when retrieval returns no chunks", async () => {
@@ -871,9 +910,7 @@ describe("ai/orchestrator", () => {
       };
       expect(streamInput.instructions, prompt).toContain("USER SNAPSHOT");
       expect(streamInput.tools, prompt).toEqual({});
-      expect(streamInput.maxOutputTokens, prompt).toBe(
-        /breve|veloce|rapido/i.test(prompt) ? 96 : undefined,
-      );
+      expect(streamInput.maxOutputTokens, prompt).toBeUndefined();
       expect(mocks.formatTinyUserSnapshotForPrompt, prompt).toHaveBeenCalled();
       expect(mocks.formatUserContextForPrompt, prompt).not.toHaveBeenCalled();
       expect(mocks.formatMemoriesForPrompt, prompt).not.toHaveBeenCalled();
