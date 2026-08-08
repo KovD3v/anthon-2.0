@@ -235,6 +235,22 @@ describe("chat landing page", () => {
     expect(mocks.createChat).not.toHaveBeenCalled();
   });
 
+  it("uses the landing form when a source return falls back after hydration failure", async () => {
+    mocks.context.activeRoutine = activeRoutine;
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+
+    render(<ChatPage />);
+
+    expect(
+      await screen.findByRole("group", { name: "Esito del tentativo" }),
+    ).toBeTruthy();
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat"),
+    );
+    expect(mocks.openRoutineCheckIn).not.toHaveBeenCalled();
+    expect(mocks.createChat).not.toHaveBeenCalled();
+  });
+
   it("does not restore a consumed orphan check-in after navigating away and back", async () => {
     mocks.context.activeRoutine = {
       ...activeRoutine,

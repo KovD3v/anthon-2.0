@@ -514,10 +514,12 @@ function messageOrder() {
 
 function deferredResponse() {
   let resolve: (response: Response) => void = () => undefined;
-  const promise = new Promise<Response>((resolver) => {
+  let reject: (reason?: unknown) => void = () => undefined;
+  const promise = new Promise<Response>((resolver, rejecter) => {
     resolve = resolver;
+    reject = rejecter;
   });
-  return { promise, resolve };
+  return { promise, reject, resolve };
 }
 
 afterEach(() => {
@@ -1228,6 +1230,183 @@ describe("ChatConversationClient routine lifecycle", () => {
     );
     await waitFor(() =>
       expect(mocks.routerReplace).toHaveBeenCalledWith("/chat/chat-1"),
+    );
+  });
+
+  it("syncs source messages from canonical chat data when pagination settles in the same batch", async () => {
+    const olderRoutine: RoutineCardData = {
+      ...activeRoutine,
+      sourceAssistantMessageId: "assistant-old",
+    };
+    mocks.activeRoutine = olderRoutine;
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    const pendingHydration = deferredResponse();
+    const pendingPagination = deferredResponse();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("sourceAssistantMessageId=assistant-old")) {
+          return pendingHydration.promise;
+        }
+        if (url.includes("cursor=cursor-1")) {
+          return pendingPagination.promise;
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderConversation({ ...initialChatData, routines: [] });
+    await user.click(screen.getByRole("button", { name: "Carica precedenti" }));
+
+    await act(async () => {
+      pendingPagination.resolve(
+        new Response(
+          JSON.stringify({
+            messages: [
+              {
+                id: "user-between",
+                role: "user",
+                content: "Domanda intermedia",
+                parts: [],
+                createdAt: "2026-07-10T11:00:00.000Z",
+              },
+            ],
+            routines: [],
+            pagination: { hasMore: false, nextCursor: null },
+          }),
+          { status: 200 },
+        ),
+      );
+      pendingHydration.resolve(
+        new Response(
+          JSON.stringify({
+            ...initialChatData,
+            messages: [
+              {
+                id: "assistant-old",
+                role: "assistant",
+                content: "Routine precedente",
+                parts: [],
+                createdAt: "2026-07-01T10:00:00.000Z",
+              },
+            ],
+            routines: [olderRoutine],
+            pagination: { hasMore: false, nextCursor: null },
+          }),
+          { status: 200 },
+        ),
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+        "routine-1",
+      ),
+    );
+    expect(messageOrder()).toEqual([
+      "Routine precedente",
+      "Domanda intermedia",
+      "Domanda nuova",
+      "Risposta nuova",
+    ]);
+    await waitFor(() =>
+      expect(mocks.setMessages).toHaveBeenLastCalledWith([
+        expect.objectContaining({ id: "assistant-old" }),
+        expect.objectContaining({ id: "user-between" }),
+        expect.objectContaining({ id: "user-new" }),
+        expect.objectContaining({ id: "assistant-new" }),
+      ]),
+    );
+    expect(mocks.updateCachedChat).toHaveBeenLastCalledWith(
+      "chat-1",
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({ id: "assistant-old" }),
+          expect.objectContaining({ id: "user-between" }),
+          expect.objectContaining({ id: "user-new" }),
+          expect.objectContaining({ id: "assistant-new" }),
+        ],
+      }),
+    );
+  });
+
+  it.each([
+    ["a rejected request", () => Promise.reject(new Error("offline"))],
+    [
+      "a malformed response",
+      () => Promise.resolve(new Response(JSON.stringify({ routines: [] }))),
+    ],
+    [
+      "a non-2xx response",
+      () =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: "not found" }), {
+            status: 404,
+          }),
+        ),
+    ],
+  ])("falls back to the orphan check-in after %s", async (_, response) => {
+    const olderRoutine: RoutineCardData = {
+      ...activeRoutine,
+      sourceAssistantMessageId: "assistant-old",
+    };
+    mocks.activeRoutine = olderRoutine;
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    const fetchMock = vi.fn(response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const view = renderConversation({ ...initialChatData, routines: [] });
+
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith(
+        "/chat?checkInRoutineId=routine-1",
+      ),
+    );
+    expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+      "NONE",
+    );
+    expect(mocks.toastError).toHaveBeenCalledOnce();
+
+    view.rerender(
+      <ChatConversationClient
+        chatId="chat-1"
+        initialChatData={{ ...initialChatData, routines: [] }}
+      />,
+    );
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(mocks.routerReplace).toHaveBeenCalledOnce();
+  });
+
+  it("clears to the landing when the active hydration target disappears", async () => {
+    const olderRoutine: RoutineCardData = {
+      ...activeRoutine,
+      sourceAssistantMessageId: "assistant-old",
+    };
+    mocks.activeRoutine = olderRoutine;
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
+    const pendingHydration = deferredResponse();
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(pendingHydration.promise));
+    const view = renderConversation({ ...initialChatData, routines: [] });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+        "NONE",
+      ),
+    );
+    mocks.activeRoutine = null;
+    view.rerender(
+      <ChatConversationClient
+        chatId="chat-1"
+        initialChatData={{ ...initialChatData, routines: [] }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(mocks.routerReplace).toHaveBeenCalledWith("/chat"),
     );
   });
 

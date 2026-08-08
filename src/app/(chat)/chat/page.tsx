@@ -110,25 +110,11 @@ export default function ChatPage() {
       return;
     }
 
-    if (
-      returningActiveRoutine.sourceChatId &&
-      returningActiveRoutine.sourceAssistantMessageId
-    ) {
-      openRoutineCheckIn(returningActiveRoutine);
-      return;
-    }
-
     setLandingCheckInRequest({
       routineId: returningActiveRoutine.id,
       navigationEpoch: chatNavigationEpoch,
     });
-  }, [
-    chatNavigationEpoch,
-    checkInRoutineId,
-    openRoutineCheckIn,
-    returningActiveRoutine,
-    router,
-  ]);
+  }, [chatNavigationEpoch, checkInRoutineId, returningActiveRoutine, router]);
 
   const handleCreateRoutineAttempt = useCallback(
     async (

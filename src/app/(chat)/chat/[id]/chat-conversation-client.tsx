@@ -112,6 +112,8 @@ export function ChatConversationClient({
 }) {
   const clerk = useClerk();
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
   const searchParams = useSearchParams();
   const {
     renameChat,
@@ -126,8 +128,6 @@ export function ChatConversationClient({
   const apiBase = isGuest ? "/api/guest" : "/api";
 
   const [chatData, setChatData] = useState<ChatData>(initialChatData);
-  const chatDataRef = useRef(chatData);
-  chatDataRef.current = chatData;
   const [input, setInput] = useState("");
   const [focusRequestId, setFocusRequestId] = useState(0);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(
@@ -154,6 +154,7 @@ export function ChatConversationClient({
   const routineAttemptActionIdsRef = useRef(new Map<string, string>());
   const cleanedCheckInRoutineIdRef = useRef<string | null>(null);
   const sourceHydrationRequestRef = useRef<string | null>(null);
+  const pendingHydrationMessageSyncRef = useRef(false);
   const [sourceHydration, setSourceHydration] = useState<{
     routineId: string;
     status: "loading" | "complete" | "failed";
@@ -324,6 +325,12 @@ export function ChatConversationClient({
   });
 
   useEffect(() => {
+    if (!pendingHydrationMessageSyncRef.current) return;
+    pendingHydrationMessageSyncRef.current = false;
+    setMessages(convertToUIMessages(chatData.messages));
+  }, [chatData.messages, setMessages]);
+
+  useEffect(() => {
     if (queriedCheckInRoutineId) {
       setReturnCheckInRequest({
         routineId: queriedCheckInRoutineId,
@@ -390,22 +397,27 @@ export function ChatConversationClient({
         if (!parsedRoutines.success) {
           throw new Error("Source hydration routines are invalid");
         }
-        const sourceRoutine = parsedRoutines.data.find(
+        const targetedRoutine = parsedRoutines.data.find(
           (routine) =>
             routine.id === requestedCheckInRoutineId &&
-            routine.status === "ACTIVE" &&
             routine.sourceChatId === chatId &&
             routine.sourceAssistantMessageId === targetSourceAssistantMessageId,
         );
-        if (!sourceRoutine) {
+        if (targetedRoutine && targetedRoutine.status !== "ACTIVE") {
           if (!cancelled) {
             setSourceHydration({
               routineId: requestedCheckInRoutineId,
               status: "complete",
             });
+            cleanedCheckInRoutineIdRef.current = requestedCheckInRoutineId;
+            routerRef.current.replace("/chat");
           }
           return;
         }
+        if (!targetedRoutine) {
+          throw new Error("Source hydration routine is missing");
+        }
+        const sourceRoutine = targetedRoutine;
 
         const sourceData = payload as ChatData;
         const mergeSource = (current: ChatData): ChatData => {
@@ -430,9 +442,8 @@ export function ChatConversationClient({
           };
         };
         if (!cancelled) {
-          const merged = mergeSource(chatDataRef.current);
+          pendingHydrationMessageSyncRef.current = true;
           setChatData(mergeSource);
-          setMessages(convertToUIMessages(merged.messages));
           setSourceHydration({
             routineId: requestedCheckInRoutineId,
             status: "complete",
@@ -445,6 +456,10 @@ export function ChatConversationClient({
             status: "failed",
           });
           toast.error("Non siamo riusciti ad aprire la routine salvata");
+          cleanedCheckInRoutineIdRef.current = requestedCheckInRoutineId;
+          routerRef.current.replace(
+            `/chat?checkInRoutineId=${encodeURIComponent(requestedCheckInRoutineId)}`,
+          );
         }
       }
     })();
@@ -460,7 +475,6 @@ export function ChatConversationClient({
     chatId,
     openCheckInRoutineId,
     requestedCheckInRoutineId,
-    setMessages,
     targetSourceAssistantMessageId,
   ]);
 
@@ -471,6 +485,16 @@ export function ChatConversationClient({
     }
 
     if (!openCheckInRoutineId) {
+      const lostActiveHydrationTarget =
+        requestedRoutine === null &&
+        targetSourceAssistantMessageId === null &&
+        sourceHydration?.routineId === requestedCheckInRoutineId &&
+        sourceHydration.status === "loading";
+      if (lostActiveHydrationTarget) {
+        cleanedCheckInRoutineIdRef.current = requestedCheckInRoutineId;
+        router.replace("/chat");
+        return;
+      }
       const isHydratingTarget =
         targetSourceAssistantMessageId !== null &&
         (sourceHydration?.routineId !== requestedCheckInRoutineId ||
@@ -495,6 +519,7 @@ export function ChatConversationClient({
     chatId,
     openCheckInRoutineId,
     requestedCheckInRoutineId,
+    requestedRoutine,
     router,
     sourceHydration,
     targetSourceAssistantMessageId,
