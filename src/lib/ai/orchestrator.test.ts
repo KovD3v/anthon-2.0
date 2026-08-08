@@ -1740,6 +1740,9 @@ describe("ai/orchestrator", () => {
     );
     expect(streamInput.instructions).toContain("proposeRoutine");
     expect(streamInput.instructions).toContain("never a saved routine");
+    expect(streamInput.instructions).toContain("formatVersion 2");
+    expect(streamInput.instructions).toContain("stable, descriptive id");
+    expect(streamInput.instructions).toContain("PARTIALLY_HELPFUL");
     expect(mocks.getModelForUser).toHaveBeenCalledWith(
       undefined,
       undefined,
@@ -1838,6 +1841,30 @@ describe("ai/orchestrator", () => {
     });
   });
 
+  it("keeps the deterministic tomorrow-routine prompt off TinyFish", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-tomorrow-routine-proposal",
+      userMessage:
+        "Preparami una routine mentale pratica per la gara di domani",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      tools: Record<string, unknown>;
+      prepareStep?: (input: {
+        steps: Array<{ toolCalls?: Array<{ toolName?: string }> }>;
+      }) => unknown;
+    };
+    expect(streamInput.tools).toEqual({
+      proposeRoutine: "routine-proposal-tool",
+    });
+    expect(streamInput.tools).not.toHaveProperty("tinyfishSearch");
+    expect(streamInput.prepareStep?.({ steps: [] })).toEqual({
+      activeTools: ["proposeRoutine"],
+      toolChoice: { type: "tool", toolName: "proposeRoutine" },
+    });
+  });
+
   it("keeps routine proposals mandatory while deferring memory decisions", async () => {
     await streamChat({
       userId: "user-1",
@@ -1863,6 +1890,30 @@ describe("ai/orchestrator", () => {
       activeTools: ["proposeRoutine"],
       toolChoice: { type: "tool", toolName: "proposeRoutine" },
     });
+  });
+
+  it("does not reactivate profile writes after a required routine proposal", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-routine-profile-post-generation",
+      userMessage:
+        "Mi chiamo Luca e gioco a tennis: dammi una routine mentale per la gara.",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      prepareStep?: (input: {
+        steps: Array<{ toolCalls?: Array<{ toolName?: string }> }>;
+      }) => unknown;
+    };
+    expect(streamInput.prepareStep?.({ steps: [] })).toEqual({
+      activeTools: ["proposeRoutine"],
+      toolChoice: { type: "tool", toolName: "proposeRoutine" },
+    });
+    expect(
+      streamInput.prepareStep?.({
+        steps: [{ toolCalls: [{ toolName: "proposeRoutine" }] }],
+      }),
+    ).toEqual({ activeTools: [], toolChoice: "none" });
   });
 
   it.each([

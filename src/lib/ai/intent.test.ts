@@ -87,6 +87,18 @@ describe("ai/intent", () => {
       expect(decision.enabled).toBe(false);
     });
 
+    it("keeps the deterministic tomorrow-routine prompt out of web search", () => {
+      const decision = evaluateWebSearchRule(
+        "Preparami una routine mentale pratica per la gara di domani",
+      );
+
+      expect(decision).toEqual({
+        enabled: false,
+        confidence: "high",
+        reason: "personal_routine_proposal",
+      });
+    });
+
     it("defaults to no search with high confidence", () => {
       const decision = evaluateWebSearchRule("Ciao, come stai?");
       expect(decision).toEqual({

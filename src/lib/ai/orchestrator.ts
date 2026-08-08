@@ -238,6 +238,8 @@ const PROMPT_ROUTINE_PROPOSAL_POLICY = `ROUTINE PROPOSAL
 - When the user explicitly asks for a routine, plan, reset, or concrete practice and you provide one, you MUST call \`proposeRoutine\` exactly once before the final answer.
 - For other answers, call \`proposeRoutine\` at most once only when the answer contains a concrete two-to-three-step practice.
 - The tool is a proposal, never a saved routine; never claim it was saved.
+- Send only formatVersion 2. Give every step a stable, descriptive id and use only \`instruction\`, \`timer\`, \`breathing\`, or \`form\` step kinds.
+- For timer and breathing, provide values within the tool schema limits. A \`form\`, if useful, must be the last step and map exactly once to \`HELPFUL\`, \`PARTIALLY_HELPFUL\`, and \`NOT_HELPFUL\` through its three options.
 - Never infer a proposal from free-form text: only the validated tool call can create the proposal.`;
 
 const PROMPT_DATE_CONTEXT = `DATE
@@ -947,13 +949,7 @@ function createToolLoopPrepareStep(
     toolPlan.routineProposal && !toolPlan.webSearch && !toolPlan.webFetch;
 
   if (routineEligible) {
-    const postRoutineTools = [
-      ...(toolPlan.memoryRead ? ["getMemories"] : []),
-      ...(toolPlan.memoryDelete ? ["deleteMemory"] : []),
-      ...(toolPlan.profileWrite ? ["updateProfile"] : []),
-      ...(toolPlan.preferenceWrite ? ["updatePreferences"] : []),
-      ...(toolPlan.notesWrite ? ["addNotes"] : []),
-    ];
+    const postRoutineTools = [...(toolPlan.memoryRead ? ["getMemories"] : [])];
 
     return ({ steps }) => {
       const hasRoutineProposal = steps.some((step) =>

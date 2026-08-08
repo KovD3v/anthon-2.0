@@ -112,10 +112,47 @@ describe("channel-flow/persistence", () => {
 
   it("persists a validated routine proposal after the assistant text", async () => {
     const proposal = {
+      formatVersion: 2,
       title: "Reset pre-gara",
       trigger: "Quando sento salire la pressione prima della partita",
       durationLabel: "2 minuti",
-      steps: ["Fai tre respiri lenti.", "Richiama una parola chiave."],
+      steps: [
+        {
+          id: "breath-reset",
+          kind: "breathing",
+          label: "Respiro",
+          instruction: "Segui un respiro lento e regolare.",
+          inhaleSeconds: 3,
+          exhaleSeconds: 5,
+          holdAfterInhaleSeconds: 0,
+          holdAfterExhaleSeconds: 0,
+          cycles: 3,
+        },
+        {
+          id: "focus-timer",
+          kind: "timer",
+          label: "Focus",
+          instruction: "Ripeti la parola chiave e guarda il primo gesto.",
+          durationSeconds: 30,
+        },
+        {
+          id: "first-gesture",
+          kind: "instruction",
+          text: "Scegli il primo gesto semplice e riparti da lì.",
+        },
+        {
+          id: "completion",
+          kind: "form",
+          question: "Quanto ti è stata utile questa routine?",
+          mode: "choice",
+          options: [
+            { label: "Molto", outcome: "HELPFUL" },
+            { label: "In parte", outcome: "PARTIALLY_HELPFUL" },
+            { label: "Per nulla", outcome: "NOT_HELPFUL" },
+          ],
+          noteEnabled: true,
+        },
+      ],
       completionCue: "Inizio il primo punto con presenza.",
     };
 
@@ -159,7 +196,7 @@ describe("channel-flow/persistence", () => {
     );
   });
 
-  it("does not persist a routine proposal when tool arguments are invalid", async () => {
+  it("does not turn a malformed v2 proposal into a routine card", async () => {
     await persistAssistantOutput({
       userId: "user-1",
       channel: "WEB",
@@ -174,8 +211,31 @@ describe("channel-flow/persistence", () => {
         toolCalls: [
           {
             name: "proposeRoutine",
-            args: { title: "x" },
-            result: { proposal: { title: "x" } },
+            args: {
+              formatVersion: 2,
+              title: "Reset pre-gara",
+              trigger: "Quando sento salire la pressione prima della partita",
+              steps: [
+                {
+                  id: "completion-too-early",
+                  kind: "form",
+                  question: "Quanto ti è stata utile questa routine?",
+                  mode: "choice",
+                  options: [
+                    { label: "Molto", outcome: "HELPFUL" },
+                    { label: "In parte", outcome: "PARTIALLY_HELPFUL" },
+                    { label: "Per nulla", outcome: "NOT_HELPFUL" },
+                  ],
+                  noteEnabled: false,
+                },
+                {
+                  id: "after-form",
+                  kind: "instruction",
+                  text: "Riparti dal primo gesto semplice.",
+                },
+              ],
+              completionCue: "Inizio il primo punto con presenza.",
+            },
           },
         ],
         ragUsed: false,
