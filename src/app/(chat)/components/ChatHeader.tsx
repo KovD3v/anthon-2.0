@@ -122,7 +122,7 @@ export function ChatHeader({
           <Button
             asChild
             size="sm"
-            className="h-9 shrink-0 gap-1.5 px-2 text-xs md:hidden"
+            className="h-9 shrink-0 gap-1.5 px-2 text-xs"
           >
             <Link
               href={guestConversationNotice.registrationHref}
@@ -137,7 +137,7 @@ export function ChatHeader({
               }
             >
               <UserPlus className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline">
+              <span className="inline">
                 {guestConversationNotice.remaining === undefined
                   ? "Registrati"
                   : `${guestConversationNotice.remaining} rimasti`}

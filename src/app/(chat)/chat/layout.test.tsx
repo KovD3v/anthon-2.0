@@ -447,7 +447,8 @@ describe("chat mobile viewport layout", () => {
     expect(layoutClient).toContain("openSidebar: () => void;");
     expect(layoutClient).toContain("guestConversationNotice:");
     expect(layoutClient).toContain("const isConversationRoute =");
-    expect(layoutClient).toContain("isGuest && !isConversationRoute");
+    expect(layoutClient).toContain("!isConversationRoute &&");
+    expect(layoutClient).toContain("MobileLandingSidebarTrigger");
     expect(layoutClient).toContain(
       'pathname === "/chat" || isConversationRoute ? pathname : "/chat"',
     );

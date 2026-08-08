@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { Sparkles, UserPlus } from "lucide-react";
+import { PanelLeft, Sparkles, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -95,14 +95,26 @@ export function getRoutineCheckInHref(routine: RoutineCardData): string {
 function GuestBanner({
   remaining,
   registrationHref,
+  onOpenSidebar,
 }: {
   remaining?: number;
   registrationHref: string;
+  onOpenSidebar: () => void;
 }) {
   return (
     <div className="mx-2 mt-2 md:mx-4 md:mt-4">
       <div className="flex items-center justify-between gap-2 bg-linear-to-r from-primary/10 via-primary/5 to-transparent backdrop-blur-xl border border-primary/20 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl shadow-sm shadow-primary/5">
         <div className="flex items-center gap-2 min-w-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 shrink-0 md:hidden"
+            onClick={onOpenSidebar}
+            aria-label="Apri la barra laterale"
+          >
+            <PanelLeft className="h-4 w-4" />
+          </Button>
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
             <span className="text-muted-foreground truncate text-sm">
@@ -127,6 +139,27 @@ function GuestBanner({
           </Link>
         </Button>
       </div>
+    </div>
+  );
+}
+
+function MobileLandingSidebarTrigger({
+  onOpenSidebar,
+}: {
+  onOpenSidebar: () => void;
+}) {
+  return (
+    <div className="px-2 pt-2 md:hidden">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-9 w-9"
+        onClick={onOpenSidebar}
+        aria-label="Apri la barra laterale"
+      >
+        <PanelLeft className="h-4 w-4" />
+      </Button>
     </div>
   );
 }
@@ -686,12 +719,17 @@ export function LayoutClient({
         {/* Main Content */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
           {/* Integrated Header Bar */}
-          {isGuest && !isConversationRoute ? (
-            <GuestBanner
-              remaining={guestRemaining}
-              registrationHref={guestRegistrationHref}
-            />
-          ) : usageData ? (
+          {!isConversationRoute &&
+            (isGuest ? (
+              <GuestBanner
+                remaining={guestRemaining}
+                registrationHref={guestRegistrationHref}
+                onOpenSidebar={openSidebar}
+              />
+            ) : (
+              <MobileLandingSidebarTrigger onOpenSidebar={openSidebar} />
+            ))}
+          {usageData && (!isGuest || isConversationRoute) ? (
             <UsageBanner
               usage={usageData.usage}
               limits={usageData.limits}

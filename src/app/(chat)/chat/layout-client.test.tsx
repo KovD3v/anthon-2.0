@@ -4,12 +4,14 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RoutineCardData } from "@/lib/coaching/routine";
+import type { UsageData } from "@/types/chat";
 import { LayoutClient, useChatContext } from "./layout-client";
 
 const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
   routerRefresh: vi.fn(),
   fetchActiveRoutineForReturn: vi.fn(),
+  pathname: "/chat/source-chat",
 }));
 
 vi.mock("@clerk/nextjs", () => ({
@@ -25,7 +27,7 @@ vi.mock("next/link", () => ({
   }) => <a href={href}>{children}</a>,
 }));
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/chat/source-chat",
+  usePathname: () => mocks.pathname,
   useRouter: () => ({
     push: mocks.routerPush,
     prefetch: vi.fn(),
@@ -136,6 +138,44 @@ function renderLayout(initialActiveRoutine: RoutineCardData | null) {
   );
 }
 
+function renderLanding({
+  isGuest,
+  usageData,
+}: {
+  isGuest: boolean;
+  usageData: UsageData | null;
+}) {
+  return render(
+    <LayoutClient
+      initialChats={[]}
+      initialUsageData={usageData}
+      initialCoachingGoal={null}
+      initialActiveRoutine={null}
+      guestConversionPending={false}
+      isGuest={isGuest}
+    >
+      <div>Landing chat</div>
+    </LayoutClient>,
+  );
+}
+
+const usageBelowThreshold: UsageData = {
+  usage: {
+    requestCount: 1,
+    inputTokens: 10,
+    outputTokens: 10,
+    totalCostUsd: 0,
+  },
+  limits: {
+    maxRequests: 10,
+    maxInputTokens: 1_000,
+    maxOutputTokens: 1_000,
+    maxCostUsd: 1,
+  },
+  tier: "BASIC",
+  subscriptionStatus: "ACTIVE",
+};
+
 function deferredRoutine() {
   let resolve: (routine: RoutineCardData | null) => void = () => undefined;
   const promise = new Promise<RoutineCardData | null>((resolver) => {
@@ -146,6 +186,11 @@ function deferredRoutine() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.pathname = "/chat/source-chat";
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: 375,
+  });
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -250,4 +295,30 @@ describe("persistent active routine context", () => {
       ),
     );
   });
+});
+
+describe("mobile chat landing navigation", () => {
+  it.each([
+    ["guest", true, { ...usageBelowThreshold, tier: "GUEST" as const }],
+    [
+      "authenticated user below the usage threshold",
+      false,
+      usageBelowThreshold,
+    ],
+  ])(
+    "opens the sidebar from the %s landing",
+    async (_label, isGuest, usageData) => {
+      mocks.pathname = "/chat";
+      const user = userEvent.setup();
+      renderLanding({ isGuest, usageData });
+
+      await user.click(
+        screen.getByRole("button", { name: "Apri la barra laterale" }),
+      );
+
+      await waitFor(() =>
+        expect(document.documentElement.dataset.chatSidebar).toBe("open"),
+      );
+    },
+  );
 });
