@@ -11,6 +11,8 @@ export const CHAT_REACTIVITY_COPY = {
   assistantRegeneratingDetail: "Sostituisco la risposta precedente.",
   assistantWorkingDetail: "La risposta sta arrivando.",
   uploadTooLarge: "File troppo grande. Dimensione massima: 10MB.",
+  uploadUnsupported:
+    "Formato non supportato. Per le foto iPhone usa JPG o PNG, non HEIC/HEIF.",
   uploadUploading: "Carico il file",
   uploadSuccess: "File caricato",
   uploadFailed: "Caricamento file fallito",

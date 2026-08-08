@@ -5,6 +5,10 @@ import { Send, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  CHAT_ATTACHMENT_ACCEPT,
+  isSupportedChatAttachment,
+} from "@/lib/uploads/chat-file-types";
 import type { AttachmentData } from "@/types/chat";
 import { CHAT_REACTIVITY_COPY } from "../chat/chat-reactivity-ui";
 import { AttachmentButton, AttachmentPreview } from "./Attachments";
@@ -105,8 +109,15 @@ export function ChatInput({
     const file = files[0];
     const maxSize = 10 * 1024 * 1024; // 10MB
 
+    if (!isSupportedChatAttachment(file.name)) {
+      toast.error(CHAT_REACTIVITY_COPY.uploadUnsupported);
+      resetFileUploadState();
+      return;
+    }
+
     if (file.size > maxSize) {
       toast.error(CHAT_REACTIVITY_COPY.uploadTooLarge);
+      resetFileUploadState();
       return;
     }
 
@@ -222,7 +233,7 @@ export function ChatInput({
           aria-label="Scegli un file da allegare"
           onChange={(e) => handleFileSelect(e.target.files)}
           disabled={externallyDisabled || isUploading || isLoading}
-          accept="image/*,video/*,.pdf,.doc,.docx,.txt,audio/*,.mp3,.wav,.ogg,.aac,.flac,.m4a"
+          accept={CHAT_ATTACHMENT_ACCEPT}
         />
 
         {/* Attachment button - hidden for guests */}

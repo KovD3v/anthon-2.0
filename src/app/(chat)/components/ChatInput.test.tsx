@@ -10,8 +10,11 @@ import {
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CHAT_ATTACHMENT_ACCEPT } from "@/lib/uploads/chat-file-types";
 import type { AttachmentData } from "@/types/chat";
 import { ChatInput } from "./ChatInput";
+
+const mocks = vi.hoisted(() => ({ toastError: vi.fn() }));
 
 const recordedAudio: AttachmentData = {
   id: "recording-1",
@@ -29,7 +32,7 @@ vi.mock("framer-motion", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
+  toast: { error: mocks.toastError, success: vi.fn() },
 }));
 
 vi.mock("./Attachments", () => ({
@@ -77,6 +80,7 @@ function renderChatInput(input = "") {
 
 afterEach(() => {
   cleanup();
+  mocks.toastError.mockReset();
   vi.unstubAllGlobals();
 });
 
@@ -311,5 +315,39 @@ describe("ChatInput audio attachments", () => {
         screen.getByRole("textbox", { name: "Scrivi un messaggio" }),
       ).toBeTruthy(),
     );
+  });
+});
+
+describe("ChatInput file selection", () => {
+  it("uses explicit extensions so Finder does not enable HEIC or HEIF", () => {
+    renderChatInput();
+
+    const input = screen.getByLabelText("Scegli un file da allegare");
+    expect(input.getAttribute("accept")).toBe(CHAT_ATTACHMENT_ACCEPT);
+    expect(CHAT_ATTACHMENT_ACCEPT).toContain(".jpg");
+    expect(CHAT_ATTACHMENT_ACCEPT).toContain(".png");
+    expect(CHAT_ATTACHMENT_ACCEPT).not.toContain("image/*");
+    expect(CHAT_ATTACHMENT_ACCEPT).not.toContain(".heic");
+    expect(CHAT_ATTACHMENT_ACCEPT).not.toContain(".heif");
+  });
+
+  it("rejects an unsupported iPhone photo before starting the upload", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    renderChatInput();
+    const input = screen.getByLabelText<HTMLInputElement>(
+      "Scegli un file da allegare",
+    );
+    const file = new File(["photo"], "IMG_1234.HEIC", {
+      type: "image/heic",
+    });
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      "Formato non supportato. Per le foto iPhone usa JPG o PNG, non HEIC/HEIF.",
+    );
+    expect(input.value).toBe("");
   });
 });
