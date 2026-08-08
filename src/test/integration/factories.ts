@@ -9,6 +9,8 @@ function nextId(prefix: string): string {
 }
 
 export async function resetIntegrationDb() {
+  await prisma.routineAttempt.deleteMany();
+  await prisma.routine.deleteMany();
   await prisma.aiUsageReservation.deleteMany();
   await prisma.uploadReservation.deleteMany();
   await prisma.dailyUploadUsage.deleteMany();
@@ -143,6 +145,67 @@ export async function createMessage(
       ...(input.createdAt ? { createdAt: input.createdAt } : {}),
       ...(input.feedback !== undefined ? { feedback: input.feedback } : {}),
       ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
+    },
+  });
+}
+
+export async function createRoutine(
+  userId: string,
+  overrides: Partial<{
+    sourceChatId: string | null;
+    sourceAssistantMessageId: string | null;
+    title: string;
+    trigger: string;
+    durationLabel: string | null;
+    steps: Prisma.InputJsonValue;
+    completionCue: string;
+    status: "ACTIVE" | "ARCHIVED";
+    archivedAt: Date | null;
+  }> = {},
+) {
+  return prisma.routine.create({
+    data: {
+      userId,
+      sourceChatId: overrides.sourceChatId ?? null,
+      sourceAssistantMessageId: overrides.sourceAssistantMessageId ?? null,
+      title: overrides.title ?? "Reset dopo un errore",
+      trigger: overrides.trigger ?? "Quando commetti un errore in gara",
+      durationLabel:
+        overrides.durationLabel === undefined
+          ? "60 secondi"
+          : overrides.durationLabel,
+      steps: overrides.steps ?? [
+        "Fermati",
+        "Espira lentamente",
+        "Scegli il prossimo gesto",
+      ],
+      completionCue:
+        overrides.completionCue ??
+        "Riparti con lo sguardo sul compito successivo",
+      status: overrides.status ?? "ACTIVE",
+      archivedAt: overrides.archivedAt ?? null,
+    },
+  });
+}
+
+export async function createRoutineAttempt(
+  routineId: string,
+  overrides: Partial<{
+    clientActionId: string;
+    attemptedAt: Date;
+    outcome: "HELPFUL" | "PARTIALLY_HELPFUL" | "NOT_HELPFUL" | null;
+    outcomeNote: string | null;
+    outcomeRecordedAt: Date | null;
+  }> = {},
+) {
+  return prisma.routineAttempt.create({
+    data: {
+      routineId,
+      clientActionId: overrides.clientActionId ?? nextId("routine_action"),
+      attemptedAt: overrides.attemptedAt,
+      outcome: overrides.outcome ?? null,
+      outcomeNote: overrides.outcomeNote ?? null,
+      outcomeRecordedAt: overrides.outcomeRecordedAt ?? null,
     },
   });
 }

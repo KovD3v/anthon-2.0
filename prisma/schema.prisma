@@ -48,6 +48,7 @@ model User {
   profile                     Profile?
   preferences                 Preferences?
   memories                    Memory[]
+  routines                    Routine[]
   messages                    Message[]
   attachments                 Attachment[]
   chats                       Chat[]
@@ -377,6 +378,7 @@ model Chat {
   artifacts            Artifact[]
   conversationThread   ConversationThread?
   modelExperimentPairs ModelExperimentPair[]
+  sourceRoutines       Routine[]            @relation("RoutineSourceChat")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -463,6 +465,7 @@ model Message {
   voiceGenerationJob           VoiceGenerationJob?
   sourceModelExperimentPairs   ModelExperimentPair[] @relation("ModelExperimentSourceMessage")
   canonicalModelExperimentPair ModelExperimentPair?  @relation("ModelExperimentCanonicalMessage")
+  sourceRoutines                Routine[]             @relation("RoutineSourceMessage")
 
   @@unique([channel, externalMessageId])
   @@unique([userId, channel, clientMessageId])
@@ -849,6 +852,61 @@ enum MessageType {
   LOCATION
   CONTACT
   UNKNOWN
+}
+
+// -----------------------------------------------------
+// COACHING ROUTINES
+// -----------------------------------------------------
+
+enum RoutineStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum RoutineAttemptOutcome {
+  HELPFUL
+  PARTIALLY_HELPFUL
+  NOT_HELPFUL
+}
+
+model Routine {
+  id                       String        @id @default(cuid())
+  userId                   String
+  user                     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceChatId             String?
+  sourceChat               Chat?         @relation("RoutineSourceChat", fields: [sourceChatId], references: [id], onDelete: SetNull)
+  sourceAssistantMessageId String?
+  sourceAssistantMessage   Message?      @relation("RoutineSourceMessage", fields: [sourceAssistantMessageId], references: [id], onDelete: SetNull)
+  title                    String
+  trigger                  String
+  durationLabel            String?
+  steps                    Json
+  completionCue            String
+  status                   RoutineStatus @default(ACTIVE)
+  archivedAt               DateTime?
+  attempts                 RoutineAttempt[]
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+
+  @@unique([userId, sourceAssistantMessageId])
+  @@index([userId, status, updatedAt(sort: Desc)])
+  @@index([sourceChatId])
+}
+
+model RoutineAttempt {
+  id                String                 @id @default(cuid())
+  routineId         String
+  routine           Routine                @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  clientActionId    String
+  attemptedAt       DateTime               @default(now())
+  outcome           RoutineAttemptOutcome?
+  outcomeNote       String?                @db.Text
+  outcomeRecordedAt DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@unique([routineId, clientActionId])
+  @@index([routineId, attemptedAt(sort: Desc)])
 }
 
 // -----------------------------------------------------
