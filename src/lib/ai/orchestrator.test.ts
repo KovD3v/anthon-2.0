@@ -1737,6 +1737,35 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).toContain("proposeRoutine");
   });
 
+  it("requires one structured routine proposal before returning the coaching answer", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-routine-proposal-required",
+      userMessage:
+        "Prima della gara perdo lucidità dopo un errore. Dammi una routine mentale pratica di 60 secondi.",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      prepareStep?: (input: {
+        steps: Array<{ toolCalls?: Array<{ toolName?: string }> }>;
+      }) => unknown;
+    };
+    expect(streamInput.prepareStep).toEqual(expect.any(Function));
+
+    const prepareStep = streamInput.prepareStep as NonNullable<
+      typeof streamInput.prepareStep
+    >;
+    expect(prepareStep({ steps: [] })).toEqual({
+      activeTools: ["proposeRoutine"],
+      toolChoice: { type: "tool", toolName: "proposeRoutine" },
+    });
+    expect(
+      prepareStep({
+        steps: [{ toolCalls: [{ toolName: "proposeRoutine" }] }],
+      }),
+    ).toEqual({ activeTools: [], toolChoice: "none" });
+  });
+
   it.each([
     [
       "direct web-search requests",

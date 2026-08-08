@@ -155,7 +155,7 @@ export function evaluateWebSearchRule(userMessage = ""): WebSearchRuleDecision {
     "i",
   );
   const personalPlanningContext =
-    /\b(mio|mia|miei|mie|questi|queste)\b.{0,60}\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b|\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b.{0,60}\b(mio|mia|miei|mie|questi|queste)\b/i;
+    /\b(mio|mia|miei|mie|questi|queste)\b.{0,60}\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b|\b(allenamento|allenamenti|programma|scheda|routine|microciclo|macrociclo|esercizi)\b.{0,60}\b(mio|mia|miei|mie|questi|queste)\b|\b(aiutami|dammi|prepara|preparare|costruisci|costruire|crea|creare|fammi|voglio)\b.{0,80}\b(routine|reset|piano|esercizio|concentrazione|pressione|focus)\b/i;
   const ambiguousCurrentInfoIntent =
     /\b(aggiornami|aggiorni|aggiornamento|aggiornamenti|novit[aà]|situazione|status|cosa\s+succede|che\s+succede)\b.{0,80}\b([A-Z][\p{L}'-]{2,}|messi|ronaldo|sinner|inter|milan|juve|juventus|napoli|roma|monza)\b|\b([A-Z][\p{L}'-]{2,}|messi|ronaldo|sinner|inter|milan|juve|juventus|napoli|roma|monza)\b.{0,80}\b(aggiornami|aggiorni|aggiornamento|aggiornamenti|novit[aà]|situazione|status|cosa\s+succede|che\s+succede)\b/iu;
 

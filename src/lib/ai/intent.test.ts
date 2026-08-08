@@ -60,6 +60,13 @@ describe("ai/intent", () => {
       expect(decision.enabled).toBe(false);
     });
 
+    it("does not misclassify dated routine coaching as external information", () => {
+      const decision = evaluateWebSearchRule(
+        "Ho una gara domani. Aiutami a preparare una routine mentale breve per arrivare concentrato e gestire la pressione.",
+      );
+      expect(decision.enabled).toBe(false);
+    });
+
     it("defaults to no search with high confidence", () => {
       const decision = evaluateWebSearchRule("Ciao, come stai?");
       expect(decision).toEqual({

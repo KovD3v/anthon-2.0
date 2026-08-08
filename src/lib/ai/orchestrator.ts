@@ -232,7 +232,8 @@ const PROMPT_RAG_POLICY = `RAG
 - If the RAG CONTEXT section is present and relevant, use it as a base. Do NOT invent sources. Do NOT paste long excerpts.`;
 
 const PROMPT_ROUTINE_PROPOSAL_POLICY = `ROUTINE PROPOSAL
-- Call \`proposeRoutine\` at most once only when the answer contains a concrete two-to-three-step practice.
+- When the user explicitly asks for a routine, plan, reset, or concrete practice and you provide one, you MUST call \`proposeRoutine\` exactly once before the final answer.
+- For other answers, call \`proposeRoutine\` at most once only when the answer contains a concrete two-to-three-step practice.
 - The tool is a proposal, never a saved routine; never claim it was saved.
 - Never infer a proposal from free-form text: only the validated tool call can create the proposal.`;
 
@@ -951,6 +952,34 @@ function getStreamStepLimit(toolPlan: ToolPlan, directWebSearchUsed: boolean) {
 function createToolLoopPrepareStep(
   toolPlan: ToolPlan,
 ): PrepareStepFunction<ToolSet> | undefined {
+  const routineOnly =
+    toolPlan.routineProposal &&
+    !toolPlan.webSearch &&
+    !toolPlan.webFetch &&
+    !toolPlan.memoryRead &&
+    !toolPlan.memoryWrite &&
+    !toolPlan.memoryDelete &&
+    !toolPlan.profileWrite &&
+    !toolPlan.preferenceWrite &&
+    !toolPlan.notesWrite;
+
+  if (routineOnly) {
+    return ({ steps }) => {
+      const hasRoutineProposal = steps.some((step) =>
+        step.toolCalls?.some(
+          (toolCall) => toolCall.toolName === "proposeRoutine",
+        ),
+      );
+
+      return hasRoutineProposal
+        ? { activeTools: [], toolChoice: "none" }
+        : {
+            activeTools: ["proposeRoutine"],
+            toolChoice: { type: "tool", toolName: "proposeRoutine" },
+          };
+    };
+  }
+
   if (
     !toolPlan.webSearch ||
     toolPlan.webFetch ||
