@@ -61,6 +61,19 @@ export function ChatInput({
     }
   }, 16); // ~60fps debounce
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter" || e.shiftKey || window.innerWidth < 768) {
+      return;
+    }
+
+    e.preventDefault();
+    if (cannotSubmit) {
+      return;
+    }
+
+    e.currentTarget.form?.requestSubmit();
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (cannotSubmit) {
@@ -259,6 +272,7 @@ export function ChatInput({
               onInputWarmup?.(nextInput);
               adjustHeight();
             }}
+            onKeyDown={handleKeyDown}
             placeholder={disabledReason ?? "Scrivi un messaggio…"}
             rows={1}
             className="min-w-0 flex-1 resize-none bg-transparent px-2 py-3 text-sm outline-none placeholder:text-muted-foreground/50 max-h-[200px] overflow-y-auto scrollbar-none"
