@@ -181,7 +181,7 @@ describe("getAssistantPendingLabel", () => {
 });
 
 describe("getAssistantToolFeedback", () => {
-  it("describes active web searches with the submitted query", () => {
+  it("labels active web searches generically without exposing the query", () => {
     expect(
       getAssistantToolFeedback({
         status: "streaming",
@@ -198,10 +198,10 @@ describe("getAssistantToolFeedback", () => {
           ],
         },
       }),
-    ).toBe("Sto cercando prossima partita di Messi");
+    ).toEqual({ kind: "web", label: "Ricerca" });
   });
 
-  it("describes active site extraction with the target host", () => {
+  it("labels active site extraction without exposing the URL or host", () => {
     expect(
       getAssistantToolFeedback({
         status: "streaming",
@@ -218,10 +218,10 @@ describe("getAssistantToolFeedback", () => {
           ],
         },
       }),
-    ).toBe("Estraggo dal sito intermiamicf.com");
+    ).toEqual({ kind: "web", label: "Ricerca" });
   });
 
-  it("describes active context retrieval without leaking implementation names", () => {
+  it("labels active memory access without exposing its category", () => {
     expect(
       getAssistantToolFeedback({
         status: "streaming",
@@ -238,7 +238,60 @@ describe("getAssistantToolFeedback", () => {
           ],
         },
       }),
-    ).toBe("Recupero informazioni su sport");
+    ).toEqual({ kind: "memory", label: "Memoria" });
+  });
+
+  it.each([
+    ["searchRag", "context", "Contesto"],
+    ["getUserContext", "context", "Contesto"],
+    ["proposeRoutine", "routine", "Routine"],
+  ] as const)(
+    "maps %s to a closed generic indicator",
+    (toolName, kind, label) => {
+      expect(
+        getAssistantToolFeedback({
+          status: "streaming",
+          message: {
+            id: "assistant-1",
+            role: "assistant",
+            parts: [
+              {
+                type: `tool-${toolName}`,
+                toolCallId: "call-1",
+                state: "input-available",
+                input: {
+                  query: "private-query",
+                  key: "private-key",
+                  category: "private-category",
+                  value: "private-value",
+                  url: "https://private.example/path",
+                },
+              },
+            ],
+          },
+        }),
+      ).toEqual({ kind, label });
+    },
+  );
+
+  it("does not narrate unknown tool names or their inputs", () => {
+    expect(
+      getAssistantToolFeedback({
+        status: "streaming",
+        message: {
+          id: "assistant-1",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-privateInternalTool",
+              toolCallId: "call-1",
+              state: "input-available",
+              input: { query: "private-query" },
+            },
+          ],
+        },
+      }),
+    ).toBeNull();
   });
 
   it("does not show stale tool feedback after streaming completes", () => {

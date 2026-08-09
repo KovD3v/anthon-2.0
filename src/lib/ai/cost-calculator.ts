@@ -5,8 +5,19 @@
  * Uses TokenLens for pricing data from OpenRouter API.
  */
 
+import {
+  type CapabilityUsage,
+  normalizeCapabilityUsage,
+} from "./capability-usage";
 import { type CostResult, calculateCost as tokenlensCost } from "./tokenlens";
 import { redactToolCalls } from "./tool-privacy";
+
+export {
+  CAPABILITY_USAGE_VALUES,
+  type CapabilityUsage,
+  type CapabilityUsageData,
+  normalizeCapabilityUsage,
+} from "./capability-usage";
 
 type AIMetricToolCall = {
   name: string;
@@ -14,6 +25,36 @@ type AIMetricToolCall = {
   args?: unknown;
   result?: unknown;
 };
+
+const WEB_TOOL_NAMES = new Set(["tinyfishSearch", "tinyfishFetch"]);
+const MEMORY_TOOL_NAMES = new Set([
+  "getMemories",
+  "saveMemory",
+  "requestMemoryApproval",
+  "resolveMemoryApproval",
+  "deleteMemory",
+]);
+
+function getCompletedToolNames(toolCalls: unknown[] | undefined) {
+  const names = new Set<string>();
+
+  for (const toolCall of toolCalls ?? []) {
+    if (!toolCall || typeof toolCall !== "object") continue;
+
+    const record = toolCall as Record<string, unknown>;
+    if (record.status === "failed") continue;
+
+    const name =
+      typeof record.name === "string"
+        ? record.name
+        : typeof record.toolName === "string"
+          ? record.toolName
+          : null;
+    if (name) names.add(name);
+  }
+
+  return names;
+}
 
 /**
  * Calculate cost for a single AI call.
@@ -97,8 +138,10 @@ export interface AIMetrics {
     toolExecutionMs?: number;
     finalModelStepMs?: number;
   };
+  ragAttempted?: boolean;
   ragUsed: boolean;
   ragChunksCount: number;
+  capabilitiesUsed?: CapabilityUsage[];
   costUsd: number;
   generationTimeMs: number;
   reasoningTimeMs: number | null;
@@ -132,6 +175,9 @@ interface FinishResultInput {
   toolTiming?: AIMetrics["toolTiming"];
   ragUsed?: boolean;
   ragChunksCount?: number;
+  ragAttempted?: boolean;
+  routineUsed?: boolean;
+  voiceOutput?: boolean;
 }
 
 /**
@@ -212,6 +258,27 @@ export function extractAIMetrics(
         total + JSON.stringify((toolCall as { result: unknown }).result).length
       );
     }, 0) ?? 0;
+  const completedToolNames = getCompletedToolNames(rawToolCalls ?? undefined);
+  const ragChunksCount = Math.max(
+    0,
+    Math.trunc(finishResult.ragChunksCount ?? 0),
+  );
+  const ragUsed = ragChunksCount > 0;
+  const ragAttempted =
+    finishResult.ragAttempted === true ||
+    completedToolNames.has("searchRag") ||
+    ragUsed;
+  const capabilitiesUsed = normalizeCapabilityUsage([
+    ...(ragUsed ? ["rag"] : []),
+    ...([...completedToolNames].some((name) => WEB_TOOL_NAMES.has(name))
+      ? ["web"]
+      : []),
+    ...([...completedToolNames].some((name) => MEMORY_TOOL_NAMES.has(name))
+      ? ["memory"]
+      : []),
+    ...(finishResult.routineUsed === true ? ["routine"] : []),
+    ...(finishResult.voiceOutput === true ? ["voice"] : []),
+  ]);
 
   // Calculate cost: prefer OpenRouter's cost if available, otherwise calculate with TokenLens
   // NOTE: We use the FULL input tokens for cost calculation before subtraction
@@ -244,8 +311,10 @@ export function extractAIMetrics(
     toolCallCount,
     toolResultChars,
     toolTiming: finishResult.toolTiming,
-    ragUsed: finishResult.ragUsed ?? false,
-    ragChunksCount: finishResult.ragChunksCount ?? 0,
+    ragAttempted,
+    ragUsed,
+    ragChunksCount,
+    capabilitiesUsed,
     costUsd,
     generationTimeMs,
     reasoningTimeMs: null, // Not available from OpenRouter currently

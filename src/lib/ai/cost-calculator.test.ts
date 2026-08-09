@@ -192,6 +192,76 @@ describe("ai/cost-calculator", () => {
     });
   });
 
+  it("separates an empty RAG attempt from actual capability use", () => {
+    mocks.calculateCost.mockReturnValue({
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      model: "model-capabilities",
+    });
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+
+    const result = extractAIMetrics("model-capabilities", startTime, {
+      text: "done",
+      collectedToolCalls: [
+        {
+          name: "searchRag",
+          args: { query: "private query" },
+          result: { success: true, chunkCount: 0, context: "" },
+        },
+      ],
+      ragChunksCount: 0,
+    });
+
+    expect(result.ragAttempted).toBe(true);
+    expect(result.ragUsed).toBe(false);
+    expect(result.ragChunksCount).toBe(0);
+    expect(result.capabilitiesUsed).toEqual([]);
+  });
+
+  it("aggregates only completed safe capability categories", () => {
+    mocks.calculateCost.mockReturnValue({
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      model: "model-capabilities",
+    });
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+
+    const result = extractAIMetrics("model-capabilities", startTime, {
+      text: "done",
+      collectedToolCalls: [
+        {
+          name: "searchRag",
+          result: { success: true, chunkCount: 2, context: "safe context" },
+        },
+        {
+          name: "tinyfishSearch",
+          args: { query: "private query" },
+          result: { results: [{ url: "https://private.example" }] },
+        },
+        { name: "getMemories", args: { category: "private category" } },
+        { name: "saveMemory", args: { key: "private key" } },
+        { name: "deleteMemory", args: { key: "private key" } },
+        { name: "proposeRoutine", args: { title: "private title" } },
+        { name: "unknownTool", result: { provider: "private provider" } },
+      ],
+      ragChunksCount: 2,
+      routineUsed: true,
+      voiceOutput: true,
+    });
+
+    expect(result.ragAttempted).toBe(true);
+    expect(result.ragUsed).toBe(true);
+    expect(result.capabilitiesUsed).toEqual([
+      "rag",
+      "web",
+      "memory",
+      "routine",
+      "voice",
+    ]);
+  });
+
   it("falls back to TokenLens cost calculation without provider cost metadata", () => {
     mocks.calculateCost.mockReturnValue({
       inputCost: 0.1,

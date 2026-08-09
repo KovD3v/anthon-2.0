@@ -12,6 +12,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
+import { CAPABILITY_USAGE_VALUES } from "@/lib/ai/capability-usage";
 import {
   convertToUIMessages,
   extractTextFromParts,
@@ -66,6 +67,10 @@ const messageMetadataSchema = z.object({
   outputTokens: z.number().optional(),
   generationTimeMs: z.number().optional(),
   reasoningTimeMs: z.number().optional(),
+  ragAttempted: z.boolean().optional(),
+  ragUsed: z.boolean().optional(),
+  ragChunksCount: z.number().int().nonnegative().optional(),
+  capabilitiesUsed: z.array(z.enum(CAPABILITY_USAGE_VALUES)).optional(),
 });
 
 const modelComparisonSlotSchema = z.object({
@@ -74,6 +79,9 @@ const modelComparisonSlotSchema = z.object({
 });
 
 const chatDataPartSchemas = {
+  aiCapabilities: z.object({
+    capabilities: z.array(z.enum(CAPABILITY_USAGE_VALUES)),
+  }),
   coachingRoutine: storedRoutineProposalSchema,
   modelComparison: z.object({
     pairId: z.string(),

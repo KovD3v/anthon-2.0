@@ -1151,6 +1151,8 @@ async function runOpenRouterMultimodalCompletion({
   startTime,
   ragUsed,
   ragChunksCount,
+  ragAttempted,
+  voiceOutput,
   telemetryContext,
   onFinish,
   abortSignal,
@@ -1161,6 +1163,8 @@ async function runOpenRouterMultimodalCompletion({
   startTime: number;
   ragUsed: boolean;
   ragChunksCount: number;
+  ragAttempted: boolean;
+  voiceOutput: boolean;
   telemetryContext: AiGenerationTelemetryContext;
   onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
   abortSignal?: AbortSignal;
@@ -1236,8 +1240,10 @@ async function runOpenRouterMultimodalCompletion({
       totalTokens: usage?.total_tokens,
     },
     providerMetadata,
+    ragAttempted,
     ragUsed,
     ragChunksCount,
+    voiceOutput,
   });
   captureAiGenerationMetadata({ context: telemetryContext, metrics });
 
@@ -1690,11 +1696,13 @@ export async function streamChat({
     isGuest || capabilityPlannerMode === "agentic" || !turnPlan.capabilities.rag
       ? Promise.resolve({
           ragContext: undefined,
+          ragAttempted: false,
           ragUsed: false,
           ragChunksCount: 0,
         })
       : (async () => {
           let ragContext: string | undefined;
+          let ragAttempted = false;
           let ragUsed = false;
           let ragChunksCount = 0;
           try {
@@ -1706,6 +1714,7 @@ export async function streamChat({
                   : shouldUseRag(userMessage, { userId }),
             );
             if (needsRag) {
+              ragAttempted = true;
               const ragResult = await LatencyLogger.measure(
                 "📚 RAG: Get context",
                 () => getRagContext(userMessage),
@@ -1723,11 +1732,11 @@ export async function streamChat({
             });
           }
 
-          return { ragContext, ragUsed, ragChunksCount };
+          return { ragContext, ragAttempted, ragUsed, ragChunksCount };
         })();
 
   const [
-    { ragContext, ragUsed, ragChunksCount },
+    { ragContext, ragAttempted, ragUsed, ragChunksCount },
     conversationHistory,
     directWebSearchEvidence,
   ] = await Promise.all([
@@ -1736,6 +1745,7 @@ export async function streamChat({
     directWebSearchPromise,
   ]);
   const ragUsage = {
+    attempted: ragAttempted,
     used: ragUsed,
     chunkCount: ragChunksCount,
   };
@@ -2032,6 +2042,8 @@ export async function streamChat({
       startTime,
       ragUsed,
       ragChunksCount,
+      ragAttempted,
+      voiceOutput: capabilityDecision.voiceOutput,
       telemetryContext,
       onFinish: onFinish
         ? async ({ text, metrics }) => {
@@ -2120,6 +2132,9 @@ export async function streamChat({
             : undefined,
         ragUsed: ragUsage.used,
         ragChunksCount: ragUsage.chunkCount,
+        ragAttempted: ragUsage.attempted,
+        routineUsed: routineProposal !== undefined,
+        voiceOutput: capabilityDecision.voiceOutput,
       });
       if (routineProposal !== undefined) {
         metrics.routineProposal = routineProposal;
@@ -2201,6 +2216,7 @@ export async function streamChat({
             }
           }
           if (tc.toolName === "searchRag") {
+            ragUsage.attempted = true;
             const ragToolResult = toolResult as
               | { success?: unknown; chunkCount?: unknown }
               | undefined;
@@ -2280,6 +2296,7 @@ export interface PreparedChatTurn {
   promptMode: PromptMode;
   ragUsed: boolean;
   ragChunksCount: number;
+  ragAttempted: boolean;
 }
 
 /**
@@ -2380,11 +2397,14 @@ export async function prepareChatTurn({
           const needsRag =
             classifierRagEnabled ||
             (await shouldUseRag(userMessage, { userId }));
-          if (!needsRag) return { text: undefined, chunkCount: 0 };
+          if (!needsRag) {
+            return { text: undefined, chunkCount: 0, attempted: false };
+          }
           const result = await getRagContext(userMessage);
           return {
             text: result.chunkCount > 0 ? result.text : undefined,
             chunkCount: result.chunkCount,
+            attempted: true,
           };
         } catch (error) {
           aiLogger.warn(
@@ -2392,10 +2412,10 @@ export async function prepareChatTurn({
             "Paired comparison RAG preparation failed",
             { error, userId, chatId },
           );
-          return { text: undefined, chunkCount: 0 };
+          return { text: undefined, chunkCount: 0, attempted: true };
         }
       })()
-    : { text: undefined, chunkCount: 0 };
+    : { text: undefined, chunkCount: 0, attempted: false };
   const ragUsed = ragResult.chunkCount > 0;
   const currentDate = new Date().toLocaleDateString("it-IT", {
     weekday: "long",
@@ -2479,6 +2499,7 @@ export async function prepareChatTurn({
     promptMode,
     ragUsed,
     ragChunksCount: ragResult.chunkCount,
+    ragAttempted: ragResult.attempted,
   };
 }
 
@@ -2581,6 +2602,7 @@ export function executePreparedChatTurn({
         },
         providerMetadata: providerMetadata as Record<string, unknown>,
         preferProviderUsage: !totalUsage,
+        ragAttempted: prepared.ragAttempted,
         ragUsed: prepared.ragUsed,
         ragChunksCount: prepared.ragChunksCount,
       });

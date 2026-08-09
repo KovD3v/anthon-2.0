@@ -190,6 +190,86 @@ describe("channel-flow/persistence", () => {
     );
   });
 
+  it("persists only the closed capability list without raw tool payloads", async () => {
+    await persistAssistantOutput({
+      userId: "user-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        provider: "private-provider",
+        providerMetadata: { host: "private-provider.example" },
+        inputTokens: 1,
+        outputTokens: 1,
+        reasoningTokens: null,
+        reasoningContent: "private reasoning",
+        toolCalls: [
+          {
+            name: "saveMemory",
+            args: {
+              key: "private-key",
+              value: "private-value",
+              category: "private-category",
+            },
+            result: { documentId: "private-document-id" },
+          },
+        ],
+        ragAttempted: false,
+        ragUsed: false,
+        ragChunksCount: 0,
+        capabilitiesUsed: ["memory", "voice"],
+        costUsd: 0,
+        generationTimeMs: 1,
+        reasoningTimeMs: null,
+      },
+      allowMemoryExtraction: false,
+    });
+
+    const parts = mocks.messageCreate.mock.calls[0]?.[0].data.parts;
+    expect(parts).toEqual([
+      { type: "text", text: "assistant" },
+      {
+        type: "data-aiCapabilities",
+        data: { capabilities: ["memory", "voice"] },
+      },
+    ]);
+    expect(JSON.stringify(parts)).not.toContain("private");
+  });
+
+  it("omits the capability part when no capability completed", async () => {
+    await persistAssistantOutput({
+      userId: "user-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        inputTokens: 1,
+        outputTokens: 1,
+        reasoningTokens: null,
+        reasoningContent: null,
+        toolCalls: [],
+        ragAttempted: true,
+        ragUsed: false,
+        ragChunksCount: 0,
+        capabilitiesUsed: [],
+        costUsd: 0,
+        generationTimeMs: 1,
+        reasoningTimeMs: null,
+      },
+      allowMemoryExtraction: false,
+    });
+
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          parts: [{ type: "text", text: "assistant" }],
+        }),
+      }),
+    );
+  });
+
   it("removes exact memory targets and tool payloads from trace metadata", async () => {
     const waitUntil = vi.fn();
 

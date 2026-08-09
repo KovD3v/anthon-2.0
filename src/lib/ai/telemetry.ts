@@ -1,3 +1,4 @@
+import { normalizeCapabilityUsage } from "@/lib/ai/capability-usage";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
 import { createLogger } from "@/lib/logger";
 import { getPostHogClient } from "@/lib/posthog";
@@ -63,8 +64,10 @@ export function captureAiGenerationMetadata({
         experimentId: boundedLabel(context.experimentId),
         pairId: boundedLabel(context.pairId),
         experimentRole: boundedLabel(context.experimentRole),
+        ragAttempted: metrics.ragAttempted ?? false,
         ragUsed: metrics.ragUsed,
         ragChunksCount: metrics.ragChunksCount,
+        capabilitiesUsed: normalizeCapabilityUsage(metrics.capabilitiesUsed),
         toolCallCount: metrics.toolCallCount ?? 0,
         reasoningTimeMs: metrics.reasoningTimeMs,
       },

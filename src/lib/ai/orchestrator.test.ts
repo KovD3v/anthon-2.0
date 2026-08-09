@@ -376,6 +376,7 @@ describe("ai/orchestrator", () => {
           responseLength: "brief",
         } as never,
         promptMode: "full",
+        ragAttempted: false,
         ragUsed: false,
         ragChunksCount: 0,
       },
@@ -420,6 +421,7 @@ describe("ai/orchestrator", () => {
           responseLength: "brief",
         } as never,
         promptMode: "full",
+        ragAttempted: false,
         ragUsed: false,
         ragChunksCount: 0,
       },
@@ -2504,8 +2506,55 @@ describe("ai/orchestrator", () => {
       "google/gemini-test",
       expect.any(Number),
       expect.objectContaining({
+        ragAttempted: true,
         ragUsed: true,
         ragChunksCount: 2,
+      }),
+    );
+  });
+
+  it("records an attempted native RAG call with zero returned chunks", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValueOnce({ rag: true });
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-agentic-rag-empty-metrics",
+      userMessage: "Controlla i documenti disponibili",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      onStepEnd: (step: {
+        toolCalls?: Array<{ toolName: string; input?: unknown }>;
+        toolResults?: Array<{ output?: unknown }>;
+      }) => void;
+      onEnd: (step: {
+        text: string;
+        usage: {
+          inputTokens: number;
+          outputTokens: number;
+          totalTokens: number;
+        };
+        providerMetadata: Record<string, unknown>;
+      }) => Promise<void>;
+    };
+    streamInput.onStepEnd({
+      toolCalls: [{ toolName: "searchRag", input: { query: "documenti" } }],
+      toolResults: [{ output: { success: true, chunkCount: 0, context: "" } }],
+    });
+    await streamInput.onEnd({
+      text: "Non ho trovato contesto pertinente.",
+      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      providerMetadata: {},
+    });
+
+    expect(mocks.extractAIMetrics).toHaveBeenCalledWith(
+      "google/gemini-test",
+      expect.any(Number),
+      expect.objectContaining({
+        ragAttempted: true,
+        ragUsed: false,
+        ragChunksCount: 0,
       }),
     );
   });

@@ -6,13 +6,18 @@ import {
   Brain,
   Check,
   Copy,
+  Database,
+  FileSearch,
+  ListChecks,
   Loader2,
+  type LucideIcon,
   MoreHorizontal,
   Pencil,
   RefreshCw,
   ThumbsDown,
   ThumbsUp,
   Trash2,
+  Volume2,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -26,6 +31,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
+import {
+  type CapabilityUsage,
+  normalizeCapabilityUsage,
+} from "@/lib/ai/capability-usage";
 import {
   type ChatUIMessage,
   normalizeFilePartForPreview,
@@ -75,6 +84,31 @@ function getModelComparisonData(parts: ExtendedMessage["parts"]) {
   ) as { data?: ModelComparisonData } | undefined;
   return part?.data;
 }
+
+function getCapabilityUsage(parts: ExtendedMessage["parts"]) {
+  const part = parts?.find(
+    (candidate) => candidate.type === "data-aiCapabilities",
+  ) as { data?: { capabilities?: unknown } } | undefined;
+  return normalizeCapabilityUsage(part?.data?.capabilities);
+}
+
+const CAPABILITY_INDICATORS: Record<
+  CapabilityUsage,
+  { label: string; icon: LucideIcon }
+> = {
+  rag: { label: "Contesto", icon: FileSearch },
+  web: { label: "Ricerca", icon: FileSearch },
+  memory: { label: "Memoria", icon: Database },
+  routine: { label: "Routine", icon: ListChecks },
+  voice: { label: "Voce", icon: Volume2 },
+};
+
+const ACTIVE_TOOL_ICONS = {
+  web: FileSearch,
+  context: FileSearch,
+  memory: Database,
+  routine: ListChecks,
+} as const;
 
 export function getRoutineProposalData(
   parts: ExtendedMessage["parts"],
@@ -547,6 +581,10 @@ export function MessageList({
                 status,
                 message,
               });
+              const capabilitiesUsed =
+                message.role === "assistant"
+                  ? getCapabilityUsage(message.parts)
+                  : [];
               const shouldAnimateMount = shouldAnimateAssistantMessageMount({
                 message,
                 displayState: assistantDisplayState,
@@ -778,9 +816,20 @@ export function MessageList({
                                   }`}
                                   aria-live="polite"
                                 >
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                                  {(() => {
+                                    const ToolIcon =
+                                      ACTIVE_TOOL_ICONS[
+                                        assistantToolFeedback.kind
+                                      ];
+                                    return (
+                                      <ToolIcon
+                                        className="h-3.5 w-3.5 text-muted-foreground"
+                                        aria-hidden="true"
+                                      />
+                                    );
+                                  })()}
                                   <span className="font-medium text-foreground">
-                                    {assistantToolFeedback}
+                                    {assistantToolFeedback.label}
                                   </span>
                                 </div>
                               )}
@@ -870,6 +919,30 @@ export function MessageList({
                           />
                         )}
                       </div>
+
+                      {capabilitiesUsed.length > 0 && (
+                        <ul
+                          aria-label="Capacità usate"
+                          className="flex list-none flex-wrap items-center gap-1.5 px-1 text-[11px] text-muted-foreground"
+                        >
+                          {capabilitiesUsed.map((capability) => {
+                            const indicator = CAPABILITY_INDICATORS[capability];
+                            const IndicatorIcon = indicator.icon;
+                            return (
+                              <li
+                                key={capability}
+                                className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/35 px-2 py-1"
+                              >
+                                <IndicatorIcon
+                                  className="h-3 w-3"
+                                  aria-hidden="true"
+                                />
+                                <span>{indicator.label}</span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
 
                       {routineProposal && (
                         <RoutineCard

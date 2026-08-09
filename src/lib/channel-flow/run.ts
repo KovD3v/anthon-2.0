@@ -6,6 +6,10 @@ import {
 } from "ai";
 import { getCapabilityPlannerMode } from "@/lib/ai/capability-arbitration";
 import {
+  type CapabilityUsage,
+  normalizeCapabilityUsage,
+} from "@/lib/ai/capability-usage";
+import {
   getImmediatelyAttributableApproval,
   mightResolvePendingMemoryApproval,
 } from "@/lib/ai/memory-approval";
@@ -69,6 +73,10 @@ function finishMetadata(
         outputTokens: number;
         generationTimeMs?: number;
         reasoningTimeMs?: number | null;
+        ragAttempted?: boolean;
+        ragUsed?: boolean;
+        ragChunksCount?: number;
+        capabilitiesUsed?: CapabilityUsage[];
       }
     | undefined,
 ) {
@@ -78,6 +86,10 @@ function finishMetadata(
     outputTokens: metrics.outputTokens,
     generationTimeMs: metrics.generationTimeMs,
     reasoningTimeMs: metrics.reasoningTimeMs ?? undefined,
+    ragAttempted: metrics.ragAttempted ?? false,
+    ragUsed: metrics.ragUsed ?? false,
+    ragChunksCount: metrics.ragChunksCount ?? 0,
+    capabilitiesUsed: normalizeCapabilityUsage(metrics.capabilitiesUsed),
   };
 }
 

@@ -50,8 +50,10 @@ describe("captureAiGenerationMetadata", () => {
           },
         ],
         toolCallCount: 1,
+        ragAttempted: true,
         ragUsed: true,
         ragChunksCount: 2,
+        capabilitiesUsed: ["rag", "memory"],
         costUsd: 0.004,
         generationTimeMs: 1250,
         reasoningTimeMs: 300,
@@ -76,6 +78,8 @@ describe("captureAiGenerationMetadata", () => {
         $ai_trace_id: "trace-1",
         $ai_total_cost_usd: 0.004,
         toolCallCount: 1,
+        ragAttempted: true,
+        capabilitiesUsed: ["rag", "memory"],
       }),
     });
 

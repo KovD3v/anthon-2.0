@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma";
 import { getCapabilityPlannerMode } from "@/lib/ai/capability-arbitration";
+import { normalizeCapabilityUsage } from "@/lib/ai/capability-usage";
 import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
 import {
@@ -50,6 +51,14 @@ function buildAssistantMetadata(
       ? { toolResultChars: metrics.toolResultChars }
       : {}),
     ...(metrics.toolTiming ? { toolTiming: metrics.toolTiming } : {}),
+    ...(metrics.ragAttempted !== undefined
+      ? { ragAttempted: metrics.ragAttempted }
+      : {}),
+    ...(metrics.capabilitiesUsed !== undefined
+      ? {
+          capabilitiesUsed: normalizeCapabilityUsage(metrics.capabilitiesUsed),
+        }
+      : {}),
   };
 
   if (Object.keys(aiMetrics).length === 0) {
@@ -160,6 +169,7 @@ export async function persistAssistantOutput({
     ? directRoutineProposal.data
     : getRoutineProposalFromToolCalls(metrics.toolCalls);
   const safeToolCalls = redactToolCalls(metrics.toolCalls);
+  const capabilitiesUsed = normalizeCapabilityUsage(metrics.capabilitiesUsed);
 
   const persisted = await prisma.$transaction(async (tx) => {
     if (userMessageId && externalInboundClaimToken) {
@@ -201,6 +211,14 @@ export async function persistAssistantOutput({
         type: messageType,
         parts: [
           { type: "text", text },
+          ...(capabilitiesUsed.length > 0
+            ? [
+                {
+                  type: "data-aiCapabilities",
+                  data: { capabilities: capabilitiesUsed },
+                },
+              ]
+            : []),
           ...(routineProposal
             ? [{ type: "data-coachingRoutine", data: routineProposal }]
             : []),

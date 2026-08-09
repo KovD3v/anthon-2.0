@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -183,6 +190,57 @@ describe("MessageList rendered interactions", () => {
 
     const response = screen.getByText("Risposta");
     expect(response.parentElement?.className).not.toContain("width");
+  });
+
+  it("renders persisted capability use as generic non-interactive indicators", () => {
+    renderMessageList({
+      messages: [
+        userMessage,
+        {
+          ...assistantMessage,
+          parts: [
+            { type: "text", text: "Risposta con contesto." },
+            {
+              type: "data-aiCapabilities",
+              data: {
+                capabilities: ["rag", "web", "memory", "routine", "voice"],
+              },
+            },
+          ],
+        } as unknown as ChatUIMessage,
+      ],
+    });
+
+    const indicators = screen.getByRole("list", {
+      name: "Capacità usate",
+    });
+    for (const label of ["Contesto", "Ricerca", "Memoria", "Routine", "Voce"]) {
+      expect(within(indicators).getByText(label)).toBeTruthy();
+    }
+    expect(within(indicators).queryByRole("button")).toBeNull();
+    expect(within(indicators).queryByRole("link")).toBeNull();
+    expect(within(indicators).queryByRole("menu")).toBeNull();
+    expect(indicators.textContent).not.toContain("searchRag");
+    expect(indicators.textContent).not.toContain("tinyfishSearch");
+  });
+
+  it("does not render an indicator group for empty capability metadata", () => {
+    renderMessageList({
+      messages: [
+        {
+          ...assistantMessage,
+          parts: [
+            { type: "text", text: "Risposta." },
+            {
+              type: "data-aiCapabilities",
+              data: { capabilities: [] },
+            },
+          ],
+        } as unknown as ChatUIMessage,
+      ],
+    });
+
+    expect(screen.queryByRole("list", { name: "Capacità usate" })).toBeNull();
   });
 
   it("renders a validated proposal without repeating its steps in prose", () => {
