@@ -205,7 +205,7 @@ describe("MessageList rendered interactions", () => {
     ).toBeLessThan(container.textContent?.indexOf(routineProposal.title) ?? -1);
   });
 
-  it("renders a canonical hydrated card without retaining unsafe attachment fields", () => {
+  it("renders a canonical hydrated card without retaining unsafe attachment fields", async () => {
     const parsed = parseRoutineSourceHydrationPayload(
       {
         messages: [
@@ -248,8 +248,11 @@ describe("MessageList rendered interactions", () => {
       openCheckInRoutineId: "routine-1",
     });
 
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Aggiungi dettagli" }));
     expect(
-      screen.getByRole("textbox", { name: "Nota facoltativa" }),
+      screen.getByRole("textbox", { name: "Racconta com'è andata" }),
     ).toBeTruthy();
   });
 

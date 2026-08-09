@@ -200,6 +200,8 @@ describe("ephemeral Neon integration runner", () => {
         TEST_DATABASE_URL: "stale-test-url",
         INTEGRATION_EPHEMERAL_BRANCH_ID: "br-stale",
         E2E_EPHEMERAL_BRANCH_ID: "br-stale-e2e",
+        E2E_AUTH_SECRET: "stale-secret",
+        E2E_AUTH_CLERK_ID: "stale-user",
       }),
     ).toEqual({
       NODE_ENV: "test",
@@ -222,6 +224,8 @@ describe("ephemeral Neon integration runner", () => {
       DATABASE_URL: "ephemeral-url",
       DIRECT_DATABASE_URL: "ephemeral-url",
       E2E_EPHEMERAL_BRANCH_ID: "br-e2e",
+      E2E_AUTH_CLERK_ID: "e2e-playwright-user",
+      E2E_AUTH_SECRET: expect.stringMatching(/^[a-f0-9]{64}$/),
       GUEST_CREATIONS_PER_IP_PER_DAY: "100",
     });
   });

@@ -45,6 +45,12 @@ function chooseResponse(payload: OpenRouterRequest) {
   if (lastUserText.includes("risposta-lenta-e2e")) {
     return "Questa risposta lenta arriva in più parti e può essere interrotta senza bloccare la conversazione.";
   }
+  if (lastUserText.includes("Ripeti questa routine senza modificarla")) {
+    return "Risposta E2E routine ripetuta.";
+  }
+  if (lastUserText.includes("Vorrei adattare questa routine")) {
+    return "Risposta E2E routine adattata.";
+  }
   if (lastUserText.includes("recupero-e2e")) {
     return "Il flusso è di nuovo operativo.";
   }

@@ -3,11 +3,12 @@
  * Provides role-based access control functions.
  */
 
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { clerkClient } from "@clerk/nextjs/server";
 import { waitUntil } from "@vercel/functions";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import type { UserRole } from "@/generated/prisma";
+import { resolveAuthenticatedClerkId } from "@/lib/auth-identity";
 import { prisma } from "@/lib/db";
 import { createLogger, getLogContext } from "@/lib/logger";
 
@@ -80,7 +81,7 @@ const getCachedUserByClerkId = unstable_cache(
  */
 export async function getAuthUser(): Promise<AuthResult> {
   try {
-    const { userId: clerkId } = await auth();
+    const clerkId = await resolveAuthenticatedClerkId();
 
     if (!clerkId) {
       logAuthState("auth.unauthenticated", "No authenticated Clerk session");

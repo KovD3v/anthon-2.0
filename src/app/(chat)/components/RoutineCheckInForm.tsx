@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,6 +65,7 @@ export function RoutineCheckInForm({
     useState<RoutineAttemptOutcome | null>(null);
   const [selectedOutcome, setSelectedOutcome] =
     useState<RoutineAttemptOutcome | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(Boolean(onFocused));
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
@@ -82,7 +83,7 @@ export function RoutineCheckInForm({
     routine.latestAttempt?.outcome === null ? routine.latestAttempt : null;
 
   useEffect(() => {
-    if (!pendingAttempt) return;
+    if (!pendingAttempt || !isDetailsOpen) return;
     if (didAttemptFocusRef.current) return;
     didAttemptFocusRef.current = true;
     noteRef.current?.focus();
@@ -94,7 +95,7 @@ export function RoutineCheckInForm({
       didReportFocusRef.current = true;
       onFocusedRef.current?.();
     }
-  }, [pendingAttempt]);
+  }, [isDetailsOpen, pendingAttempt]);
 
   async function submitOutcome(outcome: RoutineAttemptOutcome) {
     if (!pendingAttempt || pendingOutcome) return;
@@ -139,24 +140,46 @@ export function RoutineCheckInForm({
       </legend>
       {isNoteEnabled && (
         <>
-          <label
-            htmlFor={`routine-note-${routine.id}`}
-            className="mt-3 block text-xs font-medium text-muted-foreground"
-          >
-            Nota facoltativa
-          </label>
-          <textarea
-            ref={noteRef}
-            data-routine-check-in-id={routine.id}
-            id={`routine-note-${routine.id}`}
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            rows={3}
-            maxLength={1000}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="mt-2 min-h-10 rounded-full px-3 text-muted-foreground"
+            aria-expanded={isDetailsOpen}
+            onClick={() => setIsDetailsOpen((open) => !open)}
             disabled={pendingOutcome !== null}
-            className="mt-1.5 w-full resize-y rounded-xl border border-border/80 bg-background px-3 py-2 text-sm text-foreground outline-none transition-[border-color,box-shadow] focus:border-primary/60 focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
-            placeholder="Cosa hai notato?"
-          />
+          >
+            <ChevronDown
+              className={`size-4 transition-transform motion-reduce:transition-none${isDetailsOpen ? " rotate-180" : ""}`}
+              aria-hidden="true"
+            />
+            {isDetailsOpen ? "Nascondi dettagli" : "Aggiungi dettagli"}
+          </Button>
+          {isDetailsOpen && (
+            <div className="mt-2">
+              <label
+                htmlFor={`routine-note-${routine.id}`}
+                className="block text-xs font-medium text-muted-foreground"
+              >
+                Racconta com&apos;è andata
+              </label>
+              <textarea
+                ref={noteRef}
+                data-routine-check-in-id={routine.id}
+                id={`routine-note-${routine.id}`}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                rows={3}
+                maxLength={1000}
+                disabled={pendingOutcome !== null}
+                className="mt-1.5 w-full resize-y rounded-xl border border-border/80 bg-background px-3 py-2 text-sm text-foreground outline-none transition-[border-color,box-shadow] focus:border-primary/60 focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
+                placeholder="Cosa hai notato? Cosa ha funzionato? Cosa cambieresti?"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Facoltativo: l&apos;esito rapido resta disponibile qui sotto.
+              </p>
+            </div>
+          )}
         </>
       )}
       <div className="mt-3 flex flex-wrap gap-2">

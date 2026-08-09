@@ -1,10 +1,10 @@
-import { auth } from "@clerk/nextjs/server";
 import { waitUntil } from "@vercel/functions";
 import type { UIMessage } from "ai";
 import type { Prisma } from "@/generated/prisma";
 import { generateChatMetadata } from "@/lib/ai/chat-title";
 import { loadTrustedRemoteMedia } from "@/lib/ai/multimodal-media";
 import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
+import { resolveAuthenticatedClerkId } from "@/lib/auth-identity";
 import {
   isBillingSyncStale,
   syncPersonalSubscriptionFromClerk,
@@ -52,9 +52,9 @@ export async function handleWebChatPost(request: Request) {
 
       try {
         // Authenticate user with Clerk
-        const { userId: clerkId } = await LatencyLogger.measure(
+        const clerkId = await LatencyLogger.measure(
           "Auth: Clerk authentication",
-          () => auth(),
+          () => resolveAuthenticatedClerkId(request),
           "🌐 Chat API Request",
         );
 

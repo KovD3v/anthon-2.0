@@ -560,8 +560,9 @@ describe("RoutineCard active lifecycle", () => {
     renderProposal({ routine: pendingAttemptRoutine, onSaveOutcome });
 
     await user.click(screen.getByRole("button", { name: "Com'è andata?" }));
+    await user.click(screen.getByRole("button", { name: "Aggiungi dettagli" }));
     const note = screen.getByRole<HTMLTextAreaElement>("textbox", {
-      name: "Nota facoltativa",
+      name: "Racconta com'è andata",
     });
     await user.type(note, "Ho perso il ritmo");
     await user.click(screen.getByRole("button", { name: "In parte" }));

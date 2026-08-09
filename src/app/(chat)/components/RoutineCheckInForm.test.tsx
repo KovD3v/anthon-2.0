@@ -90,8 +90,9 @@ describe("RoutineCheckInForm", () => {
     expect(
       screen.getByRole("group", { name: "Cosa ti ha lasciato la routine?" }),
     ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Aggiungi dettagli" }));
     const note = screen.getByRole<HTMLTextAreaElement>("textbox", {
-      name: "Nota facoltativa",
+      name: "Racconta com'è andata",
     });
     await user.type(note, "Ho perso il ritmo");
     await user.click(screen.getByRole("button", { name: "Solo in parte" }));
@@ -114,11 +115,68 @@ describe("RoutineCheckInForm", () => {
     const { props } = renderForm();
 
     expect(
-      screen.queryByRole("textbox", { name: "Nota facoltativa" }),
+      screen.queryByRole("textbox", { name: "Racconta com'è andata" }),
     ).toBeNull();
     expect(screen.queryByRole("button", { name: "Mi ha aiutato" })).toBeNull();
     expect(props.onCreateAttempt).not.toHaveBeenCalled();
     expect(props.onSaveOutcome).not.toHaveBeenCalled();
+  });
+
+  it("keeps the quick outcome path simple and only sends a note after details are expanded", async () => {
+    const pendingRoutine: RoutineCardData = {
+      ...routine,
+      latestAttempt: {
+        id: "attempt-quick",
+        attemptedAt: "2026-08-09T09:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    };
+    const onSaveOutcome = vi.fn().mockResolvedValue(pendingRoutine);
+    const user = userEvent.setup();
+    renderForm(pendingRoutine, { onSaveOutcome });
+
+    expect(
+      screen.queryByRole("textbox", { name: "Racconta com'è andata" }),
+    ).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Mi ha aiutato" }));
+    expect(onSaveOutcome).toHaveBeenCalledWith(
+      "attempt-quick",
+      "HELPFUL",
+      null,
+    );
+  });
+
+  it("submits an optional richer note without removing the quick outcome actions", async () => {
+    const pendingRoutine: RoutineCardData = {
+      ...routine,
+      latestAttempt: {
+        id: "attempt-rich",
+        attemptedAt: "2026-08-09T09:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    };
+    const onSaveOutcome = vi.fn().mockResolvedValue(pendingRoutine);
+    const user = userEvent.setup();
+    renderForm(pendingRoutine, { onSaveOutcome });
+
+    await user.click(screen.getByRole("button", { name: "Aggiungi dettagli" }));
+    await user.type(
+      screen.getByRole<HTMLTextAreaElement>("textbox", {
+        name: "Racconta com'è andata",
+      }),
+      "Mi ha aiutato a respirare; la prossima volta voglio partire prima.",
+    );
+    await user.click(screen.getByRole("button", { name: "Mi ha aiutato" }));
+
+    expect(onSaveOutcome).toHaveBeenCalledWith(
+      "attempt-rich",
+      "HELPFUL",
+      "Mi ha aiutato a respirare; la prossima volta voglio partire prima.",
+    );
   });
 
   it("focuses and reports readiness only once across parent rerenders", async () => {
@@ -136,10 +194,10 @@ describe("RoutineCheckInForm", () => {
     };
     const { rerender, props } = renderForm(pendingRoutine, { onFocused });
 
-    await screen.findByRole("textbox", { name: "Nota facoltativa" });
+    await screen.findByRole("textbox", { name: "Racconta com'è andata" });
 
     expect(document.activeElement).toBe(
-      screen.getByRole("textbox", { name: "Nota facoltativa" }),
+      screen.getByRole("textbox", { name: "Racconta com'è andata" }),
     );
     expect(onFocused).toHaveBeenCalledOnce();
     expect(focusSpy).toHaveBeenCalledOnce();

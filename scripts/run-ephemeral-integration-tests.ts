@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { Client } from "pg";
 
@@ -152,6 +153,8 @@ export function buildChildProcessEnv(env: NodeJS.ProcessEnv) {
   delete childEnv.TEST_DATABASE_URL;
   delete childEnv.INTEGRATION_EPHEMERAL_BRANCH_ID;
   delete childEnv.E2E_EPHEMERAL_BRANCH_ID;
+  delete childEnv.E2E_AUTH_CLERK_ID;
+  delete childEnv.E2E_AUTH_SECRET;
   return childEnv;
 }
 
@@ -168,12 +171,16 @@ export function buildE2EProcessEnv({
     childProcessEnv.INSTANT_NAV_RIG === "1"
       ? "http://localhost:3200"
       : "http://localhost:3100";
+  const isInstantNavRig = childProcessEnv.INSTANT_NAV_RIG === "1";
 
   return {
     ...childProcessEnv,
+    ...(isInstantNavRig ? {} : { NODE_ENV: "development" }),
     DATABASE_URL: testDatabaseUrl,
     DIRECT_DATABASE_URL: testDatabaseUrl,
     E2E_EPHEMERAL_BRANCH_ID: branchId,
+    E2E_AUTH_CLERK_ID: "e2e-playwright-user",
+    E2E_AUTH_SECRET: randomBytes(32).toString("hex"),
     OPENROUTER_API_KEY: "e2e-local-key",
     OPENROUTER_BASE_URL: "http://127.0.0.1:4317/api/v1",
     NEXT_PUBLIC_APP_URL: appUrl,

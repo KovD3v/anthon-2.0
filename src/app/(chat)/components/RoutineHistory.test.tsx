@@ -81,6 +81,16 @@ describe("RoutineHistory", () => {
     expect(screen.getByText("Mi ha aiutato a ripartire")).toBeTruthy();
     expect(screen.getByText(/2 tentativi in 4 giorni/)).toBeTruthy();
     expect(screen.getByText(/^Ultimo esito: Mi ha aiutato$/)).toBeTruthy();
+    expect(screen.getByText("Feedback")).toBeTruthy();
+    expect(
+      screen.getByText(
+        new Intl.DateTimeFormat("it-IT", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date("2026-08-08T09:00:00.000Z")),
+        { exact: false },
+      ),
+    ).toBeTruthy();
   });
 
   it("appends an older page without discarding the visible entries", async () => {

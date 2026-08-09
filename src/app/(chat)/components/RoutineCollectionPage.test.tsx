@@ -161,8 +161,9 @@ describe("RoutineCollectionPage", () => {
       expect.stringContaining("active-1:collection:"),
     );
     expect(refreshRoutineCollection).toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Aggiungi dettagli" }));
     expect(
-      screen.getByRole("textbox", { name: "Nota facoltativa" }),
+      screen.getByRole("textbox", { name: "Racconta com'è andata" }),
     ).toBeTruthy();
   });
 

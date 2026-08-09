@@ -16,10 +16,11 @@ const outcomeLabel: Record<NonNullable<RoutineAttempt["outcome"]>, string> = {
   NOT_HELPFUL: "Non mi ha aiutato",
 };
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" }).format(
-    new Date(value),
-  );
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("it-IT", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 function frequencyLabel(attempts: RoutineAttempt[]) {
@@ -147,12 +148,23 @@ export function RoutineHistory({ routine }: { routine: RoutineCardData }) {
                         : "Da registrare"}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {formatDate(attempt.attemptedAt)}
+                      Tentativo · {formatDateTime(attempt.attemptedAt)}
                     </p>
-                    {attempt.outcomeNote && (
-                      <p className="mt-2 leading-relaxed">
-                        {attempt.outcomeNote}
+                    {attempt.outcomeRecordedAt && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Esito registrato ·{" "}
+                        {formatDateTime(attempt.outcomeRecordedAt)}
                       </p>
+                    )}
+                    {attempt.outcomeNote && (
+                      <div className="mt-2">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Feedback
+                        </p>
+                        <p className="mt-1 leading-relaxed">
+                          {attempt.outcomeNote}
+                        </p>
+                      </div>
                     )}
                   </li>
                 ))}
