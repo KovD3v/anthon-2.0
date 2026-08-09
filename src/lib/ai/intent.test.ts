@@ -184,7 +184,7 @@ describe("ai/intent", () => {
     );
   });
 
-  it("memory intents detect reads, writes, and deletes", () => {
+  it("memory intents detect reads, writes, and the shared natural delete family", () => {
     expect(matchesMemoryReadIntent("Cosa sai di me?")).toBe(true);
     expect(
       matchesMemoryWriteIntent("Ricordati che ho una partita domenica"),
@@ -192,6 +192,18 @@ describe("ai/intent", () => {
     expect(matchesMemoryDeleteIntent("Dimentica quella informazione")).toBe(
       true,
     );
+    expect(matchesMemoryDeleteIntent("Dimentica questo")).toBe(true);
+    expect(matchesMemoryDeleteIntent("Dimentica questa cosa")).toBe(true);
+    expect(
+      matchesMemoryDeleteIntent(
+        "Dimentica la mia preferenza: mi alleno al mattino.",
+      ),
+    ).toBe(true);
+    expect(
+      matchesMemoryDeleteIntent(
+        "Dimentica la tensione prima della gara e concentrati.",
+      ),
+    ).toBe(false);
     expect(matchesMemoryReadIntent("Ciao coach")).toBe(false);
   });
 

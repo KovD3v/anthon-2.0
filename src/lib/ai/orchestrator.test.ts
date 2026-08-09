@@ -3093,6 +3093,52 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).not.toHaveProperty("deleteMemory");
   });
 
+  it.each([
+    {
+      name: "anaphoric this",
+      userMessage: "Dimentica questo",
+      resolvedMemoryTarget: "training_schedule",
+      exposesDeleteMemory: true,
+    },
+    {
+      name: "explicit preference",
+      userMessage: "Dimentica la mia preferenza: mi alleno al mattino.",
+      resolvedMemoryTarget: "training_schedule",
+      exposesDeleteMemory: true,
+    },
+    {
+      name: "unresolved this",
+      userMessage: "Dimentica questo",
+      resolvedMemoryTarget: undefined,
+      exposesDeleteMemory: false,
+    },
+  ])(
+    "exposes deleteMemory only for a server-resolved natural deletion target: $name",
+    async ({ userMessage, resolvedMemoryTarget, exposesDeleteMemory }) => {
+      vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+      mocks.classifyCapabilities.mockResolvedValueOnce({ memoryDelete: true });
+
+      await streamChat({
+        userId: "user-1",
+        chatId: `chat-natural-delete-${exposesDeleteMemory}`,
+        userMessage,
+        resolvedMemoryTarget,
+      });
+
+      const streamInput = mocks.streamText.mock.calls.at(-1)?.[0] as {
+        tools: Record<string, unknown>;
+      };
+      if (exposesDeleteMemory) {
+        expect(streamInput.tools).toHaveProperty(
+          "deleteMemory",
+          "memory-delete-tool",
+        );
+      } else {
+        expect(streamInput.tools).not.toHaveProperty("deleteMemory");
+      }
+    },
+  );
+
   it("runs agentic arbitration for forbidden web turns while preserving RAG", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
     mocks.classifyCapabilities.mockResolvedValueOnce({ rag: true });

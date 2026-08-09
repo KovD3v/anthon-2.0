@@ -153,6 +153,45 @@ describe("capability arbitration", () => {
   });
 
   it.each([
+    "Dimentica questo",
+    "Dimentica questa cosa",
+    "Dimentica la mia preferenza: mi alleno al mattino.",
+  ])(
+    "enables deleteMemory for a resolved natural target: %s",
+    (userMessage) => {
+      const decision = arbitrate({
+        userMessage,
+        classifier: { memoryDelete: true },
+        resolvedMemoryTarget: "training_schedule",
+      });
+
+      expect(decision.memoryDelete).toBe(true);
+      expect(decision.memoryDeleteTarget).toBe("training_schedule");
+    },
+  );
+
+  it("keeps natural deletion disabled when the server cannot resolve a target", () => {
+    const decision = arbitrate({
+      userMessage: "Dimentica questo",
+      classifier: { memoryDelete: true },
+    });
+
+    expect(decision.memoryDelete).toBe(false);
+    expect(decision.memoryDeleteTarget).toBeNull();
+  });
+
+  it("does not enable deletion for a coaching continuation even with a target", () => {
+    const decision = arbitrate({
+      userMessage: "Dimentica la tensione prima della gara e concentrati.",
+      classifier: { memoryDelete: true },
+      resolvedMemoryTarget: "pre_game_tension",
+    });
+
+    expect(decision.memoryDelete).toBe(false);
+    expect(decision.memoryDeleteTarget).toBeNull();
+  });
+
+  it.each([
     ["required", true],
     ["forbidden", false],
   ] as const)(

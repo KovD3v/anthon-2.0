@@ -1,3 +1,5 @@
+import { matchesMemoryDeleteIntent as matchesMemoryDeleteIntentBoundary } from "./memory-target";
+
 /**
  * Heuristic intent detection for chat messages.
  *
@@ -97,9 +99,7 @@ export function matchesMemoryWriteIntent(message: string) {
 }
 
 export function matchesMemoryDeleteIntent(message: string) {
-  return /\b(dimentica|cancella|elimina|rimuovi)\b.{0,60}\b(memoria|ricordo|dato|informazione|quello|questa cosa|profilo)\b/i.test(
-    message,
-  );
+  return matchesMemoryDeleteIntentBoundary(message);
 }
 
 export function matchesNotesWriteIntent(message: string) {

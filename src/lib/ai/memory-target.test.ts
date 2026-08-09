@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const memoryFindMany = vi.hoisted(() => vi.fn());
 const messageFindFirst = vi.hoisted(() => vi.fn());
+const messageFindMany = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     memory: { findMany: memoryFindMany },
-    message: { findFirst: messageFindFirst },
+    message: { findFirst: messageFindFirst, findMany: messageFindMany },
   },
 }));
 
@@ -16,13 +17,17 @@ describe("ai/memory-target", () => {
   beforeEach(() => {
     memoryFindMany.mockReset();
     messageFindFirst.mockReset();
+    messageFindMany.mockReset();
   });
 
   it("resolves a unique forget-this target from the immediately preceding turn", async () => {
+    const precedingCreatedAt = new Date("2026-08-10T10:00:00Z");
     messageFindFirst
       .mockResolvedValueOnce({ createdAt: new Date("2026-08-10T10:01:00Z") })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(null);
+    messageFindMany.mockResolvedValueOnce([
+      {
+        createdAt: precedingCreatedAt,
         parts: [{ type: "text", text: "Va bene, tienilo a mente." }],
         generatedResponse: {
           userId: "user-1",
@@ -34,7 +39,8 @@ describe("ai/memory-target", () => {
             { type: "text", text: "Ricorderò che ti alleni al mattino." },
           ],
         },
-      });
+      },
+    ]);
     memoryFindMany.mockResolvedValue([
       {
         key: "training_schedule",
@@ -80,7 +86,7 @@ describe("ai/memory-target", () => {
       },
       select: { id: true },
     });
-    expect(messageFindFirst).toHaveBeenNthCalledWith(3, {
+    expect(messageFindMany).toHaveBeenNthCalledWith(1, {
       where: {
         userId: "user-1",
         conversationThreadId: "thread-1",
@@ -90,7 +96,9 @@ describe("ai/memory-target", () => {
         createdAt: { lt: new Date("2026-08-10T10:01:00Z") },
       },
       orderBy: { createdAt: "desc" },
+      take: 2,
       select: {
+        createdAt: true,
         parts: true,
         generatedResponse: {
           select: {
@@ -109,8 +117,10 @@ describe("ai/memory-target", () => {
   it("does nothing when the preceding context strongly matches multiple memories", async () => {
     messageFindFirst
       .mockResolvedValueOnce({ createdAt: new Date("2026-08-10T10:01:00Z") })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(null);
+    messageFindMany.mockResolvedValueOnce([
+      {
+        createdAt: new Date("2026-08-10T10:00:00Z"),
         parts: [
           {
             type: "text",
@@ -118,7 +128,8 @@ describe("ai/memory-target", () => {
           },
         ],
         generatedResponse: null,
-      });
+      },
+    ]);
     memoryFindMany.mockResolvedValue([
       {
         key: "training_schedule",
@@ -145,8 +156,10 @@ describe("ai/memory-target", () => {
   it("does nothing when the preceding turn has two facts but only one stored memory", async () => {
     messageFindFirst
       .mockResolvedValueOnce({ createdAt: new Date("2026-08-10T10:01:00Z") })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(null);
+    messageFindMany.mockResolvedValueOnce([
+      {
+        createdAt: new Date("2026-08-10T10:00:00Z"),
         parts: [
           {
             type: "text",
@@ -154,7 +167,8 @@ describe("ai/memory-target", () => {
           },
         ],
         generatedResponse: null,
-      });
+      },
+    ]);
     memoryFindMany.mockResolvedValue([
       {
         key: "training_schedule",
@@ -186,11 +200,14 @@ describe("ai/memory-target", () => {
         .mockResolvedValueOnce({
           createdAt: new Date("2026-08-10T10:01:00Z"),
         })
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
+        .mockResolvedValueOnce(null);
+      messageFindMany.mockResolvedValueOnce([
+        {
+          createdAt: new Date("2026-08-10T10:00:00Z"),
           parts: [{ type: "text", text: precedingMessage }],
           generatedResponse: null,
-        });
+        },
+      ]);
       memoryFindMany.mockResolvedValue([
         {
           key: "training_schedule",
@@ -215,8 +232,10 @@ describe("ai/memory-target", () => {
   it("resolves a generic forget when the preceding turn identifies one fact", async () => {
     messageFindFirst
       .mockResolvedValueOnce({ createdAt: new Date("2026-08-10T10:01:00Z") })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(null);
+    messageFindMany.mockResolvedValueOnce([
+      {
+        createdAt: new Date("2026-08-10T10:00:00Z"),
         parts: [{ type: "text", text: "Mi alleno al mattino." }],
         generatedResponse: {
           userId: "user-1",
@@ -228,7 +247,8 @@ describe("ai/memory-target", () => {
             { type: "text", text: "Ricorderò che ti alleni al mattino." },
           ],
         },
-      });
+      },
+    ]);
     memoryFindMany.mockResolvedValue([
       {
         key: "training_schedule",
@@ -262,8 +282,10 @@ describe("ai/memory-target", () => {
   it("fails closed when the preceding generated response is not server-owned", async () => {
     messageFindFirst
       .mockResolvedValueOnce({ createdAt: new Date("2026-08-10T10:01:00Z") })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(null);
+    messageFindMany.mockResolvedValueOnce([
+      {
+        createdAt: new Date("2026-08-10T10:00:00Z"),
         parts: [{ type: "text", text: "Mi alleno al mattino." }],
         generatedResponse: {
           userId: "user-2",
@@ -273,7 +295,8 @@ describe("ai/memory-target", () => {
           deletedAt: null,
           parts: [{ type: "text", text: "Lo terrò a mente." }],
         },
-      });
+      },
+    ]);
 
     await expect(
       resolveExactMemoryDeleteTarget({
@@ -303,6 +326,43 @@ describe("ai/memory-target", () => {
     ).resolves.toBeNull();
 
     expect(messageFindFirst).toHaveBeenCalledTimes(2);
+    expect(memoryFindMany).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when two preceding inbound messages share the latest timestamp", async () => {
+    const currentCreatedAt = new Date("2026-08-10T10:03:00Z");
+    const tiedPrecedingCreatedAt = new Date("2026-08-10T10:02:00Z");
+    messageFindFirst
+      .mockResolvedValueOnce({ createdAt: currentCreatedAt })
+      .mockResolvedValueOnce(null);
+    messageFindMany.mockResolvedValueOnce([
+      {
+        createdAt: tiedPrecedingCreatedAt,
+        parts: [{ type: "text", text: "Mi alleno al mattino." }],
+        generatedResponse: null,
+      },
+      {
+        createdAt: tiedPrecedingCreatedAt,
+        parts: [{ type: "text", text: "Vivo a Roma." }],
+        generatedResponse: null,
+      },
+    ]);
+
+    await expect(
+      resolveExactMemoryDeleteTarget({
+        userId: "user-1",
+        userMessage: "Dimentica questa cosa.",
+        conversationThreadId: "thread-1",
+        currentUserMessageId: "inbound-current",
+      }),
+    ).resolves.toBeNull();
+
+    expect(messageFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: { createdAt: "desc" },
+        take: 2,
+      }),
+    );
     expect(memoryFindMany).not.toHaveBeenCalled();
   });
 

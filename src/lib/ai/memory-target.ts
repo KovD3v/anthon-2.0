@@ -80,6 +80,13 @@ const BROAD_STABLE_KEYS = new Set([
   "other",
 ]);
 
+export function matchesMemoryDeleteIntent(message: string) {
+  return (
+    !COACHING_CONTINUATION.test(message) &&
+    (ANAPHORIC_FORGET.test(message) || EXPLICIT_FORGET.test(message))
+  );
+}
+
 export function isExactStableMemoryKey(target: unknown): target is string {
   return typeof target === "string" && EXACT_STABLE_MEMORY_KEY.test(target);
 }
@@ -197,7 +204,7 @@ async function getImmediatelyPrecedingContext(input: {
   });
   if (tiedInboundMessage) return null;
 
-  const previousInboundMessage = await prisma.message.findFirst({
+  const precedingInboundMessages = await prisma.message.findMany({
     where: {
       userId: input.userId,
       conversationThreadId: input.conversationThreadId,
@@ -207,7 +214,9 @@ async function getImmediatelyPrecedingContext(input: {
       createdAt: { lt: currentMessage.createdAt },
     },
     orderBy: { createdAt: "desc" },
+    take: 2,
     select: {
+      createdAt: true,
       parts: true,
       generatedResponse: {
         select: {
@@ -221,7 +230,17 @@ async function getImmediatelyPrecedingContext(input: {
       },
     },
   });
+  const previousInboundMessage = precedingInboundMessages[0];
   if (!previousInboundMessage) return null;
+
+  const nextMostRecentInboundMessage = precedingInboundMessages[1];
+  if (
+    nextMostRecentInboundMessage &&
+    nextMostRecentInboundMessage.createdAt.getTime() ===
+      previousInboundMessage.createdAt.getTime()
+  ) {
+    return null;
+  }
 
   const response = previousInboundMessage.generatedResponse;
   if (
@@ -247,7 +266,7 @@ export async function resolveExactMemoryDeleteTarget(input: {
   conversationThreadId?: string;
   currentUserMessageId?: string;
 }): Promise<string | null> {
-  if (COACHING_CONTINUATION.test(input.userMessage)) return null;
+  if (!matchesMemoryDeleteIntent(input.userMessage)) return null;
 
   if (ANAPHORIC_FORGET.test(input.userMessage)) {
     if (!input.conversationThreadId || !input.currentUserMessageId) return null;
@@ -276,8 +295,6 @@ export async function resolveExactMemoryDeleteTarget(input: {
 
     return matches.length === 1 ? (matches[0]?.key ?? null) : null;
   }
-
-  if (!EXPLICIT_FORGET.test(input.userMessage)) return null;
 
   const queryTokens = new Set(tokenize(input.userMessage));
   if (queryTokens.size === 0) return null;
