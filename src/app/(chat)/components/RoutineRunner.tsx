@@ -388,7 +388,9 @@ export function RoutineRunner({
                   <div className="mt-5 flex items-center gap-3">
                     <div
                       aria-hidden="true"
-                      className={`size-12 shrink-0 rounded-full border-4 border-primary/50 bg-primary/15 animate-pulse motion-reduce:hidden ${
+                      className={`size-12 shrink-0 rounded-full border-4 border-primary/50 bg-primary/15 motion-reduce:hidden ${
+                        state.status === "running" ? "animate-pulse" : ""
+                      } ${
                         breathingPhase.phase === "inhale"
                           ? "scale-110"
                           : breathingPhase.phase === "exhale"

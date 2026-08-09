@@ -55,11 +55,17 @@ export function ConfirmDialog({
             <Button
               type="button"
               variant="outline"
+              className="min-h-11"
               onClick={() => onOpenChange(false)}
             >
               {cancelText}
             </Button>
-            <Button type="button" variant={variant} onClick={onConfirm}>
+            <Button
+              type="button"
+              variant={variant}
+              className="min-h-11"
+              onClick={onConfirm}
+            >
               {confirmText}
             </Button>
           </DialogFooter>

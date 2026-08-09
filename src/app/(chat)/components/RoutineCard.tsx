@@ -232,194 +232,208 @@ export function RoutineCard({
   return (
     <section
       className="mt-3 w-full rounded-2xl border border-border/80 bg-background/95 p-4 text-foreground shadow-xs sm:p-5"
-      aria-labelledby={`routine-title-${sourceAssistantMessageId}`}
+      aria-labelledby={
+        isRunnerOpen ? undefined : `routine-title-${sourceAssistantMessageId}`
+      }
+      aria-label={isRunnerOpen ? snapshot.title : undefined}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {lifecycleLabel}
-        </p>
-        {snapshot.durationLabel && (
-          <span className="rounded-full border border-border/70 px-2.5 py-1 text-xs text-muted-foreground">
-            {snapshot.durationLabel}
-          </span>
-        )}
-      </div>
-
-      <h3
-        id={`routine-title-${sourceAssistantMessageId}`}
-        className="mt-3 font-display text-xl font-bold uppercase leading-none tracking-tight text-foreground"
-      >
-        {snapshot.title}
-      </h3>
-
-      <div className="mt-4 grid gap-4 text-sm sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-        <div>
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Quando
-          </p>
-          <p className="mt-1 leading-relaxed text-foreground/90">
-            {snapshot.trigger}
-          </p>
-        </div>
-        <div>
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Sequenza
-          </p>
-          <ol className="mt-1.5 space-y-1.5">
-            {normalizedSnapshot.practiceSteps.map((step, index) => (
-              <li key={step.id} className="flex gap-2 leading-relaxed">
-                <span
-                  className="font-mono text-xs text-muted-foreground"
-                  aria-hidden="true"
-                >
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <span>
-                  {step.kind === "instruction"
-                    ? step.text
-                    : `${step.label}: ${step.instruction}`}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </div>
-
-      <div className="mt-4 border-border/70 border-t pt-3">
-        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          Segnale di riuscita
-        </p>
-        <p className="mt-1 text-sm leading-relaxed text-foreground/90">
-          {snapshot.completionCue}
-        </p>
-      </div>
-
-      {!isArchived && !isRunnerOpen && (
-        <div className="mt-5 flex flex-wrap items-center gap-2">
-          {!isActive &&
-            (isGuest ? (
-              <Button asChild size="sm" className="min-h-11 rounded-full px-4">
-                <Link href={registrationHref}>Salva routine</Link>
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                size="sm"
-                className="min-h-11 rounded-full px-4"
-                disabled={pendingAction !== null}
-                onClick={() =>
-                  void (async () => {
-                    const savedRoutine = await runAction(
-                      "save",
-                      () => onSave(sourceAssistantMessageId),
-                      "Non siamo riusciti a salvare la routine. Riprova.",
-                    );
-                    if (!savedRoutine) return;
-                    trackRoutineAnalytics({
-                      event: "routine_saved",
-                      routineId: savedRoutine.id,
-                      formatVersion: normalizedSnapshot.formatVersion,
-                      widgetKind: "routine_card",
-                      technicalState: "success",
-                    });
-                  })()
-                }
-              >
-                {pendingAction === "save" && (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                )}
-                Salva routine
-              </Button>
-            ))}
-
-          {isActive &&
-            displayedRoutine &&
-            (!displayedRoutine.latestAttempt || hasRecordedOutcome) && (
-              <Button
-                ref={startButtonRef}
-                type="button"
-                size="sm"
-                className="min-h-11 rounded-full px-4"
-                disabled={pendingAction !== null}
-                onClick={startRoutine}
-              >
-                {hasRecordedOutcome ? "Ripeti routine" : "Avvia routine"}
-              </Button>
+      {!isRunnerOpen && (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              {lifecycleLabel}
+            </p>
+            {snapshot.durationLabel && (
+              <span className="rounded-full border border-border/70 px-2.5 py-1 text-xs text-muted-foreground">
+                {snapshot.durationLabel}
+              </span>
             )}
+          </div>
 
-          {(!isActive || hasPendingAttempt) && (
-            <Button
-              type="button"
-              size="sm"
-              variant={hasPendingAttempt ? "default" : "outline"}
-              className="min-h-11 rounded-full px-4"
-              disabled={pendingAction !== null}
-              onClick={isActive ? () => setIsCheckInOpen(true) : onTryNow}
-            >
-              {isActive ? "Com'è andata?" : "La provo ora"}
-            </Button>
-          )}
+          <h3
+            id={`routine-title-${sourceAssistantMessageId}`}
+            className="mt-3 font-display text-xl font-bold uppercase leading-none tracking-tight text-foreground"
+          >
+            {snapshot.title}
+          </h3>
 
-          {isActive && displayedRoutine?.latestAttempt && (
-            <Button
-              type="button"
-              size="sm"
-              variant={hasRecordedOutcome ? "default" : "outline"}
-              className="min-h-11 rounded-full px-4"
-              disabled={pendingAction !== null}
-              onClick={onAdapt}
-            >
-              Adatta la routine
-            </Button>
-          )}
+          <div className="mt-4 grid gap-4 text-sm sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+            <div>
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Quando
+              </p>
+              <p className="mt-1 leading-relaxed text-foreground/90">
+                {snapshot.trigger}
+              </p>
+            </div>
+            <div>
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Sequenza
+              </p>
+              <ol className="mt-1.5 space-y-1.5">
+                {normalizedSnapshot.practiceSteps.map((step, index) => (
+                  <li key={step.id} className="flex gap-2 leading-relaxed">
+                    <span
+                      className="font-mono text-xs text-muted-foreground"
+                      aria-hidden="true"
+                    >
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span>
+                      {step.kind === "instruction"
+                        ? step.text
+                        : `${step.label}: ${step.instruction}`}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
 
-          {isActive && displayedRoutine && !hasPendingAttempt && (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="min-h-11 rounded-full px-4 text-muted-foreground hover:text-destructive"
-              disabled={pendingAction !== null}
-              onClick={() =>
-                runAction(
-                  "archive",
-                  () => onArchive(displayedRoutine.id),
-                  "Non siamo riusciti ad archiviare la routine. Riprova.",
-                )
-              }
-            >
-              {pendingAction === "archive" && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <div className="mt-4 border-border/70 border-t pt-3">
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Segnale di riuscita
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-foreground/90">
+              {snapshot.completionCue}
+            </p>
+          </div>
+
+          {!isArchived && !isRunnerOpen && (
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              {!isActive &&
+                (isGuest ? (
+                  <Button
+                    asChild
+                    size="sm"
+                    className="min-h-11 rounded-full px-4"
+                  >
+                    <Link href={registrationHref}>Salva routine</Link>
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="min-h-11 rounded-full px-4"
+                    disabled={pendingAction !== null}
+                    onClick={() =>
+                      void (async () => {
+                        const savedRoutine = await runAction(
+                          "save",
+                          () => onSave(sourceAssistantMessageId),
+                          "Non siamo riusciti a salvare la routine. Riprova.",
+                        );
+                        if (!savedRoutine) return;
+                        trackRoutineAnalytics({
+                          event: "routine_saved",
+                          routineId: savedRoutine.id,
+                          formatVersion: normalizedSnapshot.formatVersion,
+                          widgetKind: "routine_card",
+                          technicalState: "success",
+                        });
+                      })()
+                    }
+                  >
+                    {pendingAction === "save" && (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    )}
+                    Salva routine
+                  </Button>
+                ))}
+
+              {isActive &&
+                displayedRoutine &&
+                (!displayedRoutine.latestAttempt || hasRecordedOutcome) && (
+                  <Button
+                    ref={startButtonRef}
+                    type="button"
+                    size="sm"
+                    className="min-h-11 rounded-full px-4"
+                    disabled={pendingAction !== null}
+                    onClick={startRoutine}
+                  >
+                    {hasRecordedOutcome ? "Ripeti routine" : "Avvia routine"}
+                  </Button>
+                )}
+
+              {(!isActive || hasPendingAttempt) && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={hasPendingAttempt ? "default" : "outline"}
+                  className="min-h-11 rounded-full px-4"
+                  disabled={pendingAction !== null}
+                  onClick={isActive ? () => setIsCheckInOpen(true) : onTryNow}
+                >
+                  {isActive ? "Com'è andata?" : "La provo ora"}
+                </Button>
               )}
-              Archivia routine
-            </Button>
+
+              {isActive && displayedRoutine?.latestAttempt && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={hasRecordedOutcome ? "default" : "outline"}
+                  className="min-h-11 rounded-full px-4"
+                  disabled={pendingAction !== null}
+                  onClick={onAdapt}
+                >
+                  Adatta la routine
+                </Button>
+              )}
+
+              {isActive && displayedRoutine && !hasPendingAttempt && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="min-h-11 rounded-full px-4 text-muted-foreground hover:text-destructive"
+                  disabled={pendingAction !== null}
+                  onClick={() =>
+                    runAction(
+                      "archive",
+                      () => onArchive(displayedRoutine.id),
+                      "Non siamo riusciti ad archiviare la routine. Riprova.",
+                    )
+                  }
+                >
+                  {pendingAction === "archive" && (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  )}
+                  Archivia routine
+                </Button>
+              )}
+            </div>
           )}
-        </div>
-      )}
 
-      {pendingAction === "save" && (
-        <output
-          className="mt-3 block text-xs text-muted-foreground"
-          aria-live="polite"
-        >
-          Salvataggio routine…
-        </output>
-      )}
-      {status && !pendingAction && (
-        <output
-          className="mt-3 block text-xs font-medium text-foreground"
-          aria-live="polite"
-        >
-          {status}
-        </output>
-      )}
-      {error && (
-        <p className="mt-3 text-xs font-medium text-destructive" role="alert">
-          {error}
-        </p>
-      )}
+          {pendingAction === "save" && (
+            <output
+              className="mt-3 block text-xs text-muted-foreground"
+              aria-live="polite"
+            >
+              Salvataggio routine…
+            </output>
+          )}
+          {status && !pendingAction && (
+            <output
+              className="mt-3 block text-xs font-medium text-foreground"
+              aria-live="polite"
+            >
+              {status}
+            </output>
+          )}
+          {error && (
+            <p
+              className="mt-3 text-xs font-medium text-destructive"
+              role="alert"
+            >
+              {error}
+            </p>
+          )}
 
-      {displayedRoutine && <RoutineHistory routine={displayedRoutine} />}
+          {displayedRoutine && <RoutineHistory routine={displayedRoutine} />}
+        </>
+      )}
 
       {isRunnerOpen && isActive && displayedRoutine && (
         <>

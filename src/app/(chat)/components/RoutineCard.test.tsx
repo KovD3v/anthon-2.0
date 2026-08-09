@@ -225,6 +225,43 @@ describe("RoutineCard proposal", () => {
 });
 
 describe("RoutineCard active lifecycle", () => {
+  it("replaces the routine summary and history with the inline runner, then restores them after closing", async () => {
+    const user = userEvent.setup();
+    renderProposal({
+      proposal: interactiveProposal,
+      routine: interactiveRoutine,
+    });
+
+    expect(screen.getByText("Quando")).toBeTruthy();
+    expect(screen.getByText("Sequenza")).toBeTruthy();
+    expect(screen.getByText("Segnale di riuscita")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Storico tentativi" }),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Avvia routine" }));
+
+    expect(screen.getByText("Routine guidata")).toBeTruthy();
+    expect(screen.queryByText("Quando")).toBeNull();
+    expect(screen.queryByText("Sequenza")).toBeNull();
+    expect(screen.queryByText("Segnale di riuscita")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Storico tentativi" }),
+    ).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Fatto" }));
+    await user.click(screen.getByRole("button", { name: "Chiudi" }));
+    await user.click(screen.getByRole("button", { name: "Interrompi" }));
+
+    expect(screen.queryByText("Routine guidata")).toBeNull();
+    expect(screen.getByText("Quando")).toBeTruthy();
+    expect(screen.getByText("Sequenza")).toBeTruthy();
+    expect(screen.getByText("Segnale di riuscita")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Storico tentativi" }),
+    ).toBeTruthy();
+  });
+
   it("starts a runner inline without recording an attempt until the routine finishes", async () => {
     const user = userEvent.setup();
     const onCreateAttempt = vi.fn().mockResolvedValue({
@@ -285,6 +322,24 @@ describe("RoutineCard active lifecycle", () => {
       screen.getByText("Il progresso di questa sessione non verrà salvato."),
     ).toBeTruthy();
     expect(screen.getByText("Routine guidata")).toBeTruthy();
+  });
+
+  it("keeps both dismissible interruption actions at the accessible minimum size", async () => {
+    const user = userEvent.setup();
+    renderProposal({
+      proposal: interactiveProposal,
+      routine: interactiveRoutine,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Avvia routine" }));
+    await user.click(screen.getByRole("button", { name: "Fatto" }));
+    await user.click(screen.getByRole("button", { name: "Chiudi" }));
+
+    for (const name of ["Continua", "Interrompi"]) {
+      expect(screen.getByRole("button", { name }).className).toContain(
+        "min-h-11",
+      );
+    }
   });
 
   it("keeps a progressed runner open when its interruption is cancelled", async () => {

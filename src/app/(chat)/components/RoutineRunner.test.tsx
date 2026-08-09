@@ -255,6 +255,36 @@ describe("RoutineRunner", () => {
     expect(props.onComplete).toHaveBeenCalledOnce();
   });
 
+  it("animates the breathing indicator only while the breathing step is running", () => {
+    const breathingStep = {
+      id: "breath",
+      kind: "breathing" as const,
+      label: "Respiro",
+      instruction: "Segui il ritmo.",
+      inhaleSeconds: 2,
+      holdAfterInhaleSeconds: 1,
+      exhaleSeconds: 3,
+      holdAfterExhaleSeconds: 0,
+      cycles: 2,
+    };
+    renderRunner({
+      routine: { ...routine, practiceSteps: [breathingStep] },
+    });
+
+    const indicator = screen.getByTestId("breathing-indicator");
+    expect(indicator.className).not.toContain("animate-pulse");
+    expect(indicator.className).toContain("motion-reduce:hidden");
+
+    fireEvent.click(screen.getByRole("button", { name: "Avvia" }));
+    expect(indicator.className).toContain("animate-pulse");
+
+    fireEvent.click(screen.getByRole("button", { name: "Pausa" }));
+    expect(indicator.className).not.toContain("animate-pulse");
+    expect(screen.getByTestId("breathing-phase").textContent).toContain(
+      "Inspira",
+    );
+  });
+
   it("recalculates breathing from timestamps after the document returns from background", () => {
     vi.useFakeTimers({ now: new Date("2026-08-08T10:00:00.000Z") });
     renderRunner({
