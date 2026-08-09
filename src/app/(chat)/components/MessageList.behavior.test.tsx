@@ -185,8 +185,8 @@ describe("MessageList rendered interactions", () => {
     expect(response.parentElement?.className).not.toContain("width");
   });
 
-  it("renders a validated proposal after its matching assistant response", () => {
-    const { container } = renderMessageList({
+  it("renders a validated proposal without repeating its steps in prose", () => {
+    renderMessageList({
       messages: [
         userMessage,
         {
@@ -201,8 +201,24 @@ describe("MessageList rendered interactions", () => {
       screen.getByRole("heading", { name: routineProposal.title }),
     ).toBeTruthy();
     expect(
-      container.textContent?.indexOf("Prova questa routine."),
-    ).toBeLessThan(container.textContent?.indexOf(routineProposal.title) ?? -1);
+      screen.getByText("Prova questa routine.").parentElement?.className,
+    ).toContain("hidden");
+  });
+
+  it("keeps a routine card renderable when the assistant has no prose part", () => {
+    renderMessageList({
+      messages: [
+        userMessage,
+        {
+          ...assistantMessage,
+          parts: [routinePart],
+        },
+      ],
+    });
+
+    expect(
+      screen.getByRole("heading", { name: routineProposal.title }),
+    ).toBeTruthy();
   });
 
   it("renders a repeated routine as the existing active routine without save", () => {

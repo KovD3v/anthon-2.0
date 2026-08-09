@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import { getRoutineProposalFromParts } from "@/lib/coaching/routine";
 
 export type ChatRequestStatus = "ready" | "submitted" | "streaming" | "error";
 
@@ -231,7 +232,15 @@ export function getAssistantMessageLifecycle({
   const hasModelComparison = message.parts?.some(
     (part) => part.type === "data-modelComparison",
   );
-  if (hasText || hasFilePart || hasModelComparison || hasRenderableAttachment) {
+  const hasRoutineProposal =
+    getRoutineProposalFromParts(message.parts) !== null;
+  if (
+    hasText ||
+    hasFilePart ||
+    hasModelComparison ||
+    hasRoutineProposal ||
+    hasRenderableAttachment
+  ) {
     return "content";
   }
 

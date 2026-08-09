@@ -613,6 +613,16 @@ export function MessageList({
                 : persistedRoutineProposal
                   ? (routineBySourceMessageId.get(message.id) ?? null)
                   : null;
+              // The structured card is the detailed response. Keep the
+              // persisted prose for history/source hydration, but do not
+              // make the user read the same routine twice.
+              const isRoutineProposalOnly =
+                !isUser &&
+                routineProposal !== null &&
+                !comparisonData &&
+                !isVoiceMessage &&
+                !hasAttachments &&
+                !isEditing;
 
               return (
                 <div
@@ -680,7 +690,9 @@ export function MessageList({
                       )}
 
                       <div
-                        className={`relative text-sm leading-relaxed ${
+                        className={`${
+                          isRoutineProposalOnly ? "hidden " : ""
+                        }relative text-sm leading-relaxed ${
                           /* Only apply bubble styling if there's text or we are editing */
                           comparisonData
                             ? "w-full bg-transparent p-0"
@@ -884,6 +896,12 @@ export function MessageList({
                         />
                       )}
 
+                      {isRoutineProposalOnly && (
+                        <TechnicalMetricsDetails
+                          usage={getUsageFromAnnotations(message)}
+                        />
+                      )}
+
                       {/* Actions Row */}
                       {!comparisonData && (
                         <div
@@ -932,12 +950,14 @@ export function MessageList({
                                   </>
                                 ) : (
                                   <>
-                                    <DropdownMenuItem
-                                      onSelect={() => copy(messageText)}
-                                    >
-                                      {copied ? <Check /> : <Copy />}
-                                      Copia messaggio
-                                    </DropdownMenuItem>
+                                    {!isRoutineProposalOnly && (
+                                      <DropdownMenuItem
+                                        onSelect={() => copy(messageText)}
+                                      >
+                                        {copied ? <Check /> : <Copy />}
+                                        Copia messaggio
+                                      </DropdownMenuItem>
+                                    )}
                                     {isLastAssistant && !isLoading && (
                                       <DropdownMenuItem onSelect={onRegenerate}>
                                         <RefreshCw /> Rigenera risposta
