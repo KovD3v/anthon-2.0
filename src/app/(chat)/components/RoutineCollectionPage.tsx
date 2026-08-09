@@ -60,12 +60,22 @@ function formatActionError(cause: unknown, fallback: string) {
   return cause instanceof RoutineClientError ? cause.message : fallback;
 }
 
-function createClientActionId(routineId: string) {
-  const randomId =
-    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return `${routineId}:collection:${randomId}`;
+function createClientActionId() {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+    /[xy]/g,
+    (character) => {
+      const random = Math.floor(Math.random() * 16);
+      const value = character === "x" ? random : (random & 0x3) | 0x8;
+      return value.toString(16);
+    },
+  );
 }
 
 function RoutineCollectionCard({
@@ -342,7 +352,7 @@ export function RoutineCollectionPage() {
   ) {
     const nextRoutine = await createRoutineAttempt(
       routineId,
-      createClientActionId(routineId),
+      createClientActionId(),
     );
     await refreshRoutineCollection();
     return nextRoutine;

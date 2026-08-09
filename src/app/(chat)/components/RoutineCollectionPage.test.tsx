@@ -158,7 +158,9 @@ describe("RoutineCollectionPage", () => {
     await user.click(screen.getByRole("button", { name: "Com'è andata?" }));
     expect(mocks.createRoutineAttempt).toHaveBeenCalledWith(
       "active-1",
-      expect.stringContaining("active-1:collection:"),
+      expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      ),
     );
     expect(refreshRoutineCollection).toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Aggiungi dettagli" }));

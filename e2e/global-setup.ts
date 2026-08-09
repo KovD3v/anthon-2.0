@@ -1,3 +1,6 @@
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "../src/generated/prisma/index.js";
+
 export function assertEphemeralE2EBranch() {
   const ephemeralBranchId = process.env.E2E_EPHEMERAL_BRANCH_ID?.trim();
   if (!ephemeralBranchId?.startsWith("br-")) {
@@ -8,57 +11,65 @@ export function assertEphemeralE2EBranch() {
 }
 
 export async function seedAuthenticatedE2EUser() {
-  const { prisma } = await import("../src/lib/db");
   const clerkId = process.env.E2E_AUTH_CLERK_ID?.trim();
   const secret = process.env.E2E_AUTH_SECRET?.trim();
-  if (!clerkId || !secret) {
+  const connectionString = process.env.DATABASE_URL?.trim();
+  if (!clerkId || !secret || !connectionString) {
     throw new Error(
-      "E2E_AUTH_CLERK_ID and E2E_AUTH_SECRET are required for authenticated E2E tests.",
+      "DATABASE_URL, E2E_AUTH_CLERK_ID, and E2E_AUTH_SECRET are required for authenticated E2E tests.",
     );
   }
 
-  const user = await prisma.user.upsert({
-    where: { clerkId },
-    update: {
-      email: "e2e-playwright-user@example.test",
-      isGuest: false,
-      guestConvertedAt: null,
-    },
-    create: {
-      clerkId,
-      email: "e2e-playwright-user@example.test",
-      isGuest: false,
-    },
-    select: { id: true },
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg({ connectionString }),
   });
 
-  await prisma.preferences.upsert({
-    where: { userId: user.id },
-    update: { voiceEnabled: true },
-    create: { userId: user.id, voiceEnabled: true },
-  });
+  try {
+    const user = await prisma.user.upsert({
+      where: { clerkId },
+      update: {
+        email: "e2e-playwright-user@example.test",
+        isGuest: false,
+        guestConvertedAt: null,
+      },
+      create: {
+        clerkId,
+        email: "e2e-playwright-user@example.test",
+        isGuest: false,
+      },
+      select: { id: true },
+    });
 
-  await prisma.subscription.upsert({
-    where: { userId: user.id },
-    update: { status: "ACTIVE", planId: "BASIC" },
-    create: { userId: user.id, status: "ACTIVE", planId: "BASIC" },
-  });
+    await prisma.preferences.upsert({
+      where: { userId: user.id },
+      update: { voiceEnabled: true },
+      create: { userId: user.id, voiceEnabled: true },
+    });
 
-  await prisma.routine.deleteMany({
-    where: { userId: user.id, title: "Routine E2E ripetibile" },
-  });
-  await prisma.routine.create({
-    data: {
-      userId: user.id,
-      title: "Routine E2E ripetibile",
-      trigger: "Quando serve un reset prima del prossimo gesto",
-      durationLabel: "60 secondi",
-      steps: ["Fermati", "Espira lentamente", "Scegli il prossimo gesto"],
-      completionCue: "Riparti con un gesto semplice",
-      status: "ACTIVE",
-      formatVersion: 1,
-    },
-  });
+    await prisma.subscription.upsert({
+      where: { userId: user.id },
+      update: { status: "ACTIVE", planId: "BASIC" },
+      create: { userId: user.id, status: "ACTIVE", planId: "BASIC" },
+    });
+
+    await prisma.routine.deleteMany({
+      where: { userId: user.id, title: "Routine E2E ripetibile" },
+    });
+    await prisma.routine.create({
+      data: {
+        userId: user.id,
+        title: "Routine E2E ripetibile",
+        trigger: "Quando serve un reset prima del prossimo gesto",
+        durationLabel: "60 secondi",
+        steps: ["Fermati", "Espira lentamente", "Scegli il prossimo gesto"],
+        completionCue: "Riparti con un gesto semplice",
+        status: "ACTIVE",
+        formatVersion: 1,
+      },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 export async function warmGuestChatRoute(fetcher: typeof fetch = fetch) {
