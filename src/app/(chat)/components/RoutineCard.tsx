@@ -4,6 +4,8 @@ import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/hooks/use-confirm";
 import {
   normalizeRoutineProposal,
   type RoutineCardData,
@@ -64,6 +66,8 @@ export function RoutineCard({
     useState<RoutineCardData | null>(null);
   const startButtonRef = useRef<HTMLButtonElement>(null);
   const proposedRoutineRef = useRef<string | null>(null);
+  const { confirm, isOpen, options, handleConfirm, handleCancel, setIsOpen } =
+    useConfirm();
   const routineAttemptKey = routine?.latestAttempt
     ? `${routine.latestAttempt.id}:${routine.latestAttempt.outcome ?? "pending"}`
     : null;
@@ -203,6 +207,26 @@ export function RoutineCard({
       temporalWindowDays,
       technicalState: "success",
     });
+  }
+
+  function closeRunner() {
+    setIsRunnerOpen(false);
+    window.requestAnimationFrame(() => startButtonRef.current?.focus());
+  }
+
+  async function handleRunnerCloseRequest(hasProgress: boolean) {
+    if (!hasProgress) {
+      closeRunner();
+      return;
+    }
+
+    const shouldClose = await confirm({
+      title: "Interrompere la routine?",
+      description: "Il progresso di questa sessione non verrà salvato.",
+      confirmText: "Interrompi",
+      cancelText: "Continua",
+    });
+    if (shouldClose) closeRunner();
   }
 
   return (
@@ -403,12 +427,7 @@ export function RoutineCard({
             routine={normalizedSnapshot}
             completionForm={normalizedSnapshot.completionForm}
             onComplete={() => void recordCompletion()}
-            onClose={() => {
-              setIsRunnerOpen(false);
-              window.requestAnimationFrame(() =>
-                startButtonRef.current?.focus(),
-              );
-            }}
+            onCloseRequest={handleRunnerCloseRequest}
           />
           {isCompletionPending && (
             <output
@@ -449,6 +468,19 @@ export function RoutineCard({
           onSuccess={() => setIsCheckInOpen(false)}
         />
       )}
+      <ConfirmDialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (open) setIsOpen(true);
+          else handleCancel();
+        }}
+        onConfirm={handleConfirm}
+        title={options.title}
+        description={options.description}
+        confirmText={options.confirmText}
+        cancelText={options.cancelText}
+        variant={options.variant}
+      />
     </section>
   );
 }

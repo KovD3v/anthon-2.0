@@ -267,7 +267,43 @@ describe("RoutineCard active lifecycle", () => {
     ).toBeTruthy();
   });
 
-  it("pauses locally and restores the launch focus when the inline runner closes", async () => {
+  it("asks for confirmation when a progressed inline runner is closed", async () => {
+    const user = userEvent.setup();
+    renderProposal({
+      proposal: interactiveProposal,
+      routine: interactiveRoutine,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Avvia routine" }));
+    await user.click(screen.getByRole("button", { name: "Fatto" }));
+    await user.click(screen.getByRole("button", { name: "Chiudi" }));
+
+    expect(
+      screen.getByRole("alertdialog", { name: "Interrompere la routine?" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Routine guidata")).toBeTruthy();
+  });
+
+  it("keeps a progressed runner open when its interruption is cancelled", async () => {
+    const user = userEvent.setup();
+    const onCreateAttempt = vi.fn();
+    renderProposal({
+      proposal: interactiveProposal,
+      routine: interactiveRoutine,
+      onCreateAttempt,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Avvia routine" }));
+    await user.click(screen.getByRole("button", { name: "Fatto" }));
+    await user.click(screen.getByRole("button", { name: "Chiudi" }));
+    await user.click(screen.getByRole("button", { name: "Continua" }));
+
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByText("Routine guidata")).toBeTruthy();
+    expect(onCreateAttempt).not.toHaveBeenCalled();
+  });
+
+  it("interrupts a progressed runner without creating an attempt and restores launch focus", async () => {
     const user = userEvent.setup();
     const onCreateAttempt = vi.fn();
     renderProposal({
@@ -280,7 +316,9 @@ describe("RoutineCard active lifecycle", () => {
     });
 
     await user.click(launch);
+    await user.click(screen.getByRole("button", { name: "Fatto" }));
     await user.click(screen.getByRole("button", { name: "Chiudi" }));
+    await user.click(screen.getByRole("button", { name: "Interrompi" }));
 
     expect(screen.queryByText("Routine guidata")).toBeNull();
     const restoredLaunch = screen.getByRole("button", {
@@ -288,6 +326,27 @@ describe("RoutineCard active lifecycle", () => {
     });
     await waitFor(() => expect(document.activeElement).toBe(restoredLaunch));
     expect(onCreateAttempt).not.toHaveBeenCalled();
+  });
+
+  it("closes an idle runner immediately without requesting confirmation", async () => {
+    const user = userEvent.setup();
+    renderProposal({
+      proposal: interactiveProposal,
+      routine: interactiveRoutine,
+    });
+    const launch = screen.getByRole<HTMLButtonElement>("button", {
+      name: "Avvia routine",
+    });
+
+    await user.click(launch);
+    await user.click(screen.getByRole("button", { name: "Chiudi" }));
+
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.queryByText("Routine guidata")).toBeNull();
+    const restoredLaunch = screen.getByRole("button", {
+      name: "Avvia routine",
+    });
+    await waitFor(() => expect(document.activeElement).toBe(restoredLaunch));
   });
 
   it("keeps the completed runner open and retries its authoritative attempt after a failure", async () => {
