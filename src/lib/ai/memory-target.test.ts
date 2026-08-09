@@ -128,6 +128,72 @@ describe("ai/memory-target", () => {
     ).resolves.toBeNull();
   });
 
+  it("does nothing when the preceding turn has two facts but only one stored memory", async () => {
+    messageFindFirst
+      .mockResolvedValueOnce({ createdAt: new Date("2026-08-10T10:01:00Z") })
+      .mockResolvedValueOnce({
+        parts: [
+          {
+            type: "text",
+            text: "Mi alleno al mattino e vivo a Roma.",
+          },
+        ],
+        generatedResponse: null,
+      });
+    memoryFindMany.mockResolvedValue([
+      {
+        key: "training_schedule",
+        category: "schedule",
+        value: { content: "Mi alleno al mattino" },
+      },
+    ]);
+
+    await expect(
+      resolveExactMemoryDeleteTarget({
+        userId: "user-1",
+        userMessage: "Dimentica questa cosa",
+        conversationThreadId: "thread-1",
+        currentUserMessageId: "inbound-current",
+      }),
+    ).resolves.toBeNull();
+
+    expect(memoryFindMany).not.toHaveBeenCalled();
+  });
+
+  it("resolves a generic forget when the preceding turn identifies one fact", async () => {
+    messageFindFirst
+      .mockResolvedValueOnce({ createdAt: new Date("2026-08-10T10:01:00Z") })
+      .mockResolvedValueOnce({
+        parts: [{ type: "text", text: "Mi alleno al mattino." }],
+        generatedResponse: {
+          userId: "user-1",
+          conversationThreadId: "thread-1",
+          direction: "OUTBOUND",
+          role: "ASSISTANT",
+          deletedAt: null,
+          parts: [
+            { type: "text", text: "Ricorderò che ti alleni al mattino." },
+          ],
+        },
+      });
+    memoryFindMany.mockResolvedValue([
+      {
+        key: "training_schedule",
+        category: "schedule",
+        value: { content: "Mi alleno al mattino" },
+      },
+    ]);
+
+    await expect(
+      resolveExactMemoryDeleteTarget({
+        userId: "user-1",
+        userMessage: "Dimentica questa cosa",
+        conversationThreadId: "thread-1",
+        currentUserMessageId: "inbound-current",
+      }),
+    ).resolves.toBe("training_schedule");
+  });
+
   it("does nothing for forget-this intent without server-owned context", async () => {
     await expect(
       resolveExactMemoryDeleteTarget({
@@ -280,4 +346,29 @@ describe("ai/memory-target", () => {
     ).resolves.toBeNull();
     expect(memoryFindMany).not.toHaveBeenCalled();
   });
+
+  it.each([
+    "Dimentica il mio errore in gara e concentrati.",
+    "Dimentica il mio errore in gara, riparti.",
+    "Dimentica il mio errore in gara: pensa alla prossima.",
+  ])(
+    "rejects a possessive forget request with a coaching continuation: %s",
+    async (userMessage) => {
+      memoryFindMany.mockResolvedValue([
+        {
+          key: "race_error",
+          category: "conversation_topic",
+          value: { content: "Il mio errore in gara" },
+        },
+      ]);
+
+      await expect(
+        resolveExactMemoryDeleteTarget({
+          userId: "user-1",
+          userMessage,
+        }),
+      ).resolves.toBeNull();
+      expect(memoryFindMany).not.toHaveBeenCalled();
+    },
+  );
 });

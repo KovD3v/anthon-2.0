@@ -4,6 +4,24 @@ const EXPLICIT_FORGET =
   /\b(?:dimentica|forget)\b[^.!?]{0,100}(?:\bche\b|\b(?:questa|questo|quella|quello|this|that)\s+(?:memoria|ricordo|dato|informazione|preferenza|fatto|memory|fact|preference)\b|\b(?:la mia|il mio|le mie|i miei|my)\b|\b(?:memoria|ricordo|dato|informazione|profilo|preferenza|fatto|memory|fact|preference|profile)\b)|\b(?:cancella|elimina|rimuovi|delete|remove)\b[^.!?]{0,100}\b(?:memoria|ricordo|dato|informazione|profilo|preferenza|fatto|memory|fact|preference|profile)\b/i;
 const ANAPHORIC_FORGET =
   /^\s*(?:per favore\s+|please\s+)?(?:dimentica|forget)\s+(?:questa|questo|quella|quello|this|that)(?:\s+(?:cosa|memoria|ricordo|dato|informazione|preferenza|fatto|thing|memory|fact|information|preference))?\s*[.!?]*\s*$/i;
+const COACHING_CONTINUATION =
+  /(?:\be\b|\band\b|[,;:\u2014-])\s*(?:concentrati|focalizzati|riparti|pensa\b|guarda\s+avanti\b|vai\s+avanti\b|focus\b|refocus\b|restart\b|think\b|move\s+on\b)/i;
+const STABLE_FACT_SIGNAL =
+  /\b(?:mi\s+(?:alleno|chiamo|sento|trovo)|(?:vivo|abito|sono|ho|faccio|pratico|preferisco|voglio|lavoro|studio|uso|seguo|mangio|dormo|corro|gioco)|ti\s+(?:alleni|chiami|senti|trovi)|(?:vivi|abiti|sei|hai|fai|pratichi|preferisci|vuoi|lavori|studi|usi|segui|mangi|dormi|corri|giochi)|i\s+(?:am|have|live|train|prefer|want|work|study|use|follow|eat|sleep|run|play)|you\s+(?:are|have|live|train|prefer|want|work|study|use|follow|eat|sleep|run|play))\b/i;
+const FACT_TOKEN_CANONICAL: Record<string, string> = {
+  alleni: "allenare",
+  alleno: "allenare",
+  abiti: "abitare",
+  abito: "abitare",
+  hai: "avere",
+  have: "avere",
+  sono: "essere",
+  sei: "essere",
+  vivi: "vivere",
+  vivo: "vivere",
+  voglio: "volere",
+  vuoi: "volere",
+};
 const NON_TARGET_WORDS = new Set([
   "che",
   "questa",
@@ -113,11 +131,44 @@ function hasStrongContextMatch(content: string, context: string) {
   return overlap.length >= 2 && overlap.length / contentTokens.length >= 0.8;
 }
 
+function stableFactCandidates(value: string) {
+  return value
+    .split(/(?:\r?\n|[.!?;]+|\s+(?:e|and)\s+)/i)
+    .map((candidate) => candidate.trim())
+    .filter(
+      (candidate) =>
+        tokenize(candidate).length >= 2 && STABLE_FACT_SIGNAL.test(candidate),
+    );
+}
+
+function uniqueStableFactCandidates(...values: string[]) {
+  const unique: string[] = [];
+  for (const candidate of values.flatMap(stableFactCandidates)) {
+    const candidateTokens = new Set(
+      tokenize(candidate).map((token) => FACT_TOKEN_CANONICAL[token] ?? token),
+    );
+    const isDuplicate = unique.some((existing) => {
+      const existingTokens = new Set(
+        tokenize(existing).map((token) => FACT_TOKEN_CANONICAL[token] ?? token),
+      );
+      const overlap = [...candidateTokens].filter((token) =>
+        existingTokens.has(token),
+      ).length;
+      return (
+        overlap >= 2 &&
+        overlap / Math.min(candidateTokens.size, existingTokens.size) >= 0.8
+      );
+    });
+    if (!isDuplicate) unique.push(candidate);
+  }
+  return unique;
+}
+
 async function getImmediatelyPrecedingContext(input: {
   userId: string;
   conversationThreadId: string;
   currentUserMessageId: string;
-}): Promise<string | null> {
+}): Promise<string[] | null> {
   const { prisma } = await import("@/lib/db");
   const currentMessage = await prisma.message.findFirst({
     where: {
@@ -171,12 +222,9 @@ async function getImmediatelyPrecedingContext(input: {
   }
 
   const { getTextFromParts } = await import("@/lib/utils/message-parts");
-  return [
-    getTextFromParts(previousInboundMessage.parts),
-    response ? getTextFromParts(response.parts) : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const inboundText = getTextFromParts(previousInboundMessage.parts);
+  const responseText = response ? getTextFromParts(response.parts) : "";
+  return uniqueStableFactCandidates(inboundText, responseText);
 }
 
 export async function resolveExactMemoryDeleteTarget(input: {
@@ -185,15 +233,17 @@ export async function resolveExactMemoryDeleteTarget(input: {
   conversationThreadId?: string;
   currentUserMessageId?: string;
 }): Promise<string | null> {
+  if (COACHING_CONTINUATION.test(input.userMessage)) return null;
+
   if (ANAPHORIC_FORGET.test(input.userMessage)) {
     if (!input.conversationThreadId || !input.currentUserMessageId) return null;
 
-    const context = await getImmediatelyPrecedingContext({
+    const factCandidates = await getImmediatelyPrecedingContext({
       userId: input.userId,
       conversationThreadId: input.conversationThreadId,
       currentUserMessageId: input.currentUserMessageId,
     });
-    if (!context) return null;
+    if (!factCandidates || factCandidates.length !== 1) return null;
 
     const { prisma } = await import("@/lib/db");
     const memories = await prisma.memory.findMany({
@@ -204,7 +254,10 @@ export async function resolveExactMemoryDeleteTarget(input: {
       (memory) =>
         isExactStableMemoryKey(memory.key) &&
         !BROAD_STABLE_KEYS.has(memory.key) &&
-        hasStrongContextMatch(memoryContent(memory.value), context),
+        hasStrongContextMatch(
+          memoryContent(memory.value),
+          factCandidates[0] ?? "",
+        ),
     );
 
     return matches.length === 1 ? (matches[0]?.key ?? null) : null;
