@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 import type { RoutineCardData } from "@/lib/coaching/routine";
 import type { UsageData } from "@/types/chat";
 import { LayoutClient, useChatContext } from "./layout-client";
@@ -162,6 +163,38 @@ function RoutineCollectionProbe() {
         onClick={() => void loadMoreRoutineCollection("ACTIVE")}
       >
         Carica pagina attive
+      </button>
+    </div>
+  );
+}
+
+function RoutineChatProbe() {
+  const { createRoutineChat, consumePendingRoutineChatContext } =
+    useChatContext();
+  const [chatId, setChatId] = useState("NONE");
+  const [context, setContext] = useState("NONE");
+  return (
+    <div>
+      <output data-testid="routine-chat-id">{chatId}</output>
+      <output data-testid="routine-chat-context">{context}</output>
+      <button
+        type="button"
+        onClick={() =>
+          void createRoutineChat(sourceRoutine, "adapt").then((id) =>
+            setChatId(id ?? "NONE"),
+          )
+        }
+      >
+        Crea chat routine
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          const pending = consumePendingRoutineChatContext("new-routine-chat");
+          setContext(pending ? `${pending.mode}:${pending.routineId}` : "NONE");
+        }}
+      >
+        Consuma contesto routine
       </button>
     </div>
   );
@@ -502,6 +535,48 @@ describe("persistent active routine context", () => {
 });
 
 describe("routine sidebar collection context", () => {
+  it("creates a new routine chat and consumes its adapt context once", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === "/api/chats" && init?.method === "POST") {
+          return Response.json({
+            id: "new-routine-chat",
+            title: "Adatta: Reset rapido",
+            icon: "BRAIN",
+            visibility: "PRIVATE",
+            createdAt: "2026-08-09T10:00:00.000Z",
+            updatedAt: "2026-08-09T10:00:00.000Z",
+          });
+        }
+        return new Response(null, { status: 500 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderLayout(sourceRoutine, <RoutineChatProbe />);
+
+    await user.click(screen.getByRole("button", { name: "Crea chat routine" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-chat-id").textContent).toBe(
+        "new-routine-chat",
+      ),
+    );
+    expect(mocks.routerPush).toHaveBeenCalledWith("/chat/new-routine-chat", {
+      scroll: false,
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Consuma contesto routine" }),
+    );
+    expect(screen.getByTestId("routine-chat-context").textContent).toBe(
+      "adapt:routine-source",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Consuma contesto routine" }),
+    );
+    expect(screen.getByTestId("routine-chat-context").textContent).toBe("NONE");
+  });
+
   it("loads only an authenticated collection and keeps sidebar regions stable", async () => {
     mocks.fetchRoutineCollection
       .mockResolvedValueOnce({

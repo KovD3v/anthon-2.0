@@ -28,6 +28,11 @@ import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 import { normalizeChatIcon } from "@/lib/chat-icons";
 import type { RoutineCardData } from "@/lib/coaching/routine";
 import {
+  buildRoutineChatPrompt,
+  type PendingRoutineChatContext,
+  type RoutineChatMode,
+} from "@/lib/coaching/routine-chat";
+import {
   fetchActiveRoutineForReturn,
   fetchRoutineCollection,
   type RoutineCollectionStatus,
@@ -47,6 +52,7 @@ import { UsageBanner } from "../../(chat)/components/UsageBanner";
 
 interface CreateChatOptions {
   initialMessage?: string;
+  routineContext?: PendingRoutineChatContext;
   title?: string;
 }
 
@@ -135,6 +141,10 @@ interface ChatContextType {
   chatNavigationEpoch: number;
   isGuest: boolean;
   createChat: (options?: CreateChatOptions) => Promise<string | null>;
+  createRoutineChat: (
+    routine: RoutineCardData,
+    mode: RoutineChatMode,
+  ) => Promise<string | null>;
   deleteChat: (id: string) => Promise<boolean>;
   refreshChats: () => Promise<void>;
   preFetchChat: (id: string) => Promise<void>;
@@ -143,6 +153,9 @@ interface ChatContextType {
   renameChat: (id: string, newTitle: string) => Promise<boolean>;
   updateCachedChat: (id: string, data: Partial<ChatData>) => void;
   consumePendingInitialMessage: (chatId: string) => string | null;
+  consumePendingRoutineChatContext: (
+    chatId: string,
+  ) => PendingRoutineChatContext | null;
   updateActiveRoutine: (routine: RoutineCardData) => void;
   refreshActiveRoutine: () => Promise<RoutineCardData | null>;
   refreshRoutineCollection: () => Promise<RoutineCollectionState>;
@@ -761,6 +774,9 @@ export function LayoutClient({
   const preFetchingIdsRef = useRef<Set<string>>(new Set());
   const createChatPromiseRef = useRef<Promise<string | null> | null>(null);
   const pendingInitialMessagesRef = useRef<Map<string, string>>(new Map());
+  const pendingRoutineChatContextsRef = useRef<
+    Map<string, PendingRoutineChatContext>
+  >(new Map());
   const chatViewportRef = useRef<HTMLDivElement>(null);
   const MAX_CACHE_SIZE = 20;
 
@@ -850,6 +866,16 @@ export function LayoutClient({
     return pending;
   }
 
+  function consumePendingRoutineChatContext(
+    chatId: string,
+  ): PendingRoutineChatContext | null {
+    const pending = pendingRoutineChatContextsRef.current.get(chatId) ?? null;
+    if (pending) {
+      pendingRoutineChatContextsRef.current.delete(chatId);
+    }
+    return pending;
+  }
+
   // Create chat
   const createChat = async (
     options: CreateChatOptions = {},
@@ -885,6 +911,12 @@ export function LayoutClient({
         };
 
         setChats((prev) => [newChat, ...prev]);
+        if (options.routineContext) {
+          pendingRoutineChatContextsRef.current.set(
+            chat.id,
+            options.routineContext,
+          );
+        }
         if (initialMessage) {
           pendingInitialMessagesRef.current.set(chat.id, initialMessage);
           chatCacheRef.current.set(chat.id, {
@@ -929,6 +961,13 @@ export function LayoutClient({
       setIsCreateChatRequestPending(false);
     }
   };
+
+  const createRoutineChat = (routine: RoutineCardData, mode: RoutineChatMode) =>
+    createChat({
+      title: `${mode === "repeat" ? "Ripeti" : "Adatta"}: ${routine.proposal.title}`,
+      initialMessage: buildRoutineChatPrompt(routine, mode),
+      routineContext: { mode, routineId: routine.id },
+    });
 
   // Rename chat
   const renameChat = async (id: string, newTitle: string): Promise<boolean> => {
@@ -1035,6 +1074,7 @@ export function LayoutClient({
         chatNavigationEpoch,
         isGuest,
         createChat,
+        createRoutineChat,
         deleteChat,
         refreshChats,
         preFetchChat,
@@ -1043,6 +1083,7 @@ export function LayoutClient({
         renameChat,
         updateCachedChat,
         consumePendingInitialMessage,
+        consumePendingRoutineChatContext,
         updateActiveRoutine,
         refreshActiveRoutine,
         routineCollection,
