@@ -46,6 +46,33 @@ const routine = normalizeRoutineProposal({
   ],
 });
 
+const focusRoutine = normalizeRoutineProposal({
+  formatVersion: 2,
+  title: "Routine di focus",
+  trigger: "Prima di allenarti",
+  durationLabel: "5 minuti",
+  completionCue: "Porta con te questa attenzione.",
+  steps: [
+    {
+      id: "prepare",
+      kind: "instruction",
+      text: "Scegli un'intenzione per l'allenamento.",
+    },
+    {
+      id: "focus-timer",
+      kind: "timer",
+      label: "Focus",
+      instruction: "Resta con il respiro.",
+      durationSeconds: 5,
+    },
+    {
+      id: "finish",
+      kind: "instruction",
+      text: "Nota come ti senti.",
+    },
+  ],
+});
+
 function renderRunner(
   overrides: Partial<React.ComponentProps<typeof RoutineRunner>> = {},
 ) {
@@ -53,7 +80,7 @@ function renderRunner(
     routine,
     completionForm: routine.completionForm,
     onComplete: vi.fn(),
-    onClose: vi.fn(),
+    onCloseRequest: vi.fn(),
     ...overrides,
   };
 
@@ -70,6 +97,47 @@ afterEach(() => {
 });
 
 describe("RoutineRunner", () => {
+  it("renders the routine progress from the first step", () => {
+    renderRunner({
+      routine: focusRoutine,
+      completionForm: focusRoutine.completionForm,
+    });
+
+    expect(screen.getByText("Passo 1 di 3")).toBeTruthy();
+    expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe(
+      "0",
+    );
+  });
+
+  it("updates routine progress while a timer is running", () => {
+    vi.useFakeTimers({ now: new Date("2026-08-08T10:00:00.000Z") });
+    renderRunner({
+      routine: focusRoutine,
+      completionForm: focusRoutine.completionForm,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Fatto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Avvia" }));
+    act(() => vi.advanceTimersByTime(2_000));
+
+    const progress = Number(
+      screen.getByRole("progressbar").getAttribute("aria-valuenow"),
+    );
+    expect(progress).toBeGreaterThan(0);
+    expect(progress).toBeLessThan(100);
+  });
+
+  it("requests close with whether the runner has progress", () => {
+    const { props } = renderRunner();
+
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
+    expect(props.onCloseRequest).toHaveBeenLastCalledWith(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fatto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
+    expect(props.onCloseRequest).toHaveBeenLastCalledWith(true);
+  });
+
   it("keeps completion explicit: an ended timer waits for Continua and never renders the terminal form", () => {
     vi.useFakeTimers({ now: new Date("2026-08-08T10:00:00.000Z") });
     const { props } = renderRunner();
@@ -285,7 +353,7 @@ describe("RoutineRunner", () => {
     screen.getByRole<HTMLButtonElement>("button", { name: "Chiudi" }).focus();
     await user.keyboard("{Enter}");
 
-    expect(props.onClose).toHaveBeenCalledOnce();
+    expect(props.onCloseRequest).toHaveBeenCalledOnce();
     expect(document.activeElement).toBe(launch);
     launch.remove();
   });

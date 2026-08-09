@@ -13,6 +13,7 @@ import {
   getElapsedMs,
   getRemainingMs,
   getRoutinePracticeSteps,
+  getRoutineProgress,
   pauseRunner,
   resetRunner,
   startRunner,
@@ -26,7 +27,7 @@ interface RoutineRunnerProps {
   routine: NormalizedRoutineProposal;
   completionForm: RoutineCompletionForm | null;
   onComplete: () => void;
-  onClose: () => void;
+  onCloseRequest: (hasProgress: boolean) => void;
 }
 
 type WakeLockCapableNavigator = Navigator & {
@@ -45,7 +46,7 @@ function formatRemainingMs(remainingMs: number): string {
 export function RoutineRunner({
   routine,
   onComplete,
-  onClose,
+  onCloseRequest,
 }: RoutineRunnerProps) {
   const practiceSteps = getRoutinePracticeSteps(routine);
   const [state, setState] = useState(createInitialRunnerState);
@@ -62,6 +63,7 @@ export function RoutineRunner({
   const announcedBreathingPhaseRef = useRef<string | null>(null);
   const completionSubmittedRef = useRef(false);
   const currentStep = practiceSteps[state.stepIndex] ?? null;
+  const progress = getRoutineProgress(state, practiceSteps, now);
   const remainingMs =
     currentStep?.kind === "timer"
       ? getRemainingMs(state, currentStep, now)
@@ -217,7 +219,9 @@ export function RoutineRunner({
   function close() {
     updateState((previous) => pauseRunner(previous, Date.now()));
     void releaseWakeLock();
-    onClose();
+    onCloseRequest(
+      state.stepIndex > 0 || state.elapsedMs > 0 || state.status !== "idle",
+    );
     returnFocusRef.current?.focus();
   }
 
@@ -251,6 +255,21 @@ export function RoutineRunner({
         </Button>
       </div>
 
+      <div
+        className="mt-4 h-2 overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-label="Avanzamento routine"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress.routinePercent}
+      >
+        <div
+          aria-hidden="true"
+          className="h-full rounded-full bg-primary transition-[width] duration-200 motion-reduce:transition-none"
+          style={{ width: `${progress.routinePercent}%` }}
+        />
+      </div>
+
       {state.status === "completed" ? (
         <div className="mt-5 border-border/70 border-t pt-4">
           <h4 className="font-display text-lg font-bold uppercase tracking-tight text-foreground">
@@ -272,8 +291,20 @@ export function RoutineRunner({
       ) : currentStep ? (
         <div className="mt-5 border-border/70 border-t pt-4">
           <p className="font-mono text-xs font-semibold text-muted-foreground">
-            Passo {state.stepIndex + 1} di {practiceSteps.length}
+            Passo {progress.stepNumber} di {progress.totalSteps}
           </p>
+
+          {progress.stepPercent !== null && (
+            <div
+              aria-hidden="true"
+              className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted"
+            >
+              <div
+                className="h-full rounded-full bg-primary/70 transition-[width] duration-200 motion-reduce:transition-none"
+                style={{ width: `${progress.stepPercent}%` }}
+              />
+            </div>
+          )}
 
           {currentStep.kind === "instruction" && (
             <>
