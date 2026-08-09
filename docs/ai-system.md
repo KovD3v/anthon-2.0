@@ -43,10 +43,13 @@ The AI subsystem powers chat generation, retrieval, personalization, and backgro
      the turn plan selects RAG. A non-fallback classifier decision may allow
      the prefetch directly; otherwise `shouldUseRag` applies its local gates
      and classifier fallback.
-   - In agentic mode, do not prefetch RAG. When RAG is selected, expose
-     `createRagTools().searchRag` as a native, once-per-turn retrieval tool.
-     It can run alongside TinyFish search/fetch and calls `getRagContext` with
-     the model's bounded query.
+   - In normal agentic turns, do not prefetch RAG. When RAG is selected,
+     expose `createRagTools().searchRag` as a native, once-per-turn retrieval
+     tool. It can run alongside TinyFish search/fetch and calls
+     `getRagContext` with the model's bounded query. Model-comparison setup is
+     an explicit exception: `prepareChatTurn` may prepare bounded RAG context
+     through `shouldUseRag`/`getRagContext` for a safe paired snapshot, without
+     exposing executable retrieval tools in that preparation path.
 7. Build the system prompt with the selected modules and expose only the
    selected tools.
 8. Run `streamText` with the selected tools and callbacks.
@@ -97,8 +100,10 @@ changes. In agentic mode, memory tools can silently save ordinary, low-risk
 facts stated or prudently inferred by the conversation. `saveMemory` creates a
 new record or updates/overwrites the record for the same stable key. Sensitive
 or high-impact facts are not written directly: they create a pending
-server-side approval and require a natural confirmation on the attributable
-next turn. Explicit deletion is limited to a single exact, server-resolved
+server-side approval and require a natural confirmation on the next attributable
+turn. If an attributable pending approval exists, web model-comparison
+admission is deferred before pairing so that turn can reach the normal approval
+resolver. Explicit deletion is limited to a single exact, server-resolved
 memory target; ambiguous, wildcard, category-wide, or inferred deletion is a
 no-op.
 
@@ -159,11 +164,14 @@ gates. Authenticated turns have two distinct paths:
 - Legacy prefetch uses `shouldUseRag` and then `getRagContext` to inject
   retrieved context before generation. Legacy web-search turns preserve the
   compatibility rule that they do not also inject RAG.
-- Agentic retrieval exposes `createRagTools().searchRag` only when the
+- Normal agentic retrieval exposes `createRagTools().searchRag` only when the
   capability decision selects RAG. This is a native tool, not a prefetch: it
   calls `getRagContext` once with a bounded model-selected query. It is
   independent of the TinyFish `tinyfishSearch` and `tinyfishFetch` tools, so
-  RAG and web search/fetch may be composed in the same turn.
+  RAG and web search/fetch may be composed in the same turn. Model-comparison
+  preparation is an explicit exception: it may use `shouldUseRag` and
+  `getRagContext` to materialize bounded context for the paired snapshot, but
+  does not expose executable retrieval tools during that setup.
 
 The following is the implementation order inside `shouldUseRag`; it applies to
 the legacy prefetch path:
