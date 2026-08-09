@@ -10,7 +10,7 @@ import {
 } from "@/lib/ai/intent";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
-import { isExactStableMemoryKey } from "./memory-target";
+import { isDeletableStableMemoryKey } from "./memory-target";
 
 const capabilityLogger = createLogger("ai");
 const CAPABILITY_CLASSIFIER_TIMEOUT_MS = 900;
@@ -74,7 +74,7 @@ const classifierCapabilities = [
 type ClassifierCapability = (typeof classifierCapabilities)[number];
 
 function normalizeResolvedMemoryTarget(target: string | null | undefined) {
-  return isExactStableMemoryKey(target) ? target : null;
+  return isDeletableStableMemoryKey(target) ? target : null;
 }
 
 const capabilityClassifierSchema = z

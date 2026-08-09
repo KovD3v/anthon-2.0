@@ -6,7 +6,10 @@ import {
   type PendingMemoryApproval,
   resolveMemoryApproval as resolvePendingMemoryApproval,
 } from "@/lib/ai/memory-approval";
-import { isExactStableMemoryKey } from "@/lib/ai/memory-target";
+import {
+  isDeletableStableMemoryKey,
+  isExactStableMemoryKey,
+} from "@/lib/ai/memory-target";
 import { prisma } from "@/lib/db";
 
 type MemoriesPromptCacheEntry = {
@@ -51,20 +54,6 @@ const sensitiveMemoryCategories = new Set([
 ]);
 const sensitiveMemoryPolicy =
   /\b(?:health|medical|medicine|diagnos\w*|condition|disease|illness|injur\w*|pain|allerg\w*|medication|therapy|trauma|abuse|intimat\w*|sexual\w*|pregnan\w*|salute|medic\w*|diagnos\w*|patolog\w*|malatt\w*|infortun\w*|dolor\w*|farmac\w*|terapia|trauma|abus\w*|intim\w*|sessual\w*|gravidanza|asma|depression\w*)\b/i;
-const broadDeleteTargets = new Set([
-  "all",
-  "identity",
-  "sport",
-  "goal",
-  "preference",
-  "health",
-  "diagnosis",
-  "trauma",
-  "intimate",
-  "schedule",
-  "conversation_topic",
-  "other",
-]);
 const stableMemoryKeySchema = z
   .string()
   .refine(isExactStableMemoryKey, "Serve una singola chiave stabile esatta");
@@ -314,10 +303,7 @@ Usalo soltanto quando il messaggio corrente conferma o rifiuta esplicitamente il
 Non accetta chiavi scelte dal modello, wildcard, categorie o richieste ampie.`,
       inputSchema: z.object({}),
       execute: async () => {
-        if (
-          !isExactStableMemoryKey(deleteTargetKey) ||
-          broadDeleteTargets.has(deleteTargetKey)
-        ) {
+        if (!isDeletableStableMemoryKey(deleteTargetKey)) {
           return { status: "ambiguous" as const };
         }
         try {

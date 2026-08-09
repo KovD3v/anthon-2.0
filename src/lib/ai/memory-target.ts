@@ -5,7 +5,7 @@ const EXPLICIT_FORGET =
 const ANAPHORIC_FORGET =
   /^\s*(?:per favore\s+|please\s+)?(?:dimentica|forget)\s+(?:questa|questo|quella|quello|this|that)(?:\s+(?:cosa|memoria|ricordo|dato|informazione|preferenza|fatto|thing|memory|fact|information|preference))?\s*[.!?]*\s*$/i;
 const COACHING_CONTINUATION =
-  /(?:\be\b|\band\b|[.!?,;:\u2014-])\s*(?:(?:poi|then)\s+)?(?:(?:prova|cerca|try)\s+(?:a|di|to)\s+)?(?:concentrati|focalizzati|riparti|pensa\b|guarda\s+avanti\b|vai\s+avanti\b|focus\b|refocus\b|restart\b|think\b|move\s+on\b)/i;
+  /(?:\be\b|\band\b|[.!?,;:\u2014-])\s*(?:(?:poi|then)\s+)?(?:(?:prova|cerca|try)\s+(?:a|di|to)\s+)?(?:concentr(?:ati|arti|arsi)|focalizz(?:ati|arti|arsi)|ripart(?:i|ire|iamo)|pensa(?:\b|re\b)|guarda\s+avanti\b|vai\s+avanti\b|focus\b|refocus\b|restart\b|think\b|move\s+on\b)/i;
 const STABLE_FACT_SIGNAL =
   /\b(?:mi\s+(?:alleno|chiamo|sento|trovo)|(?:vivo|abito|sono|ho|faccio|pratico|preferisco|voglio|lavoro|studio|uso|seguo|mangio|dormo|corro|gioco)|ti\s+(?:alleni|chiami|senti|trovi)|(?:vivi|abiti|sei|hai|fai|pratichi|preferisci|vuoi|lavori|studi|usi|segui|mangi|dormi|corri|giochi)|i\s+(?:am|have|live|train|prefer|want|work|study|use|follow|eat|sleep|run|play)|you\s+(?:are|have|live|train|prefer|want|work|study|use|follow|eat|sleep|run|play))\b/i;
 const FACT_TOKEN_CANONICAL: Record<string, string> = {
@@ -89,6 +89,10 @@ export function matchesMemoryDeleteIntent(message: string) {
 
 export function isExactStableMemoryKey(target: unknown): target is string {
   return typeof target === "string" && EXACT_STABLE_MEMORY_KEY.test(target);
+}
+
+export function isDeletableStableMemoryKey(target: unknown): target is string {
+  return isExactStableMemoryKey(target) && !BROAD_STABLE_KEYS.has(target);
 }
 
 function normalizeText(value: string) {
@@ -285,8 +289,7 @@ export async function resolveExactMemoryDeleteTarget(input: {
     });
     const matches = memories.filter(
       (memory) =>
-        isExactStableMemoryKey(memory.key) &&
-        !BROAD_STABLE_KEYS.has(memory.key) &&
+        isDeletableStableMemoryKey(memory.key) &&
         hasStrongContextMatch(
           memoryContent(memory.value),
           factCandidates[0] ?? "",
@@ -306,11 +309,7 @@ export async function resolveExactMemoryDeleteTarget(input: {
   });
   const normalizedMessage = normalizeText(input.userMessage);
   const scored = memories
-    .filter(
-      (memory) =>
-        isExactStableMemoryKey(memory.key) &&
-        !BROAD_STABLE_KEYS.has(memory.key),
-    )
+    .filter((memory) => isDeletableStableMemoryKey(memory.key))
     .map((memory) => {
       const keyPhrase = normalizeText(memory.key.replaceAll("_", " "));
       const searchable = new Set([

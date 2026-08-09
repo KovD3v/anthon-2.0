@@ -3112,6 +3112,12 @@ describe("ai/orchestrator", () => {
       resolvedMemoryTarget: undefined,
       exposesDeleteMemory: false,
     },
+    {
+      name: "broad category target",
+      userMessage: "Dimentica quella informazione",
+      resolvedMemoryTarget: "identity",
+      exposesDeleteMemory: false,
+    },
   ])(
     "exposes deleteMemory only for a server-resolved natural deletion target: $name",
     async ({ userMessage, resolvedMemoryTarget, exposesDeleteMemory }) => {

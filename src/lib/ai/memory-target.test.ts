@@ -11,7 +11,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { resolveExactMemoryDeleteTarget } from "./memory-target";
+import {
+  isDeletableStableMemoryKey,
+  resolveExactMemoryDeleteTarget,
+} from "./memory-target";
 
 describe("ai/memory-target", () => {
   beforeEach(() => {
@@ -19,6 +22,19 @@ describe("ai/memory-target", () => {
     messageFindFirst.mockReset();
     messageFindMany.mockReset();
   });
+
+  it.each([
+    ["training_goal", true],
+    ["identity", false],
+    ["preference", false],
+    ["*", false],
+    ["training-*", false],
+  ] as const)(
+    "accepts only a specific stable deletion key: %s",
+    (target, expected) => {
+      expect(isDeletableStableMemoryKey(target)).toBe(expected);
+    },
+  );
 
   it("resolves a unique forget-this target from the immediately preceding turn", async () => {
     const precedingCreatedAt = new Date("2026-08-10T10:00:00Z");
@@ -483,7 +499,9 @@ describe("ai/memory-target", () => {
   it.each([
     "Dimentica il mio errore in gara e concentrati.",
     "Dimentica il mio errore in gara. Concentrati sulla prossima.",
+    "Dimentica il mio errore in gara e prova a concentrarti.",
     "Dimentica il mio errore in gara e prova a ripartire.",
+    "Dimentica il mio errore in gara e prova a focalizzarti.",
     "Dimentica il mio errore in gara, riparti.",
     "Dimentica il mio errore in gara: pensa alla prossima.",
   ])(

@@ -143,6 +143,11 @@ describe("capability arbitration", () => {
       userMessage: "Dimentica quella informazione",
       resolvedMemoryTarget: "*",
     });
+    const broadCategoryTarget = arbitrate({
+      userMessage: "Dimentica quella informazione",
+      classifier: { memoryDelete: true },
+      resolvedMemoryTarget: "identity",
+    });
 
     expect(genericForget.memoryDelete).toBe(false);
     expect(genericForget.reasonCodes).toContain("delete_requires_exact_target");
@@ -150,6 +155,8 @@ describe("capability arbitration", () => {
     expect(resolvedTarget.memoryDeleteTarget).toBe("training_goal");
     expect(wildcardTarget.memoryDelete).toBe(false);
     expect(wildcardTarget.memoryDeleteTarget).toBeNull();
+    expect(broadCategoryTarget.memoryDelete).toBe(false);
+    expect(broadCategoryTarget.memoryDeleteTarget).toBeNull();
   });
 
   it.each([

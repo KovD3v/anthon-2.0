@@ -331,7 +331,7 @@ describe("ai/tools/memory", () => {
     expect(result).toEqual({ status: "not_found" });
   });
 
-  it.each([null, "*", "health", "training-*"])(
+  it.each([null, "*", "health", "identity", "preference", "training-*"])(
     "does nothing for an ambiguous or broad delete target %s",
     async (deleteTargetKey) => {
       const tools = createMemoryTools("user-1", { deleteTargetKey });

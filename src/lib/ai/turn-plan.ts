@@ -14,7 +14,7 @@ import {
   matchesSimpleFastIntent,
   matchesVoiceIntent,
 } from "./intent";
-import { isExactStableMemoryKey } from "./memory-target";
+import { isDeletableStableMemoryKey } from "./memory-target";
 
 export type TurnPlanReasonCode =
   | "GUEST"
@@ -185,7 +185,7 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
   const notesWrite = matchesNotesWriteIntent(text);
   const memoryDelete =
     (agenticDecision?.memoryDelete ?? input.memoryDeleteEnabled === true) &&
-    isExactStableMemoryKey(input.memoryDeleteTarget);
+    isDeletableStableMemoryKey(input.memoryDeleteTarget);
   const persistentWrite =
     memoryWrite ||
     profileWrite ||
