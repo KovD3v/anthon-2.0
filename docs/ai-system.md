@@ -169,7 +169,7 @@ layered optimization:
 Voice is not an always-on output mode. The existing voice preflight and
 delivery guards (`decideWebVoiceMode` and `decideVoiceDelivery`) remain
 authoritative for plan eligibility, user preference, provider capacity,
-quota, cadence, anti-spam, and explicit-text/attachment constraints. The
+quota, cadence, anti-spam, and explicit-text constraints. The
 capability planner can record a voice decision only when the requested output
 mode and those guards allow it; it cannot bypass them. Audio is attributed as
 used only after successful delivery.
