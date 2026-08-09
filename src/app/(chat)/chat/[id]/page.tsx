@@ -7,6 +7,8 @@ import { getGuestTokenFromCookies, hashGuestToken } from "@/lib/guest-auth";
 import { convertGuestForAuthenticatedUser } from "@/lib/guest-conversion";
 import { ChatConversationClient } from "./chat-conversation-client";
 
+export const prefetch = "partial";
+
 export default async function ChatConversationPage({
   params,
 }: {
