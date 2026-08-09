@@ -7,6 +7,7 @@
 
 import type { ChatIcon } from "@/lib/chat-icons";
 import type { RoutineCardData } from "@/lib/coaching/routine";
+import type { RoutineChatMode } from "@/lib/coaching/routine-chat";
 
 // -----------------------------------------------------
 // Attachments
@@ -144,6 +145,11 @@ export interface ChatData {
   updatedAt?: string;
   messages: ChatMessage[];
   routines: RoutineCardData[];
+  /** Existing routine invoked by this chat, when created from the collection. */
+  routineContext?: {
+    mode: RoutineChatMode;
+    routine: RoutineCardData;
+  };
   pagination?: {
     hasMore: boolean;
     nextCursor: string | null;

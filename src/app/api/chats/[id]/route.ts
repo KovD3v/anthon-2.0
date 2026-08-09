@@ -93,6 +93,18 @@ export async function GET(request: Request, { params }: RouteParams) {
         userId: true,
         createdAt: true,
         updatedAt: true,
+        routineContextMode: true,
+        routineContextRoutine: {
+          include: {
+            attempts: {
+              orderBy: [
+                { attemptedAt: "desc" as const },
+                { id: "desc" as const },
+              ],
+              take: 1,
+            },
+          },
+        },
       },
     });
 
@@ -219,6 +231,15 @@ export async function GET(request: Request, { params }: RouteParams) {
             ...(sourceAssistantMessageId ? { take: 2 } : {}),
           })
         : [];
+    const routineContext =
+      canReceivePrivateCoachingData &&
+      chat.routineContextMode &&
+      chat.routineContextRoutine
+        ? {
+            mode: chat.routineContextMode.toLowerCase() as "repeat" | "adapt",
+            routine: toRoutineCardData(chat.routineContextRoutine),
+          }
+        : undefined;
 
     if (sourceAssistantMessageId) {
       const sourceMessage = messagesToReturn[0];
@@ -337,6 +358,7 @@ export async function GET(request: Request, { params }: RouteParams) {
         nextCursor,
       },
       routines: routines.map(toRoutineCardData),
+      ...(routineContext ? { routineContext } : {}),
     });
   } catch (err) {
     chatsLogger.error("get.error", "Failed to fetch chat", { error: err });

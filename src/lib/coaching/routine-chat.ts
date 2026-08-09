@@ -5,6 +5,8 @@ export type RoutineChatMode = "repeat" | "adapt";
 export interface PendingRoutineChatContext {
   mode: RoutineChatMode;
   routineId: string;
+  /** Client-side snapshot used before the authoritative chat payload arrives. */
+  routine?: RoutineCardData;
 }
 
 function formatStep(

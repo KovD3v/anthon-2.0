@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   getAuthUser: vi.fn(),
   chatFindMany: vi.fn(),
   chatCreate: vi.fn(),
+  routineFindFirst: vi.fn(),
   convertGuestForAuthenticatedUser: vi.fn(),
 }));
 
@@ -21,6 +22,9 @@ vi.mock("@/lib/db", () => ({
     chat: {
       findMany: mocks.chatFindMany,
       create: mocks.chatCreate,
+    },
+    routine: {
+      findFirst: mocks.routineFindFirst,
     },
   },
 }));
@@ -48,6 +52,7 @@ describe("/api/chats route", () => {
     mocks.getAuthUser.mockReset();
     mocks.chatFindMany.mockReset();
     mocks.chatCreate.mockReset();
+    mocks.routineFindFirst.mockReset();
     mocks.convertGuestForAuthenticatedUser.mockReset();
 
     mocks.getAuthUser.mockResolvedValue({
@@ -74,6 +79,7 @@ describe("/api/chats route", () => {
       createdAt: new Date("2026-02-16T12:00:00.000Z"),
       updatedAt: new Date("2026-02-16T12:00:00.000Z"),
     });
+    mocks.routineFindFirst.mockResolvedValue({ id: "routine-1" });
   });
 
   it("GET returns 401 when auth fails", async () => {
@@ -221,6 +227,42 @@ describe("/api/chats route", () => {
         updatedAt: true,
       },
     });
+  });
+
+  it("POST persists an owner-checked routine context without copying the routine", async () => {
+    const response = await POST(
+      postRequest({
+        title: "Ripeti: Reset rapido",
+        routineContext: { routineId: "routine-1", mode: "repeat" },
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(mocks.routineFindFirst).toHaveBeenCalledWith({
+      where: { id: "routine-1", userId: "user-1" },
+      select: { id: true },
+    });
+    expect(mocks.chatCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          routineContextRoutineId: "routine-1",
+          routineContextMode: "REPEAT",
+        }),
+      }),
+    );
+  });
+
+  it("POST rejects a routine context owned by another user", async () => {
+    mocks.routineFindFirst.mockResolvedValue(null);
+
+    const response = await POST(
+      postRequest({
+        routineContext: { routineId: "routine-foreign", mode: "repeat" },
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(mocks.chatCreate).not.toHaveBeenCalled();
   });
 
   it("POST returns 400 when title is not a string", async () => {

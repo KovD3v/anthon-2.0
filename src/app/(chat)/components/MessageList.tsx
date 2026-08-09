@@ -105,6 +105,8 @@ interface MessageListProps {
   >;
   onModelComparisonResolved?: () => Promise<void>;
   routines: RoutineCardData[];
+  /** Existing routine invoked from the collection, rendered without save. */
+  reusedRoutine?: RoutineCardData | null;
   isGuest: boolean;
   canRenderRoutineCards: boolean;
   registrationHref: string;
@@ -192,6 +194,7 @@ export function MessageList({
   comparisonDeltas = {},
   onModelComparisonResolved,
   routines,
+  reusedRoutine = null,
   isGuest,
   canRenderRoutineCards,
   registrationHref,
@@ -260,6 +263,17 @@ export function MessageList({
     }
     return byMessageId;
   }, [routines]);
+  const reusedRoutineMessageId = useMemo(() => {
+    if (!canRenderRoutineCards || !reusedRoutine) return null;
+
+    return (
+      visibleMessages.find((message) => {
+        if (message.role !== "assistant") return false;
+        if (getModelComparisonData(message.parts)) return false;
+        return !hasPersistedAudioAttachment(message);
+      })?.id ?? null
+    );
+  }, [canRenderRoutineCards, reusedRoutine, visibleMessages]);
 
   useEffect(() => {
     if (status !== "submitted") {
@@ -539,16 +553,27 @@ export function MessageList({
                 (message.voice?.status === "FAILED" ||
                   message.voice?.status === "CANCELLED");
               const hasAudioPayload = isVoiceMessage || hasAudioFilePart;
-              const routineProposal =
+              const persistedRoutineProposal =
                 canRenderRoutineCards &&
                 message.role === "assistant" &&
                 !comparisonData &&
                 !hasAudioPayload
                   ? getRoutineProposalData(message.parts)
                   : null;
-              const routine = routineProposal
-                ? (routineBySourceMessageId.get(message.id) ?? null)
-                : null;
+              const isReusedRoutineMessage =
+                reusedRoutineMessageId === message.id;
+              // A repeated chat is an invocation of the saved routine, not a
+              // new proposal. Always prefer the persisted snapshot so a model
+              // response that happens to emit a routine part cannot replace
+              // the card (or turn it into a saveable proposal).
+              const routineProposal = isReusedRoutineMessage
+                ? (reusedRoutine?.proposal ?? null)
+                : persistedRoutineProposal;
+              const routine = isReusedRoutineMessage
+                ? reusedRoutine
+                : persistedRoutineProposal
+                  ? (routineBySourceMessageId.get(message.id) ?? null)
+                  : null;
 
               return (
                 <div
@@ -815,6 +840,7 @@ export function MessageList({
                             if (!routine) return;
                             onAdaptRoutine(routine.id, routine.proposal.title);
                           }}
+                          isReused={isReusedRoutineMessage}
                           openCheckIn={openCheckInRoutineId === routine?.id}
                         />
                       )}

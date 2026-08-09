@@ -894,7 +894,15 @@ export function LayoutClient({
       const response = await fetch(`${apiBase}/chats`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: options.title }),
+        body: JSON.stringify({
+          title: options.title,
+          routineContext: options.routineContext
+            ? {
+                routineId: options.routineContext.routineId,
+                mode: options.routineContext.mode,
+              }
+            : undefined,
+        }),
       });
 
       if (response.ok) {
@@ -929,6 +937,14 @@ export function LayoutClient({
             updatedAt: chat.updatedAt,
             messages: [],
             routines: [],
+            ...(options.routineContext?.routine
+              ? {
+                  routineContext: {
+                    mode: options.routineContext.mode,
+                    routine: options.routineContext.routine,
+                  },
+                }
+              : {}),
             pagination: {
               hasMore: false,
               nextCursor: null,
@@ -966,7 +982,7 @@ export function LayoutClient({
     createChat({
       title: `${mode === "repeat" ? "Ripeti" : "Adatta"}: ${routine.proposal.title}`,
       initialMessage: buildRoutineChatPrompt(routine, mode),
-      routineContext: { mode, routineId: routine.id },
+      routineContext: { mode, routineId: routine.id, routine },
     });
 
   // Rename chat

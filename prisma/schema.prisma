@@ -382,6 +382,11 @@ enum ChatIcon {
   MESSAGE_SQUARE
 }
 
+enum RoutineChatMode {
+  REPEAT
+  ADAPT
+}
+
 model Chat {
   id     String @id @default(cuid())
   userId String
@@ -391,6 +396,13 @@ model Chat {
   customTitle Boolean        @default(false)
   icon        ChatIcon       @default(MESSAGE_SQUARE)
   visibility  ChatVisibility @default(PRIVATE)
+
+  // Optional context for a chat started from the routine collection. This is
+  // an invocation link (many chats may reuse one routine), not ownership of
+  // the routine itself.
+  routineContextRoutineId String?
+  routineContextRoutine   Routine?         @relation("RoutineChatContext", fields: [routineContextRoutineId], references: [id], onDelete: SetNull)
+  routineContextMode      RoutineChatMode?
 
   messages             Message[]
   artifacts            Artifact[]
@@ -406,6 +418,7 @@ model Chat {
   @@index([userId, updatedAt(sort: Desc)])
   @@index([visibility])
   @@index([deletedAt])
+  @@index([routineContextRoutineId])
 }
 
 // -----------------------------------------------------
@@ -898,6 +911,7 @@ model Routine {
   derivedFromRoutineId     String?
   derivedFromRoutine       Routine?      @relation("RoutineAdaptations", fields: [derivedFromRoutineId], references: [id], onDelete: SetNull)
   adaptations              Routine[]     @relation("RoutineAdaptations")
+  routineChatContexts      Chat[]        @relation("RoutineChatContext")
   title                    String
   trigger                  String
   durationLabel            String?

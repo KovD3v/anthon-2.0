@@ -31,6 +31,8 @@ interface RoutineCardProps {
   onArchive: (routineId: string) => Promise<RoutineCardData>;
   onTryNow: () => void;
   onAdapt: () => void;
+  /** True when this card invokes an existing routine from the collection. */
+  isReused?: boolean;
   openCheckIn?: boolean;
 }
 
@@ -48,6 +50,7 @@ export function RoutineCard({
   onArchive,
   onTryNow,
   onAdapt,
+  isReused = false,
   openCheckIn = false,
 }: RoutineCardProps) {
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
@@ -102,6 +105,7 @@ export function RoutineCard({
   }, [routineAttemptKey]);
 
   useEffect(() => {
+    if (isReused) return;
     if (proposedRoutineRef.current === sourceAssistantMessageId) return;
     const storageKey = `routine-proposed:${sourceAssistantMessageId}`;
     if (window.sessionStorage.getItem(storageKey)) return;
@@ -114,7 +118,7 @@ export function RoutineCard({
       widgetKind: "routine_card",
       technicalState: "success",
     });
-  }, [normalizedSnapshot.formatVersion, sourceAssistantMessageId]);
+  }, [isReused, normalizedSnapshot.formatVersion, sourceAssistantMessageId]);
 
   async function runAction(
     action: Exclude<PendingAction, null>,

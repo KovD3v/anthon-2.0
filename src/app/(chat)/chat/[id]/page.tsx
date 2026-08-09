@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { PageWrapper } from "@/components/ui/page-wrapper";
 import { getAuthUser } from "@/lib/auth";
-import { getSharedChat } from "@/lib/chat";
+import { getSharedChatWithRetry } from "@/lib/chat";
 import { prisma } from "@/lib/db";
 import { getGuestTokenFromCookies, hashGuestToken } from "@/lib/guest-auth";
 import { convertGuestForAuthenticatedUser } from "@/lib/guest-conversion";
@@ -54,8 +54,10 @@ export default async function ChatConversationPage({
   }
 
   // Fetch chat data on the server
-  // If no userId, use a placeholder - getSharedChat handles public/private access checks
-  const chatData = await getSharedChat(id, userId || "anonymous");
+  // If no userId, use a placeholder - the loader handles public/private
+  // access checks and retries a brief Neon read-after-write miss after chat
+  // creation.
+  const chatData = await getSharedChatWithRetry(id, userId || "anonymous");
 
   if (!chatData) {
     notFound();

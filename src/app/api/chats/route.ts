@@ -75,6 +75,9 @@ export async function POST(request: Request) {
     // Optional: parse body for initial title or visibility
     let title: string | undefined;
     let visibility: "PRIVATE" | "PUBLIC" = "PRIVATE";
+    let routineContext:
+      | { routineId: string; mode: "repeat" | "adapt" }
+      | undefined;
 
     try {
       const body = await request.json();
@@ -94,6 +97,47 @@ export async function POST(request: Request) {
         ) {
           visibility = rawBody.visibility;
         }
+
+        if (rawBody.routineContext !== undefined) {
+          if (
+            !rawBody.routineContext ||
+            typeof rawBody.routineContext !== "object" ||
+            Array.isArray(rawBody.routineContext)
+          ) {
+            return Response.json(
+              { error: "routineContext must be an object" },
+              { status: 400 },
+            );
+          }
+
+          const context = rawBody.routineContext as Record<string, unknown>;
+          if (
+            typeof context.routineId !== "string" ||
+            context.routineId.trim() === "" ||
+            (context.mode !== "repeat" && context.mode !== "adapt")
+          ) {
+            return Response.json(
+              { error: "routineContext is invalid" },
+              { status: 400 },
+            );
+          }
+
+          const routine = await prisma.routine.findFirst({
+            where: { id: context.routineId, userId: user.id },
+            select: { id: true },
+          });
+          if (!routine) {
+            return Response.json(
+              { error: "Routine not found" },
+              { status: 404 },
+            );
+          }
+
+          routineContext = {
+            routineId: context.routineId,
+            mode: context.mode,
+          };
+        }
       }
     } catch {
       // Empty body is fine - we'll create with defaults
@@ -105,6 +149,13 @@ export async function POST(request: Request) {
         title,
         customTitle: !!title,
         visibility,
+        ...(routineContext
+          ? {
+              routineContextRoutineId: routineContext.routineId,
+              routineContextMode:
+                routineContext.mode === "repeat" ? "REPEAT" : "ADAPT",
+            }
+          : {}),
       },
       select: {
         id: true,

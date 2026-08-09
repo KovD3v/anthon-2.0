@@ -235,6 +235,15 @@ describe("/api/chats/[id] route", () => {
         userId: true,
         createdAt: true,
         updatedAt: true,
+        routineContextMode: true,
+        routineContextRoutine: {
+          include: {
+            attempts: {
+              orderBy: [{ attemptedAt: "desc" }, { id: "desc" }],
+              take: 1,
+            },
+          },
+        },
       },
     });
     expect(mocks.userFindUnique).toHaveBeenCalledWith({
@@ -519,6 +528,61 @@ describe("/api/chats/[id] route", () => {
     expect(body.messages[1].parts).toEqual([
       { type: "data-coachingRoutine", data: proposal },
     ]);
+  });
+
+  it("GET returns the existing routine context for a repeat chat", async () => {
+    const proposal = {
+      title: "Reset già salvato",
+      trigger: "Prima del gesto successivo",
+      durationLabel: "60 secondi",
+      steps: ["Espira", "Scegli il gesto"],
+      completionCue: "Riparti sul compito",
+    };
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Ripeti: Reset già salvato",
+      icon: "REFRESH_CCW",
+      visibility: "PRIVATE",
+      userId: "user-1",
+      routineContextMode: "REPEAT",
+      routineContextRoutine: {
+        id: "routine-existing",
+        formatVersion: 1,
+        sourceChatId: "source-chat",
+        sourceAssistantMessageId: "source-assistant",
+        status: "ACTIVE",
+        title: proposal.title,
+        trigger: proposal.trigger,
+        durationLabel: proposal.durationLabel,
+        steps: proposal.steps,
+        completionCue: proposal.completionCue,
+        archivedAt: null,
+        attempts: [],
+      },
+      createdAt: new Date("2026-08-08T10:00:00.000Z"),
+      updatedAt: new Date("2026-08-08T10:05:00.000Z"),
+    });
+
+    const response = await GET(
+      new Request("http://localhost/api/chats/chat-1"),
+      { params: params() },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.routineContext).toEqual({
+      mode: "repeat",
+      routine: {
+        id: "routine-existing",
+        formatVersion: 1,
+        sourceChatId: "source-chat",
+        sourceAssistantMessageId: "source-assistant",
+        status: "ACTIVE",
+        proposal,
+        archivedAt: null,
+        latestAttempt: null,
+      },
+    });
   });
 
   it("GET hydrates one authenticated owner routine source outside the current page", async () => {

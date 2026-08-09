@@ -205,6 +205,36 @@ describe("MessageList rendered interactions", () => {
     ).toBeLessThan(container.textContent?.indexOf(routineProposal.title) ?? -1);
   });
 
+  it("renders a repeated routine as the existing active routine without save", () => {
+    const regeneratedProposal = {
+      ...routineProposal,
+      title: "Nuova routine generata per errore",
+    };
+
+    renderMessageList({
+      messages: [
+        userMessage,
+        {
+          ...assistantMessage,
+          parts: [
+            { type: "text", text: "Ripartiamo dalla routine salvata." },
+            { type: "data-coachingRoutine", data: regeneratedProposal },
+          ],
+        },
+      ],
+      reusedRoutine: activeRoutine,
+    });
+
+    expect(screen.getByText("Routine attiva")).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: routineProposal.title }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: regeneratedProposal.title }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Salva routine" })).toBeNull();
+  });
+
   it("renders a canonical hydrated card without retaining unsafe attachment fields", async () => {
     const parsed = parseRoutineSourceHydrationPayload(
       {

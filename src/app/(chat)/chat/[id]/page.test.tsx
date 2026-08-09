@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getAuthUser: vi.fn(),
-  getSharedChat: vi.fn(),
+  getSharedChatWithRetry: vi.fn(),
   convertGuestForAuthenticatedUser: vi.fn(),
   getGuestTokenFromCookies: vi.fn(),
   hashGuestToken: vi.fn(),
@@ -15,7 +15,9 @@ vi.mock("@/components/ui/page-wrapper", () => ({
   PageWrapper: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("@/lib/auth", () => ({ getAuthUser: mocks.getAuthUser }));
-vi.mock("@/lib/chat", () => ({ getSharedChat: mocks.getSharedChat }));
+vi.mock("@/lib/chat", () => ({
+  getSharedChatWithRetry: mocks.getSharedChatWithRetry,
+}));
 vi.mock("@/lib/db", () => ({
   prisma: { user: { findFirst: mocks.guestUserFindFirst } },
 }));
@@ -40,7 +42,7 @@ describe("ChatConversationPage", () => {
       error: null,
     });
     mocks.convertGuestForAuthenticatedUser.mockResolvedValue("migrated");
-    mocks.getSharedChat.mockResolvedValue({
+    mocks.getSharedChatWithRetry.mockResolvedValue({
       id: "chat-1",
       title: "Una chat",
       visibility: "PRIVATE",
@@ -60,7 +62,7 @@ describe("ChatConversationPage", () => {
       order.push("convert");
       return "migrated";
     });
-    mocks.getSharedChat.mockImplementation(async () => {
+    mocks.getSharedChatWithRetry.mockImplementation(async () => {
       order.push("chat");
       return {
         id: "chat-1",
@@ -85,6 +87,9 @@ describe("ChatConversationPage", () => {
       "user-1",
       { canMutateCookies: false },
     );
-    expect(mocks.getSharedChat).toHaveBeenCalledWith("chat-1", "user-1");
+    expect(mocks.getSharedChatWithRetry).toHaveBeenCalledWith(
+      "chat-1",
+      "user-1",
+    );
   });
 });

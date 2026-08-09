@@ -49,7 +49,7 @@ vi.mock("@/lib/voice", () => ({
   getVoicePlanConfig: mocks.getVoicePlanConfig,
 }));
 
-import { getSharedChat, getSharedChats } from "./chat";
+import { getSharedChat, getSharedChats, getSharedChatWithRetry } from "./chat";
 
 describe("lib/chat", () => {
   beforeEach(() => {
@@ -146,6 +146,34 @@ describe("lib/chat", () => {
     expect(result).toBeNull();
     expect(mocks.messageFindMany).not.toHaveBeenCalled();
     expect(mocks.resolveEffectiveEntitlements).not.toHaveBeenCalled();
+  });
+
+  it("retries a newly-created chat after a transient read-after-write miss", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.chatFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        id: "chat-new",
+        title: null,
+        icon: null,
+        visibility: "PRIVATE",
+        userId: "user-1",
+        createdAt: new Date("2026-08-09T10:00:00.000Z"),
+        updatedAt: new Date("2026-08-09T10:00:00.000Z"),
+        routineContextMode: null,
+        routineContextRoutine: null,
+        _count: { messages: 0 },
+      });
+      mocks.userFindUnique.mockResolvedValue(null);
+
+      const resultPromise = getSharedChatWithRetry("chat-new", "user-1");
+      await vi.advanceTimersByTimeAsync(100);
+      const result = await resultPromise;
+
+      expect(result?.id).toBe("chat-new");
+      expect(mocks.chatFindFirst).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("getSharedChat maps messages, usage, pagination, and entitlement-driven voice config", async () => {
@@ -578,6 +606,83 @@ describe("lib/chat", () => {
         },
       },
     ]);
+  });
+
+  it("getSharedChat hydrates an existing routine context for a repeat chat", async () => {
+    const proposal = {
+      title: "Reset già salvato",
+      trigger: "Prima del gesto successivo",
+      durationLabel: "60 secondi",
+      steps: ["Espira", "Scegli il gesto"],
+      completionCue: "Riparti sul compito",
+    };
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-repeat",
+      title: "Ripeti: Reset già salvato",
+      icon: "REFRESH_CCW",
+      visibility: "PRIVATE",
+      userId: "user-1",
+      routineContextMode: "REPEAT",
+      routineContextRoutine: {
+        id: "routine-existing",
+        formatVersion: 1,
+        sourceChatId: "source-chat",
+        sourceAssistantMessageId: "source-assistant",
+        status: "ACTIVE",
+        title: proposal.title,
+        trigger: proposal.trigger,
+        durationLabel: proposal.durationLabel,
+        steps: proposal.steps,
+        completionCue: proposal.completionCue,
+        archivedAt: null,
+        attempts: [],
+      },
+      createdAt: new Date("2026-08-08T10:00:00.000Z"),
+      updatedAt: new Date("2026-08-08T10:05:00.000Z"),
+      _count: { messages: 1 },
+    });
+    mocks.userFindUnique.mockResolvedValue({
+      role: "USER",
+      isGuest: false,
+      preferences: { voiceEnabled: true, showTechnicalMetrics: false },
+      subscription: null,
+    });
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "assistant-repeat",
+        role: "ASSISTANT",
+        parts: [{ type: "text", text: "Ripartiamo." }],
+        createdAt: new Date("2026-08-08T10:05:00.000Z"),
+        model: null,
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: null,
+        generationTimeMs: null,
+        reasoningTimeMs: null,
+        ragUsed: null,
+        toolCalls: null,
+        feedback: null,
+        metadata: null,
+        voiceGenerationJob: null,
+        attachments: [],
+      },
+    ]);
+
+    const result = await getSharedChat("chat-repeat", "user-1");
+
+    expect(result?.routineContext).toEqual({
+      mode: "repeat",
+      routine: {
+        id: "routine-existing",
+        formatVersion: 1,
+        sourceChatId: "source-chat",
+        sourceAssistantMessageId: "source-assistant",
+        status: "ACTIVE",
+        proposal,
+        archivedAt: null,
+        latestAttempt: null,
+      },
+    });
   });
 
   it("getSharedChat keeps proposals but not saved routine cards for a guest owner", async () => {

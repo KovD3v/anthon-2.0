@@ -1415,6 +1415,11 @@ export function ChatConversationClient({
           comparisonDeltas={comparisonDeltas}
           onModelComparisonResolved={handleModelComparisonResolved}
           routines={chatData.routines}
+          reusedRoutine={
+            chatData.routineContext?.mode === "repeat"
+              ? chatData.routineContext.routine
+              : null
+          }
           isGuest={isGuest}
           canRenderRoutineCards={
             chatData.visibility === "PRIVATE" && chatData.isOwner

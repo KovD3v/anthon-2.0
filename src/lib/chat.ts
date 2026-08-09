@@ -84,287 +84,336 @@ export const getSharedChats = cache(async (userId: string): Promise<Chat[]> => {
  * NOTE: Caching disabled temporarily to ensure fresh data on page reload.
  * The unstable_cache was causing stale data issues.
  */
-export const getSharedChat = cache(
-  async (
-    chatId: string,
-    userId: string,
-    cursor?: string,
-    limit = 50,
-  ): Promise<ChatData | null> => {
-    // Verify access and fetch chat with user data
-    const [chat, userData] = await Promise.all([
-      prisma.chat.findFirst({
-        where: {
-          id: chatId,
-          OR: [{ userId }, { visibility: "PUBLIC" }],
-        },
-        select: {
-          id: true,
-          title: true,
-          icon: true,
-          visibility: true,
-          userId: true,
-          createdAt: true,
-          updatedAt: true,
-          _count: {
-            select: { messages: true },
-          },
-        },
-      }),
-      // Fetch user preferences and subscription for voice config
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          role: true,
-          isGuest: true,
-          preferences: {
-            select: { voiceEnabled: true, showTechnicalMetrics: true },
-          },
-          subscription: { select: { status: true, planId: true } },
-        },
-      }),
-    ]);
-
-    if (!chat) return null;
-
-    const entitlements = userData?.isGuest
-      ? null
-      : userData
-        ? await resolveEffectiveEntitlements({
-            userId,
-            subscriptionStatus: userData.subscription?.status,
-            userRole: userData.role,
-            planId: userData.subscription?.planId,
-            isGuest: userData.isGuest,
-          })
-        : null;
-
-    // Compute voice plan config
-    const voicePlanConfig = userData?.isGuest
-      ? { enabled: false }
-      : getVoicePlanConfig(
-          userData?.subscription?.status ?? undefined,
-          userData?.role,
-          userData?.subscription?.planId,
-          userData?.isGuest,
-          entitlements?.modelTier,
-        );
-
-    const messages =
-      chat._count.messages === 0 && !cursor
-        ? []
-        : await prisma.message.findMany({
-            where: { chatId },
-            orderBy: { createdAt: "desc" },
-            take: limit + 1,
-            ...(cursor && {
-              cursor: { id: cursor },
-              skip: 1,
-            }),
-            select: {
-              id: true,
-              role: true,
-              parts: true,
-              createdAt: true,
-              model: true,
-              inputTokens: true,
-              outputTokens: true,
-              costUsd: true,
-              generationTimeMs: true,
-              reasoningTimeMs: true,
-              ragUsed: true,
-              toolCalls: true,
-              feedback: true,
-              metadata: true,
-              voiceGenerationJob: {
-                select: {
-                  status: true,
-                  errorCode: true,
-                },
-              },
-              attachments: {
-                select: {
-                  id: true,
-                  name: true,
-                  contentType: true,
-                  size: true,
-                  blobUrl: true,
-                },
-              },
+async function getSharedChatUncached(
+  chatId: string,
+  userId: string,
+  cursor?: string,
+  limit = 50,
+): Promise<ChatData | null> {
+  // Verify access and fetch chat with user data
+  const [chat, userData] = await Promise.all([
+    prisma.chat.findFirst({
+      where: {
+        id: chatId,
+        OR: [{ userId }, { visibility: "PUBLIC" }],
+      },
+      select: {
+        id: true,
+        title: true,
+        icon: true,
+        visibility: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
+        routineContextMode: true,
+        routineContextRoutine: {
+          include: {
+            attempts: {
+              orderBy: [
+                { attemptedAt: "desc" as const },
+                { id: "desc" as const },
+              ],
+              take: 1,
             },
-          });
+          },
+        },
+        _count: {
+          select: { messages: true },
+        },
+      },
+    }),
+    // Fetch user preferences and subscription for voice config
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        role: true,
+        isGuest: true,
+        preferences: {
+          select: { voiceEnabled: true, showTechnicalMetrics: true },
+        },
+        subscription: { select: { status: true, planId: true } },
+      },
+    }),
+  ]);
 
-    const hasMore = messages.length > limit;
-    const messagesToReturn = hasMore ? messages.slice(0, -1) : messages;
-    const nextCursor = hasMore
-      ? messagesToReturn[messagesToReturn.length - 1]?.id
+  if (!chat) return null;
+
+  const entitlements = userData?.isGuest
+    ? null
+    : userData
+      ? await resolveEffectiveEntitlements({
+          userId,
+          subscriptionStatus: userData.subscription?.status,
+          userRole: userData.role,
+          planId: userData.subscription?.planId,
+          isGuest: userData.isGuest,
+        })
       : null;
 
-    messagesToReturn.reverse();
+  // Compute voice plan config
+  const voicePlanConfig = userData?.isGuest
+    ? { enabled: false }
+    : getVoicePlanConfig(
+        userData?.subscription?.status ?? undefined,
+        userData?.role,
+        userData?.subscription?.planId,
+        userData?.isGuest,
+        entitlements?.modelTier,
+      );
 
-    const canReceiveRoutineProposal =
-      chat.userId === userId && chat.visibility === "PRIVATE";
-    const canReceiveTechnicalMetrics = resolveTechnicalMetricsVisibility({
-      role: userData?.role ?? "USER",
-      preference: userData?.preferences?.showTechnicalMetrics,
-      isGuest: userData?.isGuest ?? true,
-      isPrivateOwner: canReceiveRoutineProposal,
-    });
-    const canReceivePrivateCoachingData =
-      canReceiveRoutineProposal && userData?.isGuest === false;
-    const returnedAssistantMessageIds = messagesToReturn
-      .filter((message) => message.role === "ASSISTANT")
-      .map((message) => message.id);
-    const routines =
-      canReceivePrivateCoachingData && returnedAssistantMessageIds.length > 0
-        ? await prisma.routine.findMany({
-            where: {
-              userId,
-              sourceChatId: chat.id,
-              sourceAssistantMessageId: {
-                in: returnedAssistantMessageIds,
-              },
-            },
-            include: {
-              attempts: {
-                orderBy: { attemptedAt: "desc" },
-                take: 1,
-              },
-            },
-          })
-        : [];
-
-    const unresolvedComparisons = cursor
+  const messages =
+    chat._count.messages === 0 && !cursor
       ? []
-      : await prisma.modelExperimentPair.findMany({
+      : await prisma.message.findMany({
+          where: { chatId },
+          orderBy: { createdAt: "desc" },
+          take: limit + 1,
+          ...(cursor && {
+            cursor: { id: cursor },
+            skip: 1,
+          }),
+          select: {
+            id: true,
+            role: true,
+            parts: true,
+            createdAt: true,
+            model: true,
+            inputTokens: true,
+            outputTokens: true,
+            costUsd: true,
+            generationTimeMs: true,
+            reasoningTimeMs: true,
+            ragUsed: true,
+            toolCalls: true,
+            feedback: true,
+            metadata: true,
+            voiceGenerationJob: {
+              select: {
+                status: true,
+                errorCode: true,
+              },
+            },
+            attachments: {
+              select: {
+                id: true,
+                name: true,
+                contentType: true,
+                size: true,
+                blobUrl: true,
+              },
+            },
+          },
+        });
+
+  const hasMore = messages.length > limit;
+  const messagesToReturn = hasMore ? messages.slice(0, -1) : messages;
+  const nextCursor = hasMore
+    ? messagesToReturn[messagesToReturn.length - 1]?.id
+    : null;
+
+  messagesToReturn.reverse();
+
+  const canReceiveRoutineProposal =
+    chat.userId === userId && chat.visibility === "PRIVATE";
+  const canReceiveTechnicalMetrics = resolveTechnicalMetricsVisibility({
+    role: userData?.role ?? "USER",
+    preference: userData?.preferences?.showTechnicalMetrics,
+    isGuest: userData?.isGuest ?? true,
+    isPrivateOwner: canReceiveRoutineProposal,
+  });
+  const canReceivePrivateCoachingData =
+    canReceiveRoutineProposal && userData?.isGuest === false;
+  const returnedAssistantMessageIds = messagesToReturn
+    .filter((message) => message.role === "ASSISTANT")
+    .map((message) => message.id);
+  const routines =
+    canReceivePrivateCoachingData && returnedAssistantMessageIds.length > 0
+      ? await prisma.routine.findMany({
           where: {
-            chatId,
             userId,
-            status: { in: ["GENERATING", "READY"] },
-            canonicalMessageId: null,
+            sourceChatId: chat.id,
+            sourceAssistantMessageId: {
+              in: returnedAssistantMessageIds,
+            },
           },
           include: {
-            responses: true,
-            participant: { select: { noticeState: true } },
+            attempts: {
+              orderBy: { attemptedAt: "desc" },
+              take: 1,
+            },
           },
-          orderBy: { createdAt: "asc" },
-        });
-    const mappedMessages: ChatMessage[] = messagesToReturn.map((m) => {
-      const voiceReasonCode = getVoiceReasonCode(m.metadata);
+        })
+      : [];
+  const routineContext =
+    canReceivePrivateCoachingData &&
+    chat.routineContextMode &&
+    chat.routineContextRoutine
+      ? {
+          mode: chat.routineContextMode.toLowerCase() as "repeat" | "adapt",
+          routine: toRoutineCardData(chat.routineContextRoutine),
+        }
+      : undefined;
 
-      return {
-        id: m.id,
-        role: m.role.toLowerCase() as "user" | "assistant",
-        content: getTextFromParts(m.parts),
-        parts: canReceiveRoutineProposal
-          ? m.parts
-          : withoutCoachingRoutineParts(m.parts),
-        createdAt: m.createdAt.toISOString(),
-        ...(canReceiveTechnicalMetrics &&
-        !isModelComparisonCanonical(m.metadata) &&
-        m.model !== null
-          ? { model: m.model }
-          : {}),
-        ...(canReceiveTechnicalMetrics && m.inputTokens !== null
-          ? {
-              usage: {
-                inputTokens: m.inputTokens,
-                outputTokens: m.outputTokens ?? 0,
-                cost: m.costUsd ?? 0,
-                ...(m.generationTimeMs !== null
-                  ? { generationTimeMs: m.generationTimeMs }
-                  : {}),
-                ...(m.reasoningTimeMs !== null
-                  ? { reasoningTimeMs: m.reasoningTimeMs }
-                  : {}),
-              },
-            }
-          : {}),
-        ...(canReceiveTechnicalMetrics && m.ragUsed !== null
-          ? { ragUsed: m.ragUsed }
-          : {}),
-        ...(canReceiveTechnicalMetrics && m.toolCalls !== null
-          ? { toolCalls: m.toolCalls }
-          : {}),
-        feedback: normalizeMessageFeedback(m.feedback),
-        feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
-        voice:
-          m.voiceGenerationJob || voiceReasonCode
-            ? {
-                ...(m.voiceGenerationJob
-                  ? { status: m.voiceGenerationJob.status }
-                  : {}),
-                ...(m.voiceGenerationJob?.errorCode
-                  ? { errorCode: m.voiceGenerationJob.errorCode }
-                  : {}),
-                ...(voiceReasonCode ? { reasonCode: voiceReasonCode } : {}),
-                isExplicitRequest: isExplicitVoiceRequest(m.metadata),
-              }
-            : undefined,
-        attachments: m.attachments.map((attachment) => ({
-          ...attachment,
-          blobUrl: attachment.contentType.startsWith("audio/")
-            ? `/api/voice/messages/${m.id}`
-            : attachment.blobUrl,
-        })),
-      };
-    });
-    for (const pair of unresolvedComparisons) {
-      const responseByVariant = new Map(
-        pair.responses.map((response) => [response.variantId, response]),
-      );
-      const comparisonData: ModelComparisonData = {
-        pairId: pair.id,
-        noticeRequired: pair.participant.noticeState === "NOT_SHOWN",
-        status: pair.status === "READY" ? "ready" : "generating",
-        slots: {
-          A: toComparisonSlot(responseByVariant.get(pair.slotAVariantId)),
-          B: toComparisonSlot(responseByVariant.get(pair.slotBVariantId)),
+  const unresolvedComparisons = cursor
+    ? []
+    : await prisma.modelExperimentPair.findMany({
+        where: {
+          chatId,
+          userId,
+          status: { in: ["GENERATING", "READY"] },
+          canonicalMessageId: null,
         },
-      };
-      const comparisonMessage: ChatMessage = {
-        id: `model-comparison-${pair.id}`,
-        role: "assistant",
-        content: null,
-        parts: [
-          {
-            type: "data-modelComparison",
-            id: pair.id,
-            data: comparisonData,
-          },
-        ],
-        createdAt: pair.createdAt.toISOString(),
-      };
-      const sourceIndex = mappedMessages.findIndex(
-        (message) => message.id === pair.sourceMessageId,
-      );
-      mappedMessages.splice(
-        sourceIndex >= 0 ? sourceIndex + 1 : mappedMessages.length,
-        0,
-        comparisonMessage,
-      );
-    }
+        include: {
+          responses: true,
+          participant: { select: { noticeState: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+  const mappedMessages: ChatMessage[] = messagesToReturn.map((m) => {
+    const voiceReasonCode = getVoiceReasonCode(m.metadata);
 
     return {
-      id: chat.id,
-      title: chat.title ?? "Nuova Chat",
-      icon: chat.icon,
-      visibility: chat.visibility,
-      isOwner: chat.userId === userId,
-      createdAt: chat.createdAt.toISOString(),
-      updatedAt: chat.updatedAt.toISOString(),
-      messages: mappedMessages,
-      routines: routines.map(toRoutineCardData),
-      pagination: {
-        hasMore,
-        nextCursor,
-      },
-      // Include voice preferences for client-side optimization
-      voiceEnabled: userData?.preferences?.voiceEnabled ?? true,
-      voicePlanEnabled: voicePlanConfig.enabled,
+      id: m.id,
+      role: m.role.toLowerCase() as "user" | "assistant",
+      content: getTextFromParts(m.parts),
+      parts: canReceiveRoutineProposal
+        ? m.parts
+        : withoutCoachingRoutineParts(m.parts),
+      createdAt: m.createdAt.toISOString(),
+      ...(canReceiveTechnicalMetrics &&
+      !isModelComparisonCanonical(m.metadata) &&
+      m.model !== null
+        ? { model: m.model }
+        : {}),
+      ...(canReceiveTechnicalMetrics && m.inputTokens !== null
+        ? {
+            usage: {
+              inputTokens: m.inputTokens,
+              outputTokens: m.outputTokens ?? 0,
+              cost: m.costUsd ?? 0,
+              ...(m.generationTimeMs !== null
+                ? { generationTimeMs: m.generationTimeMs }
+                : {}),
+              ...(m.reasoningTimeMs !== null
+                ? { reasoningTimeMs: m.reasoningTimeMs }
+                : {}),
+            },
+          }
+        : {}),
+      ...(canReceiveTechnicalMetrics && m.ragUsed !== null
+        ? { ragUsed: m.ragUsed }
+        : {}),
+      ...(canReceiveTechnicalMetrics && m.toolCalls !== null
+        ? { toolCalls: m.toolCalls }
+        : {}),
+      feedback: normalizeMessageFeedback(m.feedback),
+      feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
+      voice:
+        m.voiceGenerationJob || voiceReasonCode
+          ? {
+              ...(m.voiceGenerationJob
+                ? { status: m.voiceGenerationJob.status }
+                : {}),
+              ...(m.voiceGenerationJob?.errorCode
+                ? { errorCode: m.voiceGenerationJob.errorCode }
+                : {}),
+              ...(voiceReasonCode ? { reasonCode: voiceReasonCode } : {}),
+              isExplicitRequest: isExplicitVoiceRequest(m.metadata),
+            }
+          : undefined,
+      attachments: m.attachments.map((attachment) => ({
+        ...attachment,
+        blobUrl: attachment.contentType.startsWith("audio/")
+          ? `/api/voice/messages/${m.id}`
+          : attachment.blobUrl,
+      })),
     };
-  },
-);
+  });
+  for (const pair of unresolvedComparisons) {
+    const responseByVariant = new Map(
+      pair.responses.map((response) => [response.variantId, response]),
+    );
+    const comparisonData: ModelComparisonData = {
+      pairId: pair.id,
+      noticeRequired: pair.participant.noticeState === "NOT_SHOWN",
+      status: pair.status === "READY" ? "ready" : "generating",
+      slots: {
+        A: toComparisonSlot(responseByVariant.get(pair.slotAVariantId)),
+        B: toComparisonSlot(responseByVariant.get(pair.slotBVariantId)),
+      },
+    };
+    const comparisonMessage: ChatMessage = {
+      id: `model-comparison-${pair.id}`,
+      role: "assistant",
+      content: null,
+      parts: [
+        {
+          type: "data-modelComparison",
+          id: pair.id,
+          data: comparisonData,
+        },
+      ],
+      createdAt: pair.createdAt.toISOString(),
+    };
+    const sourceIndex = mappedMessages.findIndex(
+      (message) => message.id === pair.sourceMessageId,
+    );
+    mappedMessages.splice(
+      sourceIndex >= 0 ? sourceIndex + 1 : mappedMessages.length,
+      0,
+      comparisonMessage,
+    );
+  }
+
+  return {
+    id: chat.id,
+    title: chat.title ?? "Nuova Chat",
+    icon: chat.icon,
+    visibility: chat.visibility,
+    isOwner: chat.userId === userId,
+    createdAt: chat.createdAt.toISOString(),
+    updatedAt: chat.updatedAt.toISOString(),
+    messages: mappedMessages,
+    routines: routines.map(toRoutineCardData),
+    ...(routineContext ? { routineContext } : {}),
+    pagination: {
+      hasMore,
+      nextCursor,
+    },
+    // Include voice preferences for client-side optimization
+    voiceEnabled: userData?.preferences?.voiceEnabled ?? true,
+    voicePlanEnabled: voicePlanConfig.enabled,
+  };
+}
+
+export const getSharedChat = cache(getSharedChatUncached);
+
+const CHAT_READ_AFTER_WRITE_RETRY_DELAYS_MS = [100, 300, 700] as const;
+
+/**
+ * A newly-created chat can briefly be invisible to a subsequent read on the
+ * Neon branch used by the request. Retry only the initial page lookup so a
+ * real missing/inaccessible chat still resolves to the normal 404 path.
+ */
+export async function getSharedChatWithRetry(
+  chatId: string,
+  userId: string,
+  cursor?: string,
+  limit = 50,
+): Promise<ChatData | null> {
+  const initial = await getSharedChatUncached(chatId, userId, cursor, limit);
+  if (initial || cursor || userId === "anonymous") return initial;
+
+  for (const delayMs of CHAT_READ_AFTER_WRITE_RETRY_DELAYS_MS) {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, delayMs);
+    });
+    const retry = await getSharedChatUncached(chatId, userId, cursor, limit);
+    if (retry) return retry;
+  }
+
+  return null;
+}
 
 function withoutCoachingRoutineParts(parts: unknown): unknown {
   if (!Array.isArray(parts)) return [];

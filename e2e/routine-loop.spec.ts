@@ -26,6 +26,26 @@ test.describe("authenticated routine loop", () => {
     await expect(
       page.getByText("Risposta E2E routine ripetuta.", { exact: true }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: ROUTINE_TITLE, exact: true }),
+    ).toBeVisible();
+    // The first invocation may not have a recorded attempt yet; both labels
+    // are actions on the already-saved routine, unlike the proposal-only
+    // "Salva routine" action.
+    await expect(
+      page.getByRole("button", { name: /^(Avvia|Ripeti) routine$/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Salva routine" }),
+    ).toHaveCount(0);
+
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: ROUTINE_TITLE, exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Salva routine" }),
+    ).toHaveCount(0);
 
     await page.goto("/chat/routines");
     await page.reload();
