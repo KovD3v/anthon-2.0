@@ -1140,6 +1140,24 @@ describe("ChatConversationClient routine lifecycle", () => {
     mocks.isGuest = false;
   });
 
+  it("shows the saved repeat card without starting an AI turn", () => {
+    const data: ChatData = {
+      ...initialChatData,
+      messages: [],
+      routines: [],
+      routineContext: {
+        mode: "repeat",
+        routine: activeRoutine,
+      },
+    };
+
+    renderConversation(data);
+
+    expect(screen.queryByText("Chat vuota")).toBeNull();
+    expect(screen.getByRole("list", { name: "Messaggi" })).toBeTruthy();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
   it("opens only the queried source routine and removes the query after focus", async () => {
     mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-1");
     const data = { ...initialChatData, routines: [pendingActiveRoutine] };

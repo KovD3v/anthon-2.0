@@ -169,14 +169,21 @@ function RoutineCollectionProbe() {
 }
 
 function RoutineChatProbe() {
-  const { createRoutineChat, consumePendingRoutineChatContext } =
-    useChatContext();
+  const {
+    createRoutineChat,
+    consumePendingInitialMessage,
+    consumePendingRoutineChatContext,
+  } = useChatContext();
   const [chatId, setChatId] = useState("NONE");
   const [context, setContext] = useState("NONE");
+  const [initialMessage, setInitialMessage] = useState("NONE");
   return (
     <div>
       <output data-testid="routine-chat-id">{chatId}</output>
       <output data-testid="routine-chat-context">{context}</output>
+      <output data-testid="routine-chat-initial-message">
+        {initialMessage}
+      </output>
       <button
         type="button"
         onClick={() =>
@@ -189,12 +196,32 @@ function RoutineChatProbe() {
       </button>
       <button
         type="button"
+        onClick={() =>
+          void createRoutineChat(sourceRoutine, "repeat").then((id) =>
+            setChatId(id ?? "NONE"),
+          )
+        }
+      >
+        Crea ripetizione routine
+      </button>
+      <button
+        type="button"
         onClick={() => {
           const pending = consumePendingRoutineChatContext("new-routine-chat");
           setContext(pending ? `${pending.mode}:${pending.routineId}` : "NONE");
         }}
       >
         Consuma contesto routine
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          setInitialMessage(
+            consumePendingInitialMessage("new-routine-chat") ?? "NONE",
+          )
+        }
+      >
+        Consuma messaggio iniziale
       </button>
     </div>
   );
@@ -535,6 +562,49 @@ describe("persistent active routine context", () => {
 });
 
 describe("routine sidebar collection context", () => {
+  it("opens a repeat chat with saved context but no pending AI message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === "/api/chats" && init?.method === "POST") {
+          return Response.json({
+            id: "new-routine-chat",
+            title: "Ripeti: Reset rapido",
+            icon: "REFRESH_CCW",
+            visibility: "PRIVATE",
+            createdAt: "2026-08-09T10:00:00.000Z",
+            updatedAt: "2026-08-09T10:00:00.000Z",
+          });
+        }
+        return new Response(null, { status: 500 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderLayout(sourceRoutine, <RoutineChatProbe />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Crea ripetizione routine" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("routine-chat-id").textContent).toBe(
+        "new-routine-chat",
+      ),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Consuma contesto routine" }),
+    );
+    expect(screen.getByTestId("routine-chat-context").textContent).toBe(
+      "repeat:routine-source",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Consuma messaggio iniziale" }),
+    );
+    expect(screen.getByTestId("routine-chat-initial-message").textContent).toBe(
+      "NONE",
+    );
+  });
+
   it("creates a new routine chat and consumes its adapt context once", async () => {
     vi.stubGlobal(
       "fetch",

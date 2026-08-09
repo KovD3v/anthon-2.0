@@ -981,7 +981,13 @@ export function LayoutClient({
   const createRoutineChat = (routine: RoutineCardData, mode: RoutineChatMode) =>
     createChat({
       title: `${mode === "repeat" ? "Ripeti" : "Adatta"}: ${routine.proposal.title}`,
-      initialMessage: buildRoutineChatPrompt(routine, mode),
+      // Repeating is a local invocation of the saved routine. The card is
+      // already actionable in the new chat, so do not spend a model turn
+      // restating it. Adaptation still needs an Anthon turn to propose a new
+      // version from the user's feedback.
+      ...(mode === "adapt"
+        ? { initialMessage: buildRoutineChatPrompt(routine, mode) }
+        : {}),
       routineContext: { mode, routineId: routine.id, routine },
     });
 

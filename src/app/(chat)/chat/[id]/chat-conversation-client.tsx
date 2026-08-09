@@ -1357,6 +1357,15 @@ export function ChatConversationClient({
     isResponseSettling ||
     isRegenerating;
   const isEmptyIdle = streamingMessages.length === 0 && !isLoading;
+  const reusedRoutine =
+    chatData.routineContext?.mode === "repeat"
+      ? chatData.routineContext.routine
+      : null;
+  const showRoutineInvocation =
+    isEmptyIdle &&
+    reusedRoutine !== null &&
+    chatData.visibility === "PRIVATE" &&
+    chatData.isOwner;
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-linear-to-b from-background to-muted/20">
@@ -1375,7 +1384,7 @@ export function ChatConversationClient({
         }}
       />
 
-      {isEmptyIdle ? (
+      {isEmptyIdle && !showRoutineInvocation ? (
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
           <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-center gap-6 py-4">
             <EmptyChatWelcome />
@@ -1415,11 +1424,7 @@ export function ChatConversationClient({
           comparisonDeltas={comparisonDeltas}
           onModelComparisonResolved={handleModelComparisonResolved}
           routines={chatData.routines}
-          reusedRoutine={
-            chatData.routineContext?.mode === "repeat"
-              ? chatData.routineContext.routine
-              : null
-          }
+          reusedRoutine={reusedRoutine}
           isGuest={isGuest}
           canRenderRoutineCards={
             chatData.visibility === "PRIVATE" && chatData.isOwner

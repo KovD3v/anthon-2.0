@@ -235,6 +235,16 @@ describe("MessageList rendered interactions", () => {
     expect(screen.queryByRole("button", { name: "Salva routine" })).toBeNull();
   });
 
+  it("renders a repeated routine card before any assistant response", () => {
+    renderMessageList({ messages: [], reusedRoutine: activeRoutine });
+
+    expect(
+      screen.getAllByRole("heading", { name: routineProposal.title }),
+    ).toHaveLength(2);
+    expect(screen.getByText("Routine pronta")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Salva routine" })).toBeNull();
+  });
+
   it("renders a canonical hydrated card without retaining unsafe attachment fields", async () => {
     const parsed = parseRoutineSourceHydrationPayload(
       {

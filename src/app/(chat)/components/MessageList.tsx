@@ -451,6 +451,45 @@ export function MessageList({
   }
 
   if (messages.length === 0) {
+    if (reusedRoutine && canRenderRoutineCards) {
+      return (
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8">
+          <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-center gap-5">
+            <div className="px-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+                Routine pronta
+              </p>
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+                {reusedRoutine.proposal.title}
+              </h1>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                Questa è la routine che hai già salvato. Puoi avviarla qui,
+                registrare come è andata oppure adattarla in una nuova chat.
+              </p>
+            </div>
+            <RoutineCard
+              proposal={reusedRoutine.proposal}
+              routine={reusedRoutine}
+              sourceAssistantMessageId={
+                reusedRoutine.sourceAssistantMessageId ?? reusedRoutine.id
+              }
+              isGuest={isGuest}
+              registrationHref={registrationHref}
+              onSave={onSaveRoutine}
+              onCreateAttempt={onCreateRoutineAttempt}
+              onSaveOutcome={onSaveRoutineOutcome}
+              onArchive={onArchiveRoutine}
+              onTryNow={() => onTryRoutineNow(reusedRoutine.proposal.title)}
+              onAdapt={() =>
+                onAdaptRoutine(reusedRoutine.id, reusedRoutine.proposal.title)
+              }
+              isReused
+              openCheckIn={openCheckInRoutineId === reusedRoutine.id}
+            />
+          </div>
+        </div>
+      );
+    }
     return <EmptyChatWelcome className="flex-1 justify-center p-8" />;
   }
 

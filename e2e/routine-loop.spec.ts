@@ -21,27 +21,30 @@ test.describe("authenticated routine loop", () => {
     await card.getByRole("button", { name: "Ripeti" }).click();
     await expect(page).toHaveURL(CHAT_URL_PATTERN);
     await expect(
-      page.getByText(/Ripeti questa routine senza modificarla/),
+      page.getByText("Routine pronta", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.locator("h3").filter({ hasText: ROUTINE_TITLE }),
     ).toBeVisible();
     await expect(
       page.getByText("Risposta E2E routine ripetuta.", { exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(
-      page.getByRole("heading", { name: ROUTINE_TITLE, exact: true }),
+      page.getByText(/Ripeti questa routine senza modificarla/),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /^(Avvia|Ripeti) routine$/ }),
     ).toBeVisible();
     // The first invocation may not have a recorded attempt yet; both labels
     // are actions on the already-saved routine, unlike the proposal-only
     // "Salva routine" action.
-    await expect(
-      page.getByRole("button", { name: /^(Avvia|Ripeti) routine$/ }),
-    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Salva routine" }),
     ).toHaveCount(0);
 
     await page.reload();
     await expect(
-      page.getByRole("heading", { name: ROUTINE_TITLE, exact: true }),
+      page.locator("h3").filter({ hasText: ROUTINE_TITLE }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Salva routine" }),
