@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   getVoicePlanConfig: vi.fn(),
   openrouter: vi.fn(),
   trackSupportAiUsage: vi.fn(),
+  classifyCapabilities: vi.fn(),
 }));
 
 vi.mock("node:dns/promises", () => ({
@@ -112,6 +113,16 @@ vi.mock("@/lib/organizations/entitlements", () => ({
 vi.mock("@/lib/voice", () => ({
   getVoicePlanConfig: mocks.getVoicePlanConfig,
 }));
+
+vi.mock("./capability-arbitration", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("./capability-arbitration")>();
+
+  return {
+    ...actual,
+    classifyCapabilities: mocks.classifyCapabilities,
+  };
+});
 
 import {
   executePreparedChatTurn,
@@ -197,6 +208,7 @@ describe("ai/orchestrator", () => {
     mocks.getVoicePlanConfig.mockReset();
     mocks.openrouter.mockReset();
     mocks.trackSupportAiUsage.mockReset();
+    mocks.classifyCapabilities.mockReset();
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-02-17T16:00:00.000Z"));
@@ -288,6 +300,7 @@ describe("ai/orchestrator", () => {
     );
     mocks.resolveEffectiveEntitlements.mockResolvedValue(baseEntitlements);
     mocks.getVoicePlanConfig.mockReturnValue({ enabled: true });
+    mocks.classifyCapabilities.mockResolvedValue(null);
     mocks.extractAIMetrics.mockReturnValue({
       model: "google/gemini-test",
       inputTokens: 10,
@@ -326,6 +339,7 @@ describe("ai/orchestrator", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
 
@@ -414,6 +428,7 @@ describe("ai/orchestrator", () => {
 
   it("forwards abort signals to experiment prompt preparation", async () => {
     const abortController = new AbortController();
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
 
     await prepareChatTurn({
       userId: "user-1",
@@ -426,7 +441,7 @@ describe("ai/orchestrator", () => {
       skipConversationHistory: true,
     });
 
-    expect(mocks.generateText).toHaveBeenCalledWith(
+    expect(mocks.classifyCapabilities).toHaveBeenCalledWith(
       expect.objectContaining({ abortSignal: abortController.signal }),
     );
   });
@@ -434,10 +449,8 @@ describe("ai/orchestrator", () => {
   it("does not downgrade an aborted experiment classifier to fallback planning", async () => {
     const abortController = new AbortController();
     const abortReason = new Error("request disconnected");
-    mocks.generateText.mockImplementationOnce(async () => {
-      abortController.abort(abortReason);
-      throw abortReason;
-    });
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockRejectedValueOnce(abortReason);
 
     await expect(
       prepareChatTurn({
@@ -2291,27 +2304,14 @@ describe("ai/orchestrator", () => {
     );
   });
 
-  it("uses the prompt classifier for ambiguous current-info requests", async () => {
+  it("uses the capability classifier boundary for ambiguous current-info requests", async () => {
     const abortController = new AbortController();
-    mocks.generateText.mockResolvedValueOnce({
-      output: {
-        webSearch: "yes",
-        webFetch: "no",
-        rag: "no",
-        userContext: "not_needed",
-        confidence: 0.86,
-        reason: "asks for a current sports-person status update",
-      },
-      usage: {
-        inputTokens: 22,
-        outputTokens: 12,
-        totalTokens: 34,
-      },
-      providerMetadata: {
-        openrouter: {
-          cost: 0.00002,
-        },
-      },
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValueOnce({
+      webSearch: true,
+      webFetch: false,
+      rag: false,
+      userContext: false,
     });
 
     await streamChat({
@@ -2321,35 +2321,12 @@ describe("ai/orchestrator", () => {
       abortSignal: abortController.signal,
     });
 
-    expect(mocks.generateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: {
-          modelId: "qwen/qwen3.6-27b",
-          provider: "openrouter",
-        },
-        providerOptions: {
-          openrouter: {
-            provider: { sort: "latency" },
-          },
-        },
-        temperature: 0,
-        maxOutputTokens: 120,
-        abortSignal: abortController.signal,
-      }),
-    );
-    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+    expect(mocks.classifyCapabilities).toHaveBeenCalledWith({
       userId: "user-1",
+      userMessage: "Mi aggiorni sulla situazione di Messi?",
       modelId: "qwen/qwen3.6-27b",
-      usage: {
-        inputTokens: 22,
-        outputTokens: 12,
-        totalTokens: 34,
-      },
-      providerMetadata: {
-        openrouter: {
-          cost: 0.00002,
-        },
-      },
+      context: expect.stringContaining("ambiguous_current_info"),
+      abortSignal: abortController.signal,
     });
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
@@ -2365,14 +2342,28 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).not.toContain("USER CONTEXT");
   });
 
-  it("propagates prompt-classifier cancellation instead of falling back", async () => {
+  it("uses deterministic fallback when the capability classifier is unavailable", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValueOnce(null);
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-classifier-fallback",
+      userMessage: "Mi aggiorni sulla situazione di Messi?",
+    });
+
+    expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).toEqual({});
+  });
+
+  it("propagates capability-classifier cancellation instead of falling back", async () => {
     const abortController = new AbortController();
     const abortError = new Error("request aborted");
-    mocks.generateText.mockImplementationOnce(async ({ abortSignal }) => {
-      expect(abortSignal).toBe(abortController.signal);
-      abortController.abort(abortError);
-      throw abortError;
-    });
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockRejectedValueOnce(abortError);
 
     await expect(
       streamChat({

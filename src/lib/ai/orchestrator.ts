@@ -1,16 +1,19 @@
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
-  generateText,
   isStepCount,
   type ModelMessage,
-  Output,
   type PrepareStepFunction,
   type StepResult,
   streamText,
   type ToolSet,
 } from "ai";
-import { z } from "zod";
+import {
+  type CapabilityDecision,
+  classifyCapabilities,
+  getCapabilityPlannerMode,
+  normalizeCapabilityDecision,
+} from "@/lib/ai/capability-arbitration";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
 import {
   evaluateWebSearchRule,
@@ -26,7 +29,6 @@ import {
   matchesVoiceIntent,
   shouldEnableWebFetchTool,
   shouldEnableWebSearchTool,
-  type WebSearchRuleDecision,
 } from "@/lib/ai/intent";
 import {
   getMultimodalMediaKind,
@@ -43,7 +45,6 @@ import {
   getModelById,
   getModelForUser,
   getModelIdForPlan,
-  openrouter,
 } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { getRagContext, shouldUseRag } from "@/lib/ai/rag";
@@ -68,7 +69,6 @@ import {
   formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
 import { planLegacyTurn, planTurn, type TurnPlan } from "@/lib/ai/turn-plan";
-import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
@@ -78,8 +78,6 @@ const aiLogger = createLogger("ai");
 const MULTIMODAL_ORCHESTRATOR_MODEL_ID = "google/gemini-2.5-flash-lite";
 const PROMPT_MODULE_CLASSIFIER_MODEL_ID =
   process.env.PROMPT_MODULE_CLASSIFIER_MODEL_ID || "qwen/qwen3.6-27b";
-const PROMPT_MODULE_CLASSIFIER_TIMEOUT_MS = 900;
-const PROMPT_MODULE_CLASSIFIER_MIN_CONFIDENCE = 0.7;
 const WEB_SEARCH_DEFAULT_RESULTS = 4;
 const WEB_SEARCH_DEFAULT_SNIPPET_CHARS = 180;
 const WEB_SEARCH_BRIEF_RESULTS = 3;
@@ -265,26 +263,7 @@ type FullPromptModules = {
   ragEnabled: boolean;
 };
 
-type PromptModuleClassifierDecision = {
-  webSearch: boolean;
-  webFetch: boolean;
-  rag: boolean;
-  userContext: "needed" | "not_needed";
-  confidence: number;
-  reason: string;
-  accepted: boolean;
-};
-
 type ToolTimingMetrics = NonNullable<AIMetrics["toolTiming"]>;
-
-const promptModuleClassifierSchema = z.object({
-  webSearch: z.enum(["yes", "no", "uncertain"]),
-  webFetch: z.enum(["yes", "no", "uncertain"]),
-  rag: z.enum(["yes", "no", "uncertain"]),
-  userContext: z.enum(["needed", "not_needed"]),
-  confidence: z.number().min(0).max(1),
-  reason: z.string().max(160),
-});
 
 function buildFullSystemPromptTemplate(modules: FullPromptModules) {
   return [
@@ -1290,111 +1269,71 @@ function createDirectMultimodalStreamResult(
   };
 }
 
-async function classifyPromptModules({
+function getExplicitWebRule({
+  enabled,
+  confidence,
+}: {
+  enabled: boolean;
+  confidence: "high" | "low";
+}): "required" | "allowed" | "forbidden" {
+  if (confidence === "low") return "allowed";
+  return enabled ? "required" : "forbidden";
+}
+
+function toTurnPlanClassifier(
+  decision: CapabilityDecision,
+): NonNullable<Parameters<typeof planTurn>[0]["classifier"]> | null {
+  if (decision.source === "fallback") return null;
+
+  return {
+    accepted: true,
+    webSearch: decision.webSearch,
+    webFetch: decision.webFetch,
+    rag: decision.rag,
+    userContext: decision.userContext ? "needed" : "not_needed",
+  };
+}
+
+async function arbitrateCapabilities({
   userId,
   userMessage,
+  isGuest,
+  memoryEnabled,
+  voiceAllowed,
+  responseMode,
   webSearchRule,
   abortSignal,
 }: {
   userId: string;
   userMessage: string;
-  webSearchRule: WebSearchRuleDecision;
+  isGuest: boolean;
+  memoryEnabled: boolean;
+  voiceAllowed: boolean;
+  responseMode: "text" | "voice";
+  webSearchRule: ReturnType<typeof evaluateWebSearchRule>;
   abortSignal?: AbortSignal;
-}): Promise<PromptModuleClassifierDecision | null> {
-  abortSignal?.throwIfAborted();
-  if (webSearchRule.confidence === "high") {
-    return null;
-  }
-
-  try {
-    const result = await LatencyLogger.measure(
-      "🧭 Orchestrator: Prompt module classifier",
-      () =>
-        generateText({
-          model: openrouter(PROMPT_MODULE_CLASSIFIER_MODEL_ID),
-          output: Output.object({ schema: promptModuleClassifierSchema }),
-          temperature: 0,
-          maxOutputTokens: 120,
+}): Promise<CapabilityDecision> {
+  const explicitWebRule = getExplicitWebRule(webSearchRule);
+  const classifier =
+    getCapabilityPlannerMode() === "agentic" && explicitWebRule === "allowed"
+      ? await classifyCapabilities({
+          userId,
+          userMessage,
+          context: `web_search_rule=${webSearchRule.reason}`,
+          modelId: PROMPT_MODULE_CLASSIFIER_MODEL_ID,
           abortSignal,
-          timeout: { totalMs: PROMPT_MODULE_CLASSIFIER_TIMEOUT_MS },
-          providerOptions: {
-            openrouter: getOpenRouterProviderOptionsForModel(
-              PROMPT_MODULE_CLASSIFIER_MODEL_ID,
-            ),
-          },
-          prompt: `Classify which optional prompt modules Anthon should enable for the next chat turn.
+        })
+      : null;
 
-Return webSearch=yes only when the user likely needs current, live, post-cutoff, external, or time-sensitive information.
-Return webFetch=yes only when sources, URLs, pages, articles, or detailed source reading are needed.
-Return rag=yes only when the user likely refers to uploaded documents, files, PDFs, or stored knowledge base content.
-Return userContext=needed only when personal profile, preferences, memories, or prior coaching context are materially useful.
-If unsure, use uncertain/no and lower confidence.
-
-Rule precheck:
-- web search rule reason: ${webSearchRule.reason}
-
-User message:
-${JSON.stringify(userMessage)}`,
-        }),
-    );
-
-    await trackSupportAiUsage({
-      userId,
-      modelId: PROMPT_MODULE_CLASSIFIER_MODEL_ID,
-      usage: result.usage,
-      providerMetadata: result.providerMetadata,
-    });
-
-    const output = result.output;
-    const accepted =
-      output && output.confidence >= PROMPT_MODULE_CLASSIFIER_MIN_CONFIDENCE;
-    const decision: PromptModuleClassifierDecision = {
-      webSearch: accepted && output.webSearch === "yes",
-      webFetch: accepted && output.webFetch === "yes",
-      rag: accepted && output.rag === "yes",
-      userContext: accepted ? output.userContext : "not_needed",
-      confidence: output?.confidence ?? 0,
-      reason: output?.reason ?? "no_classifier_output",
-      accepted: Boolean(accepted),
-    };
-
-    aiLogger.info(
-      "ai.prompt_modules.classifier",
-      "Prompt module classifier fallback used",
-      {
-        ruleReason: webSearchRule.reason,
-        classifierReason: decision.reason,
-        confidence: decision.confidence,
-        accepted,
-        finalModules: {
-          webSearch: decision.webSearch,
-          webFetch: decision.webFetch,
-          rag: decision.rag,
-          userContext: decision.userContext,
-        },
-        messageFeatures: {
-          hasUrl: /https?:\/\//i.test(userMessage),
-          tokenCountBucket:
-            userMessage.trim().split(/\s+/).filter(Boolean).length <= 50
-              ? "0-50"
-              : "50+",
-        },
-      },
-    );
-
-    return decision;
-  } catch (error) {
-    abortSignal?.throwIfAborted();
-    aiLogger.warn(
-      "ai.prompt_modules.classifier_failed",
-      "Prompt module classifier failed; using deterministic modules",
-      {
-        error,
-        ruleReason: webSearchRule.reason,
-      },
-    );
-    return null;
-  }
+  return normalizeCapabilityDecision({
+    userMessage,
+    isGuest,
+    memoryEnabled,
+    voiceAllowed,
+    responseMode,
+    explicitWebRule,
+    classifier,
+  });
 }
 
 /**
@@ -1473,14 +1412,29 @@ export async function streamChat({
   });
   const hasFileParts = messageParts?.some((p) => p.type === "file") ?? false;
   const webSearchRule = evaluateWebSearchRule(userMessage);
-  const promptModuleClassifierPromise = classifyPromptModules({
+  const voiceEnabledResult = isGuest
+    ? false
+    : await (async () => {
+        const { getVoicePlanConfig } = await import("@/lib/voice");
+        const planConfig = getVoicePlanConfig(
+          subscriptionStatus,
+          userRole,
+          planId,
+          isGuest,
+          effectiveEntitlements.modelTier,
+        );
+        return planConfig.enabled && (voiceEnabled ?? true);
+      })();
+  const capabilityDecision = await arbitrateCapabilities({
     userId,
     userMessage,
+    isGuest,
+    memoryEnabled,
+    voiceAllowed: voiceEnabledResult,
+    responseMode,
     webSearchRule,
     abortSignal,
   });
-
-  const promptModuleClassifier = await promptModuleClassifierPromise;
   const inputOrigin =
     requestedInputOrigin ??
     (hasImages || hasAudio || hasFileParts ? "direct_media" : "text");
@@ -1490,9 +1444,9 @@ export async function streamChat({
     isFirstTurn: skipConversationHistory,
     inputOrigin,
     outputMode: responseMode,
-    webSearchEnabled: webSearchRule.enabled,
-    webFetchEnabled: shouldEnableWebFetchTool(userMessage),
-    classifier: promptModuleClassifier,
+    webSearchEnabled: capabilityDecision.webSearch,
+    webFetchEnabled: capabilityDecision.webFetch,
+    classifier: toTurnPlanClassifier(capabilityDecision),
     fullMaxRawTurns: Math.max(
       1,
       Math.floor(effectiveEntitlements.limits.maxContextMessages / 2),
@@ -1513,9 +1467,8 @@ export async function streamChat({
     userMessage,
     benchmarkModelId,
   );
-  const classifierRagEnabled = Boolean(
-    promptModuleClassifier?.accepted && promptModuleClassifier.rag,
-  );
+  const classifierRagEnabled =
+    capabilityDecision.source !== "fallback" && capabilityDecision.rag;
   const userContextEnabled = turnPlan.capabilities.userContext;
   const conversationHistoryPromise =
     turnPlan.history.scope === "none"
@@ -1698,22 +1651,6 @@ export async function streamChat({
     conversationHistoryPromise,
     directWebSearchPromise,
   ]);
-
-  // Calculate if voice is enabled for this user/plan. Guest web chat has no
-  // voice output, so avoid loading plan config on its critical path.
-  const voiceEnabledResult = isGuest
-    ? false
-    : await (async () => {
-        const { getVoicePlanConfig } = await import("@/lib/voice");
-        const planConfig = getVoicePlanConfig(
-          subscriptionStatus,
-          userRole,
-          planId,
-          isGuest,
-          effectiveEntitlements.modelTier,
-        );
-        return planConfig.enabled && (voiceEnabled ?? true);
-      })();
 
   // Analyze user style from history (heuristic)
   const userStyleInstruction = analyzeUserStyle(conversationHistory);
@@ -1951,7 +1888,7 @@ export async function streamChat({
       userMessage,
       systemPrompt: effectiveSystemPrompt,
       messages: effectiveMessages as unknown as Record<string, unknown>,
-      classifier: promptModuleClassifier,
+      capabilityDecision,
       history: {
         scope: turnPlan.history.scope,
         includedMessageCount: conversationHistory.length,
@@ -2258,9 +2195,13 @@ export async function prepareChatTurn({
       isGuest: false,
     }));
   const webSearchRule = evaluateWebSearchRule(userMessage);
-  const classifier = await classifyPromptModules({
+  const capabilityDecision = await arbitrateCapabilities({
     userId,
     userMessage,
+    isGuest: false,
+    memoryEnabled,
+    voiceAllowed: false,
+    responseMode: "text",
     webSearchRule,
     abortSignal,
   });
@@ -2271,9 +2212,9 @@ export async function prepareChatTurn({
     isFirstTurn: skipConversationHistory,
     inputOrigin: "text" as const,
     outputMode: "text" as const,
-    webSearchEnabled: webSearchRule.enabled,
-    webFetchEnabled: shouldEnableWebFetchTool(userMessage),
-    classifier,
+    webSearchEnabled: capabilityDecision.webSearch,
+    webFetchEnabled: capabilityDecision.webFetch,
+    classifier: toTurnPlanClassifier(capabilityDecision),
     fullMaxRawTurns: Math.max(
       1,
       Math.floor(effectiveEntitlements.limits.maxContextMessages / 2),
@@ -2302,7 +2243,8 @@ export async function prepareChatTurn({
             userMessageId,
           )
         ).messages;
-  const classifierRagEnabled = Boolean(classifier?.accepted && classifier.rag);
+  const classifierRagEnabled =
+    capabilityDecision.source !== "fallback" && capabilityDecision.rag;
   const ragResult = turnPlan.capabilities.rag
     ? await (async () => {
         try {
