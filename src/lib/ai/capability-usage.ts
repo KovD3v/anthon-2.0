@@ -1,3 +1,5 @@
+import type { CapabilityDecision } from "./capability-arbitration";
+
 export const CAPABILITY_USAGE_VALUES = [
   "rag",
   "web",
@@ -31,6 +33,33 @@ export function normalizePreDeliveryCapabilityUsage(
   return normalizeCapabilityUsage(value).filter(
     (capability) => capability !== "voice",
   );
+}
+
+export function filterCapabilityUsageByDecision(
+  value: unknown,
+  decision: CapabilityDecision | undefined,
+  plannerMode: "legacy" | "agentic",
+): CapabilityUsage[] {
+  const capabilities = normalizeCapabilityUsage(value);
+  if (!decision || plannerMode === "legacy") return capabilities;
+
+  return capabilities.filter((capability) => {
+    switch (capability) {
+      case "rag":
+        return decision.rag;
+      case "web":
+        return decision.webSearch || decision.webFetch;
+      case "memory":
+        return (
+          decision.memoryRead || decision.memoryWrite || decision.memoryDelete
+        );
+      case "routine":
+        return decision.routineProposal;
+      case "voice":
+        return decision.voiceOutput;
+    }
+    return false;
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

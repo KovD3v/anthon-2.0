@@ -40,9 +40,24 @@ export type CapabilityArbitrationInput = {
   responseMode: "text" | "voice";
   explicitWebRule: "required" | "allowed" | "forbidden";
   allowConcurrentRoutineAndWeb?: boolean;
+  requireClassifierRoutineProposal?: boolean;
+  hasPendingMemoryApproval?: boolean;
   resolvedMemoryTarget?: string | null;
   classifier: Partial<CapabilityDecision> | null;
 };
+
+export function freezeCapabilityDecision(
+  decision: CapabilityDecision,
+): CapabilityDecision {
+  if (Object.isFrozen(decision) && Object.isFrozen(decision.reasonCodes)) {
+    return decision;
+  }
+
+  return Object.freeze({
+    ...decision,
+    reasonCodes: Object.freeze([...decision.reasonCodes]),
+  }) as unknown as CapabilityDecision;
+}
 
 const classifierCapabilities = [
   "rag",
@@ -235,7 +250,10 @@ export function normalizeCapabilityDecision(
   let memoryRead =
     persistentMemoryAllowed && (explicitMemoryRead || proposed("memoryRead"));
   let memoryWrite =
-    persistentMemoryAllowed && (explicitMemoryWrite || proposed("memoryWrite"));
+    persistentMemoryAllowed &&
+    (explicitMemoryWrite ||
+      proposed("memoryWrite") ||
+      input.hasPendingMemoryApproval === true);
   const resolvedMemoryTarget = normalizeResolvedMemoryTarget(
     input.resolvedMemoryTarget,
   );
@@ -280,6 +298,8 @@ export function normalizeCapabilityDecision(
   const routineProposal =
     (matchesRoutineProposalIntent(input.userMessage) ||
       proposed("routineProposal")) &&
+    (input.requireClassifierRoutineProposal !== true ||
+      proposed("routineProposal")) &&
     (input.allowConcurrentRoutineAndWeb === true || !webSearch) &&
     input.responseMode !== "voice";
   const voiceOutput = input.responseMode === "voice" && input.voiceAllowed;
@@ -303,7 +323,7 @@ export function normalizeCapabilityDecision(
       ? "mixed"
       : "classifier";
 
-  return {
+  return freezeCapabilityDecision({
     rag,
     webSearch,
     webFetch,
@@ -316,7 +336,7 @@ export function normalizeCapabilityDecision(
     voiceOutput,
     source,
     reasonCodes,
-  };
+  });
 }
 
 export function getCapabilityPlannerMode(): "legacy" | "agentic" {

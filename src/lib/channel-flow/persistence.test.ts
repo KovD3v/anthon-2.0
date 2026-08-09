@@ -186,7 +186,6 @@ describe("channel-flow/persistence", () => {
   });
 
   it("does not schedule the legacy extractor for an agentic turn with no memory tool call", async () => {
-    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
     const waitUntil = vi.fn();
 
     await persistAssistantOutput({
@@ -208,11 +207,95 @@ describe("channel-flow/persistence", () => {
         reasoningTimeMs: null,
       },
       allowMemoryExtraction: true,
+      capabilityPlannerMode: "agentic",
       waitUntil,
     });
 
     expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
     expect(waitUntil).not.toHaveBeenCalled();
+  });
+
+  it("does not infer planner mode from process state during persistence", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+
+    await persistAssistantOutput({
+      userId: "user-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "I train on Tuesday and Thursday.",
+      metrics: {
+        model: "test-model",
+        inputTokens: 5,
+        outputTokens: 8,
+        reasoningTokens: 0,
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.02,
+        generationTimeMs: 111,
+        reasoningTimeMs: null,
+      },
+      allowMemoryExtraction: true,
+    });
+
+    expect(mocks.extractAndSaveMemories).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists only completed capabilities allowed by the immutable agentic decision", async () => {
+    await persistAssistantOutput({
+      userId: "user-1",
+      channel: "TELEGRAM",
+      text: "assistant",
+      userMessageText: "latest result",
+      metrics: {
+        model: "test-model",
+        inputTokens: 5,
+        outputTokens: 8,
+        reasoningTokens: 0,
+        toolCalls: [
+          { name: "tinyfishSearch", status: "completed" },
+          { name: "saveMemory", status: "completed" },
+        ],
+        capabilitiesUsed: ["web", "memory"],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.02,
+        generationTimeMs: 111,
+        reasoningTimeMs: null,
+      },
+      capabilityDecision: Object.freeze({
+        rag: false,
+        webSearch: true,
+        webFetch: false,
+        memoryRead: false,
+        memoryWrite: false,
+        memoryDelete: false,
+        memoryDeleteTarget: null,
+        routineProposal: false,
+        userContext: false,
+        voiceOutput: false,
+        source: "classifier",
+        reasonCodes: [],
+      }),
+      capabilityPlannerMode: "agentic",
+    });
+
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          parts: [
+            { type: "text", text: "assistant" },
+            {
+              type: "data-aiCapabilities",
+              data: { capabilities: ["web"] },
+            },
+          ],
+          metadata: {
+            ai: { capabilitiesUsed: ["web"] },
+          },
+        }),
+      }),
+    );
   });
 
   it("persists only safe aggregate tool metadata", async () => {

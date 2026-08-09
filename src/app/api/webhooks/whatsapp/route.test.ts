@@ -2307,6 +2307,12 @@ describe("/api/webhooks/whatsapp", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isGuest: false,
+        memoryEnabled: true,
+      }),
+    );
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,

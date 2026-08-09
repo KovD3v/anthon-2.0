@@ -890,6 +890,8 @@ describe("POST /api/chat", () => {
     expect(streamArgs).toMatchObject({
       userId: "user-1",
       chatId: "chat-1",
+      isGuest: false,
+      memoryEnabled: true,
       userMessage:
         "hello\n\nTrascrizione del messaggio vocale allegato:\ntrascrizione del vocale",
       hasImages: true,
@@ -1307,6 +1309,21 @@ describe("POST /api/chat", () => {
   );
 
   it("persists a voice-first transcript and queues TTS without waiting for audio", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    const capabilityDecision = Object.freeze({
+      rag: false,
+      webSearch: false,
+      webFetch: false,
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      memoryDeleteTarget: null,
+      routineProposal: false,
+      userContext: false,
+      voiceOutput: true,
+      source: "classifier" as const,
+      reasonCodes: Object.freeze([]),
+    });
     mocks.decideWebVoiceMode.mockResolvedValue({
       mode: "VOICE",
       reason: "User explicitly requested voice",
@@ -1328,6 +1345,8 @@ describe("POST /api/chat", () => {
           generationTimeMs: 250,
           reasoningTimeMs: 0,
         },
+        capabilityDecision,
+        capabilityPlannerMode: "agentic",
       });
 
       return {
@@ -1362,6 +1381,7 @@ describe("POST /api/chat", () => {
     expect(mocks.generateVoice).not.toHaveBeenCalled();
     expect(mocks.putPrivateVoiceBlob).not.toHaveBeenCalled();
     expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
+    expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
     expect(mocks.voiceGenerationJobCreate).toHaveBeenCalledWith({
       data: {
         messageId: "msg-assistant-1",

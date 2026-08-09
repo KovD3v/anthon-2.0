@@ -14,6 +14,7 @@ import {
   getCapabilityPlannerMode,
   normalizeCapabilityDecision,
 } from "@/lib/ai/capability-arbitration";
+import { filterCapabilityUsageByDecision } from "@/lib/ai/capability-usage";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
 import {
   evaluateWebSearchRule,
@@ -376,7 +377,12 @@ interface StreamChatOptions {
     attachmentId?: string;
     [key: string]: unknown;
   }>;
-  onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
+  onFinish?: (result: {
+    text: string;
+    metrics: AIMetrics;
+    capabilityDecision: CapabilityDecision;
+    capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
+  }) => void;
   onStepFinish?: (step: {
     text?: string;
     toolCalls?: unknown[];
@@ -815,7 +821,9 @@ function toolPlanFromTurnPlan(
 ): ToolPlan {
   const memoryDelete = turnPlan.capabilities.memoryDelete;
   const memoryWrite =
-    capabilityPlannerMode === "agentic" && turnPlan.capabilities.memoryWrite;
+    capabilityPlannerMode === "agentic" &&
+    turnPlan.capabilities.memoryWrite &&
+    !hasPendingMemoryApproval;
   const memoryApprovalResolve = hasPendingMemoryApproval;
   const hasPersistentWrites =
     turnPlan.capabilities.memoryWrite ||
@@ -1359,6 +1367,7 @@ async function arbitrateCapabilities({
   responseMode,
   webSearchRule,
   resolvedMemoryTarget,
+  hasPendingMemoryApproval,
   capabilityPlannerMode,
   abortSignal,
 }: {
@@ -1370,6 +1379,7 @@ async function arbitrateCapabilities({
   responseMode: "text" | "voice";
   webSearchRule: ReturnType<typeof evaluateWebSearchRule>;
   resolvedMemoryTarget: string | null;
+  hasPendingMemoryApproval: boolean;
   capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
   abortSignal?: AbortSignal;
 }): Promise<CapabilityDecision> {
@@ -1393,20 +1403,13 @@ async function arbitrateCapabilities({
     responseMode,
     explicitWebRule,
     allowConcurrentRoutineAndWeb: capabilityPlannerMode === "agentic",
+    requireClassifierRoutineProposal: capabilityPlannerMode === "agentic",
+    hasPendingMemoryApproval:
+      capabilityPlannerMode === "agentic" && hasPendingMemoryApproval,
     resolvedMemoryTarget,
     classifier,
   });
-
-  if (capabilityPlannerMode !== "agentic") {
-    return normalizedDecision;
-  }
-
-  return {
-    ...normalizedDecision,
-    routineProposal:
-      normalizedDecision.routineProposal &&
-      classifier?.routineProposal === true,
-  };
+  return normalizedDecision;
 }
 
 /**
@@ -1488,6 +1491,10 @@ export async function streamChat({
   const hasFileParts = messageParts?.some((p) => p.type === "file") ?? false;
   const webSearchRule = evaluateWebSearchRule(userMessage);
   const capabilityPlannerMode = getCapabilityPlannerMode();
+  const attributablePendingMemoryApproval =
+    pendingMemoryApproval?.userId === userId
+      ? pendingMemoryApproval
+      : undefined;
   const voiceEnabledResult = isGuest
     ? false
     : await (async () => {
@@ -1510,6 +1517,7 @@ export async function streamChat({
     responseMode,
     webSearchRule,
     resolvedMemoryTarget,
+    hasPendingMemoryApproval: Boolean(attributablePendingMemoryApproval),
     capabilityPlannerMode,
     abortSignal,
   });
@@ -1547,10 +1555,6 @@ export async function streamChat({
       : turnPlan.promptProfile === "guest"
         ? "guest"
         : "full";
-  const attributablePendingMemoryApproval =
-    pendingMemoryApproval?.userId === userId
-      ? pendingMemoryApproval
-      : undefined;
   const toolPlan = toolPlanFromTurnPlan(
     turnPlan,
     userMessage,
@@ -2047,7 +2051,17 @@ export async function streamChat({
       telemetryContext,
       onFinish: onFinish
         ? async ({ text, metrics }) => {
-            await onFinish({ text, metrics: attachTurnTrace(metrics) });
+            metrics.capabilitiesUsed = filterCapabilityUsageByDecision(
+              metrics.capabilitiesUsed,
+              capabilityDecision,
+              capabilityPlannerMode,
+            );
+            await onFinish({
+              text,
+              metrics: attachTurnTrace(metrics),
+              capabilityDecision,
+              capabilityPlannerMode,
+            });
           }
         : undefined,
       abortSignal,
@@ -2136,6 +2150,11 @@ export async function streamChat({
         routineUsed: routineProposal !== undefined,
         voiceOutput: capabilityDecision.voiceOutput,
       });
+      metrics.capabilitiesUsed = filterCapabilityUsageByDecision(
+        metrics.capabilitiesUsed,
+        capabilityDecision,
+        capabilityPlannerMode,
+      );
       if (routineProposal !== undefined) {
         metrics.routineProposal = routineProposal;
       }
@@ -2154,7 +2173,12 @@ export async function streamChat({
 
       if (onFinish) {
         attachTurnTrace(metrics);
-        await onFinish({ text, metrics });
+        await onFinish({
+          text,
+          metrics,
+          capabilityDecision,
+          capabilityPlannerMode,
+        });
       }
     },
     onStepEnd: (step: StepResult<ToolSet>) => {
@@ -2293,6 +2317,8 @@ export interface PreparedChatTurn {
   systemPrompt: string;
   messages: ModelMessage[];
   turnPlan: TurnPlan;
+  capabilityDecision: CapabilityDecision;
+  capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
   promptMode: PromptMode;
   ragUsed: boolean;
   ragChunksCount: number;
@@ -2341,6 +2367,7 @@ export async function prepareChatTurn({
     responseMode: "text",
     webSearchRule,
     resolvedMemoryTarget,
+    hasPendingMemoryApproval: false,
     capabilityPlannerMode,
     abortSignal,
   });
@@ -2484,7 +2511,7 @@ export async function prepareChatTurn({
     systemPrompt,
     [...history, { role: "user", content: userMessage }],
   );
-  return {
+  return Object.freeze({
     userId,
     chatId,
     conversationThreadId,
@@ -2496,11 +2523,13 @@ export async function prepareChatTurn({
     systemPrompt: normalizedConversation.systemPrompt,
     messages: normalizedConversation.messages,
     turnPlan,
+    capabilityDecision,
+    capabilityPlannerMode,
     promptMode,
     ragUsed,
     ragChunksCount: ragResult.chunkCount,
     ragAttempted: ragResult.attempted,
-  };
+  });
 }
 
 export interface ExecutePreparedChatTurnOptions {
@@ -2606,6 +2635,11 @@ export function executePreparedChatTurn({
         ragUsed: prepared.ragUsed,
         ragChunksCount: prepared.ragChunksCount,
       });
+      metrics.capabilitiesUsed = filterCapabilityUsageByDecision(
+        metrics.capabilitiesUsed,
+        prepared.capabilityDecision,
+        prepared.capabilityPlannerMode,
+      );
       captureAiGenerationMetadata({ context: telemetryContext, metrics });
 
       if (onFinish) {

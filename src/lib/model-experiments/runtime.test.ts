@@ -11,6 +11,7 @@ type VariantOutcome =
 
 const mocks = vi.hoisted(() => ({
   streamOptions: null as StreamOptions | null,
+  preparedCapabilityDecision: null as Record<string, unknown> | null,
   outcomes: new Map<string, VariantOutcome>(),
   createUIMessageStream: vi.fn(),
   createUIMessageStreamResponse: vi.fn(),
@@ -217,10 +218,27 @@ describe("model comparison runtime", () => {
       status: "FAILED",
     });
     mocks.finalizePair.mockResolvedValue({ id: "pair-1", status: "READY" });
+    const capabilityDecision = Object.freeze({
+      rag: true,
+      webSearch: false,
+      webFetch: false,
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      memoryDeleteTarget: null,
+      routineProposal: false,
+      userContext: true,
+      voiceOutput: false,
+      source: "classifier",
+      reasonCodes: Object.freeze([]),
+    });
+    mocks.preparedCapabilityDecision = capabilityDecision;
     mocks.prepareChatTurn.mockResolvedValue({
       promptMode: "full",
       effectiveModelTier: "standard",
       turnPlan: {},
+      capabilityDecision,
+      capabilityPlannerMode: "agentic",
     });
     mocks.createPair.mockResolvedValue({ pair, noticeRequired: true });
     mocks.markExposed.mockResolvedValue(undefined);
@@ -257,6 +275,9 @@ describe("model comparison runtime", () => {
     for (const [options] of mocks.executePreparedChatTurn.mock.calls) {
       expect(options).toEqual(
         expect.objectContaining({ abortSignal: input.request.signal }),
+      );
+      expect(options.prepared.capabilityDecision).toBe(
+        mocks.preparedCapabilityDecision,
       );
     }
     expect(mocks.updateResponse).toHaveBeenCalledWith({

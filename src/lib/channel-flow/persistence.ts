@@ -1,8 +1,8 @@
 import type { Prisma } from "@/generated/prisma";
-import { getCapabilityPlannerMode } from "@/lib/ai/capability-arbitration";
 import {
   appendDeliveredCapabilityToMetadata,
   appendDeliveredCapabilityToParts,
+  filterCapabilityUsageByDecision,
   normalizePreDeliveryCapabilityUsage,
 } from "@/lib/ai/capability-usage";
 import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
@@ -183,7 +183,8 @@ export async function persistAssistantOutput({
   updateChatTimestamp = false,
   revalidateTags: tags = [],
   allowMemoryExtraction = false,
-  capabilityPlannerMode = getCapabilityPlannerMode(),
+  capabilityDecision,
+  capabilityPlannerMode = "legacy",
   waitUntil,
   voiceGeneration,
   usageReservationId,
@@ -191,7 +192,17 @@ export async function persistAssistantOutput({
   usageAlreadyReconciled = false,
   externalInboundClaimToken,
 }: PersistAssistantOutputInput) {
-  const assistantMetadata = buildAssistantMetadata(metadata, metrics);
+  const persistedMetrics = capabilityDecision
+    ? {
+        ...metrics,
+        capabilitiesUsed: filterCapabilityUsageByDecision(
+          metrics.capabilitiesUsed,
+          capabilityDecision,
+          capabilityPlannerMode,
+        ),
+      }
+    : metrics;
+  const assistantMetadata = buildAssistantMetadata(metadata, persistedMetrics);
   const directRoutineProposal = storedRoutineProposalSchema.safeParse(
     metrics.routineProposal,
   );
@@ -200,7 +211,7 @@ export async function persistAssistantOutput({
     : getRoutineProposalFromToolCalls(metrics.toolCalls);
   const safeToolCalls = redactToolCalls(metrics.toolCalls);
   const capabilitiesUsed = normalizePreDeliveryCapabilityUsage(
-    metrics.capabilitiesUsed,
+    persistedMetrics.capabilitiesUsed,
   );
 
   const persisted = await prisma.$transaction(async (tx) => {

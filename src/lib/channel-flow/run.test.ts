@@ -34,6 +34,7 @@ vi.mock("@/lib/ai/memory-target", () => ({
   resolveExactMemoryDeleteTarget: mocks.resolveExactMemoryDeleteTarget,
 }));
 
+import type { CapabilityDecision } from "@/lib/ai/capability-arbitration";
 import { runChannelFlow } from "./run";
 
 type StreamResponseOptions = {
@@ -117,6 +118,79 @@ describe("channel-flow/run", () => {
         userMessage: "hello",
       }),
     );
+  });
+
+  it("passes the exact streamed decision to persistence without rereading planner mode", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "legacy");
+    const capabilityDecision = Object.freeze({
+      rag: false,
+      webSearch: true,
+      webFetch: false,
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      memoryDeleteTarget: null,
+      routineProposal: false,
+      userContext: false,
+      voiceOutput: false,
+      source: "classifier" as const,
+      reasonCodes: Object.freeze([]),
+    }) as unknown as CapabilityDecision;
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "answer",
+        metrics: {
+          model: "test-model",
+          inputTokens: 1,
+          outputTokens: 1,
+          reasoningTokens: null,
+          reasoningContent: null,
+          toolCalls: [{ name: "tinyfishSearch", status: "completed" }],
+          capabilitiesUsed: ["web"],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0,
+          generationTimeMs: 1,
+          reasoningTimeMs: null,
+        },
+        capabilityDecision,
+        capabilityPlannerMode: "agentic",
+      });
+      return {
+        textStream: (async function* () {
+          yield "answer";
+        })(),
+      };
+    });
+
+    const result = await runChannelFlow({
+      channel: "TELEGRAM",
+      userId: "user-1",
+      conversationThreadId: "thread-1",
+      userMessageId: "message-1",
+      userMessageText: "latest result",
+      parts: [{ type: "text", text: "latest result" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: false,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: false,
+      },
+      execution: { mode: "text" },
+      persistence: { channel: "TELEGRAM", saveAssistantMessage: true },
+    });
+
+    expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
+      expect.objectContaining({
+        capabilityDecision,
+        capabilityPlannerMode: "agentic",
+      }),
+    );
+    expect(
+      mocks.persistAssistantOutput.mock.calls[0]?.[0].capabilityDecision,
+    ).toBe(capabilityDecision);
+    expect(result.capabilityDecision).toBe(capabilityDecision);
+    expect(result.capabilityPlannerMode).toBe("agentic");
   });
 
   it("removes tool payloads from the shared live UI stream", async () => {

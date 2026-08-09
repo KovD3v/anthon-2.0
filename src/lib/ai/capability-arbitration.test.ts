@@ -44,6 +44,27 @@ describe("capability arbitration", () => {
     expect(decision.routineProposal).toBe(true);
   });
 
+  it("requires classifier selection when agentic routine arbitration requests it", () => {
+    const decision = arbitrate({
+      userMessage: "Dammi una routine mentale prima della gara",
+      requireClassifierRoutineProposal: true,
+      classifier: { routineProposal: false },
+    });
+
+    expect(decision.routineProposal).toBe(false);
+  });
+
+  it("normalizes an attributable pending approval into the immutable decision", () => {
+    const decision = arbitrate({
+      userMessage: "Sì, confermo.",
+      hasPendingMemoryApproval: true,
+    });
+
+    expect(decision.memoryWrite).toBe(true);
+    expect(Object.isFrozen(decision)).toBe(true);
+    expect(Object.isFrozen(decision.reasonCodes)).toBe(true);
+  });
+
   it("clears classifier web capabilities when the web rule forbids them", () => {
     const decision = arbitrate({
       explicitWebRule: "forbidden",

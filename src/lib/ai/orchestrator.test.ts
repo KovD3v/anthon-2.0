@@ -129,6 +129,7 @@ vi.mock("./capability-arbitration", async (importOriginal) => {
   };
 });
 
+import type { CapabilityDecision } from "./capability-arbitration";
 import {
   executePreparedChatTurn,
   prepareChatTurn,
@@ -178,9 +179,29 @@ const baseEntitlements = {
     maxUploadsPerDay: 25,
     maxUploadBytesPerDay: 250 * 1024 * 1024,
   },
-  modelTier: "BASIC",
+  modelTier: "BASIC" as const,
   sources: [],
 };
+
+function frozenCapabilityDecision(
+  overrides: Partial<CapabilityDecision> = {},
+): CapabilityDecision {
+  return Object.freeze({
+    rag: false,
+    webSearch: false,
+    webFetch: false,
+    memoryRead: false,
+    memoryWrite: false,
+    memoryDelete: false,
+    memoryDeleteTarget: null,
+    routineProposal: false,
+    userContext: false,
+    voiceOutput: false,
+    source: "classifier" as const,
+    reasonCodes: Object.freeze([]),
+    ...overrides,
+  }) as unknown as CapabilityDecision;
+}
 
 describe("ai/orchestrator", () => {
   beforeEach(() => {
@@ -375,6 +396,8 @@ describe("ai/orchestrator", () => {
         turnPlan: {
           responseLength: "brief",
         } as never,
+        capabilityDecision: frozenCapabilityDecision(),
+        capabilityPlannerMode: "legacy",
         promptMode: "full",
         ragAttempted: false,
         ragUsed: false,
@@ -420,6 +443,8 @@ describe("ai/orchestrator", () => {
         turnPlan: {
           responseLength: "brief",
         } as never,
+        capabilityDecision: frozenCapabilityDecision(),
+        capabilityPlannerMode: "legacy",
         promptMode: "full",
         ragAttempted: false,
         ragUsed: false,
@@ -437,6 +462,51 @@ describe("ai/orchestrator", () => {
     expect(mocks.streamText).toHaveBeenCalledWith(
       expect.objectContaining({ maxOutputTokens: undefined }),
     );
+  });
+
+  it("never exposes executable memory or routine tools for prepared comparisons", () => {
+    const capabilityDecision = frozenCapabilityDecision({
+      memoryRead: true,
+      memoryWrite: true,
+      memoryDelete: true,
+      routineProposal: true,
+    });
+
+    executePreparedChatTurn({
+      prepared: {
+        userId: "user-1",
+        chatId: "chat-comparison-tools",
+        conversationThreadId: "thread-1",
+        userMessageId: "message-1",
+        userMessage: "help me focus",
+        planId: "basic",
+        userRole: "USER",
+        effectiveModelTier: "BASIC",
+        systemPrompt: "coach prompt",
+        messages: [{ role: "user", content: "help me focus" }],
+        turnPlan: { responseLength: "normal" } as never,
+        capabilityDecision,
+        capabilityPlannerMode: "agentic",
+        promptMode: "full",
+        ragAttempted: false,
+        ragUsed: false,
+        ragChunksCount: 0,
+      },
+      modelId: "provider/candidate",
+      generationConfig: { fallbacks: false },
+      clerkId: "clerk-1",
+      traceId: "trace-1",
+      experimentId: "experiment-1",
+      pairId: "pair-1",
+      role: "CANDIDATE",
+    });
+
+    const streamInput = mocks.streamText.mock.calls.at(-1)?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(streamInput).not.toHaveProperty("tools");
+    expect(streamInput).not.toHaveProperty("prepareStep");
   });
 
   it("forwards abort signals to experiment prompt preparation", async () => {
@@ -457,6 +527,91 @@ describe("ai/orchestrator", () => {
     expect(mocks.classifyCapabilities).toHaveBeenCalledWith(
       expect.objectContaining({ abortSignal: abortController.signal }),
     );
+  });
+
+  it("plans once and freezes the capability decision in a prepared turn", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValue({
+      rag: true,
+      memoryWrite: true,
+      routineProposal: true,
+    });
+    mocks.getRagContext.mockResolvedValue({
+      text: "prepared evidence",
+      chunkCount: 1,
+    });
+
+    const prepared = await prepareChatTurn({
+      userId: "user-1",
+      chatId: "chat-prepared-decision",
+      conversationThreadId: "thread-1",
+      userMessageId: "message-1",
+      userMessage: "Cerca fonti e aiutami a preparare una routine",
+      effectiveEntitlements: baseEntitlements as never,
+      skipConversationHistory: true,
+    });
+
+    expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
+    expect(Object.isFrozen(prepared.capabilityDecision)).toBe(true);
+    expect(Object.isFrozen(prepared.capabilityDecision.reasonCodes)).toBe(true);
+    expect(prepared.capabilityDecision).toMatchObject({
+      rag: true,
+      memoryWrite: true,
+      routineProposal: true,
+    });
+  });
+
+  it("reuses one decision for normal tools, metrics, and finish persistence", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValue({
+      webSearch: true,
+      webFetch: false,
+    });
+    const metrics = {
+      model: "google/gemini-test",
+      inputTokens: 10,
+      outputTokens: 20,
+      reasoningTokens: null,
+      reasoningContent: null,
+      toolCalls: [{ name: "tinyfishSearch", status: "completed" }],
+      capabilitiesUsed: ["web", "memory"],
+      ragUsed: false,
+      ragChunksCount: 0,
+      costUsd: 0.1,
+      generationTimeMs: 123,
+      reasoningTimeMs: null,
+    };
+    mocks.extractAIMetrics.mockReturnValue(metrics);
+    const onFinish = vi.fn();
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-shared-decision",
+      userMessage: "Cerca gli ultimi risultati",
+      effectiveEntitlements: baseEntitlements,
+      onFinish,
+    });
+
+    const streamInput = mocks.streamText.mock.calls.at(-1)?.[0] as {
+      tools: Record<string, unknown>;
+      onEnd: (input: Record<string, unknown>) => Promise<void>;
+    };
+    expect(streamInput.tools).toHaveProperty("tinyfishSearch");
+    await streamInput.onEnd({
+      text: "risposta",
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+    });
+
+    expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
+    const finishResult = onFinish.mock.calls[0]?.[0] as {
+      capabilityDecision: CapabilityDecision;
+      capabilityPlannerMode: string;
+      metrics: { capabilitiesUsed?: string[] };
+    };
+    expect(Object.isFrozen(finishResult.capabilityDecision)).toBe(true);
+    expect(finishResult.capabilityDecision.webSearch).toBe(true);
+    expect(finishResult.capabilityPlannerMode).toBe("agentic");
+    expect(finishResult.metrics.capabilitiesUsed).toEqual(["web"]);
   });
 
   it("does not downgrade an aborted experiment classifier to fallback planning", async () => {
@@ -2291,6 +2446,32 @@ describe("ai/orchestrator", () => {
     });
   });
 
+  it("allows agentic guest web search while denying every memory capability", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValueOnce({
+      webSearch: true,
+      memoryRead: true,
+      memoryWrite: true,
+      memoryDelete: true,
+      userContext: true,
+    });
+
+    await streamChat({
+      userId: "guest-1",
+      chatId: "chat-agentic-guest-web",
+      userMessage: "Mi aggiorni sulla situazione di Messi?",
+      isGuest: true,
+      memoryEnabled: true,
+    });
+
+    const streamInput = mocks.streamText.mock.calls.at(-1)?.[0] as {
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).toEqual({ tinyfishSearch: "tinyfish-tool" });
+    expect(mocks.createMemoryTools).not.toHaveBeenCalled();
+    expect(mocks.createUserContextTools).not.toHaveBeenCalled();
+  });
+
   it("keeps TinyFish fetch available for source and article requests", async () => {
     await streamChat({
       userId: "user-1",
@@ -2402,6 +2583,7 @@ describe("ai/orchestrator", () => {
 
   it("exposes approval resolution only for the server-attributed immediate follow-up", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    const onFinish = vi.fn();
     const pendingMemoryApproval = {
       id: "approval-1",
       userId: "user-1",
@@ -2418,12 +2600,14 @@ describe("ai/orchestrator", () => {
       chatId: "chat-agentic-memory-approval",
       conversationThreadId: "thread-1",
       userMessageId: "inbound-current",
-      userMessage: "Sì, salvalo in memoria.",
+      userMessage: "Sì, confermo.",
       pendingMemoryApproval,
+      onFinish,
     });
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       tools: Record<string, unknown>;
+      onEnd: (input: Record<string, unknown>) => Promise<void>;
     };
     expect(streamInput.tools).toEqual({
       resolveMemoryApproval: "memory-approval-resolve-tool",
@@ -2432,6 +2616,13 @@ describe("ai/orchestrator", () => {
       pendingMemoryApproval,
       currentUserMessageId: "inbound-current",
     });
+    await streamInput.onEnd({
+      text: "Confermato.",
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+    });
+    expect(onFinish.mock.calls[0]?.[0].capabilityDecision.memoryWrite).toBe(
+      true,
+    );
   });
 
   it("keeps brief web search as a native tool in agentic mode", async () => {
@@ -3280,17 +3471,21 @@ describe("ai/orchestrator", () => {
         },
       }),
     );
-    expect(userOnFinish).toHaveBeenCalledWith({
-      text: "assistant response",
-      metrics: expect.objectContaining({
-        model: "google/gemini-test",
-        ragUsed: true,
-        ragChunksCount: 2,
-        tracePayload: expect.objectContaining({
-          toolCalls: [{ name: "saveMemory", status: "completed" }],
+    expect(userOnFinish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "assistant response",
+        capabilityDecision: expect.any(Object),
+        capabilityPlannerMode: "legacy",
+        metrics: expect.objectContaining({
+          model: "google/gemini-test",
+          ragUsed: true,
+          ragChunksCount: 2,
+          tracePayload: expect.objectContaining({
+            toolCalls: [{ name: "saveMemory", status: "completed" }],
+          }),
         }),
       }),
-    });
+    );
   });
 
   it("waits for async onFinish work before resolving the stream finish callback", async () => {

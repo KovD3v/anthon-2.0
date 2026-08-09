@@ -4,7 +4,7 @@ import {
   type UIMessage,
   type UIMessageChunk,
 } from "ai";
-import { getCapabilityPlannerMode } from "@/lib/ai/capability-arbitration";
+import type { CapabilityDecision } from "@/lib/ai/capability-arbitration";
 import {
   type CapabilityUsage,
   normalizePreDeliveryCapabilityUsage,
@@ -158,7 +158,8 @@ export async function runChannelFlow(
     : ctx.parts.filter((part) => part.type === "text");
   const normalizedParts = normalizeParts(policyParts);
   const mode = ctx.execution?.mode ?? "text";
-  const capabilityPlannerMode = getCapabilityPlannerMode();
+  let capabilityPlannerMode: "legacy" | "agentic" = "legacy";
+  let capabilityDecision: CapabilityDecision | undefined;
 
   let finalMetrics: RunChannelFlowResult["metrics"];
   let persistence: RunChannelFlowResult["persistence"] =
@@ -306,6 +307,7 @@ export async function runChannelFlow(
         updateChatTimestamp: ctx.persistence?.updateChatTimestamp,
         revalidateTags: ctx.persistence?.revalidateTags,
         allowMemoryExtraction: ctx.options.allowMemoryExtraction,
+        capabilityDecision,
         capabilityPlannerMode,
         waitUntil: ctx.persistence?.waitUntil,
         usageReservationId,
@@ -494,7 +496,14 @@ export async function runChannelFlow(
       effectiveEntitlements: ctx.rateLimit.effectiveEntitlements,
       skipConversationHistory: ctx.ai?.skipConversationHistory,
       abortSignal: generationAbortController.signal,
-      onFinish: async ({ text, metrics }) => {
+      onFinish: async ({
+        text,
+        metrics,
+        capabilityDecision: streamedCapabilityDecision,
+        capabilityPlannerMode: streamedCapabilityPlannerMode,
+      }) => {
+        capabilityDecision = streamedCapabilityDecision;
+        capabilityPlannerMode = streamedCapabilityPlannerMode;
         finalMetrics = metrics;
         generationAbortController.signal.throwIfAborted();
         if (!text.trim()) {
@@ -539,6 +548,8 @@ export async function runChannelFlow(
     return {
       assistantText: "",
       metrics: finalMetrics,
+      capabilityDecision,
+      capabilityPlannerMode,
       persistence,
       usageReservationId,
       usageReservationClaimToken,
@@ -672,6 +683,8 @@ export async function runChannelFlow(
   return {
     assistantText,
     metrics: finalMetrics,
+    capabilityDecision,
+    capabilityPlannerMode,
     persistence,
     usageReservationId,
     usageReservationClaimToken,

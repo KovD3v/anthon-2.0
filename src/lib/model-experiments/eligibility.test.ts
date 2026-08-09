@@ -41,10 +41,13 @@ const safeTurn: TurnPlan = {
     memoryRead: true,
     memoryWrite: false,
     memoryDelete: false,
+    routineProposal: false,
+    voiceOutput: false,
     profileWrite: false,
     preferenceWrite: false,
     notesWrite: false,
   },
+  memoryDeleteTarget: null,
   source: "rule",
   reasonCodes: [],
 };

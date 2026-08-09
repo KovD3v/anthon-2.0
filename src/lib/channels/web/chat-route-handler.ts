@@ -950,6 +950,8 @@ async function handleVoiceFirstWebResponse({
       updateChatTimestamp: true,
       revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
       allowMemoryExtraction: true,
+      capabilityDecision: flowResult.capabilityDecision,
+      capabilityPlannerMode: flowResult.capabilityPlannerMode,
       waitUntil: schedule,
       usageReservationId: flowResult.usageReservationId,
       usageReservationClaimToken: flowResult.usageReservationClaimToken,

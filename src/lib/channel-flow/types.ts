@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma";
+import type { CapabilityDecision } from "@/lib/ai/capability-arbitration";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
 
@@ -75,6 +76,8 @@ export interface InboundContext {
 export interface RunChannelFlowResult {
   assistantText: string;
   metrics?: AIMetrics;
+  capabilityDecision?: CapabilityDecision;
+  capabilityPlannerMode?: "legacy" | "agentic";
   usageReservationId?: string;
   usageReservationClaimToken?: string;
   usageAlreadyReconciled?: boolean;
@@ -111,6 +114,7 @@ export interface PersistAssistantOutputInput {
   updateChatTimestamp?: boolean;
   revalidateTags?: string[];
   allowMemoryExtraction?: boolean;
+  capabilityDecision?: CapabilityDecision;
   capabilityPlannerMode?: "legacy" | "agentic";
   waitUntil?: (promise: Promise<unknown>) => void;
   usageReservationId?: string;

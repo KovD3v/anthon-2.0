@@ -500,6 +500,7 @@ describe("POST /api/guest/chat", () => {
       userRole: "USER",
       subscriptionStatus: undefined,
       isGuest: true,
+      memoryEnabled: false,
       hasImages: false,
       hasAudio: false,
       skipConversationHistory: true,
