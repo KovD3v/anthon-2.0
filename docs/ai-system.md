@@ -33,16 +33,35 @@ The AI subsystem powers chat generation, retrieval, personalization, and backgro
 
 1. Resolve effective entitlements (`resolveEffectiveEntitlements`).
 2. Select model by plan/role/tier.
-3. Evaluate web-search intent and classify optional prompt modules.
+3. Arbitrate capabilities for this message and normalize the result through
+   deterministic server-side policy.
 4. Build an immutable `TurnPlan` that independently selects response length,
    thread history, capabilities, and prompt profile.
 5. Build same-thread conversation context via `buildThreadContext` when needed.
-6. Evaluate RAG need (`shouldUseRag`) and fetch context (`getRagContext`) if needed.
-7. Build system prompt with the selected modules.
+6. Evaluate RAG need (`shouldUseRag`) and fetch context (`getRagContext`) if the
+   turn plan selected it.
+7. Build the system prompt with the selected modules and expose only the
+   selected tools.
 8. Run `streamText` with the selected tools and callbacks.
-9. Persist usage metrics, model info, token/cost telemetry, and tool timing.
-10. After the assistant output is persisted, run the model-driven memory pass
-    in the background; it never delays the first response.
+9. Persist usage metrics, model info, token/cost telemetry, capability usage,
+   and tool timing.
+10. In legacy mode, schedule the post-generation memory extractor in the
+    background; in agentic mode, memory tools are the turn's write path.
+
+### Per-message capability arbitration
+
+`src/lib/ai/capability-arbitration.ts` classifies optional capabilities on
+each turn. The classifier may select any useful combination of RAG, web
+search/fetch, memory read/write/delete, user context, routine proposal, and
+voice output. The normalized decision is frozen and projected into the
+`TurnPlan`; it is not a user toggle and it does not grant permissions.
+
+Deterministic policy remains authoritative around the model choice and every
+side effect: authentication and guest restrictions, effective plan
+entitlements, privacy and approval rules, rate limits and usage reservations,
+tool schemas and step limits, exact targets, and idempotent or at-most-once
+operations. If classification is unavailable or uncertain, the server uses
+the deterministic fallback.
 
 ### Toolset
 
@@ -50,9 +69,10 @@ The orchestrator composes tools from three factories:
 
 - `createMemoryTools(userId)`:
   - `getMemories`
-  - `deleteMemory`
-- `saveMemory` semantics are handled by the post-generation memory extractor,
-  not exposed in the streaming tool loop.
+  - `saveMemory` (create or update/overwrite by stable key)
+  - `requestMemoryApproval`
+  - `resolveMemoryApproval`
+  - `deleteMemory` (only for a server-resolved exact target)
 - `createUserContextTools(userId)`:
   - `getUserContext`
   - `updateProfile`
@@ -63,9 +83,26 @@ The orchestrator composes tools from three factories:
   - `tinyfishFetch`
 
 The orchestrator does not expose every tool on every turn. Profile and
-preference tools are enabled only when the message asks for persistent changes.
-Memory extraction is model-driven and runs after the answer; keywords are only
-hints for prompt planning, not a requirement for saving a useful fact.
+preference tools are enabled only when the selected plan allows persistent
+changes. In agentic mode, memory tools can silently save ordinary, low-risk
+facts stated or prudently inferred by the conversation. `saveMemory` creates a
+new record or updates/overwrites the record for the same stable key. Sensitive
+or high-impact facts are not written directly: they create a pending
+server-side approval and require a natural confirmation on the attributable
+next turn. Explicit deletion is limited to a single exact, server-resolved
+memory target; ambiguous, wildcard, category-wide, or inferred deletion is a
+no-op.
+
+`proposeRoutine` is proposal-only and validated. It may be called at most once
+per turn and cannot save, run, archive, or mutate a `Routine` or
+`RoutineAttempt`. The routine schema and server checks enforce the allowed
+step kinds, limits, and optional terminal feedback form.
+
+Legacy mode keeps the post-generation memory extractor and its compatibility
+behavior. Agentic mode uses the validated memory tools as the turn's write
+path; model-comparison pairs persist their planner mode so agentic responses
+do not trigger the legacy extractor a second time.
+
 `tinyfishSearch` is enabled for current or explicit web-search intent, and
 `tinyfishFetch` only when URL/page/source reading is useful.
 
@@ -107,10 +144,12 @@ Web search is powered by TinyFish:
 
 ### Query gating (`shouldUseRag`)
 
-RAG is skipped for guest turns and web-search turns. A classifier RAG decision
+RAG is skipped for guest turns. In agentic mode, RAG and web search are
+independent capabilities and may be selected together; the immutable decision
 is promoted into the `TurnPlan`, so it cannot be lost because of compact
-selection. For
-normal authenticated turns, the decision pipeline uses layered optimization:
+selection. Legacy mode preserves the compatibility rule that web-search turns
+do not also inject RAG. For authenticated turns, the decision pipeline uses
+layered optimization:
 
 1. Document existence check (cached)
 2. Positive keyword fast-path
@@ -124,6 +163,16 @@ normal authenticated turns, the decision pipeline uses layered optimization:
 - `getRagContext(query)`
 - `addDocument(title, content, source?, url?)`
 - `updateMissingEmbeddings()`
+
+### Voice output
+
+Voice is not an always-on output mode. The existing voice preflight and
+delivery guards (`decideWebVoiceMode` and `decideVoiceDelivery`) remain
+authoritative for plan eligibility, user preference, provider capacity,
+quota, cadence, anti-spam, and explicit-text/attachment constraints. The
+capability planner can record a voice decision only when the requested output
+mode and those guards allow it; it cannot bypass them. Audio is attributed as
+used only after successful delivery.
 
 ## Cost and Metrics
 
@@ -139,6 +188,12 @@ Tracked metrics include:
 - `reasoningTokens`
 - `costUsd`
 - `generationTimeMs`
+- `capabilitiesUsed` (`rag`, `web`, `memory`, `routine`, `voice`)
+
+Capability usage is filtered against the immutable decision in agentic mode.
+Provider metadata, reasoning content, raw tool arguments/results, search
+queries, memory values, and internal identifiers are not persisted as user
+facing capability metadata.
 
 ## Model Routing
 
@@ -177,13 +232,40 @@ health and cost snapshots are supplied.
 `streamText` also passes `promptCaching: true` and `session_id` to OpenRouter so
 providers that support cache/session affinity can reuse prompt context.
 
+### Capability planner rollout
+
+`AI_CAPABILITY_PLANNER_MODE` is the rollout switch and accepts `agentic` or
+`legacy`; missing or invalid values resolve to `legacy`.
+
+| Mode | Behavior |
+| ---- | -------- |
+| `legacy` | Compatibility path: preserves the legacy RAG/web separation and post-generation memory extraction. |
+| `agentic` | Runs the per-message capability classifier, permits composable RAG + web, and delegates validated optional actions to the selected tools. |
+
+The default remains `legacy` until the rollout is deliberately changed. The
+separate `AI_TURN_PLANNER_MODE` compatibility switch is not repurposed by this
+rollout.
+
+Capability decisions are shared immutably through the common channel flow for
+Web, Telegram, and WhatsApp. Web model-comparison preparation freezes the
+context and reuses the same decision for both variants and any normal fallback;
+the pair stores `capabilityPlannerMode` so legacy memory extraction is not
+duplicated for agentic comparisons.
+
+The planner-mode schema change is migration-backed. Apply
+`prisma/migrations/20260809130000_add_model_comparison_capability_planner_mode`
+with the deployment migration path, then run `bunx prisma generate` before
+typecheck or runtime verification. Existing model-comparison pairs default to
+`legacy`.
+
 ## Chat UI Feedback
 
-The chat UI surfaces live tool activity from streaming AI SDK tool parts:
-
-- search tools: `Sto cercando ...`
-- fetch tools: `Estraggo dal sito ...`
-- profile/memory/context tools: `Recupero informazioni ...`
+The UI may show a generic, non-interactive status while a selected tool is
+active. After completion it exposes only discreet informational indicators
+from a closed capability vocabulary: `Contesto`, `Ricerca`, `Memoria`,
+`Routine`, and `Voce`. Indicators do not include raw payloads, tool names,
+search queries, memory values, reasoning, or IDs, and they are not controls or
+an explanation of the model's internal reasoning.
 
 Assistant message bubbles are kept stable during streaming to avoid layout
 animation while content is arriving.
