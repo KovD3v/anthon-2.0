@@ -69,7 +69,16 @@ describe("GET /api/admin/users/[userId]", () => {
         content: "Third",
         model: "gpt-4o-mini",
         costUsd: 0.5,
-        toolCalls: null,
+        toolCalls: [
+          {
+            name: "saveMemory",
+            args: {
+              key: "health_condition",
+              value: "Diagnosi privata",
+            },
+            result: { approvalId: "approval-1" },
+          },
+        ],
         createdAt: new Date("2026-02-16T11:00:00.000Z"),
       },
       {
@@ -198,7 +207,7 @@ describe("GET /api/admin/users/[userId]", () => {
               content: "Third",
               model: "gpt-4o-mini",
               costUsd: 0.5,
-              toolCalls: null,
+              toolCalls: [{ name: "saveMemory", status: "completed" }],
               createdAt: "2026-02-16T11:00:00.000Z",
             },
           ],

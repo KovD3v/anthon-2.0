@@ -5,8 +5,13 @@ import {
   type UIMessageChunk,
 } from "ai";
 import { getCapabilityPlannerMode } from "@/lib/ai/capability-arbitration";
-import { getImmediatelyAttributableApproval } from "@/lib/ai/memory-approval";
+import {
+  getImmediatelyAttributableApproval,
+  mightResolvePendingMemoryApproval,
+} from "@/lib/ai/memory-approval";
+import { resolveExactMemoryDeleteTarget } from "@/lib/ai/memory-target";
 import { streamChat } from "@/lib/ai/orchestrator";
+import { createToolStreamRedactor } from "@/lib/ai/tool-privacy";
 import { createLogger } from "@/lib/logger";
 import {
   reconcileAiUsageForRecovery,
@@ -422,17 +427,26 @@ export async function runChannelFlow(
   const detachRequestAbort = () =>
     requestAbortSignal?.removeEventListener("abort", forwardRequestAbort);
 
-  const pendingMemoryApproval =
-    ctx.ai?.isGuest !== true &&
-    ctx.options.allowMemoryExtraction &&
+  const memoryAvailable =
+    ctx.ai?.isGuest !== true && ctx.options.allowMemoryExtraction;
+  const [pendingMemoryApproval, resolvedMemoryTarget] = await Promise.all([
+    memoryAvailable &&
     ctx.conversationThreadId &&
-    ctx.userMessageId
-      ? await getImmediatelyAttributableApproval({
+    ctx.userMessageId &&
+    mightResolvePendingMemoryApproval(ctx.userMessageText)
+      ? getImmediatelyAttributableApproval({
           userId: ctx.userId,
           conversationId: ctx.conversationThreadId,
           currentUserMessageId: ctx.userMessageId,
         })
-      : null;
+      : Promise.resolve(null),
+    memoryAvailable
+      ? resolveExactMemoryDeleteTarget({
+          userId: ctx.userId,
+          userMessage: ctx.userMessageText,
+        })
+      : Promise.resolve(null),
+  ]);
 
   let streamResult: Awaited<ReturnType<typeof streamChat>>;
   try {
@@ -442,6 +456,7 @@ export async function runChannelFlow(
       conversationThreadId: ctx.conversationThreadId,
       userMessageId: ctx.userMessageId,
       ...(pendingMemoryApproval ? { pendingMemoryApproval } : {}),
+      resolvedMemoryTarget,
       userMessage: ctx.userMessageText,
       planId: ctx.ai?.planId,
       userRole: ctx.ai?.userRole,
@@ -535,6 +550,7 @@ export async function runChannelFlow(
           let sourceReader:
             | ReadableStreamDefaultReader<UIMessageChunk>
             | undefined;
+          const redactToolStreamChunk = createToolStreamRedactor();
           const durableStream = createUIMessageStream<UIMessage>({
             async execute({ writer }) {
               let sourceErrored = false;
@@ -556,7 +572,10 @@ export async function runChannelFlow(
                       }
                       await releaseUsageReservationOnce();
                     }
-                    writer.write(value);
+                    const safeChunk = redactToolStreamChunk(value);
+                    if (safeChunk) {
+                      writer.write(safeChunk as UIMessageChunk);
+                    }
                   }
                 } finally {
                   sourceReader = undefined;

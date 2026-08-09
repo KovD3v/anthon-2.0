@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   chatUpdate: vi.fn(),
   incrementUsage: vi.fn(),
   extractAndSaveMemories: vi.fn(),
+  captureAiTurnTrace: vi.fn(),
   revalidateTag: vi.fn(),
 }));
 
@@ -34,6 +35,10 @@ vi.mock("@/lib/ai/memory-extractor", () => ({
   extractAndSaveMemories: mocks.extractAndSaveMemories,
 }));
 
+vi.mock("@/lib/ai/trace", () => ({
+  captureAiTurnTrace: mocks.captureAiTurnTrace,
+}));
+
 vi.mock("next/cache", () => ({
   revalidateTag: mocks.revalidateTag,
 }));
@@ -50,6 +55,7 @@ describe("channel-flow/persistence", () => {
     mocks.chatUpdate.mockReset();
     mocks.incrementUsage.mockReset();
     mocks.extractAndSaveMemories.mockReset();
+    mocks.captureAiTurnTrace.mockReset();
     mocks.revalidateTag.mockReset();
 
     mocks.transaction.mockImplementation(async (callback) =>
@@ -65,6 +71,7 @@ describe("channel-flow/persistence", () => {
     mocks.chatUpdate.mockResolvedValue({});
     mocks.incrementUsage.mockResolvedValue({});
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.captureAiTurnTrace.mockResolvedValue({ id: "trace-1" });
   });
 
   it("persists assistant message and post-process steps", async () => {
@@ -140,6 +147,106 @@ describe("channel-flow/persistence", () => {
 
     expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
     expect(waitUntil).not.toHaveBeenCalled();
+  });
+
+  it("persists only safe aggregate tool metadata", async () => {
+    await persistAssistantOutput({
+      userId: "user-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        inputTokens: 1,
+        outputTokens: 1,
+        reasoningTokens: null,
+        reasoningContent: null,
+        toolCalls: [
+          {
+            name: "saveMemory",
+            args: {
+              key: "health_condition",
+              value: "Diagnosi privata",
+              category: "health",
+            },
+            result: { status: "approval_required", approvalId: "approval-1" },
+          },
+        ],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0,
+        generationTimeMs: 1,
+        reasoningTimeMs: null,
+      },
+      allowMemoryExtraction: false,
+    });
+
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          toolCalls: [{ name: "saveMemory", status: "completed" }],
+        }),
+      }),
+    );
+  });
+
+  it("removes exact memory targets and tool payloads from trace metadata", async () => {
+    const waitUntil = vi.fn();
+
+    await persistAssistantOutput({
+      userId: "user-1",
+      conversationThreadId: "thread-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "Dimentica il mio orario di allenamento.",
+      metrics: {
+        model: "test-model",
+        inputTokens: 1,
+        outputTokens: 1,
+        reasoningTokens: null,
+        reasoningContent: null,
+        toolCalls: [{ name: "deleteMemory", status: "completed" }],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0,
+        generationTimeMs: 1,
+        reasoningTimeMs: null,
+        turnPlan: {
+          capabilities: { memoryDelete: true },
+          memoryDeleteTarget: "training_schedule",
+        },
+        tracePayload: {
+          toolCalls: [
+            {
+              name: "deleteMemory",
+              args: { key: "training_schedule" },
+              result: { memoryId: "memory-1" },
+            },
+          ],
+        },
+      },
+      allowMemoryExtraction: false,
+      waitUntil,
+    });
+
+    expect(mocks.captureAiTurnTrace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          turnPlan: {
+            capabilities: { memoryDelete: true },
+          },
+        }),
+        payload: expect.objectContaining({
+          toolCalls: [{ name: "deleteMemory", status: "completed" }],
+        }),
+      }),
+    );
+    expect(
+      JSON.stringify(mocks.captureAiTurnTrace.mock.calls[0]),
+    ).not.toContain("training_schedule");
+    expect(
+      JSON.stringify(mocks.captureAiTurnTrace.mock.calls[0]),
+    ).not.toContain("memory-1");
   });
 
   it("persists a validated routine proposal after the assistant text", async () => {

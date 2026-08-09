@@ -87,5 +87,44 @@ The orchestrator and capability-arbitration changes are the narrow integration n
 ## Concerns
 
 - The repository-wide typecheck is not green because of the unrelated pre-existing model-experiment fixture error above; the scoped Task 4 typecheck is green.
-- The complete unit/integration suite was not rerun after the user's immediate-finalize instruction. The required 47-test gate and the expanded 117-test channel/orchestrator/capability gate are green.
+- The complete unit suite was rerun during fix-round finalization and is green. Database-backed integration coverage remains deferred as described below.
 - No live database integration test was run and the migration was intentionally not applied, as required by the brief.
+
+## Fix round 1 — 2026-08-09
+
+Status: complete. All six reviewer blockers are fixed at shared server boundaries.
+
+### Fixes
+
+- Added `src/lib/ai/tool-privacy.ts` as the closed telemetry/stream boundary. Collected calls, step callbacks, traces, `Message.toolCalls`, private technical history responses, and live UI tool chunks retain only tool name plus `completed`/`failed`; arguments, results, values, keys, categories, approval payloads, memory IDs, approval IDs, and unknown future tool chunks are removed. Routine proposals are validated into their dedicated product payload before telemetry is redacted, preserving routine cards without persisting raw tool arguments.
+- Bound approval resolution to the full server-loaded `PendingMemoryApproval` closure. The model schema now accepts only `approve` or `reject`; no approval ID can be provided by the model or channel client, and tool results do not expose approval or resolution IDs.
+- Tightened approval authorization so an immediate follow-up must either directly and naturally refer to the pending save or semantically overlap the pending fact. An unrelated command such as `Ricorda che preferisco allenarmi al mattino` cannot approve a pending health fact. Unrelated turns no longer query the approval table.
+- Added user-scoped exact deletion-target resolution in the shared channel flow for Web, Telegram, and WhatsApp. It reads current memories, returns only one validated stable key, rejects ties/no-match/generic requests, preserves the existing broad-target guard, and does not misread coaching instructions such as `Elimina la tensione` as memory deletion.
+- Added a server-owned sensitivity policy over category, stable key, and value. Model-provided category/sensitivity can increase protection but cannot downgrade health, diagnosis, trauma, intimate, medical, injury, medication, or similar high-impact facts into direct writes.
+- Updated capability classification to permit conservative high-confidence, low-risk durable facts without explicit save wording. Agentic mode can therefore infer ordinary facts through `saveMemory`; low confidence remains rejected and sensitive inferences remain approval-gated. Legacy extractor behavior is unchanged.
+- Added defense-in-depth redaction for historical technical chat payloads in both `src/lib/chat.ts` and `src/app/api/chats/[id]/route.ts`.
+
+### TDD and regression evidence
+
+RED:
+
+- Initial fix-round gate: 14 failed, 160 passed. Failures reproduced missing privacy utility, leaked step/persistence payloads, generic-save approval, model-owned approval ID, model-downgraded sensitivity, missing shared deletion resolution, and explicit-only classifier prompting.
+- Added technical-history boundary regressions: 9 failed, 120 passed across orchestrator, shared chat, App Router chat history, and deletion targeting.
+- The first repository-wide unit run exposed 29 Web/Telegram/WhatsApp failures caused by unconditional approval lookup in shared flow tests. A focused regression proved unrelated authenticated turns must not query pending approvals before the intent gate was added.
+- Additional fail-closed regressions proved unknown future tool chunks must be dropped, coaching language must not be treated as a delete request, and equally scored stored memories must not resolve to an arbitrary deletion target.
+
+GREEN:
+
+- `bun run test`: 214 files passed, 1 skipped; 2,074 tests passed, 4 skipped.
+- Focused Task 4 suite: 11 files and 219 tests passed, covering approval, memory tools, target resolution, privacy, classifier, orchestrator, shared channel flow, persistence, shared chat, cost metrics, and legacy extraction.
+- Focused technical API boundary suite: 5 files and 77 tests passed across chat messages, chat detail, admin user detail, and AI trace list/detail routes.
+- `bunx prisma validate` and `bunx prisma generate`: passed with Prisma Client v7.9.1. No migration was applied.
+- Scoped Biome over the final Task 4 TypeScript files and `/tmp/anthon-task4-fix-tsconfig.json` TypeScript checks: passed.
+- Next.js 16.3/Turbopack runtime verification: `get_compilation_issues` and `get_errors` returned no issues; the real local `/chat/[id]` route rendered. The restored browser session was a guest, so the authenticated-only `/api/chats/[id]` endpoint correctly returned 401; authorized redaction is covered by the route-handler tests.
+- `git diff --check`: passed.
+
+### Remaining concerns
+
+- Repository-wide `bun run typecheck` still fails only at the pre-existing unrelated `src/lib/model-experiments/eligibility.test.ts(36,3)` fixture, which lacks `routineProposal` and `voiceOutput`. The expanded Task 4 scoped typecheck is green.
+- No live database migration or live approval-row integration test was run, per the explicit instruction not to apply a migration. The existing Prisma migration contract was preserved unchanged.
+- Runtime browser verification used the restored guest session; authenticated technical-history payload behavior is verified at the real route-handler boundary in unit tests rather than with a live signed-in account.

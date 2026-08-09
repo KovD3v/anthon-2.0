@@ -44,6 +44,7 @@ import {
   type AiGenerationTelemetryContext,
   captureAiGenerationMetadata,
 } from "@/lib/ai/telemetry";
+import { redactToolCalls, type SafeToolCall } from "@/lib/ai/tool-privacy";
 import {
   createMemoryTools,
   formatMemoriesForPrompt,
@@ -724,7 +725,7 @@ function createToolsWithContext(
       options.pendingMemoryApproval &&
       options.userMessageId
         ? {
-            pendingApprovalId: options.pendingMemoryApproval.id,
+            pendingMemoryApproval: options.pendingMemoryApproval,
             currentUserMessageId: options.userMessageId,
           }
         : {}),
@@ -1997,19 +1998,10 @@ export async function streamChat({
   const tools = instrumentToolExecutions(rawTools, toolTimingState);
 
   // Collect tool calls during execution
-  const collectedToolCalls: Array<{
-    name: string;
-    args: unknown;
-    result?: unknown;
-  }> = directWebSearchEvidence
-    ? [
-        {
-          name: "tinyfishSearch",
-          args: { query: directWebSearchEvidence.query },
-          result: directWebSearchEvidence.result,
-        },
-      ]
+  const collectedToolCalls: SafeToolCall[] = directWebSearchEvidence
+    ? redactToolCalls([{ name: "tinyfishSearch" }])
     : [];
+  let routineProposal: unknown;
   const collectedOpenRouterCosts: number[] = [];
   const streamStartedAt = Date.now();
   let previousStepFinishedAt = streamStartedAt;
@@ -2119,6 +2111,9 @@ export async function streamChat({
         ragUsed: ragUsage.used,
         ragChunksCount: ragUsage.chunkCount,
       });
+      if (routineProposal !== undefined) {
+        metrics.routineProposal = routineProposal;
+      }
       captureAiGenerationMetadata({ context: telemetryContext, metrics });
 
       if (collectedToolCalls.length > 0) {
@@ -2178,11 +2173,15 @@ export async function streamChat({
             | { output?: unknown; result?: unknown }
             | undefined;
           const toolResult = tr?.output ?? tr?.result;
-          collectedToolCalls.push({
-            name: tc.toolName,
-            args: tc.input ?? tc.args,
-            result: toolResult,
-          });
+          const toolInput = tc.input ?? tc.args;
+          collectedToolCalls.push(
+            ...redactToolCalls([
+              { name: tc.toolName, args: toolInput, result: toolResult },
+            ]),
+          );
+          if (tc.toolName === "proposeRoutine") {
+            routineProposal = toolInput;
+          }
           if (tc.toolName === "searchRag") {
             const ragToolResult = toolResult as
               | { success?: unknown; chunkCount?: unknown }
@@ -2206,10 +2205,13 @@ export async function streamChat({
 
       // Call user's onStepFinish if provided
       if (onStepFinish) {
+        const safeStepToolCalls = stepHasToolCalls
+          ? redactToolCalls(step.toolCalls)
+          : undefined;
         onStepFinish({
           text: step.text,
-          toolCalls: step.toolCalls,
-          toolResults: step.toolResults,
+          toolCalls: safeStepToolCalls,
+          toolResults: safeStepToolCalls?.map((toolCall) => ({ ...toolCall })),
         });
       }
     },

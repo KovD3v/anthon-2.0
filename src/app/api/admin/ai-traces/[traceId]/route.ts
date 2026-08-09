@@ -1,3 +1,4 @@
+import { redactTraceMetadata, redactTracePayload } from "@/lib/ai/tool-privacy";
 import { decryptAiTurnTrace } from "@/lib/ai/trace";
 import { requireSuperAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -48,10 +49,11 @@ export async function GET(
         return Response.json({
           trace: {
             ...trace,
+            metadata: redactTraceMetadata(trace.metadata),
             payloadCiphertext: undefined,
             payloadIv: undefined,
             payloadTag: undefined,
-            payload,
+            payload: redactTracePayload(payload),
           },
         });
       } catch (error) {

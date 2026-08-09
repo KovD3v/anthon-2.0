@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { cache } from "react";
+import { redactToolCalls } from "@/lib/ai/tool-privacy";
 import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
 import { toRoutineCardData } from "@/lib/coaching/routine";
 import { prisma } from "@/lib/db";
@@ -304,7 +305,7 @@ async function getSharedChatUncached(
         ? { ragUsed: m.ragUsed }
         : {}),
       ...(canReceiveTechnicalMetrics && m.toolCalls !== null
-        ? { toolCalls: m.toolCalls }
+        ? { toolCalls: redactToolCalls(m.toolCalls) }
         : {}),
       feedback: normalizeMessageFeedback(m.feedback),
       feedbackReason: getFeedbackReasonFromMetadata(m.metadata),

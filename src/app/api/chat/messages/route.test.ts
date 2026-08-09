@@ -276,7 +276,16 @@ describe("/api/chat/messages route", () => {
           generationTimeMs: 180,
           reasoningTimeMs: 22,
           ragUsed: true,
-          toolCalls: [{ name: "search" }],
+          toolCalls: [
+            {
+              name: "saveMemory",
+              args: {
+                key: "health_condition",
+                value: "Diagnosi privata",
+              },
+              result: { approvalId: "approval-1" },
+            },
+          ],
           chat,
         },
       ]);
@@ -300,7 +309,7 @@ describe("/api/chat/messages route", () => {
             reasoningTimeMs: 22,
           },
           ragUsed: true,
-          toolCalls: [{ name: "search" }],
+          toolCalls: [{ name: "saveMemory", status: "completed" }],
         });
       } else {
         expect(body.messages[0]).not.toHaveProperty("model");

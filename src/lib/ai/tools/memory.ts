@@ -3,6 +3,7 @@ import { z } from "zod";
 import { MEMORY } from "@/lib/ai/constants";
 import {
   createMemoryApproval,
+  type PendingMemoryApproval,
   resolveMemoryApproval as resolvePendingMemoryApproval,
 } from "@/lib/ai/memory-approval";
 import { isExactStableMemoryKey } from "@/lib/ai/memory-target";
@@ -48,6 +49,8 @@ const sensitiveMemoryCategories = new Set([
   "trauma",
   "intimate",
 ]);
+const sensitiveMemoryPolicy =
+  /\b(?:health|medical|medicine|diagnos\w*|condition|disease|illness|injur\w*|pain|allerg\w*|medication|therapy|trauma|abuse|intimat\w*|sexual\w*|pregnan\w*|salute|medic\w*|diagnos\w*|patolog\w*|malatt\w*|infortun\w*|dolor\w*|farmac\w*|terapia|trauma|abus\w*|intim\w*|sessual\w*|gravidanza|asma|depression\w*)\b/i;
 const broadDeleteTargets = new Set([
   "all",
   "identity",
@@ -69,9 +72,24 @@ const stableMemoryKeySchema = z
 type CreateMemoryToolsOptions = {
   deleteTargetKey?: string | null;
   sourceInboundMessageId?: string;
-  pendingApprovalId?: string;
+  pendingMemoryApproval?: PendingMemoryApproval;
   currentUserMessageId?: string;
 };
+
+function requiresServerApproval(input: {
+  key: string;
+  value: string;
+  category: string;
+  sensitivity: "low" | "high";
+}) {
+  return (
+    input.sensitivity === "high" ||
+    sensitiveMemoryCategories.has(input.category) ||
+    sensitiveMemoryPolicy.test(
+      `${input.key.replaceAll("_", " ")} ${input.value}`,
+    )
+  );
+}
 
 /**
  * Creates memory tools with userId context injected via closure.
@@ -177,14 +195,18 @@ Per salute, diagnosi, trauma, sfera intima o qualunque fatto ad alto impatto, no
           return { status: "rejected" as const };
         }
 
-        const requiresApproval =
-          sensitivity === "high" || sensitiveMemoryCategories.has(category);
+        const requiresApproval = requiresServerApproval({
+          key,
+          value,
+          category,
+          sensitivity,
+        });
         if (requiresApproval) {
           if (!options?.sourceInboundMessageId) {
             return { status: "rejected" as const };
           }
           try {
-            const approval = await createMemoryApproval({
+            await createMemoryApproval({
               userId,
               sourceInboundMessageId: options.sourceInboundMessageId,
               key,
@@ -192,10 +214,7 @@ Per salute, diagnosi, trauma, sfera intima o qualunque fatto ad alto impatto, no
               category,
               confidence,
             });
-            return {
-              status: "approval_required" as const,
-              approvalId: approval.id,
-            };
+            return { status: "approval_required" as const };
           } catch {
             return { status: "rejected" as const };
           }
@@ -249,7 +268,7 @@ Dopo il tool, chiedi una conferma naturale senza citare tool, id o meccanismi in
         if (!options?.sourceInboundMessageId) {
           throw new Error("Missing server-owned inbound message context");
         }
-        const approval = await createMemoryApproval({
+        await createMemoryApproval({
           userId,
           sourceInboundMessageId: options.sourceInboundMessageId,
           key,
@@ -257,10 +276,7 @@ Dopo il tool, chiedi una conferma naturale senza citare tool, id o meccanismi in
           category,
           confidence,
         });
-        return {
-          status: "approval_required" as const,
-          approvalId: approval.id,
-        };
+        return { status: "approval_required" as const };
       },
     }),
 
@@ -268,27 +284,28 @@ Dopo il tool, chiedi una conferma naturale senza citare tool, id o meccanismi in
       description: `Approva o rifiuta in modo silenzioso solo la richiesta server-side attribuita al turno immediatamente successivo.
 Usalo soltanto quando il messaggio corrente conferma o rifiuta esplicitamente il salvataggio: un sì generico o non collegato non è una conferma.`,
       inputSchema: z.object({
-        approvalId: z.string(),
         decision: z.enum(["approve", "reject"]),
       }),
-      execute: async ({ approvalId, decision }) => {
+      execute: async ({ decision }) => {
+        const pendingApproval = options?.pendingMemoryApproval;
         if (
-          !options?.pendingApprovalId ||
+          !pendingApproval ||
+          pendingApproval.userId !== userId ||
           !options.currentUserMessageId ||
-          approvalId !== options.pendingApprovalId
+          !isExactStableMemoryKey(pendingApproval.key)
         ) {
           return { status: "stale" as const };
         }
         const result = await resolvePendingMemoryApproval({
           userId,
-          approvalId: options.pendingApprovalId,
+          approvalId: pendingApproval.id,
           decision,
           currentUserMessageId: options.currentUserMessageId,
         });
         if (result.status === "approved") {
           invalidateMemoriesForPromptCache(userId);
         }
-        return result;
+        return { status: result.status };
       },
     }),
 

@@ -2,8 +2,16 @@ import type { Prisma } from "@/generated/prisma";
 import { getCapabilityPlannerMode } from "@/lib/ai/capability-arbitration";
 import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
+import {
+  redactToolCalls,
+  redactTraceMetadata,
+  redactTracePayload,
+} from "@/lib/ai/tool-privacy";
 import { captureAiTurnTrace } from "@/lib/ai/trace";
-import { getRoutineProposalFromToolCalls } from "@/lib/coaching/routine";
+import {
+  getRoutineProposalFromToolCalls,
+  storedRoutineProposalSchema,
+} from "@/lib/coaching/routine";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import {
@@ -145,7 +153,13 @@ export async function persistAssistantOutput({
   externalInboundClaimToken,
 }: PersistAssistantOutputInput) {
   const assistantMetadata = buildAssistantMetadata(metadata, metrics);
-  const routineProposal = getRoutineProposalFromToolCalls(metrics.toolCalls);
+  const directRoutineProposal = storedRoutineProposalSchema.safeParse(
+    metrics.routineProposal,
+  );
+  const routineProposal = directRoutineProposal.success
+    ? directRoutineProposal.data
+    : getRoutineProposalFromToolCalls(metrics.toolCalls);
+  const safeToolCalls = redactToolCalls(metrics.toolCalls);
 
   const persisted = await prisma.$transaction(async (tx) => {
     if (userMessageId && externalInboundClaimToken) {
@@ -199,7 +213,10 @@ export async function persistAssistantOutput({
         outputTokens: metrics.outputTokens,
         reasoningTokens: metrics.reasoningTokens,
         reasoningContent: metrics.reasoningContent,
-        toolCalls: metrics.toolCalls as Prisma.InputJsonValue | undefined,
+        toolCalls:
+          safeToolCalls.length > 0
+            ? (safeToolCalls as Prisma.InputJsonValue)
+            : undefined,
         ragUsed: metrics.ragUsed,
         ragChunksCount: metrics.ragChunksCount,
         costUsd: metrics.costUsd,
@@ -300,19 +317,19 @@ export async function persistAssistantOutput({
         conversationThreadId,
         userMessageId,
         assistantMessageId: message.id,
-        metadata: {
+        metadata: redactTraceMetadata({
           turnPlan: metrics.turnPlan,
           model: metrics.model,
           inputTokens: metrics.inputTokens,
           outputTokens: metrics.outputTokens,
           costUsd: metrics.costUsd,
           generationTimeMs: metrics.generationTimeMs,
-        },
-        payload: {
+        }) as Record<string, unknown>,
+        payload: redactTracePayload({
           userMessageText,
           assistantText: text,
           ...metrics.tracePayload,
-        },
+        }) as Record<string, unknown>,
       }),
     );
   }

@@ -2427,7 +2427,7 @@ describe("ai/orchestrator", () => {
       resolveMemoryApproval: "memory-approval-resolve-tool",
     });
     expect(mocks.createMemoryTools).toHaveBeenCalledWith("user-1", {
-      pendingApprovalId: "approval-1",
+      pendingMemoryApproval,
       currentUserMessageId: "inbound-current",
     });
   });
@@ -3009,8 +3009,15 @@ describe("ai/orchestrator", () => {
 
     streamInput.onStepEnd({
       text: "partial",
-      toolCalls: [{ toolName: "saveMemory", input: { key: "user_goal" } }],
-      toolResults: [{ output: { saved: true } }],
+      toolCalls: [
+        {
+          toolName: "saveMemory",
+          input: { key: "health_condition", value: "Diagnosi privata" },
+        },
+      ],
+      toolResults: [
+        { output: { status: "approval_required", approvalId: "approval-1" } },
+      ],
       providerMetadata: { openrouter: { usage: { cost: 0.04 } } },
     });
     streamInput.onStepEnd({
@@ -3020,8 +3027,8 @@ describe("ai/orchestrator", () => {
 
     expect(userOnStepFinish).toHaveBeenCalledWith({
       text: "partial",
-      toolCalls: [{ toolName: "saveMemory", input: { key: "user_goal" } }],
-      toolResults: [{ output: { saved: true } }],
+      toolCalls: [{ name: "saveMemory", status: "completed" }],
+      toolResults: [{ name: "saveMemory", status: "completed" }],
     });
     expect(userOnStepFinish).toHaveBeenCalledWith({
       text: "assistant response",
@@ -3053,8 +3060,7 @@ describe("ai/orchestrator", () => {
         collectedToolCalls: [
           {
             name: "saveMemory",
-            args: { key: "user_goal" },
-            result: { saved: true },
+            status: "completed",
           },
         ],
         toolTiming: {
@@ -3070,6 +3076,9 @@ describe("ai/orchestrator", () => {
         model: "google/gemini-test",
         ragUsed: true,
         ragChunksCount: 2,
+        tracePayload: expect.objectContaining({
+          toolCalls: [{ name: "saveMemory", status: "completed" }],
+        }),
       }),
     });
   });

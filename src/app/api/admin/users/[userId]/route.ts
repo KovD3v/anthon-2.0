@@ -4,6 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { redactToolCalls } from "@/lib/ai/tool-privacy";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
@@ -84,7 +85,13 @@ export async function GET(
         channelId: date,
         messageCount: messages.length,
         lastMessageAt: messages[0]?.createdAt,
-        messages: messages.reverse(), // oldest first
+        messages: messages.reverse().map((message) => ({
+          ...message,
+          toolCalls:
+            message.toolCalls === null
+              ? null
+              : redactToolCalls(message.toolCalls),
+        })), // oldest first
       }),
     );
 

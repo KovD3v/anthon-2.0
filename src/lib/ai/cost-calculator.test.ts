@@ -58,7 +58,7 @@ describe("ai/cost-calculator", () => {
     expect(result.reasoningTokens).toBe(7);
     expect(result.reasoningContent).toBe("Reasoning text");
     expect(result.toolCalls).toEqual([
-      { name: "saveMemory", args: { key: "k" } },
+      { name: "saveMemory", status: "completed" },
     ]);
     expect(result.ragUsed).toBe(true);
     expect(result.ragChunksCount).toBe(3);

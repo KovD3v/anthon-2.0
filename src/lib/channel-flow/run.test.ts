@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   releaseAiUsageReservation: vi.fn(),
   reconcileAiUsageForRecovery: vi.fn(),
   getImmediatelyAttributableApproval: vi.fn(),
+  mightResolvePendingMemoryApproval: vi.fn(),
+  resolveExactMemoryDeleteTarget: vi.fn(),
 }));
 
 vi.mock("@/lib/ai/orchestrator", () => ({
@@ -25,6 +27,11 @@ vi.mock("@/lib/rate-limit", () => ({
 
 vi.mock("@/lib/ai/memory-approval", () => ({
   getImmediatelyAttributableApproval: mocks.getImmediatelyAttributableApproval,
+  mightResolvePendingMemoryApproval: mocks.mightResolvePendingMemoryApproval,
+}));
+
+vi.mock("@/lib/ai/memory-target", () => ({
+  resolveExactMemoryDeleteTarget: mocks.resolveExactMemoryDeleteTarget,
 }));
 
 import { runChannelFlow } from "./run";
@@ -41,10 +48,16 @@ describe("channel-flow/run", () => {
     mocks.releaseAiUsageReservation.mockReset();
     mocks.reconcileAiUsageForRecovery.mockReset();
     mocks.getImmediatelyAttributableApproval.mockReset();
+    mocks.mightResolvePendingMemoryApproval.mockReset();
+    mocks.resolveExactMemoryDeleteTarget.mockReset();
     mocks.reserveAiUsage.mockResolvedValue(undefined);
     mocks.releaseAiUsageReservation.mockResolvedValue(true);
     mocks.reconcileAiUsageForRecovery.mockResolvedValue({ charged: true });
     mocks.getImmediatelyAttributableApproval.mockResolvedValue(null);
+    mocks.mightResolvePendingMemoryApproval.mockImplementation((text: string) =>
+      /salv|memorizz|ricord|conferm|rifiut/i.test(text),
+    );
+    mocks.resolveExactMemoryDeleteTarget.mockResolvedValue(null);
     mocks.persistAssistantOutput.mockResolvedValue({ id: "assistant-1" });
   });
 
@@ -104,6 +117,78 @@ describe("channel-flow/run", () => {
         userMessage: "hello",
       }),
     );
+  });
+
+  it("removes tool payloads from the shared live UI stream", async () => {
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => ({
+      textStream: (async function* () {
+        yield "answer";
+      })(),
+      toUIMessageStream: () =>
+        new ReadableStream({
+          async start(controller) {
+            controller.enqueue({
+              type: "tool-input-available",
+              toolCallId: "call-1",
+              toolName: "saveMemory",
+              input: {
+                key: "health_condition",
+                value: "Diagnosi privata",
+              },
+            });
+            controller.enqueue({
+              type: "tool-output-available",
+              toolCallId: "call-1",
+              output: {
+                status: "approval_required",
+                approvalId: "approval-1",
+              },
+            });
+            await onFinish?.({
+              text: "answer",
+              metrics: {
+                model: "test-model",
+                inputTokens: 1,
+                outputTokens: 1,
+                reasoningTokens: null,
+                reasoningContent: null,
+                toolCalls: [{ name: "saveMemory", status: "completed" }],
+                ragUsed: false,
+                ragChunksCount: 0,
+                costUsd: 0,
+                generationTimeMs: 1,
+                reasoningTimeMs: null,
+              },
+            });
+            controller.close();
+          },
+        }),
+    }));
+
+    const result = await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: false,
+      },
+      execution: { mode: "stream" },
+      persistence: { channel: "WEB", saveAssistantMessage: false },
+    });
+
+    const body = await result.streamResult?.toUIMessageStreamResponse().text();
+
+    expect(body).toContain('"input":{}');
+    expect(body).toContain('"output":{"status":"completed"}');
+    expect(body).toContain("safe-tool-1");
+    expect(body).not.toContain("call-1");
+    expect(body).not.toContain("health_condition");
+    expect(body).not.toContain("Diagnosi privata");
+    expect(body).not.toContain("approval-1");
   });
 
   it.each([
@@ -492,6 +577,34 @@ describe("channel-flow/run", () => {
     },
   );
 
+  it("does not query pending approvals for an unrelated authenticated turn", async () => {
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "answer";
+      })(),
+    });
+
+    await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      conversationThreadId: "thread-1",
+      userMessageId: "inbound-current",
+      userMessageText: "Aiutami a prepararmi per la partita.",
+      parts: [{ type: "text", text: "Aiutami a prepararmi per la partita." }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: false,
+      },
+      ai: { isGuest: false },
+      execution: { mode: "text" },
+      persistence: { channel: "WEB", saveAssistantMessage: false },
+    });
+
+    expect(mocks.getImmediatelyAttributableApproval).not.toHaveBeenCalled();
+  });
+
   it("never loads approval context for a guest or from inbound client options", async () => {
     mocks.streamChat.mockResolvedValue({
       textStream: (async function* () {
@@ -523,6 +636,51 @@ describe("channel-flow/run", () => {
       expect.not.objectContaining({ pendingMemoryApproval: expect.anything() }),
     );
   });
+
+  it.each(["WEB", "TELEGRAM", "WHATSAPP"] as const)(
+    "passes only the server-resolved exact deletion target through %s",
+    async (channel) => {
+      mocks.resolveExactMemoryDeleteTarget.mockResolvedValueOnce(
+        "training_schedule",
+      );
+      mocks.streamChat.mockResolvedValue({
+        textStream: (async function* () {
+          yield "answer";
+        })(),
+      });
+
+      await runChannelFlow({
+        channel,
+        userId: "user-1",
+        conversationThreadId: "thread-1",
+        userMessageId: "inbound-delete",
+        userMessageText: "Dimentica la mia preferenza: mi alleno al mattino.",
+        parts: [
+          {
+            type: "text",
+            text: "Dimentica la mia preferenza: mi alleno al mattino.",
+          },
+        ],
+        rateLimit: { allowed: true },
+        options: {
+          allowAttachments: true,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: false,
+        },
+        ai: { isGuest: false },
+        execution: { mode: "text" },
+        persistence: { channel, saveAssistantMessage: false },
+      });
+
+      expect(mocks.resolveExactMemoryDeleteTarget).toHaveBeenCalledWith({
+        userId: "user-1",
+        userMessage: "Dimentica la mia preferenza: mi alleno al mattino.",
+      });
+      expect(mocks.streamChat).toHaveBeenCalledWith(
+        expect.objectContaining({ resolvedMemoryTarget: "training_schedule" }),
+      );
+    },
+  );
 
   it("does not require effective entitlements to stream chat", async () => {
     mocks.streamChat.mockResolvedValue({

@@ -8,6 +8,7 @@
 
 import { revalidateTag } from "next/cache";
 import { generateChatMetadata } from "@/lib/ai/chat-title";
+import { redactToolCalls } from "@/lib/ai/tool-privacy";
 import { getAuthUser } from "@/lib/auth";
 import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
 import type { ChatIcon } from "@/lib/chat-icons";
@@ -333,7 +334,7 @@ export async function GET(request: Request, { params }: RouteParams) {
           ? { ragUsed: m.ragUsed }
           : {}),
         ...(canReceiveTechnicalMetrics && m.toolCalls !== null
-          ? { toolCalls: m.toolCalls }
+          ? { toolCalls: redactToolCalls(m.toolCalls) }
           : {}),
         feedback: m.feedback,
         feedbackReason: getFeedbackReasonFromMetadata(m.metadata),

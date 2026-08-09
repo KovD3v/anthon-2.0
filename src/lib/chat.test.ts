@@ -471,7 +471,13 @@ describe("lib/chat", () => {
         generationTimeMs: 120,
         reasoningTimeMs: 30,
         ragUsed: true,
-        toolCalls: [{ name: "search" }],
+        toolCalls: [
+          {
+            name: "saveMemory",
+            args: { key: "health_condition", value: "Diagnosi privata" },
+            result: { approvalId: "approval-1" },
+          },
+        ],
         feedback: null,
         metadata: { raw: "must-not-leak" },
         voiceGenerationJob: null,
@@ -487,7 +493,7 @@ describe("lib/chat", () => {
         model: "private-model",
         usage: { inputTokens: 11, outputTokens: 7, cost: 0.02 },
         ragUsed: true,
-        toolCalls: [{ name: "search" }],
+        toolCalls: [{ name: "saveMemory", status: "completed" }],
       });
     } else {
       expect(message).not.toHaveProperty("model");

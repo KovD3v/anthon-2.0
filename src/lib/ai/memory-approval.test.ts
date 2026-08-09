@@ -35,6 +35,7 @@ vi.mock("@/lib/db", () => {
 import {
   createMemoryApproval,
   getImmediatelyAttributableApproval,
+  mightResolvePendingMemoryApproval,
   resolveMemoryApproval,
 } from "./memory-approval";
 
@@ -92,6 +93,18 @@ describe("ai/memory-approval", () => {
     );
     mocks.memoryApprovalUpdateMany.mockResolvedValue({ count: 1 });
     mocks.memoryUpsert.mockResolvedValue({ id: "memory-1" });
+  });
+
+  it("loads approval context only for plausible approval or rejection text", () => {
+    expect(
+      mightResolvePendingMemoryApproval("Sì, puoi salvarlo in memoria."),
+    ).toBe(true);
+    expect(
+      mightResolvePendingMemoryApproval("No, rifiuto il salvataggio."),
+    ).toBe(true);
+    expect(
+      mightResolvePendingMemoryApproval("Aiutami per la partita di domani."),
+    ).toBe(false);
   });
 
   it("creates an expiring approval only for a user-owned inbound message", async () => {
@@ -341,6 +354,32 @@ describe("ai/memory-approval", () => {
       .mockResolvedValueOnce({
         ...currentMessage,
         parts: [{ type: "text", text: "Sì." }],
+      })
+      .mockResolvedValueOnce(sourceMessage);
+
+    const result = await resolveMemoryApproval({
+      userId: "user-1",
+      approvalId: "approval-1",
+      decision: "approve",
+      currentUserMessageId: "inbound-current",
+    });
+
+    expect(result).toEqual({ status: "stale" });
+    expect(mocks.memoryApprovalUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+  });
+
+  it("does not let an unrelated remember command approve a pending health fact", async () => {
+    mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
+    mocks.messageFindFirst
+      .mockResolvedValueOnce({
+        ...currentMessage,
+        parts: [
+          {
+            type: "text",
+            text: "Ricorda che preferisco allenarmi al mattino.",
+          },
+        ],
       })
       .mockResolvedValueOnce(sourceMessage);
 

@@ -226,24 +226,93 @@ function getMessageText(parts: unknown): string {
     .trim();
 }
 
+function normalizeApprovalText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("it-IT");
+}
+
+export function mightResolvePendingMemoryApproval(text: string) {
+  const normalized = normalizeApprovalText(text);
+  return /\b(?:salva|salvare|salvarl[oa]|memorizz\w*|ricorda|ricordarl[oa]|conserva|conservarl[oa]|salvataggio|memoria|confermo|acconsento|rifiuto|save|remember|store|confirm|reject)\b/.test(
+    normalized,
+  );
+}
+
+function approvalAttributionTokens(approval: {
+  key: string;
+  value: unknown;
+  category: string;
+}) {
+  const value =
+    typeof approval.value === "string"
+      ? approval.value
+      : JSON.stringify(approval.value);
+  return new Set(
+    normalizeApprovalText(`${approval.key} ${approval.category} ${value}`)
+      .split(/[^a-z0-9]+/)
+      .filter(
+        (token) =>
+          token.length >= 4 &&
+          !new Set([
+            "della",
+            "delle",
+            "degli",
+            "questo",
+            "questa",
+            "quello",
+            "quella",
+            "with",
+            "that",
+          ]).has(token),
+      ),
+  );
+}
+
 function hasExplicitApprovalDecision(
   text: string,
   decision: "approve" | "reject",
+  approval: { key: string; value: unknown; category: string },
 ) {
-  const normalized = text.toLocaleLowerCase("it-IT");
+  const normalized = normalizeApprovalText(text).trim();
   const explicitRejection =
-    /\b(?:non|no)\b[^.!?]{0,80}\b(?:salv|memorizz|ricord|memori|conserv)/i.test(
+    /\b(?:no|non|rifiuto|annulla)\b[^.!?]{0,100}\b(?:salvarl[oa]|memorizzarl[oa]|ricordarl[oa]|conservarl[oa]|salvataggio|memoria)\b/.test(
       normalized,
     ) ||
-    /\b(?:don't|do not)\b[^.!?]{0,80}\b(?:save|remember|store)/i.test(
+    /\b(?:don't|do not|reject|cancel)\b[^.!?]{0,100}\b(?:save it|remember it|store it|saving)\b/.test(
       normalized,
     );
   if (decision === "reject") return explicitRejection;
   if (explicitRejection) return false;
 
-  return /\b(?:salva|salvalo|salvala|salvare|salvarlo|salvarla|memorizza|memorizzalo|memorizzarla|memorizzare|ricorda|ricordalo|ricordala|ricordare|conserva|conservalo|conservarlo|save|remember|store)\b/i.test(
-    normalized,
+  const directConfirmation =
+    /\b(?:si|ok|va bene|confermo|acconsento|puoi)\b[^.!?]{0,100}\b(?:salvarl[oa]|memorizzarl[oa]|ricordarl[oa]|conservarl[oa]|salvataggio)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:yes|ok|confirm|i agree|you can)\b[^.!?]{0,100}\b(?:save it|remember it|store it|saving)\b/.test(
+      normalized,
+    );
+  if (directConfirmation) return true;
+
+  const explicitSave =
+    /\b(?:salva|salvare|memorizza|memorizzare|ricorda|conserva|save|remember|store)\b/.test(
+      normalized,
+    );
+  if (
+    !explicitSave ||
+    /\b(?:ricorda|salva|memorizza)\s+che\b/.test(normalized)
+  ) {
+    return false;
+  }
+
+  const messageTokens = new Set(
+    normalized.split(/[^a-z0-9]+/).filter((token) => token.length >= 4),
   );
+  const overlap = [...approvalAttributionTokens(approval)].filter((token) =>
+    messageTokens.has(token),
+  );
+  return overlap.length >= 2;
 }
 
 export async function resolveMemoryApproval(input: {
@@ -323,6 +392,7 @@ export async function resolveMemoryApproval(input: {
       !hasExplicitApprovalDecision(
         getMessageText(currentMessage.parts),
         input.decision,
+        approval,
       ) ||
       !isExactStableMemoryKey(approval.key)
     ) {

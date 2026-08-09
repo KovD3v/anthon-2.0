@@ -105,7 +105,13 @@ describe("/api/chats/[id] route", () => {
         generationTimeMs: 230,
         reasoningTimeMs: 22,
         ragUsed: true,
-        toolCalls: [{ name: "tool" }],
+        toolCalls: [
+          {
+            name: "saveMemory",
+            args: { key: "health_condition", value: "Diagnosi privata" },
+            result: { approvalId: "approval-1" },
+          },
+        ],
         feedback: -1,
         metadata: { feedback: { reason: "too_generic" } },
         attachments: [
@@ -325,7 +331,7 @@ describe("/api/chats/[id] route", () => {
             reasoningTimeMs: 22,
           },
           ragUsed: true,
-          toolCalls: [{ name: "tool" }],
+          toolCalls: [{ name: "saveMemory", status: "completed" }],
           feedback: -1,
           feedbackReason: "too_generic",
           attachments: [
@@ -420,7 +426,7 @@ describe("/api/chats/[id] route", () => {
           model: "gpt-4o-mini",
           usage: { inputTokens: 10, outputTokens: 12, cost: 0.01 },
           ragUsed: true,
-          toolCalls: [{ name: "tool" }],
+          toolCalls: [{ name: "saveMemory", status: "completed" }],
         });
       } else {
         expect(assistant).not.toHaveProperty("model");

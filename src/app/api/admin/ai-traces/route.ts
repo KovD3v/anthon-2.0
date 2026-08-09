@@ -1,3 +1,4 @@
+import { redactTraceMetadata } from "@/lib/ai/tool-privacy";
 import { requireSuperAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
@@ -56,7 +57,12 @@ export async function GET(request: Request) {
             createdAt: true,
           },
         });
-        return Response.json({ traces });
+        return Response.json({
+          traces: traces.map((trace) => ({
+            ...trace,
+            metadata: redactTraceMetadata(trace.metadata),
+          })),
+        });
       } catch (error) {
         traceLogger.error("trace.list_failed", "Failed listing AI traces", {
           error,

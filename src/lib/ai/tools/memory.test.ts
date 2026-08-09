@@ -139,7 +139,6 @@ describe("ai/tools/memory", () => {
 
     expect(result).toEqual({
       status: "approval_required",
-      approvalId: "approval-1",
     });
     expect(mocks.createMemoryApproval).toHaveBeenCalledWith({
       userId: "user-1",
@@ -172,7 +171,6 @@ describe("ai/tools/memory", () => {
 
     expect(result).toEqual({
       status: "approval_required",
-      approvalId: "approval-2",
     });
     expect(mocks.createMemoryApproval).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -202,7 +200,16 @@ describe("ai/tools/memory", () => {
       memoryId: "memory-approved",
     });
     const tools = createMemoryTools("user-1", {
-      pendingApprovalId: "approval-1",
+      pendingMemoryApproval: {
+        id: "approval-1",
+        userId: "user-1",
+        sourceInboundMessageId: "inbound-source",
+        key: "training_goal",
+        value: "Migliorare il servizio",
+        category: "goal",
+        confidence: 0.9,
+        expiresAt: new Date("2026-08-09T18:15:00.000Z"),
+      },
       currentUserMessageId: "inbound-current",
     });
     const resolveApproval =
@@ -211,14 +218,10 @@ describe("ai/tools/memory", () => {
         memoryId?: string;
       }>;
 
-    const result = await resolveApproval.execute({
-      approvalId: "approval-1",
-      decision: "approve",
-    });
+    const result = await resolveApproval.execute({ decision: "approve" });
 
     expect(result).toEqual({
       status: "approved",
-      memoryId: "memory-approved",
     });
     expect(mocks.resolveMemoryApproval).toHaveBeenCalledWith({
       userId: "user-1",
@@ -231,9 +234,22 @@ describe("ai/tools/memory", () => {
     expect(mocks.memoryFindMany).toHaveBeenCalledTimes(2);
   });
 
-  it("treats a model-supplied approval id that is not server-bound as stale", async () => {
+  it("does not accept a model-supplied approval id", async () => {
+    mocks.resolveMemoryApproval.mockResolvedValue({
+      status: "approved",
+      memoryId: "memory-approved",
+    });
     const tools = createMemoryTools("user-1", {
-      pendingApprovalId: "approval-1",
+      pendingMemoryApproval: {
+        id: "approval-1",
+        userId: "user-1",
+        sourceInboundMessageId: "inbound-source",
+        key: "training_goal",
+        value: "Migliorare il servizio",
+        category: "goal",
+        confidence: 0.9,
+        expiresAt: new Date("2026-08-09T18:15:00.000Z"),
+      },
       currentUserMessageId: "inbound-current",
     });
     const resolveApproval =
@@ -246,8 +262,42 @@ describe("ai/tools/memory", () => {
       decision: "approve",
     });
 
-    expect(result).toEqual({ status: "stale" });
-    expect(mocks.resolveMemoryApproval).not.toHaveBeenCalled();
+    expect(result).toEqual({ status: "approved" });
+    expect(mocks.resolveMemoryApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ approvalId: "approval-1" }),
+    );
+  });
+
+  it("server-enforces high-impact policy when model labels a fact low-risk", async () => {
+    mocks.createMemoryApproval.mockResolvedValue({
+      id: "approval-medical",
+      userId: "user-1",
+      sourceInboundMessageId: "inbound-1",
+      key: "medical_condition",
+      value: "Diagnosi di asma",
+      category: "other",
+      confidence: 0.94,
+      expiresAt: new Date("2026-08-09T18:15:00.000Z"),
+    });
+
+    const tools = createMemoryTools("user-1", {
+      sourceInboundMessageId: "inbound-1",
+    });
+    const saveMemory = tools.saveMemory as unknown as ToolDefinition<{
+      status: string;
+    }>;
+
+    const result = await saveMemory.execute({
+      key: "medical_condition",
+      value: "Diagnosi di asma",
+      category: "other",
+      confidence: 0.94,
+      sensitivity: "low",
+    });
+
+    expect(result).toEqual({ status: "approval_required" });
+    expect(mocks.createMemoryApproval).toHaveBeenCalled();
+    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
   });
 
   it("deletes only the exact stable key bound by the turn plan", async () => {
@@ -299,7 +349,16 @@ describe("ai/tools/memory", () => {
   it("describes silent side effects and explicit sensitive confirmation", () => {
     const tools = createMemoryTools("user-1", {
       sourceInboundMessageId: "inbound-1",
-      pendingApprovalId: "approval-1",
+      pendingMemoryApproval: {
+        id: "approval-1",
+        userId: "user-1",
+        sourceInboundMessageId: "inbound-source",
+        key: "training_goal",
+        value: "Migliorare il servizio",
+        category: "goal",
+        confidence: 0.9,
+        expiresAt: new Date("2026-08-09T18:15:00.000Z"),
+      },
       currentUserMessageId: "inbound-current",
     });
 

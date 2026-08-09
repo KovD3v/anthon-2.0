@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma";
+import { redactToolCalls } from "@/lib/ai/tool-privacy";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { resolveTechnicalMetricsVisibility } from "@/lib/technical-metrics";
@@ -136,7 +137,7 @@ export async function GET(request: Request) {
           ? { ragUsed: msg.ragUsed }
           : {}),
         ...(includeTechnicalMetrics && msg.toolCalls !== null
-          ? { toolCalls: msg.toolCalls }
+          ? { toolCalls: redactToolCalls(msg.toolCalls) }
           : {}),
       };
     });

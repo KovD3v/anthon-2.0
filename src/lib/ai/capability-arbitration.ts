@@ -85,6 +85,24 @@ type ClassifierInput = {
   abortSignal?: AbortSignal;
 };
 
+export function buildCapabilityClassifierPrompt(
+  userMessage: string,
+  context: string,
+) {
+  return `Classify optional capabilities for the next Anthon chat turn.
+
+Return yes only when the capability is materially useful for this message.
+Use uncertain for any capability that cannot be selected with confidence.
+memoryWrite may be yes for explicit persistence requests and for clearly stated, ordinary low-risk durable facts that will remain useful in future coaching turns. Keep it no for guesses, transient details, and low-confidence inferences. Sensitive or high-impact facts are always subject to server-side approval policy and cannot be downgraded by this classifier.
+Voice output requires an explicit voice response mode.
+
+Context:
+${context.slice(0, MAX_CLASSIFIER_CONTEXT_CHARS)}
+
+User message:
+${JSON.stringify(userMessage)}`;
+}
+
 function hasUncertainCapability(
   output: z.infer<typeof capabilityClassifierSchema>,
 ) {
@@ -128,7 +146,6 @@ export async function classifyCapabilities({
       import("@/lib/ai/providers/openrouter-routing"),
       import("@/lib/ai/usage-meter"),
     ]);
-    const boundedContext = context.slice(0, MAX_CLASSIFIER_CONTEXT_CHARS);
     const result = await LatencyLogger.measure(
       "🧭 Orchestrator: Capability classifier",
       () =>
@@ -142,17 +159,7 @@ export async function classifyCapabilities({
           providerOptions: {
             openrouter: getOpenRouterProviderOptionsForModel(modelId),
           },
-          prompt: `Classify optional capabilities for the next Anthon chat turn.
-
-Return yes only when the capability is materially useful for this message.
-Use uncertain for any capability that cannot be selected with confidence.
-Persistent-memory changes require an explicit user request. Voice output requires an explicit voice response mode.
-
-Context:
-${boundedContext}
-
-User message:
-${JSON.stringify(userMessage)}`,
+          prompt: buildCapabilityClassifierPrompt(userMessage, context),
         }),
     );
 

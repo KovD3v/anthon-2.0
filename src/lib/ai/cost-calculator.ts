@@ -6,6 +6,14 @@
  */
 
 import { type CostResult, calculateCost as tokenlensCost } from "./tokenlens";
+import { redactToolCalls } from "./tool-privacy";
+
+type AIMetricToolCall = {
+  name: string;
+  status?: "completed" | "failed";
+  args?: unknown;
+  result?: unknown;
+};
 
 /**
  * Calculate cost for a single AI call.
@@ -81,11 +89,7 @@ export interface AIMetrics {
   outputTokens: number;
   reasoningTokens: number | null;
   reasoningContent: string | null;
-  toolCalls: Array<{
-    name: string;
-    args: unknown;
-    result?: unknown;
-  }> | null;
+  toolCalls: AIMetricToolCall[] | null;
   toolCallCount?: number;
   toolResultChars?: number;
   toolTiming?: {
@@ -100,6 +104,8 @@ export interface AIMetrics {
   reasoningTimeMs: number | null;
   turnPlan?: Record<string, unknown>;
   tracePayload?: Record<string, unknown>;
+  /** Validated separately from tool telemetry for routine-card persistence. */
+  routineProposal?: unknown;
 }
 
 interface FinishResultInput {
@@ -122,11 +128,7 @@ interface FinishResultInput {
   preferProviderUsage?: boolean;
   providerMetadata?: Record<string, unknown>;
   providerCostUsd?: number;
-  collectedToolCalls?: Array<{
-    name: string;
-    args: unknown;
-    result?: unknown;
-  }>;
+  collectedToolCalls?: unknown[];
   toolTiming?: AIMetrics["toolTiming"];
   ragUsed?: boolean;
   ragChunksCount?: number;
@@ -194,14 +196,21 @@ export function extractAIMetrics(
   const reasoningContent = openrouterMeta?.reasoning ?? null;
 
   // Use collected tool calls
-  const toolCalls = finishResult.collectedToolCalls ?? null;
-  const toolCallCount = toolCalls?.length ?? 0;
+  const rawToolCalls = finishResult.collectedToolCalls ?? null;
+  const toolCalls = redactToolCalls(rawToolCalls);
+  const toolCallCount = toolCalls.length;
   const toolResultChars =
-    toolCalls?.reduce((total, toolCall) => {
-      if (toolCall.result === undefined) {
+    rawToolCalls?.reduce<number>((total, toolCall) => {
+      if (
+        !toolCall ||
+        typeof toolCall !== "object" ||
+        !("result" in toolCall)
+      ) {
         return total;
       }
-      return total + JSON.stringify(toolCall.result).length;
+      return (
+        total + JSON.stringify((toolCall as { result: unknown }).result).length
+      );
     }, 0) ?? 0;
 
   // Calculate cost: prefer OpenRouter's cost if available, otherwise calculate with TokenLens
@@ -231,7 +240,7 @@ export function extractAIMetrics(
     outputTokens,
     reasoningTokens,
     reasoningContent,
-    toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : null,
+    toolCalls: toolCalls.length > 0 ? toolCalls : null,
     toolCallCount,
     toolResultChars,
     toolTiming: finishResult.toolTiming,
