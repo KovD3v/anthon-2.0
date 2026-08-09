@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   createUIMessageStreamResponse: vi.fn(),
   prepareChatTurn: vi.fn(),
   executePreparedChatTurn: vi.fn(),
+  getImmediatelyAttributableApproval: vi.fn(),
+  mightResolvePendingMemoryApproval: vi.fn(),
   checkStaticEligibility: vi.fn(),
   getExperimentCandidate: vi.fn(),
   isCheaplySafeMessage: vi.fn(),
@@ -45,6 +47,11 @@ vi.mock("ai", () => ({
 vi.mock("@/lib/ai/orchestrator", () => ({
   prepareChatTurn: mocks.prepareChatTurn,
   executePreparedChatTurn: mocks.executePreparedChatTurn,
+}));
+
+vi.mock("@/lib/ai/memory-approval", () => ({
+  getImmediatelyAttributableApproval: mocks.getImmediatelyAttributableApproval,
+  mightResolvePendingMemoryApproval: mocks.mightResolvePendingMemoryApproval,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -199,6 +206,8 @@ describe("model comparison runtime", () => {
     );
     mocks.checkStaticEligibility.mockReturnValue(true);
     mocks.isCheaplySafeMessage.mockReturnValue(true);
+    mocks.mightResolvePendingMemoryApproval.mockReturnValue(false);
+    mocks.getImmediatelyAttributableApproval.mockResolvedValue(null);
     mocks.getExperimentCandidate.mockResolvedValue(experiment);
     mocks.isFlagEnabled.mockResolvedValue(true);
     mocks.isSafeTurn.mockReturnValue(true);
@@ -807,6 +816,45 @@ describe("model comparison runtime", () => {
       tryCreateModelComparisonResponse(runtimeInput()),
     ).resolves.toBeNull();
     expect(mocks.getExperimentCandidate).not.toHaveBeenCalled();
+  });
+
+  it("returns null before reserving usage when the message has an attributable memory approval", async () => {
+    const input = runtimeInput();
+    mocks.mightResolvePendingMemoryApproval.mockReturnValue(true);
+    mocks.getImmediatelyAttributableApproval.mockResolvedValue({} as never);
+
+    await expect(tryCreateModelComparisonResponse(input)).resolves.toBeNull();
+
+    expect(mocks.getImmediatelyAttributableApproval).toHaveBeenCalledWith({
+      userId: input.user.id,
+      conversationId: input.conversationThreadId,
+      currentUserMessageId: input.sourceMessageId,
+    });
+    expect(mocks.reserveUsage).not.toHaveBeenCalled();
+    expect(mocks.createPair).not.toHaveBeenCalled();
+  });
+
+  it("still compares a safe message when no attributable memory approval exists", async () => {
+    const input = runtimeInput();
+    mocks.mightResolvePendingMemoryApproval.mockReturnValue(true);
+    mocks.getImmediatelyAttributableApproval.mockResolvedValue(null);
+
+    await expect(tryCreateModelComparisonResponse(input)).resolves.toBeInstanceOf(
+      Response,
+    );
+
+    expect(mocks.reserveUsage).toHaveBeenCalledTimes(1);
+    expect(mocks.createPair).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not inspect memory approvals for guest messages", async () => {
+    const input = runtimeInput();
+    input.user.isGuest = true;
+
+    await tryCreateModelComparisonResponse(input);
+
+    expect(mocks.mightResolvePendingMemoryApproval).not.toHaveBeenCalled();
+    expect(mocks.getImmediatelyAttributableApproval).not.toHaveBeenCalled();
   });
 
   it("returns null when no active experiment is eligible", async () => {

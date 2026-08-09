@@ -2,6 +2,10 @@ import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import type { Prisma } from "@/generated/prisma";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
 import {
+  getImmediatelyAttributableApproval,
+  mightResolvePendingMemoryApproval,
+} from "@/lib/ai/memory-approval";
+import {
   executePreparedChatTurn,
   prepareChatTurn,
 } from "@/lib/ai/orchestrator";
@@ -320,6 +324,23 @@ function isExpectedPairAdmissionRace(error: unknown) {
   );
 }
 
+async function hasAttributablePendingMemoryApproval(input: RuntimeInput) {
+  if (
+    input.user.isGuest ||
+    !mightResolvePendingMemoryApproval(input.userMessage)
+  ) {
+    return false;
+  }
+
+  return Boolean(
+    await getImmediatelyAttributableApproval({
+      userId: input.user.id,
+      conversationId: input.conversationThreadId,
+      currentUserMessageId: input.sourceMessageId,
+    }),
+  );
+}
+
 export async function tryCreateModelComparisonResponse(
   input: RuntimeInput,
 ): Promise<Response | null> {
@@ -356,6 +377,7 @@ export async function tryCreateModelComparisonResponse(
     return null;
   }
   if (!isCheaplySafeModelComparisonMessage(input.userMessage)) return null;
+  if (await hasAttributablePendingMemoryApproval(input)) return null;
 
   const experiment = await getModelExperimentCandidate({
     userId: input.user.id,
