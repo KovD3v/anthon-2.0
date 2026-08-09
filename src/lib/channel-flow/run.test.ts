@@ -1037,6 +1037,41 @@ describe("channel-flow/run", () => {
     );
   });
 
+  it.each([
+    { label: "omitted", ai: undefined },
+    { label: "false", ai: { isGuest: false } },
+  ])(
+    "never resolves memory capabilities for WEB_GUEST when isGuest is $label",
+    async ({ ai }) => {
+      mocks.streamChat.mockResolvedValue({
+        textStream: (async function* () {
+          yield "answer";
+        })(),
+      });
+
+      await runChannelFlow({
+        channel: "WEB_GUEST",
+        userId: "guest-1",
+        conversationThreadId: "thread-1",
+        userMessageId: "inbound-current",
+        userMessageText: "Dimentica training_schedule.",
+        parts: [{ type: "text", text: "Dimentica training_schedule." }],
+        rateLimit: { allowed: true },
+        options: {
+          allowAttachments: false,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: false,
+        },
+        ai,
+        execution: { mode: "text" },
+        persistence: { channel: "WEB", saveAssistantMessage: false },
+      });
+
+      expect(mocks.getImmediatelyAttributableApproval).not.toHaveBeenCalled();
+      expect(mocks.resolveExactMemoryDeleteTarget).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(["WEB", "TELEGRAM", "WHATSAPP"] as const)(
     "passes only the server-resolved exact deletion target through %s",
     async (channel) => {

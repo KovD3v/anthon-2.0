@@ -443,7 +443,9 @@ export async function runChannelFlow(
     requestAbortSignal?.removeEventListener("abort", forwardRequestAbort);
 
   const memoryAvailable =
-    ctx.ai?.isGuest !== true && ctx.options.allowMemoryExtraction;
+    ctx.channel !== "WEB_GUEST" &&
+    ctx.ai?.isGuest !== true &&
+    ctx.options.allowMemoryExtraction;
   const [pendingMemoryApproval, resolvedMemoryTarget] = await Promise.all([
     memoryAvailable &&
     ctx.conversationThreadId &&

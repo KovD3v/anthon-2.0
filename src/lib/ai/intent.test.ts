@@ -194,6 +194,7 @@ describe("ai/intent", () => {
     );
     expect(matchesMemoryDeleteIntent("Dimentica questo")).toBe(true);
     expect(matchesMemoryDeleteIntent("Dimentica questa cosa")).toBe(true);
+    expect(matchesMemoryDeleteIntent("Dimentica training_schedule")).toBe(true);
     expect(
       matchesMemoryDeleteIntent(
         "Dimentica la mia preferenza: mi alleno al mattino.",
@@ -217,6 +218,16 @@ describe("ai/intent", () => {
     expect(
       matchesMemoryDeleteIntent(
         "Dimentica il mio errore in gara e prova a focalizzarti.",
+      ),
+    ).toBe(false);
+    expect(
+      matchesMemoryDeleteIntent(
+        "Dimentica il mio errore in gara e cerchiamo di ripartire.",
+      ),
+    ).toBe(false);
+    expect(
+      matchesMemoryDeleteIntent(
+        "Dimentica il mio errore in gara e proviamo a concentrarci.",
       ),
     ).toBe(false);
     expect(matchesMemoryReadIntent("Ciao coach")).toBe(false);

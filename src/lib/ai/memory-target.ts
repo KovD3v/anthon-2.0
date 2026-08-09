@@ -2,10 +2,12 @@ const EXACT_STABLE_MEMORY_KEY = /^[a-z][a-z0-9_]{0,127}$/;
 
 const EXPLICIT_FORGET =
   /\b(?:dimentica|forget)\b[^.!?]{0,100}(?:\bche\b|\b(?:questa|questo|quella|quello|this|that)\s+(?:memoria|ricordo|dato|informazione|preferenza|fatto|memory|fact|preference)\b|\b(?:la mia|il mio|le mie|i miei|my)\b|\b(?:memoria|ricordo|dato|informazione|profilo|preferenza|fatto|memory|fact|preference|profile)\b)|\b(?:cancella|elimina|rimuovi|delete|remove)\b[^.!?]{0,100}\b(?:memoria|ricordo|dato|informazione|profilo|preferenza|fatto|memory|fact|preference|profile)\b/i;
+const DIRECT_KEY_FORGET =
+  /^\s*(?:dimentica|forget|cancella|elimina|rimuovi|delete|remove)\s+([a-z][a-z0-9_]{0,127})\s*[.!?]*\s*$/i;
 const ANAPHORIC_FORGET =
   /^\s*(?:per favore\s+|please\s+)?(?:dimentica|forget)\s+(?:questa|questo|quella|quello|this|that)(?:\s+(?:cosa|memoria|ricordo|dato|informazione|preferenza|fatto|thing|memory|fact|information|preference))?\s*[.!?]*\s*$/i;
 const COACHING_CONTINUATION =
-  /(?:\be\b|\band\b|[.!?,;:\u2014-])\s*(?:(?:poi|then)\s+)?(?:(?:prova|cerca|try)\s+(?:a|di|to)\s+)?(?:concentr(?:ati|arti|arsi)|focalizz(?:ati|arti|arsi)|ripart(?:i|ire|iamo)|pensa(?:\b|re\b)|guarda\s+avanti\b|vai\s+avanti\b|focus\b|refocus\b|restart\b|think\b|move\s+on\b)/i;
+  /(?:\be\b|\band\b|[.!?,;:\u2014-])\s*(?:(?:poi|then)\s+)?(?:(?:prova|proviamo|cerca|cerchiamo|try)\s+(?:a|di|to)\s+)?(?:concentr(?:ati|arti|arsi|arci)|focalizz(?:ati|arti|arsi|arci)|ripart(?:i|ire|iamo)|pensa(?:\b|re\b)|guarda\s+avanti\b|vai\s+avanti\b|focus\b|refocus\b|restart\b|think\b|move\s+on\b)/i;
 const STABLE_FACT_SIGNAL =
   /\b(?:mi\s+(?:alleno|chiamo|sento|trovo)|(?:vivo|abito|sono|ho|faccio|pratico|preferisco|voglio|lavoro|studio|uso|seguo|mangio|dormo|corro|gioco)|ti\s+(?:alleni|chiami|senti|trovi)|(?:vivi|abiti|sei|hai|fai|pratichi|preferisci|vuoi|lavori|studi|usi|segui|mangi|dormi|corri|giochi)|i\s+(?:am|have|live|train|prefer|want|work|study|use|follow|eat|sleep|run|play)|you\s+(?:are|have|live|train|prefer|want|work|study|use|follow|eat|sleep|run|play))\b/i;
 const FACT_TOKEN_CANONICAL: Record<string, string> = {
@@ -83,7 +85,9 @@ const BROAD_STABLE_KEYS = new Set([
 export function matchesMemoryDeleteIntent(message: string) {
   return (
     !COACHING_CONTINUATION.test(message) &&
-    (ANAPHORIC_FORGET.test(message) || EXPLICIT_FORGET.test(message))
+    (ANAPHORIC_FORGET.test(message) ||
+      EXPLICIT_FORGET.test(message) ||
+      DIRECT_KEY_FORGET.test(message))
   );
 }
 
@@ -140,6 +144,19 @@ function hasStrongContextMatch(content: string, context: string) {
   const contextTokens = new Set(tokenize(context));
   const overlap = contentTokens.filter((token) => contextTokens.has(token));
   return overlap.length >= 2 && overlap.length / contentTokens.length >= 0.8;
+}
+
+function directMemoryKey(message: string) {
+  const match = message.match(DIRECT_KEY_FORGET);
+  const key = match?.[1]?.toLocaleLowerCase("en-US");
+  if (
+    !key ||
+    NON_TARGET_WORDS.has(key) ||
+    Object.values(CATEGORY_ALIASES).some((aliases) => aliases.includes(key))
+  ) {
+    return null;
+  }
+  return isDeletableStableMemoryKey(key) ? key : null;
 }
 
 function stableFactCandidates(value: string) {
@@ -300,40 +317,46 @@ export async function resolveExactMemoryDeleteTarget(input: {
   }
 
   const queryTokens = new Set(tokenize(input.userMessage));
-  if (queryTokens.size === 0) return null;
 
   const { prisma } = await import("@/lib/db");
   const memories = await prisma.memory.findMany({
     where: { userId: input.userId },
     select: { key: true, category: true, value: true },
   });
+
+  const requestedKey = directMemoryKey(input.userMessage);
+  if (requestedKey) {
+    const exactMatches = memories.filter(
+      (memory) => memory.key === requestedKey,
+    );
+    return exactMatches.length === 1 ? requestedKey : null;
+  }
+
+  if (queryTokens.size === 0) return null;
+
   const normalizedMessage = normalizeText(input.userMessage);
   const scored = memories
     .filter((memory) => isDeletableStableMemoryKey(memory.key))
     .map((memory) => {
       const keyPhrase = normalizeText(memory.key.replaceAll("_", " "));
-      const searchable = new Set([
-        ...tokenize(memory.key),
-        ...tokenize(memory.category),
-        ...(CATEGORY_ALIASES[memory.category] ?? []).flatMap(tokenize),
-        ...tokenize(memoryContent(memory.value)),
-      ]);
-      const overlap = [...queryTokens].filter((token) => searchable.has(token));
+      const content = memoryContent(memory.value);
+      const contentMatch = hasStrongContextMatch(content, input.userMessage);
+      const keyMatch = normalizedMessage.includes(keyPhrase);
+      const searchableKey = new Set(tokenize(memory.key));
+      const keyOverlap = [...queryTokens].filter((token) =>
+        searchableKey.has(token),
+      );
       const exactKeyScore = normalizedMessage.includes(keyPhrase) ? 10 : 0;
-      const categoryScore = (CATEGORY_ALIASES[memory.category] ?? []).some(
-        (alias) => normalizedMessage.includes(alias),
-      )
-        ? 2
-        : 0;
+      const contentScore = contentMatch ? 5 : 0;
       return {
         key: memory.key,
-        score: exactKeyScore + categoryScore + overlap.length,
-        overlap: overlap.length,
+        score: exactKeyScore + contentScore + keyOverlap.length,
+        strongMatch: keyMatch || contentMatch,
       };
     })
-    .filter((candidate) => candidate.score >= 2 && candidate.overlap > 0)
+    .filter((candidate) => candidate.strongMatch)
     .sort((left, right) => right.score - left.score);
 
-  if (scored.length !== 1 && scored[0]?.score === scored[1]?.score) return null;
+  if (scored.length !== 1) return null;
   return scored[0]?.key ?? null;
 }

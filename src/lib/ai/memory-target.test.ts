@@ -399,6 +399,45 @@ describe("ai/memory-target", () => {
     ).resolves.toBe("training_schedule");
   });
 
+  it("prefers a factual qualifier over a generic category alias", async () => {
+    memoryFindMany.mockResolvedValue([
+      {
+        key: "training_schedule",
+        category: "schedule",
+        value: { content: "Mi alleno al mattino" },
+      },
+      {
+        key: "favorite_surface",
+        category: "preference",
+        value: { content: "Preferisco terra" },
+      },
+    ]);
+
+    await expect(
+      resolveExactMemoryDeleteTarget({
+        userId: "user-1",
+        userMessage: "Dimentica la mia preferenza: mi alleno al mattino.",
+      }),
+    ).resolves.toBe("training_schedule");
+  });
+
+  it("resolves an explicitly named stable key directly", async () => {
+    memoryFindMany.mockResolvedValue([
+      {
+        key: "training_schedule",
+        category: "schedule",
+        value: { content: "Mi alleno al mattino" },
+      },
+    ]);
+
+    await expect(
+      resolveExactMemoryDeleteTarget({
+        userId: "user-1",
+        userMessage: "Dimentica training_schedule.",
+      }),
+    ).resolves.toBe("training_schedule");
+  });
+
   it("does nothing when the natural forget request is ambiguous", async () => {
     memoryFindMany.mockResolvedValue([
       {
@@ -502,6 +541,8 @@ describe("ai/memory-target", () => {
     "Dimentica il mio errore in gara e prova a concentrarti.",
     "Dimentica il mio errore in gara e prova a ripartire.",
     "Dimentica il mio errore in gara e prova a focalizzarti.",
+    "Dimentica il mio errore in gara e cerchiamo di ripartire.",
+    "Dimentica il mio errore in gara e proviamo a concentrarci.",
     "Dimentica il mio errore in gara, riparti.",
     "Dimentica il mio errore in gara: pensa alla prossima.",
   ])(
