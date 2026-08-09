@@ -16,6 +16,14 @@ export interface RoutineRunnerState {
   startedAt: number | null;
 }
 
+export interface RoutineProgress {
+  stepNumber: number;
+  totalSteps: number;
+  completedSteps: number;
+  routinePercent: number;
+  stepPercent: number | null;
+}
+
 export interface BreathingPhase {
   cycle: number;
   label: "Inspira" | "Espira" | "Pausa";
@@ -149,6 +157,66 @@ export function getBreathingPhase(
   }
 
   return null;
+}
+
+export function getRoutineProgress(
+  state: RoutineRunnerState,
+  practiceSteps: readonly RoutinePracticeStep[],
+  now: number,
+): RoutineProgress {
+  const totalSteps = practiceSteps.length;
+  const completedSteps = Math.min(Math.max(state.stepIndex, 0), totalSteps);
+  const isCompleted =
+    state.status === "completed" || state.stepIndex >= totalSteps;
+
+  if (isCompleted) {
+    return {
+      stepNumber: totalSteps,
+      totalSteps,
+      completedSteps: totalSteps,
+      routinePercent: 100,
+      stepPercent: 100,
+    };
+  }
+
+  const currentStep = practiceSteps[state.stepIndex];
+  let stepPercent: number | null = null;
+
+  if (currentStep.kind === "timer") {
+    stepPercent = Math.min(
+      100,
+      Math.max(
+        0,
+        (getElapsedMs(state, now) / (currentStep.durationSeconds * 1_000)) *
+          100,
+      ),
+    );
+  } else if (currentStep.kind === "breathing") {
+    const elapsedMs = getElapsedMs(state, now);
+    const cycleDurationMs =
+      (currentStep.inhaleSeconds +
+        currentStep.holdAfterInhaleSeconds +
+        currentStep.exhaleSeconds +
+        currentStep.holdAfterExhaleSeconds) *
+      1_000;
+    const totalDurationMs = cycleDurationMs * currentStep.cycles;
+
+    stepPercent =
+      getBreathingPhase(currentStep, elapsedMs) === null
+        ? 100
+        : Math.min(100, Math.max(0, (elapsedMs / totalDurationMs) * 100));
+  }
+
+  return {
+    stepNumber: state.stepIndex + 1,
+    totalSteps,
+    completedSteps,
+    routinePercent: Math.min(
+      100,
+      Math.max(0, (completedSteps / totalSteps) * 100),
+    ),
+    stepPercent,
+  };
 }
 
 export function advanceRunner(

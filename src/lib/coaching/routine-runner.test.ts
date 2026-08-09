@@ -11,6 +11,7 @@ import {
   getElapsedMs,
   getRemainingMs,
   getRoutinePracticeSteps,
+  getRoutineProgress,
   pauseRunner,
   resetRunner,
   startRunner,
@@ -31,6 +32,61 @@ const timer: RoutineTimerStep = {
 };
 
 const practiceSteps = [instruction, timer] as const;
+
+const progressSteps: readonly RoutinePracticeStep[] = [
+  instruction,
+  timer,
+  {
+    id: "close",
+    kind: "instruction",
+    text: "Riprendi il prossimo gesto.",
+  },
+];
+
+describe("routine progress contract", () => {
+  it("starts at the first step with no step progress", () => {
+    expect(
+      getRoutineProgress(createInitialRunnerState(), progressSteps, 0),
+    ).toEqual({
+      stepNumber: 1,
+      totalSteps: 3,
+      completedSteps: 0,
+      routinePercent: 0,
+      stepPercent: null,
+    });
+  });
+
+  it("derives timer progress from elapsed timestamps", () => {
+    const pausedTimer = pauseRunner(
+      startRunner({ ...createInitialRunnerState(), stepIndex: 1 }, 1_000),
+      3_500,
+    );
+
+    expect(getRoutineProgress(pausedTimer, progressSteps, 99_000)).toEqual({
+      stepNumber: 2,
+      totalSteps: 3,
+      completedSteps: 1,
+      routinePercent: 33.33333333333333,
+      stepPercent: 50,
+    });
+  });
+
+  it("reports full progress for a completed routine", () => {
+    const completed = {
+      ...createInitialRunnerState(),
+      stepIndex: progressSteps.length,
+      status: "completed" as const,
+    };
+
+    expect(getRoutineProgress(completed, progressSteps, 0)).toEqual({
+      stepNumber: 3,
+      totalSteps: 3,
+      completedSteps: 3,
+      routinePercent: 100,
+      stepPercent: 100,
+    });
+  });
+});
 
 describe("routine runner state machine", () => {
   it("keeps elapsed time from timestamps across start, pause, and reset", () => {
