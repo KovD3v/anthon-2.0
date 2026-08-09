@@ -9,8 +9,8 @@ import {
   Loader2,
   MessageCircle,
   Pencil,
-  RotateCw,
   Repeat2,
+  RotateCw,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -24,10 +24,10 @@ import {
 import {
   archiveRoutine,
   createRoutineAttempt,
-  RoutineClientError,
-  saveRoutineOutcome,
   type RoutineAttemptOutcome,
+  RoutineClientError,
   type RoutineCollectionStatus,
+  saveRoutineOutcome,
 } from "@/lib/coaching/routine-client";
 import { cn } from "@/lib/utils";
 import { useChatContext } from "../chat/layout-client";
