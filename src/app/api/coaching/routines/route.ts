@@ -102,6 +102,7 @@ export async function GET(request?: Request) {
         status: parsedQuery.data.status,
         OR: [
           { sourceChatId: null },
+          { sourceChat: null },
           {
             sourceChat: {
               is: { userId: user.id, visibility: "PRIVATE" as const },

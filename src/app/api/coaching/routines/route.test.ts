@@ -432,6 +432,7 @@ describe("GET /api/coaching/routines", () => {
         status: "ARCHIVED",
         OR: [
           { sourceChatId: null },
+          { sourceChat: null },
           {
             sourceChat: {
               is: { userId: "user-1", visibility: "PRIVATE" },
@@ -446,6 +447,7 @@ describe("GET /api/coaching/routines", () => {
         status: "ARCHIVED",
         OR: [
           { sourceChatId: null },
+          { sourceChat: null },
           {
             sourceChat: {
               is: { userId: "user-1", visibility: "PRIVATE" },

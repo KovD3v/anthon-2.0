@@ -313,4 +313,25 @@ describe("integration coaching routine lifecycle serialization", () => {
       routines: [{ status: "ARCHIVED" }],
     });
   });
+
+  it("keeps a routine in the collection after its source chat is deleted", async () => {
+    const owner = await prisma.user.findFirstOrThrow();
+    const sourceChat = await createChat(owner.id, { title: "Chat sorgente" });
+    const orphanedRoutine = await createRoutine(owner.id, {
+      sourceChatId: sourceChat.id,
+      title: "Routine senza chat",
+    });
+
+    await prisma.chat.delete({ where: { id: sourceChat.id } });
+
+    const response = await listRoutines(
+      new Request(
+        "http://localhost/api/coaching/routines?mode=collection&status=ACTIVE",
+      ),
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      total: 1,
+      routines: [{ id: orphanedRoutine.id, sourceChatId: null }],
+    });
+  });
 });
