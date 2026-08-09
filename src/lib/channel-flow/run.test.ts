@@ -1043,10 +1043,20 @@ describe("channel-flow/run", () => {
   ])(
     "never resolves memory capabilities for WEB_GUEST when isGuest is $label",
     async ({ ai }) => {
-      mocks.streamChat.mockResolvedValue({
-        textStream: (async function* () {
-          yield "answer";
-        })(),
+      mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+        await onFinish?.({
+          text: "answer",
+          metrics: {
+            inputTokens: 1,
+            outputTokens: 1,
+            generationTimeMs: 1,
+          },
+        });
+        return {
+          textStream: (async function* () {
+            yield "answer";
+          })(),
+        };
       });
 
       await runChannelFlow({
@@ -1064,11 +1074,20 @@ describe("channel-flow/run", () => {
         },
         ai,
         execution: { mode: "text" },
-        persistence: { channel: "WEB", saveAssistantMessage: false },
+        persistence: { channel: "WEB", saveAssistantMessage: true },
       });
 
       expect(mocks.getImmediatelyAttributableApproval).not.toHaveBeenCalled();
       expect(mocks.resolveExactMemoryDeleteTarget).not.toHaveBeenCalled();
+      expect(mocks.streamChat).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isGuest: true,
+          memoryEnabled: false,
+        }),
+      );
+      expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
+        expect.objectContaining({ allowMemoryExtraction: false }),
+      );
     },
   );
 
@@ -1598,7 +1617,9 @@ describe("channel-flow/run", () => {
           effectiveEntitlements: expect.objectContaining({
             modelTier: "BASIC",
           }),
-          isGuest: testCase.input.ai?.isGuest,
+          isGuest:
+            testCase.input.channel === "WEB_GUEST" ||
+            testCase.input.ai?.isGuest === true,
           memoryEnabled: testCase.expected.memoryEnabled,
           hasImages: testCase.expected.hasImages,
           hasAudio: testCase.expected.hasAudio,

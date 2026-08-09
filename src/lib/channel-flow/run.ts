@@ -158,6 +158,11 @@ export async function runChannelFlow(
     : ctx.parts.filter((part) => part.type === "text");
   const normalizedParts = normalizeParts(policyParts);
   const mode = ctx.execution?.mode ?? "text";
+  const isGuest = ctx.channel === "WEB_GUEST" || ctx.ai?.isGuest === true;
+  const memoryEnabled =
+    isGuest && ctx.channel === "WEB_GUEST"
+      ? false
+      : ctx.options.allowMemoryExtraction;
   let capabilityPlannerMode: "legacy" | "agentic" = "legacy";
   let capabilityDecision: CapabilityDecision | undefined;
 
@@ -306,7 +311,7 @@ export async function runChannelFlow(
         metadata: ctx.persistence?.metadata,
         updateChatTimestamp: ctx.persistence?.updateChatTimestamp,
         revalidateTags: ctx.persistence?.revalidateTags,
-        allowMemoryExtraction: ctx.options.allowMemoryExtraction,
+        allowMemoryExtraction: memoryEnabled,
         capabilityDecision,
         capabilityPlannerMode,
         waitUntil: ctx.persistence?.waitUntil,
@@ -442,10 +447,7 @@ export async function runChannelFlow(
   const detachRequestAbort = () =>
     requestAbortSignal?.removeEventListener("abort", forwardRequestAbort);
 
-  const memoryAvailable =
-    ctx.channel !== "WEB_GUEST" &&
-    ctx.ai?.isGuest !== true &&
-    ctx.options.allowMemoryExtraction;
+  const memoryAvailable = !isGuest && memoryEnabled;
   const [pendingMemoryApproval, resolvedMemoryTarget] = await Promise.all([
     memoryAvailable &&
     ctx.conversationThreadId &&
@@ -480,7 +482,7 @@ export async function runChannelFlow(
       planId: ctx.ai?.planId,
       userRole: ctx.ai?.userRole,
       subscriptionStatus: ctx.ai?.subscriptionStatus,
-      isGuest: ctx.ai?.isGuest,
+      isGuest,
       hasImages: ctx.options.allowAttachments
         ? (ctx.ai?.hasImages ?? detectImages(policyParts))
         : false,
@@ -489,7 +491,7 @@ export async function runChannelFlow(
         : false,
       inputOrigin: ctx.ai?.inputOrigin,
       messageParts: normalizedParts,
-      memoryEnabled: ctx.options.allowMemoryExtraction,
+      memoryEnabled,
       responseMode: ctx.options.allowVoiceOutput
         ? (ctx.ai?.responseMode ?? "text")
         : "text",
