@@ -234,9 +234,8 @@ const PROMPT_RAG_POLICY = `RAG
 - If the RAG CONTEXT section is present and relevant, use it as a base. Do NOT invent sources. Do NOT paste long excerpts.`;
 
 const PROMPT_ROUTINE_PROPOSAL_POLICY = `ROUTINE PROPOSAL
-- When the user explicitly asks for a routine, plan, reset, or concrete practice and you provide one, you MUST call \`proposeRoutine\` exactly once before the final answer.
-- For other answers, call \`proposeRoutine\` at most once only when the answer contains a concrete two-to-three-step practice.
-- The tool is a proposal, never a saved routine; never claim it was saved.
+- You may call \`proposeRoutine\` when a concrete, useful routine would help the user.
+- Call it at most once per turn. It is proposal-only and never a saved routine: never save, run, archive, or mutate a Routine or RoutineAttempt, and never claim the proposal was saved.
 - Send only formatVersion 2. Give every step a stable, descriptive id and use only \`instruction\`, \`timer\`, \`breathing\`, or \`form\` step kinds.
 - For timer and breathing, provide values within the tool schema limits. A \`form\`, if useful, must be the last step and map exactly once to \`HELPFUL\`, \`PARTIALLY_HELPFUL\`, and \`NOT_HELPFUL\` through its three options.
 - Never infer a proposal from free-form text: only the validated tool call can create the proposal.`;
@@ -1380,7 +1379,7 @@ async function arbitrateCapabilities({
         })
       : null;
 
-  return normalizeCapabilityDecision({
+  const normalizedDecision = normalizeCapabilityDecision({
     userMessage,
     isGuest,
     memoryEnabled,
@@ -1391,6 +1390,17 @@ async function arbitrateCapabilities({
     resolvedMemoryTarget,
     classifier,
   });
+
+  if (capabilityPlannerMode !== "agentic") {
+    return normalizedDecision;
+  }
+
+  return {
+    ...normalizedDecision,
+    routineProposal:
+      normalizedDecision.routineProposal &&
+      classifier?.routineProposal === true,
+  };
 }
 
 /**
@@ -2179,8 +2189,16 @@ export async function streamChat({
               { name: tc.toolName, args: toolInput, result: toolResult },
             ]),
           );
-          if (tc.toolName === "proposeRoutine") {
-            routineProposal = toolInput;
+          if (
+            tc.toolName === "proposeRoutine" &&
+            routineProposal === undefined
+          ) {
+            const routineToolResult = toolResult as
+              | { proposal?: unknown }
+              | undefined;
+            if (routineToolResult?.proposal != null) {
+              routineProposal = routineToolResult.proposal;
+            }
           }
           if (tc.toolName === "searchRag") {
             const ragToolResult = toolResult as

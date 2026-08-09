@@ -2510,7 +2510,27 @@ describe("ai/orchestrator", () => {
     );
   });
 
-  it("uses the immutable agentic turn plan for routine tool construction", async () => {
+  it("does not expose routine proposals in agentic mode unless the capability planner selects them", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValueOnce({
+      routineProposal: false,
+    });
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-agentic-routine-not-selected",
+      userMessage: "Dammi una routine mentale pratica prima della gara.",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).not.toHaveProperty("proposeRoutine");
+    expect(streamInput.instructions).not.toContain("ROUTINE PROPOSAL");
+  });
+
+  it("uses the immutable agentic turn plan for optional routine tool construction", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
     mocks.classifyCapabilities.mockResolvedValueOnce({
       routineProposal: true,
@@ -2523,6 +2543,7 @@ describe("ai/orchestrator", () => {
     });
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
       tools: Record<string, unknown>;
       prepareStep?: (input: { steps: unknown[] }) => unknown;
     };
@@ -2531,6 +2552,83 @@ describe("ai/orchestrator", () => {
     });
     expect(streamInput.prepareStep).toEqual(expect.any(Function));
     expect(streamInput.prepareStep?.({ steps: [] })).toBeUndefined();
+    expect(streamInput.instructions).toContain(
+      "may call `proposeRoutine` when a concrete, useful routine would help",
+    );
+    expect(streamInput.instructions).toContain("at most once per turn");
+    expect(streamInput.instructions).not.toContain("MUST call");
+  });
+
+  it("persists only the accepted routine proposal when parallel calls are attempted", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValueOnce({
+      routineProposal: true,
+    });
+    const acceptedProposal = {
+      formatVersion: 2,
+      title: "Reset utile",
+      trigger: "Prima della gara",
+      durationLabel: "60 secondi",
+      steps: [
+        {
+          id: "reset",
+          kind: "instruction",
+          text: "Respira e scegli il primo gesto.",
+        },
+      ],
+      completionCue: "Parto dal primo gesto.",
+    };
+    const rejectedProposal = {
+      ...acceptedProposal,
+      title: "Seconda proposta rifiutata",
+    };
+    const onFinish = vi.fn();
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-agentic-routine-parallel",
+      userMessage: "Aiutami con una routine pre-gara.",
+      onFinish,
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      onStepEnd: (step: {
+        toolCalls?: Array<{ toolName: string; input?: unknown }>;
+        toolResults?: Array<{ output?: unknown }>;
+      }) => void;
+      onEnd: (step: {
+        text: string;
+        usage: {
+          inputTokens: number;
+          outputTokens: number;
+          totalTokens: number;
+        };
+        providerMetadata: Record<string, unknown>;
+      }) => Promise<void>;
+    };
+    streamInput.onStepEnd({
+      toolCalls: [
+        { toolName: "proposeRoutine", input: acceptedProposal },
+        { toolName: "proposeRoutine", input: rejectedProposal },
+      ],
+      toolResults: [
+        { output: { proposal: acceptedProposal } },
+        { output: { proposal: null } },
+      ],
+    });
+    await streamInput.onEnd({
+      text: "Ecco una routine utile.",
+      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      providerMetadata: {},
+    });
+
+    expect(onFinish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metrics: expect.objectContaining({
+          routineProposal: acceptedProposal,
+        }),
+      }),
+    );
   });
 
   it("composes agentic capabilities with legacy turn planning without divergence", async () => {
@@ -2616,6 +2714,69 @@ describe("ai/orchestrator", () => {
               rag: true,
               memoryDelete: true,
               routineProposal: true,
+            }),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it.each([
+    {
+      name: "authorized voice output",
+      responseMode: "voice" as const,
+      voiceEnabled: true,
+      expected: true,
+    },
+    {
+      name: "voice preference disabled",
+      responseMode: "voice" as const,
+      voiceEnabled: false,
+      expected: false,
+    },
+    {
+      name: "deterministic text outcome",
+      responseMode: "text" as const,
+      voiceEnabled: true,
+      expected: false,
+    },
+  ])("records $name in capability metadata", async (voiceCase) => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValueOnce({ voiceOutput: true });
+    const onFinish = vi.fn();
+
+    await streamChat({
+      userId: "user-1",
+      chatId: `chat-agentic-voice-${voiceCase.name}`,
+      userMessage: "Rispondimi nel formato autorizzato.",
+      responseMode: voiceCase.responseMode,
+      voiceEnabled: voiceCase.voiceEnabled,
+      onFinish,
+    });
+
+    const streamInput = mocks.streamText.mock.calls.at(-1)?.[0] as {
+      onEnd: (step: {
+        text: string;
+        usage: {
+          inputTokens: number;
+          outputTokens: number;
+          totalTokens: number;
+        };
+        providerMetadata: Record<string, unknown>;
+      }) => Promise<void>;
+    };
+    await streamInput.onEnd({
+      text: "Risposta",
+      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      providerMetadata: {},
+    });
+
+    expect(onFinish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metrics: expect.objectContaining({
+          turnPlan: expect.objectContaining({
+            capabilities: expect.objectContaining({
+              voiceOutput: voiceCase.expected,
             }),
           }),
         }),

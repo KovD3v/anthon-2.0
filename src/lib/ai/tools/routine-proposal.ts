@@ -14,7 +14,7 @@ export function createRoutineProposalTool() {
   return {
     proposeRoutine: tool({
       description:
-        "Proponi una routine interattiva nel solo formato v2 validato. Ogni passo ha un id stabile e un kind instruction, timer, breathing oppure form. Il form opzionale e terminale usa le tre outcome canoniche HELPFUL, PARTIALLY_HELPFUL e NOT_HELPFUL. I limiti di durata, cicli, testo e passi sono applicati dal server. Non salva nulla.",
+        "Create a proposal-only interactive routine in the validated v2 format when it would concretely help the user. Call at most once per turn. Never save, run, archive, or mutate any Routine or RoutineAttempt. Every step needs a stable id and an instruction, timer, breathing, or form kind. An optional terminal form uses the canonical HELPFUL, PARTIALLY_HELPFUL, and NOT_HELPFUL outcomes. The server enforces duration, cycle, text, and step limits.",
       inputSchema: routineProposalV2Schema,
       execute: async (proposal): Promise<RoutineProposalToolResult> => {
         if (proposalCreated) {

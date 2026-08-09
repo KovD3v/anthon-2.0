@@ -5,7 +5,8 @@ import {
 } from "@/lib/coaching/routine";
 
 const prismaMock = vi.hoisted(() => ({
-  routine: { create: vi.fn() },
+  routine: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  routineAttempt: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
 }));
 
 vi.mock("@/lib/db", () => ({ prisma: prismaMock }));
@@ -61,6 +62,9 @@ describe("createRoutineProposalTool", () => {
     const tool = createRoutineProposalTool().proposeRoutine;
 
     expect(tool.inputSchema).toBe(routineProposalV2Schema);
+    expect(tool.description).toContain("proposal-only");
+    expect(tool.description).toContain("at most once per turn");
+    expect(tool.description).toContain("RoutineAttempt");
     expect(
       routineProposalV2Schema.safeParse({
         title: "Reset pre-gara",
@@ -75,6 +79,11 @@ describe("createRoutineProposalTool", () => {
 
     expect(result).toEqual({ proposal });
     expect(prismaMock.routine.create).not.toHaveBeenCalled();
+    expect(prismaMock.routine.update).not.toHaveBeenCalled();
+    expect(prismaMock.routine.delete).not.toHaveBeenCalled();
+    expect(prismaMock.routineAttempt.create).not.toHaveBeenCalled();
+    expect(prismaMock.routineAttempt.update).not.toHaveBeenCalled();
+    expect(prismaMock.routineAttempt.delete).not.toHaveBeenCalled();
   });
 
   it("returns only one proposal when two calls arrive in the same step", async () => {
