@@ -19,15 +19,6 @@ import {
   evaluateWebSearchRule,
   getWebSearchDomainType,
   matchesBriefResponseIntent,
-  matchesMemoryReadIntent,
-  matchesMemoryWriteIntent,
-  matchesNotesWriteIntent,
-  matchesPreferenceWriteIntent,
-  matchesProfileWriteIntent,
-  matchesRoutineProposalIntent,
-  matchesVoiceIntent,
-  shouldEnableWebFetchTool,
-  shouldEnableWebSearchTool,
 } from "@/lib/ai/intent";
 import {
   getMultimodalMediaKind,
@@ -395,6 +386,8 @@ type PromptMode = "full" | "guest" | "simple_fast";
 type ToolPlan = {
   webSearch: boolean;
   webFetch: boolean;
+  rag: boolean;
+  userContext: boolean;
   webSearchDomainType?: "web" | "news" | "research_paper";
   memoryRead: boolean;
   memoryWrite: boolean;
@@ -404,6 +397,7 @@ type ToolPlan = {
   preferenceWrite: boolean;
   notesWrite: boolean;
   routineProposal: boolean;
+  voiceOutput: boolean;
   hasAny: boolean;
   hasPersistentWrites: boolean;
 };
@@ -646,22 +640,14 @@ function base64ToUint8Array(base64: string): Uint8Array {
  */
 function createToolsWithContext(
   userId: string,
-  options?: {
+  options: {
     memoryEnabled?: boolean;
     isGuest?: boolean;
     userMessage?: string;
-    toolPlan?: ToolPlan;
+    toolPlan: ToolPlan;
   },
 ) {
-  const toolPlan =
-    options?.toolPlan ??
-    selectToolPlan({
-      userMessage: options?.userMessage ?? "",
-      isGuest: options?.isGuest ?? false,
-      memoryEnabled: options?.memoryEnabled ?? true,
-      webSearchEnabled: shouldEnableWebSearchTool(options?.userMessage),
-      webFetchEnabled: shouldEnableWebFetchTool(options?.userMessage),
-    });
+  const toolPlan = options.toolPlan;
 
   const tinyfishTools = toolPlan.webSearch
     ? createTinyfishTools({
@@ -770,66 +756,9 @@ function instrumentToolExecutions(
   );
 }
 
-function selectToolPlan({
-  userMessage,
-  isGuest,
-  memoryEnabled,
-  webSearchEnabled,
-  webFetchEnabled,
-}: {
-  userMessage: string;
-  isGuest: boolean;
-  memoryEnabled: boolean;
-  webSearchEnabled: boolean;
-  webFetchEnabled: boolean;
-}): ToolPlan {
-  const persistentWritesAllowed = !isGuest && memoryEnabled;
-  const memoryRead =
-    !isGuest && memoryEnabled && matchesMemoryReadIntent(userMessage);
-  const memoryWrite =
-    persistentWritesAllowed && matchesMemoryWriteIntent(userMessage);
-  const memoryDelete = false;
-  const profileWrite =
-    persistentWritesAllowed && matchesProfileWriteIntent(userMessage);
-  const preferenceWrite =
-    persistentWritesAllowed && matchesPreferenceWriteIntent(userMessage);
-  const notesWrite =
-    persistentWritesAllowed && matchesNotesWriteIntent(userMessage);
-  const hasPersistentWrites =
-    memoryWrite ||
-    memoryDelete ||
-    profileWrite ||
-    preferenceWrite ||
-    notesWrite;
-  const routineProposal = shouldEnableRoutineProposal({
-    userMessage,
-    webSearchEnabled,
-    inputOrigin: "text",
-    outputMode: "text",
-  });
-
-  return {
-    webSearch: webSearchEnabled,
-    webFetch: webSearchEnabled && webFetchEnabled,
-    webSearchDomainType: getWebSearchDomainType(userMessage),
-    memoryRead,
-    memoryWrite,
-    memoryDelete,
-    memoryDeleteTarget: null,
-    profileWrite,
-    preferenceWrite,
-    notesWrite,
-    routineProposal,
-    hasPersistentWrites,
-    hasAny:
-      webSearchEnabled || memoryRead || hasPersistentWrites || routineProposal,
-  };
-}
-
 function toolPlanFromTurnPlan(
   turnPlan: TurnPlan,
   userMessage: string,
-  benchmarkModelId?: string,
 ): ToolPlan {
   const memoryDelete = turnPlan.capabilities.memoryDelete;
   const hasPersistentWrites =
@@ -838,25 +767,22 @@ function toolPlanFromTurnPlan(
     turnPlan.capabilities.profileWrite ||
     turnPlan.capabilities.preferenceWrite ||
     turnPlan.capabilities.notesWrite;
-  const routineProposal = shouldEnableRoutineProposal({
-    userMessage,
-    webSearchEnabled: turnPlan.capabilities.webSearch,
-    inputOrigin: turnPlan.inputOrigin,
-    outputMode: turnPlan.outputMode,
-    benchmarkModelId,
-  });
+  const routineProposal = turnPlan.capabilities.routineProposal;
   return {
     webSearch: turnPlan.capabilities.webSearch,
-    webFetch: turnPlan.capabilities.webFetch,
+    webFetch: turnPlan.capabilities.webSearch && turnPlan.capabilities.webFetch,
+    rag: turnPlan.capabilities.rag,
+    userContext: turnPlan.capabilities.userContext,
     webSearchDomainType: getWebSearchDomainType(userMessage),
     memoryRead: turnPlan.capabilities.memoryRead,
     memoryWrite: turnPlan.capabilities.memoryWrite,
     memoryDelete,
-    memoryDeleteTarget: null,
+    memoryDeleteTarget: turnPlan.memoryDeleteTarget,
     profileWrite: turnPlan.capabilities.profileWrite,
     preferenceWrite: turnPlan.capabilities.preferenceWrite,
     notesWrite: turnPlan.capabilities.notesWrite,
     routineProposal,
+    voiceOutput: turnPlan.capabilities.voiceOutput,
     hasPersistentWrites,
     hasAny:
       turnPlan.capabilities.webSearch ||
@@ -864,29 +790,6 @@ function toolPlanFromTurnPlan(
       hasPersistentWrites ||
       routineProposal,
   };
-}
-
-function shouldEnableRoutineProposal({
-  userMessage,
-  webSearchEnabled,
-  inputOrigin,
-  outputMode,
-  benchmarkModelId,
-}: {
-  userMessage: string;
-  webSearchEnabled: boolean;
-  inputOrigin: TurnPlan["inputOrigin"];
-  outputMode: TurnPlan["outputMode"];
-  benchmarkModelId?: string;
-}) {
-  return (
-    matchesRoutineProposalIntent(userMessage) &&
-    !webSearchEnabled &&
-    inputOrigin === "text" &&
-    outputMode !== "voice" &&
-    !benchmarkModelId &&
-    !matchesVoiceIntent(userMessage)
-  );
 }
 
 function getSearchOnlyTinyfishLimits(userMessage: string) {
@@ -1297,6 +1200,11 @@ function toTurnPlanClassifier(
     webFetch: decision.webFetch,
     rag: decision.rag,
     userContext: decision.userContext ? "needed" : "not_needed",
+    memoryRead: decision.memoryRead,
+    memoryWrite: decision.memoryWrite,
+    memoryDelete: decision.memoryDelete,
+    routineProposal: decision.routineProposal,
+    voiceOutput: decision.voiceOutput,
   };
 }
 
@@ -1458,6 +1366,9 @@ export async function streamChat({
     webSearchEnabled: capabilityDecision.webSearch,
     webFetchEnabled: capabilityDecision.webFetch,
     allowConcurrentRagAndWeb: getCapabilityPlannerMode() === "agentic",
+    capabilityDecision,
+    persistentToolsAllowed: !benchmarkModelId,
+    routineProposalAllowed: !benchmarkModelId,
     memoryDeleteEnabled: capabilityDecision.memoryDelete,
     memoryDeleteTarget: capabilityDecision.memoryDeleteTarget,
     classifier: toTurnPlanClassifier(capabilityDecision),
@@ -1476,10 +1387,7 @@ export async function streamChat({
       : turnPlan.promptProfile === "guest"
         ? "guest"
         : "full";
-  const toolPlan = {
-    ...toolPlanFromTurnPlan(turnPlan, userMessage, benchmarkModelId),
-    memoryDeleteTarget: capabilityDecision.memoryDeleteTarget,
-  };
+  const toolPlan = toolPlanFromTurnPlan(turnPlan, userMessage);
   const classifierRagEnabled =
     capabilityDecision.source !== "fallback" && capabilityDecision.rag;
   const userContextEnabled = turnPlan.capabilities.userContext;
@@ -2233,6 +2141,9 @@ export async function prepareChatTurn({
     webSearchEnabled: capabilityDecision.webSearch,
     webFetchEnabled: capabilityDecision.webFetch,
     allowConcurrentRagAndWeb: getCapabilityPlannerMode() === "agentic",
+    capabilityDecision,
+    persistentToolsAllowed: false,
+    routineProposalAllowed: false,
     memoryDeleteEnabled: capabilityDecision.memoryDelete,
     memoryDeleteTarget: capabilityDecision.memoryDeleteTarget,
     classifier: toTurnPlanClassifier(capabilityDecision),

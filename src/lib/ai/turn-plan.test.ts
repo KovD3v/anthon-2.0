@@ -72,6 +72,106 @@ describe("turn plan", () => {
     expect(agentic.capabilities).toMatchObject({ webSearch: true, rag: true });
   });
 
+  it("projects every agentic capability without excluding RAG from web research", () => {
+    const result = plan({
+      userMessage: "Cerca online fonti e confrontale con i documenti caricati",
+      webSearchEnabled: true,
+      webFetchEnabled: true,
+      allowConcurrentRagAndWeb: true,
+      classifier: { accepted: true, rag: true },
+    });
+
+    expect(result.capabilities).toMatchObject({
+      webSearch: true,
+      webFetch: true,
+      rag: true,
+      userContext: false,
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      routineProposal: false,
+      voiceOutput: false,
+    });
+  });
+
+  it("projects memory writes and overwrites as one capability", () => {
+    const create = plan({
+      userMessage: "Ricordati che il mio obiettivo è correre 5 km",
+    });
+    const overwrite = plan({
+      userMessage: "Ricordati che il mio obiettivo ora è correre 10 km",
+    });
+
+    expect(create.capabilities.memoryWrite).toBe(true);
+    expect(overwrite.capabilities.memoryWrite).toBe(true);
+    expect(overwrite.capabilities).toMatchObject({
+      memoryDelete: false,
+      routineProposal: false,
+      voiceOutput: false,
+    });
+  });
+
+  it("projects an exact requested memory deletion without enabling adjacent persistence", () => {
+    const result = plan({
+      userMessage: "Dimentica questa informazione",
+      memoryDeleteEnabled: true,
+      memoryDeleteTarget: "training_goal",
+    });
+
+    expect(result.capabilities).toMatchObject({
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: true,
+      routineProposal: false,
+      voiceOutput: false,
+    });
+  });
+
+  it("projects routine proposals independently from memory and web", () => {
+    const result = plan({
+      userMessage:
+        "Prima della gara perdo lucidità dopo un errore. Dammi una routine pratica di 60 secondi.",
+    });
+
+    expect(result.capabilities).toMatchObject({
+      webSearch: false,
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      routineProposal: true,
+      voiceOutput: false,
+    });
+  });
+
+  it("keeps guest and compact turns non-persistent while allowing guest routines", () => {
+    const guestRoutine = plan({
+      isGuest: true,
+      userMessage:
+        "Prima della gara perdo lucidità dopo un errore. Dammi una routine pratica di 60 secondi.",
+    });
+    const compact = plan({
+      userMessage: "Motivami",
+      classifier: {
+        accepted: true,
+        memoryWrite: true,
+        memoryDelete: true,
+      },
+    });
+
+    expect(guestRoutine.capabilities).toMatchObject({
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      routineProposal: true,
+    });
+    expect(compact.promptProfile).toBe("compact");
+    expect(compact.capabilities).toMatchObject({
+      memoryWrite: false,
+      memoryDelete: false,
+      voiceOutput: false,
+    });
+  });
+
   it.each([
     ["normal", planTurn],
     ["legacy", planLegacyTurn],
@@ -164,6 +264,7 @@ describe("turn plan", () => {
 
     expect(result.promptProfile).toBe("full");
     expect(result.capabilities.webSearch).toBe(true);
+    expect(result.capabilities.rag).toBe(false);
   });
 
   it("keeps voice output and explicit voice requests out of legacy compact mode", () => {
@@ -190,6 +291,7 @@ describe("turn plan", () => {
 
     expect(voiceOutput.promptProfile).toBe("full");
     expect(voiceOutput.capabilities.userContext).toBe(true);
+    expect(voiceOutput.capabilities.voiceOutput).toBe(true);
     expect(voiceOutput.outputMode).toBe("voice");
     expect(explicitVoiceRequest.promptProfile).toBe("full");
   });

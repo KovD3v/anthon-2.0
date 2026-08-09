@@ -2336,6 +2336,28 @@ describe("ai/orchestrator", () => {
     );
   });
 
+  it("uses the immutable agentic turn plan for routine tool construction", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValueOnce({
+      routineProposal: true,
+    });
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-agentic-routine-projection",
+      userMessage: "Aiutami a ripartire dopo una gara difficile.",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      tools: Record<string, unknown>;
+      prepareStep?: unknown;
+    };
+    expect(streamInput.tools).toEqual({
+      proposeRoutine: "routine-proposal-tool",
+    });
+    expect(streamInput.prepareStep).toEqual(expect.any(Function));
+  });
+
   it("does not expose memory deletion for a generic forget request", async () => {
     await streamChat({
       userId: "user-1",

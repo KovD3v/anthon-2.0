@@ -10,6 +10,7 @@ import {
   matchesPreferenceWriteIntent,
   matchesProfileWriteIntent,
   matchesRagIntent,
+  matchesRoutineProposalIntent,
   matchesSimpleFastIntent,
   matchesVoiceIntent,
 } from "./intent";
@@ -50,10 +51,13 @@ export type TurnPlan = {
     memoryRead: boolean;
     memoryWrite: boolean;
     memoryDelete: boolean;
+    routineProposal: boolean;
+    voiceOutput: boolean;
     profileWrite: boolean;
     preferenceWrite: boolean;
     notesWrite: boolean;
   };
+  memoryDeleteTarget: string | null;
   source: "rule" | "classifier" | "mixed";
   reasonCodes: TurnPlanReasonCode[];
 };
@@ -63,6 +67,11 @@ export type TurnPlanClassifierDecision = {
   webFetch?: boolean;
   rag?: boolean;
   userContext?: "needed" | "not_needed";
+  memoryRead?: boolean;
+  memoryWrite?: boolean;
+  memoryDelete?: boolean;
+  routineProposal?: boolean;
+  voiceOutput?: boolean;
   accepted?: boolean;
 };
 
@@ -75,6 +84,19 @@ export type TurnPlanInput = {
   webSearchEnabled: boolean;
   webFetchEnabled: boolean;
   allowConcurrentRagAndWeb?: boolean;
+  capabilityDecision?: {
+    rag: boolean;
+    webSearch: boolean;
+    webFetch: boolean;
+    userContext: boolean;
+    memoryRead: boolean;
+    memoryWrite: boolean;
+    memoryDelete: boolean;
+    routineProposal: boolean;
+    voiceOutput: boolean;
+  };
+  persistentToolsAllowed?: boolean;
+  routineProposalAllowed?: boolean;
   memoryDeleteEnabled?: boolean;
   memoryDeleteTarget?: string | null;
   classifier?: TurnPlanClassifierDecision | null;
@@ -85,12 +107,21 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
   const text = input.userMessage.trim();
   const reasonCodes: TurnPlanReasonCode[] = [];
   const classifier = input.classifier;
+  const agenticDecision =
+    input.allowConcurrentRagAndWeb === true
+      ? input.capabilityDecision
+      : undefined;
   const classifierUsed = Boolean(
     classifier?.accepted &&
       (classifier.webSearch ||
         classifier.webFetch ||
         classifier.rag ||
-        classifier.userContext === "needed"),
+        classifier.userContext === "needed" ||
+        classifier.memoryRead ||
+        classifier.memoryWrite ||
+        classifier.memoryDelete ||
+        classifier.routineProposal ||
+        classifier.voiceOutput),
   );
 
   const responseLength = matchesBriefResponseIntent(text) ? "brief" : "normal";
@@ -101,12 +132,18 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
   if (input.isGuest) {
     reasonCodes.push("GUEST");
     const webSearch =
-      input.webSearchEnabled ||
-      Boolean(classifier?.accepted && classifier.webSearch);
+      agenticDecision?.webSearch ??
+      (input.webSearchEnabled ||
+        Boolean(classifier?.accepted && classifier.webSearch));
     const webFetch =
       webSearch &&
-      (input.webFetchEnabled ||
-        Boolean(classifier?.accepted && classifier.webFetch));
+      (agenticDecision?.webFetch ??
+        (input.webFetchEnabled ||
+          Boolean(classifier?.accepted && classifier.webFetch)));
+    const routineProposal =
+      (agenticDecision?.routineProposal ??
+        matchesRoutineProposalIntent(text)) &&
+      input.routineProposalAllowed !== false;
     if (webSearch) reasonCodes.push("WEB_SEARCH");
     return {
       version: 2,
@@ -120,7 +157,15 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
         maxRawTurns: 2,
         maxRawChars: 4_000,
       },
-      capabilities: { ...emptyCapabilities(), webSearch, webFetch },
+      capabilities: {
+        ...emptyCapabilities(),
+        webSearch,
+        webFetch,
+        routineProposal,
+        voiceOutput:
+          agenticDecision?.voiceOutput ?? input.outputMode === "voice",
+      },
+      memoryDeleteTarget: null,
       source: classifierUsed ? "mixed" : "rule",
       reasonCodes,
     };
@@ -128,13 +173,15 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
 
   const directMedia = input.inputOrigin === "direct_media";
   const health = matchesHealthRiskIntent(text);
-  const memoryRead = matchesMemoryReadIntent(text);
-  const memoryWrite = matchesMemoryWriteIntent(text);
+  const memoryRead =
+    agenticDecision?.memoryRead ?? matchesMemoryReadIntent(text);
+  const memoryWrite =
+    agenticDecision?.memoryWrite ?? matchesMemoryWriteIntent(text);
   const profileWrite = matchesProfileWriteIntent(text);
   const preferenceWrite = matchesPreferenceWriteIntent(text);
   const notesWrite = matchesNotesWriteIntent(text);
   const memoryDelete =
-    input.memoryDeleteEnabled === true &&
+    (agenticDecision?.memoryDelete ?? input.memoryDeleteEnabled === true) &&
     isExactStableMemoryKey(input.memoryDeleteTarget);
   const persistentWrite =
     memoryWrite ||
@@ -142,16 +189,26 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
     preferenceWrite ||
     notesWrite ||
     memoryDelete;
-  const deterministicRag =
-    !input.webSearchEnabled &&
-    (matchesRagIntent(text) || Boolean(classifier?.accepted && classifier.rag));
   const webSearch =
-    input.webSearchEnabled ||
-    Boolean(classifier?.accepted && classifier.webSearch);
+    agenticDecision?.webSearch ??
+    (input.webSearchEnabled ||
+      Boolean(classifier?.accepted && classifier.webSearch));
   const webFetch =
     webSearch &&
-    (input.webFetchEnabled ||
-      Boolean(classifier?.accepted && classifier.webFetch));
+    (agenticDecision?.webFetch ??
+      (input.webFetchEnabled ||
+        Boolean(classifier?.accepted && classifier.webFetch)));
+  const routineProposal =
+    (agenticDecision?.routineProposal ??
+      (matchesRoutineProposalIntent(text) &&
+        !webSearch &&
+        input.inputOrigin === "text" &&
+        input.outputMode !== "voice" &&
+        !matchesVoiceIntent(text))) &&
+    input.routineProposalAllowed !== false;
+  const voiceOutput =
+    agenticDecision?.voiceOutput ?? input.outputMode === "voice";
+  const persistentToolsAllowed = input.persistentToolsAllowed !== false;
   const requestedUserContext =
     memoryRead ||
     persistentWrite ||
@@ -169,21 +226,29 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
   if (memoryRead) reasonCodes.push("PERSISTENT_READ");
   if (persistentWrite) reasonCodes.push("PERSISTENT_WRITE");
 
+  const deterministicRag =
+    !input.webSearchEnabled &&
+    (matchesRagIntent(text) || Boolean(classifier?.accepted && classifier.rag));
+  const selectedRag = agenticDecision?.rag ?? deterministicRag;
   const requiresFull =
     directMedia ||
     health ||
     webSearch ||
-    deterministicRag ||
+    selectedRag ||
     requestedUserContext ||
     persistentWrite ||
     matchesComplexCoachingIntent(text);
   const compact = !requiresFull && matchesAtomicCoachingIntent(text);
-  // Full authenticated turns retain the RAG capability. The legacy adapter
-  // excludes it for web turns; the agentic adapter may retain both.
-  const rag =
-    (!webSearch || input.allowConcurrentRagAndWeb === true) && !compact;
   if (compact) reasonCodes.push("ATOMIC_COACHING");
-  const userContext = !compact && (!webSearch || requestedUserContext);
+  const rag =
+    !compact &&
+    (agenticDecision
+      ? agenticDecision.rag
+      : !webSearch || input.allowConcurrentRagAndWeb === true);
+  const userContext = agenticDecision
+    ? !compact && agenticDecision.userContext
+    : !compact && (!webSearch || requestedUserContext);
+  const persistentCapabilityAllowed = persistentToolsAllowed && !compact;
 
   return {
     version: 2,
@@ -213,13 +278,19 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
       webFetch,
       rag,
       userContext,
-      memoryRead,
-      memoryWrite,
-      memoryDelete,
-      profileWrite,
-      preferenceWrite,
-      notesWrite,
+      memoryRead: persistentCapabilityAllowed ? memoryRead : false,
+      memoryWrite: persistentCapabilityAllowed ? memoryWrite : false,
+      memoryDelete: persistentCapabilityAllowed ? memoryDelete : false,
+      routineProposal,
+      voiceOutput,
+      profileWrite: persistentCapabilityAllowed ? profileWrite : false,
+      preferenceWrite: persistentCapabilityAllowed ? preferenceWrite : false,
+      notesWrite: persistentCapabilityAllowed ? notesWrite : false,
     },
+    memoryDeleteTarget:
+      persistentCapabilityAllowed && memoryDelete
+        ? (input.memoryDeleteTarget ?? null)
+        : null,
     source: classifierUsed
       ? reasonCodes.some((code) => code.endsWith("CLASSIFIER"))
         ? "mixed"
@@ -235,7 +306,11 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
  * revert behavior immediately while leaving the v2 data model in place.
  */
 export function planLegacyTurn(input: TurnPlanInput): TurnPlan {
-  const plan = planTurn(input);
+  const plan = planTurn({
+    ...input,
+    allowConcurrentRagAndWeb: false,
+    capabilityDecision: undefined,
+  });
   const classifierRequiresFull = Boolean(
     input.classifier?.accepted &&
       (input.classifier.webSearch ||
@@ -284,6 +359,7 @@ export function planLegacyTurn(input: TurnPlanInput): TurnPlan {
         ...plan.capabilities,
         rag: true,
         userContext: true,
+        voiceOutput: true,
       },
     };
   }
@@ -304,6 +380,7 @@ export function planLegacyTurn(input: TurnPlanInput): TurnPlan {
           maxRawChars: 4_000,
         },
     capabilities: emptyCapabilities(),
+    memoryDeleteTarget: null,
     source: "rule",
     reasonCodes: [...plan.reasonCodes, "ATOMIC_COACHING"],
   };
@@ -318,6 +395,8 @@ function emptyCapabilities(): TurnPlan["capabilities"] {
     memoryRead: false,
     memoryWrite: false,
     memoryDelete: false,
+    routineProposal: false,
+    voiceOutput: false,
     profileWrite: false,
     preferenceWrite: false,
     notesWrite: false,
