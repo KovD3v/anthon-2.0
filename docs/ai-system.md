@@ -38,8 +38,15 @@ The AI subsystem powers chat generation, retrieval, personalization, and backgro
 4. Build an immutable `TurnPlan` that independently selects response length,
    thread history, capabilities, and prompt profile.
 5. Build same-thread conversation context via `buildThreadContext` when needed.
-6. Evaluate RAG need (`shouldUseRag`) and fetch context (`getRagContext`) if the
-   turn plan selected it.
+6. Route retrieval according to the planner mode:
+   - In legacy mode, use the `shouldUseRag`/`getRagContext` prefetch path when
+     the turn plan selects RAG. A non-fallback classifier decision may allow
+     the prefetch directly; otherwise `shouldUseRag` applies its local gates
+     and classifier fallback.
+   - In agentic mode, do not prefetch RAG. When RAG is selected, expose
+     `createRagTools().searchRag` as a native, once-per-turn retrieval tool.
+     It can run alongside TinyFish search/fetch and calls `getRagContext` with
+     the model's bounded query.
 7. Build the system prompt with the selected modules and expose only the
    selected tools.
 8. Run `streamText` with the selected tools and callbacks.
@@ -65,7 +72,7 @@ the deterministic fallback.
 
 ### Toolset
 
-The orchestrator composes tools from three factories:
+The orchestrator composes tools from several factories:
 
 - `createMemoryTools(userId)`:
   - `getMemories`
@@ -81,6 +88,8 @@ The orchestrator composes tools from three factories:
 - `createTinyfishTools()`:
   - `tinyfishSearch`
   - `tinyfishFetch`
+- `createRagTools()` (agentic mode only):
+  - `searchRag` (one bounded retrieval per turn)
 
 The orchestrator does not expose every tool on every turn. Profile and
 preference tools are enabled only when the selected plan allows persistent
@@ -142,25 +151,39 @@ Web search is powered by TinyFish:
 - Embedding dimensions: `1536`
 - Storage: `RagChunk.embedding` (`vector(1536)`)
 
-### Query gating (`shouldUseRag`)
+### Retrieval paths and query gating
 
-RAG is skipped for guest turns. In agentic mode, RAG and web search are
-independent capabilities and may be selected together; the immutable decision
-is promoted into the `TurnPlan`, so it cannot be lost because of compact
-selection. Legacy mode preserves the compatibility rule that web-search turns
-do not also inject RAG. For authenticated turns, the decision pipeline uses
-layered optimization:
+The orchestrator skips RAG for guest turns before invoking the retrieval
+gates. Authenticated turns have two distinct paths:
 
-1. Document existence check (cached)
-2. Positive keyword fast-path
-3. Negative keyword fast-path for short messages
-4. Non-technical pattern rejection
-5. LLM classifier fallback (`google/gemini-2.5-flash`)
+- Legacy prefetch uses `shouldUseRag` and then `getRagContext` to inject
+  retrieved context before generation. Legacy web-search turns preserve the
+  compatibility rule that they do not also inject RAG.
+- Agentic retrieval exposes `createRagTools().searchRag` only when the
+  capability decision selects RAG. This is a native tool, not a prefetch: it
+  calls `getRagContext` once with a bounded model-selected query. It is
+  independent of the TinyFish `tinyfishSearch` and `tinyfishFetch` tools, so
+  RAG and web search/fetch may be composed in the same turn.
+
+The following is the implementation order inside `shouldUseRag`; it applies to
+the legacy prefetch path:
+
+1. If no positive RAG keyword is present, reject immediately for live-web
+   intent, brief generic coaching advice, short messages containing a
+   negative keyword (under 30 characters), or a non-technical pattern.
+2. If a positive keyword is present together with brief generic coaching
+   advice, reject immediately.
+3. Check whether RAG documents exist (cached); if none exist, return false.
+4. If a positive keyword is present, return true.
+5. Otherwise consult the five-minute classification cache, then the LLM
+   classifier (`google/gemini-2.5-flash`) as the final fallback. Classifier
+   failures return false.
 
 ### Core functions
 
 - `searchDocuments(query, limit)`
 - `getRagContext(query)`
+- `createRagTools().searchRag` (agentic native retrieval)
 - `addDocument(title, content, source?, url?)`
 - `updateMissingEmbeddings()`
 
@@ -297,7 +320,7 @@ export const SESSION = {
 };
 
 export const RAG = {
-  SIMILARITY_THRESHOLD: 0.6,
+  SIMILARITY_THRESHOLD: 0.55,
   BATCH_SIZE: 10,
   MAX_RESULTS: 5,
   CHUNK_SIZE: 800,
