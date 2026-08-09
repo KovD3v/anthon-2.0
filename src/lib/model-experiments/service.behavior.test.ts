@@ -129,6 +129,7 @@ function unresolvedPair(
     userId: string;
     status: string;
     vote: string | null;
+    capabilityPlannerMode: "legacy" | "agentic";
     canonicalMessage: { id: string } | null;
     responses: Array<Record<string, unknown>>;
   }> = {},
@@ -155,6 +156,7 @@ function unresolvedPair(
     chatId: "chat-1",
     conversationThreadId: "thread-1",
     countryCode: "IT",
+    capabilityPlannerMode: overrides.capabilityPlannerMode ?? "legacy",
     status: overrides.status ?? "READY",
     vote: overrides.vote ?? null,
     canonicalMessage: overrides.canonicalMessage ?? null,
@@ -770,6 +772,29 @@ describe("model experiment service", () => {
       "Source question",
       "Control response",
     );
+  });
+
+  it("does not extract memories again for an agentic comparison", async () => {
+    const pair = unresolvedPair({ capabilityPlannerMode: "agentic" });
+    mocks.tx.modelExperimentPair.findUnique.mockResolvedValue(pair);
+    mocks.tx.message.create.mockResolvedValue({ id: "assistant-1" });
+    mocks.tx.messageMetrics.create.mockResolvedValue({});
+    mocks.tx.modelExperimentPair.update.mockResolvedValue({
+      ...pair,
+      status: "RESOLVED",
+      experiment: experiment("ACTIVE"),
+    });
+    mocks.refreshSummary.mockResolvedValue(undefined);
+
+    await resolveModelComparisonPair({
+      pairId: "pair-1",
+      userId: "user-1",
+      clerkId: "clerk-1",
+      choice: "A",
+    });
+
+    expect(mocks.refreshSummary).toHaveBeenCalledWith("thread-1", "user-1");
+    expect(mocks.extractMemories).not.toHaveBeenCalled();
   });
 
   it.each([

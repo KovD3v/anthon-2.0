@@ -331,6 +331,13 @@ describe("model comparison runtime", () => {
         generationTimeMs: 200,
       }),
     });
+    expect(mocks.updatePair).toHaveBeenCalledWith({
+      where: { id: "pair-1" },
+      data: {
+        promptMode: "full",
+        capabilityPlannerMode: "agentic",
+      },
+    });
     expect(mocks.releaseUsage).not.toHaveBeenCalled();
   });
 
@@ -822,10 +829,19 @@ describe("model comparison runtime", () => {
 
   it("returns null when prepared capabilities make the turn unsafe", async () => {
     mocks.isSafeTurn.mockReturnValue(false);
+    const onPreparedTurnRejected = vi.fn();
+    const input = runtimeInput();
 
     await expect(
-      tryCreateModelComparisonResponse(runtimeInput()),
+      tryCreateModelComparisonResponse({
+        ...input,
+        onPreparedTurnRejected,
+      }),
     ).resolves.toBeNull();
+    expect(onPreparedTurnRejected).toHaveBeenCalledWith({
+      capabilityDecision: mocks.preparedCapabilityDecision,
+      capabilityPlannerMode: "agentic",
+    });
     expect(mocks.createPair).not.toHaveBeenCalled();
     expect(mocks.releaseUsage).toHaveBeenCalledWith({
       reservationId: "reservation-1",

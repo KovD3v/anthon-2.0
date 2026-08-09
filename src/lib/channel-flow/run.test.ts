@@ -193,6 +193,107 @@ describe("channel-flow/run", () => {
     expect(result.capabilityPlannerMode).toBe("agentic");
   });
 
+  it("returns capability context synchronously for a live stream", async () => {
+    const capabilityDecision = Object.freeze({
+      rag: false,
+      webSearch: false,
+      webFetch: false,
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      memoryDeleteTarget: null,
+      routineProposal: false,
+      userContext: true,
+      voiceOutput: false,
+      source: "classifier" as const,
+      reasonCodes: Object.freeze([]),
+    }) as unknown as CapabilityDecision;
+    mocks.streamChat.mockResolvedValue({
+      capabilityDecision,
+      capabilityPlannerMode: "agentic",
+      textStream: (async function* () {
+        yield "answer";
+      })(),
+      toUIMessageStream: () =>
+        new ReadableStream({
+          start(controller) {
+            controller.close();
+          },
+        }),
+    });
+
+    const result = await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: true,
+      },
+      execution: { mode: "stream" },
+      persistence: { channel: "WEB", saveAssistantMessage: false },
+    });
+
+    expect(result.capabilityDecision).toBe(capabilityDecision);
+    expect(result.capabilityPlannerMode).toBe("agentic");
+  });
+
+  it("passes a prepared comparison decision into the normal flow unchanged", async () => {
+    const capabilityDecision = Object.freeze({
+      rag: false,
+      webSearch: true,
+      webFetch: false,
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      memoryDeleteTarget: null,
+      routineProposal: false,
+      userContext: false,
+      voiceOutput: false,
+      source: "classifier" as const,
+      reasonCodes: Object.freeze([]),
+    }) as unknown as CapabilityDecision;
+    mocks.streamChat.mockResolvedValue({
+      capabilityDecision,
+      capabilityPlannerMode: "agentic",
+      textStream: (async function* () {})(),
+      toUIMessageStream: () => new ReadableStream(),
+    });
+
+    await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      userMessageText: "latest result",
+      parts: [{ type: "text", text: "latest result" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: true,
+      },
+      ai: {
+        preparedCapabilityContext: {
+          capabilityDecision,
+          capabilityPlannerMode: "agentic",
+        },
+      },
+      execution: { mode: "stream" },
+      persistence: { channel: "WEB", saveAssistantMessage: false },
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preparedCapabilityContext: {
+          capabilityDecision,
+          capabilityPlannerMode: "agentic",
+        },
+      }),
+    );
+  });
+
   it("removes tool payloads from the shared live UI stream", async () => {
     mocks.streamChat.mockImplementation(async ({ onFinish }) => ({
       textStream: (async function* () {

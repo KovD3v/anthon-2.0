@@ -54,6 +54,12 @@ type RuntimeInput = {
     typeof prepareChatTurn
   >[0]["effectiveEntitlements"];
   skipConversationHistory?: boolean;
+  onPreparedTurnRejected?: (
+    context: Pick<
+      Awaited<ReturnType<typeof prepareChatTurn>>,
+      "capabilityDecision" | "capabilityPlannerMode"
+    >,
+  ) => void;
 };
 
 function slotForVariant(
@@ -423,6 +429,10 @@ export async function tryCreateModelComparisonResponse(
   }
   if (!isSafeModelComparisonTurn(prepared.turnPlan, input.userMessage)) {
     await releaseReservation();
+    input.onPreparedTurnRejected?.({
+      capabilityDecision: prepared.capabilityDecision,
+      capabilityPlannerMode: prepared.capabilityPlannerMode,
+    });
     return null;
   }
 
@@ -440,7 +450,10 @@ export async function tryCreateModelComparisonResponse(
     });
     await prisma.modelExperimentPair.update({
       where: { id: pairResult.pair.id },
-      data: { promptMode: prepared.promptMode },
+      data: {
+        promptMode: prepared.promptMode,
+        capabilityPlannerMode: prepared.capabilityPlannerMode,
+      },
     });
   } catch (error) {
     if (pairResult) {

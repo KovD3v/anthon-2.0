@@ -540,6 +540,14 @@ describe("ai/orchestrator", () => {
       text: "prepared evidence",
       chunkCount: 1,
     });
+    mocks.buildThreadContext.mockResolvedValue({
+      messages: [
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "Nested history" }],
+        },
+      ],
+    });
 
     const prepared = await prepareChatTurn({
       userId: "user-1",
@@ -554,11 +562,59 @@ describe("ai/orchestrator", () => {
     expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
     expect(Object.isFrozen(prepared.capabilityDecision)).toBe(true);
     expect(Object.isFrozen(prepared.capabilityDecision.reasonCodes)).toBe(true);
+    expect(Object.isFrozen(prepared.messages)).toBe(true);
+    expect(Object.isFrozen(prepared.messages[0])).toBe(true);
+    expect(
+      Object.isFrozen((prepared.messages[0] as { content: unknown }).content),
+    ).toBe(true);
+    expect(Object.isFrozen(prepared.turnPlan)).toBe(true);
+    expect(Object.isFrozen(prepared.turnPlan.capabilities)).toBe(true);
+    expect(Object.isFrozen(prepared.turnPlan.history)).toBe(true);
     expect(prepared.capabilityDecision).toMatchObject({
       rag: true,
       memoryWrite: true,
       routineProposal: true,
     });
+
+    executePreparedChatTurn({
+      prepared,
+      modelId: "provider/candidate",
+      generationConfig: { fallbacks: false },
+      clerkId: "clerk-1",
+      traceId: "trace-immutable",
+      experimentId: "experiment-1",
+      pairId: "pair-immutable",
+      role: "CANDIDATE",
+    });
+    const providerMessages = mocks.streamText.mock.calls.at(-1)?.[0]
+      ?.messages as Array<{ content: unknown }>;
+    expect(providerMessages).not.toBe(prepared.messages);
+    expect(Object.isFrozen(providerMessages)).toBe(false);
+    providerMessages[0].content = "provider mutation";
+    expect(prepared.messages[0]?.content).not.toBe("provider mutation");
+  });
+
+  it("reuses a prepared capability context without arbitrating again", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "legacy");
+    const capabilityDecision = frozenCapabilityDecision({ webSearch: true });
+
+    const result = await streamChat({
+      userId: "user-1",
+      chatId: "chat-prepared-capability",
+      userMessage: "Cerca gli ultimi risultati",
+      effectiveEntitlements: baseEntitlements,
+      preparedCapabilityContext: {
+        capabilityDecision,
+        capabilityPlannerMode: "agentic",
+      },
+    });
+
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
+    expect(result.capabilityDecision).toBe(capabilityDecision);
+    expect(result.capabilityPlannerMode).toBe("agentic");
+    expect(mocks.streamText.mock.calls.at(-1)?.[0]?.tools).toHaveProperty(
+      "tinyfishSearch",
+    );
   });
 
   it("reuses one decision for normal tools, metrics, and finish persistence", async () => {
@@ -679,7 +735,7 @@ describe("ai/orchestrator", () => {
       abortSignal: abortController.signal,
     });
 
-    expect(result).toEqual({ marker: "stream-result" });
+    expect(result).toMatchObject({ marker: "stream-result" });
     expect(mocks.resolveEffectiveEntitlements).not.toHaveBeenCalled();
     expect(mocks.buildConversationContext).toHaveBeenCalledWith(
       "user-1",
@@ -3277,7 +3333,7 @@ describe("ai/orchestrator", () => {
       userMessage: "same message",
     });
 
-    expect(result).toEqual({ marker: "stream-result" });
+    expect(result).toMatchObject({ marker: "stream-result" });
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       instructions: string;
     };
@@ -3296,7 +3352,7 @@ describe("ai/orchestrator", () => {
       userMessage: "continue anyway",
     });
 
-    expect(result).toEqual({ marker: "stream-result" });
+    expect(result).toMatchObject({ marker: "stream-result" });
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       messages: Array<{ role: string; content: unknown }>;

@@ -399,6 +399,10 @@ interface StreamChatOptions {
   pendingMemoryApproval?: PendingMemoryApproval;
   inputOrigin?: "text" | "transcribed_voice" | "direct_media";
   resolvedMemoryTarget?: string | null;
+  preparedCapabilityContext?: {
+    capabilityDecision: CapabilityDecision;
+    capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
+  };
   benchmarkModelId?: string;
   abortSignal?: AbortSignal;
 }
@@ -1441,6 +1445,7 @@ export async function streamChat({
   pendingMemoryApproval,
   inputOrigin: requestedInputOrigin,
   resolvedMemoryTarget = null,
+  preparedCapabilityContext,
   benchmarkModelId,
   abortSignal,
 }: StreamChatOptions) {
@@ -1490,7 +1495,9 @@ export async function streamChat({
   });
   const hasFileParts = messageParts?.some((p) => p.type === "file") ?? false;
   const webSearchRule = evaluateWebSearchRule(userMessage);
-  const capabilityPlannerMode = getCapabilityPlannerMode();
+  const capabilityPlannerMode =
+    preparedCapabilityContext?.capabilityPlannerMode ??
+    getCapabilityPlannerMode();
   const attributablePendingMemoryApproval =
     pendingMemoryApproval?.userId === userId
       ? pendingMemoryApproval
@@ -1508,19 +1515,21 @@ export async function streamChat({
         );
         return planConfig.enabled && (voiceEnabled ?? true);
       })();
-  const capabilityDecision = await arbitrateCapabilities({
-    userId,
-    userMessage,
-    isGuest,
-    memoryEnabled,
-    voiceAllowed: voiceEnabledResult,
-    responseMode,
-    webSearchRule,
-    resolvedMemoryTarget,
-    hasPendingMemoryApproval: Boolean(attributablePendingMemoryApproval),
-    capabilityPlannerMode,
-    abortSignal,
-  });
+  const capabilityDecision =
+    preparedCapabilityContext?.capabilityDecision ??
+    (await arbitrateCapabilities({
+      userId,
+      userMessage,
+      isGuest,
+      memoryEnabled,
+      voiceAllowed: voiceEnabledResult,
+      responseMode,
+      webSearchRule,
+      resolvedMemoryTarget,
+      hasPendingMemoryApproval: Boolean(attributablePendingMemoryApproval),
+      capabilityPlannerMode,
+      abortSignal,
+    }));
   const inputOrigin =
     requestedInputOrigin ??
     (hasImages || hasAudio || hasFileParts ? "direct_media" : "text");
@@ -2079,7 +2088,13 @@ export async function streamChat({
       hasDirectMultimodalMedia,
     });
 
-    return createDirectMultimodalStreamResult(completionPromise);
+    return Object.assign(
+      createDirectMultimodalStreamResult(completionPromise),
+      {
+        capabilityDecision,
+        capabilityPlannerMode,
+      },
+    );
   }
 
   // Stream the response
@@ -2286,7 +2301,10 @@ export async function streamChat({
     hasImages: Boolean(hasImages),
     hasAudio: Boolean(hasAudio),
   });
-  return result;
+  return Object.assign(result, {
+    capabilityDecision,
+    capabilityPlannerMode,
+  });
 }
 
 export interface PrepareChatTurnOptions {
@@ -2323,6 +2341,17 @@ export interface PreparedChatTurn {
   ragUsed: boolean;
   ragChunksCount: number;
   ragAttempted: boolean;
+}
+
+function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
+  if (value === null || typeof value !== "object" || seen.has(value)) {
+    return value;
+  }
+  seen.add(value);
+  for (const key of Reflect.ownKeys(value)) {
+    deepFreeze((value as unknown as Record<PropertyKey, unknown>)[key], seen);
+  }
+  return Object.freeze(value);
 }
 
 /**
@@ -2511,7 +2540,7 @@ export async function prepareChatTurn({
     systemPrompt,
     [...history, { role: "user", content: userMessage }],
   );
-  return Object.freeze({
+  return deepFreeze({
     userId,
     chatId,
     conversationThreadId,
@@ -2521,8 +2550,8 @@ export async function prepareChatTurn({
     userRole,
     effectiveModelTier: effectiveEntitlements.modelTier,
     systemPrompt: normalizedConversation.systemPrompt,
-    messages: normalizedConversation.messages,
-    turnPlan,
+    messages: structuredClone(normalizedConversation.messages),
+    turnPlan: structuredClone(turnPlan),
     capabilityDecision,
     capabilityPlannerMode,
     promptMode,
@@ -2590,7 +2619,7 @@ export function executePreparedChatTurn({
   };
   const normalizedConversation = moveSystemMessagesToInstructions(
     prepared.systemPrompt,
-    prepared.messages,
+    structuredClone(prepared.messages),
   );
 
   return streamText({

@@ -43,6 +43,7 @@ const mocks = vi.hoisted(() => ({
   scheduleVoiceGenerationJob: vi.fn(),
   withVoiceGenerationStatus: vi.fn(),
   ensureConversationThread: vi.fn(),
+  tryCreateModelComparisonResponse: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -109,6 +110,10 @@ vi.mock("@/lib/rate-limit", () => ({
 
 vi.mock("@/lib/ai/orchestrator", () => ({
   streamChat: mocks.streamChat,
+}));
+
+vi.mock("@/lib/model-experiments/runtime", () => ({
+  tryCreateModelComparisonResponse: mocks.tryCreateModelComparisonResponse,
 }));
 
 vi.mock("@/lib/ai/chat-title", () => ({
@@ -312,6 +317,7 @@ describe("POST /api/chat", () => {
     mocks.scheduleVoiceGenerationJob.mockReset();
     mocks.withVoiceGenerationStatus.mockReset();
     mocks.ensureConversationThread.mockReset();
+    mocks.tryCreateModelComparisonResponse.mockReset();
 
     mocks.start.mockReturnValue({
       end: vi.fn(),
@@ -461,6 +467,61 @@ describe("POST /api/chat", () => {
       toUIMessageStreamResponse: () =>
         Response.json({ ok: true, stream: true }, { status: 200 }),
     });
+    mocks.tryCreateModelComparisonResponse.mockResolvedValue(null);
+  });
+
+  it("reuses rejected comparison capability planning in the normal stream", async () => {
+    const capabilityDecision = Object.freeze({
+      rag: false,
+      webSearch: true,
+      webFetch: false,
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      memoryDeleteTarget: null,
+      routineProposal: false,
+      userContext: false,
+      voiceOutput: false,
+      source: "classifier" as const,
+      reasonCodes: Object.freeze([]),
+    });
+    mocks.tryCreateModelComparisonResponse.mockImplementation(
+      async ({ onPreparedTurnRejected }) => {
+        onPreparedTurnRejected?.({
+          capabilityDecision,
+          capabilityPlannerMode: "agentic",
+        });
+        return null;
+      },
+    );
+    mocks.streamChat.mockResolvedValue({
+      capabilityDecision,
+      capabilityPlannerMode: "agentic",
+      textStream: (async function* () {})(),
+      toUIMessageStream: emptyUiStream,
+    });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [{ type: "text", text: "latest result" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preparedCapabilityContext: {
+          capabilityDecision,
+          capabilityPlannerMode: "agentic",
+        },
+      }),
+    );
   });
 
   it("returns 401 when Clerk auth has no userId", async () => {

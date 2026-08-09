@@ -495,6 +495,7 @@ export async function runChannelFlow(
         : undefined,
       effectiveEntitlements: ctx.rateLimit.effectiveEntitlements,
       skipConversationHistory: ctx.ai?.skipConversationHistory,
+      preparedCapabilityContext: ctx.ai?.preparedCapabilityContext,
       abortSignal: generationAbortController.signal,
       onFinish: async ({
         text,
@@ -538,6 +539,10 @@ export async function runChannelFlow(
         }
       },
     });
+    if ("capabilityDecision" in streamResult) {
+      capabilityDecision = streamResult.capabilityDecision;
+      capabilityPlannerMode = streamResult.capabilityPlannerMode;
+    }
   } catch (error) {
     detachRequestAbort();
     await releaseUsageReservationOnce();

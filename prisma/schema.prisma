@@ -598,6 +598,11 @@ enum ModelExperimentResponseStatus {
   PURGED
 }
 
+enum CapabilityPlannerMode {
+  legacy
+  agentic
+}
+
 model ModelExperiment {
   id String @id @default(cuid())
 
@@ -696,14 +701,15 @@ model ModelExperimentPair {
   slotBVariantId String
   slotBVariant   ModelExperimentVariant @relation("ModelExperimentSlotB", fields: [slotBVariantId], references: [id], onDelete: Restrict)
 
-  status             ModelExperimentPairStatus @default(GENERATING)
-  vote               ModelExperimentVote?
-  selectedVariantId  String?
-  selectedVariant    ModelExperimentVariant?   @relation("ModelExperimentSelectedVariant", fields: [selectedVariantId], references: [id], onDelete: Restrict)
-  canonicalMessageId String?                   @unique
-  canonicalMessage   Message?                  @relation("ModelExperimentCanonicalMessage", fields: [canonicalMessageId], references: [id], onDelete: SetNull)
-  countryCode        String                    @db.VarChar(2)
-  promptMode         String?
+  status                ModelExperimentPairStatus @default(GENERATING)
+  vote                  ModelExperimentVote?
+  selectedVariantId     String?
+  selectedVariant       ModelExperimentVariant?   @relation("ModelExperimentSelectedVariant", fields: [selectedVariantId], references: [id], onDelete: Restrict)
+  canonicalMessageId    String?                   @unique
+  canonicalMessage      Message?                  @relation("ModelExperimentCanonicalMessage", fields: [canonicalMessageId], references: [id], onDelete: SetNull)
+  countryCode           String                    @db.VarChar(2)
+  promptMode            String?
+  capabilityPlannerMode CapabilityPlannerMode     @default(legacy)
   exposedAt          DateTime?
   readyAt            DateTime?
   resolvedAt         DateTime?

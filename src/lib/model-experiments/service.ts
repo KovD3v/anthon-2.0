@@ -604,6 +604,7 @@ export async function resolveModelComparisonPair({
       slotBRole: pair.slotBVariant.role,
       sourceText: getTextFromParts(pair.sourceMessage.parts),
       responseText: response.text,
+      capabilityPlannerMode: pair.capabilityPlannerMode,
     };
   });
 
@@ -639,7 +640,11 @@ export async function resolveModelComparisonPair({
         { error, pairId },
       ),
     );
-    if (result.sourceText && result.responseText) {
+    if (
+      result.capabilityPlannerMode === "legacy" &&
+      result.sourceText &&
+      result.responseText
+    ) {
       void extractAndSaveMemories(
         userId,
         result.sourceText,

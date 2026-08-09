@@ -47,6 +47,10 @@ export interface InboundContext {
     voiceEnabled?: boolean;
     voiceUnavailableReason?: string;
     skipConversationHistory?: boolean;
+    preparedCapabilityContext?: {
+      capabilityDecision: CapabilityDecision;
+      capabilityPlannerMode: "legacy" | "agentic";
+    };
   };
   execution?: {
     mode?: "stream" | "text";
