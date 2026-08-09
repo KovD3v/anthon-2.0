@@ -105,6 +105,9 @@ describe("ai/memory-approval", () => {
     expect(
       mightResolvePendingMemoryApproval("Aiutami per la partita di domani."),
     ).toBe(false);
+    expect(mightResolvePendingMemoryApproval("Sì.")).toBe(true);
+    expect(mightResolvePendingMemoryApproval("No.")).toBe(true);
+    expect(mightResolvePendingMemoryApproval("Salvalo.")).toBe(true);
   });
 
   it("creates an expiring approval only for a user-owned inbound message", async () => {
@@ -348,12 +351,60 @@ describe("ai/memory-approval", () => {
     expect(mocks.memoryUpsert).not.toHaveBeenCalled();
   });
 
-  it("does not treat a generic unrelated yes as approval", async () => {
+  it.each(["Sì.", "Va bene.", "Sì, salvalo in memoria.", "Salvalo."])(
+    "accepts the immediate natural confirmation %s",
+    async (text) => {
+      mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
+      mocks.messageFindFirst
+        .mockResolvedValueOnce({
+          ...currentMessage,
+          parts: [{ type: "text", text }],
+        })
+        .mockResolvedValueOnce(sourceMessage);
+
+      const result = await resolveMemoryApproval({
+        userId: "user-1",
+        approvalId: "approval-1",
+        decision: "approve",
+        currentUserMessageId: "inbound-current",
+      });
+
+      expect(result).toEqual({ status: "approved", memoryId: "memory-1" });
+      expect(mocks.memoryUpsert).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("accepts a standalone natural rejection for the immediate approval", async () => {
     mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
     mocks.messageFindFirst
       .mockResolvedValueOnce({
         ...currentMessage,
-        parts: [{ type: "text", text: "Sì." }],
+        parts: [{ type: "text", text: "No." }],
+      })
+      .mockResolvedValueOnce(sourceMessage);
+
+    const result = await resolveMemoryApproval({
+      userId: "user-1",
+      approvalId: "approval-1",
+      decision: "reject",
+      currentUserMessageId: "inbound-current",
+    });
+
+    expect(result).toEqual({ status: "rejected" });
+    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+  });
+
+  it("does not let an unrelated remember command approve a pending health fact", async () => {
+    mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
+    mocks.messageFindFirst
+      .mockResolvedValueOnce({
+        ...currentMessage,
+        parts: [
+          {
+            type: "text",
+            text: "Ricorda che preferisco allenarmi al mattino.",
+          },
+        ],
       })
       .mockResolvedValueOnce(sourceMessage);
 
@@ -369,7 +420,7 @@ describe("ai/memory-approval", () => {
     expect(mocks.memoryUpsert).not.toHaveBeenCalled();
   });
 
-  it("does not let an unrelated remember command approve a pending health fact", async () => {
+  it("does not approve a changed fact that overlaps the pending fact", async () => {
     mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
     mocks.messageFindFirst
       .mockResolvedValueOnce({
@@ -377,7 +428,7 @@ describe("ai/memory-approval", () => {
         parts: [
           {
             type: "text",
-            text: "Ricorda che preferisco allenarmi al mattino.",
+            text: "Salva il mio dolore al ginocchio destro.",
           },
         ],
       })

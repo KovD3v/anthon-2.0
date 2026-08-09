@@ -535,6 +535,7 @@ export async function runChannelFlow(
           const streamable = streamResult as typeof streamResult & {
             toUIMessageStream?: (options: {
               sendFinish?: boolean;
+              sendReasoning?: boolean;
             }) => ReadableStream<UIMessageChunk>;
           };
           if (!streamable.toUIMessageStream) {
@@ -557,6 +558,7 @@ export async function runChannelFlow(
               try {
                 const source = streamable.toUIMessageStream?.({
                   sendFinish: false,
+                  sendReasoning: false,
                 });
                 if (!source) throw new Error("Missing UI stream");
                 const reader = source.getReader();

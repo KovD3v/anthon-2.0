@@ -191,6 +191,103 @@ describe("channel-flow/run", () => {
     expect(body).not.toContain("approval-1");
   });
 
+  it("drops reasoning and provider metadata while preserving streamed text", async () => {
+    const toUIMessageStream = vi.fn(
+      () =>
+        new ReadableStream({
+          async start(controller) {
+            controller.enqueue({
+              type: "start",
+              messageId: "provider-message-id",
+              messageMetadata: { providerRequestId: "provider-request-1" },
+            });
+            controller.enqueue({
+              type: "reasoning-start",
+              id: "provider-reasoning-id",
+            });
+            controller.enqueue({
+              type: "reasoning-delta",
+              id: "provider-reasoning-id",
+              delta: "private chain of thought",
+              providerMetadata: { openrouter: { id: "provider-request-1" } },
+            });
+            controller.enqueue({
+              type: "text-start",
+              id: "provider-text-id",
+              providerMetadata: { openrouter: { id: "provider-request-1" } },
+            });
+            controller.enqueue({
+              type: "text-delta",
+              id: "provider-text-id",
+              delta: "Risposta legittima",
+              providerMetadata: { openrouter: { id: "provider-request-1" } },
+            });
+            controller.enqueue({
+              type: "text-end",
+              id: "provider-text-id",
+              providerMetadata: { openrouter: { id: "provider-request-1" } },
+            });
+            controller.enqueue({
+              type: "message-metadata",
+              messageMetadata: { providerRequestId: "provider-request-1" },
+            });
+            await mocks.streamChat.mock.calls[0]?.[0].onFinish?.({
+              text: "Risposta legittima",
+              metrics: {
+                model: "test-model",
+                inputTokens: 1,
+                outputTokens: 2,
+                reasoningTokens: 10,
+                reasoningContent: "private chain of thought",
+                toolCalls: null,
+                ragUsed: false,
+                ragChunksCount: 0,
+                costUsd: 0,
+                generationTimeMs: 1,
+                reasoningTimeMs: 1,
+              },
+            });
+            controller.close();
+          },
+        }),
+    );
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "Risposta legittima";
+      })(),
+      toUIMessageStream,
+    });
+
+    const result = await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: false,
+      },
+      execution: { mode: "stream" },
+      persistence: { channel: "WEB", saveAssistantMessage: false },
+    });
+
+    const body = await result.streamResult?.toUIMessageStreamResponse().text();
+
+    expect(toUIMessageStream).toHaveBeenCalledWith({
+      sendFinish: false,
+      sendReasoning: false,
+    });
+    expect(body).toContain("Risposta legittima");
+    expect(body).toContain("safe-text-1");
+    expect(body).not.toContain("private chain of thought");
+    expect(body).not.toContain("provider-request-1");
+    expect(body).not.toContain("provider-message-id");
+    expect(body).not.toContain("provider-text-id");
+    expect(body).not.toContain("provider-reasoning-id");
+  });
+
   it.each([
     {
       name: "when omitted",
@@ -1842,8 +1939,14 @@ describe("channel-flow/run", () => {
       textStream: (async function* () {
         yield "unsaved answer";
       })(),
-      toUIMessageStream: (options: { sendFinish?: boolean }) => {
-        expect(options).toEqual({ sendFinish: false });
+      toUIMessageStream: (options: {
+        sendFinish?: boolean;
+        sendReasoning?: boolean;
+      }) => {
+        expect(options).toEqual({
+          sendFinish: false,
+          sendReasoning: false,
+        });
         return new ReadableStream({
           async start(controller) {
             controller.enqueue({

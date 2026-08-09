@@ -234,85 +234,74 @@ function normalizeApprovalText(value: string) {
 }
 
 export function mightResolvePendingMemoryApproval(text: string) {
-  const normalized = normalizeApprovalText(text);
-  return /\b(?:salva|salvare|salvarl[oa]|memorizz\w*|ricorda|ricordarl[oa]|conserva|conservarl[oa]|salvataggio|memoria|confermo|acconsento|rifiuto|save|remember|store|confirm|reject)\b/.test(
-    normalized,
+  const normalized = normalizeApprovalText(text).trim();
+  return (
+    isStandaloneApprovalDecision(normalized, "approve") ||
+    isStandaloneApprovalDecision(normalized, "reject") ||
+    /\b(?:salva|salval[oaie]|salvare|salvarl[oaie]|memorizz\w*|ricorda|ricordal[oaie]|ricordarl[oaie]|conserva|conserval[oaie]|conservarl[oaie]|salvataggio|memoria|confermo|acconsento|rifiuto|save|remember|store|confirm|reject)\b/.test(
+      normalized,
+    )
   );
 }
 
-function approvalAttributionTokens(approval: {
-  key: string;
-  value: unknown;
-  category: string;
-}) {
-  const value =
-    typeof approval.value === "string"
-      ? approval.value
-      : JSON.stringify(approval.value);
-  return new Set(
-    normalizeApprovalText(`${approval.key} ${approval.category} ${value}`)
-      .split(/[^a-z0-9]+/)
-      .filter(
-        (token) =>
-          token.length >= 4 &&
-          !new Set([
-            "della",
-            "delle",
-            "degli",
-            "questo",
-            "questa",
-            "quello",
-            "quella",
-            "with",
-            "that",
-          ]).has(token),
-      ),
-  );
+function compactApprovalText(text: string) {
+  return text
+    .replace(/[.,!?;:]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isStandaloneApprovalDecision(
+  normalized: string,
+  decision: "approve" | "reject",
+) {
+  const compact = compactApprovalText(normalized);
+  const choices =
+    decision === "approve"
+      ? new Set([
+          "si",
+          "si grazie",
+          "yes",
+          "yes thanks",
+          "ok",
+          "okay",
+          "va bene",
+          "confermo",
+          "acconsento",
+          "certo",
+        ])
+      : new Set(["no", "no grazie", "rifiuto", "annulla", "reject", "cancel"]);
+  return choices.has(compact);
 }
 
 function hasExplicitApprovalDecision(
   text: string,
   decision: "approve" | "reject",
-  approval: { key: string; value: unknown; category: string },
 ) {
   const normalized = normalizeApprovalText(text).trim();
-  const explicitRejection =
-    /\b(?:no|non|rifiuto|annulla)\b[^.!?]{0,100}\b(?:salvarl[oa]|memorizzarl[oa]|ricordarl[oa]|conservarl[oa]|salvataggio|memoria)\b/.test(
-      normalized,
-    ) ||
-    /\b(?:don't|do not|reject|cancel)\b[^.!?]{0,100}\b(?:save it|remember it|store it|saving)\b/.test(
-      normalized,
-    );
-  if (decision === "reject") return explicitRejection;
-  if (explicitRejection) return false;
+  if (isStandaloneApprovalDecision(normalized, decision)) return true;
 
-  const directConfirmation =
-    /\b(?:si|ok|va bene|confermo|acconsento|puoi)\b[^.!?]{0,100}\b(?:salvarl[oa]|memorizzarl[oa]|ricordarl[oa]|conservarl[oa]|salvataggio)\b/.test(
-      normalized,
-    ) ||
-    /\b(?:yes|ok|confirm|i agree|you can)\b[^.!?]{0,100}\b(?:save it|remember it|store it|saving)\b/.test(
-      normalized,
-    );
-  if (directConfirmation) return true;
+  const compact = compactApprovalText(normalized);
+  const italianAnaphoricSave =
+    "(?:salval[oaie]|salvarl[oaie]|memorizzal[oaie]|memorizzarl[oaie]|ricordal[oaie]|ricordarl[oaie]|conserval[oaie]|conservarl[oaie])";
+  const englishAnaphoricSave = "(?:save it|remember it|store it)";
+  const anaphoricSave = `(?:${italianAnaphoricSave}|${englishAnaphoricSave})`;
+  const optionalTail = "(?: (?:in memoria|per favore|grazie|please|thanks))*";
 
-  const explicitSave =
-    /\b(?:salva|salvare|memorizza|memorizzare|ricorda|conserva|save|remember|store)\b/.test(
-      normalized,
+  if (decision === "reject") {
+    return (
+      new RegExp(
+        `^(?:(?:no|rifiuto|annulla|reject|cancel) )?(?:non |don't |do not )?${anaphoricSave}${optionalTail}$`,
+      ).test(compact) ||
+      /^(?:no )?rifiuto (?:il )?(?:salvataggio|consenso)(?: in memoria)?$/.test(
+        compact,
+      )
     );
-  if (
-    !explicitSave ||
-    /\b(?:ricorda|salva|memorizza)\s+che\b/.test(normalized)
-  ) {
-    return false;
   }
 
-  const messageTokens = new Set(
-    normalized.split(/[^a-z0-9]+/).filter((token) => token.length >= 4),
-  );
-  const overlap = [...approvalAttributionTokens(approval)].filter((token) =>
-    messageTokens.has(token),
-  );
-  return overlap.length >= 2;
+  return new RegExp(
+    `^(?:per favore )?(?:(?:si|yes|ok|okay|va bene|confermo|acconsento) )?(?:(?:puoi|puo|potete|you can) )?${anaphoricSave}${optionalTail}$`,
+  ).test(compact);
 }
 
 export async function resolveMemoryApproval(input: {
@@ -392,7 +381,6 @@ export async function resolveMemoryApproval(input: {
       !hasExplicitApprovalDecision(
         getMessageText(currentMessage.parts),
         input.decision,
-        approval,
       ) ||
       !isExactStableMemoryKey(approval.key)
     ) {

@@ -128,3 +128,30 @@ GREEN:
 - Repository-wide `bun run typecheck` still fails only at the pre-existing unrelated `src/lib/model-experiments/eligibility.test.ts(36,3)` fixture, which lacks `routineProposal` and `voiceOutput`. The expanded Task 4 scoped typecheck is green.
 - No live database migration or live approval-row integration test was run, per the explicit instruction not to apply a migration. The existing Prisma migration contract was preserved unchanged.
 - Runtime browser verification used the restored guest session; authenticated technical-history payload behavior is verified at the real route-handler boundary in unit tests rather than with a live signed-in account.
+
+## Focused review fixes — 2026-08-09
+
+Status: complete. The two focused review findings are closed at the shared approval and live-stream boundaries.
+
+### Fixes
+
+- Removed semantic token overlap from approval attribution. A pending approval can now resolve only from the immediate server-attributed follow-up using a standalone natural decision (`Sì`, `Va bene`, `No`) or a bounded anaphoric form such as `Sì, salvalo in memoria`, `Salvalo`, or `No, non salvarlo`. Proposition-bearing commands such as `Ricorda che preferisco allenarmi al mattino` and changed overlapping facts such as `Salva il mio dolore al ginocchio destro` fail closed.
+- Kept approval authority server-owned. No model/client approval identifier or raw approval payload was introduced.
+- Changed the live stream redactor from pass-through-by-default to an explicit UI-protocol allowlist. Reasoning, message metadata, provider/custom/source/file/data, and unknown chunks are dropped; text, start, finish, abort, error, and tool chunks retain only their required safe fields. Message, text-part, and tool-call identifiers are replaced with stream-local synthetic identifiers; error text and tool inputs/results are replaced with bounded generic values.
+- The shared channel flow now requests `sendReasoning: false` and still independently redacts every received chunk. Existing text and sanitized tool lifecycle chunks continue to reach the client, while the durable finish remains server-generated after persistence.
+
+### TDD and verification evidence
+
+RED:
+
+- `bunx vitest run src/lib/ai/memory-approval.test.ts src/lib/ai/tool-privacy.test.ts src/lib/channel-flow/run.test.ts`
+  - Exit 1: 10 failed and 54 passed. The failures reproduced standalone yes/no not resolving, `Salvalo` not resolving, the changed right-knee fact approving through token overlap, reasoning/provider metadata passing through, upstream text IDs leaking, and missing `sendReasoning: false`.
+
+GREEN:
+
+- Focused suite: 3 files and 64 tests passed.
+- Full unit suite (`bun run test`): 214 files passed, 1 skipped; 2,082 tests passed, 4 skipped.
+- Scoped Biome check over the six owned TypeScript source/test files: passed with no diagnostics.
+- Scoped TypeScript check (`bunx tsc --project /tmp/anthon-task4-fix-tsconfig.json --noEmit --pretty false`): passed.
+- `git diff --check`: passed.
+- The test runner emitted only the existing Vite native-config, `vite-tsconfig-paths`, and typeless `postcss.config.ts` warnings.

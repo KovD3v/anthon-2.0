@@ -82,6 +82,60 @@ describe("ai/tool-privacy", () => {
     ).toBeNull();
   });
 
+  it("drops reasoning and unknown provider chunks from the live UI stream", () => {
+    const redactToolStreamChunk = createToolStreamRedactor();
+
+    expect(
+      redactToolStreamChunk({
+        type: "reasoning-delta",
+        id: "reasoning-provider-id",
+        delta: "private chain of thought",
+        providerMetadata: { openrouter: { id: "provider-request-1" } },
+      }),
+    ).toBeNull();
+    expect(
+      redactToolStreamChunk({
+        type: "provider-metadata",
+        requestId: "provider-request-1",
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps text protocol content with synthetic IDs and no provider metadata", () => {
+    const redactToolStreamChunk = createToolStreamRedactor();
+
+    const start = redactToolStreamChunk({
+      type: "text-start",
+      id: "provider-text-id",
+      providerMetadata: { openrouter: { id: "provider-request-1" } },
+    });
+    const delta = redactToolStreamChunk({
+      type: "text-delta",
+      id: "provider-text-id",
+      delta: "Risposta legittima",
+      providerMetadata: { openrouter: { id: "provider-request-1" } },
+    });
+    const end = redactToolStreamChunk({
+      type: "text-end",
+      id: "provider-text-id",
+      providerMetadata: { openrouter: { id: "provider-request-1" } },
+    });
+
+    expect(start).toEqual({ type: "text-start", id: "safe-text-1" });
+    expect(delta).toEqual({
+      type: "text-delta",
+      id: "safe-text-1",
+      delta: "Risposta legittima",
+    });
+    expect(end).toEqual({ type: "text-end", id: "safe-text-1" });
+    expect(JSON.stringify({ start, delta, end })).not.toContain(
+      "provider-request-1",
+    );
+    expect(JSON.stringify({ start, delta, end })).not.toContain(
+      "provider-text-id",
+    );
+  });
+
   it("removes persistent-memory context and exact targets from traces", () => {
     const metadata = redactTraceMetadata({
       turnPlan: {
