@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma";
+import { getCapabilityPlannerMode } from "@/lib/ai/capability-arbitration";
 import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
 import { captureAiTurnTrace } from "@/lib/ai/trace";
@@ -135,6 +136,7 @@ export async function persistAssistantOutput({
   updateChatTimestamp = false,
   revalidateTags: tags = [],
   allowMemoryExtraction = false,
+  capabilityPlannerMode = getCapabilityPlannerMode(),
   waitUntil,
   voiceGeneration,
   usageReservationId,
@@ -315,7 +317,11 @@ export async function persistAssistantOutput({
     );
   }
 
-  if (!allowMemoryExtraction || !persisted.created) {
+  if (
+    !allowMemoryExtraction ||
+    !persisted.created ||
+    capabilityPlannerMode === "agentic"
+  ) {
     return message;
   }
 

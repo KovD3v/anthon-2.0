@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   reserveAiUsage: vi.fn(),
   releaseAiUsageReservation: vi.fn(),
   reconcileAiUsageForRecovery: vi.fn(),
+  getImmediatelyAttributableApproval: vi.fn(),
 }));
 
 vi.mock("@/lib/ai/orchestrator", () => ({
@@ -22,6 +23,10 @@ vi.mock("@/lib/rate-limit", () => ({
   reconcileAiUsageForRecovery: mocks.reconcileAiUsageForRecovery,
 }));
 
+vi.mock("@/lib/ai/memory-approval", () => ({
+  getImmediatelyAttributableApproval: mocks.getImmediatelyAttributableApproval,
+}));
+
 import { runChannelFlow } from "./run";
 
 type StreamResponseOptions = {
@@ -35,9 +40,11 @@ describe("channel-flow/run", () => {
     mocks.reserveAiUsage.mockReset();
     mocks.releaseAiUsageReservation.mockReset();
     mocks.reconcileAiUsageForRecovery.mockReset();
+    mocks.getImmediatelyAttributableApproval.mockReset();
     mocks.reserveAiUsage.mockResolvedValue(undefined);
     mocks.releaseAiUsageReservation.mockResolvedValue(true);
     mocks.reconcileAiUsageForRecovery.mockResolvedValue({ charged: true });
+    mocks.getImmediatelyAttributableApproval.mockResolvedValue(null);
     mocks.persistAssistantOutput.mockResolvedValue({ id: "assistant-1" });
   });
 
@@ -408,6 +415,112 @@ describe("channel-flow/run", () => {
         isGuest: true,
         memoryEnabled: false,
       }),
+    );
+  });
+
+  it.each([
+    { channel: "WEB" as const, persistenceChannel: "WEB" as const },
+    {
+      channel: "TELEGRAM" as const,
+      persistenceChannel: "TELEGRAM" as const,
+    },
+    {
+      channel: "WHATSAPP" as const,
+      persistenceChannel: "WHATSAPP" as const,
+    },
+  ])(
+    "loads the same server-owned immediate approval context for $channel",
+    async ({ channel, persistenceChannel }) => {
+      const pendingApproval = {
+        id: "approval-1",
+        userId: "user-1",
+        sourceInboundMessageId: "inbound-source",
+        key: "knee_injury",
+        value: "Dolore al ginocchio",
+        category: "health",
+        confidence: 0.92,
+        expiresAt: new Date("2026-08-09T18:15:00.000Z"),
+      };
+      mocks.getImmediatelyAttributableApproval.mockResolvedValueOnce(
+        pendingApproval,
+      );
+      mocks.streamChat.mockResolvedValue({
+        textStream: (async function* () {
+          yield "";
+        })(),
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.close();
+            },
+          }),
+      });
+
+      await runChannelFlow({
+        channel,
+        userId: "user-1",
+        chatId: channel === "WEB" ? "chat-1" : undefined,
+        conversationThreadId: "thread-1",
+        userMessageId: "inbound-current",
+        userMessageText: "Sì, salvalo in memoria.",
+        parts: [{ type: "text", text: "Sì, salvalo in memoria." }],
+        rateLimit: { allowed: true },
+        options: {
+          allowAttachments: true,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: true,
+        },
+        ai: { isGuest: false },
+        execution: { mode: "stream" },
+        persistence: {
+          channel: persistenceChannel,
+          saveAssistantMessage: true,
+        },
+      });
+
+      expect(mocks.getImmediatelyAttributableApproval).toHaveBeenCalledWith({
+        userId: "user-1",
+        conversationId: "thread-1",
+        currentUserMessageId: "inbound-current",
+      });
+      expect(mocks.streamChat).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pendingMemoryApproval: pendingApproval,
+          userMessageId: "inbound-current",
+        }),
+      );
+    },
+  );
+
+  it("never loads approval context for a guest or from inbound client options", async () => {
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "";
+      })(),
+    });
+
+    await runChannelFlow({
+      channel: "WEB_GUEST",
+      userId: "guest-1",
+      chatId: "chat-1",
+      conversationThreadId: "thread-1",
+      userMessageId: "inbound-current",
+      userMessageText: "Sì, salvalo.",
+      parts: [{ type: "text", text: "Sì, salvalo." }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: false,
+        allowMemoryExtraction: false,
+        allowVoiceOutput: false,
+      },
+      ai: { isGuest: true },
+      execution: { mode: "stream" },
+      persistence: { channel: "WEB", saveAssistantMessage: true },
+    });
+
+    expect(mocks.getImmediatelyAttributableApproval).not.toHaveBeenCalled();
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.not.objectContaining({ pendingMemoryApproval: expect.anything() }),
     );
   });
 

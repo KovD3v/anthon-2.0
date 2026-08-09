@@ -272,6 +272,8 @@ describe("ai/orchestrator", () => {
     mocks.createMemoryTools.mockReturnValue({
       getMemories: "memory-read-tool",
       saveMemory: "memory-tool",
+      requestMemoryApproval: "memory-approval-request-tool",
+      resolveMemoryApproval: "memory-approval-resolve-tool",
       deleteMemory: "memory-delete-tool",
     });
     mocks.createRoutineProposalTool.mockReturnValue({
@@ -2369,6 +2371,67 @@ describe("ai/orchestrator", () => {
     });
   });
 
+  it("exposes guarded memory save and approval tools for an agentic write turn", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValueOnce({ memoryWrite: true });
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-agentic-memory-write",
+      conversationThreadId: "thread-1",
+      userMessageId: "inbound-1",
+      userMessage: "Di solito mi alleno il martedì e il giovedì.",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).toEqual({
+      saveMemory: "memory-tool",
+      requestMemoryApproval: "memory-approval-request-tool",
+    });
+    expect(mocks.createMemoryTools).toHaveBeenCalledWith("user-1", {
+      sourceInboundMessageId: "inbound-1",
+    });
+    expect(streamInput.instructions).toContain("AUTONOMOUS MEMORY");
+    expect(streamInput.instructions).not.toContain("Do not call `saveMemory`");
+  });
+
+  it("exposes approval resolution only for the server-attributed immediate follow-up", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    const pendingMemoryApproval = {
+      id: "approval-1",
+      userId: "user-1",
+      sourceInboundMessageId: "inbound-source",
+      key: "knee_injury",
+      value: "Dolore al ginocchio",
+      category: "health",
+      confidence: 0.92,
+      expiresAt: new Date("2026-08-09T18:15:00.000Z"),
+    };
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-agentic-memory-approval",
+      conversationThreadId: "thread-1",
+      userMessageId: "inbound-current",
+      userMessage: "Sì, salvalo in memoria.",
+      pendingMemoryApproval,
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).toEqual({
+      resolveMemoryApproval: "memory-approval-resolve-tool",
+    });
+    expect(mocks.createMemoryTools).toHaveBeenCalledWith("user-1", {
+      pendingApprovalId: "approval-1",
+      currentUserMessageId: "inbound-current",
+    });
+  });
+
   it("keeps brief web search as a native tool in agentic mode", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
     mocks.classifyCapabilities.mockResolvedValueOnce({
@@ -2461,7 +2524,7 @@ describe("ai/orchestrator", () => {
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       tools: Record<string, unknown>;
-      prepareStep?: unknown;
+      prepareStep?: (input: { steps: unknown[] }) => unknown;
     };
     expect(streamInput.tools).toEqual({
       proposeRoutine: "routine-proposal-tool",

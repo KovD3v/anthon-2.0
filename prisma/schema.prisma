@@ -23,6 +23,13 @@ enum UserRole {
   SUPER_ADMIN
 }
 
+enum MemoryApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
 // -----------------------------------------------------
 // USER (identità unica cross-canale)
 // -----------------------------------------------------
@@ -48,6 +55,7 @@ model User {
   profile                     Profile?
   preferences                 Preferences?
   memories                    Memory[]
+  memoryApprovals             MemoryApproval[]
   routines                    Routine[]
   messages                    Message[]
   attachments                 Attachment[]
@@ -497,6 +505,7 @@ model Message {
   sourceModelExperimentPairs   ModelExperimentPair[] @relation("ModelExperimentSourceMessage")
   canonicalModelExperimentPair ModelExperimentPair?  @relation("ModelExperimentCanonicalMessage")
   sourceRoutines                Routine[]             @relation("RoutineSourceMessage")
+  memoryApprovals               MemoryApproval[]      @relation("MemoryApprovalSource")
 
   @@unique([channel, externalMessageId])
   @@unique([userId, channel, clientMessageId])
@@ -1005,6 +1014,28 @@ model Memory {
 
   @@unique([userId, key])
   @@index([userId, category])
+}
+
+model MemoryApproval {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  sourceInboundMessageId String
+  sourceInboundMessage   Message @relation("MemoryApprovalSource", fields: [sourceInboundMessageId], references: [id], onDelete: Cascade)
+
+  key        String
+  value      Json
+  category   String
+  confidence Float
+  status     MemoryApprovalStatus @default(PENDING)
+
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  resolvedAt DateTime?
+
+  @@index([userId, status, createdAt])
+  @@index([sourceInboundMessageId])
 }
 
 // -----------------------------------------------------

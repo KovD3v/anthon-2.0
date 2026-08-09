@@ -4,6 +4,8 @@ import {
   type UIMessage,
   type UIMessageChunk,
 } from "ai";
+import { getCapabilityPlannerMode } from "@/lib/ai/capability-arbitration";
+import { getImmediatelyAttributableApproval } from "@/lib/ai/memory-approval";
 import { streamChat } from "@/lib/ai/orchestrator";
 import { createLogger } from "@/lib/logger";
 import {
@@ -136,6 +138,7 @@ export async function runChannelFlow(
     : ctx.parts.filter((part) => part.type === "text");
   const normalizedParts = normalizeParts(policyParts);
   const mode = ctx.execution?.mode ?? "text";
+  const capabilityPlannerMode = getCapabilityPlannerMode();
 
   let finalMetrics: RunChannelFlowResult["metrics"];
   let persistence: RunChannelFlowResult["persistence"] =
@@ -283,6 +286,7 @@ export async function runChannelFlow(
         updateChatTimestamp: ctx.persistence?.updateChatTimestamp,
         revalidateTags: ctx.persistence?.revalidateTags,
         allowMemoryExtraction: ctx.options.allowMemoryExtraction,
+        capabilityPlannerMode,
         waitUntil: ctx.persistence?.waitUntil,
         usageReservationId,
         usageReservationClaimToken,
@@ -418,6 +422,18 @@ export async function runChannelFlow(
   const detachRequestAbort = () =>
     requestAbortSignal?.removeEventListener("abort", forwardRequestAbort);
 
+  const pendingMemoryApproval =
+    ctx.ai?.isGuest !== true &&
+    ctx.options.allowMemoryExtraction &&
+    ctx.conversationThreadId &&
+    ctx.userMessageId
+      ? await getImmediatelyAttributableApproval({
+          userId: ctx.userId,
+          conversationId: ctx.conversationThreadId,
+          currentUserMessageId: ctx.userMessageId,
+        })
+      : null;
+
   let streamResult: Awaited<ReturnType<typeof streamChat>>;
   try {
     streamResult = await streamChat({
@@ -425,6 +441,7 @@ export async function runChannelFlow(
       chatId: ctx.chatId,
       conversationThreadId: ctx.conversationThreadId,
       userMessageId: ctx.userMessageId,
+      ...(pendingMemoryApproval ? { pendingMemoryApproval } : {}),
       userMessage: ctx.userMessageText,
       planId: ctx.ai?.planId,
       userRole: ctx.ai?.userRole,

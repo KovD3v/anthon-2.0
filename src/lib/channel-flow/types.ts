@@ -111,6 +111,7 @@ export interface PersistAssistantOutputInput {
   updateChatTimestamp?: boolean;
   revalidateTags?: string[];
   allowMemoryExtraction?: boolean;
+  capabilityPlannerMode?: "legacy" | "agentic";
   waitUntil?: (promise: Promise<unknown>) => void;
   usageReservationId?: string;
   usageReservationClaimToken?: string;

@@ -100,6 +100,13 @@ describe("ai/memory-extractor", () => {
         instructions: expect.stringContaining("non usare solo parole chiave"),
       }),
     );
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instructions: expect.stringContaining(
+          "solo fatti dichiarati esplicitamente dall'utente",
+        ),
+      }),
+    );
   });
 
   it("saves only high-confidence facts, invalidates cache, and updates activity", async () => {

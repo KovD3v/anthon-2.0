@@ -1,5 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { MEMORY } from "@/lib/ai/constants";
+import {
+  createMemoryApproval,
+  resolveMemoryApproval as resolvePendingMemoryApproval,
+} from "@/lib/ai/memory-approval";
+import { isExactStableMemoryKey } from "@/lib/ai/memory-target";
 import { prisma } from "@/lib/db";
 
 type MemoriesPromptCacheEntry = {
@@ -16,12 +22,56 @@ export function invalidateMemoriesForPromptCache(userId: string) {
 
 // Type for memory value stored in JSON
 interface MemoryValue {
-  content: string;
+  content: unknown;
   category: string;
   confidence: number;
   createdAt?: string;
   updatedAt?: string;
 }
+
+const memoryCategorySchema = z.enum([
+  "identity",
+  "sport",
+  "goal",
+  "preference",
+  "health",
+  "diagnosis",
+  "trauma",
+  "intimate",
+  "schedule",
+  "conversation_topic",
+  "other",
+]);
+const sensitiveMemoryCategories = new Set([
+  "health",
+  "diagnosis",
+  "trauma",
+  "intimate",
+]);
+const broadDeleteTargets = new Set([
+  "all",
+  "identity",
+  "sport",
+  "goal",
+  "preference",
+  "health",
+  "diagnosis",
+  "trauma",
+  "intimate",
+  "schedule",
+  "conversation_topic",
+  "other",
+]);
+const stableMemoryKeySchema = z
+  .string()
+  .refine(isExactStableMemoryKey, "Serve una singola chiave stabile esatta");
+
+type CreateMemoryToolsOptions = {
+  deleteTargetKey?: string | null;
+  sourceInboundMessageId?: string;
+  pendingApprovalId?: string;
+  currentUserMessageId?: string;
+};
 
 /**
  * Creates memory tools with userId context injected via closure.
@@ -29,7 +79,7 @@ interface MemoryValue {
  */
 export function createMemoryTools(
   userId: string,
-  options?: { deleteTargetKey?: string | null },
+  options?: CreateMemoryToolsOptions,
 ) {
   const deleteTargetKey = options?.deleteTargetKey ?? null;
   return {
@@ -46,7 +96,11 @@ come nome, sport praticato, obiettivi, preferenze e altre informazioni personali
             "goal",
             "preference",
             "health",
+            "diagnosis",
+            "trauma",
+            "intimate",
             "schedule",
+            "conversation_topic",
             "other",
           ])
           .optional()
@@ -99,129 +153,165 @@ come nome, sport praticato, obiettivi, preferenze e altre informazioni personali
     }),
 
     saveMemory: tool({
-      description: `Salva un'informazione importante (FATTO non strutturale) sulla vita dell'utente.
-USE THIS TOOL for specific facts like "I have a knee injury", "I play on Sundays", "My favorite exercise is squat".
-DO NOT use this for updating profile fields like 'name', 'sport', 'goal' - use updateProfile for those.`,
+      description: `Salva o sovrascrive in modo silenzioso un singolo fatto durevole con una chiave stabile esatta.
+Puoi inferire con prudenza fatti ordinari a basso rischio solo con confidence sufficiente; non dire mai all'utente che il tool è stato eseguito.
+Per salute, diagnosi, trauma, sfera intima o qualunque fatto ad alto impatto, non salvare direttamente: crea una richiesta e chiedi una conferma naturale nella risposta.`,
       inputSchema: z.object({
-        key: z
-          .string()
-          .describe(
-            "Chiave univoca in snake_case (es: knee_injury, training_schedule)",
-          ),
+        key: stableMemoryKeySchema.describe(
+          "Chiave univoca in snake_case (es: knee_injury, training_schedule)",
+        ),
         value: z.string().describe("Il valore dell'informazione da salvare"),
-        category: z
-          .enum([
-            "identity",
-            "sport",
-            "goal",
-            "preference",
-            "health",
-            "schedule",
-            "other",
-          ])
-          .describe("Categoria dell'informazione"),
+        category: memoryCategorySchema.describe("Categoria dell'informazione"),
+        confidence: z.number().min(0).max(1),
+        sensitivity: z
+          .enum(["low", "high"])
+          .describe(
+            "Usa high per informazioni sensibili o ad alto impatto, anche se la categoria sembra generica",
+          ),
       }),
-      execute: async ({ key, value, category }) => {
-        try {
-          // Check if memory exists
-          const existing = await prisma.memory.findFirst({
-            where: { userId, key },
-          });
+      execute: async ({ key, value, category, confidence, sensitivity }) => {
+        if (
+          confidence < MEMORY.MIN_CONFIDENCE ||
+          !isExactStableMemoryKey(key)
+        ) {
+          return { status: "rejected" as const };
+        }
 
-          if (existing) {
-            // Update existing memory
-            await prisma.memory.update({
-              where: { id: existing.id },
-              data: {
-                category,
-                value: {
-                  content: value,
-                  category,
-                  confidence: 1.0,
-                  updatedAt: new Date().toISOString(),
-                },
-              },
-            });
-
-            invalidateMemoriesForPromptCache(userId);
-
-            return {
-              success: true,
-              message: `Memoria "${key}" aggiornata con successo.`,
-            };
+        const requiresApproval =
+          sensitivity === "high" || sensitiveMemoryCategories.has(category);
+        if (requiresApproval) {
+          if (!options?.sourceInboundMessageId) {
+            return { status: "rejected" as const };
           }
+          try {
+            const approval = await createMemoryApproval({
+              userId,
+              sourceInboundMessageId: options.sourceInboundMessageId,
+              key,
+              value,
+              category,
+              confidence,
+            });
+            return {
+              status: "approval_required" as const,
+              approvalId: approval.id,
+            };
+          } catch {
+            return { status: "rejected" as const };
+          }
+        }
 
-          // Create new memory
-          await prisma.memory.create({
-            data: {
+        try {
+          const timestamp = new Date().toISOString();
+          const memory = await prisma.memory.upsert({
+            where: { userId_key: { userId, key } },
+            update: {
+              category,
+              value: {
+                content: value,
+                category,
+                confidence,
+                updatedAt: timestamp,
+              },
+            },
+            create: {
               userId,
               key,
               category,
               value: {
                 content: value,
                 category,
-                confidence: 1.0,
-                createdAt: new Date().toISOString(),
+                confidence,
+                createdAt: timestamp,
               },
             },
+            select: { id: true },
           });
 
           invalidateMemoriesForPromptCache(userId);
-
-          return {
-            success: true,
-            message: `Memoria "${key}" salvata con successo.`,
-          };
-        } catch (error) {
-          console.error("[saveMemory] Error:", error);
-          return {
-            success: false,
-            message: "Errore nel salvare la memoria.",
-          };
+          return { status: "saved" as const, memoryId: memory.id };
+        } catch {
+          return { status: "rejected" as const };
         }
       },
     }),
 
-    deleteMemory: tool({
-      description: `Elimina un'informazione dalla memoria persistente dell'utente.
-Usa questo tool quando l'utente chiede esplicitamente di dimenticare un'informazione
-o quando un'informazione non è più valida.`,
-      inputSchema: deleteTargetKey
-        ? z.object({})
-        : z.object({
-            key: z.string().describe("La chiave della memoria da eliminare"),
-          }),
-      execute: async (input) => {
-        const key =
-          deleteTargetKey ?? (input as unknown as { key: string }).key;
-        try {
-          const memory = await prisma.memory.findFirst({
-            where: { userId, key },
-          });
+    requestMemoryApproval: tool({
+      description: `Crea in modo silenzioso una richiesta server-side per un singolo fatto sensibile che non può essere salvato direttamente.
+Dopo il tool, chiedi una conferma naturale senza citare tool, id o meccanismi interni.`,
+      inputSchema: z.object({
+        key: stableMemoryKeySchema,
+        value: z.string(),
+        category: memoryCategorySchema,
+        confidence: z.number().min(MEMORY.MIN_CONFIDENCE).max(1),
+      }),
+      execute: async ({ key, value, category, confidence }) => {
+        if (!options?.sourceInboundMessageId) {
+          throw new Error("Missing server-owned inbound message context");
+        }
+        const approval = await createMemoryApproval({
+          userId,
+          sourceInboundMessageId: options.sourceInboundMessageId,
+          key,
+          value,
+          category,
+          confidence,
+        });
+        return {
+          status: "approval_required" as const,
+          approvalId: approval.id,
+        };
+      },
+    }),
 
-          if (!memory) {
-            return {
-              success: false,
-              message: `Memoria "${key}" non trovata.`,
-            };
-          }
-
-          await prisma.memory.delete({
-            where: { id: memory.id },
-          });
-
+    resolveMemoryApproval: tool({
+      description: `Approva o rifiuta in modo silenzioso solo la richiesta server-side attribuita al turno immediatamente successivo.
+Usalo soltanto quando il messaggio corrente conferma o rifiuta esplicitamente il salvataggio: un sì generico o non collegato non è una conferma.`,
+      inputSchema: z.object({
+        approvalId: z.string(),
+        decision: z.enum(["approve", "reject"]),
+      }),
+      execute: async ({ approvalId, decision }) => {
+        if (
+          !options?.pendingApprovalId ||
+          !options.currentUserMessageId ||
+          approvalId !== options.pendingApprovalId
+        ) {
+          return { status: "stale" as const };
+        }
+        const result = await resolvePendingMemoryApproval({
+          userId,
+          approvalId: options.pendingApprovalId,
+          decision,
+          currentUserMessageId: options.currentUserMessageId,
+        });
+        if (result.status === "approved") {
           invalidateMemoriesForPromptCache(userId);
+        }
+        return result;
+      },
+    }),
 
-          return {
-            success: true,
-            message: `Memoria "${key}" eliminata con successo.`,
-          };
-        } catch (error) {
-          console.error("[deleteMemory] Error:", error);
-          return {
-            success: false,
-            message: "Errore nell'eliminare la memoria.",
-          };
+    deleteMemory: tool({
+      description: `Elimina in modo silenzioso una sola memoria già risolta dal server da una richiesta esplicita di dimenticare.
+Non accetta chiavi scelte dal modello, wildcard, categorie o richieste ampie.`,
+      inputSchema: z.object({}),
+      execute: async () => {
+        if (
+          !isExactStableMemoryKey(deleteTargetKey) ||
+          broadDeleteTargets.has(deleteTargetKey)
+        ) {
+          return { status: "ambiguous" as const };
+        }
+        try {
+          const deleted = await prisma.memory.deleteMany({
+            where: { userId, key: deleteTargetKey },
+          });
+          if (deleted.count === 0) return { status: "not_found" as const };
+          invalidateMemoriesForPromptCache(userId);
+          return { status: "deleted" as const };
+        } catch {
+          return { status: "ambiguous" as const };
         }
       },
     }),
@@ -285,7 +375,11 @@ export async function formatMemoriesForPrompt(userId: string): Promise<string> {
     goal: "🎯 Obiettivi",
     preference: "⚙️ Preferenze",
     health: "❤️ Salute",
+    diagnosis: "🩺 Diagnosi",
+    trauma: "🛡️ Trauma",
+    intimate: "🔒 Sfera intima",
     schedule: "📅 Disponibilità",
+    conversation_topic: "💬 Temi di conversazione",
     other: "📝 Altro",
   };
 

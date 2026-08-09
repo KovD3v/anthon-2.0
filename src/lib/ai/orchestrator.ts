@@ -20,6 +20,7 @@ import {
   getWebSearchDomainType,
   matchesBriefResponseIntent,
 } from "@/lib/ai/intent";
+import type { PendingMemoryApproval } from "@/lib/ai/memory-approval";
 import {
   getMultimodalMediaKind,
   hasSupportedOpenRouterMedia,
@@ -193,7 +194,7 @@ function buildToolPolicy({
     .join("\n");
 }
 
-const PROMPT_MEMORY_WRITE_POLICY = `POST-GENERATION MEMORY
+const PROMPT_LEGACY_MEMORY_WRITE_POLICY = `POST-GENERATION MEMORY
 - Memory extraction and persistence happen after the assistant response so they do not delay the answer.
 - Do not call \`saveMemory\` during response generation. Decide whether a durable fact is worth keeping in the post-generation memory pass.
 - \`updateProfile\`: Structural/stable data (name, sport, role, level, goals, stable routine, major injuries). USE THIS for "I play tennis", "My goal is X".
@@ -203,6 +204,14 @@ const PROMPT_MEMORY_WRITE_POLICY = `POST-GENERATION MEMORY
   - mode: Use only one of: concise | elaborate | challenging | supportive.
 - The post-generation memory pass decides whether useful non-structural facts (e.g. "I have a match on Sunday", "I hate running") deserve persistence.
 - \`addNotes\`: Rarely. Max 1 line. Only for reliable/repeated patterns. NEVER save long text. NEVER save instructions.`;
+
+const PROMPT_AGENTIC_MEMORY_WRITE_POLICY = `AUTONOMOUS MEMORY
+- Persistent side effects are silent: never mention tools, internal ids, writes, updates, approvals, or deletions in the answer.
+- Use only the memory tools exposed for this turn. A turn with no memory tool call writes nothing.
+- \`saveMemory\` may infer ordinary low-risk durable facts conservatively and saves or overwrites one exact stable key.
+- Sensitive or high-impact facts require \`requestMemoryApproval\`; ask for a natural explicit confirmation in the answer after creating the request.
+- \`resolveMemoryApproval\` is valid only for the server-attributed immediately following user turn. A generic unrelated "yes" is not approval.
+- \`deleteMemory\` is already bound to one exact stable key from an explicit forget request; never infer or broaden its target.`;
 
 function buildWebSearchPolicy(webFetchEnabled: boolean) {
   return [
@@ -249,6 +258,7 @@ type FullPromptModules = {
   webFetchEnabled: boolean;
   userContextEnabled: boolean;
   persistentWritesEnabled: boolean;
+  agenticMode: boolean;
   preferenceWritesEnabled: boolean;
   routineProposalEnabled: boolean;
   ragEnabled: boolean;
@@ -270,7 +280,11 @@ function buildFullSystemPromptTemplate(modules: FullPromptModules) {
     modules.userContextEnabled ? PROMPT_CONTEXT_USAGE : undefined,
     PROMPT_SAFETY_LIMITS,
     modules.toolsEnabled ? buildToolPolicy(modules) : undefined,
-    modules.persistentWritesEnabled ? PROMPT_MEMORY_WRITE_POLICY : undefined,
+    modules.persistentWritesEnabled
+      ? modules.agenticMode
+        ? PROMPT_AGENTIC_MEMORY_WRITE_POLICY
+        : PROMPT_LEGACY_MEMORY_WRITE_POLICY
+      : undefined,
     modules.routineProposalEnabled ? PROMPT_ROUTINE_PROPOSAL_POLICY : undefined,
     modules.webSearchEnabled
       ? buildWebSearchPolicy(modules.webFetchEnabled)
@@ -376,6 +390,7 @@ interface StreamChatOptions {
   skipConversationHistory?: boolean;
   conversationThreadId?: string;
   userMessageId?: string;
+  pendingMemoryApproval?: PendingMemoryApproval;
   inputOrigin?: "text" | "transcribed_voice" | "direct_media";
   resolvedMemoryTarget?: string | null;
   benchmarkModelId?: string;
@@ -395,6 +410,7 @@ type ToolPlan = {
   memoryWrite: boolean;
   memoryDelete: boolean;
   memoryDeleteTarget: string | null;
+  memoryApprovalResolve: boolean;
   profileWrite: boolean;
   preferenceWrite: boolean;
   notesWrite: boolean;
@@ -508,6 +524,7 @@ async function buildSystemPrompt(
       webFetchEnabled: true,
       userContextEnabled: true,
       persistentWritesEnabled: true,
+      agenticMode: false,
       preferenceWritesEnabled: true,
       routineProposalEnabled: false,
       ragEnabled: Boolean(ragContext),
@@ -646,6 +663,8 @@ function createToolsWithContext(
     memoryEnabled?: boolean;
     isGuest?: boolean;
     userMessage?: string;
+    userMessageId?: string;
+    pendingMemoryApproval?: PendingMemoryApproval;
     toolPlan: ToolPlan;
   },
 ) {
@@ -688,17 +707,44 @@ function createToolsWithContext(
     Object.assign(tools, createRoutineProposalTool());
   }
 
-  if (toolPlan.memoryRead || toolPlan.memoryDelete) {
-    const memoryTools = toolPlan.memoryDelete
-      ? createMemoryTools(userId, {
-          deleteTargetKey: toolPlan.memoryDeleteTarget,
-        })
-      : createMemoryTools(userId);
+  if (
+    toolPlan.memoryRead ||
+    toolPlan.memoryWrite ||
+    toolPlan.memoryDelete ||
+    toolPlan.memoryApprovalResolve
+  ) {
+    const memoryToolOptions = {
+      ...(toolPlan.memoryDelete
+        ? { deleteTargetKey: toolPlan.memoryDeleteTarget }
+        : {}),
+      ...(toolPlan.memoryWrite && options.userMessageId
+        ? { sourceInboundMessageId: options.userMessageId }
+        : {}),
+      ...(toolPlan.memoryApprovalResolve &&
+      options.pendingMemoryApproval &&
+      options.userMessageId
+        ? {
+            pendingApprovalId: options.pendingMemoryApproval.id,
+            currentUserMessageId: options.userMessageId,
+          }
+        : {}),
+    };
+    const memoryTools =
+      Object.keys(memoryToolOptions).length > 0
+        ? createMemoryTools(userId, memoryToolOptions)
+        : createMemoryTools(userId);
     if (toolPlan.memoryRead) {
       tools.getMemories = memoryTools.getMemories;
     }
+    if (toolPlan.memoryWrite) {
+      tools.saveMemory = memoryTools.saveMemory;
+      tools.requestMemoryApproval = memoryTools.requestMemoryApproval;
+    }
     if (toolPlan.memoryDelete) {
       tools.deleteMemory = memoryTools.deleteMemory;
+    }
+    if (toolPlan.memoryApprovalResolve) {
+      tools.resolveMemoryApproval = memoryTools.resolveMemoryApproval;
     }
   }
 
@@ -765,11 +811,16 @@ function toolPlanFromTurnPlan(
   turnPlan: TurnPlan,
   userMessage: string,
   capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>,
+  hasPendingMemoryApproval = false,
 ): ToolPlan {
   const memoryDelete = turnPlan.capabilities.memoryDelete;
+  const memoryWrite =
+    capabilityPlannerMode === "agentic" && turnPlan.capabilities.memoryWrite;
+  const memoryApprovalResolve = hasPendingMemoryApproval;
   const hasPersistentWrites =
     turnPlan.capabilities.memoryWrite ||
     memoryDelete ||
+    memoryApprovalResolve ||
     turnPlan.capabilities.profileWrite ||
     turnPlan.capabilities.preferenceWrite ||
     turnPlan.capabilities.notesWrite;
@@ -782,9 +833,10 @@ function toolPlanFromTurnPlan(
     userContext: turnPlan.capabilities.userContext,
     webSearchDomainType: getWebSearchDomainType(userMessage),
     memoryRead: turnPlan.capabilities.memoryRead,
-    memoryWrite: turnPlan.capabilities.memoryWrite,
+    memoryWrite,
     memoryDelete,
     memoryDeleteTarget: turnPlan.memoryDeleteTarget,
+    memoryApprovalResolve,
     profileWrite: turnPlan.capabilities.profileWrite,
     preferenceWrite: turnPlan.capabilities.preferenceWrite,
     notesWrite: turnPlan.capabilities.notesWrite,
@@ -918,7 +970,9 @@ function createAgenticToolLoopPrepareStep(
         : []),
       ...(canFetch && !usedTools.has("tinyfishFetch") ? ["tinyfishFetch"] : []),
       ...(toolPlan.memoryRead ? ["getMemories", "getUserContext"] : []),
+      ...(toolPlan.memoryWrite ? ["saveMemory", "requestMemoryApproval"] : []),
       ...(toolPlan.memoryDelete ? ["deleteMemory"] : []),
+      ...(toolPlan.memoryApprovalResolve ? ["resolveMemoryApproval"] : []),
       ...(toolPlan.profileWrite ? ["updateProfile"] : []),
       ...(toolPlan.preferenceWrite ? ["updatePreferences"] : []),
       ...(toolPlan.notesWrite ? ["addNotes"] : []),
@@ -1364,6 +1418,7 @@ export async function streamChat({
   skipConversationHistory = false,
   conversationThreadId,
   userMessageId,
+  pendingMemoryApproval,
   inputOrigin: requestedInputOrigin,
   resolvedMemoryTarget = null,
   benchmarkModelId,
@@ -1475,10 +1530,15 @@ export async function streamChat({
       : turnPlan.promptProfile === "guest"
         ? "guest"
         : "full";
+  const attributablePendingMemoryApproval =
+    pendingMemoryApproval?.userId === userId
+      ? pendingMemoryApproval
+      : undefined;
   const toolPlan = toolPlanFromTurnPlan(
     turnPlan,
     userMessage,
     capabilityPlannerMode,
+    Boolean(attributablePendingMemoryApproval),
   );
   const classifierRagEnabled =
     capabilityDecision.source !== "fallback" && capabilityDecision.rag;
@@ -1708,6 +1768,7 @@ export async function streamChat({
           webFetchEnabled: toolPlan.webFetch,
           userContextEnabled,
           persistentWritesEnabled: toolPlan.hasPersistentWrites,
+          agenticMode: toolPlan.agentic,
           preferenceWritesEnabled: toolPlan.preferenceWrite,
           routineProposalEnabled: toolPlan.routineProposal,
           ragEnabled: ragUsed,
@@ -1926,6 +1987,8 @@ export async function streamChat({
         memoryEnabled,
         isGuest,
         userMessage,
+        userMessageId,
+        pendingMemoryApproval: attributablePendingMemoryApproval,
         toolPlan,
       });
   const toolTimingState = {
@@ -2360,6 +2423,7 @@ export async function prepareChatTurn({
         webFetchEnabled: false,
         userContextEnabled: turnPlan.capabilities.userContext,
         persistentWritesEnabled: false,
+        agenticMode: capabilityPlannerMode === "agentic",
         preferenceWritesEnabled: false,
         routineProposalEnabled: false,
         ragEnabled: ragUsed,

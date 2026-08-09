@@ -42,6 +42,7 @@ import { persistAssistantOutput } from "./persistence";
 
 describe("channel-flow/persistence", () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
     mocks.transaction.mockReset();
     mocks.messageCreate.mockReset();
     mocks.messageMetricsCreate.mockReset();
@@ -108,6 +109,37 @@ describe("channel-flow/persistence", () => {
       "assistant",
     );
     expect(waitUntil).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not schedule the legacy extractor for an agentic turn with no memory tool call", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    const waitUntil = vi.fn();
+
+    await persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "I train on Tuesday and Thursday.",
+      metrics: {
+        model: "test-model",
+        inputTokens: 5,
+        outputTokens: 8,
+        reasoningTokens: 0,
+        reasoningContent: null,
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.02,
+        generationTimeMs: 111,
+        reasoningTimeMs: null,
+      },
+      allowMemoryExtraction: true,
+      waitUntil,
+    });
+
+    expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
+    expect(waitUntil).not.toHaveBeenCalled();
   });
 
   it("persists a validated routine proposal after the assistant text", async () => {

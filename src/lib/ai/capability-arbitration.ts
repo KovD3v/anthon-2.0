@@ -227,7 +227,8 @@ export function normalizeCapabilityDecision(
   const rag = matchesRagIntent(input.userMessage) || proposed("rag");
   let memoryRead =
     persistentMemoryAllowed && (explicitMemoryRead || proposed("memoryRead"));
-  let memoryWrite = persistentMemoryAllowed && explicitMemoryWrite;
+  let memoryWrite =
+    persistentMemoryAllowed && (explicitMemoryWrite || proposed("memoryWrite"));
   const resolvedMemoryTarget = normalizeResolvedMemoryTarget(
     input.resolvedMemoryTarget,
   );

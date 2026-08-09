@@ -86,7 +86,7 @@ Analizza lo scambio tra utente e assistente e estrai fatti persistenti sull'uten
 
 Regole:
 - La scelta di cosa salvare è del modello: non usare solo parole chiave e non salvare ogni dettaglio.
-- Estrai solo informazioni esplicite, non fare assunzioni
+- Estrai solo fatti dichiarati esplicitamente dall'utente; non inferire fatti dall'assistente e non fare assunzioni
 - Priorità a: nome, sport praticato, obiettivi, preferenze, condizioni fisiche, disponibilità orarie
 - Ignora informazioni transitorie o specifiche del momento, salvo quando l'utente chiede esplicitamente di ricordarle
 - Usa key in snake_case in inglese (es: user_name, user_sport, user_goal)
