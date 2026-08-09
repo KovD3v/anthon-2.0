@@ -2304,6 +2304,77 @@ describe("ai/orchestrator", () => {
     );
   });
 
+  it("keeps RAG context and required web tools together in agentic mode", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValueOnce({ rag: true });
+    mocks.getRagContext.mockResolvedValueOnce({
+      text: "**Documento allenamento**\ncontenuto rilevante",
+      chunkCount: 1,
+    });
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-agentic-rag-web",
+      userMessage:
+        "Cerca online fonti affidabili e confrontale con i documenti caricati",
+    });
+
+    expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
+    expect(mocks.getRagContext).toHaveBeenCalledWith(
+      "Cerca online fonti affidabili e confrontale con i documenti caricati",
+    );
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.instructions).toContain("**Documento allenamento**");
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+      }),
+    );
+  });
+
+  it("does not expose memory deletion for a generic forget request", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-generic-forget",
+      userMessage: "Dimentica quella informazione",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).not.toHaveProperty("deleteMemory");
+  });
+
+  it("runs agentic arbitration for forbidden web turns while preserving RAG", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValueOnce({ rag: true });
+    mocks.getRagContext.mockResolvedValueOnce({
+      text: "**Documento allenamento**\\ncontenuto rilevante",
+      chunkCount: 1,
+    });
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-agentic-rag-no-web",
+      userMessage:
+        "Rispondi senza cercare online e confronta con i documenti caricati",
+    });
+
+    expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
+    expect(mocks.getRagContext).toHaveBeenCalledWith(
+      "Rispondi senza cercare online e confronta con i documenti caricati",
+    );
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).not.toHaveProperty("tinyfishSearch");
+    expect(streamInput.tools).not.toHaveProperty("tinyfishFetch");
+  });
+
   it("uses the capability classifier boundary for ambiguous current-info requests", async () => {
     const abortController = new AbortController();
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");

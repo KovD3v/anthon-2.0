@@ -27,7 +27,11 @@ interface MemoryValue {
  * Creates memory tools with userId context injected via closure.
  * This factory pattern allows passing userId to tool execute functions.
  */
-export function createMemoryTools(userId: string) {
+export function createMemoryTools(
+  userId: string,
+  options?: { deleteTargetKey?: string | null },
+) {
+  const deleteTargetKey = options?.deleteTargetKey ?? null;
   return {
     getMemories: tool({
       description: `Recupera tutte le informazioni salvate sull'utente dalla memoria persistente.
@@ -182,10 +186,14 @@ DO NOT use this for updating profile fields like 'name', 'sport', 'goal' - use u
       description: `Elimina un'informazione dalla memoria persistente dell'utente.
 Usa questo tool quando l'utente chiede esplicitamente di dimenticare un'informazione
 o quando un'informazione non è più valida.`,
-      inputSchema: z.object({
-        key: z.string().describe("La chiave della memoria da eliminare"),
-      }),
-      execute: async ({ key }) => {
+      inputSchema: deleteTargetKey
+        ? z.object({})
+        : z.object({
+            key: z.string().describe("La chiave della memoria da eliminare"),
+          }),
+      execute: async (input) => {
+        const key =
+          deleteTargetKey ?? (input as unknown as { key: string }).key;
         try {
           const memory = await prisma.memory.findFirst({
             where: { userId, key },

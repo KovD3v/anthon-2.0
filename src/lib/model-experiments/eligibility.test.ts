@@ -40,6 +40,7 @@ const safeTurn: TurnPlan = {
     userContext: true,
     memoryRead: true,
     memoryWrite: false,
+    memoryDelete: false,
     profileWrite: false,
     preferenceWrite: false,
     notesWrite: false,

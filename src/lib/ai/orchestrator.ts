@@ -19,7 +19,6 @@ import {
   evaluateWebSearchRule,
   getWebSearchDomainType,
   matchesBriefResponseIntent,
-  matchesMemoryDeleteIntent,
   matchesMemoryReadIntent,
   matchesMemoryWriteIntent,
   matchesNotesWriteIntent,
@@ -386,6 +385,7 @@ interface StreamChatOptions {
   conversationThreadId?: string;
   userMessageId?: string;
   inputOrigin?: "text" | "transcribed_voice" | "direct_media";
+  resolvedMemoryTarget?: string | null;
   benchmarkModelId?: string;
   abortSignal?: AbortSignal;
 }
@@ -399,6 +399,7 @@ type ToolPlan = {
   memoryRead: boolean;
   memoryWrite: boolean;
   memoryDelete: boolean;
+  memoryDeleteTarget: string | null;
   profileWrite: boolean;
   preferenceWrite: boolean;
   notesWrite: boolean;
@@ -697,7 +698,11 @@ function createToolsWithContext(
   }
 
   if (toolPlan.memoryRead || toolPlan.memoryDelete) {
-    const memoryTools = createMemoryTools(userId);
+    const memoryTools = toolPlan.memoryDelete
+      ? createMemoryTools(userId, {
+          deleteTargetKey: toolPlan.memoryDeleteTarget,
+        })
+      : createMemoryTools(userId);
     if (toolPlan.memoryRead) {
       tools.getMemories = memoryTools.getMemories;
     }
@@ -783,8 +788,7 @@ function selectToolPlan({
     !isGuest && memoryEnabled && matchesMemoryReadIntent(userMessage);
   const memoryWrite =
     persistentWritesAllowed && matchesMemoryWriteIntent(userMessage);
-  const memoryDelete =
-    persistentWritesAllowed && matchesMemoryDeleteIntent(userMessage);
+  const memoryDelete = false;
   const profileWrite =
     persistentWritesAllowed && matchesProfileWriteIntent(userMessage);
   const preferenceWrite =
@@ -811,6 +815,7 @@ function selectToolPlan({
     memoryRead,
     memoryWrite,
     memoryDelete,
+    memoryDeleteTarget: null,
     profileWrite,
     preferenceWrite,
     notesWrite,
@@ -826,7 +831,7 @@ function toolPlanFromTurnPlan(
   userMessage: string,
   benchmarkModelId?: string,
 ): ToolPlan {
-  const memoryDelete = matchesMemoryDeleteIntent(userMessage);
+  const memoryDelete = turnPlan.capabilities.memoryDelete;
   const hasPersistentWrites =
     turnPlan.capabilities.memoryWrite ||
     memoryDelete ||
@@ -847,6 +852,7 @@ function toolPlanFromTurnPlan(
     memoryRead: turnPlan.capabilities.memoryRead,
     memoryWrite: turnPlan.capabilities.memoryWrite,
     memoryDelete,
+    memoryDeleteTarget: null,
     profileWrite: turnPlan.capabilities.profileWrite,
     preferenceWrite: turnPlan.capabilities.preferenceWrite,
     notesWrite: turnPlan.capabilities.notesWrite,
@@ -1302,6 +1308,7 @@ async function arbitrateCapabilities({
   voiceAllowed,
   responseMode,
   webSearchRule,
+  resolvedMemoryTarget,
   abortSignal,
 }: {
   userId: string;
@@ -1311,11 +1318,12 @@ async function arbitrateCapabilities({
   voiceAllowed: boolean;
   responseMode: "text" | "voice";
   webSearchRule: ReturnType<typeof evaluateWebSearchRule>;
+  resolvedMemoryTarget: string | null;
   abortSignal?: AbortSignal;
 }): Promise<CapabilityDecision> {
   const explicitWebRule = getExplicitWebRule(webSearchRule);
   const classifier =
-    getCapabilityPlannerMode() === "agentic" && explicitWebRule === "allowed"
+    getCapabilityPlannerMode() === "agentic"
       ? await classifyCapabilities({
           userId,
           userMessage,
@@ -1332,6 +1340,7 @@ async function arbitrateCapabilities({
     voiceAllowed,
     responseMode,
     explicitWebRule,
+    resolvedMemoryTarget,
     classifier,
   });
 }
@@ -1363,6 +1372,7 @@ export async function streamChat({
   conversationThreadId,
   userMessageId,
   inputOrigin: requestedInputOrigin,
+  resolvedMemoryTarget = null,
   benchmarkModelId,
   abortSignal,
 }: StreamChatOptions) {
@@ -1433,6 +1443,7 @@ export async function streamChat({
     voiceAllowed: voiceEnabledResult,
     responseMode,
     webSearchRule,
+    resolvedMemoryTarget,
     abortSignal,
   });
   const inputOrigin =
@@ -1446,6 +1457,8 @@ export async function streamChat({
     outputMode: responseMode,
     webSearchEnabled: capabilityDecision.webSearch,
     webFetchEnabled: capabilityDecision.webFetch,
+    allowConcurrentRagAndWeb: getCapabilityPlannerMode() === "agentic",
+    memoryDeleteEnabled: capabilityDecision.memoryDelete,
     classifier: toTurnPlanClassifier(capabilityDecision),
     fullMaxRawTurns: Math.max(
       1,
@@ -1462,11 +1475,10 @@ export async function streamChat({
       : turnPlan.promptProfile === "guest"
         ? "guest"
         : "full";
-  const toolPlan = toolPlanFromTurnPlan(
-    turnPlan,
-    userMessage,
-    benchmarkModelId,
-  );
+  const toolPlan = {
+    ...toolPlanFromTurnPlan(turnPlan, userMessage, benchmarkModelId),
+    memoryDeleteTarget: capabilityDecision.memoryDeleteTarget,
+  };
   const classifierRagEnabled =
     capabilityDecision.source !== "fallback" && capabilityDecision.rag;
   const userContextEnabled = turnPlan.capabilities.userContext;
@@ -1883,12 +1895,14 @@ export async function streamChat({
   const effectiveSystemPrompt = normalizedConversation.systemPrompt;
   const effectiveMessages = normalizedConversation.messages;
   const attachTurnTrace = (metrics: AIMetrics) => {
+    const { memoryDeleteTarget: _memoryDeleteTarget, ...traceDecision } =
+      capabilityDecision;
     metrics.turnPlan = turnPlan as unknown as Record<string, unknown>;
     metrics.tracePayload = {
       userMessage,
       systemPrompt: effectiveSystemPrompt,
       messages: effectiveMessages as unknown as Record<string, unknown>,
-      capabilityDecision,
+      capabilityDecision: traceDecision,
       history: {
         scope: turnPlan.history.scope,
         includedMessageCount: conversationHistory.length,
@@ -2143,6 +2157,7 @@ export interface PrepareChatTurnOptions {
   userRole?: string;
   subscriptionStatus?: string;
   memoryEnabled?: boolean;
+  resolvedMemoryTarget?: string | null;
   effectiveEntitlements?: EffectiveEntitlements;
   skipConversationHistory?: boolean;
 }
@@ -2181,6 +2196,7 @@ export async function prepareChatTurn({
   userRole,
   subscriptionStatus,
   memoryEnabled = true,
+  resolvedMemoryTarget = null,
   effectiveEntitlements: prefetchedEntitlements,
   skipConversationHistory = false,
 }: PrepareChatTurnOptions): Promise<PreparedChatTurn> {
@@ -2203,6 +2219,7 @@ export async function prepareChatTurn({
     voiceAllowed: false,
     responseMode: "text",
     webSearchRule,
+    resolvedMemoryTarget,
     abortSignal,
   });
   abortSignal?.throwIfAborted();
@@ -2214,6 +2231,8 @@ export async function prepareChatTurn({
     outputMode: "text" as const,
     webSearchEnabled: capabilityDecision.webSearch,
     webFetchEnabled: capabilityDecision.webFetch,
+    allowConcurrentRagAndWeb: getCapabilityPlannerMode() === "agentic",
+    memoryDeleteEnabled: capabilityDecision.memoryDelete,
     classifier: toTurnPlanClassifier(capabilityDecision),
     fullMaxRawTurns: Math.max(
       1,

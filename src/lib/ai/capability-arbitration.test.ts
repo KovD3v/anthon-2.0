@@ -14,6 +14,7 @@ function arbitrate(
     voiceAllowed: false,
     responseMode: "text",
     explicitWebRule: "allowed",
+    resolvedMemoryTarget: null,
     classifier: null,
     ...overrides,
   });
@@ -95,20 +96,44 @@ describe("capability arbitration", () => {
     expect(allowed.voiceOutput).toBe(true);
   });
 
-  it("requires explicit forget intent before enabling memory deletion", () => {
-    const explicit = arbitrate({
+  it("requires an exact resolved target before enabling memory deletion", () => {
+    const genericForget = arbitrate({
       userMessage: "Dimentica quella informazione",
       classifier: { memoryDelete: true },
     });
-    const ambiguous = arbitrate({
-      userMessage: "Elimina la routine dalla risposta",
+    const resolvedTarget = arbitrate({
+      userMessage: "Dimentica quella informazione",
       classifier: { memoryDelete: true },
+      resolvedMemoryTarget: "training_goal",
+    });
+    const wildcardTarget = arbitrate({
+      userMessage: "Dimentica quella informazione",
+      resolvedMemoryTarget: "*",
     });
 
-    expect(explicit.memoryDelete).toBe(true);
-    expect(ambiguous.memoryDelete).toBe(false);
-    expect(ambiguous.reasonCodes).toContain("delete_requires_explicit_intent");
+    expect(genericForget.memoryDelete).toBe(false);
+    expect(genericForget.reasonCodes).toContain("delete_requires_exact_target");
+    expect(resolvedTarget.memoryDelete).toBe(true);
+    expect(resolvedTarget.memoryDeleteTarget).toBe("training_goal");
+    expect(wildcardTarget.memoryDelete).toBe(false);
+    expect(wildcardTarget.memoryDeleteTarget).toBeNull();
   });
+
+  it.each([
+    ["required", true],
+    ["forbidden", false],
+  ] as const)(
+    "keeps independent RAG arbitration when web is %s",
+    (explicitWebRule, webSearch) => {
+      const decision = arbitrate({
+        explicitWebRule,
+        classifier: { rag: true, webSearch: true },
+      });
+
+      expect(decision.rag).toBe(true);
+      expect(decision.webSearch).toBe(webSearch);
+    },
+  );
 
   it("returns a conservative fallback when classification is unavailable", () => {
     const decision = arbitrate({ classifier: null });

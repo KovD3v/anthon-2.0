@@ -48,6 +48,7 @@ export type TurnPlan = {
     userContext: boolean;
     memoryRead: boolean;
     memoryWrite: boolean;
+    memoryDelete: boolean;
     profileWrite: boolean;
     preferenceWrite: boolean;
     notesWrite: boolean;
@@ -72,6 +73,8 @@ export type TurnPlanInput = {
   outputMode: TurnPlan["outputMode"];
   webSearchEnabled: boolean;
   webFetchEnabled: boolean;
+  allowConcurrentRagAndWeb?: boolean;
+  memoryDeleteEnabled?: boolean;
   classifier?: TurnPlanClassifierDecision | null;
   fullMaxRawTurns: number;
 };
@@ -133,7 +136,7 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
     profileWrite ||
     preferenceWrite ||
     notesWrite ||
-    matchesMemoryDeleteIntent(text);
+    (input.memoryDeleteEnabled ?? matchesMemoryDeleteIntent(text));
   const deterministicRag =
     !input.webSearchEnabled &&
     (matchesRagIntent(text) || Boolean(classifier?.accepted && classifier.rag));
@@ -170,10 +173,10 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
     persistentWrite ||
     matchesComplexCoachingIntent(text);
   const compact = !requiresFull && matchesAtomicCoachingIntent(text);
-  // Full authenticated turns retain the RAG capability. The RAG subsystem then
-  // decides whether it has useful indexed material; compact and web turns do
-  // not start that enrichment at all.
-  const rag = !webSearch && !compact;
+  // Full authenticated turns retain the RAG capability. The legacy adapter
+  // excludes it for web turns; the agentic adapter may retain both.
+  const rag =
+    (!webSearch || input.allowConcurrentRagAndWeb === true) && !compact;
   if (compact) reasonCodes.push("ATOMIC_COACHING");
   const userContext = !compact && (!webSearch || requestedUserContext);
 
@@ -207,6 +210,8 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
       userContext,
       memoryRead,
       memoryWrite,
+      memoryDelete:
+        input.memoryDeleteEnabled ?? matchesMemoryDeleteIntent(text),
       profileWrite,
       preferenceWrite,
       notesWrite,
@@ -308,6 +313,7 @@ function emptyCapabilities(): TurnPlan["capabilities"] {
     userContext: false,
     memoryRead: false,
     memoryWrite: false,
+    memoryDelete: false,
     profileWrite: false,
     preferenceWrite: false,
     notesWrite: false,

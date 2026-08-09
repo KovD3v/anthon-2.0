@@ -23,6 +23,7 @@ export type CapabilityDecision = {
   memoryRead: boolean;
   memoryWrite: boolean;
   memoryDelete: boolean;
+  memoryDeleteTarget: string | null;
   routineProposal: boolean;
   userContext: boolean;
   voiceOutput: boolean;
@@ -37,8 +38,31 @@ export type CapabilityArbitrationInput = {
   voiceAllowed: boolean;
   responseMode: "text" | "voice";
   explicitWebRule: "required" | "allowed" | "forbidden";
+  resolvedMemoryTarget: string | null;
   classifier: Partial<CapabilityDecision> | null;
 };
+
+const classifierCapabilities = [
+  "rag",
+  "webSearch",
+  "webFetch",
+  "memoryRead",
+  "memoryWrite",
+  "memoryDelete",
+  "routineProposal",
+  "userContext",
+  "voiceOutput",
+] as const;
+
+type ClassifierCapability = (typeof classifierCapabilities)[number];
+
+function normalizeResolvedMemoryTarget(target: string | null) {
+  if (!target || !/^[a-z][a-z0-9_]{0,127}$/.test(target)) {
+    return null;
+  }
+
+  return target;
+}
 
 const capabilityClassifierSchema = z
   .object({
@@ -175,21 +199,11 @@ export function normalizeCapabilityDecision(
 ): CapabilityDecision {
   const reasonCodes: string[] = [];
   const classifier = input.classifier;
-  const proposed = (capability: keyof CapabilityDecision) =>
+  const proposed = (capability: ClassifierCapability) =>
     classifier?.[capability] === true;
   const hasClassifierProposal = Boolean(
     classifier &&
-      [
-        "rag",
-        "webSearch",
-        "webFetch",
-        "memoryRead",
-        "memoryWrite",
-        "memoryDelete",
-        "routineProposal",
-        "userContext",
-        "voiceOutput",
-      ].some((capability) => proposed(capability as keyof CapabilityDecision)),
+      classifierCapabilities.some((capability) => proposed(capability)),
   );
 
   const explicitMemoryRead = matchesMemoryReadIntent(input.userMessage);
@@ -216,7 +230,13 @@ export function normalizeCapabilityDecision(
   let memoryRead =
     persistentMemoryAllowed && (explicitMemoryRead || proposed("memoryRead"));
   let memoryWrite = persistentMemoryAllowed && explicitMemoryWrite;
-  let memoryDelete = persistentMemoryAllowed && explicitMemoryDelete;
+  const resolvedMemoryTarget = normalizeResolvedMemoryTarget(
+    input.resolvedMemoryTarget,
+  );
+  let memoryDelete =
+    persistentMemoryAllowed &&
+    explicitMemoryDelete &&
+    resolvedMemoryTarget !== null;
   let userContext = !input.isGuest && (memoryRead || proposed("userContext"));
 
   if (!input.memoryEnabled) {
@@ -242,9 +262,13 @@ export function normalizeCapabilityDecision(
       addReason(reasonCodes, "guest_memory_denied");
     }
   }
-  if (proposed("memoryDelete") && !explicitMemoryDelete) {
+  if (!explicitMemoryDelete && proposed("memoryDelete")) {
     memoryDelete = false;
     addReason(reasonCodes, "delete_requires_explicit_intent");
+  }
+  if (explicitMemoryDelete && !resolvedMemoryTarget) {
+    memoryDelete = false;
+    addReason(reasonCodes, "delete_requires_exact_target");
   }
 
   const routineProposal =
@@ -280,6 +304,7 @@ export function normalizeCapabilityDecision(
     memoryRead,
     memoryWrite,
     memoryDelete,
+    memoryDeleteTarget: memoryDelete ? resolvedMemoryTarget : null,
     routineProposal,
     userContext,
     voiceOutput,

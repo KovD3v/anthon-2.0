@@ -56,6 +56,22 @@ describe("turn plan", () => {
     );
   });
 
+  it("retains RAG alongside web only for the agentic capability adapter", () => {
+    const legacy = plan({
+      webSearchEnabled: true,
+      classifier: { accepted: true, rag: true },
+      allowConcurrentRagAndWeb: false,
+    });
+    const agentic = plan({
+      webSearchEnabled: true,
+      classifier: { accepted: true, rag: true },
+      allowConcurrentRagAndWeb: true,
+    });
+
+    expect(legacy.capabilities).toMatchObject({ webSearch: true, rag: false });
+    expect(agentic.capabilities).toMatchObject({ webSearch: true, rag: true });
+  });
+
   it("keeps a successful voice transcription semantically text-first", () => {
     const result = plan({ inputOrigin: "transcribed_voice" });
 

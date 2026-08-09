@@ -106,6 +106,25 @@ describe("ai/tools/memory", () => {
     expect(mocks.memoryDelete).not.toHaveBeenCalled();
   });
 
+  it("binds a resolved delete target without accepting a model-supplied key", async () => {
+    mocks.memoryFindFirst.mockResolvedValue({ id: "memory-goal" });
+    mocks.memoryDelete.mockResolvedValue({ id: "memory-goal" });
+
+    const tools = createMemoryTools("user-1", {
+      deleteTargetKey: "training_goal",
+    });
+    type DeleteResult = { success: boolean; message: string };
+    const deleteExec = tools.deleteMemory.execute as unknown as (
+      args: object,
+    ) => Promise<DeleteResult>;
+    const result = await deleteExec({ key: "other_memory" });
+
+    expect(result.success).toBe(true);
+    expect(mocks.memoryFindFirst).toHaveBeenCalledWith({
+      where: { userId: "user-1", key: "training_goal" },
+    });
+  });
+
   it("getMemories returns a non-fatal error when memory storage is unavailable", async () => {
     const consoleErrorSpy = vi
       .spyOn(console, "error")
