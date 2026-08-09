@@ -99,6 +99,18 @@ describe("ai/intent", () => {
       });
     });
 
+    it("keeps routine replay context out of web search", () => {
+      const decision = evaluateWebSearchRule(
+        "Ripeti questa routine senza modificarla. Guidami passo per passo.\nQuando usarla: Domani, prima della gara.\nSequenza: respira, scegli il prossimo gesto.",
+      );
+
+      expect(decision).toEqual({
+        enabled: false,
+        confidence: "high",
+        reason: "personal_routine_proposal",
+      });
+    });
+
     it("defaults to no search with high confidence", () => {
       const decision = evaluateWebSearchRule("Ciao, come stai?");
       expect(decision).toEqual({

@@ -122,10 +122,14 @@ const COACHING_ROUTINE_CIRCUMSTANCES =
   /\b(?:gara|partita|allenamento|errore|pressione|ansia|concentrazione|fiducia|reset|routine|piano)\b/i;
 const CONCRETE_ROUTINE_PRACTICE =
   /\b(?:routine|piano|passi|step|pratic\w*|esercizio)\b/i;
+const ROUTINE_REUSE_CONTEXT =
+  /^\s*(?:ripeti|vorrei\s+adattare)\s+questa\s+routine\b/i;
 const INFORMATIONAL_REQUEST =
   /\b(?:cos['’]?è|che cos['’]?è|spiega|spiegami|definizione|regole|chi\s+ha|quando|dove|perch[eé]|differenza\s+tra)\b/i;
 
 export function matchesRoutineProposalIntent(message: string) {
+  if (ROUTINE_REUSE_CONTEXT.test(message)) return true;
+
   return (
     COACHING_ROUTINE_CIRCUMSTANCES.test(message) &&
     CONCRETE_ROUTINE_PRACTICE.test(message) &&
