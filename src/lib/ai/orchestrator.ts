@@ -1459,6 +1459,7 @@ export async function streamChat({
     webFetchEnabled: capabilityDecision.webFetch,
     allowConcurrentRagAndWeb: getCapabilityPlannerMode() === "agentic",
     memoryDeleteEnabled: capabilityDecision.memoryDelete,
+    memoryDeleteTarget: capabilityDecision.memoryDeleteTarget,
     classifier: toTurnPlanClassifier(capabilityDecision),
     fullMaxRawTurns: Math.max(
       1,
@@ -2233,6 +2234,7 @@ export async function prepareChatTurn({
     webFetchEnabled: capabilityDecision.webFetch,
     allowConcurrentRagAndWeb: getCapabilityPlannerMode() === "agentic",
     memoryDeleteEnabled: capabilityDecision.memoryDelete,
+    memoryDeleteTarget: capabilityDecision.memoryDeleteTarget,
     classifier: toTurnPlanClassifier(capabilityDecision),
     fullMaxRawTurns: Math.max(
       1,

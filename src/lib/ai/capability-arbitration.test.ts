@@ -14,7 +14,6 @@ function arbitrate(
     voiceAllowed: false,
     responseMode: "text",
     explicitWebRule: "allowed",
-    resolvedMemoryTarget: null,
     classifier: null,
     ...overrides,
   });

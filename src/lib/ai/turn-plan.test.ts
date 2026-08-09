@@ -72,6 +72,41 @@ describe("turn plan", () => {
     expect(agentic.capabilities).toMatchObject({ webSearch: true, rag: true });
   });
 
+  it.each([
+    ["normal", planTurn],
+    ["legacy", planLegacyTurn],
+  ] as const)(
+    "does not enable deletion without an exact key in %s planning",
+    (_, planner) => {
+      const baseInput = {
+        userMessage: "Dimentica quella informazione",
+        isGuest: false,
+        isFirstTurn: false,
+        inputOrigin: "text" as const,
+        outputMode: "text" as const,
+        webSearchEnabled: false,
+        webFetchEnabled: false,
+        fullMaxRawTurns: 10,
+      };
+
+      expect(planner(baseInput).capabilities.memoryDelete).toBe(false);
+      expect(
+        planner({
+          ...baseInput,
+          memoryDeleteEnabled: true,
+          memoryDeleteTarget: "*",
+        }).capabilities.memoryDelete,
+      ).toBe(false);
+      expect(
+        planner({
+          ...baseInput,
+          memoryDeleteEnabled: true,
+          memoryDeleteTarget: "training_goal",
+        }).capabilities.memoryDelete,
+      ).toBe(true);
+    },
+  );
+
   it("keeps a successful voice transcription semantically text-first", () => {
     const result = plan({ inputOrigin: "transcribed_voice" });
 

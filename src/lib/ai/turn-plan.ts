@@ -13,6 +13,7 @@ import {
   matchesSimpleFastIntent,
   matchesVoiceIntent,
 } from "./intent";
+import { isExactStableMemoryKey } from "./memory-target";
 
 export type TurnPlanReasonCode =
   | "GUEST"
@@ -75,6 +76,7 @@ export type TurnPlanInput = {
   webFetchEnabled: boolean;
   allowConcurrentRagAndWeb?: boolean;
   memoryDeleteEnabled?: boolean;
+  memoryDeleteTarget?: string | null;
   classifier?: TurnPlanClassifierDecision | null;
   fullMaxRawTurns: number;
 };
@@ -131,12 +133,15 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
   const profileWrite = matchesProfileWriteIntent(text);
   const preferenceWrite = matchesPreferenceWriteIntent(text);
   const notesWrite = matchesNotesWriteIntent(text);
+  const memoryDelete =
+    input.memoryDeleteEnabled === true &&
+    isExactStableMemoryKey(input.memoryDeleteTarget);
   const persistentWrite =
     memoryWrite ||
     profileWrite ||
     preferenceWrite ||
     notesWrite ||
-    (input.memoryDeleteEnabled ?? matchesMemoryDeleteIntent(text));
+    memoryDelete;
   const deterministicRag =
     !input.webSearchEnabled &&
     (matchesRagIntent(text) || Boolean(classifier?.accepted && classifier.rag));
@@ -210,8 +215,7 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
       userContext,
       memoryRead,
       memoryWrite,
-      memoryDelete:
-        input.memoryDeleteEnabled ?? matchesMemoryDeleteIntent(text),
+      memoryDelete,
       profileWrite,
       preferenceWrite,
       notesWrite,

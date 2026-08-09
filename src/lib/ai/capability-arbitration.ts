@@ -10,6 +10,7 @@ import {
 } from "@/lib/ai/intent";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
+import { isExactStableMemoryKey } from "./memory-target";
 
 const capabilityLogger = createLogger("ai");
 const CAPABILITY_CLASSIFIER_TIMEOUT_MS = 900;
@@ -38,7 +39,7 @@ export type CapabilityArbitrationInput = {
   voiceAllowed: boolean;
   responseMode: "text" | "voice";
   explicitWebRule: "required" | "allowed" | "forbidden";
-  resolvedMemoryTarget: string | null;
+  resolvedMemoryTarget?: string | null;
   classifier: Partial<CapabilityDecision> | null;
 };
 
@@ -56,12 +57,8 @@ const classifierCapabilities = [
 
 type ClassifierCapability = (typeof classifierCapabilities)[number];
 
-function normalizeResolvedMemoryTarget(target: string | null) {
-  if (!target || !/^[a-z][a-z0-9_]{0,127}$/.test(target)) {
-    return null;
-  }
-
-  return target;
+function normalizeResolvedMemoryTarget(target: string | null | undefined) {
+  return isExactStableMemoryKey(target) ? target : null;
 }
 
 const capabilityClassifierSchema = z
