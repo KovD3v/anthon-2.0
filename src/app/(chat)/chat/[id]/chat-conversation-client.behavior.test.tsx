@@ -46,6 +46,8 @@ const mocks = vi.hoisted(() => ({
     remaining?: number;
     registrationHref: string;
   } | null,
+  consumePendingInitialMessage: vi.fn(),
+  consumePendingRoutineChatContext: vi.fn(),
 }));
 
 vi.mock("@ai-sdk/react", () => ({
@@ -513,7 +515,8 @@ vi.mock("../layout-client", () => ({
     activeRoutine: mocks.activeRoutine,
     chatNavigationEpoch: mocks.chatNavigationEpoch,
     guestConversationNotice: mocks.guestConversationNotice,
-    consumePendingInitialMessage: () => null,
+    consumePendingInitialMessage: mocks.consumePendingInitialMessage,
+    consumePendingRoutineChatContext: mocks.consumePendingRoutineChatContext,
   }),
 }));
 
@@ -583,6 +586,8 @@ beforeEach(() => {
   mocks.activeRoutine = null;
   mocks.chatNavigationEpoch = 0;
   mocks.guestConversationNotice = null;
+  mocks.consumePendingInitialMessage.mockReturnValue(null);
+  mocks.consumePendingRoutineChatContext.mockReturnValue(null);
   mocks.confirm.mockResolvedValue(true);
   mocks.refreshActiveRoutine.mockResolvedValue(null);
   mocks.sendMessage.mockResolvedValue(undefined);
@@ -2349,6 +2354,76 @@ describe("ChatConversationClient routine lifecycle", () => {
     expect(screen.getByTestId("focus-request").textContent).toBe("1");
     expect(mocks.sendMessage).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("carries the routine parent when a collection adaptation opens a new chat", async () => {
+    const adaptedRoutine: RoutineCardData = {
+      ...activeRoutine,
+      id: "routine-adapted",
+      sourceAssistantMessageId: "assistant-adapted",
+    };
+    const adaptationMessage = {
+      id: "assistant-adapted",
+      role: "assistant" as const,
+      content: "Proposta adattata",
+      parts: [
+        { type: "text", text: "Proposta adattata" },
+        { type: "data-coachingRoutine", data: activeRoutine.proposal },
+      ],
+      createdAt: "2026-08-09T10:00:00.000Z",
+    };
+    const streamedData = {
+      ...initialChatData,
+      messages: [...initialChatData.messages, adaptationMessage],
+      routines: [],
+    };
+    const savedData = { ...streamedData, routines: [adaptedRoutine] };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(streamedData), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ routine: adaptedRoutine }), {
+          status: 201,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(savedData), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.consumePendingInitialMessage.mockReturnValueOnce(
+      "Vorrei adattare questa routine",
+    );
+    mocks.consumePendingRoutineChatContext.mockReturnValueOnce({
+      mode: "adapt",
+      routineId: "routine-1",
+    });
+
+    renderConversation();
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce());
+
+    const chatOptions = mocks.captureChatOptions.mock.calls.at(-1)?.[0] as {
+      onFinish: () => Promise<void>;
+    };
+    await act(() => chatOptions.onFinish());
+    await userEvent
+      .setup()
+      .click(
+        screen.getByRole("button", { name: "Salva routine adattata test" }),
+      );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/coaching/routines",
+      expect.objectContaining({
+        body: JSON.stringify({
+          sourceAssistantMessageId: "assistant-adapted",
+          derivedFromRoutineId: "routine-1",
+        }),
+      }),
+    );
   });
 
   it("binds an adapted proposal to the clicked routine ID when titles are duplicated", async () => {

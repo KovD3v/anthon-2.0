@@ -123,6 +123,7 @@ export function ChatConversationClient({
     getCachedChat,
     updateCachedChat,
     consumePendingInitialMessage,
+    consumePendingRoutineChatContext,
     activeRoutine,
     chatNavigationEpoch,
     refreshActiveRoutine,
@@ -904,17 +905,37 @@ export function ChatConversationClient({
       return;
     }
 
+    const pendingRoutineChatContext = consumePendingRoutineChatContext(chatId);
+    if (pendingRoutineChatContext?.mode === "adapt") {
+      submittedRoutineAdaptationRef.current = {
+        routineId: pendingRoutineChatContext.routineId,
+        assistantMessageIds: new Set(
+          chatData.messages
+            .filter((message) => message.role === "assistant")
+            .map((message) => message.id),
+        ),
+      };
+    }
+
     pendingInitialMessageSubmittedRef.current = true;
     sendMessage({
       role: "user",
       parts: [{ type: "text", text: pendingInitialMessage }],
     }).catch((error) => {
       pendingInitialMessageSubmittedRef.current = false;
+      submittedRoutineAdaptationRef.current = null;
       setInput(pendingInitialMessage);
       console.error("Failed to send initial chat message:", error);
       toast.error("Invio messaggio fallito");
     });
-  }, [chatId, consumePendingInitialMessage, sendMessage, status]);
+  }, [
+    chatData.messages,
+    chatId,
+    consumePendingInitialMessage,
+    consumePendingRoutineChatContext,
+    sendMessage,
+    status,
+  ]);
 
   // Sync cached data to local state if available
   useEffect(() => {
