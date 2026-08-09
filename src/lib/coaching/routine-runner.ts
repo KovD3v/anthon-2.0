@@ -207,13 +207,16 @@ export function getRoutineProgress(
         : Math.min(100, Math.max(0, (elapsedMs / totalDurationMs) * 100));
   }
 
+  const routineProgressUnits =
+    completedSteps + (stepPercent === null ? 0 : stepPercent / 100);
+
   return {
     stepNumber: state.stepIndex + 1,
     totalSteps,
     completedSteps,
     routinePercent: Math.min(
       100,
-      Math.max(0, (completedSteps / totalSteps) * 100),
+      Math.max(0, (routineProgressUnits / totalSteps) * 100),
     ),
     stepPercent,
   };

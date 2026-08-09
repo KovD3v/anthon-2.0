@@ -66,8 +66,23 @@ describe("routine progress contract", () => {
       stepNumber: 2,
       totalSteps: 3,
       completedSteps: 1,
-      routinePercent: 33.33333333333333,
+      routinePercent: 50,
       stepPercent: 50,
+    });
+  });
+
+  it("does not invent routine progress for an instruction step", () => {
+    const instructionStep = {
+      ...createInitialRunnerState(),
+      stepIndex: 2,
+    };
+
+    expect(getRoutineProgress(instructionStep, progressSteps, 99_000)).toEqual({
+      stepNumber: 3,
+      totalSteps: 3,
+      completedSteps: 2,
+      routinePercent: 66.66666666666666,
+      stepPercent: null,
     });
   });
 
