@@ -33,94 +33,29 @@ function routine(
 }
 
 describe("RoutineSidebarShelf", () => {
-  it("keeps a compact routine shelf visible with active count and latest routine", () => {
+  it("offers only a compact link to the routine collection", () => {
     render(
       <RoutineSidebarShelf
         routines={[routine("routine-1"), routine("routine-2", "ARCHIVED")]}
         isLoading={false}
         error={null}
         onRetry={vi.fn()}
-        onNavigate={vi.fn()}
       />,
     );
 
     expect(screen.getByRole("region", { name: "Routine" })).toBeTruthy();
-    expect(screen.getByText("Routine")).toBeTruthy();
-    expect(screen.getByText("1 attiva")).toBeTruthy();
-    expect(screen.getByText("Reset rapido")).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Espandi routine" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Routine/ }).getAttribute("href")).toBe(
+      "/chat/routines",
+    );
+    expect(screen.queryByRole("button", { name: "Espandi routine" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Archiviate" })).toBeNull();
+    expect(screen.queryByText("Reset rapido")).toBeNull();
     expect(screen.getByTestId("routine-sidebar-shelf").className).toContain(
       "shrink-0",
     );
     expect(
-      screen.getByRole("button", { name: "Espandi routine" }).className,
+      screen.getByRole("link", { name: /Routine/ }).className,
     ).toContain("min-h-11");
-  });
-
-  it("expands upward with active/archive filter and owner-safe source href", async () => {
-    const user = userEvent.setup();
-    render(
-      <RoutineSidebarShelf
-        routines={[routine("routine-1"), routine("routine-2", "ARCHIVED")]}
-        isLoading={false}
-        error={null}
-        onRetry={vi.fn()}
-        onNavigate={vi.fn()}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: "Espandi routine" }));
-    expect(
-      screen.getAllByRole("button", { name: "Riduci routine" })[0].className,
-    ).toContain("min-w-11");
-    expect(screen.getByRole("button", { name: "Archiviate" })).toBeTruthy();
-    expect(
-      screen.getByRole("link", { name: /Reset rapido/ }).getAttribute("href"),
-    ).toBe("/chat/chat-source?checkInRoutineId=routine-1");
-    await user.click(screen.getByRole("button", { name: "Archiviate" }));
-    expect(
-      screen.getByRole("link", { name: /Reset rapido/ }).getAttribute("href"),
-    ).toBe("/chat?checkInRoutineId=routine-2");
-  });
-
-  it("uses the authoritative active total and requests another page per filter", async () => {
-    const onLoadMore = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <RoutineSidebarShelf
-        routines={[routine("routine-1")]}
-        activeTotal={13}
-        activeNextCursor="active-next"
-        archivedNextCursor="archived-next"
-        isLoading={false}
-        loadingMoreStatus={null}
-        error={null}
-        onRetry={vi.fn()}
-        onLoadMore={onLoadMore}
-        onNavigate={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText("13 attive")).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Espandi routine" }));
-    expect(
-      screen.getByRole("button", { name: "Carica altre routine" }).className,
-    ).toContain("min-h-11");
-    expect(
-      screen.getByRole("button", { name: "Carica altre routine" }).className,
-    ).toContain("min-w-11");
-    await user.click(
-      screen.getByRole("button", { name: "Carica altre routine" }),
-    );
-    expect(onLoadMore).toHaveBeenCalledWith("ACTIVE");
-
-    await user.click(screen.getByRole("button", { name: "Archiviate" }));
-    await user.click(
-      screen.getByRole("button", { name: "Carica altre routine" }),
-    );
-    expect(onLoadMore).toHaveBeenLastCalledWith("ARCHIVED");
   });
 
   it("renders a quiet empty state and a retry action for collection errors", async () => {
@@ -132,11 +67,10 @@ describe("RoutineSidebarShelf", () => {
         isLoading={false}
         error="failed"
         onRetry={onRetry}
-        onNavigate={vi.fn()}
       />,
     );
 
-    expect(screen.getByText("Nessuna routine salvata")).toBeTruthy();
+    expect(screen.getByText("Routine non disponibili")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Riprova routine" }));
     expect(onRetry).toHaveBeenCalledOnce();
   });
