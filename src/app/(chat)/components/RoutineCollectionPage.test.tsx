@@ -8,13 +8,29 @@ import { RoutineCollectionPage } from "./RoutineCollectionPage";
 
 const mocks = vi.hoisted(() => ({
   useChatContext: vi.fn(),
-  getRoutineCheckInHref: (routine: { id: string }) =>
-    `/chat?checkInRoutineId=${routine.id}`,
+  createRoutineChat: vi.fn(),
+  createRoutineAttempt: vi.fn(),
+  saveRoutineOutcome: vi.fn(),
+  archiveRoutine: vi.fn(),
+  fetchRoutineAttempts: vi.fn(),
 }));
 
 vi.mock("../chat/layout-client", () => ({
   useChatContext: mocks.useChatContext,
-  getRoutineCheckInHref: mocks.getRoutineCheckInHref,
+}));
+vi.mock("@/lib/coaching/routine-client", () => ({
+  archiveRoutine: mocks.archiveRoutine,
+  createRoutineAttempt: mocks.createRoutineAttempt,
+  fetchRoutineAttempts: mocks.fetchRoutineAttempts,
+  RoutineClientError: class RoutineClientError extends Error {
+    status: number | null;
+
+    constructor(message: string, status: number | null) {
+      super(message);
+      this.status = status;
+    }
+  },
+  saveRoutineOutcome: mocks.saveRoutineOutcome,
 }));
 
 afterEach(cleanup);
@@ -59,13 +75,21 @@ function setContext(overrides: Record<string, unknown> = {}) {
     routineCollectionLoadingMoreStatus: null,
     refreshRoutineCollection: vi.fn(),
     loadMoreRoutineCollection: vi.fn(),
-    navigateToRoutine: vi.fn(),
+    createRoutineChat: mocks.createRoutineChat,
     ...overrides,
   });
 }
 
 beforeEach(() => {
   setContext();
+  mocks.createRoutineChat.mockReset().mockResolvedValue("new-chat");
+  mocks.createRoutineAttempt.mockReset();
+  mocks.saveRoutineOutcome.mockReset();
+  mocks.archiveRoutine.mockReset();
+  mocks.fetchRoutineAttempts.mockReset().mockResolvedValue({
+    attempts: [],
+    nextCursor: null,
+  });
 });
 
 describe("RoutineCollectionPage", () => {
@@ -76,30 +100,89 @@ describe("RoutineCollectionPage", () => {
       screen.getByRole("heading", { name: "Le tue routine" }),
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: "Torna alla chat" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Reset rapido/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Reset rapido" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ripeti" })).toBeTruthy();
     expect(screen.getByText("1 attiva")).toBeTruthy();
-    expect(
-      screen.getByRole("link", { name: /Reset rapido/ }).className,
-    ).toContain("md:grid");
+    expect(screen.getByTestId("routine-card-active-1").className).toContain(
+      "bg-card/80",
+    );
   });
 
-  it("filters archived routines and navigates through the context owner-safe action", async () => {
+  it("filters archived routines and keeps modification in a new chat", async () => {
     const user = userEvent.setup();
-    const navigateToRoutine = vi.fn();
-    setContext({ navigateToRoutine });
     render(<RoutineCollectionPage />);
 
     await user.click(screen.getByRole("button", { name: /Archiviate/ }));
 
-    const archivedLink = screen.getByRole("link", {
-      name: /Routine archiviata/,
-    });
-    expect(archivedLink).toBeTruthy();
-    expect(screen.queryByRole("link", { name: /Reset rapido/ })).toBeNull();
-    await user.click(archivedLink);
-    expect(navigateToRoutine).toHaveBeenCalledWith(
+    expect(
+      screen.getByRole("heading", { name: "Routine archiviata" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ripeti" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Modifica" }));
+    expect(mocks.createRoutineChat).toHaveBeenCalledWith(
       expect.objectContaining({ id: "archived-1" }),
+      "adapt",
     );
+  });
+
+  it("creates a repeat chat and starts a check-in without opening the source chat", async () => {
+    const pendingRoutine = {
+      ...routine("active-1"),
+      latestAttempt: {
+        id: "attempt-1",
+        attemptedAt: "2026-08-09T10:00:00.000Z",
+        outcome: null,
+        outcomeNote: null,
+        outcomeRecordedAt: null,
+      },
+    } satisfies RoutineCardData;
+    mocks.createRoutineAttempt.mockResolvedValue(pendingRoutine);
+    const refreshRoutineCollection = vi.fn().mockResolvedValue(undefined);
+    setContext({
+      routineCollection: {
+        routines: [routine("active-1")],
+        active: { total: 1, nextCursor: null },
+        archived: { total: 0, nextCursor: null },
+      },
+      refreshRoutineCollection,
+    });
+    const user = userEvent.setup();
+    render(<RoutineCollectionPage />);
+
+    await user.click(screen.getByRole("button", { name: "Ripeti" }));
+    expect(mocks.createRoutineChat).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "active-1" }),
+      "repeat",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Com'è andata?" }));
+    expect(mocks.createRoutineAttempt).toHaveBeenCalledWith(
+      "active-1",
+      expect.stringContaining("active-1:collection:"),
+    );
+    expect(refreshRoutineCollection).toHaveBeenCalled();
+    expect(
+      screen.getByRole("textbox", { name: "Nota facoltativa" }),
+    ).toBeTruthy();
+  });
+
+  it("requires confirmation before archiving an active routine", async () => {
+    mocks.archiveRoutine.mockResolvedValue({
+      ...routine("active-1"),
+      status: "ARCHIVED",
+      archivedAt: "2026-08-09T11:00:00.000Z",
+    });
+    const refreshRoutineCollection = vi.fn().mockResolvedValue(undefined);
+    setContext({ refreshRoutineCollection });
+    const user = userEvent.setup();
+    render(<RoutineCollectionPage />);
+
+    await user.click(screen.getByRole("button", { name: "Archivia" }));
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Archivia routine" }));
+
+    expect(mocks.archiveRoutine).toHaveBeenCalledWith("active-1");
+    expect(refreshRoutineCollection).toHaveBeenCalled();
   });
 
   it("handles loading, errors, and a paginated segment", async () => {
@@ -136,6 +219,6 @@ describe("RoutineCollectionPage", () => {
     expect(
       screen.getByRole("link", { name: "Registrati" }).getAttribute("href"),
     ).toBe("/sign-up?redirect_url=%2Fchat%2Froutines");
-    expect(screen.queryByRole("link", { name: /Reset rapido/ })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Reset rapido" })).toBeNull();
   });
 });
