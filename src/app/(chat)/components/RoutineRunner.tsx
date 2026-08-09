@@ -57,7 +57,6 @@ export function RoutineRunner({
       typeof document === "undefined" || document.visibilityState !== "hidden",
   );
   const runnerRef = useRef<HTMLElement>(null);
-  const returnFocusRef = useRef<HTMLElement | null>(null);
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
   const announcedTimerEndIdRef = useRef<string | null>(null);
   const announcedBreathingPhaseRef = useRef<string | null>(null);
@@ -84,10 +83,6 @@ export function RoutineRunner({
   }, []);
 
   useEffect(() => {
-    returnFocusRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
     runnerRef.current?.focus();
   }, []);
 
@@ -217,12 +212,9 @@ export function RoutineRunner({
   }
 
   function close() {
-    updateState((previous) => pauseRunner(previous, Date.now()));
-    void releaseWakeLock();
     onCloseRequest(
       state.stepIndex > 0 || state.elapsedMs > 0 || state.status !== "idle",
     );
-    returnFocusRef.current?.focus();
   }
 
   return (

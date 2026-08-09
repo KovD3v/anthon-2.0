@@ -138,6 +138,18 @@ describe("RoutineRunner", () => {
     expect(props.onCloseRequest).toHaveBeenLastCalledWith(true);
   });
 
+  it("keeps a running timer active while close confirmation is pending", () => {
+    const { props } = renderRunner({
+      routine: { ...routine, practiceSteps: [routine.practiceSteps[1]] },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Avvia" }));
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
+
+    expect(props.onCloseRequest).toHaveBeenLastCalledWith(true);
+    expect(screen.getByRole("button", { name: "Pausa" })).toBeTruthy();
+  });
+
   it("keeps completion explicit: an ended timer waits for Continua and never renders the terminal form", () => {
     vi.useFakeTimers({ now: new Date("2026-08-08T10:00:00.000Z") });
     const { props } = renderRunner();
@@ -315,7 +327,7 @@ describe("RoutineRunner", () => {
     expect(release).toHaveBeenCalledOnce();
   });
 
-  it("supports keyboard actions, 44px controls, and focus return on close", async () => {
+  it("supports keyboard actions and 44px controls without moving focus on a close request", async () => {
     const user = userEvent.setup();
     const launch = document.createElement("button");
     launch.textContent = "Avvia routine";
@@ -354,7 +366,9 @@ describe("RoutineRunner", () => {
     await user.keyboard("{Enter}");
 
     expect(props.onCloseRequest).toHaveBeenCalledOnce();
-    expect(document.activeElement).toBe(launch);
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Chiudi" }),
+    );
     launch.remove();
   });
 });
