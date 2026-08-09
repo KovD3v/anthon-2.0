@@ -38,13 +38,19 @@ export function RoutineHistory({ routine }: { routine: RoutineCardData }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isLoadingRef = useRef(false);
+  const activeRequestRef = useRef({ key: "", sequence: 0 });
   const latestAttemptKey = routine.latestAttempt
     ? `${routine.latestAttempt.id}:${routine.latestAttempt.outcome ?? "pending"}`
     : null;
 
   const load = useCallback(
-    async (cursor?: string, _attemptVersion?: string | null) => {
-      if (isLoadingRef.current) return;
+    async (cursor?: string) => {
+      if (cursor && isLoadingRef.current) return;
+      const request = {
+        key: `${routine.id}:${latestAttemptKey ?? "none"}`,
+        sequence: activeRequestRef.current.sequence + 1,
+      };
+      activeRequestRef.current = request;
       isLoadingRef.current = true;
       setIsLoading(true);
       setError(null);
@@ -53,6 +59,12 @@ export function RoutineHistory({ routine }: { routine: RoutineCardData }) {
           routine.id,
           cursor ? { cursor } : {},
         );
+        if (
+          activeRequestRef.current.key !== request.key ||
+          activeRequestRef.current.sequence !== request.sequence
+        ) {
+          return;
+        }
         setAttempts((current) => {
           const merged = cursor
             ? [...current, ...page.attempts]
@@ -63,17 +75,28 @@ export function RoutineHistory({ routine }: { routine: RoutineCardData }) {
         });
         setNextCursor(page.nextCursor);
       } catch (cause) {
+        if (
+          activeRequestRef.current.key !== request.key ||
+          activeRequestRef.current.sequence !== request.sequence
+        ) {
+          return;
+        }
         setError(
           cause instanceof RoutineClientError
             ? cause.message
             : "Non siamo riusciti a caricare lo storico. Riprova.",
         );
       } finally {
-        isLoadingRef.current = false;
-        setIsLoading(false);
+        if (
+          activeRequestRef.current.key === request.key &&
+          activeRequestRef.current.sequence === request.sequence
+        ) {
+          isLoadingRef.current = false;
+          setIsLoading(false);
+        }
       }
     },
-    [routine.id],
+    [latestAttemptKey, routine.id],
   );
 
   function toggle() {
@@ -84,8 +107,8 @@ export function RoutineHistory({ routine }: { routine: RoutineCardData }) {
     if (!isOpen) return;
     setAttempts([]);
     setNextCursor(null);
-    void load(undefined, latestAttemptKey);
-  }, [isOpen, latestAttemptKey, load]);
+    void load();
+  }, [isOpen, load]);
 
   return (
     <div className="mt-4 border-border/70 border-t pt-3">

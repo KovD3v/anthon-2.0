@@ -105,6 +105,12 @@ describe("RoutineSidebarShelf", () => {
 
     expect(screen.getByText("13 attive")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Espandi routine" }));
+    expect(
+      screen.getByRole("button", { name: "Carica altre routine" }).className,
+    ).toContain("min-h-11");
+    expect(
+      screen.getByRole("button", { name: "Carica altre routine" }).className,
+    ).toContain("min-w-11");
     await user.click(
       screen.getByRole("button", { name: "Carica altre routine" }),
     );

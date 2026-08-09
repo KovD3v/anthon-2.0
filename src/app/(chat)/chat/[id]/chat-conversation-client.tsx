@@ -179,8 +179,10 @@ export function ChatConversationClient({
     routineId: string;
     navigationEpoch: number;
   } | null>(null);
-  const [resolvedRequestedRoutine, setResolvedRequestedRoutine] =
-    useState<RoutineCardData | null>(null);
+  const [resolvedRequestedRoutine, setResolvedRequestedRoutine] = useState<{
+    requestedId: string;
+    routine: RoutineCardData;
+  } | null>(null);
   const [isResolvingRequestedRoutine, setIsResolvingRequestedRoutine] =
     useState(false);
   const requestedCheckInRoutineId =
@@ -201,6 +203,7 @@ export function ChatConversationClient({
       return;
     }
     let cancelled = false;
+    setResolvedRequestedRoutine(null);
     setIsResolvingRequestedRoutine(true);
     void fetch(`/api/coaching/routines/${requestedCheckInRoutineId}`)
       .then(async (response) => {
@@ -212,7 +215,12 @@ export function ChatConversationClient({
         return parsed.success ? parsed.data.routine : null;
       })
       .then((routine) => {
-        if (!cancelled) setResolvedRequestedRoutine(routine);
+        if (!cancelled && routine) {
+          setResolvedRequestedRoutine({
+            requestedId: requestedCheckInRoutineId,
+            routine,
+          });
+        }
       })
       .catch(() => {
         if (!cancelled) setResolvedRequestedRoutine(null);
@@ -227,7 +235,9 @@ export function ChatConversationClient({
   const requestedSourceRoutine =
     requestedRoutine ??
     (activeRoutine?.id === requestedCheckInRoutineId ? activeRoutine : null) ??
-    resolvedRequestedRoutine;
+    (resolvedRequestedRoutine?.requestedId === requestedCheckInRoutineId
+      ? resolvedRequestedRoutine.routine
+      : null);
   const queriedCheckInRoutineId =
     requestedRoutine?.status === "ACTIVE" &&
     requestedRoutine.latestAttempt?.outcome === null &&

@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RoutineCardData } from "@/lib/coaching/routine";
 
@@ -28,6 +34,16 @@ const routine: RoutineCardData = {
   archivedAt: null,
   latestAttempt: null,
 };
+
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined;
+  let reject: (reason?: unknown) => void = () => undefined;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
+}
 
 describe("RoutineHistory", () => {
   beforeEach(() => {
@@ -146,5 +162,145 @@ describe("RoutineHistory", () => {
       expect(mocks.fetchRoutineAttempts).toHaveBeenCalledTimes(2),
     );
     expect(screen.getByText(/^Ultimo esito: Non mi ha aiutato$/)).toBeTruthy();
+  });
+
+  it("starts a new history request and ignores a stale response after latestAttempt changes", async () => {
+    const firstPage = deferred<{
+      attempts: Array<{
+        id: string;
+        attemptedAt: string;
+        outcome: "HELPFUL";
+        outcomeNote: null;
+        outcomeRecordedAt: string;
+      }>;
+      nextCursor: null;
+    }>();
+    const secondPage = deferred<{
+      attempts: Array<{
+        id: string;
+        attemptedAt: string;
+        outcome: "NOT_HELPFUL";
+        outcomeNote: null;
+        outcomeRecordedAt: string;
+      }>;
+      nextCursor: null;
+    }>();
+    mocks.fetchRoutineAttempts
+      .mockReturnValueOnce(firstPage.promise)
+      .mockReturnValueOnce(secondPage.promise);
+    const { rerender } = render(<RoutineHistory routine={routine} />);
+    fireEvent.click(screen.getByRole("button", { name: "Storico tentativi" }));
+    await waitFor(() =>
+      expect(mocks.fetchRoutineAttempts).toHaveBeenCalledTimes(1),
+    );
+
+    rerender(
+      <RoutineHistory
+        routine={{
+          ...routine,
+          latestAttempt: {
+            id: "attempt-new",
+            attemptedAt: "2026-08-09T09:00:00.000Z",
+            outcome: "NOT_HELPFUL",
+            outcomeNote: null,
+            outcomeRecordedAt: "2026-08-09T09:01:00.000Z",
+          },
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(mocks.fetchRoutineAttempts).toHaveBeenCalledTimes(2),
+    );
+    await act(async () => {
+      firstPage.resolve({
+        attempts: [
+          {
+            id: "attempt-stale",
+            attemptedAt: "2026-08-08T09:00:00.000Z",
+            outcome: "HELPFUL",
+            outcomeNote: null,
+            outcomeRecordedAt: "2026-08-08T09:01:00.000Z",
+          },
+        ],
+        nextCursor: null,
+      });
+      secondPage.resolve({
+        attempts: [
+          {
+            id: "attempt-new",
+            attemptedAt: "2026-08-09T09:00:00.000Z",
+            outcome: "NOT_HELPFUL",
+            outcomeNote: null,
+            outcomeRecordedAt: "2026-08-09T09:01:00.000Z",
+          },
+        ],
+        nextCursor: null,
+      });
+    });
+
+    expect(screen.getByText(/^Ultimo esito: Non mi ha aiutato$/)).toBeTruthy();
+    expect(screen.queryByText(/^Ultimo esito: Mi ha aiutato$/)).toBeNull();
+  });
+
+  it("ignores a stale history error after latestAttempt changes", async () => {
+    const firstPage = deferred<{
+      attempts: RoutineCardData["latestAttempt"][];
+      nextCursor: null;
+    }>();
+    const secondPage = deferred<{
+      attempts: Array<{
+        id: string;
+        attemptedAt: string;
+        outcome: "HELPFUL";
+        outcomeNote: null;
+        outcomeRecordedAt: string;
+      }>;
+      nextCursor: null;
+    }>();
+    mocks.fetchRoutineAttempts
+      .mockReturnValueOnce(firstPage.promise)
+      .mockReturnValueOnce(secondPage.promise);
+    const { rerender } = render(<RoutineHistory routine={routine} />);
+    fireEvent.click(screen.getByRole("button", { name: "Storico tentativi" }));
+    await waitFor(() =>
+      expect(mocks.fetchRoutineAttempts).toHaveBeenCalledTimes(1),
+    );
+    rerender(
+      <RoutineHistory
+        routine={{
+          ...routine,
+          latestAttempt: {
+            id: "attempt-helpful",
+            attemptedAt: "2026-08-09T09:00:00.000Z",
+            outcome: "HELPFUL",
+            outcomeNote: null,
+            outcomeRecordedAt: "2026-08-09T09:01:00.000Z",
+          },
+        }}
+      />,
+    );
+    await waitFor(() =>
+      expect(mocks.fetchRoutineAttempts).toHaveBeenCalledTimes(2),
+    );
+
+    await act(async () => {
+      firstPage.reject(new Error("stale request failed"));
+      secondPage.resolve({
+        attempts: [
+          {
+            id: "attempt-helpful",
+            attemptedAt: "2026-08-09T09:00:00.000Z",
+            outcome: "HELPFUL",
+            outcomeNote: null,
+            outcomeRecordedAt: "2026-08-09T09:01:00.000Z",
+          },
+        ],
+        nextCursor: null,
+      });
+    });
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText(/^Ultimo esito: Mi ha aiutato$/)).toBeTruthy();
   });
 });

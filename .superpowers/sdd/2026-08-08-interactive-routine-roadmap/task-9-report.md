@@ -62,3 +62,21 @@ All six findings against `5a44bea..e060e4b` were confirmed and addressed.
 | `bun run lint` | still blocked solely by pre-existing `.impeccable/hook.cache.json` formatting, outside scope |
 
 No schema migration is required for this write-path fix. Integration readback and a data cleanup audit remain unavailable because `NEON_API_KEY`, `NEON_PROJECT_ID`, and a development `DATABASE_URL` are absent.
+
+## Re-review race-condition remediation — 2026-08-09
+
+Three additional findings were confirmed and fixed with RED-to-GREEN tests.
+
+- **History stale requests:** a change to `latestAttempt` now starts a replacement request even if the preceding page is still pending. Each request carries an incrementing sequence and a `routine.id:latestAttemptKey` identity; stale successes and stale failures are ignored, and only the current request may clear loading state.
+- **Query A-to-B switch:** the resolved lookup state now stores the requested ID with the routine and is cleared before a new lookup. Source hydration therefore cannot pair a prior routine source with a newer `checkInRoutineId`.
+- **Pagination touch target:** `Carica altre routine` now has `min-h-11 min-w-11` in both active and archived modes.
+
+| Check | Result |
+| --- | --- |
+| RED: new history race, query-switch, and pagination target tests | failed as expected: 1 request instead of 2; invalid `routine-b`/`assistant-a` hydration; missing `min-h-11` |
+| focused three-file suite | passed: 70 tests |
+| `bun run test` | passed: 203 files, 1 skipped; 1,938 tests, 4 skipped |
+| `bun run typecheck` | passed |
+| scoped Biome (six affected files) | passed |
+| `git diff --check` | passed |
+| `bun run lint` | blocked solely by the pre-existing `.impeccable/hook.cache.json` formatting |

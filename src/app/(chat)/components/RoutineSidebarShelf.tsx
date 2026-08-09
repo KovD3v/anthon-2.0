@@ -150,7 +150,7 @@ export function RoutineSidebarShelf({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="mt-2 w-full text-xs"
+                className="mt-2 min-h-11 min-w-11 w-full text-xs"
                 disabled={loadingMoreStatus !== null}
                 onClick={() => onLoadMore(visibleStatus)}
               >

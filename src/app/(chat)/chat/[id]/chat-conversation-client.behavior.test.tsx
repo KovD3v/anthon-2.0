@@ -1203,6 +1203,103 @@ describe("ChatConversationClient routine lifecycle", () => {
     );
   });
 
+  it("does not hydrate a resolved routine against a newer check-in query", async () => {
+    const firstRoutine: RoutineCardData = {
+      ...pendingActiveRoutine,
+      id: "routine-a",
+      sourceAssistantMessageId: "assistant-a",
+    };
+    const secondRoutine: RoutineCardData = {
+      ...pendingActiveRoutine,
+      id: "routine-b",
+      sourceAssistantMessageId: "assistant-b",
+    };
+    const secondLookup = deferredResponse();
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-a");
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/coaching/routines/routine-a") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ routine: firstRoutine }), {
+            status: 200,
+          }),
+        );
+      }
+      if (
+        url ===
+        "/api/chats/chat-1?routineId=routine-a&sourceAssistantMessageId=assistant-a"
+      ) {
+        return new Promise<Response>(() => undefined);
+      }
+      if (url === "/api/coaching/routines/routine-b") {
+        return secondLookup.promise;
+      }
+      if (
+        url ===
+        "/api/chats/chat-1?routineId=routine-b&sourceAssistantMessageId=assistant-b"
+      ) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              ...initialChatData,
+              messages: [sourceMessage({ id: "assistant-b" })],
+              routines: [secondRoutine],
+              pagination: { hasMore: false, nextCursor: null },
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const view = renderConversation({ ...initialChatData, routines: [] });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/coaching/routines/routine-a",
+      ),
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/chats/chat-1?routineId=routine-a&sourceAssistantMessageId=assistant-a",
+      ),
+    );
+
+    mocks.searchParams = new URLSearchParams("checkInRoutineId=routine-b");
+    view.rerender(
+      <ChatConversationClient
+        chatId="chat-1"
+        initialChatData={{ ...initialChatData, routines: [] }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/coaching/routines/routine-b",
+      ),
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/chats/chat-1?routineId=routine-b&sourceAssistantMessageId=assistant-a",
+    );
+
+    await act(async () => {
+      secondLookup.resolve(
+        new Response(JSON.stringify({ routine: secondRoutine }), {
+          status: 200,
+        }),
+      );
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("open-check-in-routine").textContent).toBe(
+        "routine-b",
+      ),
+    );
+    expect(mocks.routerReplace).not.toHaveBeenCalledWith(
+      "/chat?checkInRoutineId=routine-b",
+    );
+  });
+
   it("resolves an archived routine outside the loaded chat page without opening a check-in", async () => {
     const remoteRoutine: RoutineCardData = {
       ...activeRoutine,
