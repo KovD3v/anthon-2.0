@@ -57,6 +57,77 @@ test.describe("authenticated routine loop", () => {
     ).toBeVisible();
   });
 
+  test("opens and interrupts the inline runner without an AI turn or attempt", async ({
+    page,
+  }) => {
+    await openAuthenticatedRoutines(page);
+    const card = page.getByTestId(/routine-card-/).filter({
+      hasText: ROUTINE_TITLE,
+    });
+    const localRunnerRequests: string[] = [];
+
+    page.on("request", (request) => {
+      const { pathname } = new URL(request.url());
+      const isAiTurn = pathname === "/api/chat";
+      const isAttemptCreation =
+        request.method() === "POST" &&
+        /^\/api\/coaching\/routines\/[^/]+\/attempts$/.test(pathname);
+
+      if (isAiTurn || isAttemptCreation) {
+        localRunnerRequests.push(`${request.method()} ${pathname}`);
+      }
+    });
+
+    await card.getByRole("button", { name: "Ripeti" }).click();
+    await expect(page).toHaveURL(CHAT_URL_PATTERN);
+    await expect(
+      page.getByText("Routine pronta", { exact: true }),
+    ).toBeVisible();
+    const start = page.getByRole("button", {
+      name: /^(Avvia|Ripeti) routine$/,
+    });
+    await expect(start).toBeVisible();
+    await start.click();
+    const runner = page.locator(
+      'section[aria-labelledby="routine-runner-title"]',
+    );
+    await expect(runner).toBeVisible();
+    await expect(
+      runner.getByRole("paragraph").filter({ hasText: /^Passo 1 di 3$/ }),
+    ).toBeVisible();
+    await expect(
+      runner.getByRole("progressbar", { name: "Avanzamento routine" }),
+    ).toHaveAttribute("aria-valuenow", "0");
+
+    await expect.poll(() => localRunnerRequests, { timeout: 500 }).toEqual([]);
+
+    await runner.getByRole("button", { name: "Fatto" }).click();
+    await expect(
+      runner.getByRole("paragraph").filter({ hasText: /^Passo 2 di 3$/ }),
+    ).toBeVisible();
+
+    await runner.getByRole("button", { name: "Chiudi" }).click();
+    const interruption = page.getByRole("alertdialog", {
+      name: "Interrompere la routine?",
+    });
+    await expect(interruption).toBeVisible();
+    await interruption.getByRole("button", { name: "Continua" }).click();
+    await expect(interruption).toHaveCount(0);
+    await expect(runner).toBeVisible();
+
+    await runner.getByRole("button", { name: "Chiudi" }).click();
+    await expect(interruption).toBeVisible();
+    await interruption.getByRole("button", { name: "Interrompi" }).click();
+    await expect(runner).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /^(Avvia|Ripeti) routine$/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Tentativo segnato", { exact: true }),
+    ).toHaveCount(0);
+    await expect.poll(() => localRunnerRequests, { timeout: 500 }).toEqual([]);
+  });
+
   test("opens a new Anthon chat with the routine adaptation context", async ({
     page,
   }) => {
