@@ -230,6 +230,16 @@ describe("ai/intent", () => {
         "Dimentica il mio errore in gara e proviamo a concentrarci.",
       ),
     ).toBe(false);
+    expect(
+      matchesMemoryDeleteIntent(
+        "Dimentica il mio errore in gara e ricominciamo.",
+      ),
+    ).toBe(false);
+    expect(
+      matchesMemoryDeleteIntent(
+        "Dimentica il mio errore in gara e prova a ricominciare.",
+      ),
+    ).toBe(false);
     expect(matchesMemoryReadIntent("Ciao coach")).toBe(false);
   });
 

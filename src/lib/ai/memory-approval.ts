@@ -22,9 +22,19 @@ const resolvableApprovalSelect = {
       id: true,
       userId: true,
       conversationThreadId: true,
+      direction: true,
+      role: true,
+      deletedAt: true,
       createdAt: true,
       generatedResponse: {
-        select: { id: true, userId: true },
+        select: {
+          id: true,
+          userId: true,
+          conversationThreadId: true,
+          direction: true,
+          role: true,
+          deletedAt: true,
+        },
       },
     },
   },
@@ -184,7 +194,14 @@ export async function getImmediatelyAttributableApproval(input: {
         id: true,
         createdAt: true,
         generatedResponse: {
-          select: { id: true, userId: true },
+          select: {
+            id: true,
+            userId: true,
+            conversationThreadId: true,
+            direction: true,
+            role: true,
+            deletedAt: true,
+          },
         },
       },
     });
@@ -198,9 +215,14 @@ export async function getImmediatelyAttributableApproval(input: {
     ) {
       return null;
     }
+    const generatedResponse = previousInboundMessage.generatedResponse;
     if (
-      !previousInboundMessage.generatedResponse ||
-      previousInboundMessage.generatedResponse.userId !== input.userId
+      !generatedResponse ||
+      generatedResponse.userId !== input.userId ||
+      generatedResponse.conversationThreadId !== input.conversationId ||
+      generatedResponse.direction !== "OUTBOUND" ||
+      generatedResponse.role !== "ASSISTANT" ||
+      generatedResponse.deletedAt !== null
     ) {
       return null;
     }
@@ -354,8 +376,16 @@ export async function resolveMemoryApproval(input: {
     if (
       !sourceMessage.conversationThreadId ||
       sourceMessage.userId !== input.userId ||
+      sourceMessage.direction !== "INBOUND" ||
+      sourceMessage.role !== "USER" ||
+      sourceMessage.deletedAt !== null ||
       !sourceMessage.generatedResponse ||
-      sourceMessage.generatedResponse.userId !== input.userId
+      sourceMessage.generatedResponse.userId !== input.userId ||
+      sourceMessage.generatedResponse.conversationThreadId !==
+        sourceMessage.conversationThreadId ||
+      sourceMessage.generatedResponse.direction !== "OUTBOUND" ||
+      sourceMessage.generatedResponse.role !== "ASSISTANT" ||
+      sourceMessage.generatedResponse.deletedAt !== null
     ) {
       return { status: "stale" as const };
     }

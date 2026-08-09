@@ -46,8 +46,18 @@ const sourceMessage = {
   id: "inbound-source",
   userId: "user-1",
   conversationThreadId: "thread-1",
+  direction: "INBOUND" as const,
+  role: "USER" as const,
+  deletedAt: null,
   createdAt: new Date("2026-08-09T17:58:00.000Z"),
-  generatedResponse: { id: "assistant-source", userId: "user-1" },
+  generatedResponse: {
+    id: "assistant-source",
+    userId: "user-1",
+    conversationThreadId: "thread-1",
+    direction: "OUTBOUND" as const,
+    role: "ASSISTANT" as const,
+    deletedAt: null,
+  },
 };
 const currentMessage = {
   id: "inbound-current",
@@ -226,6 +236,36 @@ describe("ai/memory-approval", () => {
     expect(result).toBeNull();
   });
 
+  it.each([
+    ["another conversation", { conversationThreadId: "thread-2" }],
+    ["a deleted response", { deletedAt: new Date() }],
+    ["an inbound response", { direction: "INBOUND" as const }],
+    ["a non-assistant response", { role: "USER" as const }],
+  ])(
+    "does not attribute approval to %s",
+    async (_name, generatedResponsePatch) => {
+      mocks.messageFindFirst.mockResolvedValueOnce(currentMessage);
+      mocks.messageFindMany.mockResolvedValueOnce([
+        {
+          ...sourceMessage,
+          generatedResponse: {
+            ...sourceMessage.generatedResponse,
+            ...generatedResponsePatch,
+          },
+        },
+      ]);
+
+      const result = await getImmediatelyAttributableApproval({
+        userId: "user-1",
+        conversationId: "thread-1",
+        currentUserMessageId: "inbound-current",
+      });
+
+      expect(result).toBeNull();
+      expect(mocks.memoryApprovalFindFirst).not.toHaveBeenCalled();
+    },
+  );
+
   it("fails closed when two preceding inbound turns share the latest timestamp", async () => {
     mocks.messageFindFirst.mockResolvedValueOnce(currentMessage);
     mocks.messageFindMany.mockResolvedValueOnce([
@@ -307,6 +347,48 @@ describe("ai/memory-approval", () => {
     expect(mocks.memoryApprovalUpdateMany).not.toHaveBeenCalled();
     expect(mocks.memoryUpsert).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["another conversation", { conversationThreadId: "thread-2" }],
+    ["a deleted response", { deletedAt: new Date() }],
+    ["an inbound response", { direction: "INBOUND" as const }],
+    ["a non-assistant response", { role: "USER" as const }],
+  ])(
+    "does not resolve an approval from %s",
+    async (_name, generatedResponsePatch) => {
+      mocks.memoryApprovalFindFirst.mockResolvedValueOnce({
+        ...pendingApproval,
+        sourceInboundMessage: {
+          ...sourceMessage,
+          generatedResponse: {
+            ...sourceMessage.generatedResponse,
+            ...generatedResponsePatch,
+          },
+        },
+      });
+      mocks.messageFindFirst.mockResolvedValueOnce(currentMessage);
+      mocks.messageFindMany.mockResolvedValueOnce([
+        {
+          ...sourceMessage,
+          generatedResponse: {
+            ...sourceMessage.generatedResponse,
+            ...generatedResponsePatch,
+          },
+        },
+      ]);
+
+      const result = await resolveMemoryApproval({
+        userId: "user-1",
+        approvalId: "approval-1",
+        decision: "approve",
+        currentUserMessageId: "inbound-current",
+      });
+
+      expect(result).toEqual({ status: "stale" });
+      expect(mocks.memoryApprovalUpdateMany).not.toHaveBeenCalled();
+      expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     {

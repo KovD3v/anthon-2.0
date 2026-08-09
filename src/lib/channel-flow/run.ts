@@ -161,6 +161,7 @@ export async function runChannelFlow(
   const isGuest = ctx.channel === "WEB_GUEST" || ctx.ai?.isGuest === true;
   const memoryEnabled = !isGuest && ctx.options.allowMemoryExtraction;
   let capabilityPlannerMode: "legacy" | "agentic" = "legacy";
+  let capabilityPlannerModeKnown = false;
   let capabilityDecision: CapabilityDecision | undefined;
 
   let finalMetrics: RunChannelFlowResult["metrics"];
@@ -286,10 +287,12 @@ export async function runChannelFlow(
     text,
     metrics,
     usageAlreadyReconciled = false,
+    allowMemoryExtraction = memoryEnabled,
   }: {
     text: string;
     metrics: NonNullable<RunChannelFlowResult["metrics"]>;
     usageAlreadyReconciled?: boolean;
+    allowMemoryExtraction?: boolean;
   }) => {
     if (ctx.persistence?.saveAssistantMessage === false) return undefined;
     if (!usageAlreadyReconciled) {
@@ -308,7 +311,7 @@ export async function runChannelFlow(
         metadata: ctx.persistence?.metadata,
         updateChatTimestamp: ctx.persistence?.updateChatTimestamp,
         revalidateTags: ctx.persistence?.revalidateTags,
-        allowMemoryExtraction: memoryEnabled,
+        allowMemoryExtraction,
         capabilityDecision,
         capabilityPlannerMode,
         waitUntil: ctx.persistence?.waitUntil,
@@ -334,6 +337,12 @@ export async function runChannelFlow(
             userId: ctx.userId,
             text,
             metrics,
+            capabilityPlannerMode: capabilityPlannerModeKnown
+              ? capabilityPlannerMode
+              : undefined,
+            capabilityDecision: capabilityPlannerModeKnown
+              ? capabilityDecision
+              : undefined,
           });
           markUsageReservationSettled();
         } catch (recoveryError) {
@@ -354,11 +363,17 @@ export async function runChannelFlow(
 
   if (usageReservation?.recovery) {
     const recovery = usageReservation.recovery;
+    capabilityPlannerMode = recovery.capabilityPlannerMode ?? "legacy";
+    capabilityDecision = recovery.capabilityDecision;
     finalMetrics = recovery.metrics;
     const message = await persistGeneratedOutput({
       text: recovery.text,
       metrics: recovery.metrics,
       usageAlreadyReconciled: true,
+      allowMemoryExtraction:
+        memoryEnabled &&
+        recovery.capabilityMetadataValid === true &&
+        recovery.capabilityPlannerMode === "legacy",
     });
     if (ctx.hooks?.onFinish) {
       await ctx.hooks.onFinish({
@@ -508,6 +523,7 @@ export async function runChannelFlow(
       }) => {
         capabilityDecision = streamedCapabilityDecision;
         capabilityPlannerMode = streamedCapabilityPlannerMode;
+        capabilityPlannerModeKnown = true;
         finalMetrics = metrics;
         generationAbortController.signal.throwIfAborted();
         if (!text.trim()) {
@@ -520,6 +536,12 @@ export async function runChannelFlow(
                 userId: ctx.userId,
                 text,
                 metrics,
+                capabilityPlannerMode: capabilityPlannerModeKnown
+                  ? capabilityPlannerMode
+                  : undefined,
+                capabilityDecision: capabilityPlannerModeKnown
+                  ? capabilityDecision
+                  : undefined,
               });
               markUsageReservationSettled();
             } catch (error) {
@@ -545,6 +567,7 @@ export async function runChannelFlow(
     if ("capabilityDecision" in streamResult) {
       capabilityDecision = streamResult.capabilityDecision;
       capabilityPlannerMode = streamResult.capabilityPlannerMode;
+      capabilityPlannerModeKnown = true;
     }
   } catch (error) {
     detachRequestAbort();

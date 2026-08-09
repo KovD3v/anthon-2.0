@@ -839,9 +839,9 @@ describe("model comparison runtime", () => {
     mocks.mightResolvePendingMemoryApproval.mockReturnValue(true);
     mocks.getImmediatelyAttributableApproval.mockResolvedValue(null);
 
-    await expect(tryCreateModelComparisonResponse(input)).resolves.toBeInstanceOf(
-      Response,
-    );
+    await expect(
+      tryCreateModelComparisonResponse(input),
+    ).resolves.toBeInstanceOf(Response);
 
     expect(mocks.reserveUsage).toHaveBeenCalledTimes(1);
     expect(mocks.createPair).toHaveBeenCalledTimes(1);

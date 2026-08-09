@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma";
+import {
+  type CapabilityDecision,
+  freezeCapabilityDecision,
+} from "@/lib/ai/capability-arbitration";
 import { normalizePreDeliveryCapabilityUsage } from "@/lib/ai/capability-usage";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
 import { prisma } from "@/lib/db";
@@ -19,9 +23,13 @@ type TransactionClient = Pick<
 export interface AiUsageRecovery {
   text: string;
   metrics: AIMetrics;
+  capabilityMetadataValid: boolean;
+  capabilityPlannerMode?: "legacy" | "agentic";
+  capabilityDecision?: CapabilityDecision;
 }
 
-export interface AiUsagePersistedAssistant extends AiUsageRecovery {
+export interface AiUsagePersistedAssistant
+  extends Pick<AiUsageRecovery, "text" | "metrics"> {
   messageId: string;
 }
 
@@ -168,8 +176,11 @@ function parseRecovery(
   const {
     providerMetadata: _providerMetadata,
     reasoningContent: _reasoningContent,
+    capabilityPlanner: rawCapabilityPlanner,
     ...safeMetrics
   } = metrics as Record<string, unknown>;
+  const capabilityPlanner =
+    parseRecoveryCapabilityPlanner(rawCapabilityPlanner);
   return {
     text,
     metrics: {
@@ -178,6 +189,87 @@ function parseRecovery(
         safeMetrics.capabilitiesUsed,
       ),
     } as unknown as AIMetrics,
+    capabilityMetadataValid: capabilityPlanner !== undefined,
+    capabilityPlannerMode: capabilityPlanner?.mode,
+    capabilityDecision: capabilityPlanner?.decision,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isBoolean(value: unknown): value is boolean {
+  return typeof value === "boolean";
+}
+
+function failClosedRecoveryDecision(): CapabilityDecision {
+  return freezeCapabilityDecision({
+    rag: false,
+    webSearch: false,
+    webFetch: false,
+    memoryRead: false,
+    memoryWrite: false,
+    memoryDelete: false,
+    memoryDeleteTarget: null,
+    routineProposal: false,
+    userContext: false,
+    voiceOutput: false,
+    source: "fallback",
+    reasonCodes: ["recovery_capability_metadata_invalid"],
+  });
+}
+
+function parseRecoveryCapabilityPlanner(
+  value: unknown,
+): { mode: "legacy" | "agentic"; decision?: CapabilityDecision } | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const mode = value.mode;
+  if (mode !== "legacy" && mode !== "agentic") return undefined;
+  if (mode === "legacy") return { mode };
+
+  const decision = value.decision;
+  if (!isRecord(decision)) {
+    return { mode, decision: failClosedRecoveryDecision() };
+  }
+
+  const booleanCapabilities = [
+    "rag",
+    "webSearch",
+    "webFetch",
+    "memoryRead",
+    "memoryWrite",
+    "memoryDelete",
+    "routineProposal",
+    "userContext",
+    "voiceOutput",
+  ] as const;
+  if (!booleanCapabilities.every((key) => isBoolean(decision[key]))) {
+    return { mode, decision: failClosedRecoveryDecision() };
+  }
+
+  const source = decision.source;
+  if (source !== "fallback" && source !== "classifier" && source !== "mixed") {
+    return { mode, decision: failClosedRecoveryDecision() };
+  }
+
+  return {
+    mode,
+    decision: freezeCapabilityDecision({
+      rag: decision.rag as boolean,
+      webSearch: decision.webSearch as boolean,
+      webFetch: decision.webFetch as boolean,
+      memoryRead: decision.memoryRead as boolean,
+      memoryWrite: decision.memoryWrite as boolean,
+      memoryDelete: decision.memoryDelete as boolean,
+      memoryDeleteTarget: null,
+      routineProposal: decision.routineProposal as boolean,
+      userContext: decision.userContext as boolean,
+      voiceOutput: decision.voiceOutput as boolean,
+      source,
+      reasonCodes: [],
+    }),
   };
 }
 
@@ -488,7 +580,32 @@ export async function reconcileAiUsageInTransaction(
   return { charged: true };
 }
 
-function recoverableMetrics(metrics: AIMetrics): Prisma.InputJsonValue {
+function recoverableMetrics(
+  metrics: AIMetrics,
+  capabilityPlannerMode?: "legacy" | "agentic",
+  capabilityDecision?: CapabilityDecision,
+): Prisma.InputJsonValue {
+  const capabilityPlanner = capabilityPlannerMode
+    ? {
+        mode: capabilityPlannerMode,
+        ...(capabilityPlannerMode === "agentic" && capabilityDecision
+          ? {
+              decision: {
+                rag: capabilityDecision.rag,
+                webSearch: capabilityDecision.webSearch,
+                webFetch: capabilityDecision.webFetch,
+                memoryRead: capabilityDecision.memoryRead,
+                memoryWrite: capabilityDecision.memoryWrite,
+                memoryDelete: capabilityDecision.memoryDelete,
+                routineProposal: capabilityDecision.routineProposal,
+                userContext: capabilityDecision.userContext,
+                voiceOutput: capabilityDecision.voiceOutput,
+                source: capabilityDecision.source,
+              },
+            }
+          : {}),
+      }
+    : undefined;
   const minimal = {
     model: metrics.model,
     provider: metrics.provider,
@@ -507,6 +624,7 @@ function recoverableMetrics(metrics: AIMetrics): Prisma.InputJsonValue {
     costUsd: metrics.costUsd,
     generationTimeMs: metrics.generationTimeMs,
     reasoningTimeMs: metrics.reasoningTimeMs,
+    ...(capabilityPlanner ? { capabilityPlanner } : {}),
   };
   const serialized = JSON.stringify(minimal);
   if (Buffer.byteLength(serialized, "utf8") > MAX_RECOVERY_METRICS_BYTES) {
@@ -523,12 +641,16 @@ export async function reconcileAiUsageForRecovery({
   userId,
   text,
   metrics,
+  capabilityPlannerMode,
+  capabilityDecision,
 }: {
   reservationId: string;
   claimToken: string;
   userId: string;
   text: string;
   metrics: AIMetrics;
+  capabilityPlannerMode?: "legacy" | "agentic";
+  capabilityDecision?: CapabilityDecision;
 }) {
   return prisma.$transaction(async (tx) => {
     await lockUser(tx, userId);
@@ -567,7 +689,11 @@ export async function reconcileAiUsageForRecovery({
         actualReasoningTokens: metrics.reasoningTokens ?? 0,
         actualCostUsd: metrics.costUsd,
         recoveryText: text.slice(0, MAX_RECOVERY_TEXT_CHARS),
-        recoveryMetrics: recoverableMetrics(metrics),
+        recoveryMetrics: recoverableMetrics(
+          metrics,
+          capabilityPlannerMode,
+          capabilityDecision,
+        ),
         recoveryExpiresAt: new Date(Date.now() + RECOVERY_RETENTION_MS),
         reconciledAt: new Date(),
       },

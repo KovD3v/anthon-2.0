@@ -38,6 +38,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+import type { CapabilityDecision } from "@/lib/ai/capability-arbitration";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
 import {
   reconcileAiUsageForRecovery,
@@ -224,6 +225,83 @@ describe("AI usage reservations", () => {
     expect(mocks.reservationCreate).not.toHaveBeenCalled();
   });
 
+  it("restores only closed capability metadata from agentic recovery", async () => {
+    mocks.reservationFindUnique.mockResolvedValue(
+      reservation({
+        status: "RECONCILED",
+        recoveryText: "saved provider output",
+        recoveryMetrics: {
+          ...metrics,
+          capabilityPlanner: {
+            mode: "agentic",
+            decision: {
+              rag: true,
+              webSearch: false,
+              webFetch: false,
+              memoryRead: true,
+              memoryWrite: false,
+              memoryDelete: true,
+              memoryDeleteTarget: "private_memory_key",
+              routineProposal: false,
+              userContext: true,
+              voiceOutput: false,
+              source: "mixed",
+              rawPayload: "must not survive",
+            },
+          },
+        },
+      }),
+    );
+
+    const result = await reserveAiUsage({
+      userId: "user-1",
+      requestKey: "message-1",
+      limits: finiteLimits,
+    });
+
+    if (!result.allowed || !result.recovery) {
+      throw new Error("Expected a recovered result");
+    }
+    expect(result.recovery.capabilityMetadataValid).toBe(true);
+    expect(result.recovery.capabilityPlannerMode).toBe("agentic");
+    expect(result.recovery.capabilityDecision).toMatchObject({
+      rag: true,
+      memoryRead: true,
+      memoryDelete: true,
+      memoryDeleteTarget: null,
+      source: "mixed",
+    });
+    expect(result.recovery.metrics).not.toHaveProperty("capabilityPlanner");
+    expect(JSON.stringify(result)).not.toContain("private_memory_key");
+    expect(JSON.stringify(result)).not.toContain("must not survive");
+  });
+
+  it("marks missing or invalid recovery planner metadata as unsafe", async () => {
+    mocks.reservationFindUnique.mockResolvedValue(
+      reservation({
+        status: "RECONCILED",
+        recoveryText: "saved provider output",
+        recoveryMetrics: {
+          ...metrics,
+          capabilityPlanner: { mode: "unexpected" },
+        },
+      }),
+    );
+
+    const result = await reserveAiUsage({
+      userId: "user-1",
+      requestKey: "message-1",
+      limits: finiteLimits,
+    });
+
+    if (!result.allowed || !result.recovery) {
+      throw new Error("Expected a recovered result");
+    }
+    expect(result.recovery.capabilityMetadataValid).toBe(false);
+    expect(result.recovery.capabilityPlannerMode).toBeUndefined();
+    expect(result.recovery.capabilityDecision).toBeUndefined();
+  });
+
   it("replays a persisted assistant when recovery payload is no longer present", async () => {
     mocks.reservationFindUnique.mockResolvedValue(
       reservation({
@@ -337,6 +415,20 @@ describe("AI usage reservations", () => {
       return current;
     });
     const longText = "x".repeat(140 * 1024);
+    const capabilityDecision = {
+      rag: true,
+      webSearch: false,
+      webFetch: false,
+      memoryRead: true,
+      memoryWrite: false,
+      memoryDelete: true,
+      memoryDeleteTarget: "private_memory_key",
+      routineProposal: false,
+      userContext: true,
+      voiceOutput: false,
+      source: "mixed" as const,
+      reasonCodes: [],
+    } satisfies CapabilityDecision;
 
     await expect(
       reconcileAiUsageForRecovery({
@@ -345,6 +437,8 @@ describe("AI usage reservations", () => {
         userId: "user-1",
         text: longText,
         metrics,
+        capabilityPlannerMode: "agentic",
+        capabilityDecision,
       }),
     ).resolves.toEqual({ charged: true });
     await expect(
@@ -354,6 +448,8 @@ describe("AI usage reservations", () => {
         userId: "user-1",
         text: longText,
         metrics,
+        capabilityPlannerMode: "agentic",
+        capabilityDecision,
       }),
     ).resolves.toEqual({ charged: false });
 
@@ -365,9 +461,24 @@ describe("AI usage reservations", () => {
       inputTokens: 12,
       outputTokens: 7,
       toolCalls: null,
+      capabilityPlanner: {
+        mode: "agentic",
+        decision: {
+          rag: true,
+          memoryRead: true,
+          memoryDelete: true,
+          source: "mixed",
+        },
+      },
     });
     expect(persisted.recoveryMetrics).not.toHaveProperty("reasoningContent");
     expect(persisted.recoveryMetrics).not.toHaveProperty("providerMetadata");
+    expect(JSON.stringify(persisted.recoveryMetrics)).not.toContain(
+      "private_memory_key",
+    );
+    expect(
+      persisted.recoveryMetrics.capabilityPlanner.decision,
+    ).not.toHaveProperty("memoryDeleteTarget");
     expect(persisted.recoveryExpiresAt).toBeInstanceOf(Date);
   });
 

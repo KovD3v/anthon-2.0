@@ -981,6 +981,8 @@ async function handleVoiceFirstWebResponse({
         userId,
         text: assistantText,
         metrics: flowResult.metrics,
+        capabilityPlannerMode: flowResult.capabilityPlannerMode,
+        capabilityDecision: flowResult.capabilityDecision,
       }).catch((recoveryError) =>
         logger.error(
           "voice.persistence_recovery_failed",

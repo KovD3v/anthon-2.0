@@ -294,6 +294,160 @@ describe("channel-flow/run", () => {
     );
   });
 
+  it("restores an agentic recovery decision and keeps legacy extraction disabled", async () => {
+    const capabilityDecision = Object.freeze({
+      rag: true,
+      webSearch: false,
+      webFetch: false,
+      memoryRead: true,
+      memoryWrite: false,
+      memoryDelete: false,
+      memoryDeleteTarget: null,
+      routineProposal: false,
+      userContext: true,
+      voiceOutput: false,
+      source: "mixed" as const,
+      reasonCodes: Object.freeze([]),
+    }) as unknown as CapabilityDecision;
+    mocks.reserveAiUsage.mockResolvedValue({
+      allowed: true,
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+      recovery: {
+        text: "recovered answer",
+        metrics: {
+          model: "recovered-model",
+          inputTokens: 10,
+          outputTokens: 4,
+          reasoningTokens: null,
+          toolCalls: null,
+          ragUsed: true,
+          ragChunksCount: 2,
+          costUsd: 0.01,
+          generationTimeMs: 100,
+          reasoningTimeMs: null,
+        },
+        capabilityMetadataValid: true,
+        capabilityPlannerMode: "agentic",
+        capabilityDecision,
+      },
+    });
+
+    await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      chatId: "chat-1",
+      userMessageId: "inbound-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: {
+        allowed: true,
+        effectiveEntitlements: {
+          modelTier: "BASIC",
+          uploadLimits: {
+            maxUploadsPerDay: 25,
+            maxUploadBytesPerDay: 250 * 1024 * 1024,
+          },
+          limits: {
+            maxRequestsPerDay: 10,
+            maxInputTokensPerDay: 1_000,
+            maxOutputTokensPerDay: 1_000,
+            maxCostPerDay: 1,
+            maxContextMessages: 20,
+          },
+          sources: [],
+        },
+      },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: false,
+      },
+      execution: { mode: "text" },
+      persistence: { channel: "WEB", saveAssistantMessage: true },
+    });
+
+    expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowMemoryExtraction: false,
+        capabilityDecision,
+        capabilityPlannerMode: "agentic",
+      }),
+    );
+  });
+
+  it.each([
+    { name: "missing", recovery: {} },
+    { name: "invalid", recovery: { capabilityMetadataValid: false } },
+  ])(
+    "fails closed on $name recovery planner metadata",
+    async ({ recovery }) => {
+      mocks.reserveAiUsage.mockResolvedValue({
+        allowed: true,
+        reservationId: "reservation-1",
+        claimToken: "claim-1",
+        recovery: {
+          text: "recovered answer",
+          metrics: {
+            model: "recovered-model",
+            inputTokens: 10,
+            outputTokens: 4,
+            reasoningTokens: null,
+            toolCalls: null,
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0.01,
+            generationTimeMs: 100,
+            reasoningTimeMs: null,
+          },
+          ...recovery,
+        },
+      });
+
+      await runChannelFlow({
+        channel: "WEB",
+        userId: "user-1",
+        chatId: "chat-1",
+        userMessageId: "inbound-1",
+        userMessageText: "hello",
+        parts: [{ type: "text", text: "hello" }],
+        rateLimit: {
+          allowed: true,
+          effectiveEntitlements: {
+            modelTier: "BASIC",
+            uploadLimits: {
+              maxUploadsPerDay: 25,
+              maxUploadBytesPerDay: 250 * 1024 * 1024,
+            },
+            limits: {
+              maxRequestsPerDay: 10,
+              maxInputTokensPerDay: 1_000,
+              maxOutputTokensPerDay: 1_000,
+              maxCostPerDay: 1,
+              maxContextMessages: 20,
+            },
+            sources: [],
+          },
+        },
+        options: {
+          allowAttachments: true,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: false,
+        },
+        execution: { mode: "text" },
+        persistence: { channel: "WEB", saveAssistantMessage: true },
+      });
+
+      expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
+        expect.objectContaining({
+          allowMemoryExtraction: false,
+          capabilityDecision: undefined,
+          capabilityPlannerMode: "legacy",
+        }),
+      );
+    },
+  );
+
   it("removes tool payloads from the shared live UI stream", async () => {
     mocks.streamChat.mockImplementation(async ({ onFinish }) => ({
       textStream: (async function* () {
