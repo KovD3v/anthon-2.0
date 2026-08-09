@@ -562,6 +562,125 @@ describe("channel-flow/run", () => {
     }
   });
 
+  it.each([
+    {
+      name: "recovery",
+      databaseMessageId: "db-recovered-assistant-secret",
+      text: "recovered answer",
+      reservation: {
+        recovery: {
+          text: "recovered answer",
+          metrics: {
+            model: "recovered-model",
+            inputTokens: 10,
+            outputTokens: 4,
+            reasoningTokens: null,
+            reasoningContent: null,
+            toolCalls: null,
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0.01,
+            generationTimeMs: 100,
+            reasoningTimeMs: null,
+          },
+        },
+      },
+    },
+    {
+      name: "persisted assistant replay",
+      databaseMessageId: "db-replayed-assistant-secret",
+      text: "saved answer",
+      reservation: {
+        persistedAssistant: {
+          messageId: "db-replayed-assistant-secret",
+          text: "saved answer",
+          metrics: {
+            model: "saved-model",
+            inputTokens: 8,
+            outputTokens: 3,
+            reasoningTokens: null,
+            reasoningContent: null,
+            toolCalls: null,
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0.01,
+            generationTimeMs: 90,
+            reasoningTimeMs: null,
+          },
+        },
+      },
+    },
+  ])("uses only synthetic UI stream IDs for $name", async (testCase) => {
+    mocks.persistAssistantOutput.mockResolvedValue({
+      id: testCase.databaseMessageId,
+    });
+    mocks.reserveAiUsage.mockResolvedValue({
+      allowed: true,
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+      ...testCase.reservation,
+    });
+
+    const result = await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      chatId: "chat-1",
+      userMessageId: "inbound-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: {
+        allowed: true,
+        effectiveEntitlements: {
+          modelTier: "BASIC",
+          uploadLimits: {
+            maxUploadsPerDay: 25,
+            maxUploadBytesPerDay: 250 * 1024 * 1024,
+          },
+          limits: {
+            maxRequestsPerDay: 10,
+            maxInputTokensPerDay: 1_000,
+            maxOutputTokensPerDay: 1_000,
+            maxCostPerDay: 1,
+            maxContextMessages: 20,
+          },
+          sources: [],
+        },
+      },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: true,
+      },
+      execution: { mode: "stream", includeTechnicalMetrics: true },
+      persistence: { channel: "WEB", saveAssistantMessage: true },
+    });
+
+    const body = await result.streamResult?.toUIMessageStreamResponse().text();
+
+    expect(body).toBeDefined();
+    if (!body) throw new Error("Expected a persisted UI stream response");
+
+    expect(body).not.toContain(testCase.databaseMessageId);
+    expect(body).not.toContain(`${testCase.databaseMessageId}-text`);
+    const safeMessageId = body.match(
+      /"type":"start","messageId":"(safe-message-[^"]+)"/,
+    )?.[1];
+    const safeTextId = body.match(
+      /"type":"text-start","id":"(safe-text-[^"]+)"/,
+    )?.[1];
+    expect(safeMessageId).toBeDefined();
+    expect(safeTextId).toBeDefined();
+    expect(body).toContain('"type":"start-step"');
+    expect(body).toContain(
+      `"type":"text-delta","id":"${safeTextId}","delta":"${testCase.text}"`,
+    );
+    expect(body).toContain(`"type":"text-end","id":"${safeTextId}"`);
+    expect(body).toContain('"type":"finish-step"');
+    expect(body).toContain('"type":"finish","finishReason":"stop"');
+    expect(body).toContain('"inputTokens"');
+    expect(body).toContain('"outputTokens"');
+  });
+
   it("passes memory availability from channel options to the orchestrator", async () => {
     mocks.streamChat.mockResolvedValue({
       textStream: (async function* () {

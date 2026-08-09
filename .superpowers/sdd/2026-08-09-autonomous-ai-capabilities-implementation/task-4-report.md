@@ -155,3 +155,33 @@ GREEN:
 - Scoped TypeScript check (`bunx tsc --project /tmp/anthon-task4-fix-tsconfig.json --noEmit --pretty false`): passed.
 - `git diff --check`: passed.
 - The test runner emitted only the existing Vite native-config, `vite-tsconfig-paths`, and typeless `postcss.config.ts` warnings.
+
+## Remaining HIGH privacy finding — 2026-08-09
+
+Status: complete. Recovery and persisted-assistant replay no longer expose database or provider identifiers in the shared UI stream.
+
+### Fix
+
+- Removed the persisted assistant message ID from `createPersistedResponse` and both callers. The response builder now creates one stream-local random identifier and emits only `safe-message-*` and `safe-text-*` IDs.
+- Preserved the AI SDK UI protocol order, streamed text, `stop` finish reason, and the existing default-deny technical metadata behavior. When explicitly enabled, finish token and timing metadata remains unchanged.
+- Added path-specific regression coverage for both recovery-after-persistence and idempotent persisted-assistant replay. Each case asserts the database ID and its former `-text` derivative are absent from the complete stream, the synthetic IDs are present and internally consistent, and the start/step/text/finish protocol remains valid.
+
+### TDD and verification evidence
+
+RED:
+
+- `bunx vitest run src/lib/channel-flow/run.test.ts`
+  - Exit 1: 2 failed and 40 passed. Both new regressions showed the database message ID in `start.messageId`, `text-start.id`, `text-delta.id`, and `text-end.id`.
+
+GREEN:
+
+- `bunx vitest run src/lib/channel-flow/run.test.ts`
+  - Exit 0: 1 file and 42 tests passed. The runner emitted only the existing Vite native-config, `vite-tsconfig-paths`, and typeless `postcss.config.ts` warnings.
+- `bunx biome check src/lib/channel-flow/run.ts src/lib/channel-flow/run.test.ts`
+  - Exit 0: 2 files checked with no diagnostics or fixes.
+- `bunx tsc --project /private/tmp/anthon-task4-privacy-tsconfig.json --noEmit --pretty false`
+  - Exit 0: the scoped source and test TypeScript check passed.
+- `git diff --check`
+  - Exit 0.
+
+The unrelated modified `docs/user-plan-states.md` and untracked `docs/superpowers/plans/2026-08-07-context-aware-rag-implementation.md` were left untouched and remain outside the Task 4 scope.

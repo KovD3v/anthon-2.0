@@ -82,12 +82,13 @@ function finishMetadata(
 }
 
 function createPersistedResponse(
-  messageId: string,
   text: string,
   metrics: NonNullable<RunChannelFlowResult["metrics"]>,
   includeTechnicalMetrics: boolean,
 ) {
-  const textId = `${messageId}-text`;
+  const streamId = crypto.randomUUID();
+  const messageId = `safe-message-${streamId}`;
+  const textId = `safe-text-${streamId}`;
   const stream = createUIMessageStream<UIMessage>({
     execute({ writer }) {
       writer.write({ type: "start", messageId });
@@ -362,7 +363,6 @@ export async function runChannelFlow(
               })(),
               toUIMessageStreamResponse: () =>
                 createPersistedResponse(
-                  message.id,
                   recovery.text,
                   recovery.metrics,
                   includeTechnicalMetrics,
@@ -394,7 +394,6 @@ export async function runChannelFlow(
               })(),
               toUIMessageStreamResponse: () =>
                 createPersistedResponse(
-                  saved.messageId,
                   saved.text,
                   saved.metrics,
                   includeTechnicalMetrics,
