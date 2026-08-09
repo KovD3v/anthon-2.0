@@ -324,6 +324,26 @@ describe("ai/rag", () => {
     expect(context.chunkCount).toBe(1);
   });
 
+  it("getRagContext marks database failures without exposing diagnostics", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [{ embedding: [0.5, 0.6] }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.queryRawUnsafe.mockRejectedValue(new Error("database detail"));
+    const { getRagContext } = await loadModule();
+
+    const context = await getRagContext("topic");
+
+    expect(context).toEqual({
+      text: "Nessun documento rilevante trovato.",
+      chunkCount: 0,
+      failed: true,
+    });
+  });
+
   it("buildRagContext returns an explicit empty-retrieval marker", async () => {
     const { buildRagContext } = await loadModule();
 

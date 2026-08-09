@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   buildThreadContext: vi.fn(),
   createMemoryTools: vi.fn(),
   createRoutineProposalTool: vi.fn(),
+  createRagTools: vi.fn(),
   formatMemoriesForPrompt: vi.fn(),
   createTinyfishTools: vi.fn(),
   searchTinyfishDirect: vi.fn(),
@@ -87,6 +88,10 @@ vi.mock("@/lib/ai/tools/memory", () => ({
 
 vi.mock("@/lib/ai/tools/routine-proposal", () => ({
   createRoutineProposalTool: mocks.createRoutineProposalTool,
+}));
+
+vi.mock("@/lib/ai/tools/rag", () => ({
+  createRagTools: mocks.createRagTools,
 }));
 
 vi.mock("@/lib/ai/tools/tinyfish", () => ({
@@ -197,6 +202,7 @@ describe("ai/orchestrator", () => {
     mocks.buildThreadContext.mockReset();
     mocks.createMemoryTools.mockReset();
     mocks.createRoutineProposalTool.mockReset();
+    mocks.createRagTools.mockReset();
     mocks.formatMemoriesForPrompt.mockReset();
     mocks.createTinyfishTools.mockReset();
     mocks.searchTinyfishDirect.mockReset();
@@ -270,6 +276,9 @@ describe("ai/orchestrator", () => {
     });
     mocks.createRoutineProposalTool.mockReturnValue({
       proposeRoutine: "routine-proposal-tool",
+    });
+    mocks.createRagTools.mockReturnValue({
+      searchRag: "rag-tool",
     });
     mocks.createUserContextTools.mockReturnValue({
       getUserContext: "context-read-tool",
@@ -2304,14 +2313,9 @@ describe("ai/orchestrator", () => {
     );
   });
 
-  it("keeps RAG context and required web tools together in agentic mode", async () => {
+  it("exposes bounded RAG and web tools without prefetching in agentic mode", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
     mocks.classifyCapabilities.mockResolvedValueOnce({ rag: true });
-    mocks.getRagContext.mockResolvedValueOnce({
-      text: "**Documento allenamento**\ncontenuto rilevante",
-      chunkCount: 1,
-    });
-
     await streamChat({
       userId: "user-1",
       chatId: "chat-agentic-rag-web",
@@ -2320,18 +2324,125 @@ describe("ai/orchestrator", () => {
     });
 
     expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
-    expect(mocks.getRagContext).toHaveBeenCalledWith(
-      "Cerca online fonti affidabili e confrontale con i documenti caricati",
+    expect(mocks.getRagContext).not.toHaveBeenCalled();
+    expect(mocks.searchTinyfishDirect).not.toHaveBeenCalled();
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+      prepareStep: (input: {
+        steps: Array<{
+          toolCalls?: Array<{ toolName?: string }>;
+          toolResults?: Array<{ toolName?: string; output?: unknown }>;
+        }>;
+      }) => unknown;
+    };
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        searchRag: "rag-tool",
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+      }),
     );
+    expect(streamInput.prepareStep({ steps: [] })).toEqual({
+      activeTools: ["searchRag", "tinyfishSearch"],
+      toolChoice: "auto",
+    });
+    expect(
+      streamInput.prepareStep({
+        steps: [
+          {
+            toolCalls: [{ toolName: "tinyfishSearch" }],
+            toolResults: [
+              {
+                toolName: "tinyfishSearch",
+                output: {
+                  results: [{ url: "https://example.com/source" }],
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    ).toEqual({
+      activeTools: ["searchRag", "tinyfishFetch"],
+      toolChoice: "auto",
+    });
+  });
+
+  it("keeps brief web search as a native tool in agentic mode", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValueOnce({
+      webSearch: true,
+      webFetch: false,
+    });
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-agentic-brief-web",
+      userMessage:
+        "Fai una ricerca su internet: qual e la prossima partita che Messi giochera? Rispondi breve.",
+    });
+
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       instructions: string;
       tools: Record<string, unknown>;
     };
-    expect(streamInput.instructions).toContain("**Documento allenamento**");
-    expect(streamInput.tools).toEqual(
+    expect(mocks.searchTinyfishDirect).not.toHaveBeenCalled();
+    expect(streamInput.instructions).not.toContain("WEB SEARCH RESULTS");
+    expect(streamInput.tools).toEqual({ tinyfishSearch: "tinyfish-tool" });
+  });
+
+  it("records successfully injected native RAG context in turn metrics", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    mocks.classifyCapabilities.mockResolvedValueOnce({ rag: true });
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-agentic-rag-metrics",
+      userMessage: "Confronta con i documenti caricati",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      onStepEnd: (step: {
+        toolCalls?: Array<{ toolName: string; input?: unknown }>;
+        toolResults?: Array<{ output?: unknown }>;
+        providerMetadata?: Record<string, unknown>;
+      }) => void;
+      onEnd: (step: {
+        text: string;
+        usage?: {
+          inputTokens?: number;
+          outputTokens?: number;
+          totalTokens?: number;
+        };
+        providerMetadata?: Record<string, unknown>;
+      }) => Promise<void>;
+    };
+    streamInput.onStepEnd({
+      toolCalls: [{ toolName: "searchRag", input: { query: "documenti" } }],
+      toolResults: [
+        {
+          output: {
+            success: true,
+            chunkCount: 2,
+            context: "Contesto sicuro",
+          },
+        },
+      ],
+    });
+
+    await streamInput.onEnd({
+      text: "assistant response",
+      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      providerMetadata: {},
+    });
+
+    expect(mocks.extractAIMetrics).toHaveBeenCalledWith(
+      "google/gemini-test",
+      expect.any(Number),
       expect.objectContaining({
-        tinyfishSearch: "tinyfish-tool",
-        tinyfishFetch: "tinyfish-fetch-tool",
+        ragUsed: true,
+        ragChunksCount: 2,
       }),
     );
   });
@@ -2356,6 +2467,7 @@ describe("ai/orchestrator", () => {
       proposeRoutine: "routine-proposal-tool",
     });
     expect(streamInput.prepareStep).toEqual(expect.any(Function));
+    expect(streamInput.prepareStep?.({ steps: [] })).toBeUndefined();
   });
 
   it("composes agentic capabilities with legacy turn planning without divergence", async () => {
@@ -2364,10 +2476,6 @@ describe("ai/orchestrator", () => {
     mocks.classifyCapabilities.mockResolvedValueOnce({
       rag: true,
       routineProposal: true,
-    });
-    mocks.getRagContext.mockResolvedValueOnce({
-      text: "**Documento allenamento**\ncontenuto rilevante",
-      chunkCount: 1,
     });
     const onFinish = vi.fn();
 
@@ -2397,9 +2505,9 @@ describe("ai/orchestrator", () => {
       }) => Promise<void>;
     };
 
-    expect(streamInput.instructions).toContain("**Documento allenamento**");
     expect(streamInput.tools).toEqual(
       expect.objectContaining({
+        searchRag: "rag-tool",
         tinyfishSearch: "tinyfish-tool",
         tinyfishFetch: "tinyfish-fetch-tool",
         proposeRoutine: "routine-proposal-tool",
@@ -2408,15 +2516,20 @@ describe("ai/orchestrator", () => {
     );
     expect(mocks.isStepCount).toHaveBeenCalledWith(5);
     expect(streamInput.prepareStep({ steps: [] })).toEqual({
-      activeTools: ["proposeRoutine"],
-      toolChoice: { type: "tool", toolName: "proposeRoutine" },
+      activeTools: [
+        "searchRag",
+        "tinyfishSearch",
+        "deleteMemory",
+        "proposeRoutine",
+      ],
+      toolChoice: "auto",
     });
     expect(
       streamInput.prepareStep({
         steps: [{ toolCalls: [{ toolName: "proposeRoutine" }] }],
       }),
     ).toEqual({
-      activeTools: ["tinyfishSearch", "tinyfishFetch"],
+      activeTools: ["searchRag", "tinyfishSearch", "deleteMemory"],
       toolChoice: "auto",
     });
     expect(mocks.createMemoryTools).toHaveBeenCalledWith("user-1", {
@@ -2476,12 +2589,11 @@ describe("ai/orchestrator", () => {
     });
 
     expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
-    expect(mocks.getRagContext).toHaveBeenCalledWith(
-      "Rispondi senza cercare online e confronta con i documenti caricati",
-    );
+    expect(mocks.getRagContext).not.toHaveBeenCalled();
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       tools: Record<string, unknown>;
     };
+    expect(streamInput.tools).toHaveProperty("searchRag", "rag-tool");
     expect(streamInput.tools).not.toHaveProperty("tinyfishSearch");
     expect(streamInput.tools).not.toHaveProperty("tinyfishFetch");
   });

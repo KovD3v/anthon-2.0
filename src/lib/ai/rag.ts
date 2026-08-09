@@ -214,10 +214,15 @@ export interface RagSearchResult {
   similarity: number;
 }
 
-export async function searchDocuments(
+type RagSearchOutcome = {
+  results: RagSearchResult[];
+  failed: boolean;
+};
+
+async function searchDocumentsWithOutcome(
   query: string,
   limit: number = 5,
-): Promise<RagSearchResult[]> {
+): Promise<RagSearchOutcome> {
   try {
     // Generate embedding for the query
     const queryEmbedding = await generateEmbedding(query);
@@ -227,7 +232,7 @@ export async function searchDocuments(
         "ai.rag.search.no_embedding",
         "Could not generate query embedding",
       );
-      return [];
+      return { results: [], failed: true };
     }
 
     // Convert embedding array to pgvector format string
@@ -262,16 +267,27 @@ export async function searchDocuments(
     );
 
     // Filter by similarity threshold
-    return results.filter((r) => r.similarity > RAG.SIMILARITY_THRESHOLD);
+    return {
+      results: results.filter((r) => r.similarity > RAG.SIMILARITY_THRESHOLD),
+      failed: false,
+    };
   } catch (error) {
     ragLogger.error("ai.rag.search.error", "Search error", { error });
-    return [];
+    return { results: [], failed: true };
   }
+}
+
+export async function searchDocuments(
+  query: string,
+  limit: number = 5,
+): Promise<RagSearchResult[]> {
+  return (await searchDocumentsWithOutcome(query, limit)).results;
 }
 
 export interface RagContext {
   text: string;
   chunkCount: number;
+  failed?: boolean;
 }
 
 /**
@@ -301,8 +317,11 @@ function formatRagContext(results: RagSearchResult[]): string {
  * This is the main function to use in the orchestrator.
  */
 export async function getRagContext(query: string): Promise<RagContext> {
-  const results = await searchDocuments(query);
-  return buildRagContext(results);
+  const outcome = await searchDocumentsWithOutcome(query);
+  return {
+    ...buildRagContext(outcome.results),
+    failed: outcome.failed,
+  };
 }
 
 export function buildRagContext(results: RagSearchResult[]): RagContext {

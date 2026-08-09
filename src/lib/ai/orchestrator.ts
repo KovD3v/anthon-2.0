@@ -47,6 +47,7 @@ import {
   createMemoryTools,
   formatMemoriesForPrompt,
 } from "@/lib/ai/tools/memory";
+import { createRagTools } from "@/lib/ai/tools/rag";
 import { createRoutineProposalTool } from "@/lib/ai/tools/routine-proposal";
 import {
   createTinyfishTools,
@@ -384,6 +385,7 @@ interface StreamChatOptions {
 type PromptMode = "full" | "guest" | "simple_fast";
 
 type ToolPlan = {
+  agentic: boolean;
   webSearch: boolean;
   webFetch: boolean;
   rag: boolean;
@@ -677,7 +679,10 @@ function createToolsWithContext(
     };
   }
 
-  const tools: Record<string, unknown> = { ...webTools };
+  const tools: Record<string, unknown> = {
+    ...(toolPlan.agentic && toolPlan.rag ? createRagTools() : {}),
+    ...webTools,
+  };
 
   if (toolPlan.routineProposal) {
     Object.assign(tools, createRoutineProposalTool());
@@ -759,6 +764,7 @@ function instrumentToolExecutions(
 function toolPlanFromTurnPlan(
   turnPlan: TurnPlan,
   userMessage: string,
+  capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>,
 ): ToolPlan {
   const memoryDelete = turnPlan.capabilities.memoryDelete;
   const hasPersistentWrites =
@@ -769,6 +775,7 @@ function toolPlanFromTurnPlan(
     turnPlan.capabilities.notesWrite;
   const routineProposal = turnPlan.capabilities.routineProposal;
   return {
+    agentic: capabilityPlannerMode === "agentic",
     webSearch: turnPlan.capabilities.webSearch,
     webFetch: turnPlan.capabilities.webSearch && turnPlan.capabilities.webFetch,
     rag: turnPlan.capabilities.rag,
@@ -786,6 +793,7 @@ function toolPlanFromTurnPlan(
     hasPersistentWrites,
     hasAny:
       turnPlan.capabilities.webSearch ||
+      (capabilityPlannerMode === "agentic" && turnPlan.capabilities.rag) ||
       turnPlan.capabilities.memoryRead ||
       hasPersistentWrites ||
       routineProposal,
@@ -807,6 +815,10 @@ function getSearchOnlyTinyfishLimits(userMessage: string) {
 }
 
 function getMaxToolSteps(toolPlan: ToolPlan) {
+  if (toolPlan.agentic) {
+    return 5;
+  }
+
   if (
     toolPlan.webSearch &&
     !toolPlan.webFetch &&
@@ -833,6 +845,10 @@ function getStreamStepLimit(toolPlan: ToolPlan, directWebSearchUsed: boolean) {
 function createToolLoopPrepareStep(
   toolPlan: ToolPlan,
 ): PrepareStepFunction<ToolSet> | undefined {
+  if (toolPlan.agentic) {
+    return createAgenticToolLoopPrepareStep(toolPlan);
+  }
+
   const routineEligible = toolPlan.routineProposal;
 
   if (routineEligible) {
@@ -876,8 +892,70 @@ function createToolLoopPrepareStep(
   };
 }
 
+function createAgenticToolLoopPrepareStep(
+  toolPlan: ToolPlan,
+): PrepareStepFunction<ToolSet> | undefined {
+  if (!toolPlan.rag && !toolPlan.routineProposal && !toolPlan.webFetch) {
+    return undefined;
+  }
+
+  return ({ steps }) => {
+    const usedTools = new Set(
+      steps.flatMap((step) =>
+        (step.toolCalls ?? []).map((toolCall) => toolCall.toolName),
+      ),
+    );
+    const canFetch = toolPlan.webFetch && hasWebSearchCandidateUrl(steps);
+
+    if (steps.length === 0 && !toolPlan.webFetch) {
+      return undefined;
+    }
+
+    const activeTools = [
+      ...(toolPlan.rag && !usedTools.has("searchRag") ? ["searchRag"] : []),
+      ...(toolPlan.webSearch && !usedTools.has("tinyfishSearch")
+        ? ["tinyfishSearch"]
+        : []),
+      ...(canFetch && !usedTools.has("tinyfishFetch") ? ["tinyfishFetch"] : []),
+      ...(toolPlan.memoryRead ? ["getMemories", "getUserContext"] : []),
+      ...(toolPlan.memoryDelete ? ["deleteMemory"] : []),
+      ...(toolPlan.profileWrite ? ["updateProfile"] : []),
+      ...(toolPlan.preferenceWrite ? ["updatePreferences"] : []),
+      ...(toolPlan.notesWrite ? ["addNotes"] : []),
+      ...(toolPlan.routineProposal && !usedTools.has("proposeRoutine")
+        ? ["proposeRoutine"]
+        : []),
+    ];
+
+    return activeTools.length > 0
+      ? { activeTools, toolChoice: "auto" }
+      : { activeTools: [], toolChoice: "none" };
+  };
+}
+
+function hasWebSearchCandidateUrl(
+  steps: Array<{
+    toolResults?: Array<{ toolName: string; output: unknown }>;
+  }>,
+) {
+  return steps.some((step) =>
+    step.toolResults?.some((toolResult) => {
+      if (toolResult.toolName !== "tinyfishSearch") return false;
+      const output = toolResult.output as {
+        results?: Array<{ url?: unknown }>;
+      };
+      return Boolean(
+        output.results?.some(
+          (result) => typeof result.url === "string" && isHttpUrl(result.url),
+        ),
+      );
+    }),
+  );
+}
+
 function shouldUseDirectWebSearch(userMessage: string, toolPlan: ToolPlan) {
   return (
+    !toolPlan.agentic &&
     toolPlan.webSearch &&
     !toolPlan.webFetch &&
     !toolPlan.hasPersistentWrites &&
@@ -1397,7 +1475,11 @@ export async function streamChat({
       : turnPlan.promptProfile === "guest"
         ? "guest"
         : "full";
-  const toolPlan = toolPlanFromTurnPlan(turnPlan, userMessage);
+  const toolPlan = toolPlanFromTurnPlan(
+    turnPlan,
+    userMessage,
+    capabilityPlannerMode,
+  );
   const classifierRagEnabled =
     capabilityDecision.source !== "fallback" && capabilityDecision.rag;
   const userContextEnabled = turnPlan.capabilities.userContext;
@@ -1534,7 +1616,7 @@ export async function streamChat({
   };
 
   const ragPromise =
-    isGuest || !turnPlan.capabilities.rag
+    isGuest || capabilityPlannerMode === "agentic" || !turnPlan.capabilities.rag
       ? Promise.resolve({
           ragContext: undefined,
           ragUsed: false,
@@ -1582,6 +1664,10 @@ export async function streamChat({
     conversationHistoryPromise,
     directWebSearchPromise,
   ]);
+  const ragUsage = {
+    used: ragUsed,
+    chunkCount: ragChunksCount,
+  };
 
   // Analyze user style from history (heuristic)
   const userStyleInstruction = analyzeUserStyle(conversationHistory);
@@ -1967,8 +2053,8 @@ export async function streamChat({
                 toolExecutionMs: toolTimingState.toolExecutionMs,
               }
             : undefined,
-        ragUsed,
-        ragChunksCount,
+        ragUsed: ragUsage.used,
+        ragChunksCount: ragUsage.chunkCount,
       });
       captureAiGenerationMetadata({ context: telemetryContext, metrics });
 
@@ -2028,11 +2114,26 @@ export async function streamChat({
           const tr = step.toolResults?.[i] as
             | { output?: unknown; result?: unknown }
             | undefined;
+          const toolResult = tr?.output ?? tr?.result;
           collectedToolCalls.push({
             name: tc.toolName,
             args: tc.input ?? tc.args,
-            result: tr?.output ?? tr?.result,
+            result: toolResult,
           });
+          if (tc.toolName === "searchRag") {
+            const ragToolResult = toolResult as
+              | { success?: unknown; chunkCount?: unknown }
+              | undefined;
+            if (
+              ragToolResult?.success === true &&
+              typeof ragToolResult.chunkCount === "number" &&
+              Number.isInteger(ragToolResult.chunkCount) &&
+              ragToolResult.chunkCount > 0
+            ) {
+              ragUsage.used = true;
+              ragUsage.chunkCount = ragToolResult.chunkCount;
+            }
+          }
         }
       } else if (sawToolStep) {
         toolTiming.finalModelStepMs =
