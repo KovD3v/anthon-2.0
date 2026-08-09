@@ -72,3 +72,29 @@ GREEN commands and output:
 - No test hung.
 - Vitest emits pre-existing Vite/module-type warnings about native config loading and `postcss.config.ts`; the focused suites still exited successfully. They are outside Task 3 scope.
 - The full repository suite was not run; the approved Task 3 focused suite, scoped Biome, and diff checks were run.
+
+## Fix round 1: per-turn routine proposal execution guard
+
+### Review finding
+
+`prepareStep` removes `proposeRoutine` only after a completed model step. Two provider tool calls in the first step could therefore both execute because the routine factory had no independent per-turn execution ceiling.
+
+### Change
+
+- `src/lib/ai/tools/routine-proposal.ts`
+  - Added factory-local `proposalCreated` state. It is set synchronously before returning the first proposal, so concurrent same-step calls observe the limit.
+  - The first valid call returns `{ proposal }`; every later call from the same factory returns `{ proposal: null }`. The tool remains proposal-only and performs no persistence.
+- `src/lib/ai/tools/routine-proposal.test.ts`
+  - Added a `Promise.all` regression that invokes the same tool twice concurrently, representing two calls from one model step. It proves only one proposal is returned and no persistence occurs.
+
+### TDD evidence
+
+- RED: `bunx vitest run src/lib/ai/tools/routine-proposal.test.ts`
+  - Failed 1/2 tests: the second concurrent call returned a second proposal instead of `{ proposal: null }`.
+- GREEN: `bunx vitest run src/lib/ai/tools/routine-proposal.test.ts src/lib/ai/routine-model-contract.test.ts`
+  - Passed: 2 files, 9 tests.
+
+### Fix-round self-review
+
+- The ceiling is enforced at the execute boundary, rather than relying on `parallelToolCalls` or a future `prepareStep` invocation.
+- RAG, TinyFish/web inventory, prompt policy, and persistent-tool policy are unchanged.

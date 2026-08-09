@@ -76,4 +76,31 @@ describe("createRoutineProposalTool", () => {
     expect(result).toEqual({ proposal });
     expect(prismaMock.routine.create).not.toHaveBeenCalled();
   });
+
+  it("returns only one proposal when two calls arrive in the same step", async () => {
+    const proposal = {
+      formatVersion: 2,
+      title: "Reset pre-gara",
+      trigger: "Quando sento salire la pressione prima della partita",
+      durationLabel: "90 secondi",
+      steps: [
+        {
+          id: "first-gesture",
+          kind: "instruction",
+          text: "Scegli il primo gesto semplice e riparti da lì.",
+        },
+      ],
+      completionCue: "Inizio il primo punto con presenza.",
+    } satisfies RoutineProposalV2;
+    const tool = createRoutineProposalTool().proposeRoutine;
+
+    const [first, second] = await Promise.all([
+      tool.execute(proposal, {} as never),
+      tool.execute(proposal, {} as never),
+    ]);
+
+    expect(first).toEqual({ proposal });
+    expect(second).toEqual({ proposal: null });
+    expect(prismaMock.routine.create).not.toHaveBeenCalled();
+  });
 });
