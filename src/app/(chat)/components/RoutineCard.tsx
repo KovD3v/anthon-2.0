@@ -480,6 +480,7 @@ export function RoutineCard({
         confirmText={options.confirmText}
         cancelText={options.cancelText}
         variant={options.variant}
+        dismissOnOutside
       />
     </section>
   );

@@ -281,6 +281,9 @@ describe("RoutineCard active lifecycle", () => {
     expect(
       screen.getByRole("alertdialog", { name: "Interrompere la routine?" }),
     ).toBeTruthy();
+    expect(
+      screen.getByText("Il progresso di questa sessione non verrà salvato."),
+    ).toBeTruthy();
     expect(screen.getByText("Routine guidata")).toBeTruthy();
   });
 
@@ -297,6 +300,51 @@ describe("RoutineCard active lifecycle", () => {
     await user.click(screen.getByRole("button", { name: "Fatto" }));
     await user.click(screen.getByRole("button", { name: "Chiudi" }));
     await user.click(screen.getByRole("button", { name: "Continua" }));
+
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByText("Routine guidata")).toBeTruthy();
+    expect(onCreateAttempt).not.toHaveBeenCalled();
+  });
+
+  it("keeps a progressed runner open when Escape dismisses its interruption confirmation", async () => {
+    const user = userEvent.setup();
+    const onCreateAttempt = vi.fn();
+    renderProposal({
+      proposal: interactiveProposal,
+      routine: interactiveRoutine,
+      onCreateAttempt,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Avvia routine" }));
+    await user.click(screen.getByRole("button", { name: "Fatto" }));
+    await user.click(screen.getByRole("button", { name: "Chiudi" }));
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByText("Routine guidata")).toBeTruthy();
+    expect(onCreateAttempt).not.toHaveBeenCalled();
+  });
+
+  it("keeps a progressed runner open when the confirmation backdrop is clicked", async () => {
+    const user = userEvent.setup();
+    const onCreateAttempt = vi.fn();
+    renderProposal({
+      proposal: interactiveProposal,
+      routine: interactiveRoutine,
+      onCreateAttempt,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Avvia routine" }));
+    await user.click(screen.getByRole("button", { name: "Fatto" }));
+    await user.click(screen.getByRole("button", { name: "Chiudi" }));
+    const backdrop = document.querySelector<HTMLElement>(
+      '[data-slot="dialog-overlay"]',
+    );
+
+    if (!backdrop) {
+      throw new Error("Expected the dismissible confirmation backdrop");
+    }
+    await user.click(backdrop);
 
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(screen.getByText("Routine guidata")).toBeTruthy();
