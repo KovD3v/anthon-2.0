@@ -83,6 +83,7 @@ export type TurnPlanInput = {
   outputMode: TurnPlan["outputMode"];
   webSearchEnabled: boolean;
   webFetchEnabled: boolean;
+  capabilityMode?: "legacy" | "agentic";
   allowConcurrentRagAndWeb?: boolean;
   capabilityDecision?: {
     rag: boolean;
@@ -107,10 +108,12 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
   const text = input.userMessage.trim();
   const reasonCodes: TurnPlanReasonCode[] = [];
   const classifier = input.classifier;
-  const agenticDecision =
-    input.allowConcurrentRagAndWeb === true
-      ? input.capabilityDecision
-      : undefined;
+  const agenticCapabilityMode =
+    input.capabilityMode === "agentic" ||
+    input.allowConcurrentRagAndWeb === true;
+  const agenticDecision = agenticCapabilityMode
+    ? input.capabilityDecision
+    : undefined;
   const classifierUsed = Boolean(
     classifier?.accepted &&
       (classifier.webSearch ||
@@ -210,9 +213,10 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
     agenticDecision?.voiceOutput ?? input.outputMode === "voice";
   const persistentToolsAllowed = input.persistentToolsAllowed !== false;
   const requestedUserContext =
-    memoryRead ||
-    persistentWrite ||
-    Boolean(classifier?.accepted && classifier.userContext === "needed");
+    agenticDecision?.userContext ??
+    (memoryRead ||
+      persistentWrite ||
+      Boolean(classifier?.accepted && classifier.userContext === "needed"));
 
   if (directMedia) reasonCodes.push("DIRECT_MEDIA");
   if (health) reasonCodes.push("HEALTH_OR_SAFETY");
@@ -244,7 +248,7 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
     !compact &&
     (agenticDecision
       ? agenticDecision.rag
-      : !webSearch || input.allowConcurrentRagAndWeb === true);
+      : !webSearch || agenticCapabilityMode);
   const userContext = agenticDecision
     ? !compact && agenticDecision.userContext
     : !compact && (!webSearch || requestedUserContext);
@@ -306,11 +310,10 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
  * revert behavior immediately while leaving the v2 data model in place.
  */
 export function planLegacyTurn(input: TurnPlanInput): TurnPlan {
-  const plan = planTurn({
-    ...input,
-    allowConcurrentRagAndWeb: false,
-    capabilityDecision: undefined,
-  });
+  const agenticCapabilities =
+    input.capabilityMode === "agentic" ||
+    input.allowConcurrentRagAndWeb === true;
+  const plan = planTurn(input);
   const classifierRequiresFull = Boolean(
     input.classifier?.accepted &&
       (input.classifier.webSearch ||
@@ -356,10 +359,14 @@ export function planLegacyTurn(input: TurnPlanInput): TurnPlan {
             maxRawChars: 12_000,
           },
       capabilities: {
-        ...plan.capabilities,
-        rag: true,
-        userContext: true,
-        voiceOutput: true,
+        ...(agenticCapabilities
+          ? plan.capabilities
+          : {
+              ...plan.capabilities,
+              rag: true,
+              userContext: true,
+              voiceOutput: true,
+            }),
       },
     };
   }
@@ -379,8 +386,8 @@ export function planLegacyTurn(input: TurnPlanInput): TurnPlan {
           maxRawTurns: 3,
           maxRawChars: 4_000,
         },
-    capabilities: emptyCapabilities(),
-    memoryDeleteTarget: null,
+    capabilities: agenticCapabilities ? plan.capabilities : emptyCapabilities(),
+    memoryDeleteTarget: agenticCapabilities ? plan.memoryDeleteTarget : null,
     source: "rule",
     reasonCodes: [...plan.reasonCodes, "ATOMIC_COACHING"],
   };

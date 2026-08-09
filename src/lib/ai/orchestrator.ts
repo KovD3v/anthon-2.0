@@ -833,11 +833,14 @@ function getStreamStepLimit(toolPlan: ToolPlan, directWebSearchUsed: boolean) {
 function createToolLoopPrepareStep(
   toolPlan: ToolPlan,
 ): PrepareStepFunction<ToolSet> | undefined {
-  const routineEligible =
-    toolPlan.routineProposal && !toolPlan.webSearch && !toolPlan.webFetch;
+  const routineEligible = toolPlan.routineProposal;
 
   if (routineEligible) {
-    const postRoutineTools = [...(toolPlan.memoryRead ? ["getMemories"] : [])];
+    const postRoutineTools = [
+      ...(toolPlan.webSearch ? ["tinyfishSearch"] : []),
+      ...(toolPlan.webFetch ? ["tinyfishFetch"] : []),
+      ...(toolPlan.memoryRead ? ["getMemories"] : []),
+    ];
 
     return ({ steps }) => {
       const hasRoutineProposal = steps.some((step) =>
@@ -878,6 +881,7 @@ function shouldUseDirectWebSearch(userMessage: string, toolPlan: ToolPlan) {
     toolPlan.webSearch &&
     !toolPlan.webFetch &&
     !toolPlan.hasPersistentWrites &&
+    !toolPlan.routineProposal &&
     matchesBriefResponseIntent(userMessage)
   );
 }
@@ -1217,6 +1221,7 @@ async function arbitrateCapabilities({
   responseMode,
   webSearchRule,
   resolvedMemoryTarget,
+  capabilityPlannerMode,
   abortSignal,
 }: {
   userId: string;
@@ -1227,11 +1232,12 @@ async function arbitrateCapabilities({
   responseMode: "text" | "voice";
   webSearchRule: ReturnType<typeof evaluateWebSearchRule>;
   resolvedMemoryTarget: string | null;
+  capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
   abortSignal?: AbortSignal;
 }): Promise<CapabilityDecision> {
   const explicitWebRule = getExplicitWebRule(webSearchRule);
   const classifier =
-    getCapabilityPlannerMode() === "agentic"
+    capabilityPlannerMode === "agentic"
       ? await classifyCapabilities({
           userId,
           userMessage,
@@ -1248,6 +1254,7 @@ async function arbitrateCapabilities({
     voiceAllowed,
     responseMode,
     explicitWebRule,
+    allowConcurrentRoutineAndWeb: capabilityPlannerMode === "agentic",
     resolvedMemoryTarget,
     classifier,
   });
@@ -1330,6 +1337,7 @@ export async function streamChat({
   });
   const hasFileParts = messageParts?.some((p) => p.type === "file") ?? false;
   const webSearchRule = evaluateWebSearchRule(userMessage);
+  const capabilityPlannerMode = getCapabilityPlannerMode();
   const voiceEnabledResult = isGuest
     ? false
     : await (async () => {
@@ -1352,6 +1360,7 @@ export async function streamChat({
     responseMode,
     webSearchRule,
     resolvedMemoryTarget,
+    capabilityPlannerMode,
     abortSignal,
   });
   const inputOrigin =
@@ -1365,7 +1374,8 @@ export async function streamChat({
     outputMode: responseMode,
     webSearchEnabled: capabilityDecision.webSearch,
     webFetchEnabled: capabilityDecision.webFetch,
-    allowConcurrentRagAndWeb: getCapabilityPlannerMode() === "agentic",
+    capabilityMode: capabilityPlannerMode,
+    allowConcurrentRagAndWeb: capabilityPlannerMode === "agentic",
     capabilityDecision,
     persistentToolsAllowed: !benchmarkModelId,
     routineProposalAllowed: !benchmarkModelId,
@@ -2120,6 +2130,7 @@ export async function prepareChatTurn({
       isGuest: false,
     }));
   const webSearchRule = evaluateWebSearchRule(userMessage);
+  const capabilityPlannerMode = getCapabilityPlannerMode();
   const capabilityDecision = await arbitrateCapabilities({
     userId,
     userMessage,
@@ -2129,6 +2140,7 @@ export async function prepareChatTurn({
     responseMode: "text",
     webSearchRule,
     resolvedMemoryTarget,
+    capabilityPlannerMode,
     abortSignal,
   });
   abortSignal?.throwIfAborted();
@@ -2140,7 +2152,8 @@ export async function prepareChatTurn({
     outputMode: "text" as const,
     webSearchEnabled: capabilityDecision.webSearch,
     webFetchEnabled: capabilityDecision.webFetch,
-    allowConcurrentRagAndWeb: getCapabilityPlannerMode() === "agentic",
+    capabilityMode: capabilityPlannerMode,
+    allowConcurrentRagAndWeb: capabilityPlannerMode === "agentic",
     capabilityDecision,
     persistentToolsAllowed: false,
     routineProposalAllowed: false,

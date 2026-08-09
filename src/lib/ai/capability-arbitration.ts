@@ -39,6 +39,7 @@ export type CapabilityArbitrationInput = {
   voiceAllowed: boolean;
   responseMode: "text" | "voice";
   explicitWebRule: "required" | "allowed" | "forbidden";
+  allowConcurrentRoutineAndWeb?: boolean;
   resolvedMemoryTarget?: string | null;
   classifier: Partial<CapabilityDecision> | null;
 };
@@ -271,7 +272,7 @@ export function normalizeCapabilityDecision(
   const routineProposal =
     (matchesRoutineProposalIntent(input.userMessage) ||
       proposed("routineProposal")) &&
-    !webSearch &&
+    (input.allowConcurrentRoutineAndWeb === true || !webSearch) &&
     input.responseMode !== "voice";
   const voiceOutput = input.responseMode === "voice" && input.voiceAllowed;
   if (input.responseMode === "voice" && !input.voiceAllowed) {

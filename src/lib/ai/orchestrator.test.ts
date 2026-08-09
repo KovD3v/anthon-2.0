@@ -2358,6 +2358,95 @@ describe("ai/orchestrator", () => {
     expect(streamInput.prepareStep).toEqual(expect.any(Function));
   });
 
+  it("composes agentic capabilities with legacy turn planning without divergence", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_TURN_PLANNER_MODE", "legacy");
+    mocks.classifyCapabilities.mockResolvedValueOnce({
+      rag: true,
+      routineProposal: true,
+    });
+    mocks.getRagContext.mockResolvedValueOnce({
+      text: "**Documento allenamento**\ncontenuto rilevante",
+      chunkCount: 1,
+    });
+    const onFinish = vi.fn();
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-agentic-legacy-composition",
+      userMessage:
+        "Dimentica questa informazione, cerca online fonti e confrontale con i documenti caricati; poi dammi una routine pratica.",
+      resolvedMemoryTarget: "training_goal",
+      onFinish,
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+      prepareStep: (input: {
+        steps: Array<{ toolCalls?: Array<{ toolName?: string }> }>;
+      }) => unknown;
+      onEnd: (input: {
+        text: string;
+        usage: {
+          inputTokens: number;
+          outputTokens: number;
+          totalTokens: number;
+        };
+        providerMetadata: Record<string, unknown>;
+      }) => Promise<void>;
+    };
+
+    expect(streamInput.instructions).toContain("**Documento allenamento**");
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+        proposeRoutine: "routine-proposal-tool",
+        deleteMemory: "memory-delete-tool",
+      }),
+    );
+    expect(mocks.isStepCount).toHaveBeenCalledWith(5);
+    expect(streamInput.prepareStep({ steps: [] })).toEqual({
+      activeTools: ["proposeRoutine"],
+      toolChoice: { type: "tool", toolName: "proposeRoutine" },
+    });
+    expect(
+      streamInput.prepareStep({
+        steps: [{ toolCalls: [{ toolName: "proposeRoutine" }] }],
+      }),
+    ).toEqual({
+      activeTools: ["tinyfishSearch", "tinyfishFetch"],
+      toolChoice: "auto",
+    });
+    expect(mocks.createMemoryTools).toHaveBeenCalledWith("user-1", {
+      deleteTargetKey: "training_goal",
+    });
+
+    await streamInput.onEnd({
+      text: "assistant response",
+      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      providerMetadata: {},
+    });
+
+    expect(onFinish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metrics: expect.objectContaining({
+          turnPlan: expect.objectContaining({
+            memoryDeleteTarget: "training_goal",
+            capabilities: expect.objectContaining({
+              webSearch: true,
+              webFetch: true,
+              rag: true,
+              memoryDelete: true,
+              routineProposal: true,
+            }),
+          }),
+        }),
+      }),
+    );
+  });
+
   it("does not expose memory deletion for a generic forget request", async () => {
     await streamChat({
       userId: "user-1",

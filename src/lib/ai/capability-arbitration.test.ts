@@ -31,6 +31,18 @@ describe("capability arbitration", () => {
     expect(decision.source).toBe("classifier");
   });
 
+  it("keeps an agentic routine proposal alongside required web research", () => {
+    const decision = arbitrate({
+      explicitWebRule: "required",
+      allowConcurrentRoutineAndWeb: true,
+      classifier: { rag: true, routineProposal: true },
+    });
+
+    expect(decision.webSearch).toBe(true);
+    expect(decision.rag).toBe(true);
+    expect(decision.routineProposal).toBe(true);
+  });
+
   it("clears classifier web capabilities when the web rule forbids them", () => {
     const decision = arbitrate({
       explicitWebRule: "forbidden",

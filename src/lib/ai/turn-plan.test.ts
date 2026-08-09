@@ -78,7 +78,17 @@ describe("turn plan", () => {
       webSearchEnabled: true,
       webFetchEnabled: true,
       allowConcurrentRagAndWeb: true,
-      classifier: { accepted: true, rag: true },
+      capabilityDecision: {
+        webSearch: true,
+        webFetch: true,
+        rag: true,
+        userContext: false,
+        memoryRead: false,
+        memoryWrite: false,
+        memoryDelete: false,
+        routineProposal: false,
+        voiceOutput: false,
+      },
     });
 
     expect(result.capabilities).toMatchObject({
@@ -91,6 +101,38 @@ describe("turn plan", () => {
       memoryDelete: false,
       routineProposal: false,
       voiceOutput: false,
+    });
+  });
+
+  it("keeps normalized agentic capabilities when legacy turn planning is enabled", () => {
+    const result = planLegacyTurn({
+      userMessage: "Motivami",
+      isGuest: false,
+      isFirstTurn: false,
+      inputOrigin: "text",
+      outputMode: "text",
+      webSearchEnabled: true,
+      webFetchEnabled: true,
+      allowConcurrentRagAndWeb: true,
+      capabilityDecision: {
+        webSearch: true,
+        webFetch: true,
+        rag: true,
+        userContext: false,
+        memoryRead: false,
+        memoryWrite: false,
+        memoryDelete: false,
+        routineProposal: true,
+        voiceOutput: false,
+      },
+      fullMaxRawTurns: 10,
+    });
+
+    expect(result.capabilities).toMatchObject({
+      webSearch: true,
+      webFetch: true,
+      rag: true,
+      routineProposal: true,
     });
   });
 
