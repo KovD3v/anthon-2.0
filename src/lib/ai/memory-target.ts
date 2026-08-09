@@ -2,6 +2,8 @@ const EXACT_STABLE_MEMORY_KEY = /^[a-z][a-z0-9_]{0,127}$/;
 
 const EXPLICIT_FORGET =
   /\b(?:dimentica|forget)\b[^.!?]{0,100}(?:\bche\b|\b(?:questa|questo|quella|quello|this|that)\s+(?:memoria|ricordo|dato|informazione|preferenza|fatto|memory|fact|preference)\b|\b(?:la mia|il mio|le mie|i miei|my)\b|\b(?:memoria|ricordo|dato|informazione|profilo|preferenza|fatto|memory|fact|preference|profile)\b)|\b(?:cancella|elimina|rimuovi|delete|remove)\b[^.!?]{0,100}\b(?:memoria|ricordo|dato|informazione|profilo|preferenza|fatto|memory|fact|preference|profile)\b/i;
+const ANAPHORIC_FORGET =
+  /^\s*(?:per favore\s+|please\s+)?(?:dimentica|forget)\s+(?:questa|questo|quella|quello|this|that)(?:\s+(?:cosa|memoria|ricordo|dato|informazione|preferenza|fatto|thing|memory|fact|information|preference))?\s*[.!?]*\s*$/i;
 const NON_TARGET_WORDS = new Set([
   "che",
   "questa",
@@ -85,10 +87,129 @@ function memoryContent(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+function compactText(value: string) {
+  return normalizeText(value)
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function hasStrongContextMatch(content: string, context: string) {
+  const compactContent = compactText(content);
+  if (!compactContent) return false;
+
+  const compactContext = compactText(context);
+  if (
+    compactContent.length >= 5 &&
+    ` ${compactContext} `.includes(` ${compactContent} `)
+  ) {
+    return true;
+  }
+
+  const contentTokens = [...new Set(tokenize(content))];
+  if (contentTokens.length < 2) return false;
+
+  const contextTokens = new Set(tokenize(context));
+  const overlap = contentTokens.filter((token) => contextTokens.has(token));
+  return overlap.length >= 2 && overlap.length / contentTokens.length >= 0.8;
+}
+
+async function getImmediatelyPrecedingContext(input: {
+  userId: string;
+  conversationThreadId: string;
+  currentUserMessageId: string;
+}): Promise<string | null> {
+  const { prisma } = await import("@/lib/db");
+  const currentMessage = await prisma.message.findFirst({
+    where: {
+      id: input.currentUserMessageId,
+      userId: input.userId,
+      conversationThreadId: input.conversationThreadId,
+      direction: "INBOUND",
+      role: "USER",
+      deletedAt: null,
+    },
+    select: { createdAt: true },
+  });
+  if (!currentMessage) return null;
+
+  const previousInboundMessage = await prisma.message.findFirst({
+    where: {
+      userId: input.userId,
+      conversationThreadId: input.conversationThreadId,
+      direction: "INBOUND",
+      role: "USER",
+      deletedAt: null,
+      createdAt: { lt: currentMessage.createdAt },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      parts: true,
+      generatedResponse: {
+        select: {
+          userId: true,
+          conversationThreadId: true,
+          direction: true,
+          role: true,
+          deletedAt: true,
+          parts: true,
+        },
+      },
+    },
+  });
+  if (!previousInboundMessage) return null;
+
+  const response = previousInboundMessage.generatedResponse;
+  if (
+    response &&
+    (response.userId !== input.userId ||
+      response.conversationThreadId !== input.conversationThreadId ||
+      response.direction !== "OUTBOUND" ||
+      response.role !== "ASSISTANT" ||
+      response.deletedAt !== null)
+  ) {
+    return null;
+  }
+
+  const { getTextFromParts } = await import("@/lib/utils/message-parts");
+  return [
+    getTextFromParts(previousInboundMessage.parts),
+    response ? getTextFromParts(response.parts) : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export async function resolveExactMemoryDeleteTarget(input: {
   userId: string;
   userMessage: string;
+  conversationThreadId?: string;
+  currentUserMessageId?: string;
 }): Promise<string | null> {
+  if (ANAPHORIC_FORGET.test(input.userMessage)) {
+    if (!input.conversationThreadId || !input.currentUserMessageId) return null;
+
+    const context = await getImmediatelyPrecedingContext({
+      userId: input.userId,
+      conversationThreadId: input.conversationThreadId,
+      currentUserMessageId: input.currentUserMessageId,
+    });
+    if (!context) return null;
+
+    const { prisma } = await import("@/lib/db");
+    const memories = await prisma.memory.findMany({
+      where: { userId: input.userId },
+      select: { key: true, category: true, value: true },
+    });
+    const matches = memories.filter(
+      (memory) =>
+        isExactStableMemoryKey(memory.key) &&
+        !BROAD_STABLE_KEYS.has(memory.key) &&
+        hasStrongContextMatch(memoryContent(memory.value), context),
+    );
+
+    return matches.length === 1 ? (matches[0]?.key ?? null) : null;
+  }
+
   if (!EXPLICIT_FORGET.test(input.userMessage)) return null;
 
   const queryTokens = new Set(tokenize(input.userMessage));

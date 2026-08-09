@@ -1075,6 +1075,8 @@ describe("channel-flow/run", () => {
       expect(mocks.resolveExactMemoryDeleteTarget).toHaveBeenCalledWith({
         userId: "user-1",
         userMessage: "Dimentica la mia preferenza: mi alleno al mattino.",
+        conversationThreadId: "thread-1",
+        currentUserMessageId: "inbound-delete",
       });
       expect(mocks.streamChat).toHaveBeenCalledWith(
         expect.objectContaining({ resolvedMemoryTarget: "training_schedule" }),

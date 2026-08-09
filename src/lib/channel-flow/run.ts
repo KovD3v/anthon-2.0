@@ -459,6 +459,8 @@ export async function runChannelFlow(
       ? resolveExactMemoryDeleteTarget({
           userId: ctx.userId,
           userMessage: ctx.userMessageText,
+          conversationThreadId: ctx.conversationThreadId,
+          currentUserMessageId: ctx.userMessageId,
         })
       : Promise.resolve(null),
   ]);
