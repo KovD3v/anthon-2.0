@@ -5,7 +5,7 @@ const EXPLICIT_FORGET =
 const ANAPHORIC_FORGET =
   /^\s*(?:per favore\s+|please\s+)?(?:dimentica|forget)\s+(?:questa|questo|quella|quello|this|that)(?:\s+(?:cosa|memoria|ricordo|dato|informazione|preferenza|fatto|thing|memory|fact|information|preference))?\s*[.!?]*\s*$/i;
 const COACHING_CONTINUATION =
-  /(?:\be\b|\band\b|[,;:\u2014-])\s*(?:concentrati|focalizzati|riparti|pensa\b|guarda\s+avanti\b|vai\s+avanti\b|focus\b|refocus\b|restart\b|think\b|move\s+on\b)/i;
+  /(?:\be\b|\band\b|[.!?,;:\u2014-])\s*(?:(?:poi|then)\s+)?(?:(?:prova|cerca|try)\s+(?:a|di|to)\s+)?(?:concentrati|focalizzati|riparti|pensa\b|guarda\s+avanti\b|vai\s+avanti\b|focus\b|refocus\b|restart\b|think\b|move\s+on\b)/i;
 const STABLE_FACT_SIGNAL =
   /\b(?:mi\s+(?:alleno|chiamo|sento|trovo)|(?:vivo|abito|sono|ho|faccio|pratico|preferisco|voglio|lavoro|studio|uso|seguo|mangio|dormo|corro|gioco)|ti\s+(?:alleni|chiami|senti|trovi)|(?:vivi|abiti|sei|hai|fai|pratichi|preferisci|vuoi|lavori|studi|usi|segui|mangi|dormi|corri|giochi)|i\s+(?:am|have|live|train|prefer|want|work|study|use|follow|eat|sleep|run|play)|you\s+(?:are|have|live|train|prefer|want|work|study|use|follow|eat|sleep|run|play))\b/i;
 const FACT_TOKEN_CANONICAL: Record<string, string> = {
@@ -133,7 +133,7 @@ function hasStrongContextMatch(content: string, context: string) {
 
 function stableFactCandidates(value: string) {
   return value
-    .split(/(?:\r?\n|[.!?;]+|\s+(?:e|and)\s+)/i)
+    .split(/(?:\r?\n|[,.!?;]+|\s+(?:e|and|ma|but)\s+)/i)
     .map((candidate) => candidate.trim())
     .filter(
       (candidate) =>
@@ -182,6 +182,20 @@ async function getImmediatelyPrecedingContext(input: {
     select: { createdAt: true },
   });
   if (!currentMessage) return null;
+
+  const tiedInboundMessage = await prisma.message.findFirst({
+    where: {
+      id: { not: input.currentUserMessageId },
+      userId: input.userId,
+      conversationThreadId: input.conversationThreadId,
+      direction: "INBOUND",
+      role: "USER",
+      deletedAt: null,
+      createdAt: currentMessage.createdAt,
+    },
+    select: { id: true },
+  });
+  if (tiedInboundMessage) return null;
 
   const previousInboundMessage = await prisma.message.findFirst({
     where: {

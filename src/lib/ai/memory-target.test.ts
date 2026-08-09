@@ -21,6 +21,7 @@ describe("ai/memory-target", () => {
   it("resolves a unique forget-this target from the immediately preceding turn", async () => {
     messageFindFirst
       .mockResolvedValueOnce({ createdAt: new Date("2026-08-10T10:01:00Z") })
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         parts: [{ type: "text", text: "Va bene, tienilo a mente." }],
         generatedResponse: {
@@ -69,6 +70,18 @@ describe("ai/memory-target", () => {
     });
     expect(messageFindFirst).toHaveBeenNthCalledWith(2, {
       where: {
+        id: { not: "inbound-current" },
+        userId: "user-1",
+        conversationThreadId: "thread-1",
+        direction: "INBOUND",
+        role: "USER",
+        deletedAt: null,
+        createdAt: new Date("2026-08-10T10:01:00Z"),
+      },
+      select: { id: true },
+    });
+    expect(messageFindFirst).toHaveBeenNthCalledWith(3, {
+      where: {
         userId: "user-1",
         conversationThreadId: "thread-1",
         direction: "INBOUND",
@@ -96,6 +109,7 @@ describe("ai/memory-target", () => {
   it("does nothing when the preceding context strongly matches multiple memories", async () => {
     messageFindFirst
       .mockResolvedValueOnce({ createdAt: new Date("2026-08-10T10:01:00Z") })
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         parts: [
           {
@@ -131,6 +145,7 @@ describe("ai/memory-target", () => {
   it("does nothing when the preceding turn has two facts but only one stored memory", async () => {
     messageFindFirst
       .mockResolvedValueOnce({ createdAt: new Date("2026-08-10T10:01:00Z") })
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         parts: [
           {
@@ -160,9 +175,47 @@ describe("ai/memory-target", () => {
     expect(memoryFindMany).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "Mi alleno al mattino, vivo a Roma.",
+    "Mi alleno al mattino ma vivo a Roma.",
+    "I train in the morning but I live in Rome.",
+  ])(
+    "does not query memory when punctuation or contrast makes the preceding context ambiguous: %s",
+    async (precedingMessage) => {
+      messageFindFirst
+        .mockResolvedValueOnce({
+          createdAt: new Date("2026-08-10T10:01:00Z"),
+        })
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          parts: [{ type: "text", text: precedingMessage }],
+          generatedResponse: null,
+        });
+      memoryFindMany.mockResolvedValue([
+        {
+          key: "training_schedule",
+          category: "schedule",
+          value: { content: "Mi alleno al mattino" },
+        },
+      ]);
+
+      await expect(
+        resolveExactMemoryDeleteTarget({
+          userId: "user-1",
+          userMessage: "Dimentica questa cosa",
+          conversationThreadId: "thread-1",
+          currentUserMessageId: "inbound-current",
+        }),
+      ).resolves.toBeNull();
+
+      expect(memoryFindMany).not.toHaveBeenCalled();
+    },
+  );
+
   it("resolves a generic forget when the preceding turn identifies one fact", async () => {
     messageFindFirst
       .mockResolvedValueOnce({ createdAt: new Date("2026-08-10T10:01:00Z") })
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         parts: [{ type: "text", text: "Mi alleno al mattino." }],
         generatedResponse: {
@@ -209,6 +262,7 @@ describe("ai/memory-target", () => {
   it("fails closed when the preceding generated response is not server-owned", async () => {
     messageFindFirst
       .mockResolvedValueOnce({ createdAt: new Date("2026-08-10T10:01:00Z") })
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         parts: [{ type: "text", text: "Mi alleno al mattino." }],
         generatedResponse: {
@@ -230,6 +284,25 @@ describe("ai/memory-target", () => {
       }),
     ).resolves.toBeNull();
 
+    expect(memoryFindMany).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when another inbound message has the current timestamp", async () => {
+    const createdAt = new Date("2026-08-10T10:01:00Z");
+    messageFindFirst
+      .mockResolvedValueOnce({ createdAt })
+      .mockResolvedValueOnce({ id: "inbound-tied" });
+
+    await expect(
+      resolveExactMemoryDeleteTarget({
+        userId: "user-1",
+        userMessage: "Dimentica questa cosa.",
+        conversationThreadId: "thread-1",
+        currentUserMessageId: "inbound-current",
+      }),
+    ).resolves.toBeNull();
+
+    expect(messageFindFirst).toHaveBeenCalledTimes(2);
     expect(memoryFindMany).not.toHaveBeenCalled();
   });
 
@@ -349,6 +422,8 @@ describe("ai/memory-target", () => {
 
   it.each([
     "Dimentica il mio errore in gara e concentrati.",
+    "Dimentica il mio errore in gara. Concentrati sulla prossima.",
+    "Dimentica il mio errore in gara e prova a ripartire.",
     "Dimentica il mio errore in gara, riparti.",
     "Dimentica il mio errore in gara: pensa alla prossima.",
   ])(
