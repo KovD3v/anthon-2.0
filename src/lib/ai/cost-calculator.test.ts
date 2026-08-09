@@ -21,7 +21,7 @@ describe("ai/cost-calculator", () => {
     vi.useRealTimers();
   });
 
-  it("prefers OpenRouter usage metadata and cost when available", () => {
+  it("uses OpenRouter metadata ephemerally without returning its raw payload", () => {
     const startTime = new Date("2026-02-17T12:00:00.000Z").getTime();
 
     const result = extractAIMetrics(
@@ -56,7 +56,8 @@ describe("ai/cost-calculator", () => {
     expect(result.inputTokens).toBe(100);
     expect(result.outputTokens).toBe(60);
     expect(result.reasoningTokens).toBe(7);
-    expect(result.reasoningContent).toBe("Reasoning text");
+    expect(result).not.toHaveProperty("reasoningContent");
+    expect(result).not.toHaveProperty("providerMetadata");
     expect(result.toolCalls).toEqual([
       { name: "saveMemory", status: "completed" },
     ]);
@@ -66,7 +67,7 @@ describe("ai/cost-calculator", () => {
     expect(result.generationTimeMs).toBe(10_000);
   });
 
-  it("preserves provider metadata and extracts the selected OpenRouter provider", () => {
+  it("keeps only the selected provider scalar from OpenRouter metadata", () => {
     mocks.calculateCost.mockReturnValue({
       inputCost: 0.1,
       outputCost: 0.2,
@@ -91,8 +92,9 @@ describe("ai/cost-calculator", () => {
 
     expect(result).toMatchObject({
       provider: "Fireworks",
-      providerMetadata,
     });
+    expect(result).not.toHaveProperty("providerMetadata");
+    expect(JSON.stringify(result)).not.toContain("promptTokens");
   });
 
   it.each([
@@ -258,7 +260,6 @@ describe("ai/cost-calculator", () => {
       "web",
       "memory",
       "routine",
-      "voice",
     ]);
   });
 

@@ -54,7 +54,7 @@ const finiteLimits = {
   maxContextMessages: 20,
 };
 
-const metrics: AIMetrics = {
+const metrics = {
   model: "test/model",
   provider: "test-provider",
   providerMetadata: { shouldNotBeRecovered: "large" },
@@ -70,7 +70,7 @@ const metrics: AIMetrics = {
   costUsd: 0.02,
   generationTimeMs: 250,
   reasoningTimeMs: 50,
-};
+} as unknown as AIMetrics;
 
 function reservation(overrides: Record<string, unknown> = {}) {
   return {
@@ -186,7 +186,7 @@ describe("AI usage reservations", () => {
     expect(mocks.reservationCreate).toHaveBeenCalledTimes(1);
   });
 
-  it("returns bounded recovery without invoking a second reservation", async () => {
+  it("strips legacy raw metadata from recovery without invoking a second reservation", async () => {
     mocks.reservationFindUnique.mockResolvedValue(
       reservation({
         status: "RECONCILED",
@@ -205,8 +205,21 @@ describe("AI usage reservations", () => {
       allowed: true,
       reservationId: "reservation-1",
       claimToken: "claim-current",
-      recovery: { text: "saved provider output", metrics },
+      recovery: {
+        text: "saved provider output",
+        metrics: {
+          model: "test/model",
+          provider: "test-provider",
+        },
+      },
     });
+    if (!result.allowed || !result.recovery) {
+      throw new Error("Expected a recovered result");
+    }
+    expect(result.recovery.metrics).not.toHaveProperty("providerMetadata");
+    expect(result.recovery.metrics).not.toHaveProperty("reasoningContent");
+    expect(JSON.stringify(result)).not.toContain("shouldNotBeRecovered");
+    expect(JSON.stringify(result)).not.toContain("private chain");
     expect(mocks.dailyUsageFindUnique).not.toHaveBeenCalled();
     expect(mocks.reservationCreate).not.toHaveBeenCalled();
   });
@@ -225,7 +238,6 @@ describe("AI usage reservations", () => {
           inputTokens: 4,
           outputTokens: 2,
           reasoningTokens: null,
-          reasoningContent: null,
           toolCalls: null,
           ragUsed: false,
           ragChunksCount: 0,
@@ -237,13 +249,13 @@ describe("AI usage reservations", () => {
       }),
     );
 
-    await expect(
-      reserveAiUsage({
-        userId: "user-1",
-        requestKey: "message-1",
-        limits: finiteLimits,
-      }),
-    ).resolves.toMatchObject({
+    const result = await reserveAiUsage({
+      userId: "user-1",
+      requestKey: "message-1",
+      limits: finiteLimits,
+    });
+
+    expect(result).toMatchObject({
       allowed: true,
       persistedAssistant: {
         messageId: "assistant-1",
@@ -251,6 +263,15 @@ describe("AI usage reservations", () => {
         metrics: { inputTokens: 4, outputTokens: 2 },
       },
     });
+    if (!result.allowed || !result.persistedAssistant) {
+      throw new Error("Expected a persisted assistant replay");
+    }
+    expect(result.persistedAssistant.metrics).not.toHaveProperty(
+      "providerMetadata",
+    );
+    expect(result.persistedAssistant.metrics).not.toHaveProperty(
+      "reasoningContent",
+    );
     expect(mocks.reservationCreate).not.toHaveBeenCalled();
   });
 
@@ -343,9 +364,9 @@ describe("AI usage reservations", () => {
       model: "test/model",
       inputTokens: 12,
       outputTokens: 7,
-      reasoningContent: null,
       toolCalls: null,
     });
+    expect(persisted.recoveryMetrics).not.toHaveProperty("reasoningContent");
     expect(persisted.recoveryMetrics).not.toHaveProperty("providerMetadata");
     expect(persisted.recoveryExpiresAt).toBeInstanceOf(Date);
   });

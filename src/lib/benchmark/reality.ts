@@ -1810,7 +1810,6 @@ function fallbackMetrics(modelId: string): AIMetrics {
     inputTokens: 0,
     outputTokens: 0,
     reasoningTokens: null,
-    reasoningContent: null,
     toolCalls: null,
     ragUsed: false,
     ragChunksCount: 0,

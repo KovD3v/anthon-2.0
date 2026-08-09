@@ -96,13 +96,11 @@ function sumSuccessfulMetrics(successfulMetrics: AIMetrics[]): AIMetrics {
   return {
     model: successfulMetrics.map((metrics) => metrics.model).join(" + "),
     provider: null,
-    providerMetadata: null,
     inputTokens: sum((metrics) => metrics.inputTokens),
     outputTokens: sum((metrics) => metrics.outputTokens),
     reasoningTokens: hasReasoningTokens
       ? sum((metrics) => metrics.reasoningTokens ?? 0)
       : null,
-    reasoningContent: null,
     toolCalls: null,
     ragUsed: successfulMetrics.some((metrics) => metrics.ragUsed),
     ragChunksCount: sum((metrics) => metrics.ragChunksCount),
@@ -168,7 +166,6 @@ function metricsFromStoredResponse(
     inputTokens: response.inputTokens ?? 0,
     outputTokens: response.outputTokens ?? 0,
     reasoningTokens: response.reasoningTokens,
-    reasoningContent: null,
     toolCalls: null,
     ragUsed: false,
     ragChunksCount: 0,

@@ -9,6 +9,7 @@ import {
   markChannelConnectDeliverySent,
   markExternalChannelInboundCompleted,
   markExternalChannelInboundFailed,
+  markVoiceCapabilityDelivered,
   prepareChannelConnectRequest,
   prepareExternalChannelInbound,
   runChannelFlow,
@@ -830,18 +831,14 @@ async function handleUpdate(update: TelegramUpdate) {
           );
           if (voiceSent) {
             if (assistantMessageId) {
-              await prisma.message
-                .update({
-                  where: { id: assistantMessageId },
-                  data: { type: "AUDIO", mediaType: "audio/mpeg" },
-                })
-                .catch((error) =>
+              await markVoiceCapabilityDelivered(assistantMessageId).catch(
+                (error) =>
                   telegramLogger.error(
                     "voice.persistence_update_failed",
                     "Failed marking Telegram response as audio",
                     { error, userId: user.id, messageId: assistantMessageId },
                   ),
-                );
+              );
             }
             await trackVoiceUsage(
               user.id,

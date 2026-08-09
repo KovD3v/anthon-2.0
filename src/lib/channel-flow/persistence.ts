@@ -1,6 +1,10 @@
 import type { Prisma } from "@/generated/prisma";
 import { getCapabilityPlannerMode } from "@/lib/ai/capability-arbitration";
-import { normalizeCapabilityUsage } from "@/lib/ai/capability-usage";
+import {
+  appendDeliveredCapabilityToMetadata,
+  appendDeliveredCapabilityToParts,
+  normalizePreDeliveryCapabilityUsage,
+} from "@/lib/ai/capability-usage";
 import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
 import {
@@ -56,7 +60,9 @@ function buildAssistantMetadata(
       : {}),
     ...(metrics.capabilitiesUsed !== undefined
       ? {
-          capabilitiesUsed: normalizeCapabilityUsage(metrics.capabilitiesUsed),
+          capabilitiesUsed: normalizePreDeliveryCapabilityUsage(
+            metrics.capabilitiesUsed,
+          ),
         }
       : {}),
   };
@@ -106,10 +112,34 @@ function buildMessageMetricsData(
     toolTiming: metrics.toolTiming as Prisma.InputJsonValue | undefined,
     ragUsed: metrics.ragUsed,
     ragChunksCount: metrics.ragChunksCount,
-    providerMetadata: metrics.providerMetadata as
-      | Prisma.InputJsonValue
-      | undefined,
   };
+}
+
+export async function markVoiceCapabilityDelivered(messageId: string) {
+  return prisma.$transaction(async (tx) => {
+    const message = await tx.message.findUnique({
+      where: { id: messageId },
+      select: { metadata: true, parts: true },
+    });
+    if (!message) throw new Error("Assistant message not found");
+
+    return tx.message.update({
+      where: { id: messageId },
+      data: {
+        type: "AUDIO",
+        mediaType: "audio/mpeg",
+        metadata: appendDeliveredCapabilityToMetadata(
+          message.metadata,
+          "voice",
+          message.parts,
+        ) as Prisma.InputJsonValue,
+        parts: appendDeliveredCapabilityToParts(
+          message.parts,
+          "voice",
+        ) as Prisma.InputJsonValue,
+      },
+    });
+  });
 }
 
 async function revalidateTags(tags: string[]) {
@@ -169,7 +199,9 @@ export async function persistAssistantOutput({
     ? directRoutineProposal.data
     : getRoutineProposalFromToolCalls(metrics.toolCalls);
   const safeToolCalls = redactToolCalls(metrics.toolCalls);
-  const capabilitiesUsed = normalizeCapabilityUsage(metrics.capabilitiesUsed);
+  const capabilitiesUsed = normalizePreDeliveryCapabilityUsage(
+    metrics.capabilitiesUsed,
+  );
 
   const persisted = await prisma.$transaction(async (tx) => {
     if (userMessageId && externalInboundClaimToken) {
@@ -230,7 +262,6 @@ export async function persistAssistantOutput({
         inputTokens: metrics.inputTokens,
         outputTokens: metrics.outputTokens,
         reasoningTokens: metrics.reasoningTokens,
-        reasoningContent: metrics.reasoningContent,
         toolCalls:
           safeToolCalls.length > 0
             ? (safeToolCalls as Prisma.InputJsonValue)

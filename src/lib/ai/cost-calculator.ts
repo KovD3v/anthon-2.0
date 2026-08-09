@@ -125,11 +125,9 @@ function calculateOpenRouterFallbackCost(
 export interface AIMetrics {
   model: string;
   provider?: string | null;
-  providerMetadata?: Record<string, unknown> | null;
   inputTokens: number;
   outputTokens: number;
   reasoningTokens: number | null;
-  reasoningContent: string | null;
   toolCalls: AIMetricToolCall[] | null;
   toolCallCount?: number;
   toolResultChars?: number;
@@ -177,6 +175,7 @@ interface FinishResultInput {
   ragChunksCount?: number;
   ragAttempted?: boolean;
   routineUsed?: boolean;
+  /** Advisory selection only. Actual voice usage is added after delivery. */
   voiceOutput?: boolean;
 }
 
@@ -239,8 +238,6 @@ export function extractAIMetrics(
     openrouterMeta?.outputTokenDetails?.reasoningTokens ??
     openrouterMeta?.reasoningTokens ??
     null;
-  const reasoningContent = openrouterMeta?.reasoning ?? null;
-
   // Use collected tool calls
   const rawToolCalls = finishResult.collectedToolCalls ?? null;
   const toolCalls = redactToolCalls(rawToolCalls);
@@ -277,7 +274,6 @@ export function extractAIMetrics(
       ? ["memory"]
       : []),
     ...(finishResult.routineUsed === true ? ["routine"] : []),
-    ...(finishResult.voiceOutput === true ? ["voice"] : []),
   ]);
 
   // Calculate cost: prefer OpenRouter's cost if available, otherwise calculate with TokenLens
@@ -302,11 +298,9 @@ export function extractAIMetrics(
   return {
     model: modelId,
     provider: extractProvider(finishResult.providerMetadata),
-    providerMetadata: finishResult.providerMetadata ?? null,
     inputTokens: adjustedInputTokens,
     outputTokens,
     reasoningTokens,
-    reasoningContent,
     toolCalls: toolCalls.length > 0 ? toolCalls : null,
     toolCallCount,
     toolResultChars,

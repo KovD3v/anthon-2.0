@@ -308,12 +308,14 @@ describe("channel-flow/run", () => {
               outputTokens: number;
               reasoningTokens: number | null;
               reasoningContent: string | null;
+              providerMetadata?: Record<string, unknown>;
               toolCalls: null;
               ragUsed: boolean;
               ragChunksCount: number;
               costUsd: number;
               generationTimeMs: number;
               reasoningTimeMs: number | null;
+              capabilitiesUsed?: string[];
             };
           }) => Promise<void>)
         | undefined;
@@ -367,13 +369,17 @@ describe("channel-flow/run", () => {
           inputTokens: 123,
           outputTokens: 45,
           reasoningTokens: null,
-          reasoningContent: null,
+          reasoningContent: "SECRET_FINISH_REASONING",
+          providerMetadata: {
+            openrouter: { requestId: "SECRET_FINISH_PROVIDER" },
+          },
           toolCalls: null,
           ragUsed: false,
           ragChunksCount: 0,
           costUsd: 0.01,
           generationTimeMs: 3210,
           reasoningTimeMs: null,
+          capabilitiesUsed: ["memory", "voice"],
         },
       });
       const response = result.streamResult?.toUIMessageStreamResponse();
@@ -389,6 +395,9 @@ describe("channel-flow/run", () => {
         expect(body).not.toContain("inputTokens");
         expect(body).not.toContain("outputTokens");
       }
+      expect(body).not.toContain("SECRET_FINISH_REASONING");
+      expect(body).not.toContain("SECRET_FINISH_PROVIDER");
+      expect(body).not.toContain('"voice"');
       expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
         expect.objectContaining({
           text: "assistant",

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma";
+import { normalizePreDeliveryCapabilityUsage } from "@/lib/ai/capability-usage";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
 import { prisma } from "@/lib/db";
 import type { RateLimits } from "./types";
@@ -164,7 +165,20 @@ function parseRecovery(
   ) {
     return undefined;
   }
-  return { text, metrics: metrics as unknown as AIMetrics };
+  const {
+    providerMetadata: _providerMetadata,
+    reasoningContent: _reasoningContent,
+    ...safeMetrics
+  } = metrics as Record<string, unknown>;
+  return {
+    text,
+    metrics: {
+      ...safeMetrics,
+      capabilitiesUsed: normalizePreDeliveryCapabilityUsage(
+        safeMetrics.capabilitiesUsed,
+      ),
+    } as unknown as AIMetrics,
+  };
 }
 
 function textFromMessageParts(parts: Prisma.JsonValue | null): string {
@@ -247,10 +261,6 @@ export async function reserveAiUsage({
             metrics: {
               model: assistant.model ?? messageMetrics?.model ?? "persisted",
               provider: messageMetrics?.provider,
-              providerMetadata: messageMetrics?.providerMetadata as Record<
-                string,
-                unknown
-              > | null,
               inputTokens:
                 assistant.inputTokens ?? messageMetrics?.inputTokens ?? 0,
               outputTokens:
@@ -259,7 +269,6 @@ export async function reserveAiUsage({
                 assistant.reasoningTokens ??
                 messageMetrics?.reasoningTokens ??
                 null,
-              reasoningContent: assistant.reasoningContent,
               toolCalls: assistant.toolCalls as AIMetrics["toolCalls"] | null,
               toolCallCount: messageMetrics?.toolCallCount ?? undefined,
               toolResultChars: messageMetrics?.toolResultChars ?? undefined,
@@ -480,18 +489,21 @@ export async function reconcileAiUsageInTransaction(
 }
 
 function recoverableMetrics(metrics: AIMetrics): Prisma.InputJsonValue {
-  const minimal: AIMetrics = {
+  const minimal = {
     model: metrics.model,
     provider: metrics.provider,
     inputTokens: metrics.inputTokens,
     outputTokens: metrics.outputTokens,
     reasoningTokens: metrics.reasoningTokens,
-    reasoningContent: null,
     toolCalls: null,
     toolCallCount: metrics.toolCallCount,
     toolResultChars: metrics.toolResultChars,
+    ragAttempted: metrics.ragAttempted,
     ragUsed: metrics.ragUsed,
     ragChunksCount: metrics.ragChunksCount,
+    capabilitiesUsed: normalizePreDeliveryCapabilityUsage(
+      metrics.capabilitiesUsed,
+    ),
     costUsd: metrics.costUsd,
     generationTimeMs: metrics.generationTimeMs,
     reasoningTimeMs: metrics.reasoningTimeMs,

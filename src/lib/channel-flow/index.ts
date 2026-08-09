@@ -15,6 +15,7 @@ export {
   prepareExternalChannelInbound,
   startExternalInboundLeaseHeartbeat,
 } from "./external-inbound";
+export { markVoiceCapabilityDelivered } from "./persistence";
 export { AssistantPersistenceError, runChannelFlow } from "./run";
 export type {
   ChannelKind,

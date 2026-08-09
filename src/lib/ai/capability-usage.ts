@@ -20,3 +20,87 @@ export function normalizeCapabilityUsage(value: unknown): CapabilityUsage[] {
     requested.has(capability),
   );
 }
+
+/**
+ * Generation finishes before asynchronous audio delivery. Voice therefore
+ * cannot be attributed at this boundary even when it was selected or queued.
+ */
+export function normalizePreDeliveryCapabilityUsage(
+  value: unknown,
+): CapabilityUsage[] {
+  return normalizeCapabilityUsage(value).filter(
+    (capability) => capability !== "voice",
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+export function appendDeliveredCapabilityToMetadata(
+  value: unknown,
+  capability: CapabilityUsage,
+  parts?: unknown,
+): Record<string, unknown> {
+  const metadata = isRecord(value) ? value : {};
+  const ai = isRecord(metadata.ai) ? metadata.ai : {};
+  const partCapabilities = Array.isArray(parts)
+    ? parts.flatMap((part) => {
+        if (!isRecord(part) || part.type !== "data-aiCapabilities") return [];
+        const data = isRecord(part.data) ? part.data : undefined;
+        return Array.isArray(data?.capabilities) ? data.capabilities : [];
+      })
+    : [];
+
+  return {
+    ...metadata,
+    ai: {
+      ...ai,
+      capabilitiesUsed: normalizeCapabilityUsage([
+        ...normalizeCapabilityUsage(ai.capabilitiesUsed),
+        ...partCapabilities,
+        capability,
+      ]),
+    },
+  };
+}
+
+export function appendDeliveredCapabilityToParts(
+  value: unknown,
+  capability: CapabilityUsage,
+): unknown[] {
+  const parts = Array.isArray(value) ? value : [];
+  const capabilities: unknown[] = [];
+  let firstCapabilityPartIndex = -1;
+
+  for (const [index, part] of parts.entries()) {
+    if (!isRecord(part) || part.type !== "data-aiCapabilities") continue;
+
+    if (firstCapabilityPartIndex === -1) firstCapabilityPartIndex = index;
+    const data = isRecord(part.data) ? part.data : undefined;
+    if (Array.isArray(data?.capabilities)) {
+      capabilities.push(...data.capabilities);
+    }
+  }
+
+  const capabilityPart = {
+    type: "data-aiCapabilities",
+    data: {
+      capabilities: normalizeCapabilityUsage([...capabilities, capability]),
+    },
+  };
+
+  if (firstCapabilityPartIndex === -1) {
+    return [...parts, capabilityPart];
+  }
+
+  const result: unknown[] = [];
+  for (const [index, part] of parts.entries()) {
+    if (isRecord(part) && part.type === "data-aiCapabilities") {
+      if (index === firstCapabilityPartIndex) result.push(capabilityPart);
+      continue;
+    }
+    result.push(part);
+  }
+  return result;
+}

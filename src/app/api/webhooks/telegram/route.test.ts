@@ -1543,6 +1543,12 @@ describe("/api/webhooks/telegram", () => {
     );
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "msg_out_1" },
+        data: expect.objectContaining({ parts: expect.any(Array) }),
+      }),
+    );
   });
 
   it("explains an explicit voice request blocked by provider capacity", async () => {
@@ -1932,6 +1938,17 @@ describe("/api/webhooks/telegram", () => {
     mocks.prismaMessageCreate
       .mockResolvedValueOnce({ id: "msg_in_1" })
       .mockResolvedValueOnce({ id: "msg_out_1" });
+    mocks.prismaMessageFindUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        parts: [
+          { type: "text", text: "risposta vocale" },
+          {
+            type: "data-aiCapabilities",
+            data: { capabilities: ["memory"] },
+          },
+        ],
+      });
     mocks.incrementUsage.mockResolvedValue(undefined);
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
     mocks.isElevenLabsConfigured.mockReturnValue(true);
@@ -1995,7 +2012,20 @@ describe("/api/webhooks/telegram", () => {
     );
     expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith({
       where: { id: "msg_out_1" },
-      data: { type: "AUDIO", mediaType: "audio/mpeg" },
+      data: {
+        type: "AUDIO",
+        mediaType: "audio/mpeg",
+        metadata: {
+          ai: { capabilitiesUsed: ["memory", "voice"] },
+        },
+        parts: [
+          { type: "text", text: "risposta vocale" },
+          {
+            type: "data-aiCapabilities",
+            data: { capabilities: ["memory", "voice"] },
+          },
+        ],
+      },
     });
     expect(mocks.shouldGenerateVoice).toHaveBeenCalledWith(
       expect.objectContaining({

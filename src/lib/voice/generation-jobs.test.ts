@@ -89,7 +89,17 @@ function configureReadyTransaction() {
     message: {
       id: "message-1",
       deletedAt: null,
-      metadata: { voice: { status: "processing" } },
+      metadata: {
+        voice: { status: "processing" },
+        ai: { capabilitiesUsed: ["memory"] },
+      },
+      parts: [
+        { type: "text", text: "Respira lentamente." },
+        {
+          type: "data-aiCapabilities",
+          data: { capabilities: ["memory"] },
+        },
+      ],
       chat: { deletedAt: null },
     },
   });
@@ -244,6 +254,26 @@ describe("voice generation jobs", () => {
     expect(mocks.attachmentCreate).toHaveBeenCalledTimes(1);
     expect(mocks.voiceUsageCreate).toHaveBeenCalledTimes(1);
     expect(mocks.dailyUsageUpsert).toHaveBeenCalledTimes(1);
+    expect(mocks.messageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "message-1" },
+        data: expect.objectContaining({
+          type: "AUDIO",
+          mediaType: "audio/mpeg",
+          parts: [
+            { type: "text", text: "Respira lentamente." },
+            {
+              type: "data-aiCapabilities",
+              data: { capabilities: ["memory", "voice"] },
+            },
+          ],
+          metadata: expect.objectContaining({
+            voice: expect.objectContaining({ status: "ready" }),
+            ai: { capabilitiesUsed: ["memory", "voice"] },
+          }),
+        }),
+      }),
+    );
   });
 
   it("schedules a fenced watchdog while another worker owns the lease", async () => {
@@ -305,6 +335,7 @@ describe("voice generation jobs", () => {
     expect(mocks.deletePrivateVoiceBlob).toHaveBeenCalledWith(blobUrl);
     expect(mocks.attachmentCreate).not.toHaveBeenCalled();
     expect(mocks.voiceUsageCreate).not.toHaveBeenCalled();
+    expect(mocks.messageUpdate).not.toHaveBeenCalled();
   });
 
   it("deletes the uploaded object when the worker loses its lease before asset persistence", async () => {

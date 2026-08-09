@@ -9,6 +9,7 @@ import {
   markChannelConnectDeliverySent,
   markExternalChannelInboundCompleted,
   markExternalChannelInboundFailed,
+  markVoiceCapabilityDelivered,
   prepareChannelConnectRequest,
   prepareExternalChannelInbound,
   runChannelFlow,
@@ -838,18 +839,14 @@ async function handleMessage(
 
             if (success) {
               if (assistantMessageId) {
-                await prisma.message
-                  .update({
-                    where: { id: assistantMessageId },
-                    data: { type: "AUDIO", mediaType: "audio/mpeg" },
-                  })
-                  .catch((error) =>
+                await markVoiceCapabilityDelivered(assistantMessageId).catch(
+                  (error) =>
                     whatsappLogger.error(
                       "voice.persistence_update_failed",
                       "Failed marking WhatsApp response as audio",
                       { error, userId: user.id, messageId: assistantMessageId },
                     ),
-                  );
+                );
               }
               await trackVoiceUsage(
                 user.id,

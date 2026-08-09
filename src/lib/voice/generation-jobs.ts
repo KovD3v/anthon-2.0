@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { type Prisma, VoiceGenerationStatus } from "@/generated/prisma";
+import {
+  appendDeliveredCapabilityToMetadata,
+  appendDeliveredCapabilityToParts,
+} from "@/lib/ai/capability-usage";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { publishToQueue } from "@/lib/qstash";
@@ -604,6 +608,7 @@ export async function processVoiceGenerationJob(
               id: true,
               deletedAt: true,
               metadata: true,
+              parts: true,
               chat: { select: { deletedAt: true } },
             },
           },
@@ -687,13 +692,17 @@ export async function processVoiceGenerationJob(
           type: "AUDIO",
           mediaUrl: blobUrl,
           mediaType: "audio/mpeg",
-          metadata: withVoiceGenerationStatus(
-            current.message.metadata,
-            "ready",
-            {
+          parts: appendDeliveredCapabilityToParts(
+            current.message.parts,
+            "voice",
+          ) as Prisma.InputJsonValue,
+          metadata: appendDeliveredCapabilityToMetadata(
+            withVoiceGenerationStatus(current.message.metadata, "ready", {
               costUsd,
-            },
-          ),
+            }),
+            "voice",
+            current.message.parts,
+          ) as Prisma.InputJsonValue,
         },
       });
 

@@ -2247,6 +2247,17 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.prismaMessageCreate
       .mockResolvedValueOnce({ id: "wa_in_1" })
       .mockResolvedValueOnce({ id: "wa_out_1" });
+    mocks.prismaMessageFindUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        parts: [
+          { type: "text", text: "risposta vocale" },
+          {
+            type: "data-aiCapabilities",
+            data: { capabilities: ["memory"] },
+          },
+        ],
+      });
     mocks.incrementUsage.mockResolvedValue(undefined);
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
     mocks.isElevenLabsConfigured.mockReturnValue(true);
@@ -2313,7 +2324,20 @@ describe("/api/webhooks/whatsapp", () => {
     );
     expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith({
       where: { id: "wa_out_1" },
-      data: { type: "AUDIO", mediaType: "audio/mpeg" },
+      data: {
+        type: "AUDIO",
+        mediaType: "audio/mpeg",
+        metadata: {
+          ai: { capabilitiesUsed: ["memory", "voice"] },
+        },
+        parts: [
+          { type: "text", text: "risposta vocale" },
+          {
+            type: "data-aiCapabilities",
+            data: { capabilities: ["memory", "voice"] },
+          },
+        ],
+      },
     });
     expect(mocks.shouldGenerateVoice).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2488,10 +2512,12 @@ describe("/api/webhooks/whatsapp", () => {
     );
     expect(mocks.generateVoice).toHaveBeenCalledTimes(1);
     expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
-    expect(mocks.prismaMessageUpdate).not.toHaveBeenCalledWith({
-      where: { id: "wa_out_1" },
-      data: { type: "AUDIO", mediaType: "audio/mpeg" },
-    });
+    expect(mocks.prismaMessageUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wa_out_1" },
+        data: expect.objectContaining({ parts: expect.any(Array) }),
+      }),
+    );
   });
 
   it("helper signature and command/url helpers cover validation branches", () => {

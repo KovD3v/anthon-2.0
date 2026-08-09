@@ -7,7 +7,7 @@ import {
 import { getCapabilityPlannerMode } from "@/lib/ai/capability-arbitration";
 import {
   type CapabilityUsage,
-  normalizeCapabilityUsage,
+  normalizePreDeliveryCapabilityUsage,
 } from "@/lib/ai/capability-usage";
 import {
   getImmediatelyAttributableApproval,
@@ -89,7 +89,9 @@ function finishMetadata(
     ragAttempted: metrics.ragAttempted ?? false,
     ragUsed: metrics.ragUsed ?? false,
     ragChunksCount: metrics.ragChunksCount ?? 0,
-    capabilitiesUsed: normalizeCapabilityUsage(metrics.capabilitiesUsed),
+    capabilitiesUsed: normalizePreDeliveryCapabilityUsage(
+      metrics.capabilitiesUsed,
+    ),
   };
 }
 

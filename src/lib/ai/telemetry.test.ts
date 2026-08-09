@@ -38,6 +38,9 @@ describe("captureAiGenerationMetadata", () => {
       metrics: {
         model: "openai/gpt-5.6-luna",
         provider: "openrouter",
+        providerMetadata: {
+          openrouter: { requestId: "SECRET_PROVIDER_PAYLOAD" },
+        },
         inputTokens: 20,
         outputTokens: 10,
         reasoningTokens: 3,
@@ -53,7 +56,7 @@ describe("captureAiGenerationMetadata", () => {
         ragAttempted: true,
         ragUsed: true,
         ragChunksCount: 2,
-        capabilitiesUsed: ["rag", "memory"],
+        capabilitiesUsed: ["rag", "memory", "voice"],
         costUsd: 0.004,
         generationTimeMs: 1250,
         reasoningTimeMs: 300,
@@ -62,7 +65,7 @@ describe("captureAiGenerationMetadata", () => {
           systemPrompt: "SECRET_SYSTEM_PROMPT",
           output: "SECRET_OUTPUT",
         },
-      },
+      } as never,
     });
 
     expect(mocks.capture).toHaveBeenCalledWith({
@@ -91,6 +94,7 @@ describe("captureAiGenerationMetadata", () => {
       "SECRET_PROMPT",
       "SECRET_SYSTEM_PROMPT",
       "SECRET_OUTPUT",
+      "SECRET_PROVIDER_PAYLOAD",
     ]) {
       expect(captured).not.toContain(secret);
     }
@@ -113,7 +117,6 @@ describe("captureAiGenerationMetadata", () => {
           inputTokens: 0,
           outputTokens: 0,
           reasoningTokens: null,
-          reasoningContent: null,
           toolCalls: null,
           ragUsed: false,
           ragChunksCount: 0,
@@ -138,7 +141,6 @@ describe("captureAiGenerationMetadata", () => {
         inputTokens: 0,
         outputTokens: 0,
         reasoningTokens: null,
-        reasoningContent: null,
         toolCalls: null,
         ragUsed: false,
         ragChunksCount: 0,

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   messageCreate: vi.fn(),
+  messageFindUnique: vi.fn(),
+  messageUpdate: vi.fn(),
   messageMetricsCreate: vi.fn(),
   voiceGenerationJobCreate: vi.fn(),
   chatUpdate: vi.fn(),
@@ -17,6 +19,8 @@ vi.mock("@/lib/db", () => ({
     $transaction: mocks.transaction,
     message: {
       create: mocks.messageCreate,
+      findUnique: mocks.messageFindUnique,
+      update: mocks.messageUpdate,
     },
     messageMetrics: {
       create: mocks.messageMetricsCreate,
@@ -43,13 +47,18 @@ vi.mock("next/cache", () => ({
   revalidateTag: mocks.revalidateTag,
 }));
 
-import { persistAssistantOutput } from "./persistence";
+import {
+  markVoiceCapabilityDelivered,
+  persistAssistantOutput,
+} from "./persistence";
 
 describe("channel-flow/persistence", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
     mocks.transaction.mockReset();
     mocks.messageCreate.mockReset();
+    mocks.messageFindUnique.mockReset();
+    mocks.messageUpdate.mockReset();
     mocks.messageMetricsCreate.mockReset();
     mocks.voiceGenerationJobCreate.mockReset();
     mocks.chatUpdate.mockReset();
@@ -60,18 +69,77 @@ describe("channel-flow/persistence", () => {
 
     mocks.transaction.mockImplementation(async (callback) =>
       callback({
-        message: { create: mocks.messageCreate },
+        message: {
+          create: mocks.messageCreate,
+          findUnique: mocks.messageFindUnique,
+          update: mocks.messageUpdate,
+        },
         messageMetrics: { create: mocks.messageMetricsCreate },
         voiceGenerationJob: { create: mocks.voiceGenerationJobCreate },
       }),
     );
     mocks.messageCreate.mockResolvedValue({ id: "msg-1" });
+    mocks.messageUpdate.mockResolvedValue({ id: "msg-1" });
     mocks.messageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
     mocks.voiceGenerationJobCreate.mockResolvedValue({ id: "voice-job-1" });
     mocks.chatUpdate.mockResolvedValue({});
     mocks.incrementUsage.mockResolvedValue({});
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
     mocks.captureAiTurnTrace.mockResolvedValue({ id: "trace-1" });
+  });
+
+  it("marks voice only at delivery and replaces capability payloads atomically", async () => {
+    mocks.messageFindUnique.mockResolvedValue({
+      metadata: {
+        voice: { status: "processing" },
+        ai: { capabilitiesUsed: ["memory"], toolCallCount: 1 },
+      },
+      parts: [
+        { type: "text", text: "assistant" },
+        {
+          type: "data-aiCapabilities",
+          data: {
+            capabilities: ["memory"],
+            providerMetadata: { requestId: "SECRET_PROVIDER_PAYLOAD" },
+          },
+        },
+        {
+          type: "data-aiCapabilities",
+          data: { capabilities: ["unknown", "rag"] },
+        },
+      ],
+    });
+
+    await markVoiceCapabilityDelivered("msg-1");
+
+    expect(mocks.messageFindUnique).toHaveBeenCalledWith({
+      where: { id: "msg-1" },
+      select: { metadata: true, parts: true },
+    });
+    expect(mocks.messageUpdate).toHaveBeenCalledWith({
+      where: { id: "msg-1" },
+      data: {
+        type: "AUDIO",
+        mediaType: "audio/mpeg",
+        metadata: {
+          voice: { status: "processing" },
+          ai: {
+            capabilitiesUsed: ["rag", "memory", "voice"],
+            toolCallCount: 1,
+          },
+        },
+        parts: [
+          { type: "text", text: "assistant" },
+          {
+            type: "data-aiCapabilities",
+            data: { capabilities: ["rag", "memory", "voice"] },
+          },
+        ],
+      },
+    });
+    expect(
+      JSON.stringify(mocks.messageUpdate.mock.calls[0]?.[0]),
+    ).not.toContain("SECRET_PROVIDER_PAYLOAD");
   });
 
   it("persists assistant message and post-process steps", async () => {
@@ -88,7 +156,6 @@ describe("channel-flow/persistence", () => {
         inputTokens: 5,
         outputTokens: 8,
         reasoningTokens: 1,
-        reasoningContent: "reasoning",
         toolCalls: [{ name: "tool", args: {} }],
         ragUsed: true,
         ragChunksCount: 2,
@@ -133,7 +200,6 @@ describe("channel-flow/persistence", () => {
         inputTokens: 5,
         outputTokens: 8,
         reasoningTokens: 0,
-        reasoningContent: null,
         toolCalls: [],
         ragUsed: false,
         ragChunksCount: 0,
@@ -160,7 +226,6 @@ describe("channel-flow/persistence", () => {
         inputTokens: 1,
         outputTokens: 1,
         reasoningTokens: null,
-        reasoningContent: null,
         toolCalls: [
           {
             name: "saveMemory",
@@ -190,7 +255,7 @@ describe("channel-flow/persistence", () => {
     );
   });
 
-  it("persists only the closed capability list without raw tool payloads", async () => {
+  it("persists only completed pre-delivery capabilities without raw payloads", async () => {
     await persistAssistantOutput({
       userId: "user-1",
       channel: "WEB",
@@ -222,7 +287,7 @@ describe("channel-flow/persistence", () => {
         costUsd: 0,
         generationTimeMs: 1,
         reasoningTimeMs: null,
-      },
+      } as never,
       allowMemoryExtraction: false,
     });
 
@@ -231,10 +296,12 @@ describe("channel-flow/persistence", () => {
       { type: "text", text: "assistant" },
       {
         type: "data-aiCapabilities",
-        data: { capabilities: ["memory", "voice"] },
+        data: { capabilities: ["memory"] },
       },
     ]);
-    expect(JSON.stringify(parts)).not.toContain("private");
+    const persistedMessage = mocks.messageCreate.mock.calls[0]?.[0].data;
+    expect(JSON.stringify(persistedMessage)).not.toContain("private");
+    expect(persistedMessage).not.toHaveProperty("reasoningContent");
   });
 
   it("omits the capability part when no capability completed", async () => {
@@ -248,7 +315,6 @@ describe("channel-flow/persistence", () => {
         inputTokens: 1,
         outputTokens: 1,
         reasoningTokens: null,
-        reasoningContent: null,
         toolCalls: [],
         ragAttempted: true,
         ragUsed: false,
@@ -284,7 +350,6 @@ describe("channel-flow/persistence", () => {
         inputTokens: 1,
         outputTokens: 1,
         reasoningTokens: null,
-        reasoningContent: null,
         toolCalls: [{ name: "deleteMemory", status: "completed" }],
         ragUsed: false,
         ragChunksCount: 0,
@@ -386,7 +451,6 @@ describe("channel-flow/persistence", () => {
         inputTokens: 5,
         outputTokens: 8,
         reasoningTokens: 0,
-        reasoningContent: "",
         toolCalls: [
           {
             name: "proposeRoutine",
@@ -426,7 +490,6 @@ describe("channel-flow/persistence", () => {
         inputTokens: 5,
         outputTokens: 8,
         reasoningTokens: 0,
-        reasoningContent: "",
         toolCalls: [
           {
             name: "proposeRoutine",
@@ -489,7 +552,6 @@ describe("channel-flow/persistence", () => {
         inputTokens: 5,
         outputTokens: 8,
         reasoningTokens: 0,
-        reasoningContent: "",
         toolCalls: [],
         ragUsed: false,
         ragChunksCount: 0,
@@ -522,7 +584,6 @@ describe("channel-flow/persistence", () => {
         inputTokens: 5,
         outputTokens: 8,
         reasoningTokens: null,
-        reasoningContent: null,
         toolCalls: [
           {
             name: "tinyfishSearch",
@@ -581,7 +642,6 @@ describe("channel-flow/persistence", () => {
         inputTokens: 5,
         outputTokens: 8,
         reasoningTokens: null,
-        reasoningContent: null,
         toolCalls: [],
         toolCallCount: 2,
         toolResultChars: 50,
@@ -616,7 +676,7 @@ describe("channel-flow/persistence", () => {
     );
   });
 
-  it("persists normalized message metrics and the selected provider", async () => {
+  it("persists normalized scalar metrics without raw provider or reasoning data", async () => {
     const providerMetadata = {
       openrouter: {
         provider: "Fireworks",
@@ -680,9 +740,12 @@ describe("channel-flow/persistence", () => {
         },
         ragUsed: true,
         ragChunksCount: 4,
-        providerMetadata,
       },
     });
+    const persistedMetrics = mocks.messageMetricsCreate.mock.calls[0]?.[0].data;
+    expect(persistedMetrics).not.toHaveProperty("providerMetadata");
+    expect(persistedMetrics).not.toHaveProperty("reasoningContent");
+    expect(JSON.stringify(persistedMetrics)).not.toContain("private reasoning");
   });
 
   it("persists provider selected from normalized OpenRouter selected_provider metadata", async () => {
@@ -717,18 +780,18 @@ describe("channel-flow/persistence", () => {
         costUsd: 0.002,
         generationTimeMs: 500,
         reasoningTimeMs: null,
-      },
+      } as never,
       allowMemoryExtraction: false,
     });
 
     expect(mocks.messageMetricsCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          provider: "Nebius",
-          providerMetadata,
-        }),
+        data: expect.objectContaining({ provider: "Nebius" }),
       }),
     );
+    expect(
+      mocks.messageMetricsCreate.mock.calls[0]?.[0].data,
+    ).not.toHaveProperty("providerMetadata");
   });
 
   it("skips chat update and memory extraction when disabled", async () => {
@@ -742,7 +805,6 @@ describe("channel-flow/persistence", () => {
         inputTokens: 1,
         outputTokens: 1,
         reasoningTokens: 0,
-        reasoningContent: "",
         toolCalls: [],
         ragUsed: false,
         ragChunksCount: 0,
@@ -772,7 +834,6 @@ describe("channel-flow/persistence", () => {
         inputTokens: 1,
         outputTokens: 2,
         reasoningTokens: 0,
-        reasoningContent: "",
         toolCalls: [],
         ragUsed: false,
         ragChunksCount: 0,
@@ -803,7 +864,6 @@ describe("channel-flow/persistence", () => {
         inputTokens: 1,
         outputTokens: 2,
         reasoningTokens: 0,
-        reasoningContent: "",
         toolCalls: [],
         ragUsed: false,
         ragChunksCount: 0,
