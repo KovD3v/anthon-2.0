@@ -285,10 +285,7 @@ interface SidebarContentsProps {
   routineCollection: RoutineCollectionState;
   routineCollectionError: string | null;
   isRoutineCollectionLoading: boolean;
-  routineCollectionLoadingMoreStatus: RoutineCollectionStatus | null;
   onRetryRoutineCollection: () => void;
-  onLoadMoreRoutineCollection: (status: RoutineCollectionStatus) => void;
-  onNavigateToRoutine: (routine: RoutineCardData) => void;
 }
 
 function SidebarContents({
@@ -308,10 +305,7 @@ function SidebarContents({
   routineCollection,
   routineCollectionError,
   isRoutineCollectionLoading,
-  routineCollectionLoadingMoreStatus,
   onRetryRoutineCollection,
-  onLoadMoreRoutineCollection,
-  onNavigateToRoutine,
 }: SidebarContentsProps) {
   return (
     <div className="flex h-full w-72 flex-col pt-[env(safe-area-inset-top)]">
@@ -340,14 +334,9 @@ function SidebarContents({
         <RoutineSidebarShelf
           routines={routineCollection.routines}
           activeTotal={routineCollection.active.total}
-          activeNextCursor={routineCollection.active.nextCursor}
-          archivedNextCursor={routineCollection.archived.nextCursor}
           isLoading={isRoutineCollectionLoading}
-          loadingMoreStatus={routineCollectionLoadingMoreStatus}
           error={routineCollectionError}
           onRetry={onRetryRoutineCollection}
-          onLoadMore={onLoadMoreRoutineCollection}
-          onNavigate={onNavigateToRoutine}
         />
       ) : null}
       <div className="shrink-0" data-testid="sidebar-profile">
@@ -463,7 +452,9 @@ export function LayoutClient({
   // Usage tracking state
   const [usageData, setUsageData] = useState(initialUsageData);
   const isConversationRoute =
-    pathname !== "/chat/usage" && /^\/chat\/[^/?#\\]+$/.test(pathname ?? "");
+    pathname !== "/chat/usage" &&
+    pathname !== "/chat/routines" &&
+    /^\/chat\/[^/?#\\]+$/.test(pathname ?? "");
   const safeChatContinuation =
     pathname === "/chat" || isConversationRoute ? pathname : "/chat";
   const guestRegistrationHref = `/sign-up?redirect_url=${encodeURIComponent(
@@ -1126,16 +1117,9 @@ export function LayoutClient({
                 routineCollection={routineCollection}
                 routineCollectionError={routineCollectionError}
                 isRoutineCollectionLoading={isRoutineCollectionLoading}
-                routineCollectionLoadingMoreStatus={
-                  routineCollectionLoadingMoreStatus
-                }
                 onRetryRoutineCollection={() => {
                   void refreshRoutineCollection();
                 }}
-                onLoadMoreRoutineCollection={(status) => {
-                  void loadMoreRoutineCollection(status);
-                }}
-                onNavigateToRoutine={navigateToRoutine}
               />
             </SheetContent>
           </Sheet>
@@ -1163,16 +1147,9 @@ export function LayoutClient({
               routineCollection={routineCollection}
               routineCollectionError={routineCollectionError}
               isRoutineCollectionLoading={isRoutineCollectionLoading}
-              routineCollectionLoadingMoreStatus={
-                routineCollectionLoadingMoreStatus
-              }
               onRetryRoutineCollection={() => {
                 void refreshRoutineCollection();
               }}
-              onLoadMoreRoutineCollection={(status) => {
-                void loadMoreRoutineCollection(status);
-              }}
-              onNavigateToRoutine={navigateToRoutine}
             />
           </aside>
         )}

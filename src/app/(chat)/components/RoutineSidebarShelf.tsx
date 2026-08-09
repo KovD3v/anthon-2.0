@@ -19,7 +19,8 @@ export function RoutineSidebarShelf({
   onRetry: () => void;
 }) {
   const activeCount =
-    activeTotal ?? routines.filter((routine) => routine.status === "ACTIVE").length;
+    activeTotal ??
+    routines.filter((routine) => routine.status === "ACTIVE").length;
   const activeLabel = `${activeCount} ${activeCount === 1 ? "attiva" : "attive"}`;
 
   return (

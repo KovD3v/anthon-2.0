@@ -44,18 +44,20 @@ describe("RoutineSidebarShelf", () => {
     );
 
     expect(screen.getByRole("region", { name: "Routine" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Routine/ }).getAttribute("href")).toBe(
-      "/chat/routines",
-    );
-    expect(screen.queryByRole("button", { name: "Espandi routine" })).toBeNull();
+    expect(
+      screen.getByRole("link", { name: /Routine/ }).getAttribute("href"),
+    ).toBe("/chat/routines");
+    expect(
+      screen.queryByRole("button", { name: "Espandi routine" }),
+    ).toBeNull();
     expect(screen.queryByRole("tab", { name: "Archiviate" })).toBeNull();
     expect(screen.queryByText("Reset rapido")).toBeNull();
     expect(screen.getByTestId("routine-sidebar-shelf").className).toContain(
       "shrink-0",
     );
-    expect(
-      screen.getByRole("link", { name: /Routine/ }).className,
-    ).toContain("min-h-11");
+    expect(screen.getByRole("link", { name: /Routine/ }).className).toContain(
+      "min-h-11",
+    );
   });
 
   it("renders a quiet empty state and a retry action for collection errors", async () => {

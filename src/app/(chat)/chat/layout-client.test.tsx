@@ -569,7 +569,7 @@ describe("routine sidebar collection context", () => {
 
     await screen.findByRole("button", { name: "Riprova routine" });
     await user.click(screen.getByRole("button", { name: "Riprova routine" }));
-    await waitFor(() => expect(screen.getByText("Reset rapido")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("1 attiva")).toBeTruthy());
   });
 
   it("ignores an older collection response after a newer refresh", async () => {
@@ -697,7 +697,7 @@ describe("routine sidebar collection context", () => {
 });
 
 describe("mobile chat landing navigation", () => {
-  it("closes the mobile shelf before navigating and restores the opener focus", async () => {
+  it("exposes the compact routine collection link in the mobile shelf", async () => {
     mocks.pathname = "/chat";
     mocks.fetchRoutineCollection
       .mockResolvedValueOnce({
@@ -717,22 +717,19 @@ describe("mobile chat landing navigation", () => {
     const drawer = await screen.findByRole("dialog", {
       name: "Conversazioni",
     });
-    await within(drawer).findByText("Reset rapido");
+    const routineLink = within(drawer).getByRole("link", { name: /Routine/ });
+    expect(routineLink.getAttribute("href")).toBe("/chat/routines");
+    expect(within(drawer).queryByText("Reset rapido")).toBeNull();
+    expect(
+      within(drawer).queryByRole("button", { name: "Espandi routine" }),
+    ).toBeNull();
     await user.click(
-      within(drawer).getByRole("button", { name: "Espandi routine" }),
+      within(drawer).getByRole("button", { name: "Chiudi la barra laterale" }),
     );
-    await user.click(
-      within(drawer).getByRole("link", { name: /Reset rapido/ }),
-    );
-
     await waitFor(() =>
       expect(
         screen.queryByRole("dialog", { name: "Conversazioni" }),
       ).toBeNull(),
-    );
-    expect(mocks.routerPush).toHaveBeenLastCalledWith(
-      "/chat/source-chat?checkInRoutineId=routine-source",
-      { scroll: false },
     );
     expect(document.activeElement).toBe(opener);
   });
@@ -962,7 +959,7 @@ describe("mobile chat landing navigation", () => {
     },
   );
 
-  it.each(["/chat/usage", "/chat/unexpected/nested"])(
+  it.each(["/chat/usage", "/chat/routines", "/chat/unexpected/nested"])(
     "treats %s as non-conversation chrome with a safe guest continuation",
     async (pathname) => {
       mocks.pathname = pathname;
