@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   messageFindFirst: vi.fn(),
+  messageFindMany: vi.fn(),
   memoryApprovalCreate: vi.fn(),
   memoryApprovalFindFirst: vi.fn(),
   memoryApprovalUpdateMany: vi.fn(),
@@ -13,6 +14,7 @@ vi.mock("@/lib/db", () => {
   const transactionClient = {
     message: {
       findFirst: mocks.messageFindFirst,
+      findMany: mocks.messageFindMany,
     },
     memoryApproval: {
       create: mocks.memoryApprovalCreate,
@@ -75,6 +77,7 @@ describe("ai/memory-approval", () => {
     vi.setSystemTime(now);
     mocks.transaction.mockReset();
     mocks.messageFindFirst.mockReset();
+    mocks.messageFindMany.mockReset();
     mocks.memoryApprovalCreate.mockReset();
     mocks.memoryApprovalFindFirst.mockReset();
     mocks.memoryApprovalUpdateMany.mockReset();
@@ -82,7 +85,10 @@ describe("ai/memory-approval", () => {
 
     mocks.transaction.mockImplementation(async (callback) =>
       callback({
-        message: { findFirst: mocks.messageFindFirst },
+        message: {
+          findFirst: mocks.messageFindFirst,
+          findMany: mocks.messageFindMany,
+        },
         memoryApproval: {
           create: mocks.memoryApprovalCreate,
           findFirst: mocks.memoryApprovalFindFirst,
@@ -175,9 +181,8 @@ describe("ai/memory-approval", () => {
   });
 
   it("expires old rows and returns only an immediate same-conversation approval", async () => {
-    mocks.messageFindFirst
-      .mockResolvedValueOnce(currentMessage)
-      .mockResolvedValueOnce(sourceMessage);
+    mocks.messageFindFirst.mockResolvedValueOnce(currentMessage);
+    mocks.messageFindMany.mockResolvedValueOnce([sourceMessage]);
     mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
 
     const result = await getImmediatelyAttributableApproval({
@@ -207,9 +212,10 @@ describe("ai/memory-approval", () => {
   });
 
   it("does not attribute an approval after an unrelated subsequent user turn", async () => {
-    mocks.messageFindFirst
-      .mockResolvedValueOnce(currentMessage)
-      .mockResolvedValueOnce({ ...sourceMessage, id: "unrelated-inbound" });
+    mocks.messageFindFirst.mockResolvedValueOnce(currentMessage);
+    mocks.messageFindMany.mockResolvedValueOnce([
+      { ...sourceMessage, id: "unrelated-inbound" },
+    ]);
 
     const result = await getImmediatelyAttributableApproval({
       userId: "user-1",
@@ -220,11 +226,28 @@ describe("ai/memory-approval", () => {
     expect(result).toBeNull();
   });
 
+  it("fails closed when two preceding inbound turns share the latest timestamp", async () => {
+    mocks.messageFindFirst.mockResolvedValueOnce(currentMessage);
+    mocks.messageFindMany.mockResolvedValueOnce([
+      sourceMessage,
+      { ...sourceMessage, id: "same-time-inbound" },
+    ]);
+    mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
+
+    const result = await getImmediatelyAttributableApproval({
+      userId: "user-1",
+      conversationId: "thread-1",
+      currentUserMessageId: "inbound-current",
+    });
+
+    expect(result).toBeNull();
+    expect(mocks.memoryApprovalFindFirst).not.toHaveBeenCalled();
+  });
+
   it("atomically approves exactly one stable key for the immediate explicit confirmation", async () => {
     mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
-    mocks.messageFindFirst
-      .mockResolvedValueOnce(currentMessage)
-      .mockResolvedValueOnce(sourceMessage);
+    mocks.messageFindFirst.mockResolvedValueOnce(currentMessage);
+    mocks.messageFindMany.mockResolvedValueOnce([sourceMessage]);
 
     const result = await resolveMemoryApproval({
       userId: "user-1",
@@ -265,6 +288,26 @@ describe("ai/memory-approval", () => {
     });
   });
 
+  it("does not resolve an approval when the preceding inbound turn is ambiguous", async () => {
+    mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
+    mocks.messageFindFirst.mockResolvedValueOnce(currentMessage);
+    mocks.messageFindMany.mockResolvedValueOnce([
+      sourceMessage,
+      { ...sourceMessage, id: "same-time-inbound" },
+    ]);
+
+    const result = await resolveMemoryApproval({
+      userId: "user-1",
+      approvalId: "approval-1",
+      decision: "approve",
+      currentUserMessageId: "inbound-current",
+    });
+
+    expect(result).toEqual({ status: "stale" });
+    expect(mocks.memoryApprovalUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+  });
+
   it.each([
     {
       name: "another user",
@@ -286,9 +329,8 @@ describe("ai/memory-approval", () => {
     },
   ])("treats $name as stale without writing memory", async (testCase) => {
     mocks.memoryApprovalFindFirst.mockResolvedValueOnce(testCase.approval);
-    mocks.messageFindFirst
-      .mockResolvedValueOnce(testCase.current)
-      .mockResolvedValueOnce(testCase.previous);
+    mocks.messageFindFirst.mockResolvedValueOnce(testCase.current);
+    mocks.messageFindMany.mockResolvedValueOnce([testCase.previous]);
 
     const result = await resolveMemoryApproval({
       userId: "user-1",
@@ -324,12 +366,11 @@ describe("ai/memory-approval", () => {
 
   it("rejects without creating or changing a memory", async () => {
     mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
-    mocks.messageFindFirst
-      .mockResolvedValueOnce({
-        ...currentMessage,
-        parts: [{ type: "text", text: "No, non salvarlo in memoria." }],
-      })
-      .mockResolvedValueOnce(sourceMessage);
+    mocks.messageFindFirst.mockResolvedValueOnce({
+      ...currentMessage,
+      parts: [{ type: "text", text: "No, non salvarlo in memoria." }],
+    });
+    mocks.messageFindMany.mockResolvedValueOnce([sourceMessage]);
 
     const result = await resolveMemoryApproval({
       userId: "user-1",
@@ -355,12 +396,11 @@ describe("ai/memory-approval", () => {
     "accepts the immediate natural confirmation %s",
     async (text) => {
       mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
-      mocks.messageFindFirst
-        .mockResolvedValueOnce({
-          ...currentMessage,
-          parts: [{ type: "text", text }],
-        })
-        .mockResolvedValueOnce(sourceMessage);
+      mocks.messageFindFirst.mockResolvedValueOnce({
+        ...currentMessage,
+        parts: [{ type: "text", text }],
+      });
+      mocks.messageFindMany.mockResolvedValueOnce([sourceMessage]);
 
       const result = await resolveMemoryApproval({
         userId: "user-1",
@@ -376,12 +416,11 @@ describe("ai/memory-approval", () => {
 
   it("accepts a standalone natural rejection for the immediate approval", async () => {
     mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
-    mocks.messageFindFirst
-      .mockResolvedValueOnce({
-        ...currentMessage,
-        parts: [{ type: "text", text: "No." }],
-      })
-      .mockResolvedValueOnce(sourceMessage);
+    mocks.messageFindFirst.mockResolvedValueOnce({
+      ...currentMessage,
+      parts: [{ type: "text", text: "No." }],
+    });
+    mocks.messageFindMany.mockResolvedValueOnce([sourceMessage]);
 
     const result = await resolveMemoryApproval({
       userId: "user-1",
@@ -396,17 +435,16 @@ describe("ai/memory-approval", () => {
 
   it("does not let an unrelated remember command approve a pending health fact", async () => {
     mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
-    mocks.messageFindFirst
-      .mockResolvedValueOnce({
-        ...currentMessage,
-        parts: [
-          {
-            type: "text",
-            text: "Ricorda che preferisco allenarmi al mattino.",
-          },
-        ],
-      })
-      .mockResolvedValueOnce(sourceMessage);
+    mocks.messageFindFirst.mockResolvedValueOnce({
+      ...currentMessage,
+      parts: [
+        {
+          type: "text",
+          text: "Ricorda che preferisco allenarmi al mattino.",
+        },
+      ],
+    });
+    mocks.messageFindMany.mockResolvedValueOnce([sourceMessage]);
 
     const result = await resolveMemoryApproval({
       userId: "user-1",
@@ -422,17 +460,16 @@ describe("ai/memory-approval", () => {
 
   it("does not approve a changed fact that overlaps the pending fact", async () => {
     mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
-    mocks.messageFindFirst
-      .mockResolvedValueOnce({
-        ...currentMessage,
-        parts: [
-          {
-            type: "text",
-            text: "Salva il mio dolore al ginocchio destro.",
-          },
-        ],
-      })
-      .mockResolvedValueOnce(sourceMessage);
+    mocks.messageFindFirst.mockResolvedValueOnce({
+      ...currentMessage,
+      parts: [
+        {
+          type: "text",
+          text: "Salva il mio dolore al ginocchio destro.",
+        },
+      ],
+    });
+    mocks.messageFindMany.mockResolvedValueOnce([sourceMessage]);
 
     const result = await resolveMemoryApproval({
       userId: "user-1",

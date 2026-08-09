@@ -169,7 +169,7 @@ export async function getImmediatelyAttributableApproval(input: {
     });
     if (!currentMessage) return null;
 
-    const previousInboundMessage = await tx.message.findFirst({
+    const previousInboundMessages = await tx.message.findMany({
       where: {
         userId: input.userId,
         conversationThreadId: input.conversationId,
@@ -178,16 +178,28 @@ export async function getImmediatelyAttributableApproval(input: {
         deletedAt: null,
         createdAt: { lt: currentMessage.createdAt },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      take: 2,
       select: {
         id: true,
+        createdAt: true,
         generatedResponse: {
           select: { id: true, userId: true },
         },
       },
     });
+    const previousInboundMessage = previousInboundMessages[0];
+    const nextMostRecentInboundMessage = previousInboundMessages[1];
     if (
-      !previousInboundMessage?.generatedResponse ||
+      !previousInboundMessage ||
+      (nextMostRecentInboundMessage &&
+        nextMostRecentInboundMessage.createdAt.getTime() ===
+          previousInboundMessage.createdAt.getTime())
+    ) {
+      return null;
+    }
+    if (
+      !previousInboundMessage.generatedResponse ||
       previousInboundMessage.generatedResponse.userId !== input.userId
     ) {
       return null;
@@ -361,7 +373,7 @@ export async function resolveMemoryApproval(input: {
     });
     if (!currentMessage) return { status: "stale" as const };
 
-    const previousInboundMessage = await tx.message.findFirst({
+    const previousInboundMessages = await tx.message.findMany({
       where: {
         userId: input.userId,
         conversationThreadId: sourceMessage.conversationThreadId,
@@ -370,9 +382,20 @@ export async function resolveMemoryApproval(input: {
         deletedAt: null,
         createdAt: { lt: currentMessage.createdAt },
       },
-      orderBy: { createdAt: "desc" },
-      select: { id: true },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      take: 2,
+      select: { id: true, createdAt: true },
     });
+    const previousInboundMessage = previousInboundMessages[0];
+    const nextMostRecentInboundMessage = previousInboundMessages[1];
+    if (
+      !previousInboundMessage ||
+      (nextMostRecentInboundMessage &&
+        nextMostRecentInboundMessage.createdAt.getTime() ===
+          previousInboundMessage.createdAt.getTime())
+    ) {
+      return { status: "stale" as const };
+    }
     if (previousInboundMessage?.id !== approval.sourceInboundMessageId) {
       return { status: "stale" as const };
     }

@@ -159,10 +159,7 @@ export async function runChannelFlow(
   const normalizedParts = normalizeParts(policyParts);
   const mode = ctx.execution?.mode ?? "text";
   const isGuest = ctx.channel === "WEB_GUEST" || ctx.ai?.isGuest === true;
-  const memoryEnabled =
-    isGuest && ctx.channel === "WEB_GUEST"
-      ? false
-      : ctx.options.allowMemoryExtraction;
+  const memoryEnabled = !isGuest && ctx.options.allowMemoryExtraction;
   let capabilityPlannerMode: "legacy" | "agentic" = "legacy";
   let capabilityDecision: CapabilityDecision | undefined;
 

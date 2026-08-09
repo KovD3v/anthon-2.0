@@ -1642,6 +1642,73 @@ describe("channel-flow/run", () => {
     },
   );
 
+  it.each(["TELEGRAM", "WHATSAPP"] as const)(
+    "does not extract memory for a guest %s turn before saving the assistant output",
+    async (channel) => {
+      mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+        await onFinish?.({
+          text: "guest channel answer",
+          metrics: {
+            model: "test-model",
+            inputTokens: 1,
+            outputTokens: 2,
+            reasoningTokens: 0,
+            reasoningContent: "",
+            toolCalls: [],
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0,
+            generationTimeMs: 1,
+            reasoningTimeMs: 0,
+          },
+        });
+
+        return {
+          toUIMessageStreamResponse: () => Response.json({ ok: true }),
+          textStream: (async function* () {
+            yield "guest channel answer";
+          })(),
+        };
+      });
+
+      const result = await runChannelFlow({
+        channel,
+        userId: `guest-${channel.toLowerCase()}`,
+        userMessageText: "guest channel turn",
+        parts: [{ type: "text", text: "guest channel turn" }],
+        rateLimit: { allowed: true },
+        options: {
+          allowAttachments: true,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: true,
+        },
+        ai: { isGuest: true },
+        execution: { mode: "text" },
+        persistence: { channel, saveAssistantMessage: true },
+      });
+
+      expect(result.persistence).toEqual({
+        status: "saved",
+        messageId: "assistant-1",
+      });
+      expect(mocks.streamChat).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isGuest: true,
+          memoryEnabled: false,
+        }),
+      );
+      expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel,
+          text: "guest channel answer",
+          allowMemoryExtraction: false,
+        }),
+      );
+      expect(mocks.getImmediatelyAttributableApproval).not.toHaveBeenCalled();
+      expect(mocks.resolveExactMemoryDeleteTarget).not.toHaveBeenCalled();
+    },
+  );
+
   it("consumes text stream and persists assistant output in text mode", async () => {
     mocks.streamChat.mockImplementation(async ({ onFinish }) => {
       await onFinish?.({

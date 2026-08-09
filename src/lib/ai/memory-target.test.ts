@@ -543,6 +543,9 @@ describe("ai/memory-target", () => {
     "Dimentica il mio errore in gara e prova a focalizzarti.",
     "Dimentica il mio errore in gara e cerchiamo di ripartire.",
     "Dimentica il mio errore in gara e proviamo a concentrarci.",
+    "Dimentica il mio errore in gara e concentriamoci.",
+    "Dimentica il mio errore in gara e focalizziamoci.",
+    "Dimentica il mio errore in gara e pensiamo alla prossima.",
     "Dimentica il mio errore in gara, riparti.",
     "Dimentica il mio errore in gara: pensa alla prossima.",
   ])(

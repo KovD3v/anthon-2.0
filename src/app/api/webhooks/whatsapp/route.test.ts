@@ -1473,6 +1473,7 @@ describe("/api/webhooks/whatsapp", () => {
         userMessage: "ciao wa ai",
         effectiveEntitlements: { modelTier: "STANDARD" },
         isGuest: true,
+        memoryEnabled: false,
         hasAudio: false,
         hasImages: false,
         chatId: undefined,
@@ -1497,7 +1498,7 @@ describe("/api/webhooks/whatsapp", () => {
       }),
     );
     expect(mocks.incrementUsage).toHaveBeenCalledTimes(1);
-    expect(mocks.extractAndSaveMemories).toHaveBeenCalledTimes(1);
+    expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
   });
 
   it("sync text message sends fallback when assistant response is empty", async () => {

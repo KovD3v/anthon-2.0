@@ -1224,6 +1224,7 @@ describe("/api/webhooks/telegram", () => {
         userMessage: "ciao ai",
         effectiveEntitlements: { modelTier: "STANDARD" },
         isGuest: true,
+        memoryEnabled: false,
         hasAudio: false,
         hasImages: false,
         chatId: undefined,
@@ -1251,7 +1252,7 @@ describe("/api/webhooks/telegram", () => {
       }),
     );
     expect(mocks.incrementUsage).toHaveBeenCalledTimes(1);
-    expect(mocks.extractAndSaveMemories).toHaveBeenCalledTimes(1);
+    expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
   });
 
   it("sync photo without caption uses default media prompt and marks images for AI", async () => {

@@ -7,7 +7,7 @@ const DIRECT_KEY_FORGET =
 const ANAPHORIC_FORGET =
   /^\s*(?:per favore\s+|please\s+)?(?:dimentica|forget)\s+(?:questa|questo|quella|quello|this|that)(?:\s+(?:cosa|memoria|ricordo|dato|informazione|preferenza|fatto|thing|memory|fact|information|preference))?\s*[.!?]*\s*$/i;
 const COACHING_CONTINUATION =
-  /(?:\be\b|\band\b|[.!?,;:\u2014-])\s*(?:(?:poi|then)\s+)?(?:(?:prova|proviamo|cerca|cerchiamo|try)\s+(?:a|di|to)\s+)?(?:concentr(?:ati|arti|arsi|arci)|focalizz(?:ati|arti|arsi|arci)|ripart(?:i|ire|iamo)|pensa(?:\b|re\b)|guarda\s+avanti\b|vai\s+avanti\b|focus\b|refocus\b|restart\b|think\b|move\s+on\b)/i;
+  /(?:\be\b|\band\b|[.!?,;:\u2014-])\s*(?:(?:poi|then)\s+)?(?:(?:prova|proviamo|cerca|cerchiamo|try)\s+(?:a|di|to)\s+)?(?:concentr(?:ati|arti|arsi|arci|iamoci)|focalizz(?:ati|arti|arsi|arci|iamoci)|ripart(?:i|ire|iamo)|pens(?:a(?:\b|re\b)|iamo\b)|guarda\s+avanti\b|guardiamo\s+avanti\b|vai\s+avanti\b|andiamo\s+avanti\b|focus\b|refocus\b|restart\b|think\b|move\s+on\b)/i;
 const STABLE_FACT_SIGNAL =
   /\b(?:mi\s+(?:alleno|chiamo|sento|trovo)|(?:vivo|abito|sono|ho|faccio|pratico|preferisco|voglio|lavoro|studio|uso|seguo|mangio|dormo|corro|gioco)|ti\s+(?:alleni|chiami|senti|trovi)|(?:vivi|abiti|sei|hai|fai|pratichi|preferisci|vuoi|lavori|studi|usi|segui|mangi|dormi|corri|giochi)|i\s+(?:am|have|live|train|prefer|want|work|study|use|follow|eat|sleep|run|play)|you\s+(?:are|have|live|train|prefer|want|work|study|use|follow|eat|sleep|run|play))\b/i;
 const FACT_TOKEN_CANONICAL: Record<string, string> = {
