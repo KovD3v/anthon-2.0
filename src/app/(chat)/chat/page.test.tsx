@@ -154,6 +154,21 @@ describe("chat landing page", () => {
     expect(screen.queryByText("Riprendi il percorso")).toBeNull();
   });
 
+  it("keeps the writing bar available on the landing page", async () => {
+    const user = userEvent.setup();
+    render(<ChatPage />);
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Scrivi un messaggio" }),
+      "Vorrei prepararmi",
+    );
+    await user.click(screen.getByRole("button", { name: "Invia messaggio" }));
+
+    expect(mocks.createChat).toHaveBeenCalledWith({
+      initialMessage: "Vorrei prepararmi",
+    });
+  });
+
   it("keeps the guest launcher even when guest chats exist", () => {
     mocks.context.isGuest = true;
     mocks.context.chats = [
