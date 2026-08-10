@@ -584,6 +584,27 @@ describe("MessageList rendered interactions", () => {
     expect(positiveButton.getAttribute("aria-pressed")).toBe("true");
   });
 
+  it("uses compact actions for both senders and feedback controls", () => {
+    renderMessageList();
+
+    const actionButtons = [
+      ...screen.getAllByRole("button", {
+        name: "Altre azioni sul messaggio",
+      }),
+      screen.getByRole("button", { name: "Pollice su: risposta utile" }),
+      screen.getByRole("button", {
+        name: "Pollice giù: risposta non utile",
+      }),
+    ];
+
+    for (const button of actionButtons) {
+      expect(button.className).toContain("h-8");
+      expect(button.className).toContain("w-8");
+      expect(button.className).not.toContain("h-11");
+      expect(button.className).not.toContain("w-11");
+    }
+  });
+
   it("renders technical details only from message annotations, never raw metadata", () => {
     const rawMetadataMessage = {
       ...assistantMessage,

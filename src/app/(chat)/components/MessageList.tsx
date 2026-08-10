@@ -1032,7 +1032,7 @@ export function MessageList({
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-11 w-11 text-muted-foreground hover:text-foreground"
+                                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
                                   aria-label="Altre azioni sul messaggio"
                                 >
                                   <MoreHorizontal className="h-4 w-4" />
@@ -1098,7 +1098,7 @@ export function MessageList({
                                 variant="ghost"
                                 size="icon"
                                 className={cn(
-                                  "h-11 w-11 rounded-md",
+                                  "h-8 w-8 rounded-md",
                                   feedbackValue === 1
                                     ? "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
                                     : "text-muted-foreground hover:text-foreground",
@@ -1119,7 +1119,7 @@ export function MessageList({
                                 variant="ghost"
                                 size="icon"
                                 className={cn(
-                                  "h-11 w-11 rounded-md",
+                                  "h-8 w-8 rounded-md",
                                   feedbackValue === -1
                                     ? "bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive"
                                     : "text-muted-foreground hover:text-foreground",
