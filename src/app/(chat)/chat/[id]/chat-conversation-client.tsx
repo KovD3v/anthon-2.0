@@ -385,35 +385,37 @@ export function ChatConversationClient({
         },
       }));
     },
-    onFinish: async () => {
-      try {
-        const newMessages = await refreshChatData();
-        if (newMessages) {
-          setMessages(newMessages);
-          const submittedAdaptation = submittedRoutineAdaptationRef.current;
-          if (submittedAdaptation) {
-            const sourceMessage = [...newMessages]
-              .reverse()
-              .find(
-                (message) =>
-                  message.role === "assistant" &&
-                  !submittedAdaptation.assistantMessageIds.has(message.id) &&
-                  message.parts.some(
-                    (part) => part.type === "data-coachingRoutine",
-                  ),
-              );
-            pendingRoutineAdaptationRef.current = sourceMessage
-              ? {
-                  routineId: submittedAdaptation.routineId,
-                  sourceAssistantMessageId: sourceMessage.id,
-                }
-              : null;
-          }
+    onFinish: () => {
+      const submittedAdaptation = submittedRoutineAdaptationRef.current;
+      submittedRoutineAdaptationRef.current = null;
+      setIsResponseSettling(false);
+
+      // The streamed response is already visible. Reconcile persisted chat
+      // data in the background so a slow refresh does not extend the loading
+      // state or block the next interaction.
+      void refreshChatData().then((newMessages) => {
+        if (!newMessages) return;
+
+        setMessages(newMessages);
+        if (submittedAdaptation) {
+          const sourceMessage = [...newMessages]
+            .reverse()
+            .find(
+              (message) =>
+                message.role === "assistant" &&
+                !submittedAdaptation.assistantMessageIds.has(message.id) &&
+                message.parts.some(
+                  (part) => part.type === "data-coachingRoutine",
+                ),
+            );
+          pendingRoutineAdaptationRef.current = sourceMessage
+            ? {
+                routineId: submittedAdaptation.routineId,
+                sourceAssistantMessageId: sourceMessage.id,
+              }
+            : null;
         }
-      } finally {
-        submittedRoutineAdaptationRef.current = null;
-        setIsResponseSettling(false);
-      }
+      });
     },
     onError: () => {
       submittedRoutineAdaptationRef.current = null;

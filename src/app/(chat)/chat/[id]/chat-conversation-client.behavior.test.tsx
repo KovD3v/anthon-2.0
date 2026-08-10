@@ -54,7 +54,7 @@ vi.mock("@ai-sdk/react", () => ({
   useChat: (options: {
     messages: Array<{ id: string; role: string; parts: unknown[] }>;
     onError?: (error: Error) => void;
-    onFinish?: () => Promise<void>;
+    onFinish?: () => void | Promise<void>;
   }) => {
     mocks.captureChatOptions(options);
     return {
@@ -658,15 +658,10 @@ describe("ChatConversationClient pagination and recovery", () => {
     );
   });
 
-  it("keeps submission settled until persisted messages are refreshed", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(initialChatData), { status: 200 }),
-        ),
-    );
+  it("settles submission before persisted messages finish refreshing", async () => {
+    const pendingRefresh = deferredResponse();
+    const fetchMock = vi.fn().mockReturnValue(pendingRefresh.promise);
+    vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     renderConversation();
 
@@ -683,18 +678,22 @@ describe("ChatConversationClient pagination and recovery", () => {
     ).toBe(true);
 
     const chatOptions = mocks.captureChatOptions.mock.calls.at(-1)?.[0] as {
-      onFinish: () => Promise<void>;
+      onFinish: () => void | Promise<void>;
     };
-    await act(() => chatOptions.onFinish());
+    act(() => chatOptions.onFinish());
 
-    await waitFor(() =>
-      expect(
-        screen.getByRole<HTMLButtonElement>("button", { name: "Invia test" })
-          .disabled,
-      ).toBe(false),
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Invia test" })
+        .disabled,
+    ).toBe(false);
+    expect(mocks.setMessages).not.toHaveBeenCalled();
+
+    pendingRefresh.resolve(
+      new Response(JSON.stringify(initialChatData), { status: 200 }),
     );
+
+    await waitFor(() => expect(mocks.setMessages).toHaveBeenCalledOnce());
     expect(screen.getByTestId("feedback-enabled").textContent).toBe("true");
-    expect(mocks.setMessages).toHaveBeenCalledOnce();
   });
 
   it("keeps retry disabled until a failed submission promise unwinds", async () => {
