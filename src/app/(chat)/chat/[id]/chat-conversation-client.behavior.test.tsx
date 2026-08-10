@@ -210,11 +210,27 @@ vi.mock("../../../(chat)/components/ChatInput", () => ({
 }));
 
 vi.mock("../../../(chat)/components/SuggestedActions", () => ({
-  SuggestedActions: () => null,
+  SuggestedActions: ({
+    className,
+    variant,
+  }: {
+    className?: string;
+    variant?: string;
+  }) => (
+    <div
+      data-testid="suggested-actions"
+      data-variant={variant}
+      className={className}
+    />
+  ),
 }));
 
 vi.mock("../../../(chat)/components/MessageList", () => ({
-  EmptyChatWelcome: () => <div>Chat vuota</div>,
+  EmptyChatWelcome: ({ className }: { className?: string }) => (
+    <div data-testid="empty-chat-welcome" className={className}>
+      Chat vuota
+    </div>
+  ),
   MessageList: ({
     messages,
     isRegenerating,
@@ -604,6 +620,16 @@ beforeEach(() => {
 });
 
 describe("ChatConversationClient pagination and recovery", () => {
+  it("anchors the empty state above the mobile composer", () => {
+    renderConversation({ ...initialChatData, messages: [] });
+
+    const welcome = screen.getByTestId("empty-chat-welcome");
+    expect(welcome.parentElement?.className).toContain("justify-start");
+    expect(
+      screen.getByTestId("suggested-actions").getAttribute("data-variant"),
+    ).toBe("cards");
+  });
+
   it("passes the mobile sidebar action and compact guest notice to the conversation header", () => {
     mocks.guestConversationNotice = {
       remaining: 2,

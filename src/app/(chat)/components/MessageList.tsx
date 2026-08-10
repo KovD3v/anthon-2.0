@@ -169,7 +169,7 @@ function hasPersistedAudioAttachment(message: ExtendedMessage) {
 }
 
 const assistantMarkdownClassName =
-  "prose prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-a:text-primary prose-code:text-foreground prose-pre:rounded-xl prose-pre:border prose-pre:border-border/60 prose-pre:bg-muted/60";
+  "prose prose-sm max-w-none break-words prose-p:leading-relaxed prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-a:text-primary prose-code:text-foreground prose-pre:rounded-xl prose-pre:border prose-pre:border-border/60 prose-pre:bg-muted/60";
 
 const FEEDBACK_REASON_OPTIONS = [
   { value: "linguistic_error", label: "Errore linguistico" },
@@ -540,7 +540,7 @@ export function MessageList({
         ref={parentRef}
         className="flex-1 min-w-0 overflow-y-auto px-4 py-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent relative"
       >
-        <div className="mx-auto max-w-3xl">
+        <div className="mx-auto w-full min-w-0 max-w-3xl">
           {/* Loading indicator for older messages */}
           {isLoadingMore && (
             <div className="flex justify-center py-4">
@@ -688,7 +688,7 @@ export function MessageList({
                     }
                     animate={{ opacity: 1, transform: "translateY(0)" }}
                     transition={defaultTransition}
-                    className={`group flex items-start gap-2 mb-8 ${
+                    className={`group flex min-w-0 max-w-full items-start gap-2 mb-8 ${
                       isUser ? "flex-row-reverse" : "flex-row"
                     }`}
                   >
@@ -709,7 +709,7 @@ export function MessageList({
 
                     {/* Content Bubble */}
                     <div
-                      className={`flex ${comparisonData ? "max-w-[calc(100%-2.5rem)] flex-1" : "max-w-[85%]"} flex-col gap-2 ${
+                      className={`flex min-w-0 w-full max-w-full flex-1 flex-col gap-2 sm:max-w-[85%] ${
                         isUser ? "items-end" : "items-start"
                       }`}
                     >
@@ -737,12 +737,12 @@ export function MessageList({
                       <div
                         className={`${
                           isRoutineProposalOnly ? "hidden " : ""
-                        }relative text-sm leading-relaxed ${
+                        }relative min-w-0 max-w-full break-words text-sm leading-relaxed ${
                           /* Only apply bubble styling if there's text or we are editing */
                           comparisonData
                             ? "w-full bg-transparent p-0"
                             : !isAttachmentOnly || isEditing
-                              ? `px-5 py-3.5 shadow-sm ${
+                              ? `px-4 py-3 shadow-sm sm:px-5 sm:py-3.5 ${
                                   isUser
                                     ? "rounded-2xl rounded-tr-sm border border-primary/15 bg-primary/10 text-foreground"
                                     : "rounded-2xl rounded-tl-sm border border-border/60 bg-card text-foreground"
@@ -752,7 +752,7 @@ export function MessageList({
                           assistantDisplayState === "streaming"
                             ? "min-h-[3.5rem] min-w-40 transition-[min-height] duration-150 ease-out"
                             : ""
-                        } ${isEditing ? "w-full min-w-75" : ""}`}
+                        } ${isEditing ? "w-full" : ""}`}
                       >
                         {isEditing ? (
                           <div className="space-y-3">
@@ -981,7 +981,7 @@ export function MessageList({
                       {/* Actions Row */}
                       {!comparisonData && (
                         <div
-                          className={`flex flex-wrap items-center gap-1 px-1 transition-opacity ${
+                          className={`flex min-w-0 max-w-full flex-wrap items-center gap-0.5 px-1 transition-opacity ${
                             isUser
                               ? "flex-row-reverse opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
                               : "opacity-100"
@@ -1047,7 +1047,7 @@ export function MessageList({
 
                           {!isUser && canSubmitFeedbackForMessage && (
                             <>
-                              <span className="ml-1 text-xs text-muted-foreground">
+                              <span className="ml-1 max-w-[10rem] truncate text-[11px] text-muted-foreground">
                                 {isFeedbackSaving
                                   ? "Salvataggio…"
                                   : feedbackValue === 0
@@ -1293,16 +1293,16 @@ export function EmptyChatWelcome({ className }: { className?: string }) {
         initial="hidden"
         animate="show"
         transition={defaultTransition}
-        className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-linear-to-br from-primary/10 to-transparent ring-1 ring-border/70 dark:ring-white/10"
+        className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-linear-to-br from-primary/10 to-transparent ring-1 ring-border/70 dark:ring-white/10 md:h-24 md:w-24"
       >
-        <Brain className="h-12 w-12 text-primary/80" />
+        <Brain className="h-10 w-10 text-primary/80 md:h-12 md:w-12" />
       </m.div>
       <m.h2
         variants={fadeUp}
         initial="hidden"
         animate="show"
         transition={{ ...defaultTransition, delay: 0.15 }}
-        className="mt-6 text-3xl font-semibold tracking-tight text-foreground"
+        className="mt-4 text-2xl font-semibold tracking-tight text-foreground md:mt-6 md:text-3xl"
       >
         Come posso aiutarti oggi?
       </m.h2>

@@ -41,6 +41,10 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Refined the mobile coaching surface with a top-anchored empty state,
+  compact starter actions, width-safe assistant responses, and a keyboard-aware
+  composer that keeps the send control visible while preserving mobile
+  multiline input and desktop submission.
 - Changed routine repeats to reuse the saved routine definition in a new chat
   instead of generating a duplicate routine card.
 - Changed routine responses and chat controls to prioritize coaching content,

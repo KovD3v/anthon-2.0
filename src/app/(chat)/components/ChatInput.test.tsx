@@ -267,6 +267,19 @@ describe("ChatInput keyboard behavior", () => {
 
     expect(props.onSubmit).toHaveBeenCalledOnce();
   });
+
+  it("keeps the composer compact and fully inside the mobile viewport", () => {
+    renderChatInput("Messaggio");
+
+    const form = screen
+      .getByRole("button", { name: "Invia messaggio" })
+      .closest("form");
+    expect(form?.className).toContain("min-w-0");
+    expect(form?.className).toContain("max-w-full");
+    expect(
+      screen.getByRole("button", { name: "Invia messaggio" }).className,
+    ).toContain("h-11");
+  });
 });
 
 describe("ChatInput audio attachments", () => {

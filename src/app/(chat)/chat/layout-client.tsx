@@ -217,9 +217,9 @@ function GuestBanner({
   onOpenSidebar: () => void;
 }) {
   return (
-    <div className="mx-2 mt-2 md:mx-4 md:mt-4">
-      <div className="flex items-center justify-between gap-2 bg-linear-to-r from-primary/10 via-primary/5 to-transparent backdrop-blur-xl border border-primary/20 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl shadow-sm shadow-primary/5">
-        <div className="flex items-center gap-2 min-w-0">
+    <div className="mx-2 mt-2 min-w-0 max-w-full md:mx-4 md:mt-4">
+      <div className="flex min-w-0 max-w-full items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-linear-to-r from-primary/10 via-primary/5 to-transparent px-2.5 py-2 shadow-sm shadow-primary/5 backdrop-blur-xl sm:px-4 sm:py-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -231,7 +231,7 @@ function GuestBanner({
           >
             <PanelLeft className="h-4 w-4" />
           </Button>
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
             <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
             <span className="text-muted-foreground truncate text-sm">
               <span className="hidden xs:inline">Ospite: </span>
@@ -247,7 +247,7 @@ function GuestBanner({
           asChild
           size="sm"
           variant="default"
-          className="gap-1.5 h-8 text-xs shrink-0 rounded-xl px-3"
+          className="h-9 shrink-0 gap-1.5 rounded-xl px-3 text-xs"
         >
           <Link href={registrationHref} aria-label="Registrati">
             <UserPlus className="h-3.5 w-3.5" />
@@ -1127,7 +1127,7 @@ export function LayoutClient({
     >
       <div
         ref={chatViewportRef}
-        className="flex chat-mobile-viewport overflow-hidden"
+        className="flex min-w-0 chat-mobile-viewport overflow-hidden"
         data-testid="chat-layout-shell"
       >
         {isMobileSidebarViewport && (

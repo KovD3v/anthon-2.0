@@ -239,18 +239,18 @@ export default function ChatPage() {
     mostRecentChat !== null || returningActiveRoutine !== null;
 
   return (
-    <PageWrapper className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex min-h-full flex-col items-center justify-center px-4 py-5 sm:p-8">
-          <div className="w-full max-w-4xl text-center">
-            <div className="mb-8">
+    <PageWrapper className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto min-w-0">
+        <div className="flex min-h-full flex-col items-center justify-start px-4 py-8 sm:justify-center sm:p-8">
+          <div className="w-full min-w-0 max-w-4xl text-center">
+            <div className="mb-6 sm:mb-8">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-primary/40 bg-primary/10">
                 <Brain className="h-7 w-7 text-primary" />
               </div>
-              <h1 className="font-display mt-4 text-4xl font-bold uppercase leading-none">
+              <h1 className="font-display mt-4 text-3xl font-bold uppercase leading-none sm:text-4xl">
                 {greeting}
               </h1>
-              <p className="mx-auto mt-3 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-lg">
                 Partiamo da ciò che sta succedendo davvero. Scegli una
                 situazione o apri una conversazione libera.
               </p>

@@ -192,6 +192,25 @@ describe("MessageList rendered interactions", () => {
     expect(response.parentElement?.className).not.toContain("width");
   });
 
+  it("keeps long assistant responses shrinkable inside the mobile viewport", () => {
+    const longResponse = "Parola-lunghissima-".repeat(40);
+
+    renderMessageList({
+      messages: [
+        userMessage,
+        {
+          ...assistantMessage,
+          parts: [{ type: "text", text: longResponse }],
+        },
+      ],
+    });
+
+    const assistantBubble = screen.getByText(longResponse).parentElement;
+    expect(assistantBubble?.className).toContain("min-w-0");
+    expect(assistantBubble?.className).toContain("max-w-full");
+    expect(assistantBubble?.className).toContain("break-words");
+  });
+
   it("renders persisted capability use as generic non-interactive indicators", () => {
     renderMessageList({
       messages: [
@@ -598,7 +617,9 @@ describe("MessageList rendered interactions", () => {
       <MessageList {...view.props} messages={[annotatedMessage]} />,
     );
 
-    expect(screen.getByText("Dettagli tecnici")).toBeTruthy();
+    const details = screen.getByText("Dettagli tecnici").closest("details");
+    expect(details).toBeTruthy();
+    expect(details?.hasAttribute("open")).toBe(false);
   });
 
   it("keeps secondary message actions in the overflow menu", async () => {
