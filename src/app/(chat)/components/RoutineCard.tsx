@@ -31,14 +31,15 @@ interface RoutineCardProps {
   onCreateAttempt: CreateRoutineAttempt;
   onSaveOutcome: SaveRoutineOutcome;
   onArchive: (routineId: string) => Promise<RoutineCardData>;
-  onTryNow: () => void;
+  /** Persist an unsaved proposal and return the authoritative routine to run. */
+  onTryNow: () => Promise<RoutineCardData>;
   onAdapt: () => void;
   /** True when this card invokes an existing routine from the collection. */
   isReused?: boolean;
   openCheckIn?: boolean;
 }
 
-type PendingAction = "save" | "archive" | null;
+type PendingAction = "save" | "start" | "archive" | null;
 
 export function RoutineCard({
   proposal,
@@ -146,6 +147,28 @@ export function RoutineCard({
     } finally {
       setPendingAction(null);
     }
+  }
+
+  async function startProposedRoutine() {
+    if (isGuest || pendingAction) return;
+
+    const savedRoutine = await runAction(
+      "start",
+      onTryNow,
+      "Non siamo riusciti ad avviare la routine. Riprova.",
+    );
+    if (!savedRoutine) return;
+
+    setCompletedRoutine(savedRoutine);
+    setIsRunnerOpen(true);
+    const startedSnapshot = normalizeRoutineProposal(savedRoutine.proposal);
+    trackRoutineAnalytics({
+      event: "routine_started",
+      routineId: savedRoutine.id,
+      formatVersion: startedSnapshot.formatVersion,
+      widgetKind: "routine_card",
+      technicalState: "success",
+    });
   }
 
   async function recordCompletion() {
@@ -356,17 +379,32 @@ export function RoutineCard({
                   </Button>
                 )}
 
-              {(!isActive || hasPendingAttempt) && (
+              {!isActive && isGuest ? (
                 <Button
-                  type="button"
+                  asChild
                   size="sm"
-                  variant={hasPendingAttempt ? "default" : "outline"}
+                  variant="outline"
                   className="min-h-11 rounded-full px-4"
-                  disabled={pendingAction !== null}
-                  onClick={isActive ? () => setIsCheckInOpen(true) : onTryNow}
                 >
-                  {isActive ? "Com'è andata?" : "La provo ora"}
+                  <Link href={registrationHref}>Registrati per provarla</Link>
                 </Button>
+              ) : (
+                (!isActive || hasPendingAttempt) && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={hasPendingAttempt ? "default" : "outline"}
+                    className="min-h-11 rounded-full px-4"
+                    disabled={pendingAction !== null}
+                    onClick={
+                      isActive
+                        ? () => setIsCheckInOpen(true)
+                        : () => void startProposedRoutine()
+                    }
+                  >
+                    {isActive ? "Com'è andata?" : "La provo ora"}
+                  </Button>
+                )
               )}
 
               {isActive && displayedRoutine?.latestAttempt && (
@@ -406,12 +444,14 @@ export function RoutineCard({
             </div>
           )}
 
-          {pendingAction === "save" && (
+          {(pendingAction === "save" || pendingAction === "start") && (
             <output
               className="mt-3 block text-xs text-muted-foreground"
               aria-live="polite"
             >
-              Salvataggio routine…
+              {pendingAction === "start"
+                ? "Preparazione routine…"
+                : "Salvataggio routine…"}
             </output>
           )}
           {status && !pendingAction && (

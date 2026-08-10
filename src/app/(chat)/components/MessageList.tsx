@@ -148,7 +148,10 @@ interface MessageListProps {
   onCreateRoutineAttempt: CreateRoutineAttempt;
   onSaveRoutineOutcome: SaveRoutineOutcome;
   onArchiveRoutine: (routineId: string) => Promise<RoutineCardData>;
-  onTryRoutineNow: (title: string) => void;
+  /** Persist the proposal identified by its source assistant message and start it inline. */
+  onTryRoutineNow: (
+    sourceAssistantMessageId: string,
+  ) => Promise<RoutineCardData>;
   onAdaptRoutine: (routineId: string, title: string) => void;
   openCheckInRoutineId?: string | null;
   // Lazy loading props
@@ -513,7 +516,11 @@ export function MessageList({
               onCreateAttempt={onCreateRoutineAttempt}
               onSaveOutcome={onSaveRoutineOutcome}
               onArchive={onArchiveRoutine}
-              onTryNow={() => onTryRoutineNow(reusedRoutine.proposal.title)}
+              onTryNow={() =>
+                onTryRoutineNow(
+                  reusedRoutine.sourceAssistantMessageId ?? reusedRoutine.id,
+                )
+              }
               onAdapt={() =>
                 onAdaptRoutine(reusedRoutine.id, reusedRoutine.proposal.title)
               }
@@ -955,11 +962,7 @@ export function MessageList({
                           onCreateAttempt={onCreateRoutineAttempt}
                           onSaveOutcome={onSaveRoutineOutcome}
                           onArchive={onArchiveRoutine}
-                          onTryNow={() =>
-                            onTryRoutineNow(
-                              routine?.proposal.title ?? routineProposal.title,
-                            )
-                          }
+                          onTryNow={() => onTryRoutineNow(message.id)}
                           onAdapt={() => {
                             if (!routine) return;
                             onAdaptRoutine(routine.id, routine.proposal.title);

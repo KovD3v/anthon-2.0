@@ -833,10 +833,11 @@ export function ChatConversationClient({
     [applyRoutineMutation, chatData.routines, confirm],
   );
 
-  const handleTryRoutineNow = useCallback((title: string) => {
-    setInput(`Inizio ora la routine: ${title}. Ti aggiorno dopo il tentativo.`);
-    setFocusRequestId((current) => current + 1);
-  }, []);
+  const handleTryRoutineNow = useCallback(
+    (sourceAssistantMessageId: string) =>
+      handleSaveRoutine(sourceAssistantMessageId),
+    [handleSaveRoutine],
+  );
 
   const handleAdaptRoutine = useCallback((routineId: string, title: string) => {
     const prompt = `Vorrei adattare la routine "${title}" dopo l'ultimo tentativo. Aiutami a renderla più efficace.`;

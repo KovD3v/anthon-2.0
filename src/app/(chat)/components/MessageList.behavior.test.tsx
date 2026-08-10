@@ -263,6 +263,28 @@ describe("MessageList rendered interactions", () => {
     ).toContain("hidden");
   });
 
+  it("saves the exact proposal source and opens the inline runner", async () => {
+    const user = userEvent.setup();
+    const onTryRoutineNow = vi.fn().mockResolvedValue(activeRoutine);
+    renderMessageList({
+      messages: [
+        userMessage,
+        {
+          ...assistantMessage,
+          parts: [{ type: "text", text: "Prova questa routine." }, routinePart],
+        },
+      ],
+      onTryRoutineNow,
+    });
+
+    await user.click(screen.getByRole("button", { name: "La provo ora" }));
+
+    expect(onTryRoutineNow).toHaveBeenCalledWith("assistant-1");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Chiudi" })).toBeTruthy(),
+    );
+  });
+
   it("keeps a routine card renderable when the assistant has no prose part", () => {
     renderMessageList({
       messages: [

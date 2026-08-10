@@ -140,6 +140,9 @@ describe("RoutineCard proposal", () => {
     expect(registration.getAttribute("href")).toBe(
       "/sign-up?redirect_url=%2Fchat%2Fchat-1",
     );
+    expect(
+      screen.getByRole("link", { name: "Registrati per provarla" }),
+    ).toBeTruthy();
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.queryByText("Routine attiva")).toBeNull();
   });
@@ -211,15 +214,18 @@ describe("RoutineCard proposal", () => {
     );
   });
 
-  it("prefills the composer without creating an attempt", async () => {
+  it("saves a proposal and starts the inline runner without creating an attempt", async () => {
     const user = userEvent.setup();
-    const onTryNow = vi.fn();
+    const onTryNow = vi.fn().mockResolvedValue(activeRoutine);
     const onCreateAttempt = vi.fn();
     renderProposal({ onTryNow, onCreateAttempt });
 
     await user.click(screen.getByRole("button", { name: "La provo ora" }));
 
     expect(onTryNow).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Chiudi" })).toBeTruthy(),
+    );
     expect(onCreateAttempt).not.toHaveBeenCalled();
   });
 });
