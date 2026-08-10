@@ -243,7 +243,7 @@ describe("chat mobile viewport layout", () => {
     expect(layoutClient).not.toContain("debugViewport");
     expect(layoutClient).not.toContain("ViewportDebugOverlay");
     expect(layoutClient).toContain(
-      'className="flex chat-mobile-viewport overflow-hidden"',
+      'className="flex min-w-0 chat-mobile-viewport overflow-hidden"',
     );
     expect(layout).toContain(
       'className="flex chat-mobile-viewport overflow-hidden"',
@@ -327,7 +327,7 @@ describe("chat mobile viewport layout", () => {
       'className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-linear-to-b from-background to-muted/20"',
     );
     expect(conversationClient).toContain(
-      'className="min-h-0 flex-1 overflow-y-auto px-4 py-6"',
+      'className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:py-6"',
     );
     expect(chatInput).toContain("w-full min-w-0 shrink-0");
   });

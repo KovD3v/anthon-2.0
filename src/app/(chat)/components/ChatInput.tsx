@@ -201,7 +201,7 @@ export function ChatInput({
     : `${CHAT_REACTIVITY_COPY.uploadUploading}...`;
 
   return (
-    <div className="relative mx-auto w-full min-w-0 shrink-0 max-w-3xl px-3 sm:px-4 pb-6 sm:pb-8 pt-2 safe-area-bottom">
+    <div className="relative mx-auto w-full min-w-0 shrink-0 max-w-full px-2 pb-3 pt-2 safe-area-bottom sm:max-w-3xl sm:px-4 sm:pb-8">
       {/* Attachment previews */}
       {documentAttachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
@@ -236,7 +236,7 @@ export function ChatInput({
       )}
       <form
         onSubmit={handleFormSubmit}
-        className="relative flex items-end gap-2 rounded-4xl border border-border/70 bg-background/60 p-2 shadow-lg backdrop-blur-xl ring-1 ring-black/5 dark:border-white/10 dark:bg-muted/40 dark:ring-white/10 transition-[border-color,box-shadow] focus-within:ring-2 focus-within:ring-primary/20"
+        className="relative flex min-w-0 max-w-full items-end gap-1 rounded-4xl border border-border/70 bg-background/60 p-1.5 shadow-lg backdrop-blur-xl ring-1 ring-black/5 transition-[border-color,box-shadow] focus-within:ring-2 focus-within:ring-primary/20 dark:border-white/10 dark:bg-muted/40 dark:ring-white/10 sm:gap-2 sm:p-2"
       >
         {/* Hidden file input */}
         <input
@@ -251,18 +251,18 @@ export function ChatInput({
 
         {/* Attachment button - hidden for guests */}
         {!disableAttachments && !audioAttachment && (
-          <div className="pb-1 pl-1">
+          <div className="pb-0.5 pl-0.5">
             <AttachmentButton
               onClick={() => fileInputRef.current?.click()}
               hasAttachment={attachments.length > 0}
-              className="h-9 w-9"
+              className="h-10 w-10"
             />
           </div>
         )}
 
         {/* Microphone button for voice recording - hidden for guests */}
         {!disableAttachments && !audioAttachment && (
-          <div className="pb-1">
+          <div className="pb-0.5">
             <AudioRecorder
               onRecordingComplete={handleRecordingComplete}
               disabled={externallyDisabled || isLoading || isUploading}
@@ -305,11 +305,11 @@ export function ChatInput({
             onKeyDown={handleKeyDown}
             placeholder={disabledReason ?? "Scrivi un messaggio…"}
             rows={1}
-            className="min-w-0 flex-1 resize-none bg-transparent px-2 py-3 text-sm outline-none placeholder:text-muted-foreground/50 max-h-[200px] overflow-y-auto scrollbar-none"
+            className="min-w-0 flex-1 max-w-full resize-none overflow-y-auto bg-transparent px-2 py-2.5 text-sm outline-none placeholder:text-muted-foreground/50 scrollbar-none max-h-[132px] sm:max-h-[200px] sm:py-3"
             disabled={externallyDisabled || isLoading || isUploading}
           />
         )}
-        <div className="grid pb-1 pr-1">
+        <div className="grid shrink-0 pb-0.5 pr-0.5">
           <AnimatePresence initial={false} mode="popLayout">
             <m.div
               key={isLoading ? "stop" : "send"}
@@ -324,7 +324,7 @@ export function ChatInput({
                   type="button"
                   size="icon"
                   variant="destructive"
-                  className="h-9 w-9 rounded-full shadow-sm transition-shadow hover:shadow-md"
+                  className="h-11 w-11 rounded-full shadow-sm transition-shadow hover:shadow-md"
                   onClick={onStop}
                   aria-label="Interrompi risposta"
                 >
@@ -334,7 +334,7 @@ export function ChatInput({
                 <Button
                   type="submit"
                   size="icon"
-                  className={`h-9 w-9 rounded-full transition-[background-color,color,box-shadow,transform] duration-200 ${
+                  className={`h-11 w-11 rounded-full transition-[background-color,color,box-shadow,transform] duration-200 ${
                     input.trim() || attachments.length > 0
                       ? "bg-primary text-primary-foreground shadow-md hover:shadow-lg [@media(hover:hover)_and_(pointer:fine)]:hover:scale-105"
                       : "bg-muted text-muted-foreground hover:bg-muted/80"

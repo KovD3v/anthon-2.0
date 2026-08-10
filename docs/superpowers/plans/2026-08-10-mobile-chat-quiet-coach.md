@@ -32,19 +32,19 @@
 - Consumes: current `MessageList`, `ChatInput`, and `ChatConversationClient` render contracts.
 - Produces: regression coverage for mobile-safe message composition, collapsed technical details, empty-state visibility, and composer height/layout contracts.
 
-- [ ] **Step 1: Add a long-message layout regression assertion**
+- [x] **Step 1: Add a long-message layout regression assertion**
 
 Render a persisted assistant message containing a long unbroken token and normal prose. Assert that the assistant content wrapper and rendered prose expose the mobile-safe `min-w-0`/wrapping contract, while the technical details element remains closed until explicitly opened.
 
-- [ ] **Step 2: Add an empty-state visibility assertion**
+- [x] **Step 2: Add an empty-state visibility assertion**
 
 Render the conversation in its empty idle state and assert that the welcome heading and at least one suggested action are present in the visible mobile composition, rather than relying only on the brain icon.
 
-- [ ] **Step 3: Add composer contract assertions**
+- [x] **Step 3: Add composer contract assertions**
 
 Render `ChatInput` with an empty draft and a multiline draft. Assert that the explicit send control retains its accessible label, the textarea remains available for native mobile newlines, and the composer exposes the compact mobile class contract.
 
-- [ ] **Step 4: Run the focused tests and confirm the new assertions fail before implementation**
+- [x] **Step 4: Run the focused tests and confirm the new assertions fail before implementation**
 
 Run:
 
@@ -63,6 +63,7 @@ Expected: the existing tests pass and the new layout-contract assertions fail be
 
 **Files:**
 - Modify: `src/app/(chat)/chat/layout-client.tsx`
+- Modify: `src/app/(chat)/chat/page.tsx`
 - Modify: `src/app/(chat)/chat/[id]/chat-conversation-client.tsx`
 - Modify: `src/app/(chat)/components/SuggestedActions.tsx` only if the compact mobile suggestion treatment cannot be expressed at the call site.
 - Test: `src/app/(chat)/chat/layout-client.test.tsx` and `src/app/(chat)/chat/[id]/chat-conversation-client.behavior.test.tsx`.
@@ -71,19 +72,19 @@ Expected: the existing tests pass and the new layout-contract assertions fail be
 - Consumes: `chat-mobile-viewport`, `GuestBanner`, `UsageBanner`, `EmptyChatWelcome`, and `SuggestedActions`.
 - Produces: one constrained mobile content column; a compact usage/guest banner; an empty state whose heading and first actions remain above the composer when the viewport shrinks for the keyboard.
 
-- [ ] **Step 1: Constrain the shell and top banner**
+- [x] **Step 1: Constrain the shell and top banner**
 
 Add `min-w-0` to the flex shell and main content boundaries where needed. Keep the guest/usage banner as a single compact row with a shrinking text region and a non-shrinking action region; prevent the action from creating a wider layout than the viewport.
 
-- [ ] **Step 2: Move the empty-state composition toward the top of the available mobile region**
+- [x] **Step 2: Move the empty-state composition toward the top of the available mobile region**
 
 Replace the mobile `min-h-full justify-center` treatment with a responsive top-anchored layout. Keep desktop centering unchanged. Use a compact icon/title block and place suggested actions beneath it with a bounded vertical gap so the title is not hidden behind the composer or keyboard.
 
-- [ ] **Step 3: Make mobile suggestions compact without changing desktop cards**
+- [x] **Step 3: Make mobile suggestions compact without changing desktop cards**
 
-On mobile, render the first three coaching starters as compact full-width or horizontally scrollable actions with short labels; retain the existing two-column card treatment from the `sm` breakpoint upward. Do not add new routes or prompt behavior.
+On mobile, render the coaching starters as compact full-width actions with short labels; retain the existing two-column card treatment from the `sm` breakpoint upward. Do not add new routes or prompt behavior.
 
-- [ ] **Step 4: Run the shell and empty-state tests**
+- [x] **Step 4: Run the shell and empty-state tests**
 
 Run:
 
@@ -108,23 +109,23 @@ Expected: PASS, with the empty-state heading and suggested action assertions gre
 - Consumes: current message role/lifecycle rendering, `MemoizedMarkdown`, feedback actions, and technical usage metadata.
 - Produces: assistant content that stays inside the mobile column, wraps long content, uses a neutral readable surface, and keeps technical metrics collapsed.
 
-- [ ] **Step 1: Make every message row and content column shrinkable**
+- [x] **Step 1: Make every message row and content column shrinkable**
 
 Add `min-w-0` to the message row and content flex item. Replace the mobile-sensitive fixed percentage constraint with a width bounded by the available column, preserving a narrower user bubble where appropriate. Add safe word wrapping to the prose/content wrapper for long URLs, identifiers, and tokens.
 
-- [ ] **Step 2: Rebalance mobile surfaces**
+- [x] **Step 2: Rebalance mobile surfaces**
 
 Use a quiet `bg-card`/border treatment for assistant responses. Keep the brand accent on user messages and selected actions. Reduce mobile bubble padding slightly while preserving comfortable line height and the existing desktop spacing.
 
-- [ ] **Step 3: Compact the action row on mobile**
+- [x] **Step 3: Compact the action row on mobile**
 
 Keep accessible 44px icon buttons, but allow the feedback label to wrap or collapse into a short mobile label. Keep copy/regenerate/edit/delete in the existing overflow menu rather than adding visible controls.
 
-- [ ] **Step 4: Keep technical details secondary**
+- [x] **Step 4: Keep technical details secondary**
 
 Keep `<details>` closed by default and make its summary visually quiet. On narrow screens, metadata should wrap inside the details panel instead of widening the response surface.
 
-- [ ] **Step 5: Run message tests**
+- [x] **Step 5: Run message tests**
 
 Run:
 
@@ -147,19 +148,19 @@ Expected: PASS, including the long-message wrapping and collapsed-details assert
 - Consumes: current attachment/audio controls, textarea behavior, `safe-area-bottom`, and `chat-mobile-viewport` sizing.
 - Produces: a one-line 52–56px mobile composer that expands to at most three lines, stays inside the viewport, and preserves all current submission and keyboard semantics.
 
-- [ ] **Step 1: Apply the mobile dock spacing**
+- [x] **Step 1: Apply the mobile dock spacing**
 
 Reduce excess mobile bottom padding while retaining the safe-area inset. Add `min-w-0`/`max-w-full` to the form and its control groups, and use a mobile radius and height that read as an input dock rather than a large floating card.
 
-- [ ] **Step 2: Keep the send/stop control inside the field**
+- [x] **Step 2: Keep the send/stop control inside the field**
 
 Reserve a non-shrinking 44px control slot on the right and let the textarea shrink first. Keep the send button disabled state and stop response behavior unchanged.
 
-- [ ] **Step 3: Keep attachments and voice secondary on narrow screens**
+- [x] **Step 3: Keep attachments and voice secondary on narrow screens**
 
 Preserve their behavior and labels, but prevent them from forcing the textarea below a usable width. If necessary at the narrowest breakpoint, place them behind the existing affordance rather than removing functionality.
 
-- [ ] **Step 4: Run composer tests**
+- [x] **Step 4: Run composer tests**
 
 Run:
 
