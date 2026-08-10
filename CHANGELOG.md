@@ -10,6 +10,17 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Added
 
+- Added an authenticated routine collection with reusable coaching routines
+  that can be launched in a new chat, run inline through timers, breathing
+  sequences, and structured check-ins, and reviewed in a dated attempt history.
+- Added staged PostHog rollout control for the routine loop through the
+  `routine-loop-v1` feature flag, with fail-closed access for regular and guest
+  users and administrator access for validation.
+- Added a user preference for showing technical response metrics, enabled by
+  default for administrators and superadmins.
+- Added per-turn capability arbitration so Anthon can compose contextual RAG,
+  web search, guarded memory operations, routine proposals, and voice delivery
+  according to each message.
 - Documented user plan states, daily text and voice limits, OpenRouter cost
   estimates, plan economics, and the intended Clerk pricing and benefits UX.
 - Added production-build instant-navigation regression coverage for guest chat
@@ -30,6 +41,10 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Changed routine repeats to reuse the saved routine definition in a new chat
+  instead of generating a duplicate routine card.
+- Changed routine responses and chat controls to prioritize coaching content,
+  with technical details and secondary actions available progressively.
 - Exposed persisted voice-fallback reasons in chat and linked trial voice
   fallbacks to the pricing page.
 - Upgraded to Next.js 16.3 and React 19.2.8, enabled Cache Components, and
@@ -50,6 +65,10 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Hardened routine lifecycle recovery across source chats, returning check-ins,
+  concurrent mutations, and orphaned routines.
+- Prevented duplicate AI turns when repeating a saved routine and preserved
+  routine attempt outcomes with their dates and richer optional feedback.
 - Localized voice-unavailability explanations in Italian for trial, preference,
   provider, and quota fallbacks.
 - Scoped chat composer keyboard behavior by viewport: Enter creates a new line

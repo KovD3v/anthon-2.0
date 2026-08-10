@@ -25,7 +25,7 @@ Ogni file può avere una dimensione massima di 10 MiB.
 
 ## Quote AI
 
-| Piano | Input/giorno | Output/giorno | Costo orchestratore stimato | Budget giornaliero |
+| Piano | Input/giorno | Output/giorno | Costo senza limite stimato | Limite fissato giornaliero |
 | --- | ---: | ---: | ---: | ---: |
 | **Guest** | 20.000 | 10.000 | $0,0094 | $0,05 |
 | **Trial** | 100.000 | 50.000 | $0,0469 | $0,50 |
