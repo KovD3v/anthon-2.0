@@ -65,6 +65,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Fixed the mobile chat landing layout by keeping the writing composer visible
+  below the scrollable welcome content and arranging starter situations in a
+  compact two-column grid.
 - Fixed scrolling in the chat sidebar by allowing the conversation list to
   shrink within the available viewport height.
 - Hardened routine lifecycle recovery across source chats, returning check-ins,
