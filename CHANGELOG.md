@@ -69,6 +69,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Prevented iOS Safari from zooming the chat composer on focus by keeping the
+  mobile input text at the native 16px minimum while preserving the denser
+  desktop scale.
 - Fixed the mobile chat landing layout by keeping the writing composer visible
   below the scrollable welcome content and arranging starter situations in a
   compact two-column grid.

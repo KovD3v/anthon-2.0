@@ -280,6 +280,17 @@ describe("ChatInput keyboard behavior", () => {
       screen.getByRole("button", { name: "Invia messaggio" }).className,
     ).toContain("h-11");
   });
+
+  it("keeps mobile input text at 16px to prevent focus zoom", () => {
+    renderChatInput("Messaggio");
+
+    const textarea = screen.getByRole("textbox", {
+      name: "Scrivi un messaggio",
+    });
+
+    expect(textarea.className).toContain("text-base");
+    expect(textarea.className).toContain("sm:text-sm");
+  });
 });
 
 describe("ChatInput audio attachments", () => {
