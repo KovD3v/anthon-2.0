@@ -139,11 +139,16 @@ export async function buildConversationComparison({
   baseline,
   candidate,
   judges,
+  pairConcurrency = 4,
 }: {
   baseline: ConversationRunArtifact;
   candidate: ConversationRunArtifact;
   judges: [PairJudge, PairJudge];
+  pairConcurrency?: number;
 }): Promise<ConversationComparisonArtifact> {
+  if (!Number.isInteger(pairConcurrency) || pairConcurrency < 1) {
+    throw new Error("pairConcurrency must be a positive integer");
+  }
   assertCompatibleConversationRuns(baseline, candidate);
   const candidateByKey = new Map(
     candidate.replicas.map((replica) => [
@@ -157,9 +162,14 @@ export async function buildConversationComparison({
       replica,
     ]),
   );
-  const pairs: ConversationComparisonPair[] = [];
-  let totalJudgeCostUsd = 0;
-  for (const base of baseline.replicas) {
+  const pairResults = new Array<{
+    pair: ConversationComparisonPair;
+    judgeCostUsd: number;
+  }>(baseline.replicas.length);
+  let nextPairIndex = 0;
+  const judgePair = async (
+    base: ConversationRunArtifact["replicas"][number],
+  ) => {
     const key = conversationReplicaKey(base);
     const next = candidateByKey.get(key);
     if (!next) throw new Error(`Missing candidate pair ${key}`);
@@ -208,39 +218,62 @@ export async function buildConversationComparison({
         }),
       ),
     );
-    totalJudgeCostUsd += results.reduce(
+    const judgeCostUsd = results.reduce(
       (sum, result) => sum + result.costUsd,
       0,
     );
     const verdicts = results.map((result) =>
       revealVerdict(result.output.preferred, assignment),
     );
-    pairs.push({
-      key,
-      scenarioId: base.scenarioId,
-      turnIndex: base.turnIndex,
-      replicaId: base.replicaId,
-      baselineText: base.assistantText,
-      candidateText: next.assistantText,
-      verdicts,
-      dimensionsBaseline: averageDimensions(
-        results.map((result) =>
-          dimensionsForVariant(result.output, assignment, "baseline"),
+    return {
+      judgeCostUsd,
+      pair: {
+        key,
+        scenarioId: base.scenarioId,
+        turnIndex: base.turnIndex,
+        replicaId: base.replicaId,
+        baselineText: base.assistantText,
+        candidateText: next.assistantText,
+        verdicts,
+        dimensionsBaseline: averageDimensions(
+          results.map((result) =>
+            dimensionsForVariant(result.output, assignment, "baseline"),
+          ),
         ),
-      ),
-      dimensionsCandidate: averageDimensions(
-        results.map((result) =>
-          dimensionsForVariant(result.output, assignment, "candidate"),
+        dimensionsCandidate: averageDimensions(
+          results.map((result) =>
+            dimensionsForVariant(result.output, assignment, "candidate"),
+          ),
         ),
-      ),
-      reasons: results.map((result) => result.output.reason),
-      disagreement:
-        verdicts.includes("baseline") && verdicts.includes("candidate"),
-      safetyRegressions: results.map((result) =>
-        revealSafetyRegression(result.output.safetyRegression, assignment),
-      ),
-    });
-  }
+        reasons: results.map((result) => result.output.reason),
+        disagreement:
+          verdicts.includes("baseline") && verdicts.includes("candidate"),
+        safetyRegressions: results.map((result) =>
+          revealSafetyRegression(result.output.safetyRegression, assignment),
+        ),
+      },
+    };
+  };
+  const worker = async () => {
+    while (true) {
+      const index = nextPairIndex;
+      nextPairIndex += 1;
+      const base = baseline.replicas[index];
+      if (!base) return;
+      pairResults[index] = await judgePair(base);
+    }
+  };
+  await Promise.all(
+    Array.from(
+      { length: Math.min(pairConcurrency, baseline.replicas.length) },
+      () => worker(),
+    ),
+  );
+  const pairs = pairResults.map((result) => result.pair);
+  const totalJudgeCostUsd = pairResults.reduce(
+    (sum, result) => sum + result.judgeCostUsd,
+    0,
+  );
   const allVerdicts = pairs.flatMap((pair) => pair.verdicts);
   return {
     artifactVersion: CONVERSATION_ARTIFACT_VERSION,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
+import { conversationReplicaKey } from "./conversation-benchmark";
 import {
   buildConversationComparison,
   runConversationVariant,
@@ -132,6 +133,33 @@ describe("benchmark/conversation-benchmark-runner", () => {
     ]);
     expect(secondTurn?.transcriptA).not.toEqual(secondTurn?.transcriptB);
   });
+
+  it("judges pairs concurrently while preserving artifact order", async () => {
+    const baseline = await makeArtifact("baseline");
+    const candidate = await makeArtifact("candidate");
+    let activePairs = 0;
+    let maxActivePairs = 0;
+    const delayedJudge = async () => {
+      activePairs += 1;
+      maxActivePairs = Math.max(maxActivePairs, activePairs);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      activePairs -= 1;
+      return judgeResult;
+    };
+
+    const comparison = await buildConversationComparison({
+      baseline,
+      candidate,
+      judges: [delayedJudge, async () => judgeResult],
+      pairConcurrency: 3,
+    });
+
+    expect(maxActivePairs).toBeGreaterThan(1);
+    expect(maxActivePairs).toBeLessThanOrEqual(3);
+    expect(comparison.pairs.map((pair) => pair.key)).toEqual(
+      baseline.replicas.map(conversationReplicaKey),
+    );
+  });
 });
 
 const dimensions = {
@@ -141,3 +169,37 @@ const dimensions = {
   multiTurnProgression: 5,
   questionQuality: 5,
 };
+
+const judgeResult = {
+  judgeModelId: "judge",
+  costUsd: 0,
+  generationTimeMs: 1,
+  output: {
+    preferred: "tie" as const,
+    dimensionsA: dimensions,
+    dimensionsB: dimensions,
+    reason: "test",
+    strengthsA: [],
+    strengthsB: [],
+    weaknessesA: [],
+    weaknessesB: [],
+    safetyRegression: "neither" as const,
+  },
+};
+
+async function makeArtifact(variant: "baseline" | "candidate") {
+  return runConversationVariant({
+    variant,
+    label: variant,
+    commit: (variant === "baseline" ? "a" : "b").repeat(40),
+    samples: 1,
+    configurationFingerprint: variant,
+    executorFactory: () => ({
+      executor: async ({ scenario, turnIndex }) => ({
+        text: `${variant}-${scenario.id}-${turnIndex}`,
+        metrics,
+      }),
+      cleanup: async () => undefined,
+    }),
+  });
+}

@@ -84,6 +84,7 @@ async function main() {
       baseline,
       candidate,
       judges,
+      pairConcurrency: config.pairConcurrency,
     });
     const label = sanitizeFileSegment(
       config.label ?? `${baseline.label}-vs-${candidate.label}`,

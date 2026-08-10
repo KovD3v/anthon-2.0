@@ -32,6 +32,28 @@ describe("benchmark/conversation-benchmark-cli", () => {
         "--judge",
       ]),
     ).toMatchObject({ command: "compare", judge: true });
+    expect(
+      parseConversationBenchmarkArgs([
+        "compare",
+        "--baseline",
+        "before.json",
+        "--candidate",
+        "after.json",
+        "--judge",
+      ]),
+    ).toMatchObject({ pairConcurrency: 4 });
+    expect(
+      parseConversationBenchmarkArgs([
+        "compare",
+        "--baseline",
+        "before.json",
+        "--candidate",
+        "after.json",
+        "--judge",
+        "--concurrency",
+        "3",
+      ]),
+    ).toMatchObject({ pairConcurrency: 3 });
   });
 
   it("rejects unsafe or incomplete commands", () => {
@@ -66,6 +88,20 @@ describe("benchmark/conversation-benchmark-cli", () => {
         "other",
       ]),
     ).toThrow(/Unknown/);
+    for (const value of ["0", "-1", "1.5", "nope"]) {
+      expect(() =>
+        parseConversationBenchmarkArgs([
+          "compare",
+          "--baseline",
+          "a",
+          "--candidate",
+          "b",
+          "--judge",
+          "--concurrency",
+          value,
+        ]),
+      ).toThrow(/concurrency/);
+    }
   });
 
   it("requires mutation approval only for generation commands", () => {

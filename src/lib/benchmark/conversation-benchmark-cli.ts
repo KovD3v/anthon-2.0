@@ -9,6 +9,7 @@ export type ConversationBenchmarkCliConfig = {
   outputDir: string;
   judge: boolean;
   judgeModels: string[];
+  pairConcurrency: number;
   allowDbMutation: boolean;
 };
 
@@ -33,6 +34,7 @@ export function parseConversationBenchmarkArgs(
     else if (arg === "--baseline") config.baselinePath = next();
     else if (arg === "--candidate") config.candidatePath = next();
     else if (arg === "--output-dir") config.outputDir = next();
+    else if (arg === "--concurrency") config.pairConcurrency = Number(next());
     else if (arg === "--judge-models")
       config.judgeModels = next()
         .split(",")
@@ -43,6 +45,8 @@ export function parseConversationBenchmarkArgs(
   }
   if (!Number.isInteger(config.samples) || config.samples < 1)
     throw new Error("samples must be a positive integer");
+  if (!Number.isInteger(config.pairConcurrency) || config.pairConcurrency < 1)
+    throw new Error("concurrency must be a positive integer");
   if (config.command === "baseline" && !config.label)
     throw new Error("baseline requires --label");
   if (config.command === "candidate" && !config.baselinePath)
@@ -71,6 +75,7 @@ function defaults(
     outputDir: "docs/benchmarks/runs",
     judge: false,
     judgeModels: [...DEFAULT_REALITY_JUDGE_MODELS],
+    pairConcurrency: 4,
     allowDbMutation: false,
   };
 }
@@ -91,6 +96,6 @@ export function assertConversationDbMutationAllowed(
 export const CONVERSATION_BENCHMARK_USAGE = `Usage:
   bun run benchmark:conversation baseline --label NAME [--samples 3] --allow-db-mutation
   bun run benchmark:conversation candidate --baseline PATH [--label NAME] [--samples 3] --allow-db-mutation
-  bun run benchmark:conversation compare --baseline PATH --candidate PATH --judge
+  bun run benchmark:conversation compare --baseline PATH --candidate PATH --judge [--concurrency 4]
 
 The evaluated model is fixed at openai/gpt-5.6-luna. Run generation only on development or an ephemeral database.`;
