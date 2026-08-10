@@ -55,6 +55,12 @@ async function main() {
           replicaId: string;
           answerA: string;
           answerB: string;
+          transcriptA: Parameters<
+            typeof judgeConversationPair
+          >[0]["transcriptA"];
+          transcriptB: Parameters<
+            typeof judgeConversationPair
+          >[0]["transcriptB"];
         }) => {
           const scenario = CONVERSATIONAL_REALITY_SCENARIOS.find(
             (item) => item.id === input.scenarioId,
@@ -67,12 +73,8 @@ async function main() {
             judgeModelId,
             scenario,
             turnIndex: input.turnIndex,
-            transcript: scenario.turns
-              .slice(0, input.turnIndex)
-              .map((turn) => ({
-                role: "user" as const,
-                content: turn.userMessage,
-              })),
+            transcriptA: input.transcriptA,
+            transcriptB: input.transcriptB,
             answerA: input.answerA,
             answerB: input.answerB,
           });

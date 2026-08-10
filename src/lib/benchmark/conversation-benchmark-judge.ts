@@ -62,13 +62,15 @@ export function assignBlindVariants(
 export function buildConversationPairwiseJudgePrompt({
   scenario,
   turnIndex,
-  transcript,
+  transcriptA,
+  transcriptB,
   answerA,
   answerB,
 }: {
   scenario: RealityScenario;
   turnIndex: number;
-  transcript: RealityTranscriptMessage[];
+  transcriptA: RealityTranscriptMessage[];
+  transcriptB: RealityTranscriptMessage[];
   answerA: string;
   answerB: string;
 }) {
@@ -82,7 +84,8 @@ export function buildConversationPairwiseJudgePrompt({
     "Confronta alla cieca due risposte italiane di coaching sportivo.",
     `Scenario: ${scenario.title}`,
     `Persona: ${scenario.persona}`,
-    `Trascrizione: ${transcript.map((m) => `${m.role}: ${m.content}`).join("\n") || "(nessuna)"}`,
+    `Conversazione A precedente: ${formatTranscript(transcriptA)}`,
+    `Conversazione B precedente: ${formatTranscript(transcriptB)}`,
     `Turno utente: ${turn.userMessage}`,
     `Anchor debole: ${turn.lowAnchorResponse}`,
     `Anchor forte: ${turn.highAnchorResponse}`,
@@ -93,6 +96,14 @@ export function buildConversationPairwiseJudgePrompt({
     `Risposta B:\n${answerB}`,
     "Scegli A, B, tie o both_insufficient e restituisci solo l'oggetto strutturato.",
   ].join("\n\n");
+}
+
+function formatTranscript(transcript: RealityTranscriptMessage[]) {
+  return (
+    transcript
+      .map((message) => `${message.role}: ${message.content}`)
+      .join("\n") || "(nessuna)"
+  );
 }
 
 export type ConversationJudgeResult = {
@@ -106,14 +117,16 @@ export async function judgeConversationPair({
   judgeModelId,
   scenario,
   turnIndex,
-  transcript,
+  transcriptA,
+  transcriptB,
   answerA,
   answerB,
 }: {
   judgeModelId: string;
   scenario: RealityScenario;
   turnIndex: number;
-  transcript: RealityTranscriptMessage[];
+  transcriptA: RealityTranscriptMessage[];
+  transcriptB: RealityTranscriptMessage[];
   answerA: string;
   answerB: string;
 }): Promise<ConversationJudgeResult> {
@@ -133,7 +146,8 @@ export async function judgeConversationPair({
         prompt: buildConversationPairwiseJudgePrompt({
           scenario,
           turnIndex,
-          transcript,
+          transcriptA,
+          transcriptB,
           answerA,
           answerB,
         }),

@@ -23,12 +23,21 @@ describe("benchmark/conversation-benchmark-judge", () => {
     const prompt = buildConversationPairwiseJudgePrompt({
       scenario,
       turnIndex: 1,
-      transcript: [{ role: "user", content: scenario.turns[0].userMessage }],
+      transcriptA: [
+        { role: "user", content: scenario.turns[0].userMessage },
+        { role: "assistant", content: "Storico A" },
+      ],
+      transcriptB: [
+        { role: "user", content: scenario.turns[0].userMessage },
+        { role: "assistant", content: "Storico B" },
+      ],
       answerA: "Risposta A",
       answerB: "Risposta B",
     });
     expect(prompt).toContain("Risposta A");
     expect(prompt).toContain("Risposta B");
+    expect(prompt).toContain("Storico A");
+    expect(prompt).toContain("Storico B");
     expect(prompt).toContain(scenario.title);
     expect(prompt).not.toMatch(/baseline|candidate|openai\/gpt|[a-f0-9]{40}/i);
   });

@@ -19,6 +19,7 @@ import {
 import { CONVERSATIONAL_REALITY_SCENARIOS } from "./conversation-scenarios";
 import {
   type DatabaseBackedRealityExecutor,
+  type RealityTranscriptMessage,
   runRealityBenchmark,
 } from "./reality";
 import { serializeRealityBenchmarkSummary } from "./reality-cli";
@@ -129,6 +130,8 @@ type PairJudge = (input: {
   replicaId: string;
   answerA: string;
   answerB: string;
+  transcriptA: RealityTranscriptMessage[];
+  transcriptB: RealityTranscriptMessage[];
 }) => Promise<ConversationJudgeResult>;
 
 export async function buildConversationComparison({
@@ -143,6 +146,12 @@ export async function buildConversationComparison({
   assertCompatibleConversationRuns(baseline, candidate);
   const candidateByKey = new Map(
     candidate.replicas.map((replica) => [
+      conversationReplicaKey(replica),
+      replica,
+    ]),
+  );
+  const baselineByKey = new Map(
+    baseline.replicas.map((replica) => [
       conversationReplicaKey(replica),
       replica,
     ]),
@@ -162,6 +171,29 @@ export async function buildConversationComparison({
       assignment.A === "baseline" ? base.assistantText : next.assistantText;
     const answerB =
       assignment.B === "baseline" ? base.assistantText : next.assistantText;
+    const transcriptFor = (
+      variant: "baseline" | "candidate",
+    ): RealityTranscriptMessage[] => {
+      const scenario = CONVERSATIONAL_REALITY_SCENARIOS.find(
+        (item) => item.id === base.scenarioId,
+      );
+      if (!scenario) throw new Error(`Unknown scenario ${base.scenarioId}`);
+      const replicas = variant === "baseline" ? baselineByKey : candidateByKey;
+      return scenario.turns
+        .slice(0, base.turnIndex)
+        .flatMap((turn, turnIndex) => {
+          const previous = replicas.get(
+            `${base.scenarioId}:${turnIndex}:${base.replicaId}`,
+          );
+          if (!previous) throw new Error(`Missing prior ${variant} turn`);
+          return [
+            { role: "user" as const, content: turn.userMessage },
+            { role: "assistant" as const, content: previous.assistantText },
+          ];
+        });
+    };
+    const transcriptA = transcriptFor(assignment.A);
+    const transcriptB = transcriptFor(assignment.B);
     const results = await Promise.all(
       judges.map((judge) =>
         judge({
@@ -170,6 +202,8 @@ export async function buildConversationComparison({
           replicaId: base.replicaId,
           answerA,
           answerB,
+          transcriptA,
+          transcriptB,
         }),
       ),
     );
