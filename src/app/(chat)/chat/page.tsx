@@ -241,7 +241,7 @@ export default function ChatPage() {
   return (
     <PageWrapper className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto min-w-0">
-        <div className="flex min-h-full flex-col items-center justify-start px-4 py-8 sm:justify-center sm:p-8">
+        <div className="flex min-h-full flex-col items-center justify-center px-4 py-8 sm:p-8">
           <div className="w-full min-w-0 max-w-4xl text-center">
             <div className="mb-6 sm:mb-8">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-primary/40 bg-primary/10">

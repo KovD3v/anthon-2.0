@@ -526,6 +526,9 @@ describe("chat mobile viewport layout", () => {
     expect(chatPage).toContain("<ChatInput");
     expect(chatPage).toContain("overflow-hidden");
     expect(chatPage).toContain("min-h-0 flex-1 overflow-y-auto");
+    expect(chatPage).toContain(
+      "min-h-full flex-col items-center justify-center",
+    );
     expect(chatPage).toContain("hidden grid-cols-2 gap-2");
     expect(chatPage).toContain("md:grid md:gap-3 md:grid-cols-3");
     expect(chatPage).not.toContain("Inizia una nuova conversazione");
