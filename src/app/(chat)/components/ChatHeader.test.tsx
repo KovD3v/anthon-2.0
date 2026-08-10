@@ -5,12 +5,15 @@ import { describe, expect, it } from "vitest";
 import { ChatHeader } from "./ChatHeader";
 
 describe("ChatHeader", () => {
-  it("names the export action for mobile assistive technology", () => {
+  it("keeps the export action available from tablet and desktop", () => {
     render(<ChatHeader chatId="chat-1" title="Allenamento" icon="DUMBBELL" />);
 
-    expect(
-      screen.getByRole("button", { name: "Esporta conversazione" }),
-    ).toBeTruthy();
+    const exportButton = screen.getByRole("button", {
+      name: "Esporta conversazione",
+    });
+    expect(exportButton).toBeTruthy();
+    expect(exportButton.className).toContain("hidden");
+    expect(exportButton.className).toContain("md:inline-flex");
     expect(screen.getByText("Esporta").className).toContain("sm:inline");
     expect(
       screen.getByTestId("chat-header-icon").getAttribute("data-chat-icon"),

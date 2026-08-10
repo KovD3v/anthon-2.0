@@ -157,7 +157,7 @@ export function ChatHeader({
         <Button
           variant="ghost"
           size="sm"
-          className="gap-1.5 text-muted-foreground hover:text-foreground"
+          className="hidden gap-1.5 text-muted-foreground hover:text-foreground md:inline-flex"
           onClick={handleExport}
           disabled={isExporting}
           aria-label="Esporta conversazione"
