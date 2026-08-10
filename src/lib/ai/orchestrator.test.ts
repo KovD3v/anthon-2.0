@@ -752,6 +752,31 @@ describe("ai/orchestrator", () => {
     );
   });
 
+  it("keeps pre-competition vomiting in a proportionate coaching context", async () => {
+    const prepared = await prepareChatTurn({
+      userId: "user-1",
+      chatId: "chat-performance-symptom-context",
+      conversationThreadId: "thread-1",
+      userMessageId: "message-1",
+      userMessage: "Prima della partita vomito e penso sia la tensione",
+      effectiveEntitlements: baseEntitlements as never,
+      skipConversationHistory: true,
+    });
+
+    expect(prepared.systemPrompt).toContain(
+      "Anthon is a mental-performance coach, not a medical advisor",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "stress or performance anxiety as a possible explanation",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "Do not introduce reflux, gastritis, or another specific condition",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "Keep health language proportionate",
+    );
+  });
+
   it("builds stream payload for text messages and skips entitlement lookup when prefetched", async () => {
     const abortController = new AbortController();
     const prefetchedEntitlements = {

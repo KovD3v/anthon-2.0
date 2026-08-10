@@ -46,6 +46,10 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Refined health framing for performance coaching so pre-competition nausea or
+  vomiting linked by the user to tension is handled as a possible coaching
+  context, without inventing a medical cause; acute warning signs still prompt
+  proportionate safety guidance.
 - Improved chat responsiveness by ending the response-settling state as soon
   as streamed output finishes, while reconciling persisted messages in the
   background.
