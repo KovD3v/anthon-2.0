@@ -85,6 +85,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Fixed oversized mobile voice submissions by sending the persisted upload URL
+  instead of embedding a base64 audio copy in the chat request.
 - Prevented iOS Safari from zooming the chat composer on focus by keeping the
   mobile input text at the native 16px minimum while preserving the denser
   desktop scale.
