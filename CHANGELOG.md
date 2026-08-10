@@ -46,6 +46,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Reduced the height of message action and feedback controls for a denser chat
+  layout across both user and assistant messages.
 - Improved chat responsiveness by ending the response-settling state as soon
   as streamed output finishes, while reconciling persisted messages in the
   background.
@@ -85,6 +87,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Kept the assistant response bubble continuous from loading through streaming
+  and persistence, preventing repeated entrance animations and late jumps when
+  technical details and feedback controls appear.
 - Prevented iOS Safari from zooming the chat composer on focus by keeping the
   mobile input text at the native 16px minimum while preserving the denser
   desktop scale.
