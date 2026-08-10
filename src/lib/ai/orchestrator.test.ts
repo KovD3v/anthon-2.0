@@ -740,6 +740,9 @@ describe("ai/orchestrator", () => {
       "give a small safe observation or principle, then ask one high-value diagnostic question",
     );
     expect(prepared.systemPrompt).toContain("Do not recycle the same routine");
+    expect(prepared.systemPrompt).toContain(
+      "Do not assume unexplained breathing difficulty is anxiety",
+    );
     expect(prepared.systemPrompt).not.toContain(
       "1 sentence of emotional acknowledgment",
     );
