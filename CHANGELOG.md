@@ -46,6 +46,13 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Improved chat responsiveness by ending the response-settling state as soon
+  as streamed output finishes, while reconciling persisted messages in the
+  background.
+- Improved first paint on the landing and chat routes by streaming conversation
+  content independently of sidebar data, parallelizing sidebar reads, reducing
+  the initial message window, deferring usage and analytics work, and keeping
+  hero content visible during initial render.
 - Refined Anthon's conversational strategy to decide when context is sufficient
   for a direct answer, when one high-value diagnostic question is needed, and
   how to carry identity corrections and known facts across turns without a
