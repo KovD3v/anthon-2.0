@@ -469,12 +469,12 @@ export async function tryCreateModelComparisonResponse(
       conversationThreadId: input.conversationThreadId,
       sourceMessageId: input.sourceMessageId,
       countryCode: countryCode ?? experiment.targetCountry,
+      capabilityPlannerMode: prepared.capabilityPlannerMode,
     });
     await prisma.modelExperimentPair.update({
       where: { id: pairResult.pair.id },
       data: {
         promptMode: prepared.promptMode,
-        capabilityPlannerMode: prepared.capabilityPlannerMode,
       },
     });
   } catch (error) {

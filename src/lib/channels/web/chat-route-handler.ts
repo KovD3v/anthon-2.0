@@ -960,9 +960,15 @@ async function handleVoiceFirstWebResponse({
       },
       updateChatTimestamp: true,
       revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
-      allowMemoryExtraction: true,
-      capabilityDecision: flowResult.capabilityDecision,
-      capabilityPlannerMode: flowResult.capabilityPlannerMode,
+      allowMemoryExtraction:
+        flowResult.capabilityMetadataValid &&
+        flowResult.capabilityPlannerMode === "legacy",
+      capabilityDecision: flowResult.capabilityMetadataValid
+        ? flowResult.capabilityDecision
+        : undefined,
+      capabilityPlannerMode: flowResult.capabilityMetadataValid
+        ? flowResult.capabilityPlannerMode
+        : undefined,
       waitUntil: schedule,
       usageReservationId: flowResult.usageReservationId,
       usageReservationClaimToken: flowResult.usageReservationClaimToken,
@@ -981,8 +987,12 @@ async function handleVoiceFirstWebResponse({
         userId,
         text: assistantText,
         metrics: flowResult.metrics,
-        capabilityPlannerMode: flowResult.capabilityPlannerMode,
-        capabilityDecision: flowResult.capabilityDecision,
+        capabilityPlannerMode: flowResult.capabilityMetadataValid
+          ? flowResult.capabilityPlannerMode
+          : undefined,
+        capabilityDecision: flowResult.capabilityMetadataValid
+          ? flowResult.capabilityDecision
+          : undefined,
       }).catch((recoveryError) =>
         logger.error(
           "voice.persistence_recovery_failed",

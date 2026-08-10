@@ -80,6 +80,7 @@ export interface InboundContext {
 export interface RunChannelFlowResult {
   assistantText: string;
   metrics?: AIMetrics;
+  capabilityMetadataValid: boolean;
   capabilityDecision?: CapabilityDecision;
   capabilityPlannerMode?: "legacy" | "agentic";
   usageReservationId?: string;

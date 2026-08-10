@@ -240,6 +240,7 @@ export async function createModelComparisonPair({
   conversationThreadId,
   sourceMessageId,
   countryCode,
+  capabilityPlannerMode,
   now = new Date(),
   random = Math.random,
 }: {
@@ -249,6 +250,7 @@ export async function createModelComparisonPair({
   conversationThreadId: string;
   sourceMessageId: string;
   countryCode: string;
+  capabilityPlannerMode?: "legacy" | "agentic";
   now?: Date;
   random?: () => number;
 }) {
@@ -303,6 +305,7 @@ export async function createModelComparisonPair({
         chatId,
         conversationThreadId,
         sourceMessageId,
+        ...(capabilityPlannerMode ? { capabilityPlannerMode } : {}),
         slotAVariantId: slotA.id,
         slotBVariantId: slotB.id,
         countryCode: countryCode.toUpperCase(),

@@ -1473,6 +1473,155 @@ describe("POST /api/chat", () => {
     );
   });
 
+  it("extracts memories for authenticated voice only with valid legacy planner metadata", async () => {
+    const capabilityDecision = Object.freeze({
+      rag: false,
+      webSearch: false,
+      webFetch: false,
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      memoryDeleteTarget: null,
+      routineProposal: false,
+      userContext: false,
+      voiceOutput: true,
+      source: "classifier" as const,
+      reasonCodes: Object.freeze([]),
+    });
+    mocks.decideWebVoiceMode.mockResolvedValue({
+      mode: "VOICE",
+      reason: "User explicitly requested voice",
+      source: "deterministic",
+    });
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "Assistant legacy voice reply",
+        metrics: {
+          model: "legacy-model",
+          inputTokens: 11,
+          outputTokens: 22,
+          reasoningTokens: 0,
+          reasoningContent: "",
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.01,
+          generationTimeMs: 250,
+          reasoningTimeMs: 0,
+        },
+        capabilityDecision,
+        capabilityPlannerMode: "legacy",
+      });
+
+      return {
+        textStream: (async function* () {
+          yield "Assistant legacy voice reply";
+        })(),
+      };
+    });
+    mocks.messageCreate
+      .mockResolvedValueOnce({ id: "msg-user-1" })
+      .mockResolvedValueOnce({ id: "msg-assistant-1" });
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          {
+            role: "user",
+            parts: [{ type: "text", text: "Mandami un vocale rapido" }],
+          },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.extractAndSaveMemories).toHaveBeenCalledWith(
+      "user-1",
+      "Mandami un vocale rapido",
+      "Assistant legacy voice reply",
+    );
+  });
+
+  it.each([
+    {
+      label: "agentic",
+      recovery: {
+        capabilityMetadataValid: true,
+        capabilityPlannerMode: "agentic" as const,
+        capabilityDecision: Object.freeze({
+          rag: false,
+          webSearch: false,
+          webFetch: false,
+          memoryRead: false,
+          memoryWrite: false,
+          memoryDelete: false,
+          memoryDeleteTarget: null,
+          routineProposal: false,
+          userContext: false,
+          voiceOutput: true,
+          source: "classifier" as const,
+          reasonCodes: Object.freeze([]),
+        }),
+      },
+    },
+    { label: "old missing", recovery: {} },
+    {
+      label: "invalid",
+      recovery: { capabilityMetadataValid: false },
+    },
+  ])(
+    "does not extract memories for voice recovery with $label planner metadata",
+    async ({ recovery }) => {
+      mocks.decideWebVoiceMode.mockResolvedValue({
+        mode: "VOICE",
+        reason: "User explicitly requested voice",
+        source: "deterministic",
+      });
+      mocks.reserveAiUsage.mockResolvedValue({
+        allowed: true,
+        reservationId: "reservation-1",
+        claimToken: "claim-1",
+        recovery: {
+          text: "Recovered voice reply",
+          metrics: {
+            model: "recovered-model",
+            inputTokens: 11,
+            outputTokens: 22,
+            reasoningTokens: 0,
+            reasoningContent: "",
+            toolCalls: [],
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0.01,
+            generationTimeMs: 250,
+            reasoningTimeMs: 0,
+          },
+          ...recovery,
+        },
+      });
+      mocks.messageCreate
+        .mockResolvedValueOnce({ id: "msg-user-1" })
+        .mockResolvedValueOnce({ id: "msg-assistant-1" });
+
+      const response = await POST(
+        buildRequest({
+          messages: [
+            {
+              role: "user",
+              parts: [{ type: "text", text: "Mandami un vocale rapido" }],
+            },
+          ],
+          chatId: "chat-1",
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(mocks.streamChat).not.toHaveBeenCalled();
+      expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
+    },
+  );
+
   it("passes the exact fallback reason only for a blocked explicit voice request", async () => {
     mocks.decideWebVoiceMode.mockResolvedValue({
       mode: "TEXT",

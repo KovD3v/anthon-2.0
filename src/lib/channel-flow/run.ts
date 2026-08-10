@@ -123,6 +123,12 @@ function createPersistedResponse(
   return createUIMessageStreamResponse({ stream });
 }
 
+function isKnownCapabilityPlannerMode(
+  value: unknown,
+): value is "legacy" | "agentic" {
+  return value === "legacy" || value === "agentic";
+}
+
 function withCancellation<T>(
   stream: ReadableStream<T>,
   onCancel: (reason: unknown) => Promise<void>,
@@ -161,7 +167,7 @@ export async function runChannelFlow(
   const isGuest = ctx.channel === "WEB_GUEST" || ctx.ai?.isGuest === true;
   const memoryEnabled = !isGuest && ctx.options.allowMemoryExtraction;
   let capabilityPlannerMode: "legacy" | "agentic" = "legacy";
-  let capabilityPlannerModeKnown = false;
+  let capabilityMetadataValid = false;
   let capabilityDecision: CapabilityDecision | undefined;
 
   let finalMetrics: RunChannelFlowResult["metrics"];
@@ -173,6 +179,7 @@ export async function runChannelFlow(
   if (!ctx.rateLimit.allowed) {
     return {
       assistantText: "",
+      capabilityMetadataValid: false,
       persistence: { status: "skipped" },
       rateLimit: {
         status: "denied",
@@ -198,6 +205,7 @@ export async function runChannelFlow(
   if (usageReservation && !usageReservation.allowed) {
     return {
       assistantText: "",
+      capabilityMetadataValid: false,
       persistence: { status: "skipped" },
       rateLimit: {
         status: "denied",
@@ -312,8 +320,12 @@ export async function runChannelFlow(
         updateChatTimestamp: ctx.persistence?.updateChatTimestamp,
         revalidateTags: ctx.persistence?.revalidateTags,
         allowMemoryExtraction,
-        capabilityDecision,
-        capabilityPlannerMode,
+        capabilityDecision: capabilityMetadataValid
+          ? capabilityDecision
+          : undefined,
+        capabilityPlannerMode: capabilityMetadataValid
+          ? capabilityPlannerMode
+          : undefined,
         waitUntil: ctx.persistence?.waitUntil,
         usageReservationId,
         usageReservationClaimToken,
@@ -337,10 +349,10 @@ export async function runChannelFlow(
             userId: ctx.userId,
             text,
             metrics,
-            capabilityPlannerMode: capabilityPlannerModeKnown
+            capabilityPlannerMode: capabilityMetadataValid
               ? capabilityPlannerMode
               : undefined,
-            capabilityDecision: capabilityPlannerModeKnown
+            capabilityDecision: capabilityMetadataValid
               ? capabilityDecision
               : undefined,
           });
@@ -363,8 +375,15 @@ export async function runChannelFlow(
 
   if (usageReservation?.recovery) {
     const recovery = usageReservation.recovery;
-    capabilityPlannerMode = recovery.capabilityPlannerMode ?? "legacy";
-    capabilityDecision = recovery.capabilityDecision;
+    capabilityMetadataValid = recovery.capabilityMetadataValid === true;
+    if (
+      recovery.capabilityMetadataValid &&
+      recovery.capabilityPlannerMode &&
+      isKnownCapabilityPlannerMode(recovery.capabilityPlannerMode)
+    ) {
+      capabilityPlannerMode = recovery.capabilityPlannerMode;
+      capabilityDecision = recovery.capabilityDecision;
+    }
     finalMetrics = recovery.metrics;
     const message = await persistGeneratedOutput({
       text: recovery.text,
@@ -384,6 +403,11 @@ export async function runChannelFlow(
     return {
       assistantText: mode === "text" ? recovery.text : "",
       metrics: finalMetrics,
+      capabilityMetadataValid,
+      capabilityDecision,
+      capabilityPlannerMode: capabilityMetadataValid
+        ? capabilityPlannerMode
+        : undefined,
       persistence,
       usageReservationId,
       usageReservationClaimToken,
@@ -415,6 +439,7 @@ export async function runChannelFlow(
     return {
       assistantText: mode === "text" ? saved.text : "",
       metrics: saved.metrics,
+      capabilityMetadataValid: false,
       persistence,
       usageReservationId,
       usageReservationClaimToken,
@@ -521,9 +546,13 @@ export async function runChannelFlow(
         capabilityDecision: streamedCapabilityDecision,
         capabilityPlannerMode: streamedCapabilityPlannerMode,
       }) => {
-        capabilityDecision = streamedCapabilityDecision;
-        capabilityPlannerMode = streamedCapabilityPlannerMode;
-        capabilityPlannerModeKnown = true;
+        capabilityMetadataValid =
+          streamedCapabilityDecision !== undefined &&
+          isKnownCapabilityPlannerMode(streamedCapabilityPlannerMode);
+        if (capabilityMetadataValid) {
+          capabilityDecision = streamedCapabilityDecision;
+          capabilityPlannerMode = streamedCapabilityPlannerMode;
+        }
         finalMetrics = metrics;
         generationAbortController.signal.throwIfAborted();
         if (!text.trim()) {
@@ -536,10 +565,10 @@ export async function runChannelFlow(
                 userId: ctx.userId,
                 text,
                 metrics,
-                capabilityPlannerMode: capabilityPlannerModeKnown
+                capabilityPlannerMode: capabilityMetadataValid
                   ? capabilityPlannerMode
                   : undefined,
-                capabilityDecision: capabilityPlannerModeKnown
+                capabilityDecision: capabilityMetadataValid
                   ? capabilityDecision
                   : undefined,
               });
@@ -564,10 +593,14 @@ export async function runChannelFlow(
         }
       },
     });
-    if ("capabilityDecision" in streamResult) {
+    if (
+      "capabilityDecision" in streamResult &&
+      streamResult.capabilityDecision !== undefined &&
+      isKnownCapabilityPlannerMode(streamResult.capabilityPlannerMode)
+    ) {
       capabilityDecision = streamResult.capabilityDecision;
       capabilityPlannerMode = streamResult.capabilityPlannerMode;
-      capabilityPlannerModeKnown = true;
+      capabilityMetadataValid = true;
     }
   } catch (error) {
     detachRequestAbort();
@@ -579,8 +612,11 @@ export async function runChannelFlow(
     return {
       assistantText: "",
       metrics: finalMetrics,
+      capabilityMetadataValid,
       capabilityDecision,
-      capabilityPlannerMode,
+      capabilityPlannerMode: capabilityMetadataValid
+        ? capabilityPlannerMode
+        : undefined,
       persistence,
       usageReservationId,
       usageReservationClaimToken,
@@ -714,8 +750,11 @@ export async function runChannelFlow(
   return {
     assistantText,
     metrics: finalMetrics,
+    capabilityMetadataValid,
     capabilityDecision,
-    capabilityPlannerMode,
+    capabilityPlannerMode: capabilityMetadataValid
+      ? capabilityPlannerMode
+      : undefined,
     persistence,
     usageReservationId,
     usageReservationClaimToken,

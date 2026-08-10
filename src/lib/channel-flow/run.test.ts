@@ -189,6 +189,7 @@ describe("channel-flow/run", () => {
     expect(
       mocks.persistAssistantOutput.mock.calls[0]?.[0].capabilityDecision,
     ).toBe(capabilityDecision);
+    expect(result.capabilityMetadataValid).toBe(true);
     expect(result.capabilityDecision).toBe(capabilityDecision);
     expect(result.capabilityPlannerMode).toBe("agentic");
   });
@@ -239,6 +240,7 @@ describe("channel-flow/run", () => {
 
     expect(result.capabilityDecision).toBe(capabilityDecision);
     expect(result.capabilityPlannerMode).toBe("agentic");
+    expect(result.capabilityMetadataValid).toBe(true);
   });
 
   it("passes a prepared comparison decision into the normal flow unchanged", async () => {
@@ -333,7 +335,7 @@ describe("channel-flow/run", () => {
       },
     });
 
-    await runChannelFlow({
+    const result = await runChannelFlow({
       channel: "WEB",
       userId: "user-1",
       chatId: "chat-1",
@@ -374,6 +376,9 @@ describe("channel-flow/run", () => {
         capabilityPlannerMode: "agentic",
       }),
     );
+    expect(result.capabilityMetadataValid).toBe(true);
+    expect(result.capabilityDecision).toBe(capabilityDecision);
+    expect(result.capabilityPlannerMode).toBe("agentic");
   });
 
   it.each([
@@ -404,7 +409,7 @@ describe("channel-flow/run", () => {
         },
       });
 
-      await runChannelFlow({
+      const result = await runChannelFlow({
         channel: "WEB",
         userId: "user-1",
         chatId: "chat-1",
@@ -442,11 +447,76 @@ describe("channel-flow/run", () => {
         expect.objectContaining({
           allowMemoryExtraction: false,
           capabilityDecision: undefined,
-          capabilityPlannerMode: "legacy",
+          capabilityPlannerMode: undefined,
         }),
       );
+      expect(result.capabilityMetadataValid).toBe(false);
+      expect(result.capabilityDecision).toBeUndefined();
+      expect(result.capabilityPlannerMode).toBeUndefined();
     },
   );
+
+  it("fails closed for persisted-assistant replay capability metadata", async () => {
+    mocks.reserveAiUsage.mockResolvedValue({
+      allowed: true,
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+      persistedAssistant: {
+        messageId: "assistant-1",
+        text: "saved answer",
+        metrics: {
+          model: "saved-model",
+          inputTokens: 10,
+          outputTokens: 4,
+          reasoningTokens: null,
+          toolCalls: null,
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.01,
+          generationTimeMs: 100,
+          reasoningTimeMs: null,
+        },
+      },
+    });
+
+    const result = await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      chatId: "chat-1",
+      userMessageId: "inbound-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: {
+        allowed: true,
+        effectiveEntitlements: {
+          modelTier: "BASIC",
+          uploadLimits: {
+            maxUploadsPerDay: 25,
+            maxUploadBytesPerDay: 250 * 1024 * 1024,
+          },
+          limits: {
+            maxRequestsPerDay: 10,
+            maxInputTokensPerDay: 1_000,
+            maxOutputTokensPerDay: 1_000,
+            maxCostPerDay: 1,
+            maxContextMessages: 20,
+          },
+          sources: [],
+        },
+      },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: false,
+      },
+      execution: { mode: "text" },
+      persistence: { channel: "WEB", saveAssistantMessage: true },
+    });
+
+    expect(result.capabilityMetadataValid).toBe(false);
+    expect(result.capabilityDecision).toBeUndefined();
+    expect(result.capabilityPlannerMode).toBeUndefined();
+  });
 
   it("removes tool payloads from the shared live UI stream", async () => {
     mocks.streamChat.mockImplementation(async ({ onFinish }) => ({
@@ -1571,6 +1641,7 @@ describe("channel-flow/run", () => {
 
     expect(result).toEqual({
       assistantText: "",
+      capabilityMetadataValid: false,
       persistence: { status: "skipped" },
       rateLimit: {
         status: "denied",

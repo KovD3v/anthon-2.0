@@ -329,6 +329,17 @@ describe("model comparison runtime", () => {
     expect(mocks.reserveUsage.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.createPair.mock.invocationCallOrder[0],
     );
+    expect(mocks.createPair).toHaveBeenCalledWith(
+      expect.objectContaining({
+        experimentId: "experiment-1",
+        userId: "user-1",
+        chatId: "chat-1",
+        conversationThreadId: "thread-1",
+        sourceMessageId: "message-1",
+        countryCode: "IT",
+        capabilityPlannerMode: "agentic",
+      }),
+    );
     expect(mocks.finalizePair).toHaveBeenCalledWith({
       pairId: "pair-1",
       userId: "user-1",
@@ -344,7 +355,6 @@ describe("model comparison runtime", () => {
       where: { id: "pair-1" },
       data: {
         promptMode: "full",
-        capabilityPlannerMode: "agentic",
       },
     });
     expect(mocks.releaseUsage).not.toHaveBeenCalled();
