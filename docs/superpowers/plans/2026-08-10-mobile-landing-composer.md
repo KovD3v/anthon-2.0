@@ -12,7 +12,7 @@
 
 - Preserve the three existing starter prompts and existing `createChat` behavior.
 - Use the shared `ChatInput`; do not create a second composer implementation.
-- Keep guest attachments disabled, matching the conversation route.
+- Keep the landing composer text-only until a conversation ID exists; attachment controls remain available after navigation into a conversation.
 - Preserve unrelated worktree changes and use Biome formatting.
 - Verify the relevant mobile route in a browser when the dev server is available.
 
@@ -86,7 +86,7 @@ Change the page wrapper to `overflow-hidden`. Wrap the current centered landing 
   }}
   isLoading={false}
   onStop={() => undefined}
-  disableAttachments={isGuest}
+  disableAttachments
   disabledReason={isCreatingChat ? "Apertura della conversazione…" : undefined}
 />
 ```

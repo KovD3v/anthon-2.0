@@ -476,7 +476,7 @@ describe("chat mobile viewport layout", () => {
     expect(conversationClient).toContain("setInput(submittedInput);");
   });
 
-  it("keeps the new-chat landing free of composer-only controls", () => {
+  it("keeps the new-chat composer below scrollable landing content", () => {
     const chatPage = readFileSync("src/app/(chat)/chat/page.tsx", "utf8");
     const layoutClient = readFileSync(
       "src/app/(chat)/chat/layout-client.tsx",
@@ -487,9 +487,13 @@ describe("chat mobile viewport layout", () => {
       "utf8",
     );
 
-    expect(chatPage).not.toContain("<ChatInput");
+    expect(chatPage).toContain("<ChatInput");
+    expect(chatPage).toContain("overflow-hidden");
+    expect(chatPage).toContain("min-h-0 flex-1 overflow-y-auto");
+    expect(chatPage).toContain("grid grid-cols-2 gap-2");
+    expect(chatPage).toContain("md:grid-cols-3");
     expect(chatPage).not.toContain("Inizia una nuova conversazione");
-    expect(chatPage).not.toContain("createChat({ initialMessage");
+    expect(chatPage).toContain("initialMessage: landingInput");
     expect(layoutClient).toContain("pendingInitialMessagesRef");
     expect(layoutClient).toContain("consumePendingInitialMessage");
     expect(conversationClient).toContain(

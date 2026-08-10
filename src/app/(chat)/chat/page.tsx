@@ -22,6 +22,7 @@ import {
   RoutineClientError,
   saveRoutineOutcome,
 } from "@/lib/coaching/routine-client";
+import { ChatInput } from "../components/ChatInput";
 import { RoutineCheckInForm } from "../components/RoutineCheckInForm";
 import { useChatContext } from "./layout-client";
 
@@ -63,6 +64,7 @@ export default function ChatPage() {
     navigateToChat,
     chats,
     coachingGoal,
+    isCreatingChat,
     isGuest,
     activeRoutine,
     chatNavigationEpoch,
@@ -85,6 +87,7 @@ export default function ChatPage() {
     routineId: string;
     navigationEpoch: number;
   } | null>(null);
+  const [landingInput, setLandingInput] = useState("");
   const prefilledPrompt = searchParams.get("q")?.trim() ?? "";
   const checkInRoutineId = searchParams.get("checkInRoutineId")?.trim() ?? "";
   const returningActiveRoutine =
@@ -236,163 +239,178 @@ export default function ChatPage() {
     mostRecentChat !== null || returningActiveRoutine !== null;
 
   return (
-    <PageWrapper className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 sm:p-8">
-        <div className="w-full max-w-4xl text-center">
-          <div className="mb-8">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-primary/40 bg-primary/10">
-              <Brain className="h-7 w-7 text-primary" />
-            </div>
-            <h1 className="font-display mt-4 text-4xl font-bold uppercase leading-none">
-              {greeting}
-            </h1>
-            <p className="mx-auto mt-3 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Partiamo da ciò che sta succedendo davvero. Scegli una situazione
-              o apri una conversazione libera.
-            </p>
-          </div>
-
-          {landingCheckInRoutine && (
-            <section className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 p-5 text-left shadow-sm">
-              <p className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-primary">
-                Check-in routine
+    <PageWrapper className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex min-h-full flex-col items-center justify-center px-4 py-5 sm:p-8">
+          <div className="w-full max-w-4xl text-center">
+            <div className="mb-8">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-primary/40 bg-primary/10">
+                <Brain className="h-7 w-7 text-primary" />
+              </div>
+              <h1 className="font-display mt-4 text-4xl font-bold uppercase leading-none">
+                {greeting}
+              </h1>
+              <p className="mx-auto mt-3 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+                Partiamo da ciò che sta succedendo davvero. Scegli una
+                situazione o apri una conversazione libera.
               </p>
-              <h2 className="font-display mt-2 text-2xl font-bold uppercase leading-none">
-                {landingCheckInRoutine.proposal.title}
-              </h2>
-              <RoutineCheckInForm
-                routine={landingCheckInRoutine}
-                onCreateAttempt={handleCreateRoutineAttempt}
-                onSaveOutcome={handleSaveRoutineOutcome}
-                onFocused={() => router.replace("/chat")}
-                onSuccess={() => setLandingCheckInRequest(null)}
-              />
-              <div className="mt-4 border-border/70 border-t pt-4">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="text-destructive hover:text-destructive"
-                  disabled={isArchivingRoutine}
-                  onClick={() =>
-                    void handleArchiveLandingRoutine(landingCheckInRoutine.id)
-                  }
-                >
-                  Archivia routine
-                </Button>
-                {archiveRoutineError && (
-                  <p className="mt-2 text-sm text-destructive" role="alert">
-                    {archiveRoutineError}
+            </div>
+
+            {landingCheckInRoutine && (
+              <section className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 p-5 text-left shadow-sm">
+                <p className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-primary">
+                  Check-in routine
+                </p>
+                <h2 className="font-display mt-2 text-2xl font-bold uppercase leading-none">
+                  {landingCheckInRoutine.proposal.title}
+                </h2>
+                <RoutineCheckInForm
+                  routine={landingCheckInRoutine}
+                  onCreateAttempt={handleCreateRoutineAttempt}
+                  onSaveOutcome={handleSaveRoutineOutcome}
+                  onFocused={() => router.replace("/chat")}
+                  onSuccess={() => setLandingCheckInRequest(null)}
+                />
+                <div className="mt-4 border-border/70 border-t pt-4">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive"
+                    disabled={isArchivingRoutine}
+                    onClick={() =>
+                      void handleArchiveLandingRoutine(landingCheckInRoutine.id)
+                    }
+                  >
+                    Archivia routine
+                  </Button>
+                  {archiveRoutineError && (
+                    <p className="mt-2 text-sm text-destructive" role="alert">
+                      {archiveRoutineError}
+                    </p>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {hasReturningPath && (
+              <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 p-5 text-left shadow-sm">
+                <p className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-primary">
+                  Riprendi il percorso
+                </p>
+                <h2 className="font-display mt-2 text-2xl font-bold uppercase leading-none">
+                  {mostRecentChat?.title ??
+                    returningActiveRoutine?.proposal.title}
+                </h2>
+                {coachingGoal && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Il tuo obiettivo: {coachingGoal}
                   </p>
                 )}
-              </div>
-            </section>
-          )}
-
-          {hasReturningPath && (
-            <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 p-5 text-left shadow-sm">
-              <p className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-primary">
-                Riprendi il percorso
-              </p>
-              <h2 className="font-display mt-2 text-2xl font-bold uppercase leading-none">
-                {mostRecentChat?.title ??
-                  returningActiveRoutine?.proposal.title}
-              </h2>
-              {coachingGoal && (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Il tuo obiettivo: {coachingGoal}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Ultimo aggiornamento{" "}
+                  {mostRecentChat
+                    ? new Intl.DateTimeFormat("it-IT", {
+                        day: "numeric",
+                        month: "short",
+                      }).format(new Date(mostRecentChat.updatedAt))
+                    : "routine salvata"}
                 </p>
-              )}
-              <p className="mt-2 text-xs text-muted-foreground">
-                Ultimo aggiornamento{" "}
-                {mostRecentChat
-                  ? new Intl.DateTimeFormat("it-IT", {
-                      day: "numeric",
-                      month: "short",
-                    }).format(new Date(mostRecentChat.updatedAt))
-                  : "routine salvata"}
-              </p>
-              <div className="mt-5 flex flex-wrap gap-2">
-                {mostRecentChat && (
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {mostRecentChat && (
+                    <Button
+                      className="gap-2"
+                      onClick={() => navigateToChat(mostRecentChat.id)}
+                    >
+                      Riprendi
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
-                    className="gap-2"
-                    onClick={() => navigateToChat(mostRecentChat.id)}
+                    variant="outline"
+                    onClick={() => {
+                      if (returningActiveRoutine) {
+                        openRoutineCheckIn(returningActiveRoutine);
+                        return;
+                      }
+                      createChat({
+                        title: "Check-in sul percorso",
+                        initialMessage:
+                          "Vorrei fare un check-in sul mio percorso dall'ultima conversazione. Fammi una domanda alla volta per capire cosa è successo, cosa ha funzionato e dove mi sono bloccato.",
+                      });
+                    }}
                   >
-                    Riprendi
-                    <ArrowRight className="h-4 w-4" />
+                    Com&apos;è andata?
                   </Button>
-                )}
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (returningActiveRoutine) {
-                      openRoutineCheckIn(returningActiveRoutine);
-                      return;
-                    }
-                    createChat({
-                      title: "Check-in sul percorso",
-                      initialMessage:
-                        "Vorrei fare un check-in sul mio percorso dall'ultima conversazione. Fammi una domanda alla volta per capire cosa è successo, cosa ha funzionato e dove mi sono bloccato.",
-                    });
-                  }}
-                >
-                  Com&apos;è andata?
-                </Button>
+                </div>
               </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2 text-left sm:gap-3 md:grid-cols-3">
+              {starterPrompts.map((starter) => (
+                <button
+                  key={starter.id}
+                  type="button"
+                  onClick={() =>
+                    createChat({
+                      initialMessage: starter.prompt,
+                      title: starter.title,
+                    })
+                  }
+                  className="group flex min-h-28 flex-col rounded-2xl border border-border bg-card p-3 text-left shadow-sm transition-all hover:-translate-y-1 hover:border-primary/60 hover:shadow-lg focus-visible:border-primary sm:min-h-40 sm:p-5"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground sm:h-10 sm:w-10">
+                    <starter.icon className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </span>
+                  <span className="font-display mt-3 text-base font-bold uppercase leading-none sm:mt-5 sm:text-xl">
+                    {starter.title}
+                  </span>
+                  <span className="mt-1 text-xs leading-snug text-muted-foreground sm:mt-2 sm:text-sm sm:leading-relaxed">
+                    {starter.description}
+                  </span>
+                </button>
+              ))}
             </div>
-          )}
 
-          <div className="grid gap-3 text-left md:grid-cols-3">
-            {starterPrompts.map((starter) => (
-              <button
-                key={starter.id}
-                type="button"
-                onClick={() =>
-                  createChat({
-                    initialMessage: starter.prompt,
-                    title: starter.title,
-                  })
-                }
-                className="group flex min-h-40 flex-col rounded-2xl border border-border bg-card p-5 text-left shadow-sm transition-all hover:-translate-y-1 hover:border-primary/60 hover:shadow-lg focus-visible:border-primary"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                  <starter.icon className="h-5 w-5" />
-                </span>
-                <span className="font-display mt-5 text-xl font-bold uppercase leading-none">
-                  {starter.title}
-                </span>
-                <span className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {starter.description}
-                </span>
-              </button>
-            ))}
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <span className="h-px w-8 bg-border" />
+              <span className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
+                oppure
+              </span>
+              <span className="h-px w-8 bg-border" />
+            </div>
+
+            <Button
+              onClick={() => createChat()}
+              size="lg"
+              variant="outline"
+              className="mt-5 min-h-11 gap-2"
+            >
+              <Sparkles className="h-5 w-5" />
+              Conversazione libera
+            </Button>
+            {chats.length > 0 && !mostRecentChat && (
+              <p className="mt-6 text-sm text-muted-foreground">
+                Hai {chats.length} conversazion
+                {chats.length !== 1 ? "i" : "e"}. Puoi riprenderle dalla barra
+                laterale.
+              </p>
+            )}
           </div>
-
-          <div className="mt-6 flex items-center justify-center gap-3">
-            <span className="h-px w-8 bg-border" />
-            <span className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
-              oppure
-            </span>
-            <span className="h-px w-8 bg-border" />
-          </div>
-
-          <Button
-            onClick={() => createChat()}
-            size="lg"
-            variant="outline"
-            className="mt-5 min-h-11 gap-2"
-          >
-            <Sparkles className="h-5 w-5" />
-            Conversazione libera
-          </Button>
-          {chats.length > 0 && !mostRecentChat && (
-            <p className="mt-6 text-sm text-muted-foreground">
-              Hai {chats.length} conversazion
-              {chats.length !== 1 ? "i" : "e"}. Puoi riprenderle dalla barra
-              laterale.
-            </p>
-          )}
         </div>
       </div>
+      <ChatInput
+        input={landingInput}
+        setInput={setLandingInput}
+        onSubmit={() => {
+          void createChat({ initialMessage: landingInput });
+        }}
+        isLoading={false}
+        onStop={() => undefined}
+        disableAttachments
+        disabledReason={
+          isCreatingChat ? "Apertura della conversazione…" : undefined
+        }
+      />
       <ConfirmDialog
         open={isOpen}
         onOpenChange={(open) => {

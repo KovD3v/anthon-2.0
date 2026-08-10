@@ -13,7 +13,7 @@ The `/chat` landing page currently renders the welcome content, three starter si
 - Keep the existing three starter situations and their behavior; do not invent a fourth prompt just to fill the grid.
 - Render the existing `ChatInput` below a scrollable landing-content region so the composer remains visible while the welcome content can scroll independently.
 - Submit typed landing text through `createChat({ initialMessage })`, preserving the existing pending-initial-message flow used by conversation creation.
-- Match conversation behavior for attachments: guests cannot attach files, while authenticated users retain the existing attachment controls.
+- Keep the landing composer text-only because there is no conversation ID yet to associate uploaded files or recordings with; attachment controls remain available after a conversation is opened.
 - Use two columns at mobile widths and smaller mobile card spacing, icon, typography, and minimum height. Keep the current three-column desktop layout and larger desktop sizing.
 - Disable the landing composer while chat creation is in flight and show the existing shared disabled-state affordance.
 
