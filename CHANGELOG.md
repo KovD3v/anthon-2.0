@@ -10,6 +10,11 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Added
 
+- Added a reproducible conversational-quality benchmark with ten synthetic
+  Italian coaching scenarios, fixed-Luna baseline/candidate artifacts, blind
+  pairwise judging, structural diagnostics, and a CLI for replicated runs.
+- Added bounded concurrent execution for independent benchmark replicas and
+  judges while preserving conversation order and deterministic pair identity.
 - Added an authenticated routine collection with reusable coaching routines
   that can be launched in a new chat, run inline through timers, breathing
   sequences, and structured check-ins, and reviewed in a dated attempt history.
@@ -41,6 +46,10 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Refined Anthon's conversational strategy to decide when context is sufficient
+  for a direct answer, when one high-value diagnostic question is needed, and
+  how to carry identity corrections and known facts across turns without a
+  fixed acknowledgment-list-question format.
 - Refined the mobile coaching surface with a top-anchored empty state,
   compact starter actions, width-safe assistant responses, and a keyboard-aware
   composer that keeps the send control visible while preserving mobile
