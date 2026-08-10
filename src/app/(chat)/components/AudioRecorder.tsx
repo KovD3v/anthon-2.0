@@ -100,9 +100,6 @@ export function AudioRecorder({
           // OpenRouter only supports MP3 and WAV
           const wavBlob = await convertToWav(originalBlob);
 
-          // Convert WAV to base64 for sending to AI
-          const base64Data = await blobToBase64(wavBlob);
-
           // Upload the audio file
           const formData = new FormData();
           const fileName = `recording_${Date.now()}.wav`;
@@ -120,14 +117,12 @@ export function AudioRecorder({
 
           const data = await response.json();
 
-          // Include base64 data for the AI model
           onRecordingComplete({
             id: data.id,
             name: data.name,
             contentType: "audio/wav", // Always WAV after conversion
             size: data.size,
             url: data.url,
-            base64Data: base64Data, // Include for AI audio processing
           });
 
           setRecordingState("ready");
@@ -329,19 +324,4 @@ function writeString(view: DataView, offset: number, str: string) {
   for (let i = 0; i < str.length; i++) {
     view.setUint8(offset + i, str.charCodeAt(i));
   }
-}
-
-// Helper to convert Blob to base64
-async function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = reader.result as string;
-      // Remove data URL prefix (e.g., "data:audio/wav;base64,")
-      const base64Data = base64.split(",")[1];
-      resolve(base64Data);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
 }

@@ -1153,10 +1153,9 @@ export function ChatConversationClient({
       }
       if (attachments) {
         attachments.forEach((att: AttachmentData) => {
-          const isAudio = att.contentType.startsWith("audio/");
           parts.push({
             type: "file",
-            data: isAudio && att.base64Data ? att.base64Data : att.url,
+            data: att.url,
             mimeType: att.contentType,
             name: att.name,
             size: att.size,

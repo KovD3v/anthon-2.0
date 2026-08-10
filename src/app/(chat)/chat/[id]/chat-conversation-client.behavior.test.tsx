@@ -12,7 +12,7 @@ import userEvent from "@testing-library/user-event";
 import { type ComponentProps, useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RoutineCardData } from "@/lib/coaching/routine";
-import type { ChatData } from "@/types/chat";
+import type { AttachmentData, ChatData } from "@/types/chat";
 import { ChatConversationClient } from "./chat-conversation-client";
 
 const mocks = vi.hoisted(() => ({
@@ -192,7 +192,7 @@ vi.mock("../../../(chat)/components/ChatInput", () => ({
     input: string;
     isLoading: boolean;
     focusRequestId?: number;
-    onSubmit: (event: React.FormEvent) => void;
+    onSubmit: (event: React.FormEvent, attachments?: AttachmentData[]) => void;
     setInput: (value: string) => void;
   }) => (
     <form onSubmit={onSubmit}>
@@ -204,6 +204,24 @@ vi.mock("../../../(chat)/components/ChatInput", () => ({
       />
       <button type="submit" disabled={isLoading}>
         Invia test
+      </button>
+      <button
+        type="button"
+        disabled={isLoading}
+        onClick={(event) =>
+          onSubmit(event as unknown as React.FormEvent, [
+            {
+              id: "audio-1",
+              name: "recording.wav",
+              contentType: "audio/wav",
+              size: 4,
+              url: "https://blob.test/recording.wav",
+              base64Data: "data:audio/wav;base64,encoded-audio",
+            } as AttachmentData & { base64Data: string },
+          ])
+        }
+      >
+        Invia vocale test
       </button>
     </form>
   ),
@@ -620,6 +638,28 @@ beforeEach(() => {
 });
 
 describe("ChatConversationClient pagination and recovery", () => {
+  it("sends uploaded audio by URL instead of embedding base64 in the chat request", async () => {
+    const user = userEvent.setup();
+    renderConversation();
+
+    await user.click(screen.getByRole("button", { name: "Invia vocale test" }));
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce());
+    expect(mocks.sendMessage).toHaveBeenCalledWith({
+      role: "user",
+      parts: [
+        {
+          type: "file",
+          data: "https://blob.test/recording.wav",
+          mimeType: "audio/wav",
+          name: "recording.wav",
+          size: 4,
+          attachmentId: "audio-1",
+        },
+      ],
+    });
+  });
+
   it("anchors the empty state above the mobile composer", () => {
     renderConversation({ ...initialChatData, messages: [] });
 
