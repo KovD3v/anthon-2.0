@@ -13,9 +13,19 @@ import { createLogger } from "@/lib/logger";
 import { getSharedUsageData } from "@/lib/usage";
 import type { Chat, UsageData } from "@/types/chat";
 import { SidebarSkeleton } from "../../(chat)/components/Skeletons";
-import { LayoutClient } from "./layout-client";
+import { type ChatSidebarHydrationData, LayoutClient } from "./layout-client";
+import { SidebarDataHydrator } from "./sidebar-data-hydrator";
 
 const chatLayoutLogger = createLogger("ai");
+
+type AuthUser = NonNullable<Awaited<ReturnType<typeof getAuthUser>>["user"]>;
+
+export type ChatSidebarIdentity = {
+  authUser: AuthUser | null;
+  guestUser: { id: string; role: UserRole } | null;
+  guestConversionPending: boolean;
+  isGuest: boolean;
+};
 
 export default function ChatLayout({
   children,
@@ -24,8 +34,35 @@ export default function ChatLayout({
 }) {
   return (
     <Suspense fallback={<ChatLayoutSkeleton />}>
-      <ChatSidebarData>{children}</ChatSidebarData>
+      <ChatLayoutWithIdentity>{children}</ChatLayoutWithIdentity>
     </Suspense>
+  );
+}
+
+async function ChatLayoutWithIdentity({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const identity = await getChatSidebarIdentity();
+
+  return (
+    <LayoutClient
+      initialChats={[]}
+      initialUsageData={null}
+      initialCoachingGoal={null}
+      initialActiveRoutine={null}
+      initialRoutinesEnabled={false}
+      guestConversionPending={identity.guestConversionPending}
+      isGuest={identity.isGuest}
+      sidebarSlot={
+        <Suspense fallback={null}>
+          <ChatSidebarData identity={identity} />
+        </Suspense>
+      }
+    >
+      {children}
+    </LayoutClient>
   );
 }
 
@@ -83,105 +120,110 @@ function ChatLayoutSkeleton() {
   );
 }
 
-async function ChatSidebarData({ children }: { children: React.ReactNode }) {
-  const {
-    chats,
-    usageData,
-    coachingGoal,
-    activeRoutine,
-    routinesEnabled,
-    isGuest,
-    guestConversionPending,
-  } = await getChatSidebarData();
+async function ChatSidebarData({
+  identity,
+}: {
+  identity: ChatSidebarIdentity;
+}) {
+  const data = await getChatSidebarData(identity);
 
-  return (
-    <LayoutClient
-      initialChats={chats}
-      initialUsageData={usageData}
-      initialCoachingGoal={coachingGoal}
-      initialActiveRoutine={activeRoutine}
-      initialRoutinesEnabled={routinesEnabled}
-      guestConversionPending={guestConversionPending}
-      isGuest={isGuest}
-    >
-      {children}
-    </LayoutClient>
-  );
+  return <SidebarDataHydrator data={data} />;
 }
 
-export async function getChatSidebarData(): Promise<{
-  chats: Chat[];
-  usageData: UsageData | null;
-  coachingGoal: string | null;
-  activeRoutine: RoutineCardData | null;
-  routinesEnabled: boolean;
-  guestConversionPending: boolean;
-  isGuest: boolean;
-}> {
+export async function getChatSidebarIdentity(): Promise<ChatSidebarIdentity> {
   const { user: authUser } = await getAuthUser();
+
+  if (authUser) {
+    const conversionOutcome = await convertGuestForAuthenticatedUser(
+      authUser.id,
+      { canMutateCookies: false },
+    );
+
+    return {
+      authUser,
+      guestUser: null,
+      guestConversionPending: conversionOutcome !== "no_cookie",
+      isGuest: false,
+    };
+  }
+
+  const guestToken = await getGuestTokenFromCookies();
+  if (!guestToken) {
+    return {
+      authUser: null,
+      guestUser: null,
+      guestConversionPending: false,
+      isGuest: true,
+    };
+  }
+
+  const tokenHash = hashGuestToken(guestToken);
+  const guestUser = await prisma.user.findFirst({
+    where: {
+      isGuest: true,
+      guestTokenHash: tokenHash,
+      guestConvertedAt: null,
+    },
+    select: { id: true, role: true },
+  });
+
+  return {
+    authUser: null,
+    guestUser: guestUser
+      ? { id: guestUser.id, role: guestUser.role as UserRole }
+      : null,
+    guestConversionPending: false,
+    isGuest: true,
+  };
+}
+
+export async function getChatSidebarData(
+  identity?: ChatSidebarIdentity,
+): Promise<ChatSidebarHydrationData> {
+  const resolvedIdentity = identity ?? (await getChatSidebarIdentity());
+  const { authUser, guestUser, guestConversionPending, isGuest } =
+    resolvedIdentity;
   let chats: Chat[] = [];
   let usageData: UsageData | null = null;
   let coachingGoal: string | null = null;
   let activeRoutine: RoutineCardData | null = null;
   let routinesEnabled = false;
-  let guestConversionPending = false;
-  let isGuest = false;
 
   if (authUser) {
     // Authenticated user path
-    const conversionOutcome = await convertGuestForAuthenticatedUser(
-      authUser.id,
-      { canMutateCookies: false },
-    );
-    guestConversionPending = conversionOutcome !== "no_cookie";
-    chats = await getSharedChats(authUser.id);
-    usageData = await getSharedUsageData(authUser.id, authUser.role);
-    routinesEnabled = await isRoutineFeatureEnabled({
-      distinctId: authUser.clerkId,
-      role: authUser.role,
-      isGuest: authUser.isGuest,
-    });
-    if (authUser.isGuest === false) {
-      activeRoutine = await getActiveRoutineForReturn(authUser.id);
-    }
-    try {
-      coachingGoal = await getUserControlledCoachingGoal(authUser.id);
-    } catch (error) {
-      chatLayoutLogger.warn(
-        "coaching_goal.unavailable",
-        "Failed to load coaching goal",
-        { error },
-      );
-    }
-  } else {
-    isGuest = true;
-
-    // Check for guest user
-    const guestToken = await getGuestTokenFromCookies();
-    if (guestToken) {
-      const tokenHash = hashGuestToken(guestToken);
-      const guestUser = await prisma.user.findFirst({
-        where: {
-          isGuest: true,
-          guestTokenHash: tokenHash,
-          guestConvertedAt: null,
-        },
-        select: { id: true, role: true },
-      });
-
-      if (guestUser) {
-        routinesEnabled = await isRoutineFeatureEnabled({
-          distinctId: guestUser.id,
-          role: guestUser.role,
-          isGuest: true,
-        });
-        chats = await getSharedChats(guestUser.id);
-        usageData = await getSharedUsageData(
-          guestUser.id,
-          guestUser.role as UserRole,
+    const sidebarData = await Promise.all([
+      getSharedChats(authUser.id),
+      getSharedUsageData(authUser.id, authUser.role),
+      isRoutineFeatureEnabled({
+        distinctId: authUser.clerkId,
+        role: authUser.role,
+        isGuest: authUser.isGuest,
+      }),
+      authUser.isGuest === false
+        ? getActiveRoutineForReturn(authUser.id)
+        : Promise.resolve(null),
+      getUserControlledCoachingGoal(authUser.id).catch((error) => {
+        chatLayoutLogger.warn(
+          "coaching_goal.unavailable",
+          "Failed to load coaching goal",
+          { error },
         );
-      }
-    }
+        return null;
+      }),
+    ]);
+
+    [chats, usageData, routinesEnabled, activeRoutine, coachingGoal] =
+      sidebarData;
+  } else if (guestUser) {
+    [routinesEnabled, chats, usageData] = await Promise.all([
+      isRoutineFeatureEnabled({
+        distinctId: guestUser.id,
+        role: guestUser.role,
+        isGuest: true,
+      }),
+      getSharedChats(guestUser.id),
+      getSharedUsageData(guestUser.id, guestUser.role),
+    ]);
   }
 
   return {

@@ -15,7 +15,7 @@ export function Hero() {
           <div className="mx-auto max-w-4xl text-center">
             <m.h1
               variants={fadeUp}
-              initial="hidden"
+              initial={false}
               animate="show"
               transition={{ ...defaultTransition, delay: 0.1 }}
               className="font-display mx-auto max-w-4xl text-[3.25rem] font-extrabold uppercase leading-[0.88] tracking-[-0.025em] sm:text-6xl md:text-7xl lg:text-[5.5rem]"

@@ -164,7 +164,18 @@ interface ChatContextType {
   openRoutineCheckIn: (routine: RoutineCardData) => void;
   openSidebar: () => void;
   guestConversationNotice: GuestConversationNotice | null;
+  hydrateSidebarData: (data: ChatSidebarHydrationData) => void;
 }
+
+export type ChatSidebarHydrationData = {
+  chats: Chat[];
+  usageData: UsageData | null;
+  coachingGoal: string | null;
+  activeRoutine: RoutineCardData | null;
+  routinesEnabled: boolean;
+  isGuest: boolean;
+  guestConversionPending: boolean;
+};
 
 interface RoutineCollectionSegment {
   total: number | null;
@@ -375,6 +386,7 @@ export function LayoutClient({
   initialRoutinesEnabled = false,
   guestConversionPending,
   isGuest,
+  sidebarSlot,
 }: {
   children: React.ReactNode;
   initialChats: Chat[];
@@ -384,6 +396,7 @@ export function LayoutClient({
   initialRoutinesEnabled?: boolean;
   guestConversionPending: boolean;
   isGuest: boolean;
+  sidebarSlot?: React.ReactNode;
 }) {
   const { user } = useUser();
   const router = useRouter();
@@ -397,6 +410,11 @@ export function LayoutClient({
   const [activeRoutine, setActiveRoutine] = useState<RoutineCardData | null>(
     initialActiveRoutine,
   );
+  const [coachingGoal, setCoachingGoal] = useState(initialCoachingGoal);
+  const [routinesEnabled, setRoutinesEnabled] = useState(
+    initialRoutinesEnabled,
+  );
+  const sidebarHydratedRef = useRef(false);
   const activeRoutineRefreshIdRef = useRef(0);
   const [routineCollection, setRoutineCollection] =
     useState<RoutineCollectionState>(emptyRoutineCollection);
@@ -502,6 +520,7 @@ export function LayoutClient({
 
   // Sync state with initial data on change (HMR support)
   useEffect(() => {
+    if (sidebarHydratedRef.current) return;
     setChats(
       initialChats.map((chat) => ({
         ...chat,
@@ -511,13 +530,40 @@ export function LayoutClient({
   }, [initialChats]);
 
   useEffect(() => {
+    if (sidebarHydratedRef.current) return;
     setUsageData(initialUsageData);
   }, [initialUsageData]);
 
   useEffect(() => {
+    if (sidebarHydratedRef.current) return;
     activeRoutineRefreshIdRef.current += 1;
     setActiveRoutine(initialActiveRoutine);
   }, [initialActiveRoutine]);
+
+  useEffect(() => {
+    if (sidebarHydratedRef.current) return;
+    setCoachingGoal(initialCoachingGoal);
+  }, [initialCoachingGoal]);
+
+  useEffect(() => {
+    if (sidebarHydratedRef.current) return;
+    setRoutinesEnabled(initialRoutinesEnabled);
+  }, [initialRoutinesEnabled]);
+
+  const hydrateSidebarData = useCallback((data: ChatSidebarHydrationData) => {
+    sidebarHydratedRef.current = true;
+    setChats(
+      data.chats.map((chat) => ({
+        ...chat,
+        icon: normalizeChatIcon(chat.icon),
+      })),
+    );
+    setUsageData(data.usageData);
+    setCoachingGoal(data.coachingGoal);
+    activeRoutineRefreshIdRef.current += 1;
+    setActiveRoutine(data.activeRoutine);
+    setRoutinesEnabled(data.routinesEnabled);
+  }, []);
 
   const applyRoutineCollection = useCallback(
     (update: (current: RoutineCollectionState) => RoutineCollectionState) => {
@@ -725,13 +771,14 @@ export function LayoutClient({
       }
     };
 
-    refreshUsageData();
+    const initialRefreshId = window.setTimeout(refreshUsageData, 0);
     const intervalId = window.setInterval(refreshUsageData, 30_000);
     window.addEventListener("focus", refreshUsageData);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(initialRefreshId);
       window.clearInterval(intervalId);
       window.removeEventListener("focus", refreshUsageData);
       document.removeEventListener("visibilitychange", onVisibilityChange);
@@ -1093,7 +1140,7 @@ export function LayoutClient({
     <ChatContext.Provider
       value={{
         chats,
-        coachingGoal: initialCoachingGoal,
+        coachingGoal,
         activeRoutine,
         isLoading,
         isCreatingChat,
@@ -1123,6 +1170,7 @@ export function LayoutClient({
         openRoutineCheckIn,
         openSidebar,
         guestConversationNotice,
+        hydrateSidebarData,
       }}
     >
       <div
@@ -1185,7 +1233,7 @@ export function LayoutClient({
                 routineCollection={routineCollection}
                 routineCollectionError={routineCollectionError}
                 isRoutineCollectionLoading={isRoutineCollectionLoading}
-                routinesEnabled={initialRoutinesEnabled}
+                routinesEnabled={routinesEnabled}
                 onRetryRoutineCollection={() => {
                   void refreshRoutineCollection();
                 }}
@@ -1216,7 +1264,7 @@ export function LayoutClient({
               routineCollection={routineCollection}
               routineCollectionError={routineCollectionError}
               isRoutineCollectionLoading={isRoutineCollectionLoading}
-              routinesEnabled={initialRoutinesEnabled}
+              routinesEnabled={routinesEnabled}
               onRetryRoutineCollection={() => {
                 void refreshRoutineCollection();
               }}
@@ -1253,6 +1301,7 @@ export function LayoutClient({
           {children}
         </main>
       </div>
+      {sidebarSlot}
       <SearchDialog
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}

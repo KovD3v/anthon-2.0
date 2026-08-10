@@ -1,7 +1,7 @@
 "use client";
 
-import posthog from "posthog-js";
 import { z } from "zod";
+import { initializePosthog } from "@/lib/posthog-client";
 
 const routineAnalyticsClientEventSchema = z
   .object({
@@ -39,18 +39,24 @@ export type RoutineAnalyticsClientEvent = z.infer<
 export function trackRoutineAnalytics(input: RoutineAnalyticsClientEvent) {
   const parsed = routineAnalyticsClientEventSchema.safeParse(input);
   if (!parsed.success) return;
-  posthog.capture(parsed.data.event, {
-    routine_id: parsed.data.routineId,
-    format_version: parsed.data.formatVersion,
-    widget_kind: parsed.data.widgetKind,
-    ...(parsed.data.durationSeconds !== undefined
-      ? { duration_seconds: parsed.data.durationSeconds }
-      : {}),
-    ...(parsed.data.technicalState
-      ? { technical_state: parsed.data.technicalState }
-      : {}),
-    ...(parsed.data.temporalWindowDays
-      ? { temporal_window_days: parsed.data.temporalWindowDays }
-      : {}),
-  });
+  void initializePosthog()
+    .then((posthog) => {
+      posthog.capture(parsed.data.event, {
+        routine_id: parsed.data.routineId,
+        format_version: parsed.data.formatVersion,
+        widget_kind: parsed.data.widgetKind,
+        ...(parsed.data.durationSeconds !== undefined
+          ? { duration_seconds: parsed.data.durationSeconds }
+          : {}),
+        ...(parsed.data.technicalState
+          ? { technical_state: parsed.data.technicalState }
+          : {}),
+        ...(parsed.data.temporalWindowDays
+          ? { temporal_window_days: parsed.data.temporalWindowDays }
+          : {}),
+      });
+    })
+    .catch(() => {
+      // Analytics must never affect routine interactions when its client fails to load.
+    });
 }

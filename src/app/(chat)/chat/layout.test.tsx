@@ -123,6 +123,42 @@ describe("chat layout sidebar data", () => {
     );
   });
 
+  it("starts independent sidebar reads while the chat list is pending", async () => {
+    mocks.getAuthUser.mockResolvedValue({
+      user: { id: "user-1", role: "USER", isGuest: false },
+      error: null,
+    });
+
+    let resolveChats: (chats: []) => void = () => undefined;
+    mocks.getSharedChats.mockReturnValue(
+      new Promise((resolve) => {
+        resolveChats = resolve;
+      }),
+    );
+    mocks.getSharedUsageData.mockResolvedValue(null);
+
+    const pending = getChatSidebarData({
+      authUser: {
+        id: "user-1",
+        clerkId: "clerk-user-1",
+        email: "user@example.com",
+        role: "USER",
+        isGuest: false,
+        createdAt: new Date("2026-08-08T08:00:00.000Z"),
+      },
+      guestUser: null,
+      guestConversionPending: false,
+      isGuest: false,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mocks.getSharedUsageData).toHaveBeenCalledWith("user-1", "USER");
+
+    resolveChats([]);
+    await pending;
+  });
+
   it("loads the authenticated user's coaching goal", async () => {
     mocks.getAuthUser.mockResolvedValue({
       user: { id: "user-1", role: "USER", isGuest: false },

@@ -8,10 +8,10 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RoutineCardData } from "@/lib/coaching/routine";
-import type { UsageData } from "@/types/chat";
+import type { Chat, UsageData } from "@/types/chat";
 import { LayoutClient, useChatContext } from "./layout-client";
 
 const mocks = vi.hoisted(() => ({
@@ -247,6 +247,34 @@ function ChatStateProbe() {
   );
 }
 
+function SidebarDataProbe() {
+  const { hydrateSidebarData } = useChatContext();
+
+  useEffect(() => {
+    hydrateSidebarData({
+      chats: [
+        {
+          id: "hydrated-chat",
+          title: "Chat caricata",
+          icon: "BRAIN",
+          visibility: "PRIVATE",
+          createdAt: "2026-08-08T08:00:00.000Z",
+          updatedAt: "2026-08-08T09:00:00.000Z",
+          messageCount: 3,
+        },
+      ],
+      usageData: null,
+      coachingGoal: "Restare lucido",
+      activeRoutine: null,
+      routinesEnabled: true,
+      isGuest: false,
+      guestConversionPending: false,
+    });
+  }, [hydrateSidebarData]);
+
+  return null;
+}
+
 function renderLayout(
   initialActiveRoutine: RoutineCardData | null,
   children: React.ReactNode = <RoutineProbe />,
@@ -303,6 +331,54 @@ function renderLanding({
     </LayoutClient>,
   );
 }
+
+it("hydrates sidebar data without blocking the conversation child", async () => {
+  const initialChats: Chat[] = [];
+
+  render(
+    <LayoutClient
+      initialChats={initialChats}
+      initialUsageData={null}
+      initialCoachingGoal={null}
+      initialActiveRoutine={null}
+      initialRoutinesEnabled={false}
+      guestConversionPending={false}
+      isGuest={false}
+      sidebarSlot={<SidebarDataProbe />}
+    >
+      <div data-testid="conversation-child">Conversation content</div>
+      <ChatStateProbe />
+    </LayoutClient>,
+  );
+
+  expect(screen.getByTestId("conversation-child")).toBeTruthy();
+
+  await waitFor(() => {
+    expect(screen.getByTestId("chat-state").textContent).toContain(
+      "hydrated-chat:Chat caricata:BRAIN",
+    );
+  });
+});
+
+it("defers the initial usage refresh until after the first render task", async () => {
+  vi.useFakeTimers();
+  try {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderLanding({ isGuest: false, usageData: null });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/^\/api\/usage\?t=/),
+      expect.objectContaining({ cache: "no-store" }),
+    );
+  } finally {
+    vi.useRealTimers();
+  }
+});
 
 function GuestNoticeProbe() {
   const { guestConversationNotice } = useChatContext();

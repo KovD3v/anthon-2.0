@@ -148,6 +148,27 @@ describe("lib/chat", () => {
     expect(mocks.resolveEffectiveEntitlements).not.toHaveBeenCalled();
   });
 
+  it("keeps the default initial message window small for chat navigation", async () => {
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-long",
+      title: "Long chat",
+      icon: "BRAIN",
+      visibility: "PRIVATE",
+      userId: "owner-1",
+      createdAt: new Date("2026-02-14T12:00:00.000Z"),
+      updatedAt: new Date("2026-02-17T12:00:00.000Z"),
+      _count: { messages: 21 },
+    });
+    mocks.userFindUnique.mockResolvedValue(null);
+    mocks.messageFindMany.mockResolvedValue([]);
+
+    await getSharedChat("chat-long", "viewer-1");
+
+    expect(mocks.messageFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 21 }),
+    );
+  });
+
   it("retries a newly-created chat after a transient read-after-write miss", async () => {
     vi.useFakeTimers();
     try {

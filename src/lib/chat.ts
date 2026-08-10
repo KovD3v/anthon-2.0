@@ -89,7 +89,7 @@ async function getSharedChatUncached(
   chatId: string,
   userId: string,
   cursor?: string,
-  limit = 50,
+  limit = 20,
 ): Promise<ChatData | null> {
   // Verify access and fetch chat with user data
   const [chat, userData] = await Promise.all([
@@ -400,7 +400,7 @@ export async function getSharedChatWithRetry(
   chatId: string,
   userId: string,
   cursor?: string,
-  limit = 50,
+  limit = 20,
 ): Promise<ChatData | null> {
   const initial = await getSharedChatUncached(chatId, userId, cursor, limit);
   if (initial || cursor || userId === "anonymous") return initial;

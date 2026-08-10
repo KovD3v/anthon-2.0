@@ -5,7 +5,6 @@ import { useClerk } from "@clerk/nextjs";
 import { DefaultChatTransport, safeValidateUIMessages } from "ai";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -37,6 +36,7 @@ import type {
   AnthonUIMessage,
   ModelComparisonSlot,
 } from "@/lib/model-experiments/types";
+import { initializePosthog } from "@/lib/posthog-client";
 import {
   getPaywallCardContent,
   type PaywallCardContent,
@@ -1015,11 +1015,24 @@ export function ChatConversationClient({
   useEffect(() => {
     if (!chatError || isExpectedChatRejection(chatError, isGuest)) return;
 
-    posthog.captureException(chatError, {
-      chat_id: chatId,
-      chat_status: status,
-      is_guest: isGuest,
-    });
+    let cancelled = false;
+    void initializePosthog()
+      .then((posthog) => {
+        if (cancelled) return;
+
+        posthog.captureException(chatError, {
+          chat_id: chatId,
+          chat_status: status,
+          is_guest: isGuest,
+        });
+      })
+      .catch(() => {
+        // Analytics must never affect chat recovery when its client fails to load.
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [chatError, chatId, isGuest, status]);
 
   const maybeActivateClerkTrial = useCallback(async () => {

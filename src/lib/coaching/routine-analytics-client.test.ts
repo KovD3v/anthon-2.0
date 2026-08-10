@@ -8,7 +8,7 @@ import { trackRoutineAnalytics } from "./routine-analytics-client";
 describe("routine analytics client", () => {
   beforeEach(() => mocks.capture.mockReset());
 
-  it("sends only a validated serialized event to the browser analytics client", () => {
+  it("sends only a validated serialized event to the browser analytics client", async () => {
     trackRoutineAnalytics({
       event: "routine_check_in_completed",
       routineId: "routine_opaque_1",
@@ -17,15 +17,17 @@ describe("routine analytics client", () => {
       technicalState: "success",
     });
 
-    expect(mocks.capture).toHaveBeenCalledWith("routine_check_in_completed", {
-      routine_id: "routine_opaque_1",
-      format_version: 2,
-      widget_kind: "form",
-      technical_state: "success",
-    });
+    await vi.waitFor(() =>
+      expect(mocks.capture).toHaveBeenCalledWith("routine_check_in_completed", {
+        routine_id: "routine_opaque_1",
+        format_version: 2,
+        widget_kind: "form",
+        technical_state: "success",
+      }),
+    );
   });
 
-  it("does not send arbitrary routine content or invalid data", () => {
+  it("does not send arbitrary routine content or invalid data", async () => {
     trackRoutineAnalytics({
       event: "routine_saved",
       routineId: "routine_opaque_1",
@@ -34,6 +36,7 @@ describe("routine analytics client", () => {
       title: "Non deve partire",
     } as never);
 
+    await Promise.resolve();
     expect(mocks.capture).not.toHaveBeenCalled();
   });
 });
