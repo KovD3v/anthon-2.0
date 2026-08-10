@@ -55,6 +55,35 @@ describe("benchmark/conversation-benchmark-runner", () => {
     expect(JSON.stringify(artifact)).not.toContain("private prompt");
   });
 
+  it("runs independent samples concurrently", async () => {
+    let activeSamples = 0;
+    let maxActiveSamples = 0;
+    const artifact = await runConversationVariant({
+      variant: "candidate",
+      label: "concurrent",
+      commit: "c".repeat(40),
+      samples: 3,
+      configurationFingerprint: "config",
+      executorFactory: () => {
+        activeSamples += 1;
+        maxActiveSamples = Math.max(maxActiveSamples, activeSamples);
+        return {
+          executor: async ({ scenario, turnIndex }) => {
+            await new Promise((resolve) => setTimeout(resolve, 1));
+            return { text: `${scenario.id}:${turnIndex}`, metrics };
+          },
+          cleanup: async () => {
+            activeSamples -= 1;
+          },
+        };
+      },
+    });
+
+    expect(maxActiveSamples).toBe(3);
+    expect(artifact.replicas[0]?.replicaId).toBe("sample-1");
+    expect(artifact.replicas.at(-1)?.replicaId).toBe("sample-3");
+  });
+
   it("rejects empty candidate output", async () => {
     await expect(
       runConversationVariant({

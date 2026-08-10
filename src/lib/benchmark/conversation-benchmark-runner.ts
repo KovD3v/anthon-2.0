@@ -43,55 +43,60 @@ export async function runConversationVariant({
   if (!Number.isInteger(samples) || samples < 1) {
     throw new Error("samples must be a positive integer");
   }
-  const summaries: ConversationRunArtifact["summaries"] = [];
-  const replicas: ConversationRunArtifact["replicas"] = [];
-  for (let index = 1; index <= samples; index += 1) {
-    const replicaId = `sample-${index}`;
-    const benchmark = executorFactory(replicaId);
-    try {
-      const summary = await runRealityBenchmark({
-        models: [CONVERSATION_MODEL_ID],
-        scenarios: CONVERSATIONAL_REALITY_SCENARIOS,
-        executor: benchmark.executor,
-      });
-      for (const result of summary.results) {
-        if (
-          !result.assistantText.trim() ||
-          result.metadata?.benchmarkError === true ||
-          result.metrics.generationTimeMs <= 0
-        ) {
-          throw new Error(
-            `incomplete conversation result ${result.scenarioId}#${result.turnIndex}`,
-          );
-        }
-        replicas.push({
-          replicaId,
-          scenarioId: result.scenarioId,
-          turnIndex: result.turnIndex,
-          assistantText: result.assistantText,
-          diagnostics: diagnoseConversationStructure(result.assistantText),
-          metrics: {
-            costUsd: result.metrics.costUsd,
-            generationTimeMs: result.metrics.generationTimeMs,
-            inputTokens: result.metrics.inputTokens,
-            outputTokens: result.metrics.outputTokens,
-          },
-          guardrails: {
-            safety: result.score.dimensions.safety,
-            concision: result.score.dimensions.concision,
-            coachingUsefulness: result.score.dimensions.coachingUsefulness,
-          },
+  const sampleResults = await Promise.all(
+    Array.from({ length: samples }, async (_, sampleIndex) => {
+      const index = sampleIndex + 1;
+      const replicaId = `sample-${index}`;
+      const benchmark = executorFactory(replicaId);
+      try {
+        const summary = await runRealityBenchmark({
+          models: [CONVERSATION_MODEL_ID],
+          scenarios: CONVERSATIONAL_REALITY_SCENARIOS,
+          executor: benchmark.executor,
         });
+        const replicas: ConversationRunArtifact["replicas"] = [];
+        for (const result of summary.results) {
+          if (
+            !result.assistantText.trim() ||
+            result.metadata?.benchmarkError === true ||
+            result.metrics.generationTimeMs <= 0
+          ) {
+            throw new Error(
+              `incomplete conversation result ${result.scenarioId}#${result.turnIndex}`,
+            );
+          }
+          replicas.push({
+            replicaId,
+            scenarioId: result.scenarioId,
+            turnIndex: result.turnIndex,
+            assistantText: result.assistantText,
+            diagnostics: diagnoseConversationStructure(result.assistantText),
+            metrics: {
+              costUsd: result.metrics.costUsd,
+              generationTimeMs: result.metrics.generationTimeMs,
+              inputTokens: result.metrics.inputTokens,
+              outputTokens: result.metrics.outputTokens,
+            },
+            guardrails: {
+              safety: result.score.dimensions.safety,
+              concision: result.score.dimensions.concision,
+              coachingUsefulness: result.score.dimensions.coachingUsefulness,
+            },
+          });
+        }
+        return {
+          replicas,
+          summary: sanitizeRealitySummary(
+            serializeRealityBenchmarkSummary(summary),
+          ) as ReturnType<typeof serializeRealityBenchmarkSummary>,
+        };
+      } finally {
+        await benchmark.cleanup();
       }
-      summaries.push(
-        sanitizeRealitySummary(
-          serializeRealityBenchmarkSummary(summary),
-        ) as ReturnType<typeof serializeRealityBenchmarkSummary>,
-      );
-    } finally {
-      await benchmark.cleanup();
-    }
-  }
+    }),
+  );
+  const summaries = sampleResults.map((result) => result.summary);
+  const replicas = sampleResults.flatMap((result) => result.replicas);
   return {
     artifactVersion: CONVERSATION_ARTIFACT_VERSION,
     scenarioVersion: CONVERSATION_SCENARIO_VERSION,
