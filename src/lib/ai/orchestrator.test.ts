@@ -741,7 +741,7 @@ describe("ai/orchestrator", () => {
     );
     expect(prepared.systemPrompt).toContain("Do not recycle the same routine");
     expect(prepared.systemPrompt).toContain(
-      "Do not assume unexplained breathing difficulty is anxiety",
+      "For explicit acute warning signs, advise stopping the activity",
     );
     expect(prepared.systemPrompt).not.toContain(
       "1 sentence of emotional acknowledgment",
@@ -752,10 +752,10 @@ describe("ai/orchestrator", () => {
     );
   });
 
-  it("keeps pre-competition vomiting in a proportionate coaching context", async () => {
+  it("keeps ordinary performance coaching health-neutral without dropping acute safety", async () => {
     const prepared = await prepareChatTurn({
       userId: "user-1",
-      chatId: "chat-performance-symptom-context",
+      chatId: "chat-health-neutral-v22",
       conversationThreadId: "thread-1",
       userMessageId: "message-1",
       userMessage: "Prima della partita vomito e penso sia la tensione",
@@ -764,16 +764,19 @@ describe("ai/orchestrator", () => {
     });
 
     expect(prepared.systemPrompt).toContain(
-      "Anthon is a mental-performance coach, not a medical advisor",
+      "Keep ordinary performance coaching focused on the user's performance goal",
     );
     expect(prepared.systemPrompt).toContain(
+      "Do not introduce medical explanations or clinical questions",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "For explicit acute warning signs, advise stopping the activity",
+    );
+    expect(prepared.systemPrompt).not.toContain(
+      "PERFORMANCE-RELATED PHYSICAL SENSATIONS",
+    );
+    expect(prepared.systemPrompt).not.toContain(
       "stress or performance anxiety as a possible explanation",
-    );
-    expect(prepared.systemPrompt).toContain(
-      "Do not introduce reflux, gastritis, or another specific condition",
-    );
-    expect(prepared.systemPrompt).toContain(
-      "Keep health language proportionate",
     );
   });
 
