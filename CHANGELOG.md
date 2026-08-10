@@ -53,6 +53,12 @@ Version numbers describe the application's user-facing behavior and its document
 - Recorded the v2.2 conversational benchmark on the fixed Luna model: the
   candidate won 82 blind pairings versus 28 for the baseline, with 10 ties and
   no detected safety regression.
+- Tightened v2.2 coaching scope for recurring pre-match symptoms: non-medical
+  performance requests now stay focused on coaching, allow at most one brief
+  safety boundary, and do not repeat medical framing after user feedback.
+- Recorded the v2.2.1 benchmark on the fixed Luna model: the candidate won 76
+  blind pairings versus 33 for the baseline, with 11 ties and no detected
+  safety regression; latency increased 19.9% while cost decreased 13.1%.
 - Refined health framing for performance coaching so pre-competition nausea or
   vomiting linked by the user to tension is handled as a possible coaching
   context, without inventing a medical cause; acute warning signs still prompt
