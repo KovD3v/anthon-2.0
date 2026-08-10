@@ -600,6 +600,9 @@ export function MessageList({
               const isPendingAssistant = message === pendingAssistantMessage;
               const isEditing = editingMessageId === message.id;
               const messageText = getMessageText(message);
+              const relativeTimestamp = message.createdAt
+                ? formatRelativeTime(message.createdAt)
+                : "Just now";
               const comparisonData = getModelComparisonData(message.parts);
               const isLastAssistant =
                 message.role === "assistant" &&
@@ -651,6 +654,7 @@ export function MessageList({
               const isFeedbackSaving = feedbackSavingState[message.id] === true;
               const isPersistedMessage =
                 !feedbackMessageIds || feedbackMessageIds.has(message.id);
+              const areMessageActionsVisible = isUser || isPersistedMessage;
               const canSubmitFeedbackForMessage =
                 canSubmitFeedback && isPersistedMessage;
 
@@ -756,17 +760,15 @@ export function MessageList({
                           <span className="text-xs font-semibold text-foreground/80">
                             Anthon
                           </span>
-                          {message.createdAt && (
-                            <span className="text-xs text-muted-foreground/50">
-                              {formatRelativeTime(message.createdAt)}
-                            </span>
-                          )}
+                          <span className="text-xs text-muted-foreground/50">
+                            {relativeTimestamp}
+                          </span>
                         </div>
                       )}
-                      {isUser && message.createdAt && (
+                      {isUser && (
                         <div className="flex items-center gap-2 px-1 justify-end">
                           <span className="text-xs text-muted-foreground/50">
-                            {formatRelativeTime(message.createdAt)}
+                            {relativeTimestamp}
                           </span>
                         </div>
                       )}
@@ -1011,19 +1013,24 @@ export function MessageList({
                       )}
 
                       {/* Actions Row */}
-                      {!comparisonData && (isUser || isPersistedMessage) && (
+                      {!comparisonData && (
                         <m.div
-                          initial={
-                            !isUser && isPersistedMessage
-                              ? { opacity: 0 }
-                              : false
-                          }
-                          animate={{ opacity: 1 }}
+                          initial={false}
+                          animate={{
+                            opacity: areMessageActionsVisible ? 1 : 0,
+                          }}
                           transition={{ duration: 0.18, ease: "easeOut" }}
-                          className={`flex min-w-0 max-w-full flex-wrap items-center gap-0.5 px-1 transition-opacity ${
+                          aria-hidden={
+                            areMessageActionsVisible ? undefined : true
+                          }
+                          inert={areMessageActionsVisible ? undefined : true}
+                          data-message-actions-slot
+                          className={`flex min-h-8 min-w-0 max-w-full flex-wrap items-center gap-0.5 px-1 transition-opacity ${
                             isUser
                               ? "flex-row-reverse opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
-                              : "opacity-100"
+                              : areMessageActionsVisible
+                                ? "opacity-100"
+                                : "pointer-events-none opacity-0"
                           }`}
                         >
                           {!isEditing && (

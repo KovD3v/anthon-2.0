@@ -860,6 +860,21 @@ describe("MessageList rendered interactions", () => {
     ).toBeTruthy();
   });
 
+  it("shows optimistic timestamps before persistence instead of adding them later", () => {
+    renderMessageList({
+      messages: [userMessage],
+      status: "submitted",
+      isLoading: true,
+      feedbackMessageIds: new Set(),
+    });
+
+    const rows = [...document.querySelectorAll("[data-message-role]")];
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(within(row as HTMLElement).getByText("Just now")).toBeTruthy();
+    }
+  });
+
   it("preserves message rows when streamed ids reconcile to persisted ids", () => {
     const streamedUser = {
       ...userMessage,
@@ -918,6 +933,11 @@ describe("MessageList rendered interactions", () => {
         name: "Altre azioni sul messaggio",
       }),
     ).toBeNull();
+    const streamingActionsSlot = (
+      streamingAssistant as HTMLElement
+    ).querySelector("[data-message-actions-slot]");
+    expect(streamingActionsSlot).toBeTruthy();
+    expect(streamingActionsSlot?.className).toContain("min-h-8");
 
     view.rerender(
       <MessageList
@@ -927,13 +947,17 @@ describe("MessageList rendered interactions", () => {
         feedbackMessageIds={new Set(["assistant-1"])}
       />,
     );
+    const persistedAssistant = document.querySelector(
+      '[data-message-role="assistant"]',
+    ) as HTMLElement;
     expect(
-      within(
-        document.querySelector(
-          '[data-message-role="assistant"]',
-        ) as HTMLElement,
-      ).getByRole("button", { name: "Altre azioni sul messaggio" }),
+      within(persistedAssistant).getByRole("button", {
+        name: "Altre azioni sul messaggio",
+      }),
     ).toBeTruthy();
+    expect(
+      persistedAssistant.querySelector("[data-message-actions-slot]"),
+    ).toBe(streamingActionsSlot);
   });
 
   it("shows a dedicated replacement state while regenerating", () => {
