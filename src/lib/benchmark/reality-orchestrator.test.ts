@@ -229,4 +229,66 @@ describe("benchmark/reality orchestrator executor", () => {
       where: { id: { in: ["user-db"] } },
     });
   });
+
+  it("waits for persistence background work before allowing benchmark cleanup", async () => {
+    let releaseBackground: () => void = () => undefined;
+    const background = new Promise<void>((resolve) => {
+      releaseBackground = resolve;
+    });
+    mocks.userCreate.mockResolvedValue({ id: "user-db" });
+    mocks.chatCreate.mockResolvedValue({ id: "chat-db" });
+    mocks.conversationThreadCreate.mockResolvedValue({ id: "thread-db" });
+    mocks.messageCreate.mockResolvedValue({ id: "message-db" });
+    mocks.userDeleteMany.mockResolvedValue({ count: 1 });
+    mocks.streamChat.mockImplementation(async (input) => ({
+      textStream: (async function* () {
+        await input.onFinish?.({
+          text: "Risposta",
+          metrics: {
+            model: "candidate/model",
+            inputTokens: 1,
+            outputTokens: 1,
+            reasoningTokens: 0,
+            toolCalls: [],
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0,
+            generationTimeMs: 1,
+            reasoningTimeMs: 0,
+          },
+        });
+        yield "Risposta";
+      })(),
+    }));
+    mocks.persistAssistantOutput.mockImplementation(async (input) => {
+      input.waitUntil(background);
+      return { id: "assistant-db" };
+    });
+    const { executor } = createDatabaseBackedRealityExecutor({
+      runLabel: "background-test",
+    });
+    const execution = executor({
+      modelId: "candidate/model",
+      scenario: {
+        id: "scenario",
+        title: "Scenario",
+        persona: "Atleta",
+        tags: [],
+        setup: {},
+        turns: [],
+      },
+      turn: { userMessage: "Aiutami", requiredSignals: [] },
+      turnIndex: 0,
+      transcript: [],
+    });
+    let settled = false;
+    void execution.then(() => {
+      settled = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(settled).toBe(false);
+    releaseBackground();
+    await execution;
+    expect(settled).toBe(true);
+  });
 });

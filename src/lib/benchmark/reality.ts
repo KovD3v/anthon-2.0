@@ -1569,6 +1569,7 @@ export function createDatabaseBackedRealityExecutor(
     }
 
     const metrics = finalMetrics ?? fallbackMetrics(modelId);
+    const persistenceBackgroundTasks: Promise<unknown>[] = [];
     await persistAssistantOutput({
       userId: context.userId,
       chatId: context.chatId,
@@ -1586,7 +1587,11 @@ export function createDatabaseBackedRealityExecutor(
       ),
       updateChatTimestamp: true,
       allowMemoryExtraction: false,
+      waitUntil: (task) => {
+        persistenceBackgroundTasks.push(task);
+      },
     });
+    await Promise.all(persistenceBackgroundTasks);
 
     return {
       text,
