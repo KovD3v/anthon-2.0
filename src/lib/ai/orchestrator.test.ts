@@ -780,6 +780,32 @@ describe("ai/orchestrator", () => {
     );
   });
 
+  it("keeps recurring pre-match symptoms in coaching scope after health feedback", async () => {
+    const prepared = await prepareChatTurn({
+      userId: "user-1",
+      chatId: "chat-health-feedback-v22",
+      conversationThreadId: "thread-1",
+      userMessageId: "message-1",
+      userMessage:
+        "Vomito spesso prima della partita, ma non sto chiedendo un parere medico",
+      effectiveEntitlements: baseEntitlements as never,
+      skipConversationHistory: true,
+    });
+
+    expect(prepared.systemPrompt).toContain(
+      "including repeated pre-match vomiting",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "Do not lead with physical causes, medical referrals, or triage",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "Do not repeat that boundary on later turns",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "If the user says your response is too generic or focused on health",
+    );
+  });
+
   it("builds stream payload for text messages and skips entitlement lookup when prefetched", async () => {
     const abortController = new AbortController();
     const prefetchedEntitlements = {
