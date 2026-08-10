@@ -728,14 +728,18 @@ describe("ai/orchestrator", () => {
     });
 
     expect(prepared.systemPrompt).toContain(
-      "Ask only for missing information that would materially change your advice",
+      "First decide whether you have enough context",
     );
     expect(prepared.systemPrompt).toContain(
-      "Do not end every response with a question",
+      "Do not suppress a useful diagnostic question merely to be concise",
     );
     expect(prepared.systemPrompt).toContain(
-      "Do not repeat questions already answered",
+      "Treat the user's latest identity or factual correction as authoritative",
     );
+    expect(prepared.systemPrompt).toContain(
+      "give a small safe observation or principle, then ask one high-value diagnostic question",
+    );
+    expect(prepared.systemPrompt).toContain("Do not recycle the same routine");
     expect(prepared.systemPrompt).not.toContain(
       "1 sentence of emotional acknowledgment",
     );
