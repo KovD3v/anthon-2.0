@@ -44,7 +44,7 @@ export function ChatList({
   const chatGroups = groupChatsByPeriod(chats);
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="space-y-2 p-3">
         <Button
           onClick={onCreate}
@@ -80,7 +80,7 @@ export function ChatList({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 pt-0">
+      <div className="min-h-0 flex-1 overflow-y-auto p-2 pt-0">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />

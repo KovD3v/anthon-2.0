@@ -65,6 +65,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Fixed scrolling in the chat sidebar by allowing the conversation list to
+  shrink within the available viewport height.
 - Hardened routine lifecycle recovery across source chats, returning check-ins,
   concurrent mutations, and orphaned routines.
 - Prevented duplicate AI turns when repeating a saved routine and preserved
