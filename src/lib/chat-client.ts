@@ -7,6 +7,8 @@ import type {
 } from "@/types/chat";
 
 export type ChatUIMessage = AnthonUIMessage & {
+  clientMessageId?: string;
+  sourceClientMessageId?: string;
   createdAt?: Date;
   attachments?: StoredAttachment[];
   voice?: ChatMessage["voice"];
@@ -36,6 +38,8 @@ export function hasPendingVoiceGeneration(
 export function convertToUIMessages(messages: ChatMessage[]): ChatUIMessage[] {
   return messages.map<ChatUIMessage>((msg) => ({
     id: msg.id,
+    clientMessageId: msg.clientMessageId,
+    sourceClientMessageId: msg.sourceClientMessageId,
     role: msg.role,
     parts: msg.parts
       ? (msg.parts as AnthonUIMessage["parts"])

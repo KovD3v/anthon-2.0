@@ -79,6 +79,10 @@ export async function GET(request: Request, { params }: RouteParams) {
       }),
       select: {
         id: true,
+        clientMessageId: true,
+        sourceInboundMessage: {
+          select: { clientMessageId: true },
+        },
         role: true,
         parts: true,
         createdAt: true,
@@ -107,6 +111,10 @@ export async function GET(request: Request, { params }: RouteParams) {
       updatedAt: chat.updatedAt.toISOString(),
       messages: messagesToReturn.map((m) => ({
         id: m.id,
+        ...(m.clientMessageId ? { clientMessageId: m.clientMessageId } : {}),
+        ...(m.sourceInboundMessage?.clientMessageId
+          ? { sourceClientMessageId: m.sourceInboundMessage.clientMessageId }
+          : {}),
         role: m.role.toLowerCase(),
         content: getTextFromParts(m.parts),
         parts: m.parts,

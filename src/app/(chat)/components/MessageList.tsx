@@ -77,6 +77,32 @@ import { VoiceResponse } from "./VoiceResponse";
 
 type ExtendedMessage = ChatUIMessage;
 
+function getMessageRenderKey(
+  messages: ExtendedMessage[],
+  messageIndex: number,
+) {
+  const message = messages[messageIndex];
+  if (!message) return `message:${messageIndex}`;
+  if (message.role === "user") {
+    return `user:${message.clientMessageId ?? message.id}`;
+  }
+  if (getModelComparisonData(message.parts)) {
+    return `assistant:${message.id}`;
+  }
+  if (message.sourceClientMessageId) {
+    return `assistant:${message.sourceClientMessageId}`;
+  }
+
+  for (let index = messageIndex - 1; index >= 0; index -= 1) {
+    const precedingMessage = messages[index];
+    if (precedingMessage?.role === "user") {
+      return `assistant:${precedingMessage.clientMessageId ?? precedingMessage.id}`;
+    }
+  }
+
+  return `assistant:${message.id}`;
+}
+
 function getModelComparisonData(parts: ExtendedMessage["parts"]) {
   const part = parts?.find(
     (candidate) => candidate.type === "data-modelComparison",
@@ -287,6 +313,28 @@ export function MessageList({
       pendingLabel: pendingAssistantLabel,
       latestMessage,
     });
+  const pendingAssistantMessage = useMemo<ExtendedMessage | null>(() => {
+    if (
+      !shouldShowPendingRow ||
+      isRegenerating ||
+      latestMessage?.role !== "user"
+    ) {
+      return null;
+    }
+
+    return {
+      id: `pending-assistant:${latestMessage.clientMessageId ?? latestMessage.id}`,
+      role: "assistant",
+      parts: [],
+    };
+  }, [isRegenerating, latestMessage, shouldShowPendingRow]);
+  const displayedMessages = useMemo(
+    () =>
+      pendingAssistantMessage
+        ? [...visibleMessages, pendingAssistantMessage]
+        : visibleMessages,
+    [pendingAssistantMessage, visibleMessages],
+  );
   const parentRef = useRef<HTMLDivElement>(null);
   const routineBySourceMessageId = useMemo(() => {
     const byMessageId = new Map<string, RoutineCardData>();
@@ -548,20 +596,25 @@ export function MessageList({
             </div>
           )}
           <div>
-            {visibleMessages.map((message, messageIndex) => {
+            {displayedMessages.map((message, messageIndex) => {
+              const isPendingAssistant = message === pendingAssistantMessage;
               const isEditing = editingMessageId === message.id;
               const messageText = getMessageText(message);
               const comparisonData = getModelComparisonData(message.parts);
               const isLastAssistant =
                 message.role === "assistant" &&
-                message.id === visibleMessages[visibleMessages.length - 1]?.id;
+                message.id ===
+                  displayedMessages[displayedMessages.length - 1]?.id;
               const isUser = message.role === "user";
-              const assistantLifecycle = getAssistantMessageLifecycle({
-                message,
-                isLatest: message.id === latestMessage?.id,
-                pendingLabel: assistantPendingLabel,
-                hasRenderableAttachment: hasPersistedAudioAttachment(message),
-              });
+              const assistantLifecycle = isPendingAssistant
+                ? "pending"
+                : getAssistantMessageLifecycle({
+                    message,
+                    isLatest: message.id === latestMessage?.id,
+                    pendingLabel: assistantPendingLabel,
+                    hasRenderableAttachment:
+                      hasPersistedAudioAttachment(message),
+                  });
               const assistantDisplayState = getAssistantMessageDisplayState({
                 message,
                 lifecycle: assistantLifecycle,
@@ -655,7 +708,7 @@ export function MessageList({
 
               return (
                 <div
-                  key={message.id}
+                  key={getMessageRenderKey(displayedMessages, messageIndex)}
                   data-index={messageIndex}
                   data-message-role={message.role}
                 >
@@ -786,14 +839,9 @@ export function MessageList({
                               aria-live="polite"
                             >
                               <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                              <div className="flex flex-col">
-                                <span className="font-medium text-foreground">
-                                  {assistantPendingLabel}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {CHAT_REACTIVITY_COPY.assistantWorkingDetail}
-                                </span>
-                              </div>
+                              <span className="font-medium text-foreground">
+                                {assistantPendingLabel}
+                              </span>
                             </div>
                           ) : (
                             /* Text message: show markdown */
@@ -963,7 +1011,7 @@ export function MessageList({
                       )}
 
                       {/* Actions Row */}
-                      {!comparisonData && (
+                      {!comparisonData && (isUser || isPersistedMessage) && (
                         <m.div
                           initial={
                             !isUser && isPersistedMessage
@@ -1199,7 +1247,7 @@ export function MessageList({
             })}
           </div>
 
-          {shouldShowPendingRow && (
+          {shouldShowPendingRow && isRegenerating && (
             <m.output
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

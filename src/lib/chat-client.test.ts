@@ -13,6 +13,7 @@ describe("chat-client", () => {
     const messages: ChatMessage[] = [
       {
         id: "m1",
+        sourceClientMessageId: "client-turn-1",
         role: "assistant",
         content: "fallback",
         parts: [{ type: "text", text: "Hello" }],
@@ -46,6 +47,7 @@ describe("chat-client", () => {
     const msg0 = result[0] as ExtMsg | undefined;
     expect(result).toHaveLength(1);
     expect(msg0?.id).toBe("m1");
+    expect(result[0]?.sourceClientMessageId).toBe("client-turn-1");
     expect(msg0?.parts).toEqual([{ type: "text", text: "Hello" }]);
     expect(msg0?.createdAt).toEqual(new Date("2026-02-16T10:00:00.000Z"));
     expect(msg0?.annotations).toEqual([

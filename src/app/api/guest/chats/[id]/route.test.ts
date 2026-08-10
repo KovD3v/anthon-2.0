@@ -77,6 +77,8 @@ describe("/api/guest/chats/[id] route", () => {
     mocks.messageFindMany.mockResolvedValue([
       {
         id: "m3",
+        clientMessageId: null,
+        sourceInboundMessage: { clientMessageId: "client-turn-1" },
         role: "ASSISTANT",
         parts: [{ type: "text", text: "Third" }],
         createdAt: new Date("2026-02-16T11:00:03.000Z"),
@@ -92,6 +94,8 @@ describe("/api/guest/chats/[id] route", () => {
       },
       {
         id: "m2",
+        clientMessageId: "client-turn-1",
+        sourceInboundMessage: null,
         role: "USER",
         parts: [{ type: "text", text: "Second" }],
         createdAt: new Date("2026-02-16T11:00:02.000Z"),
@@ -198,6 +202,10 @@ describe("/api/guest/chats/[id] route", () => {
       skip: 1,
       select: {
         id: true,
+        clientMessageId: true,
+        sourceInboundMessage: {
+          select: { clientMessageId: true },
+        },
         role: true,
         parts: true,
         createdAt: true,
@@ -218,6 +226,7 @@ describe("/api/guest/chats/[id] route", () => {
       messages: [
         {
           id: "m2",
+          clientMessageId: "client-turn-1",
           role: "user",
           content: "Second",
           parts: [{ type: "text", text: "Second" }],
@@ -227,6 +236,7 @@ describe("/api/guest/chats/[id] route", () => {
         },
         {
           id: "m3",
+          sourceClientMessageId: "client-turn-1",
           role: "assistant",
           content: "Third",
           parts: [{ type: "text", text: "Third" }],

@@ -229,6 +229,8 @@ describe("lib/chat", () => {
     mocks.messageFindMany.mockResolvedValue([
       {
         id: "m3",
+        clientMessageId: "client-turn-2",
+        sourceInboundMessage: null,
         role: "USER",
         parts: [{ type: "text", text: "latest question" }],
         createdAt: new Date("2026-02-17T11:00:00.000Z"),
@@ -246,6 +248,8 @@ describe("lib/chat", () => {
       },
       {
         id: "m2",
+        clientMessageId: null,
+        sourceInboundMessage: { clientMessageId: "client-turn-1" },
         role: "ASSISTANT",
         parts: [],
         createdAt: new Date("2026-02-17T10:59:00.000Z"),
@@ -285,6 +289,8 @@ describe("lib/chat", () => {
       },
       {
         id: "m1",
+        clientMessageId: "client-turn-1",
+        sourceInboundMessage: null,
         role: "USER",
         parts: [],
         createdAt: new Date("2026-02-17T10:58:00.000Z"),
@@ -324,6 +330,10 @@ describe("lib/chat", () => {
       take: 3,
       select: {
         id: true,
+        clientMessageId: true,
+        sourceInboundMessage: {
+          select: { clientMessageId: true },
+        },
         role: true,
         parts: true,
         createdAt: true,
@@ -371,6 +381,7 @@ describe("lib/chat", () => {
     expect(result?.messages.map((message) => message.id)).toEqual(["m2", "m3"]);
     expect(result?.messages[0]).toMatchObject({
       id: "m2",
+      sourceClientMessageId: "client-turn-1",
       role: "assistant",
       feedback: -1,
       feedbackReason: "wrong_fact",
@@ -393,6 +404,7 @@ describe("lib/chat", () => {
     });
     expect(result?.messages[1]).toMatchObject({
       id: "m3",
+      clientMessageId: "client-turn-2",
       role: "user",
       usage: {
         inputTokens: 42,

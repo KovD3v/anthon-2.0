@@ -111,6 +111,10 @@ export type MessageFeedbackReason =
 
 export interface ChatMessage {
   id: string;
+  /** Stable browser-generated turn id used to preserve UI identity after persistence. */
+  clientMessageId?: string;
+  /** Browser turn id of the user message that produced this assistant response. */
+  sourceClientMessageId?: string;
   role: "user" | "assistant";
   content: string | null;
   parts: unknown;

@@ -175,6 +175,10 @@ async function getSharedChatUncached(
           }),
           select: {
             id: true,
+            clientMessageId: true,
+            sourceInboundMessage: {
+              select: { clientMessageId: true },
+            },
             role: true,
             parts: true,
             createdAt: true,
@@ -275,6 +279,10 @@ async function getSharedChatUncached(
 
     return {
       id: m.id,
+      ...(m.clientMessageId ? { clientMessageId: m.clientMessageId } : {}),
+      ...(m.sourceInboundMessage?.clientMessageId
+        ? { sourceClientMessageId: m.sourceInboundMessage.clientMessageId }
+        : {}),
       role: m.role.toLowerCase() as "user" | "assistant",
       content: getTextFromParts(m.parts),
       parts: canReceiveRoutineProposal

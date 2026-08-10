@@ -792,6 +792,129 @@ describe("MessageList rendered interactions", () => {
     expect(screen.queryByText("Sto preparando la risposta")).toBeNull();
   });
 
+  it("keeps the same assistant row from pending through the first streamed text", () => {
+    const view = renderMessageList({
+      messages: [userMessage],
+      status: "submitted",
+      isLoading: true,
+      feedbackMessageIds: new Set(),
+    });
+    const pendingRow = document.querySelector(
+      '[data-message-role="assistant"]',
+    );
+
+    expect(pendingRow).toBeTruthy();
+    expect(
+      within(pendingRow as HTMLElement).getByText("Sto preparando la risposta"),
+    ).toBeTruthy();
+    expect(
+      within(pendingRow as HTMLElement).queryByText(
+        "La risposta sta arrivando.",
+      ),
+    ).toBeNull();
+
+    view.rerender(
+      <MessageList
+        {...view.props}
+        messages={[
+          userMessage,
+          {
+            id: "assistant-stream-1",
+            role: "assistant",
+            parts: [{ type: "text", text: "Eccomi" }],
+          },
+        ]}
+        status="streaming"
+        isLoading
+        feedbackMessageIds={new Set()}
+      />,
+    );
+
+    const streamingRow = document.querySelector(
+      '[data-message-role="assistant"]',
+    );
+    expect(streamingRow).toBe(pendingRow);
+    expect(
+      within(streamingRow as HTMLElement).getByText("Eccomi"),
+    ).toBeTruthy();
+  });
+
+  it("preserves message rows when streamed ids reconcile to persisted ids", () => {
+    const streamedUser = {
+      ...userMessage,
+      id: "client-turn-1",
+    };
+    const streamedAssistant = {
+      ...assistantMessage,
+      id: "assistant-stream-1",
+    };
+    const view = renderMessageList({
+      messages: [streamedUser, streamedAssistant],
+      status: "streaming",
+      isLoading: true,
+      feedbackMessageIds: new Set(),
+    });
+    const before = [...document.querySelectorAll("[data-message-role]")];
+
+    view.rerender(
+      <MessageList
+        {...view.props}
+        messages={[
+          {
+            ...streamedUser,
+            id: "db-user-1",
+            clientMessageId: "client-turn-1",
+          } as ChatUIMessage,
+          {
+            ...streamedAssistant,
+            id: "db-assistant-1",
+            sourceClientMessageId: "client-turn-1",
+          } as ChatUIMessage,
+        ]}
+        status="ready"
+        isLoading={false}
+        feedbackMessageIds={new Set(["db-user-1", "db-assistant-1"])}
+      />,
+    );
+
+    const after = [...document.querySelectorAll("[data-message-role]")];
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).toBe(before[1]);
+  });
+
+  it("reveals the assistant footer only after the message is persisted", () => {
+    const view = renderMessageList({
+      status: "streaming",
+      isLoading: true,
+      feedbackMessageIds: new Set(),
+    });
+    const streamingAssistant = document.querySelector(
+      '[data-message-role="assistant"]',
+    );
+
+    expect(
+      within(streamingAssistant as HTMLElement).queryByRole("button", {
+        name: "Altre azioni sul messaggio",
+      }),
+    ).toBeNull();
+
+    view.rerender(
+      <MessageList
+        {...view.props}
+        status="ready"
+        isLoading={false}
+        feedbackMessageIds={new Set(["assistant-1"])}
+      />,
+    );
+    expect(
+      within(
+        document.querySelector(
+          '[data-message-role="assistant"]',
+        ) as HTMLElement,
+      ).getByRole("button", { name: "Altre azioni sul messaggio" }),
+    ).toBeTruthy();
+  });
+
   it("shows a dedicated replacement state while regenerating", () => {
     renderMessageList({
       messages: [userMessage],
