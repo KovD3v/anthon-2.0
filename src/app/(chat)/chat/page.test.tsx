@@ -169,6 +169,25 @@ describe("chat landing page", () => {
     });
   });
 
+  it("exposes file upload and voice recording to authenticated users", () => {
+    render(<ChatPage />);
+
+    expect(screen.getByRole("button", { name: "Allega file" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Registra messaggio vocale" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps file upload and voice recording unavailable to guests", () => {
+    mocks.context.isGuest = true;
+    render(<ChatPage />);
+
+    expect(screen.queryByRole("button", { name: "Allega file" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Registra messaggio vocale" }),
+    ).toBeNull();
+  });
+
   it("keeps the guest launcher even when guest chats exist", () => {
     mocks.context.isGuest = true;
     mocks.context.chats = [

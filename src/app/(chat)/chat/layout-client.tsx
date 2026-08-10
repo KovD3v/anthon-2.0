@@ -38,7 +38,7 @@ import {
   type RoutineCollectionStatus,
 } from "@/lib/coaching/routine-client";
 import { installChatViewportSizing } from "@/lib/visual-viewport";
-import type { Chat, ChatData, UsageData } from "@/types/chat";
+import type { AttachmentData, Chat, ChatData, UsageData } from "@/types/chat";
 import { ChatList } from "../../(chat)/components/ChatList";
 import { RoutineSidebarShelf } from "../../(chat)/components/RoutineSidebarShelf";
 import { SearchDialog } from "../../(chat)/components/SearchDialog";
@@ -52,6 +52,7 @@ import { UsageBanner } from "../../(chat)/components/UsageBanner";
 
 interface CreateChatOptions {
   initialMessage?: string;
+  initialAttachments?: AttachmentData[];
   routineContext?: PendingRoutineChatContext;
   title?: string;
 }
@@ -153,6 +154,7 @@ interface ChatContextType {
   renameChat: (id: string, newTitle: string) => Promise<boolean>;
   updateCachedChat: (id: string, data: Partial<ChatData>) => void;
   consumePendingInitialMessage: (chatId: string) => string | null;
+  consumePendingInitialAttachments: (chatId: string) => AttachmentData[] | null;
   consumePendingRoutineChatContext: (
     chatId: string,
   ) => PendingRoutineChatContext | null;
@@ -826,6 +828,9 @@ export function LayoutClient({
   const preFetchingIdsRef = useRef<Set<string>>(new Set());
   const createChatPromiseRef = useRef<Promise<string | null> | null>(null);
   const pendingInitialMessagesRef = useRef<Map<string, string>>(new Map());
+  const pendingInitialAttachmentsRef = useRef<Map<string, AttachmentData[]>>(
+    new Map(),
+  );
   const pendingRoutineChatContextsRef = useRef<
     Map<string, PendingRoutineChatContext>
   >(new Map());
@@ -918,6 +923,14 @@ export function LayoutClient({
     return pending;
   }
 
+  function consumePendingInitialAttachments(chatId: string) {
+    const pending = pendingInitialAttachmentsRef.current.get(chatId) ?? null;
+    if (pending) {
+      pendingInitialAttachmentsRef.current.delete(chatId);
+    }
+    return pending;
+  }
+
   function consumePendingRoutineChatContext(
     chatId: string,
   ): PendingRoutineChatContext | null {
@@ -941,6 +954,9 @@ export function LayoutClient({
     }
 
     const initialMessage = options.initialMessage?.trim();
+    const initialAttachments = options.initialAttachments?.length
+      ? [...options.initialAttachments]
+      : undefined;
 
     const createChatPromise = (async () => {
       const response = await fetch(`${apiBase}/chats`, {
@@ -977,8 +993,16 @@ export function LayoutClient({
             options.routineContext,
           );
         }
-        if (initialMessage) {
-          pendingInitialMessagesRef.current.set(chat.id, initialMessage);
+        if (initialMessage || initialAttachments) {
+          if (initialMessage) {
+            pendingInitialMessagesRef.current.set(chat.id, initialMessage);
+          }
+          if (initialAttachments) {
+            pendingInitialAttachmentsRef.current.set(
+              chat.id,
+              initialAttachments,
+            );
+          }
           chatCacheRef.current.set(chat.id, {
             id: chat.id,
             title: newChat.title,
@@ -1157,6 +1181,7 @@ export function LayoutClient({
         renameChat,
         updateCachedChat,
         consumePendingInitialMessage,
+        consumePendingInitialAttachments,
         consumePendingRoutineChatContext,
         updateActiveRoutine,
         refreshActiveRoutine,

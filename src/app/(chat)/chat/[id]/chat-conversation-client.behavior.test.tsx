@@ -47,6 +47,7 @@ const mocks = vi.hoisted(() => ({
     registrationHref: string;
   } | null,
   consumePendingInitialMessage: vi.fn(),
+  consumePendingInitialAttachments: vi.fn(),
   consumePendingRoutineChatContext: vi.fn(),
 }));
 
@@ -541,6 +542,7 @@ vi.mock("../layout-client", () => ({
     chatNavigationEpoch: mocks.chatNavigationEpoch,
     guestConversationNotice: mocks.guestConversationNotice,
     consumePendingInitialMessage: mocks.consumePendingInitialMessage,
+    consumePendingInitialAttachments: mocks.consumePendingInitialAttachments,
     consumePendingRoutineChatContext: mocks.consumePendingRoutineChatContext,
   }),
 }));
@@ -612,6 +614,7 @@ beforeEach(() => {
   mocks.chatNavigationEpoch = 0;
   mocks.guestConversationNotice = null;
   mocks.consumePendingInitialMessage.mockReturnValue(null);
+  mocks.consumePendingInitialAttachments.mockReturnValue(null);
   mocks.consumePendingRoutineChatContext.mockReturnValue(null);
   mocks.confirm.mockResolvedValue(true);
   mocks.refreshActiveRoutine.mockResolvedValue(null);

@@ -131,6 +131,7 @@ export function ChatConversationClient({
     getCachedChat,
     updateCachedChat,
     consumePendingInitialMessage,
+    consumePendingInitialAttachments,
     consumePendingRoutineChatContext,
     activeRoutine,
     chatNavigationEpoch,
@@ -912,7 +913,9 @@ export function ChatConversationClient({
     }
 
     const pendingInitialMessage = consumePendingInitialMessage(chatId);
-    if (!pendingInitialMessage) {
+    const pendingInitialAttachments =
+      consumePendingInitialAttachments(chatId) ?? [];
+    if (!pendingInitialMessage && pendingInitialAttachments.length === 0) {
       return;
     }
 
@@ -929,13 +932,32 @@ export function ChatConversationClient({
     }
 
     pendingInitialMessageSubmittedRef.current = true;
+    const parts: AnthonUIMessage["parts"] = [];
+    if (pendingInitialMessage) {
+      parts.push({ type: "text", text: pendingInitialMessage });
+    }
+    pendingInitialAttachments.forEach((attachment) => {
+      const isAudio = attachment.contentType.startsWith("audio/");
+      parts.push({
+        type: "file",
+        data:
+          isAudio && attachment.base64Data
+            ? attachment.base64Data
+            : attachment.url,
+        mimeType: attachment.contentType,
+        name: attachment.name,
+        size: attachment.size,
+        attachmentId: attachment.id,
+        // biome-ignore lint/suspicious/noExplicitAny: Extra metadata
+      } as any);
+    });
     sendMessage({
       role: "user",
-      parts: [{ type: "text", text: pendingInitialMessage }],
+      parts,
     }).catch((error) => {
       pendingInitialMessageSubmittedRef.current = false;
       submittedRoutineAdaptationRef.current = null;
-      setInput(pendingInitialMessage);
+      setInput(pendingInitialMessage ?? "");
       console.error("Failed to send initial chat message:", error);
       toast.error("Invio messaggio fallito");
     });
@@ -943,6 +965,7 @@ export function ChatConversationClient({
     chatData.messages,
     chatId,
     consumePendingInitialMessage,
+    consumePendingInitialAttachments,
     consumePendingRoutineChatContext,
     sendMessage,
     status,

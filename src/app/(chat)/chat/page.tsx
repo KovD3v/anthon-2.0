@@ -251,8 +251,14 @@ export default function ChatPage() {
                 {greeting}
               </h1>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-lg">
-                Partiamo da ciò che sta succedendo davvero. Scegli una
-                situazione o apri una conversazione libera.
+                <span className="md:hidden">
+                  Partiamo da ciò che sta succedendo davvero. Scrivi qui sotto e
+                  iniziamo.
+                </span>
+                <span className="hidden md:inline">
+                  Partiamo da ciò che sta succedendo davvero. Scegli una
+                  situazione o apri una conversazione libera.
+                </span>
               </p>
             </div>
 
@@ -293,20 +299,20 @@ export default function ChatPage() {
             )}
 
             {hasReturningPath && (
-              <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 p-5 text-left shadow-sm">
+              <div className="mb-4 rounded-2xl border border-primary/30 bg-primary/5 p-4 text-left shadow-sm sm:mb-6 sm:p-5">
                 <p className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-primary">
                   Riprendi il percorso
                 </p>
-                <h2 className="font-display mt-2 text-2xl font-bold uppercase leading-none">
+                <h2 className="font-display mt-1.5 text-xl font-bold uppercase leading-none sm:mt-2 sm:text-2xl">
                   {mostRecentChat?.title ??
                     returningActiveRoutine?.proposal.title}
                 </h2>
                 {coachingGoal && (
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="mt-1.5 text-sm text-muted-foreground sm:mt-2">
                     Il tuo obiettivo: {coachingGoal}
                   </p>
                 )}
-                <p className="mt-2 text-xs text-muted-foreground">
+                <p className="mt-1.5 text-xs text-muted-foreground sm:mt-2">
                   Ultimo aggiornamento{" "}
                   {mostRecentChat
                     ? new Intl.DateTimeFormat("it-IT", {
@@ -315,7 +321,7 @@ export default function ChatPage() {
                       }).format(new Date(mostRecentChat.updatedAt))
                     : "routine salvata"}
                 </p>
-                <div className="mt-5 flex flex-wrap gap-2">
+                <div className="mt-4 flex flex-wrap gap-2 sm:mt-5">
                   {mostRecentChat && (
                     <Button
                       className="gap-2"
@@ -345,7 +351,7 @@ export default function ChatPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2 text-left sm:gap-3 md:grid-cols-3">
+            <div className="hidden grid-cols-2 gap-2 text-left md:grid md:gap-3 md:grid-cols-3">
               {starterPrompts.map((starter) => (
                 <button
                   key={starter.id}
@@ -371,7 +377,7 @@ export default function ChatPage() {
               ))}
             </div>
 
-            <div className="mt-6 flex items-center justify-center gap-3">
+            <div className="mt-6 hidden items-center justify-center gap-3 md:flex">
               <span className="h-px w-8 bg-border" />
               <span className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
                 oppure
@@ -383,7 +389,7 @@ export default function ChatPage() {
               onClick={() => createChat()}
               size="lg"
               variant="outline"
-              className="mt-5 min-h-11 gap-2"
+              className="mt-5 hidden min-h-11 gap-2 md:inline-flex"
             >
               <Sparkles className="h-5 w-5" />
               Conversazione libera
@@ -401,12 +407,15 @@ export default function ChatPage() {
       <ChatInput
         input={landingInput}
         setInput={setLandingInput}
-        onSubmit={() => {
-          void createChat({ initialMessage: landingInput });
+        onSubmit={(_event, attachments) => {
+          void createChat({
+            initialMessage: landingInput,
+            ...(attachments?.length ? { initialAttachments: attachments } : {}),
+          });
         }}
         isLoading={false}
         onStop={() => undefined}
-        disableAttachments
+        disableAttachments={isGuest}
         disabledReason={
           isCreatingChat ? "Apertura della conversazione…" : undefined
         }
