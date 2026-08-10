@@ -120,6 +120,150 @@ describe("channel-flow/run", () => {
     );
   });
 
+  it.each([
+    {
+      label: "missing metadata",
+      capabilityDecision: undefined,
+      capabilityPlannerMode: undefined,
+    },
+    {
+      label: "incomplete immutable decision",
+      capabilityDecision: Object.freeze({
+        rag: false,
+        webSearch: false,
+        webFetch: false,
+        memoryRead: false,
+        memoryWrite: false,
+        memoryDelete: false,
+        memoryDeleteTarget: null,
+        routineProposal: false,
+        userContext: false,
+        source: "legacy",
+        reasonCodes: Object.freeze([]),
+      }),
+      capabilityPlannerMode: "legacy" as const,
+    },
+  ])(
+    "does not extract memories when normal stream metadata is $label",
+    async ({ capabilityDecision, capabilityPlannerMode }) => {
+      mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+        await onFinish?.({
+          text: "answer",
+          metrics: {
+            model: "test-model",
+            inputTokens: 1,
+            outputTokens: 1,
+            reasoningTokens: null,
+            reasoningContent: null,
+            toolCalls: [],
+            ragUsed: false,
+            ragChunksCount: 0,
+            costUsd: 0,
+            generationTimeMs: 1,
+            reasoningTimeMs: null,
+          },
+          capabilityDecision,
+          capabilityPlannerMode,
+        } as never);
+        return {
+          textStream: (async function* () {
+            yield "answer";
+          })(),
+        };
+      });
+
+      const result = await runChannelFlow({
+        channel: "WEB",
+        userId: "user-1",
+        userMessageText: "hello",
+        parts: [{ type: "text", text: "hello" }],
+        rateLimit: { allowed: true },
+        options: {
+          allowAttachments: false,
+          allowMemoryExtraction: true,
+          allowVoiceOutput: false,
+        },
+        execution: { mode: "text" },
+        persistence: { channel: "WEB", saveAssistantMessage: true },
+      });
+
+      expect(result.capabilityMetadataValid).toBe(false);
+      expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
+        expect.objectContaining({
+          allowMemoryExtraction: false,
+          capabilityDecision: undefined,
+          capabilityPlannerMode: undefined,
+        }),
+      );
+    },
+  );
+
+  it("preserves legacy extraction only with complete immutable stream metadata", async () => {
+    const capabilityDecision = Object.freeze({
+      rag: false,
+      webSearch: false,
+      webFetch: false,
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      memoryDeleteTarget: null,
+      routineProposal: false,
+      userContext: false,
+      voiceOutput: false,
+      source: "fallback" as const,
+      reasonCodes: Object.freeze([]),
+    }) as unknown as CapabilityDecision;
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "answer",
+        metrics: {
+          model: "test-model",
+          inputTokens: 1,
+          outputTokens: 1,
+          reasoningTokens: null,
+          reasoningContent: null,
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0,
+          generationTimeMs: 1,
+          reasoningTimeMs: null,
+        },
+        capabilityDecision,
+        capabilityPlannerMode: "legacy",
+      });
+      return {
+        textStream: (async function* () {
+          yield "answer";
+        })(),
+      };
+    });
+
+    const result = await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: false,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: false,
+      },
+      execution: { mode: "text" },
+      persistence: { channel: "WEB", saveAssistantMessage: true },
+    });
+
+    expect(result.capabilityMetadataValid).toBe(true);
+    expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowMemoryExtraction: true,
+        capabilityDecision,
+        capabilityPlannerMode: "legacy",
+      }),
+    );
+  });
+
   it("passes the exact streamed decision to persistence without rereading planner mode", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "legacy");
     const capabilityDecision = Object.freeze({
@@ -1791,6 +1935,20 @@ describe("channel-flow/run", () => {
   ])(
     "passes canonical AI and persistence fields for $name",
     async (testCase) => {
+      const capabilityDecision = Object.freeze({
+        rag: false,
+        webSearch: false,
+        webFetch: false,
+        memoryRead: false,
+        memoryWrite: false,
+        memoryDelete: false,
+        memoryDeleteTarget: null,
+        routineProposal: false,
+        userContext: false,
+        voiceOutput: false,
+        source: "fallback" as const,
+        reasonCodes: Object.freeze([]),
+      }) as unknown as CapabilityDecision;
       mocks.streamChat.mockImplementation(async ({ onFinish }) => {
         await onFinish?.({
           text: "contract answer",
@@ -1807,7 +1965,13 @@ describe("channel-flow/run", () => {
             generationTimeMs: 1,
             reasoningTimeMs: 0,
           },
-        });
+          ...(testCase.expected.memoryEnabled
+            ? {
+                capabilityDecision,
+                capabilityPlannerMode: "legacy" as const,
+              }
+            : {}),
+        } as never);
 
         return {
           toUIMessageStreamResponse: () => Response.json({ ok: true }),
@@ -1869,6 +2033,12 @@ describe("channel-flow/run", () => {
           userMessageText: testCase.input.userMessageText,
           metadata: testCase.input.persistence.metadata,
           allowMemoryExtraction: testCase.expected.memoryEnabled,
+          capabilityDecision: testCase.expected.memoryEnabled
+            ? capabilityDecision
+            : undefined,
+          capabilityPlannerMode: testCase.expected.memoryEnabled
+            ? "legacy"
+            : undefined,
         }),
       );
     },

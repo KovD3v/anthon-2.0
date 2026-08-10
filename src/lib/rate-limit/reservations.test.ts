@@ -246,6 +246,7 @@ describe("AI usage reservations", () => {
               userContext: true,
               voiceOutput: false,
               source: "mixed",
+              reasonCodes: [],
               rawPayload: "must not survive",
             },
           },
@@ -275,6 +276,129 @@ describe("AI usage reservations", () => {
     expect(JSON.stringify(result)).not.toContain("private_memory_key");
     expect(JSON.stringify(result)).not.toContain("must not survive");
   });
+
+  it("restores a valid legacy recovery marker without a decision", async () => {
+    mocks.reservationFindUnique.mockResolvedValue(
+      reservation({
+        status: "RECONCILED",
+        recoveryText: "saved provider output",
+        recoveryMetrics: {
+          ...metrics,
+          capabilityPlanner: { mode: "legacy" },
+        },
+      }),
+    );
+
+    const result = await reserveAiUsage({
+      userId: "user-1",
+      requestKey: "message-1",
+      limits: finiteLimits,
+    });
+
+    if (!result.allowed || !result.recovery) {
+      throw new Error("Expected a recovered result");
+    }
+    expect(result.recovery.capabilityMetadataValid).toBe(true);
+    expect(result.recovery.capabilityPlannerMode).toBe("legacy");
+    expect(result.recovery.capabilityDecision).toBeUndefined();
+  });
+
+  it.each([
+    {
+      label: "missing agentic decision",
+      capabilityPlanner: { mode: "agentic" },
+    },
+    {
+      label: "incomplete agentic decision",
+      capabilityPlanner: {
+        mode: "agentic",
+        decision: {
+          rag: false,
+          webSearch: false,
+          webFetch: false,
+          memoryRead: false,
+          memoryWrite: false,
+          memoryDelete: false,
+          routineProposal: false,
+          userContext: false,
+          voiceOutput: false,
+          source: "fallback",
+        },
+      },
+    },
+    {
+      label: "legacy with decision",
+      capabilityPlanner: {
+        mode: "legacy",
+        decision: {},
+      },
+    },
+    {
+      label: "invalid source",
+      capabilityPlanner: {
+        mode: "agentic",
+        decision: {
+          rag: false,
+          webSearch: false,
+          webFetch: false,
+          memoryRead: false,
+          memoryWrite: false,
+          memoryDelete: false,
+          routineProposal: false,
+          userContext: false,
+          voiceOutput: false,
+          source: "untrusted",
+          reasonCodes: [],
+        },
+      },
+    },
+    {
+      label: "invalid reason codes",
+      capabilityPlanner: {
+        mode: "agentic",
+        decision: {
+          rag: false,
+          webSearch: false,
+          webFetch: false,
+          memoryRead: false,
+          memoryWrite: false,
+          memoryDelete: false,
+          routineProposal: false,
+          userContext: false,
+          voiceOutput: false,
+          source: "fallback",
+          reasonCodes: [{ raw: "payload" }],
+        },
+      },
+    },
+  ])(
+    "fails closed on $label recovery metadata",
+    async ({ capabilityPlanner }) => {
+      mocks.reservationFindUnique.mockResolvedValue(
+        reservation({
+          status: "RECONCILED",
+          recoveryText: "saved provider output",
+          recoveryMetrics: {
+            ...metrics,
+            capabilityPlanner,
+          },
+        }),
+      );
+
+      const result = await reserveAiUsage({
+        userId: "user-1",
+        requestKey: "message-1",
+        limits: finiteLimits,
+      });
+
+      if (!result.allowed || !result.recovery) {
+        throw new Error("Expected a recovered result");
+      }
+      expect(result.recovery.capabilityMetadataValid).toBe(false);
+      expect(result.recovery.capabilityPlannerMode).toBeUndefined();
+      expect(result.recovery.capabilityDecision).toBeUndefined();
+    },
+  );
 
   it("marks missing or invalid recovery planner metadata as unsafe", async () => {
     mocks.reservationFindUnique.mockResolvedValue(

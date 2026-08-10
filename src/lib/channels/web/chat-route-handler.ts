@@ -961,6 +961,7 @@ async function handleVoiceFirstWebResponse({
       updateChatTimestamp: true,
       revalidateTags: [`chats-${userId}`, `chat-${chatId}`],
       allowMemoryExtraction:
+        !isGuest &&
         flowResult.capabilityMetadataValid &&
         flowResult.capabilityPlannerMode === "legacy",
       capabilityDecision: flowResult.capabilityMetadataValid

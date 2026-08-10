@@ -134,11 +134,40 @@ function isImmutableCapabilityDecision(
 ): value is CapabilityDecision {
   if (!value || typeof value !== "object") return false;
 
-  const reasonCodes = (value as { reasonCodes?: unknown }).reasonCodes;
+  const decision = value as Record<string, unknown>;
+  const reasonCodes = decision.reasonCodes;
+  const booleanCapabilities = [
+    "rag",
+    "webSearch",
+    "webFetch",
+    "memoryRead",
+    "memoryWrite",
+    "memoryDelete",
+    "routineProposal",
+    "userContext",
+    "voiceOutput",
+  ] as const;
   return (
     Object.isFrozen(value) &&
     Array.isArray(reasonCodes) &&
-    Object.isFrozen(reasonCodes)
+    Object.isFrozen(reasonCodes) &&
+    reasonCodes.length <= 64 &&
+    reasonCodes.every(
+      (reasonCode) =>
+        typeof reasonCode === "string" &&
+        reasonCode.length > 0 &&
+        reasonCode.length <= 128 &&
+        /^[a-z0-9_]+$/.test(reasonCode),
+    ) &&
+    booleanCapabilities.every(
+      (capability) => typeof decision[capability] === "boolean",
+    ) &&
+    (decision.source === "fallback" ||
+      decision.source === "classifier" ||
+      decision.source === "mixed") &&
+    Object.hasOwn(decision, "memoryDeleteTarget") &&
+    (decision.memoryDeleteTarget === null ||
+      typeof decision.memoryDeleteTarget === "string")
   );
 }
 
@@ -150,6 +179,23 @@ function hasValidCapabilityMetadata(
     isImmutableCapabilityDecision(decision) &&
     isKnownCapabilityPlannerMode(plannerMode)
   );
+}
+
+function hasValidRecoveryCapabilityMetadata(
+  capabilityMetadataValid: unknown,
+  plannerMode: unknown,
+  decision: unknown,
+): decision is CapabilityDecision {
+  if (
+    capabilityMetadataValid !== true ||
+    !isKnownCapabilityPlannerMode(plannerMode)
+  ) {
+    return false;
+  }
+  if (plannerMode === "legacy") {
+    return decision === undefined;
+  }
+  return hasValidCapabilityMetadata(decision, plannerMode);
 }
 
 function withCancellation<T>(
@@ -318,12 +364,12 @@ export async function runChannelFlow(
     text,
     metrics,
     usageAlreadyReconciled = false,
-    allowMemoryExtraction = memoryEnabled,
+    allowMemoryExtraction,
   }: {
     text: string;
     metrics: NonNullable<RunChannelFlowResult["metrics"]>;
     usageAlreadyReconciled?: boolean;
-    allowMemoryExtraction?: boolean;
+    allowMemoryExtraction: boolean;
   }) => {
     if (ctx.persistence?.saveAssistantMessage === false) return undefined;
     if (!usageAlreadyReconciled) {
@@ -398,9 +444,11 @@ export async function runChannelFlow(
 
   if (usageReservation?.recovery) {
     const recovery = usageReservation.recovery;
-    const recoveryMetadataValid =
-      recovery.capabilityMetadataValid === true &&
-      isKnownCapabilityPlannerMode(recovery.capabilityPlannerMode);
+    const recoveryMetadataValid = hasValidRecoveryCapabilityMetadata(
+      recovery.capabilityMetadataValid,
+      recovery.capabilityPlannerMode,
+      recovery.capabilityDecision,
+    );
     capabilityMetadataValid = recoveryMetadataValid;
     if (recoveryMetadataValid && recovery.capabilityPlannerMode !== undefined) {
       capabilityPlannerMode = recovery.capabilityPlannerMode;
@@ -575,6 +623,9 @@ export async function runChannelFlow(
         if (capabilityMetadataValid) {
           capabilityDecision = streamedCapabilityDecision;
           capabilityPlannerMode = streamedCapabilityPlannerMode;
+        } else {
+          capabilityDecision = undefined;
+          capabilityPlannerMode = undefined;
         }
         finalMetrics = metrics;
         generationAbortController.signal.throwIfAborted();
@@ -604,7 +655,14 @@ export async function runChannelFlow(
           throw new Error("AI generation returned an empty response");
         }
 
-        await persistGeneratedOutput({ text, metrics });
+        await persistGeneratedOutput({
+          text,
+          metrics,
+          allowMemoryExtraction:
+            memoryEnabled &&
+            capabilityMetadataValid &&
+            capabilityPlannerMode === "legacy",
+        });
         if (ctx.hooks?.onFinish) {
           try {
             await ctx.hooks.onFinish({ text, metrics });
@@ -616,16 +674,21 @@ export async function runChannelFlow(
         }
       },
     });
-    if (
-      "capabilityDecision" in streamResult &&
-      hasValidCapabilityMetadata(
-        streamResult.capabilityDecision,
-        streamResult.capabilityPlannerMode,
-      )
-    ) {
-      capabilityDecision = streamResult.capabilityDecision;
-      capabilityPlannerMode = streamResult.capabilityPlannerMode;
-      capabilityMetadataValid = true;
+    if ("capabilityDecision" in streamResult) {
+      if (
+        hasValidCapabilityMetadata(
+          streamResult.capabilityDecision,
+          streamResult.capabilityPlannerMode,
+        )
+      ) {
+        capabilityDecision = streamResult.capabilityDecision;
+        capabilityPlannerMode = streamResult.capabilityPlannerMode;
+        capabilityMetadataValid = true;
+      } else {
+        capabilityDecision = undefined;
+        capabilityPlannerMode = undefined;
+        capabilityMetadataValid = false;
+      }
     }
   } catch (error) {
     detachRequestAbort();

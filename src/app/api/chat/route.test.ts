@@ -160,6 +160,7 @@ vi.mock("@/lib/voice/generation-jobs", () => ({
   withVoiceGenerationStatus: mocks.withVoiceGenerationStatus,
 }));
 
+import type { CapabilityDecision } from "@/lib/ai/capability-arbitration";
 import { getWebClientPayloadHash } from "@/lib/channel-flow/web-inbound";
 import { POST } from "./route";
 
@@ -1570,6 +1571,14 @@ describe("POST /api/chat", () => {
       label: "invalid",
       recovery: { capabilityMetadataValid: false },
     },
+    {
+      label: "malformed agentic",
+      recovery: {
+        capabilityMetadataValid: true,
+        capabilityPlannerMode: "agentic" as const,
+        capabilityDecision: undefined,
+      },
+    },
   ])(
     "does not extract memories for voice recovery with $label planner metadata",
     async ({ recovery }) => {
@@ -2365,6 +2374,8 @@ describe("POST /api/chat", () => {
             generationTimeMs: number;
             reasoningTimeMs: number;
           };
+          capabilityDecision: CapabilityDecision;
+          capabilityPlannerMode: "legacy" | "agentic";
         }) => Promise<void>)
       | undefined;
 
@@ -2384,6 +2395,21 @@ describe("POST /api/chat", () => {
         generationTimeMs: 456,
         reasoningTimeMs: 78,
       },
+      capabilityDecision: Object.freeze({
+        rag: false,
+        webSearch: false,
+        webFetch: false,
+        memoryRead: false,
+        memoryWrite: false,
+        memoryDelete: false,
+        memoryDeleteTarget: null,
+        routineProposal: false,
+        userContext: false,
+        voiceOutput: false,
+        source: "fallback" as const,
+        reasonCodes: Object.freeze([]),
+      }) as unknown as CapabilityDecision,
+      capabilityPlannerMode: "legacy",
     });
     closeUiStream?.();
     await responseBody;

@@ -203,21 +203,33 @@ function isBoolean(value: unknown): value is boolean {
   return typeof value === "boolean";
 }
 
-function failClosedRecoveryDecision(): CapabilityDecision {
-  return freezeCapabilityDecision({
-    rag: false,
-    webSearch: false,
-    webFetch: false,
-    memoryRead: false,
-    memoryWrite: false,
-    memoryDelete: false,
-    memoryDeleteTarget: null,
-    routineProposal: false,
-    userContext: false,
-    voiceOutput: false,
-    source: "fallback",
-    reasonCodes: ["recovery_capability_metadata_invalid"],
-  });
+const recoveryBooleanCapabilities = [
+  "rag",
+  "webSearch",
+  "webFetch",
+  "memoryRead",
+  "memoryWrite",
+  "memoryDelete",
+  "routineProposal",
+  "userContext",
+  "voiceOutput",
+] as const;
+
+const MAX_RECOVERY_REASON_CODES = 64;
+const MAX_RECOVERY_REASON_CODE_CHARS = 128;
+
+function isSafeRecoveryReasonCodes(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= MAX_RECOVERY_REASON_CODES &&
+    value.every(
+      (reasonCode) =>
+        typeof reasonCode === "string" &&
+        reasonCode.length > 0 &&
+        reasonCode.length <= MAX_RECOVERY_REASON_CODE_CHARS &&
+        /^[a-z0-9_]+$/.test(reasonCode),
+    )
+  );
 }
 
 function parseRecoveryCapabilityPlanner(
@@ -227,31 +239,22 @@ function parseRecoveryCapabilityPlanner(
 
   const mode = value.mode;
   if (mode !== "legacy" && mode !== "agentic") return undefined;
-  if (mode === "legacy") return { mode };
-
-  const decision = value.decision;
-  if (!isRecord(decision)) {
-    return { mode, decision: failClosedRecoveryDecision() };
+  if (mode === "legacy") {
+    return Object.hasOwn(value, "decision") ? undefined : { mode };
   }
 
-  const booleanCapabilities = [
-    "rag",
-    "webSearch",
-    "webFetch",
-    "memoryRead",
-    "memoryWrite",
-    "memoryDelete",
-    "routineProposal",
-    "userContext",
-    "voiceOutput",
-  ] as const;
-  if (!booleanCapabilities.every((key) => isBoolean(decision[key]))) {
-    return { mode, decision: failClosedRecoveryDecision() };
+  const decision = value.decision;
+  if (
+    !isRecord(decision) ||
+    !recoveryBooleanCapabilities.every((key) => isBoolean(decision[key])) ||
+    !isSafeRecoveryReasonCodes(decision.reasonCodes)
+  ) {
+    return undefined;
   }
 
   const source = decision.source;
   if (source !== "fallback" && source !== "classifier" && source !== "mixed") {
-    return { mode, decision: failClosedRecoveryDecision() };
+    return undefined;
   }
 
   return {
@@ -268,7 +271,7 @@ function parseRecoveryCapabilityPlanner(
       userContext: decision.userContext as boolean,
       voiceOutput: decision.voiceOutput as boolean,
       source,
-      reasonCodes: [],
+      reasonCodes: decision.reasonCodes,
     }),
   };
 }
@@ -601,6 +604,7 @@ function recoverableMetrics(
                 userContext: capabilityDecision.userContext,
                 voiceOutput: capabilityDecision.voiceOutput,
                 source: capabilityDecision.source,
+                reasonCodes: capabilityDecision.reasonCodes,
               },
             }
           : {}),
