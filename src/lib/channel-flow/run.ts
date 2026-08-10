@@ -129,6 +129,29 @@ function isKnownCapabilityPlannerMode(
   return value === "legacy" || value === "agentic";
 }
 
+function isImmutableCapabilityDecision(
+  value: unknown,
+): value is CapabilityDecision {
+  if (!value || typeof value !== "object") return false;
+
+  const reasonCodes = (value as { reasonCodes?: unknown }).reasonCodes;
+  return (
+    Object.isFrozen(value) &&
+    Array.isArray(reasonCodes) &&
+    Object.isFrozen(reasonCodes)
+  );
+}
+
+function hasValidCapabilityMetadata(
+  decision: unknown,
+  plannerMode: unknown,
+): decision is CapabilityDecision {
+  return (
+    isImmutableCapabilityDecision(decision) &&
+    isKnownCapabilityPlannerMode(plannerMode)
+  );
+}
+
 function withCancellation<T>(
   stream: ReadableStream<T>,
   onCancel: (reason: unknown) => Promise<void>,
@@ -166,7 +189,7 @@ export async function runChannelFlow(
   const mode = ctx.execution?.mode ?? "text";
   const isGuest = ctx.channel === "WEB_GUEST" || ctx.ai?.isGuest === true;
   const memoryEnabled = !isGuest && ctx.options.allowMemoryExtraction;
-  let capabilityPlannerMode: "legacy" | "agentic" = "legacy";
+  let capabilityPlannerMode: "legacy" | "agentic" | undefined;
   let capabilityMetadataValid = false;
   let capabilityDecision: CapabilityDecision | undefined;
 
@@ -375,12 +398,11 @@ export async function runChannelFlow(
 
   if (usageReservation?.recovery) {
     const recovery = usageReservation.recovery;
-    capabilityMetadataValid = recovery.capabilityMetadataValid === true;
-    if (
-      recovery.capabilityMetadataValid &&
-      recovery.capabilityPlannerMode &&
-      isKnownCapabilityPlannerMode(recovery.capabilityPlannerMode)
-    ) {
+    const recoveryMetadataValid =
+      recovery.capabilityMetadataValid === true &&
+      isKnownCapabilityPlannerMode(recovery.capabilityPlannerMode);
+    capabilityMetadataValid = recoveryMetadataValid;
+    if (recoveryMetadataValid && recovery.capabilityPlannerMode !== undefined) {
       capabilityPlannerMode = recovery.capabilityPlannerMode;
       capabilityDecision = recovery.capabilityDecision;
     }
@@ -391,8 +413,8 @@ export async function runChannelFlow(
       usageAlreadyReconciled: true,
       allowMemoryExtraction:
         memoryEnabled &&
-        recovery.capabilityMetadataValid === true &&
-        recovery.capabilityPlannerMode === "legacy",
+        recoveryMetadataValid &&
+        capabilityPlannerMode === "legacy",
     });
     if (ctx.hooks?.onFinish) {
       await ctx.hooks.onFinish({
@@ -546,9 +568,10 @@ export async function runChannelFlow(
         capabilityDecision: streamedCapabilityDecision,
         capabilityPlannerMode: streamedCapabilityPlannerMode,
       }) => {
-        capabilityMetadataValid =
-          streamedCapabilityDecision !== undefined &&
-          isKnownCapabilityPlannerMode(streamedCapabilityPlannerMode);
+        capabilityMetadataValid = hasValidCapabilityMetadata(
+          streamedCapabilityDecision,
+          streamedCapabilityPlannerMode,
+        );
         if (capabilityMetadataValid) {
           capabilityDecision = streamedCapabilityDecision;
           capabilityPlannerMode = streamedCapabilityPlannerMode;
@@ -595,8 +618,10 @@ export async function runChannelFlow(
     });
     if (
       "capabilityDecision" in streamResult &&
-      streamResult.capabilityDecision !== undefined &&
-      isKnownCapabilityPlannerMode(streamResult.capabilityPlannerMode)
+      hasValidCapabilityMetadata(
+        streamResult.capabilityDecision,
+        streamResult.capabilityPlannerMode,
+      )
     ) {
       capabilityDecision = streamResult.capabilityDecision;
       capabilityPlannerMode = streamResult.capabilityPlannerMode;

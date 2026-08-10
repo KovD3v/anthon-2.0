@@ -384,6 +384,13 @@ describe("channel-flow/run", () => {
   it.each([
     { name: "missing", recovery: {} },
     { name: "invalid", recovery: { capabilityMetadataValid: false } },
+    {
+      name: "inconsistent",
+      recovery: {
+        capabilityMetadataValid: true,
+        capabilityPlannerMode: undefined,
+      },
+    },
   ])(
     "fails closed on $name recovery planner metadata",
     async ({ recovery }) => {
