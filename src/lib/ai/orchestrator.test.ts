@@ -716,6 +716,35 @@ describe("ai/orchestrator", () => {
     );
   });
 
+  it("uses a conversational strategy instead of a fixed response template", async () => {
+    const prepared = await prepareChatTurn({
+      userId: "user-1",
+      chatId: "chat-conversational-strategy",
+      conversationThreadId: "thread-1",
+      userMessageId: "message-1",
+      userMessage: "Non so come prepararmi per la prossima gara",
+      effectiveEntitlements: baseEntitlements as never,
+      skipConversationHistory: true,
+    });
+
+    expect(prepared.systemPrompt).toContain(
+      "Ask only for missing information that would materially change your advice",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "Do not end every response with a question",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "Do not repeat questions already answered",
+    );
+    expect(prepared.systemPrompt).not.toContain(
+      "1 sentence of emotional acknowledgment",
+    );
+    expect(prepared.systemPrompt).not.toContain("2–4 practical actions");
+    expect(prepared.systemPrompt).not.toContain(
+      "1 final question leading to a concrete action",
+    );
+  });
+
   it("builds stream payload for text messages and skips entitlement lookup when prefetched", async () => {
     const abortController = new AbortController();
     const prefetchedEntitlements = {
