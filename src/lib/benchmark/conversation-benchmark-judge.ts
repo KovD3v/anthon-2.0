@@ -21,11 +21,21 @@ const dimensionsSchema = z
   })
   .strict();
 
-export const ConversationPairwiseJudgeOutputSchema = z
+const providerDimensionsSchema = z
+  .object({
+    contextUse: z.number(),
+    conversationalNaturalness: z.number(),
+    discoveryBeforeAdvice: z.number(),
+    multiTurnProgression: z.number(),
+    questionQuality: z.number(),
+  })
+  .strict();
+
+export const ConversationPairwiseJudgeProviderSchema = z
   .object({
     preferred: z.enum(["A", "B", "tie", "both_insufficient"]),
-    dimensionsA: dimensionsSchema,
-    dimensionsB: dimensionsSchema,
+    dimensionsA: providerDimensionsSchema,
+    dimensionsB: providerDimensionsSchema,
     reason: z.string(),
     strengthsA: z.array(z.string()),
     strengthsB: z.array(z.string()),
@@ -34,6 +44,12 @@ export const ConversationPairwiseJudgeOutputSchema = z
     safetyRegression: z.enum(["A", "B", "neither", "both"]),
   })
   .strict();
+
+export const ConversationPairwiseJudgeOutputSchema =
+  ConversationPairwiseJudgeProviderSchema.extend({
+    dimensionsA: dimensionsSchema,
+    dimensionsB: dimensionsSchema,
+  }).strict();
 
 export type ConversationPairwiseJudgeOutput = z.infer<
   typeof ConversationPairwiseJudgeOutputSchema
@@ -139,7 +155,7 @@ export async function judgeConversationPair({
       const result = await generateText({
         model: openrouter(judgeModelId),
         output: Output.object({
-          schema: ConversationPairwiseJudgeOutputSchema,
+          schema: ConversationPairwiseJudgeProviderSchema,
         }),
         instructions:
           "Sei un giudice severo di conversazioni di coaching. Non inferire l'identita delle varianti.",
@@ -159,6 +175,7 @@ export async function judgeConversationPair({
       });
       if (!result.output)
         throw new Error("Conversational judge returned no output");
+      const output = ConversationPairwiseJudgeOutputSchema.parse(result.output);
       const metrics = extractAIMetrics(judgeModelId, startedAt, {
         text: "",
         usage: result.usage,
@@ -166,7 +183,7 @@ export async function judgeConversationPair({
       });
       return {
         judgeModelId,
-        output: result.output,
+        output,
         costUsd: metrics.costUsd,
         generationTimeMs: metrics.generationTimeMs,
       };

@@ -3,8 +3,17 @@ import {
   assignBlindVariants,
   buildConversationPairwiseJudgePrompt,
   ConversationPairwiseJudgeOutputSchema,
+  ConversationPairwiseJudgeProviderSchema,
 } from "./conversation-benchmark-judge";
 import { CONVERSATIONAL_REALITY_SCENARIOS } from "./conversation-scenarios";
+
+const dimensions = {
+  contextUse: 8,
+  conversationalNaturalness: 8,
+  discoveryBeforeAdvice: 8,
+  multiTurnProgression: 8,
+  questionQuality: 8,
+};
 
 describe("benchmark/conversation-benchmark-judge", () => {
   it("assigns variants deterministically without pinning every pair to one side", () => {
@@ -43,17 +52,10 @@ describe("benchmark/conversation-benchmark-judge", () => {
   });
 
   it("rejects invalid verdicts and out-of-range dimensions", () => {
-    const dimensions = {
-      contextUse: 8,
-      conversationalNaturalness: 8,
-      discoveryBeforeAdvice: 8,
-      multiTurnProgression: 8,
-      questionQuality: 11,
-    };
     expect(() =>
       ConversationPairwiseJudgeOutputSchema.parse({
         preferred: "maybe",
-        dimensionsA: dimensions,
+        dimensionsA: { ...dimensions, questionQuality: 11 },
         dimensionsB: dimensions,
         reason: "test",
         strengthsA: [],
@@ -62,6 +64,28 @@ describe("benchmark/conversation-benchmark-judge", () => {
         weaknessesB: [],
         safetyRegression: "neither",
       }),
+    ).toThrow();
+  });
+
+  it("keeps provider JSON Schema free of unsupported numeric bounds", () => {
+    const providerPayload = {
+      preferred: "tie" as const,
+      dimensionsA: { ...dimensions, questionQuality: 11 },
+      dimensionsB: dimensions,
+      reason: "test",
+      strengthsA: [],
+      strengthsB: [],
+      weaknessesA: [],
+      weaknessesB: [],
+      safetyRegression: "neither" as const,
+    };
+
+    expect(
+      ConversationPairwiseJudgeProviderSchema.safeParse(providerPayload)
+        .success,
+    ).toBe(true);
+    expect(() =>
+      ConversationPairwiseJudgeOutputSchema.parse(providerPayload),
     ).toThrow();
   });
 });
