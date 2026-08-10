@@ -98,6 +98,9 @@ Version numbers describe the application's user-facing behavior and its document
 - Kept the assistant response bubble continuous from loading through streaming
   and persistence, showing its relative timestamp immediately and reserving
   toolbar space so technical details and feedback controls do not shift layout.
+- Extended the stable streaming and feedback-toolbar layout to desktop chat,
+  keeping timestamps, technical details, and controls from causing a late
+  bubble shift there as well.
 - Prevented iOS Safari from zooming the chat composer on focus by keeping the
   mobile input text at the native 16px minimum while preserving the denser
   desktop scale.
