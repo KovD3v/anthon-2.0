@@ -26,6 +26,13 @@ export type RealityScenarioSetup = {
   }>;
 };
 
+export type ConversationalExpectations = {
+  adviceReadiness: "ask_first" | "answer_now";
+  expectedContextFacts?: string[];
+  forbiddenRepeatedQuestions?: string[];
+  questionPolicy: "diagnostic" | "optional" | "none";
+};
+
 export type RealityScenarioTurn = {
   userMessage: string;
   requiredSignals: RealitySignal[];
@@ -35,6 +42,7 @@ export type RealityScenarioTurn = {
   lowAnchorResponse?: string;
   highAnchorResponse?: string;
   judgeRubric?: string;
+  conversationalExpectations?: ConversationalExpectations;
 };
 
 export type RealitySignal = string | string[];
