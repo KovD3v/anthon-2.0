@@ -15,7 +15,6 @@ import {
   Sparkles,
   Sun,
   Tag,
-  Target,
   User,
   X,
 } from "lucide-react";
@@ -254,18 +253,6 @@ export function Navbar() {
                   aria-label="Navigazione mobile"
                   className="flex flex-col gap-1"
                 >
-                  <MobileNavLink
-                    href="/#features"
-                    icon={<Target className="h-4 w-4" />}
-                    label="Risultati"
-                    onClick={() => setIsMenuOpen(false)}
-                  />
-                  <MobileNavLink
-                    href="/#how-it-works"
-                    icon={<Sparkles className="h-4 w-4" />}
-                    label="Come funziona"
-                    onClick={() => setIsMenuOpen(false)}
-                  />
                   <Show when="signed-in">
                     <MobileNavLink
                       href="/profile"
