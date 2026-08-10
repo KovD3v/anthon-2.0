@@ -72,6 +72,9 @@ Version numbers describe the application's user-facing behavior and its document
   shrink within the available viewport height.
 - Hardened routine lifecycle recovery across source chats, returning check-ins,
   concurrent mutations, and orphaned routines.
+- Fixed the initial routine action so “La provo ora” persists the proposal and
+  opens its inline widget without sending a duplicate AI turn; guests are sent
+  to registration instead.
 - Prevented duplicate AI turns when repeating a saved routine and preserved
   routine attempt outcomes with their dates and richer optional feedback.
 - Localized voice-unavailability explanations in Italian for trial, preference,
