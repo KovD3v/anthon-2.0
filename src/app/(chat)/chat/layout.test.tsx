@@ -88,6 +88,7 @@ describe("chat layout sidebar data", () => {
       usageData: null,
       coachingGoal: null,
       activeRoutine: null,
+      routinesEnabled: false,
       guestConversionPending: false,
       isGuest: true,
     });
@@ -136,6 +137,7 @@ describe("chat layout sidebar data", () => {
       usageData: null,
       coachingGoal: "Restare lucido",
       activeRoutine: null,
+      routinesEnabled: false,
       guestConversionPending: false,
       isGuest: false,
     });

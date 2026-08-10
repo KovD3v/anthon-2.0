@@ -185,6 +185,16 @@ describe("turn plan", () => {
     });
   });
 
+  it("does not plan a routine proposal when the feature flag is disabled", () => {
+    const result = plan({
+      userMessage:
+        "Prima della gara perdo lucidità dopo un errore. Dammi una routine pratica di 60 secondi.",
+      routineProposalAllowed: false,
+    });
+
+    expect(result.capabilities.routineProposal).toBe(false);
+  });
+
   it("keeps guest and compact turns non-persistent while allowing guest routines", () => {
     const guestRoutine = plan({
       isGuest: true,

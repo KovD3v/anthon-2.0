@@ -250,6 +250,7 @@ function ChatStateProbe() {
 function renderLayout(
   initialActiveRoutine: RoutineCardData | null,
   children: React.ReactNode = <RoutineProbe />,
+  initialRoutinesEnabled = true,
 ) {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
@@ -271,6 +272,7 @@ function renderLayout(
       initialUsageData={null}
       initialCoachingGoal={null}
       initialActiveRoutine={initialActiveRoutine}
+      initialRoutinesEnabled={initialRoutinesEnabled}
       guestConversionPending={false}
       isGuest={false}
     >
@@ -698,6 +700,14 @@ describe("routine sidebar collection context", () => {
       expect(screen.queryByTestId("routine-sidebar-shelf")).toBeNull(),
     );
     expect(mocks.fetchRoutineCollection).not.toHaveBeenCalled();
+  });
+
+  it("hides the empty routine shelf while the rollout flag is disabled", async () => {
+    renderLayout(null, <RoutineCollectionProbe />, false);
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("routine-sidebar-shelf")).toBeNull(),
+    );
   });
 
   it("shows a quiet retry when collection loading fails", async () => {

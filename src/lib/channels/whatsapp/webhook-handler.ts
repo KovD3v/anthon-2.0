@@ -27,6 +27,7 @@ import {
   sendWhatsAppVoice,
   verifySignature,
 } from "@/lib/channels/whatsapp/utils";
+import { isRoutineFeatureEnabled } from "@/lib/coaching/routine-feature";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 
@@ -657,6 +658,11 @@ async function handleMessage(
     // Generate Response
     let assistantText = "";
     let assistantMessageId: string | undefined;
+    const routineProposalAllowed = await isRoutineFeatureEnabled({
+      distinctId: user.id,
+      role: user.role,
+      isGuest: user.isGuest,
+    });
     try {
       const flowResult = await runChannelFlow({
         channel: "WHATSAPP",
@@ -688,6 +694,7 @@ async function handleMessage(
             : downloadedPhoto || hasDocument
               ? "direct_media"
               : "text",
+          routineProposalAllowed,
         },
         execution: { mode: "text", includeTechnicalMetrics: false },
         persistence: {

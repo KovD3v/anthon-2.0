@@ -24,6 +24,7 @@ import {
   textFromPersistedAssistant,
   WebInboundConflictError,
 } from "@/lib/channel-flow/web-inbound";
+import { isRoutineFeatureEnabled } from "@/lib/coaching/routine-feature";
 import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { GuestCreationDeniedError } from "@/lib/guest-abuse";
@@ -120,6 +121,12 @@ export async function handleGuestChatPost(request: Request) {
           () => authenticateGuest(request),
           "🌐 Guest Chat API Request",
         );
+
+        const routineProposalAllowed = await isRoutineFeatureEnabled({
+          distinctId: user.id,
+          role: user.role,
+          isGuest: user.isGuest,
+        });
 
         // Verify chat ownership (guest user owns this chat)
         const chat = await LatencyLogger.measure(
@@ -364,6 +371,7 @@ export async function handleGuestChatPost(request: Request) {
             hasImages: false,
             hasAudio: false,
             skipConversationHistory: chat._count.messages === 0,
+            routineProposalAllowed,
           },
           execution: {
             mode: "stream",

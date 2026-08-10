@@ -116,7 +116,39 @@ describe("channel-flow/run", () => {
         userId: "user-1",
         chatId: "chat-1",
         userMessage: "hello",
+        routineProposalAllowed: true,
       }),
+    );
+  });
+
+  it("forwards a disabled routine flag to the orchestrator", async () => {
+    mocks.streamChat.mockResolvedValue({
+      textStream: (async function* () {
+        yield "answer";
+      })(),
+    });
+
+    await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      userMessageText: "routine",
+      parts: [{ type: "text", text: "routine" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: false,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: false,
+      },
+      ai: {
+        isGuest: false,
+        routineProposalAllowed: false,
+      },
+      execution: { mode: "text" },
+      persistence: { channel: "WEB", saveAssistantMessage: false },
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({ routineProposalAllowed: false }),
     );
   });
 

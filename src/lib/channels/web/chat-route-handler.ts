@@ -25,6 +25,7 @@ import {
   resolveOwnedWebMessageParts,
   WebAttachmentInputError,
 } from "@/lib/channels/web/attachment-input";
+import { isRoutineFeatureEnabled } from "@/lib/coaching/routine-feature";
 import { ensureConversationThread } from "@/lib/conversations/threads";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
@@ -195,6 +196,12 @@ export async function handleWebChatPost(request: Request) {
           },
           "🌐 Chat API Request",
         );
+
+        const routineProposalAllowed = await isRoutineFeatureEnabled({
+          distinctId: clerkId,
+          role: user.role,
+          isGuest: user.isGuest,
+        });
 
         let subscriptionStatus = user.subscription?.status;
         let planId = user.subscription?.planId;
@@ -548,6 +555,7 @@ export async function handleWebChatPost(request: Request) {
                 ? "direct_media"
                 : "text",
             voiceDecision,
+            routineProposalAllowed,
             abortSignal: request.signal,
             waitUntil,
           });
@@ -627,6 +635,7 @@ export async function handleWebChatPost(request: Request) {
             voiceEnabled: voiceUnavailableReason ? false : undefined,
             voiceUnavailableReason,
             skipConversationHistory: chat._count.messages === 0,
+            routineProposalAllowed,
             preparedCapabilityContext,
           },
           execution: {
@@ -859,6 +868,7 @@ async function handleVoiceFirstWebResponse({
   hasAudio,
   inputOrigin,
   voiceDecision,
+  routineProposalAllowed,
   abortSignal,
   waitUntil: schedule,
 }: {
@@ -877,6 +887,7 @@ async function handleVoiceFirstWebResponse({
   hasAudio?: boolean;
   inputOrigin?: "text" | "transcribed_voice" | "direct_media";
   voiceDecision: Awaited<ReturnType<typeof decideWebVoiceMode>>;
+  routineProposalAllowed: boolean;
   abortSignal?: AbortSignal;
   waitUntil?: (promise: Promise<unknown>) => void;
 }) {
@@ -910,6 +921,7 @@ async function handleVoiceFirstWebResponse({
         inputOrigin === "transcribed_voice" ? "success" : "not_needed",
       responseMode: "voice",
       voiceEnabled: true,
+      routineProposalAllowed,
     },
     execution: { mode: "text", abortSignal },
     persistence: {

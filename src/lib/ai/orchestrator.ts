@@ -399,6 +399,7 @@ interface StreamChatOptions {
   pendingMemoryApproval?: PendingMemoryApproval;
   inputOrigin?: "text" | "transcribed_voice" | "direct_media";
   resolvedMemoryTarget?: string | null;
+  routineProposalAllowed?: boolean;
   preparedCapabilityContext?: {
     capabilityDecision: CapabilityDecision;
     capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
@@ -1445,6 +1446,7 @@ export async function streamChat({
   pendingMemoryApproval,
   inputOrigin: requestedInputOrigin,
   resolvedMemoryTarget = null,
+  routineProposalAllowed = true,
   preparedCapabilityContext,
   benchmarkModelId,
   abortSignal,
@@ -1545,7 +1547,7 @@ export async function streamChat({
     allowConcurrentRagAndWeb: capabilityPlannerMode === "agentic",
     capabilityDecision,
     persistentToolsAllowed: !benchmarkModelId,
-    routineProposalAllowed: !benchmarkModelId,
+    routineProposalAllowed: routineProposalAllowed && !benchmarkModelId,
     memoryDeleteEnabled: capabilityDecision.memoryDelete,
     memoryDeleteTarget: capabilityDecision.memoryDeleteTarget,
     classifier: toTurnPlanClassifier(capabilityDecision),

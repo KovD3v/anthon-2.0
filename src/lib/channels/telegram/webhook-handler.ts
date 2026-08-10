@@ -32,6 +32,7 @@ import {
   type TelegramVoice,
 } from "@/lib/channels/telegram/utils";
 import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
+import { isRoutineFeatureEnabled } from "@/lib/coaching/routine-feature";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -635,6 +636,11 @@ async function handleUpdate(update: TelegramUpdate) {
     // Generate assistant response.
     let assistantText = "";
     let assistantMessageId: string | undefined;
+    const routineProposalAllowed = await isRoutineFeatureEnabled({
+      distinctId: user.id,
+      role: user.role,
+      isGuest: user.isGuest,
+    });
 
     try {
       const flowResult = await runChannelFlow({
@@ -667,6 +673,7 @@ async function handleUpdate(update: TelegramUpdate) {
             : downloadedPhoto || hasDocument
               ? "direct_media"
               : "text",
+          routineProposalAllowed,
         },
         execution: { mode: "text", includeTechnicalMetrics: false },
         persistence: {

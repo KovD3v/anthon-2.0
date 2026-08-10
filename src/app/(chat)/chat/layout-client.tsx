@@ -298,6 +298,7 @@ interface SidebarContentsProps {
   routineCollection: RoutineCollectionState;
   routineCollectionError: string | null;
   isRoutineCollectionLoading: boolean;
+  routinesEnabled: boolean;
   onRetryRoutineCollection: () => void;
 }
 
@@ -318,6 +319,7 @@ function SidebarContents({
   routineCollection,
   routineCollectionError,
   isRoutineCollectionLoading,
+  routinesEnabled,
   onRetryRoutineCollection,
 }: SidebarContentsProps) {
   return (
@@ -343,7 +345,8 @@ function SidebarContents({
           onPreFetch={onPreFetch}
         />
       </div>
-      {!isGuest ? (
+      {!isGuest &&
+      (routinesEnabled || routineCollection.routines.length > 0) ? (
         <RoutineSidebarShelf
           routines={routineCollection.routines}
           activeTotal={routineCollection.active.total}
@@ -369,6 +372,7 @@ export function LayoutClient({
   initialUsageData,
   initialCoachingGoal,
   initialActiveRoutine,
+  initialRoutinesEnabled = false,
   guestConversionPending,
   isGuest,
 }: {
@@ -377,6 +381,7 @@ export function LayoutClient({
   initialUsageData: UsageData | null;
   initialCoachingGoal: string | null;
   initialActiveRoutine: RoutineCardData | null;
+  initialRoutinesEnabled?: boolean;
   guestConversionPending: boolean;
   isGuest: boolean;
 }) {
@@ -1180,6 +1185,7 @@ export function LayoutClient({
                 routineCollection={routineCollection}
                 routineCollectionError={routineCollectionError}
                 isRoutineCollectionLoading={isRoutineCollectionLoading}
+                routinesEnabled={initialRoutinesEnabled}
                 onRetryRoutineCollection={() => {
                   void refreshRoutineCollection();
                 }}
@@ -1210,6 +1216,7 @@ export function LayoutClient({
               routineCollection={routineCollection}
               routineCollectionError={routineCollectionError}
               isRoutineCollectionLoading={isRoutineCollectionLoading}
+              routinesEnabled={initialRoutinesEnabled}
               onRetryRoutineCollection={() => {
                 void refreshRoutineCollection();
               }}

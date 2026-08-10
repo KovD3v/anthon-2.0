@@ -609,6 +609,7 @@ export async function runChannelFlow(
       effectiveEntitlements: ctx.rateLimit.effectiveEntitlements,
       skipConversationHistory: ctx.ai?.skipConversationHistory,
       preparedCapabilityContext: ctx.ai?.preparedCapabilityContext,
+      routineProposalAllowed: ctx.ai?.routineProposalAllowed !== false,
       abortSignal: generationAbortController.signal,
       onFinish: async ({
         text,
