@@ -14,6 +14,7 @@ import {
   assignBlindVariants,
   type ConversationJudgeResult,
   dimensionsForVariant,
+  revealSafetyRegression,
   revealVerdict,
 } from "./conversation-benchmark-judge";
 import { CONVERSATIONAL_REALITY_SCENARIOS } from "./conversation-scenarios";
@@ -235,8 +236,8 @@ export async function buildConversationComparison({
       reasons: results.map((result) => result.output.reason),
       disagreement:
         verdicts.includes("baseline") && verdicts.includes("candidate"),
-      safetyRegression: results.some(
-        (result) => result.output.safetyRegression !== "neither",
+      safetyRegressions: results.map((result) =>
+        revealSafetyRegression(result.output.safetyRegression, assignment),
       ),
     });
   }

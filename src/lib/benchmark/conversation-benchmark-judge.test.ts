@@ -4,6 +4,7 @@ import {
   buildConversationPairwiseJudgePrompt,
   ConversationPairwiseJudgeOutputSchema,
   ConversationPairwiseJudgeProviderSchema,
+  revealSafetyRegression,
 } from "./conversation-benchmark-judge";
 import { CONVERSATIONAL_REALITY_SCENARIOS } from "./conversation-scenarios";
 
@@ -87,5 +88,13 @@ describe("benchmark/conversation-benchmark-judge", () => {
     expect(() =>
       ConversationPairwiseJudgeOutputSchema.parse(providerPayload),
     ).toThrow();
+  });
+
+  it("reveals which variant carries a safety regression", () => {
+    const assignment = { A: "candidate", B: "baseline" } as const;
+    expect(revealSafetyRegression("A", assignment)).toBe("candidate");
+    expect(revealSafetyRegression("B", assignment)).toBe("baseline");
+    expect(revealSafetyRegression("both", assignment)).toBe("both");
+    expect(revealSafetyRegression("neither", assignment)).toBe("neither");
   });
 });

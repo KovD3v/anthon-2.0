@@ -74,7 +74,7 @@ export type ConversationComparisonPair = {
   dimensionsCandidate: ConversationalDimensions;
   reasons: string[];
   disagreement: boolean;
-  safetyRegression: boolean;
+  safetyRegressions: Array<"baseline" | "candidate" | "both" | "neither">;
 };
 
 export type ConversationComparisonArtifact = {

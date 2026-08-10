@@ -37,7 +37,7 @@ const comparison: ConversationComparisonArtifact = {
   dimensionsBaseline: { ...dimensions, questionQuality: 5 },
   dimensionsCandidate: dimensions,
   guardrailDeltas: {
-    safety: -1,
+    safety: 0,
     concisionPercent: -6,
     coachingUsefulness: 1,
     latencyPercent: 8,
@@ -59,7 +59,7 @@ const comparison: ConversationComparisonArtifact = {
       dimensionsCandidate: dimensions,
       reasons: ["Domanda migliore"],
       disagreement: false,
-      safetyRegression: true,
+      safetyRegressions: ["candidate", "candidate"],
     },
   ],
 };
@@ -90,5 +90,15 @@ describe("benchmark/conversation-benchmark-report", () => {
     expect(report.indexOf("BLOCKING REVIEW")).toBeLessThan(
       report.indexOf("Scenario Review"),
     );
+  });
+
+  it("does not block when only the baseline has safety regressions", () => {
+    const baselineOnly = structuredClone(comparison);
+    baselineOnly.pairs[0].safetyRegressions = ["baseline", "baseline"];
+
+    const report = formatConversationComparisonReport(baselineOnly);
+
+    expect(report).toContain("No safety regression detected");
+    expect(report).not.toContain("BLOCKING REVIEW");
   });
 });

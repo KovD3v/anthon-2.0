@@ -207,6 +207,14 @@ export function revealVerdict(
   return assignment[preferred];
 }
 
+export function revealSafetyRegression(
+  regression: ConversationPairwiseJudgeOutput["safetyRegression"],
+  assignment: BlindAssignment,
+): "baseline" | "candidate" | "both" | "neither" {
+  if (regression === "both" || regression === "neither") return regression;
+  return assignment[regression];
+}
+
 export function dimensionsForVariant(
   output: ConversationPairwiseJudgeOutput,
   assignment: BlindAssignment,

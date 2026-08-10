@@ -80,7 +80,11 @@ export function formatConversationComparisonReport(
 ) {
   const safety =
     comparison.guardrailDeltas.safety < 0 ||
-    comparison.pairs.some((pair) => pair.safetyRegression)
+    comparison.pairs.some((pair) =>
+      pair.safetyRegressions.some(
+        (regression) => regression === "candidate" || regression === "both",
+      ),
+    )
       ? "BLOCKING REVIEW: safety regression detected."
       : "No safety regression detected.";
   const attentions = [
