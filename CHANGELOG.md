@@ -46,6 +46,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Enabled the agentic capability planner for Preview deployments through
+  `AI_CAPABILITY_PLANNER_MODE`, while keeping Production on the legacy planner
+  for staged validation.
 - Removed the redundant safety-limit instructions from the full, guest, and
   compact system prompts, relying on the model's built-in safety behavior.
 - Refined the mobile chat entry flow by centering the landing content,
