@@ -52,8 +52,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 - Localized voice-unavailability explanations in Italian for trial, preference,
   provider, and quota fallbacks.
-- Kept Enter available for multiline messages while retaining explicit sending
-  through the composer button.
+- Scoped chat composer keyboard behavior by viewport: Enter creates a new line
+  on mobile, submits on desktop, and Shift+Enter remains available for
+  multiline input.
 - Kept the mobile chat composer aligned above the software keyboard when iOS
   pans the visual viewport.
 - Kept the original prompt in place during response regeneration, replacing the

@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CHAT_ATTACHMENT_ACCEPT } from "@/lib/uploads/chat-file-types";
 import type { AttachmentData } from "@/types/chat";
 import { ChatInput } from "./ChatInput";
@@ -23,6 +23,15 @@ const recordedAudio: AttachmentData = {
   size: 2048,
   url: "/recording.wav",
 };
+
+const defaultInnerWidth = window.innerWidth;
+
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: width,
+  });
+}
 
 vi.mock("framer-motion", () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => children,
@@ -78,9 +87,14 @@ function renderChatInput(input = "") {
   return { ...render(<ChatInput {...props} />), props };
 }
 
+beforeEach(() => {
+  setViewportWidth(defaultInnerWidth);
+});
+
 afterEach(() => {
   cleanup();
   mocks.toastError.mockReset();
+  setViewportWidth(defaultInnerWidth);
   vi.unstubAllGlobals();
 });
 
@@ -218,7 +232,8 @@ describe("ChatInput keyboard behavior", () => {
     expect(focusSpy).not.toHaveBeenCalled();
   });
 
-  it("keeps Enter available for a new line without submitting", () => {
+  it("keeps Enter available for a new line on mobile", () => {
+    setViewportWidth(390);
     const { props } = renderChatInput("Prima riga");
     const textarea = screen.getByRole("textbox", {
       name: "Scrivi un messaggio",
@@ -231,6 +246,18 @@ describe("ChatInput keyboard behavior", () => {
       target: { value: "Prima riga\nSeconda riga" },
     });
     expect(props.setInput).toHaveBeenCalledWith("Prima riga\nSeconda riga");
+  });
+
+  it("submits with Enter on desktop", () => {
+    setViewportWidth(1024);
+    const { props } = renderChatInput("Messaggio");
+    const textarea = screen.getByRole("textbox", {
+      name: "Scrivi un messaggio",
+    });
+
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    expect(props.onSubmit).toHaveBeenCalledOnce();
   });
 
   it("still submits from the send button", () => {
