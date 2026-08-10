@@ -46,6 +46,12 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Refined the mobile chat entry flow by centering the landing content,
+  hiding secondary starter actions, compacting the returning-chat card, and
+  exposing authenticated file-upload and voice-recording entrypoints with
+  attachment forwarding into the first chat turn.
+- Kept conversation export available on tablet and desktop while removing it
+  from the mobile conversation header to reduce header clutter.
 - Reduced the height of message action and feedback controls for a denser chat
   layout across both user and assistant messages.
 - Improved chat responsiveness by ending the response-settling state as soon
