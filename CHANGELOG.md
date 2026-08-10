@@ -46,6 +46,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Removed the redundant safety-limit instructions from the full, guest, and
+  compact system prompts, relying on the model's built-in safety behavior.
 - Refined the mobile chat entry flow by centering the landing content,
   hiding secondary starter actions, compacting the returning-chat card, and
   exposing authenticated file-upload and voice-recording entrypoints with
