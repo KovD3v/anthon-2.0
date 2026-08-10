@@ -86,6 +86,38 @@ multi-turn behavior because it creates isolated benchmark users/chats, seeds
 scenario profile/preferences/memories, persists each user turn, calls
 `streamChat`, and persists each assistant turn.
 
+## Conversational Quality A/B
+
+The conversational benchmark extends this runner with ten curated Italian
+multi-turn scenarios and keeps `openai/gpt-5.6-luna` fixed. It is a CLI-only,
+offline comparison; it never allocates Production traffic.
+
+Create a frozen baseline before changing prompt or planner behavior:
+
+```bash
+bun run benchmark:conversation baseline --label before-conversational-change --samples 3 --allow-db-mutation
+```
+
+Generate a candidate from the current checkout, using the saved baseline as a
+compatibility contract:
+
+```bash
+bun run benchmark:conversation candidate --baseline docs/benchmarks/runs/conversation-2026-08-10-before-conversational-change-baseline.json --samples 3 --allow-db-mutation
+```
+
+Run the blind two-judge comparison:
+
+```bash
+bun run benchmark:conversation compare --baseline docs/benchmarks/runs/conversation-2026-08-10-before-conversational-change-baseline.json --candidate docs/benchmarks/runs/conversation-2026-08-10-before-conversational-change-candidate.json --judge
+```
+
+Generation requires explicit database-mutation approval, cleans up its
+synthetic users, reports measured model cost, and must run only on development
+or an ephemeral Neon branch. The command rejects incompatible scenario/model/
+sample contracts and refuses to overwrite artifacts. Comparison reads saved
+JSON, calls two independent judges, and writes JSON plus Markdown under
+`docs/benchmarks/runs/`.
+
 ## Important Limitation
 
 `createStreamChatRealityExecutor` calls the true orchestrator and supports model
