@@ -15,6 +15,7 @@ const metrics: AIMetrics = {
   costUsd: 0,
   generationTimeMs: 100,
   reasoningTimeMs: 0,
+  tracePayload: { systemPrompt: "private prompt" },
 };
 
 describe("benchmark/conversation-benchmark-runner", () => {
@@ -46,6 +47,8 @@ describe("benchmark/conversation-benchmark-runner", () => {
       new Set(artifact.replicas.map((replica) => replica.replicaId)),
     ).toEqual(new Set(["sample-1", "sample-2", "sample-3"]));
     expect(artifact.modelId).toBe("openai/gpt-5.6-luna");
+    expect(JSON.stringify(artifact)).not.toContain("tracePayload");
+    expect(JSON.stringify(artifact)).not.toContain("private prompt");
   });
 
   it("rejects empty candidate output", async () => {

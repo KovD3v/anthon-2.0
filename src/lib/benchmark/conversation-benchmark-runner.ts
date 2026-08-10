@@ -81,7 +81,11 @@ export async function runConversationVariant({
           },
         });
       }
-      summaries.push(serializeRealityBenchmarkSummary(summary));
+      summaries.push(
+        sanitizeRealitySummary(
+          serializeRealityBenchmarkSummary(summary),
+        ) as ReturnType<typeof serializeRealityBenchmarkSummary>,
+      );
     } finally {
       await benchmark.cleanup();
     }
@@ -102,6 +106,21 @@ export async function runConversationVariant({
     summaries,
     replicas,
   };
+}
+
+function sanitizeRealitySummary(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeRealitySummary);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(
+        ([key]) =>
+          !["authorization", "cookie", "systemPrompt", "tracePayload"].includes(
+            key,
+          ),
+      )
+      .map(([key, child]) => [key, sanitizeRealitySummary(child)]),
+  );
 }
 
 type PairJudge = (input: {
