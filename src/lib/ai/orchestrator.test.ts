@@ -740,7 +740,8 @@ describe("ai/orchestrator", () => {
       "give a small safe observation or principle, then ask one high-value diagnostic question",
     );
     expect(prepared.systemPrompt).toContain("Do not recycle the same routine");
-    expect(prepared.systemPrompt).toContain(
+    expect(prepared.systemPrompt).not.toContain("SAFETY & LIMITS");
+    expect(prepared.systemPrompt).not.toContain(
       "Do not assume unexplained breathing difficulty is anxiety",
     );
     expect(prepared.systemPrompt).not.toContain(
@@ -803,6 +804,10 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).toContain("AI mental coach");
     expect(streamInput.instructions).toContain(
       "Never claim to be human, licensed, or a healthcare professional",
+    );
+    expect(streamInput.instructions).not.toContain("\nSAFETY\n");
+    expect(streamInput.instructions).not.toContain(
+      "Do not make medical or clinical diagnoses",
     );
     expect(streamInput.instructions).not.toContain(
       "NEVER say you are an AI or a model",
@@ -3478,6 +3483,10 @@ describe("ai/orchestrator", () => {
     };
     expect(streamInput.instructions).toContain("GUEST SESSION");
     expect(streamInput.instructions).toContain("AI mental coach");
+    expect(streamInput.instructions).not.toContain("\nSAFETY\n");
+    expect(streamInput.instructions).not.toContain(
+      "Do not make medical or clinical diagnoses",
+    );
     expect(streamInput.instructions).toContain(
       "Never claim to be human, licensed, or a healthcare professional",
     );
@@ -3491,6 +3500,24 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).not.toContain("SAVING DATA");
     expect(streamInput.tools).toEqual({});
     expect(streamInput.maxOutputTokens).toBe(220);
+  });
+
+  it("omits safety instructions from the compact prompt", async () => {
+    const prepared = await prepareChatTurn({
+      userId: "user-1",
+      chatId: "chat-compact-prompt",
+      conversationThreadId: "thread-1",
+      userMessageId: "message-1",
+      userMessage: "ciao",
+      effectiveEntitlements: baseEntitlements as never,
+      skipConversationHistory: true,
+    });
+
+    expect(prepared.promptMode).toBe("simple_fast");
+    expect(prepared.systemPrompt).not.toContain("SAFETY & LIMITS");
+    expect(prepared.systemPrompt).not.toContain(
+      "Do NOT make medical/clinical diagnoses",
+    );
   });
 
   it("skips conversation history lookup when the caller knows this is the first message", async () => {
