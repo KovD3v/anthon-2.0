@@ -53,7 +53,6 @@ import { defaultTransition, fadeUp, scaleIn } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { MessageFeedbackReason } from "@/types/chat";
 import {
-  ASSISTANT_READING_MAX_MS,
   CHAT_REACTIVITY_COPY,
   type ChatRequestStatus,
   getAssistantMessageDisplayState,
@@ -261,12 +260,10 @@ export function MessageList({
   const [feedbackSavingState, setFeedbackSavingState] = useState<
     Record<string, boolean>
   >({});
-  const [submittedElapsedMs, setSubmittedElapsedMs] = useState(0);
   const latestMessage = messages[messages.length - 1];
   const assistantPendingLabel = getAssistantPendingLabel({
     status,
     latestMessage,
-    submittedElapsedMs,
   });
   const pendingAssistantLabel = isRegenerating
     ? CHAT_REACTIVITY_COPY.assistantRegenerating
@@ -311,20 +308,6 @@ export function MessageList({
       })?.id ?? null
     );
   }, [canRenderRoutineCards, reusedRoutine, visibleMessages]);
-
-  useEffect(() => {
-    if (status !== "submitted") {
-      setSubmittedElapsedMs(0);
-      return;
-    }
-
-    setSubmittedElapsedMs(0);
-    const timeoutId = window.setTimeout(() => {
-      setSubmittedElapsedMs(ASSISTANT_READING_MAX_MS);
-    }, ASSISTANT_READING_MAX_MS);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [status]);
 
   useEffect(() => {
     setFeedbackState((current) => {
@@ -613,9 +596,10 @@ export function MessageList({
               );
               const feedbackValue = feedbackState[message.id] ?? 0;
               const isFeedbackSaving = feedbackSavingState[message.id] === true;
+              const isPersistedMessage =
+                !feedbackMessageIds || feedbackMessageIds.has(message.id);
               const canSubmitFeedbackForMessage =
-                canSubmitFeedback &&
-                (!feedbackMessageIds || feedbackMessageIds.has(message.id));
+                canSubmitFeedback && isPersistedMessage;
 
               // Voice message state from persisted DB attachments.
               const dbVoiceAttachment = message.attachments?.find((a) =>
@@ -920,7 +904,7 @@ export function MessageList({
                           </div>
                         )}
 
-                        {!isUser && (
+                        {!isUser && isPersistedMessage && (
                           <TechnicalMetricsDetails
                             usage={getUsageFromAnnotations(message)}
                           />
@@ -980,7 +964,14 @@ export function MessageList({
 
                       {/* Actions Row */}
                       {!comparisonData && (
-                        <div
+                        <m.div
+                          initial={
+                            !isUser && isPersistedMessage
+                              ? { opacity: 0 }
+                              : false
+                          }
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.18, ease: "easeOut" }}
                           className={`flex min-w-0 max-w-full flex-wrap items-center gap-0.5 px-1 transition-opacity ${
                             isUser
                               ? "flex-row-reverse opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
@@ -1098,7 +1089,7 @@ export function MessageList({
                               </Button>
                             </>
                           )}
-                        </div>
+                        </m.div>
                       )}
 
                       {!isUser &&

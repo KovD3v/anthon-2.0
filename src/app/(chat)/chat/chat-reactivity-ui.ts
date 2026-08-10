@@ -3,10 +3,7 @@ import { getRoutineProposalFromParts } from "@/lib/coaching/routine";
 
 export type ChatRequestStatus = "ready" | "submitted" | "streaming" | "error";
 
-export const ASSISTANT_READING_MAX_MS = 700;
-
 export const CHAT_REACTIVITY_COPY = {
-  assistantReading: "Leggo il contesto",
   assistantPreparing: "Sto preparando la risposta",
   assistantRegenerating: "Rigenero la risposta",
   assistantRegeneratingDetail: "Sostituisco la risposta precedente.",
@@ -114,7 +111,6 @@ function getToolName(part: ToolFeedbackPart) {
 export function getAssistantPendingLabel({
   status,
   latestMessage,
-  submittedElapsedMs = 0,
 }: {
   status: ChatRequestStatus;
   latestMessage: UIMessage | undefined;
@@ -129,10 +125,6 @@ export function getAssistantPendingLabel({
     getMessageText(latestMessage).trim().length > 0
   ) {
     return null;
-  }
-
-  if (status === "submitted" && submittedElapsedMs < ASSISTANT_READING_MAX_MS) {
-    return CHAT_REACTIVITY_COPY.assistantReading;
   }
 
   return CHAT_REACTIVITY_COPY.assistantPreparing;
@@ -204,7 +196,6 @@ export function getAssistantMessageDisplayState({
 
 export function shouldAnimateAssistantMessageMount({
   message,
-  displayState,
 }: {
   message: UIMessage;
   displayState: AssistantMessageDisplayState;
@@ -213,7 +204,10 @@ export function shouldAnimateAssistantMessageMount({
     return true;
   }
 
-  return displayState !== "pending" && displayState !== "streaming";
+  // Assistant messages can be reconciled from a temporary streaming id to a
+  // persisted id after completion. Never replay their entrance on that remount:
+  // the bubble should feel like one continuous response from pending to ready.
+  return false;
 }
 
 export function shouldRenderAssistantPendingRow({

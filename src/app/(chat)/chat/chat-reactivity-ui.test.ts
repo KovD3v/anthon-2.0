@@ -10,7 +10,7 @@ import {
 } from "./chat-reactivity-ui";
 
 describe("getAssistantPendingLabel", () => {
-  it("shows immediate reading feedback while a user message is submitted", () => {
+  it("keeps one stable pending label while a user message is submitted", () => {
     expect(
       getAssistantPendingLabel({
         status: "submitted",
@@ -20,10 +20,10 @@ describe("getAssistantPendingLabel", () => {
           parts: [{ type: "text", text: "ciao" }],
         },
       }),
-    ).toBe(CHAT_REACTIVITY_COPY.assistantReading);
+    ).toBe(CHAT_REACTIVITY_COPY.assistantPreparing);
   });
 
-  it("moves past reading feedback when submitted wait becomes noticeable", () => {
+  it("keeps the same pending label when the submitted wait becomes noticeable", () => {
     expect(
       getAssistantPendingLabel({
         status: "submitted",
@@ -149,7 +149,7 @@ describe("getAssistantPendingLabel", () => {
     ).toBe("content");
   });
 
-  it("does not animate active assistant messages as they enter or stream", () => {
+  it("keeps assistant messages visually continuous through streaming and persistence", () => {
     const message = {
       id: "assistant-1",
       role: "assistant" as const,
@@ -176,7 +176,7 @@ describe("getAssistantPendingLabel", () => {
         message,
         displayState: "content",
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 

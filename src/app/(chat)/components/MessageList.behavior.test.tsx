@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import {
-  act,
   cleanup,
   render,
   screen,
@@ -16,7 +15,6 @@ import {
   parseRoutineSourceHydrationPayload,
   type RoutineCardData,
 } from "@/lib/coaching/routine";
-import { ASSISTANT_READING_MAX_MS } from "../chat/chat-reactivity-ui";
 import { MessageList } from "./MessageList";
 
 const mocks = vi.hoisted(() => ({
@@ -774,16 +772,13 @@ describe("MessageList rendered interactions", () => {
     ).toBeNull();
   });
 
-  it("advances the submitted pending label and resets it when ready", () => {
-    vi.useFakeTimers();
+  it("keeps the submitted pending label stable until ready", () => {
     const view = renderMessageList({
       messages: [userMessage],
       status: "submitted",
       isLoading: true,
     });
 
-    expect(screen.getByText("Leggo il contesto")).toBeTruthy();
-    act(() => vi.advanceTimersByTime(ASSISTANT_READING_MAX_MS));
     expect(screen.getByText("Sto preparando la risposta")).toBeTruthy();
 
     view.rerender(
