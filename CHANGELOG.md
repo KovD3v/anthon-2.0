@@ -50,6 +50,9 @@ Version numbers describe the application's user-facing behavior and its document
   coaching health-neutral: Anthon does not introduce medical explanations or
   clinical questions unless the user asks for health guidance or describes an
   acute warning sign, while the existing safety boundary remains active.
+- Recorded the v2.2 conversational benchmark on the fixed Luna model: the
+  candidate won 82 blind pairings versus 28 for the baseline, with 10 ties and
+  no detected safety regression.
 - Refined health framing for performance coaching so pre-competition nausea or
   vomiting linked by the user to tension is handled as a possible coaching
   context, without inventing a medical cause; acute warning signs still prompt
