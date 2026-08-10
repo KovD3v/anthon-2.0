@@ -1,22 +1,22 @@
-import { CONVERSATIONAL_REALITY_SCENARIOS } from "./conversation-scenarios";
 import {
   assertCompatibleConversationRuns,
   CONVERSATION_ARTIFACT_VERSION,
   CONVERSATION_MODEL_ID,
   CONVERSATION_SCENARIO_VERSION,
+  type ConversationalDimensions,
   type ConversationComparisonArtifact,
   type ConversationComparisonPair,
   type ConversationRunArtifact,
-  type ConversationalDimensions,
   conversationReplicaKey,
   diagnoseConversationStructure,
 } from "./conversation-benchmark";
 import {
   assignBlindVariants,
-  dimensionsForVariant,
   type ConversationJudgeResult,
+  dimensionsForVariant,
   revealVerdict,
 } from "./conversation-benchmark-judge";
+import { CONVERSATIONAL_REALITY_SCENARIOS } from "./conversation-scenarios";
 import {
   type DatabaseBackedRealityExecutor,
   runRealityBenchmark,
@@ -95,7 +95,9 @@ export async function runConversationVariant({
     createdAt: new Date().toISOString(),
     modelId: CONVERSATION_MODEL_ID,
     samples,
-    scenarioIds: CONVERSATIONAL_REALITY_SCENARIOS.map((scenario) => scenario.id).sort(),
+    scenarioIds: CONVERSATIONAL_REALITY_SCENARIOS.map(
+      (scenario) => scenario.id,
+    ).sort(),
     configurationFingerprint,
     summaries,
     replicas,
@@ -121,7 +123,10 @@ export async function buildConversationComparison({
 }): Promise<ConversationComparisonArtifact> {
   assertCompatibleConversationRuns(baseline, candidate);
   const candidateByKey = new Map(
-    candidate.replicas.map((replica) => [conversationReplicaKey(replica), replica]),
+    candidate.replicas.map((replica) => [
+      conversationReplicaKey(replica),
+      replica,
+    ]),
   );
   const pairs: ConversationComparisonPair[] = [];
   let totalJudgeCostUsd = 0;
@@ -129,9 +134,15 @@ export async function buildConversationComparison({
     const key = conversationReplicaKey(base);
     const next = candidateByKey.get(key);
     if (!next) throw new Error(`Missing candidate pair ${key}`);
-    const assignment = assignBlindVariants(base.scenarioId, base.turnIndex, base.replicaId);
-    const answerA = assignment.A === "baseline" ? base.assistantText : next.assistantText;
-    const answerB = assignment.B === "baseline" ? base.assistantText : next.assistantText;
+    const assignment = assignBlindVariants(
+      base.scenarioId,
+      base.turnIndex,
+      base.replicaId,
+    );
+    const answerA =
+      assignment.A === "baseline" ? base.assistantText : next.assistantText;
+    const answerB =
+      assignment.B === "baseline" ? base.assistantText : next.assistantText;
     const results = await Promise.all(
       judges.map((judge) =>
         judge({
@@ -143,8 +154,13 @@ export async function buildConversationComparison({
         }),
       ),
     );
-    totalJudgeCostUsd += results.reduce((sum, result) => sum + result.costUsd, 0);
-    const verdicts = results.map((result) => revealVerdict(result.output.preferred, assignment));
+    totalJudgeCostUsd += results.reduce(
+      (sum, result) => sum + result.costUsd,
+      0,
+    );
+    const verdicts = results.map((result) =>
+      revealVerdict(result.output.preferred, assignment),
+    );
     pairs.push({
       key,
       scenarioId: base.scenarioId,
@@ -154,10 +170,14 @@ export async function buildConversationComparison({
       candidateText: next.assistantText,
       verdicts,
       dimensionsBaseline: averageDimensions(
-        results.map((result) => dimensionsForVariant(result.output, assignment, "baseline")),
+        results.map((result) =>
+          dimensionsForVariant(result.output, assignment, "baseline"),
+        ),
       ),
       dimensionsCandidate: averageDimensions(
-        results.map((result) => dimensionsForVariant(result.output, assignment, "candidate")),
+        results.map((result) =>
+          dimensionsForVariant(result.output, assignment, "candidate"),
+        ),
       ),
       reasons: results.map((result) => result.output.reason),
       disagreement:
@@ -182,48 +202,89 @@ export async function buildConversationComparison({
       baseline: allVerdicts.filter((value) => value === "baseline").length,
       candidate: allVerdicts.filter((value) => value === "candidate").length,
       tie: allVerdicts.filter((value) => value === "tie").length,
-      both_insufficient: allVerdicts.filter((value) => value === "both_insufficient").length,
+      both_insufficient: allVerdicts.filter(
+        (value) => value === "both_insufficient",
+      ).length,
     },
-    dimensionsBaseline: averageDimensions(pairs.map((pair) => pair.dimensionsBaseline)),
-    dimensionsCandidate: averageDimensions(pairs.map((pair) => pair.dimensionsCandidate)),
+    dimensionsBaseline: averageDimensions(
+      pairs.map((pair) => pair.dimensionsBaseline),
+    ),
+    dimensionsCandidate: averageDimensions(
+      pairs.map((pair) => pair.dimensionsCandidate),
+    ),
     guardrailDeltas: {
-      safety: average(candidate.replicas.map((r) => r.guardrails.safety)) - average(baseline.replicas.map((r) => r.guardrails.safety)),
-      concisionPercent: percentDelta(average(baseline.replicas.map((r) => r.guardrails.concision)), average(candidate.replicas.map((r) => r.guardrails.concision))),
-      coachingUsefulness: average(candidate.replicas.map((r) => r.guardrails.coachingUsefulness)) - average(baseline.replicas.map((r) => r.guardrails.coachingUsefulness)),
-      latencyPercent: percentDelta(average(baseline.replicas.map((r) => r.metrics.generationTimeMs)), average(candidate.replicas.map((r) => r.metrics.generationTimeMs))),
-      costPercent: percentDelta(average(baseline.replicas.map((r) => r.metrics.costUsd)), average(candidate.replicas.map((r) => r.metrics.costUsd))),
+      safety:
+        average(candidate.replicas.map((r) => r.guardrails.safety)) -
+        average(baseline.replicas.map((r) => r.guardrails.safety)),
+      concisionPercent: percentDelta(
+        average(baseline.replicas.map((r) => r.guardrails.concision)),
+        average(candidate.replicas.map((r) => r.guardrails.concision)),
+      ),
+      coachingUsefulness:
+        average(
+          candidate.replicas.map((r) => r.guardrails.coachingUsefulness),
+        ) -
+        average(baseline.replicas.map((r) => r.guardrails.coachingUsefulness)),
+      latencyPercent: percentDelta(
+        average(baseline.replicas.map((r) => r.metrics.generationTimeMs)),
+        average(candidate.replicas.map((r) => r.metrics.generationTimeMs)),
+      ),
+      costPercent: percentDelta(
+        average(baseline.replicas.map((r) => r.metrics.costUsd)),
+        average(candidate.replicas.map((r) => r.metrics.costUsd)),
+      ),
     },
-    structuralBaseline: averageStructure(baseline.replicas.map((r) => r.diagnostics)),
-    structuralCandidate: averageStructure(candidate.replicas.map((r) => r.diagnostics)),
+    structuralBaseline: averageStructure(
+      baseline.replicas.map((r) => r.diagnostics),
+    ),
+    structuralCandidate: averageStructure(
+      candidate.replicas.map((r) => r.diagnostics),
+    ),
     totalJudgeCostUsd,
     pairs,
   };
 }
 
 function average(values: number[]) {
-  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  return values.length
+    ? values.reduce((sum, value) => sum + value, 0) / values.length
+    : 0;
 }
 
 function percentDelta(before: number, after: number) {
-  return before === 0 ? (after === 0 ? 0 : 100) : ((after - before) / before) * 100;
+  return before === 0
+    ? after === 0
+      ? 0
+      : 100
+    : ((after - before) / before) * 100;
 }
 
-function averageDimensions(values: ConversationalDimensions[]): ConversationalDimensions {
+function averageDimensions(
+  values: ConversationalDimensions[],
+): ConversationalDimensions {
   return {
     contextUse: average(values.map((v) => v.contextUse)),
-    conversationalNaturalness: average(values.map((v) => v.conversationalNaturalness)),
+    conversationalNaturalness: average(
+      values.map((v) => v.conversationalNaturalness),
+    ),
     discoveryBeforeAdvice: average(values.map((v) => v.discoveryBeforeAdvice)),
     multiTurnProgression: average(values.map((v) => v.multiTurnProgression)),
     questionQuality: average(values.map((v) => v.questionQuality)),
   };
 }
 
-function averageStructure(values: ConversationRunArtifact["replicas"][number]["diagnostics"][]) {
+function averageStructure(
+  values: ConversationRunArtifact["replicas"][number]["diagnostics"][],
+) {
   return {
-    acknowledgmentListQuestion: average(values.map((v) => Number(v.acknowledgmentListQuestion))) >= 0.5,
-    endsWithQuestion: average(values.map((v) => Number(v.endsWithQuestion))) >= 0.5,
-    formulaicOpening: average(values.map((v) => Number(v.formulaicOpening))) >= 0.5,
-    hasMarkdownList: average(values.map((v) => Number(v.hasMarkdownList))) >= 0.5,
+    acknowledgmentListQuestion:
+      average(values.map((v) => Number(v.acknowledgmentListQuestion))) >= 0.5,
+    endsWithQuestion:
+      average(values.map((v) => Number(v.endsWithQuestion))) >= 0.5,
+    formulaicOpening:
+      average(values.map((v) => Number(v.formulaicOpening))) >= 0.5,
+    hasMarkdownList:
+      average(values.map((v) => Number(v.hasMarkdownList))) >= 0.5,
     hasQuestion: average(values.map((v) => Number(v.hasQuestion))) >= 0.5,
     phraseHits: Array.from(new Set(values.flatMap((v) => v.phraseHits))).sort(),
     wordCount: average(values.map((v) => v.wordCount)),

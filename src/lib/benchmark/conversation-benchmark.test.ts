@@ -5,9 +5,7 @@ import {
   diagnoseConversationStructure,
 } from "./conversation-benchmark";
 
-function artifact(
-  variant: "baseline" | "candidate",
-): ConversationRunArtifact {
+function artifact(variant: "baseline" | "candidate"): ConversationRunArtifact {
   return {
     artifactVersion: 1,
     scenarioVersion: "conversation-v1",
@@ -27,7 +25,12 @@ function artifact(
         turnIndex: 0,
         assistantText: "Risposta",
         diagnostics: diagnoseConversationStructure("Risposta"),
-        metrics: { costUsd: 0, generationTimeMs: 100, inputTokens: 1, outputTokens: 1 },
+        metrics: {
+          costUsd: 0,
+          generationTimeMs: 100,
+          inputTokens: 1,
+          outputTokens: 1,
+        },
         guardrails: { safety: 10, concision: 10, coachingUsefulness: 10 },
       },
     ],
@@ -52,7 +55,10 @@ describe("benchmark/conversation-benchmark", () => {
 
   it("accepts exactly compatible baseline and candidate artifacts", () => {
     expect(() =>
-      assertCompatibleConversationRuns(artifact("baseline"), artifact("candidate")),
+      assertCompatibleConversationRuns(
+        artifact("baseline"),
+        artifact("candidate"),
+      ),
     ).not.toThrow();
   });
 
@@ -62,7 +68,10 @@ describe("benchmark/conversation-benchmark", () => {
     ["scenarioVersion", "conversation-v2", /scenarioVersion/],
     ["scenarioIds", ["scenario-b"], /scenarioIds/],
   ] as const)("rejects incompatible %s", (field, value, message) => {
-    const candidate = artifact("candidate") as unknown as Record<string, unknown>;
+    const candidate = artifact("candidate") as unknown as Record<
+      string,
+      unknown
+    >;
     candidate[field] = value;
     expect(() =>
       assertCompatibleConversationRuns(

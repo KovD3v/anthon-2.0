@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { CONVERSATIONAL_REALITY_SCENARIOS } from "./conversation-scenarios";
 import {
   assignBlindVariants,
   buildConversationPairwiseJudgePrompt,
   ConversationPairwiseJudgeOutputSchema,
 } from "./conversation-benchmark-judge";
+import { CONVERSATIONAL_REALITY_SCENARIOS } from "./conversation-scenarios";
 
 describe("benchmark/conversation-benchmark-judge", () => {
   it("assigns variants deterministically without pinning every pair to one side", () => {

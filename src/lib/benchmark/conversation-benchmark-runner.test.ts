@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
-import type { RealityBenchmarkExecutor } from "./reality";
-import { CONVERSATIONAL_REALITY_SCENARIOS } from "./conversation-scenarios";
 import { runConversationVariant } from "./conversation-benchmark-runner";
+import { CONVERSATIONAL_REALITY_SCENARIOS } from "./conversation-scenarios";
+import type { RealityBenchmarkExecutor } from "./reality";
 
 const metrics: AIMetrics = {
   model: "openai/gpt-5.6-luna",
   inputTokens: 10,
   outputTokens: 10,
-  totalTokens: 20,
+  reasoningTokens: 0,
+  toolCalls: [],
+  ragUsed: false,
+  ragChunksCount: 0,
   costUsd: 0,
   generationTimeMs: 100,
+  reasoningTimeMs: 0,
 };
 
 describe("benchmark/conversation-benchmark-runner", () => {
@@ -22,7 +26,10 @@ describe("benchmark/conversation-benchmark-runner", () => {
       samples: 3,
       configurationFingerprint: "config",
       executorFactory: (replicaId) => {
-        const executor: RealityBenchmarkExecutor = async ({ scenario, turnIndex }) => ({
+        const executor: RealityBenchmarkExecutor = async ({
+          scenario,
+          turnIndex,
+        }) => ({
           text: `${scenario.id}:${turnIndex}:${replicaId}`,
           metrics,
         });
@@ -35,9 +42,9 @@ describe("benchmark/conversation-benchmark-runner", () => {
       0,
     );
     expect(artifact.replicas).toHaveLength(turnCount * 3);
-    expect(new Set(artifact.replicas.map((replica) => replica.replicaId))).toEqual(
-      new Set(["sample-1", "sample-2", "sample-3"]),
-    );
+    expect(
+      new Set(artifact.replicas.map((replica) => replica.replicaId)),
+    ).toEqual(new Set(["sample-1", "sample-2", "sample-3"]));
     expect(artifact.modelId).toBe("openai/gpt-5.6-luna");
   });
 

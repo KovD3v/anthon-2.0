@@ -4,12 +4,12 @@ import { z } from "zod";
 import { extractAIMetrics } from "@/lib/ai/cost-calculator";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
-import type { RealityScenario, RealityTranscriptMessage } from "./reality";
 import {
   CONVERSATION_SCENARIO_VERSION,
   type ConversationalDimensions,
   type ConversationVerdict,
 } from "./conversation-benchmark";
+import type { RealityScenario, RealityTranscriptMessage } from "./reality";
 
 const dimensionsSchema = z
   .object({
@@ -74,7 +74,9 @@ export function buildConversationPairwiseJudgePrompt({
 }) {
   const turn = scenario.turns[turnIndex];
   if (!turn?.lowAnchorResponse || !turn.highAnchorResponse) {
-    throw new Error(`Missing conversational anchors for ${scenario.id}#${turnIndex}`);
+    throw new Error(
+      `Missing conversational anchors for ${scenario.id}#${turnIndex}`,
+    );
   }
   return [
     "Confronta alla cieca due risposte italiane di coaching sportivo.",
@@ -123,7 +125,9 @@ export async function judgeConversationPair({
     try {
       const result = await generateText({
         model: openrouter(judgeModelId),
-        output: Output.object({ schema: ConversationPairwiseJudgeOutputSchema }),
+        output: Output.object({
+          schema: ConversationPairwiseJudgeOutputSchema,
+        }),
         instructions:
           "Sei un giudice severo di conversazioni di coaching. Non inferire l'identita delle varianti.",
         prompt: buildConversationPairwiseJudgePrompt({
@@ -139,7 +143,8 @@ export async function judgeConversationPair({
           openrouter: getOpenRouterProviderOptionsForModel(judgeModelId),
         },
       });
-      if (!result.output) throw new Error("Conversational judge returned no output");
+      if (!result.output)
+        throw new Error("Conversational judge returned no output");
       const metrics = extractAIMetrics(judgeModelId, startedAt, {
         text: "",
         usage: result.usage,
@@ -166,7 +171,8 @@ export function revealVerdict(
   preferred: ConversationPairwiseJudgeOutput["preferred"],
   assignment: BlindAssignment,
 ): ConversationVerdict {
-  if (preferred === "tie" || preferred === "both_insufficient") return preferred;
+  if (preferred === "tie" || preferred === "both_insufficient")
+    return preferred;
   return assignment[preferred];
 }
 
