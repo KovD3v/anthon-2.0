@@ -59,7 +59,7 @@ export function freezeCapabilityDecision(
   }) as unknown as CapabilityDecision;
 }
 
-const classifierCapabilities = [
+export const CLASSIFIER_CAPABILITIES = [
   "rag",
   "webSearch",
   "webFetch",
@@ -71,7 +71,7 @@ const classifierCapabilities = [
   "voiceOutput",
 ] as const;
 
-type ClassifierCapability = (typeof classifierCapabilities)[number];
+type ClassifierCapability = (typeof CLASSIFIER_CAPABILITIES)[number];
 
 function normalizeResolvedMemoryTarget(target: string | null | undefined) {
   return isDeletableStableMemoryKey(target) ? target : null;
@@ -83,7 +83,7 @@ const capabilityVoteSchema = z.object({
 });
 const capabilityClassifierSchema = z.object(
   Object.fromEntries(
-    classifierCapabilities.map((capability) => [
+    CLASSIFIER_CAPABILITIES.map((capability) => [
       capability,
       capabilityVoteSchema,
     ]),
@@ -123,7 +123,7 @@ export function acceptCapabilityVotes(
   >,
 ): Partial<CapabilityDecision> {
   const accepted: Partial<CapabilityDecision> = {};
-  for (const capability of classifierCapabilities) {
+  for (const capability of CLASSIFIER_CAPABILITIES) {
     const vote = output[capability];
     if (!vote || vote.confidence < CAPABILITY_CLASSIFIER_MIN_CONFIDENCE)
       continue;
@@ -208,7 +208,7 @@ export function normalizeCapabilityDecision(
     classifier?.[capability] === true;
   const hasClassifierProposal = Boolean(
     classifier &&
-      classifierCapabilities.some((capability) => proposed(capability)),
+      CLASSIFIER_CAPABILITIES.some((capability) => proposed(capability)),
   );
 
   const explicitMemoryRead = matchesMemoryReadIntent(input.userMessage);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CLASSIFIER_CAPABILITIES } from "./capability-arbitration";
 
 const MAX_CLASSIFIER_CONTEXT_CHARS = 2_000;
 
@@ -20,17 +21,10 @@ export const CAPABILITY_CLASSIFIER_MIN_CONFIDENCE = 0.7;
 export type TaskKind = (typeof TASK_KINDS)[number];
 export type ClassifierCapabilityValue = "yes" | "no" | "uncertain";
 
-export type CapabilityClassifierProposal = {
-  rag: ClassifierCapabilityValue;
-  webSearch: ClassifierCapabilityValue;
-  webFetch: ClassifierCapabilityValue;
-  memoryRead: ClassifierCapabilityValue;
-  memoryWrite: ClassifierCapabilityValue;
-  memoryDelete: ClassifierCapabilityValue;
-  routineProposal: ClassifierCapabilityValue;
-  userContext: ClassifierCapabilityValue;
-  voiceOutput: ClassifierCapabilityValue;
-};
+export type CapabilityClassifierProposal = Record<
+  (typeof CLASSIFIER_CAPABILITIES)[number],
+  ClassifierCapabilityValue
+>;
 
 export type WorkloadProposal = {
   taskKind: TaskKind;
@@ -51,17 +45,17 @@ export type TurnClassifierProposal = {
 const classifierCapabilityValueSchema = z.enum(["yes", "no", "uncertain"]);
 
 const capabilityClassifierProposalSchema = z
-  .object({
-    rag: classifierCapabilityValueSchema,
-    webSearch: classifierCapabilityValueSchema,
-    webFetch: classifierCapabilityValueSchema,
-    memoryRead: classifierCapabilityValueSchema,
-    memoryWrite: classifierCapabilityValueSchema,
-    memoryDelete: classifierCapabilityValueSchema,
-    routineProposal: classifierCapabilityValueSchema,
-    userContext: classifierCapabilityValueSchema,
-    voiceOutput: classifierCapabilityValueSchema,
-  })
+  .object(
+    Object.fromEntries(
+      CLASSIFIER_CAPABILITIES.map((capability) => [
+        capability,
+        classifierCapabilityValueSchema,
+      ]),
+    ) as Record<
+      (typeof CLASSIFIER_CAPABILITIES)[number],
+      typeof classifierCapabilityValueSchema
+    >,
+  )
   .strict();
 
 const workloadProposalSchema = z

@@ -62,6 +62,18 @@ describe("turn classification contract", () => {
     expect(parseTurnClassifierOutput(value)).toBeNull();
   });
 
+  it("rejects unknown capability keys at the top-level capability object", () => {
+    expect(
+      parseTurnClassifierOutput({
+        ...validOutput,
+        capabilities: {
+          ...validOutput.capabilities,
+          extraCapability: "no",
+        },
+      }),
+    ).toBeNull();
+  });
+
   it("asks for workload classification without asking for a model", () => {
     const prompt = buildTurnClassifierPrompt(
       "Rendilo più breve",
