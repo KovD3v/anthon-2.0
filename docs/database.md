@@ -71,6 +71,10 @@ expiration provides a cleanup backstop if process-level deletion fails.
 
 ## Entity Relationship Overview
 
+This diagram shows the primary user-owned records. The sections below also
+cover conversation threads, coaching routines, model experiments, AI traces,
+reservations, attachments, and durable voice jobs.
+
 ```
 ┌─────────────────┐
 │      User       │
@@ -114,7 +118,7 @@ Central identity for all user data across channels.
 | `role`      | UserRole  | USER, ADMIN, or SUPER_ADMIN |
 | `deletedAt` | DateTime? | Soft delete timestamp       |
 
-Guest support (used mainly by non-web channels like Telegram):
+Guest support is used by anonymous web chat and by unlinked external channels:
 
 - `isGuest` marks a user created before sign-up.
 - `guestTokenHash` is the unique hash of the revocable HttpOnly guest session
@@ -132,7 +136,11 @@ Conversation container for grouping messages.
 | `id`         | String         | CUID primary key           |
 | `userId`     | String         | Owner reference            |
 | `title`      | String?        | Auto-generated or user-set |
+| `customTitle`| Boolean        | Whether the title was manually set |
+| `icon`       | ChatIcon       | Generated or fallback conversation icon |
 | `visibility` | ChatVisibility | PRIVATE or PUBLIC          |
+| `routineContextRoutineId` | String? | Routine reused to start this chat |
+| `routineContextMode` | RoutineChatMode? | REPEAT or ADAPT invocation mode |
 | `deletedAt`  | DateTime?      | Soft delete timestamp      |
 
 ### Message
@@ -143,6 +151,7 @@ Individual messages supporting text, media, and AI metadata.
 | -------------- | ---------------- | ------------------------------------------------- |
 | `id`           | String           | CUID primary key                                  |
 | `chatId`       | String?          | Parent chat reference                            |
+| `conversationThreadId` | String?   | Stable channel-scoped conversation reference     |
 | `role`         | MessageRole      | USER, ASSISTANT, SYSTEM                          |
 | `direction`    | MessageDirection | INBOUND or OUTBOUND                              |
 | `type`         | MessageType      | TEXT, IMAGE, AUDIO, etc.                         |
@@ -160,6 +169,23 @@ Individual messages supporting text, media, and AI metadata.
 | `costUsd`      | Float?           | Response cost                                    |
 | `ragUsed`      | Boolean?         | Whether RAG was used                             |
 | `feedback`     | Int?             | -1, 0, 1 user feedback on assistants            |
+
+`MessageMetrics` is the normalized one-to-one telemetry record for a persisted
+assistant message. It stores provider/model identifiers, token and cost data,
+generation timing, RAG usage, redacted provider metadata, and bounded tool
+timing. Legacy scalar metrics remain on `Message` for compatibility.
+
+### ConversationThread and ConversationThreadSummary
+
+`ConversationThread` is the stable raw-history boundary. Web chats have a
+one-to-one `chatId`; Telegram and WhatsApp use their stable external thread
+identifier. The unique key `(userId, channel, externalThreadId)` prevents raw
+history from crossing users or channels.
+
+`ConversationThreadSummary` stores one rolling summary per thread, including
+the last covered message and a version number. Model-comparison pairs and AI
+turn traces also reference the same thread so preparation, persistence, and
+recovery use one conversation scope.
 
 ### Profile
 
@@ -184,6 +210,8 @@ Communication and behavior preferences.
 | `mode`     | String?  | "coaching", "friendly", "direct"    |
 | `language` | String?  | "IT", "EN", etc.                    |
 | `push`     | Boolean? | Push notifications enabled          |
+| `voiceEnabled` | Boolean? | Whether automatic voice delivery is allowed |
+| `showTechnicalMetrics` | Boolean? | Whether technical response metrics are shown |
 
 ### Memory
 
@@ -196,6 +224,30 @@ Persistent key-value storage for user information.
 | `category` | String | Memory category: identity, sport, goal, preference, health, schedule, other |
 
 Unique constraint on `(userId, key)` ensures one value per key per user.
+
+### MemoryApproval
+
+Pending approval for a sensitive or high-impact memory proposed by the
+agentic planner. The record binds the proposed key/value/category to one user
+and one source inbound message, expires automatically, and transitions through
+`PENDING`, `APPROVED`, `REJECTED`, or `EXPIRED`. This lets a later natural
+confirmation resolve the proposal without trusting model-supplied identifiers.
+
+## Coaching Routines
+
+### Routine
+
+User-owned reusable coaching routine saved from a validated assistant proposal.
+It stores its trigger, versioned JSON steps, duration label, completion cue,
+active/archive state, source chat/message, and optional parent routine when an
+adaptation is created. Multiple chats may invoke the same routine in `REPEAT`
+or `ADAPT` mode without duplicating the definition.
+
+### RoutineAttempt
+
+One idempotent execution of a routine. `(routineId, clientActionId)` is unique;
+the attempt stores its timestamp and optional `HELPFUL`, `PARTIALLY_HELPFUL`,
+or `NOT_HELPFUL` outcome plus a bounded user note.
 
 ## RAG Models
 
@@ -267,6 +319,24 @@ reservation and remove any just-created Blob.
 Stores only a keyed address fingerprint, UTC window, and guest-creation count.
 The atomic upsert enforces the daily creation cap across cookie resets and
 concurrent requests. Old windows are retained for 30 days and then removed.
+
+## AI Experiments and Traces
+
+### ModelExperiment
+
+Administrative definition for a guarded two-variant comparison. Related
+models store the control/candidate variants, enrolled participants, immutable
+pairs, per-variant responses, lifecycle audits, and the user's final vote or
+automatically selected canonical response. Each pair also persists the exact
+conversation thread, prompt mode, capability-planner mode, expiry, and content
+purge deadline used for that comparison.
+
+### AiTurnTrace and AiTraceAccessAudit
+
+`AiTurnTrace` stores bounded operational metadata for one AI turn and may store
+an AES-256-GCM encrypted content payload with an explicit expiry. Trace listing
+is redacted; superadmin content access creates an append-only
+`AiTraceAccessAudit`. The scheduled cleanup removes expired traces.
 
 ### Subscription
 
@@ -380,6 +450,14 @@ Tracks an uploaded file (stored in Vercel Blob) and optionally links it to a mes
   inbound message. An attachment linked elsewhere is rejected.
 - AI and transcription inputs are loaded from the canonical stored Blob URL;
   client-provided inline bytes are never authoritative.
+
+### VoiceGenerationJob and VoiceUsage
+
+`VoiceGenerationJob` owns the retry-safe QStash/ElevenLabs lifecycle for one
+web assistant message. Status, claim token, lease, attempt count, private Blob
+object, attachment, timing, and error code make at-least-once delivery safe.
+`VoiceUsage` records the associated character count, estimated cost, channel,
+and generation timestamp for plan enforcement and analytics.
 
 ### Artifact / ArtifactVersion
 

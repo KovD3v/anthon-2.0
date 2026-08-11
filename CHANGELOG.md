@@ -46,6 +46,14 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Replaced generic chat suggestions with focused coaching starters for
+  performance anxiety, confidence, important-match preparation, and open-ended
+  situations, and removed the separate desktop “Conversazione libera” action
+  while keeping the composer available for any topic.
+- Kept mental-performance support inside Anthon instead of referring users to
+  outside coaching or psychology providers, while retaining brief medical or
+  emergency direction for recurring physical symptoms, injury, or immediate
+  danger.
 - Enabled the agentic capability planner for Preview deployments through
   `AI_CAPABILITY_PLANNER_MODE`, while keeping Production on the legacy planner
   for staged validation.
@@ -101,6 +109,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Kept the chat composer coherent while voice recording or upload is active by
+  hiding conflicting attachment, text, and send controls until the recorder is
+  ready.
 - Kept the assistant response bubble continuous from loading through streaming
   and persistence, showing its relative timestamp immediately and reserving
   toolbar space so technical details and feedback controls do not shift layout.

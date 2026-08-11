@@ -41,10 +41,12 @@ Routes commonly use helpers from `@/lib/api/responses`:
 | Method | Path | Description |
 | ------ | ---- | ----------- |
 | `POST` | `/api/chat` | Stream assistant response for a chat message. |
+| `POST` | `/api/chat/warmup` | Best-effort database warmup when chat input starts; returns `204` and reads no user data. |
+| `POST` | `/api/chat/model-comparisons/[pairId]/vote` | Resolve an eligible model-comparison pair and persist the selected assistant response. |
 | `GET` | `/api/chats` | List chats for current user. |
 | `POST` | `/api/chats` | Create new chat. |
 | `GET` | `/api/chats/[id]` | Get chat details and paginated messages. |
-| `PATCH` | `/api/chats/[id]` | Update chat title/visibility, optionally generate title. |
+| `PATCH` | `/api/chats/[id]` | Update chat title/visibility or generate title and icon metadata. |
 | `DELETE` | `/api/chats/[id]` | Delete chat and related entities. |
 | `GET` | `/api/chats/[id]/export` | Export chat as Markdown download. |
 | `GET` | `/api/chats/search?q=...` | Search inside user messages. |
@@ -54,10 +56,23 @@ Routes commonly use helpers from `@/lib/api/responses`:
 | `POST` | `/api/chat/feedback` | Save thumbs feedback on assistant message (`-1`, `0`, `1`). |
 | `GET` | `/api/usage` | Get usage, limits, and effective entitlement source for current user. |
 | `GET` | `/api/preferences` | Read user preferences. |
-| `PATCH` | `/api/preferences` | Update user preferences (`voiceEnabled`, `tone`, `mode`, `language`, `push`). |
+| `PATCH` | `/api/preferences` | Update preferences (`voiceEnabled`, `showTechnicalMetrics`, `tone`, `mode`, `language`, `push`). |
+| `GET` | `/api/coaching-context` | Read the user-owned coaching profile and projected memories. |
+| `PATCH` | `/api/coaching-context` | Update the user-owned coaching profile. |
+| `PATCH` | `/api/coaching-context/memories/[memoryId]` | Update one user-owned coaching memory. |
+| `DELETE` | `/api/coaching-context/memories/[memoryId]` | Delete one user-owned coaching memory. |
+| `GET` | `/api/coaching/routines` | List the active/archived routine collection or resolve the current return routine. |
+| `POST` | `/api/coaching/routines` | Save a validated routine proposal from an owned assistant message. |
+| `GET` | `/api/coaching/routines/[routineId]` | Get one user-owned routine with its latest attempt. |
+| `PATCH` | `/api/coaching/routines/[routineId]` | Archive one user-owned routine idempotently. |
+| `GET` | `/api/coaching/routines/[routineId]/attempts` | List attempts for one user-owned routine. |
+| `POST` | `/api/coaching/routines/[routineId]/attempts` | Create an idempotent routine attempt. |
+| `PATCH` | `/api/coaching/attempts/[attemptId]` | Record or update the outcome of one user-owned attempt. |
 | `POST` | `/api/upload` | Upload attachment to Vercel Blob and register `Attachment`. |
 | `DELETE` | `/api/upload?url=...` | Delete uploaded blob for current user. |
 | `DELETE` | `/api/channels/[id]` | Disconnect a linked channel identity. |
+| `GET` | `/api/voice/messages/[messageId]` | Stream authorized private audio for one owned or public assistant message. |
+| `DELETE` | `/api/user/me` | Delete the authenticated account and its owned application data. |
 
 ### Key request payloads
 
@@ -125,6 +140,9 @@ the rating and its reason. Guest chats use the same payload at
 | `GET` | `/api/guest/chats/[id]` | Get guest chat detail. |
 | `PATCH` | `/api/guest/chats/[id]` | Update guest chat title/visibility. |
 | `DELETE` | `/api/guest/chats/[id]` | Delete guest chat. |
+| `POST` | `/api/guest/chat/feedback` | Save guest feedback on an owned assistant message. |
+| `DELETE` | `/api/guest/chat/messages?id=...` | Delete one owned guest message and truncate following messages. |
+| `POST` | `/api/guest/convert` | Retry cookie-backed guest-data conversion for an authenticated user. |
 | `GET` | `/api/guest/usage` | Guest usage and limits. |
 
 Notes:
@@ -160,6 +178,7 @@ uses `/api/admin/rag` for document management.
 | ------ | ---- | ----------- |
 | `POST` | `/api/chat` | Voice-first replies return their transcript immediately; audio attaches asynchronously to the same message. |
 | `POST` | `/api/voice/generate` | Generate audio for an assistant message (plan + funnel checks apply). |
+| `GET` | `/api/voice/messages/[messageId]` | Proxy authorized audio with range support and private no-store caching. |
 
 `POST /api/voice/generate` body:
 
@@ -189,6 +208,15 @@ uses `/api/admin/rag` for document management.
 | `GET` | `/api/admin/organizations/[organizationId]/audit` | Paginated organization audit events. |
 | `GET` | `/api/admin/elevenlabs/stats` | Voice generation statistics. |
 | `GET` | `/api/admin/health` | Admin-only deep diagnostics for DB, OpenRouter, Clerk, and Blob. |
+| `GET` | `/api/admin/model-experiments` | List model experiments and readiness facts. |
+| `POST` | `/api/admin/model-experiments` | Create a draft model experiment. |
+| `GET` | `/api/admin/model-experiments/[experimentId]` | Get experiment configuration and variants. |
+| `PATCH` | `/api/admin/model-experiments/[experimentId]` | Update a draft experiment. |
+| `DELETE` | `/api/admin/model-experiments/[experimentId]` | Delete an eligible experiment. |
+| `POST` | `/api/admin/model-experiments/[experimentId]/actions` | Apply a validated experiment lifecycle action. |
+| `GET` | `/api/admin/model-experiments/[experimentId]/results` | Read experiment results and pair aggregates. |
+| `GET` | `/api/admin/ai-traces` | Superadmin-only list of redacted AI turn traces. |
+| `GET` | `/api/admin/ai-traces/[traceId]` | Superadmin-only trace detail with audited access to encrypted content. |
 
 ## Operations and Maintenance API
 
@@ -198,6 +226,9 @@ uses `/api/admin/rag` for document management.
 | `GET` | `/api/cron/trigger?job=all|consolidate|archive|analyze` | Publish maintenance jobs to QStash (`CRON_SECRET` required). |
 | `GET` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |
 | `POST` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |
+| `GET` | `/api/cron/cleanup-ai-traces` | Delete expired encrypted AI traces (`CRON_SECRET` required). |
+| `POST` | `/api/cron/cleanup-ai-traces` | Delete expired encrypted AI traces (`CRON_SECRET` required). |
+| `GET` | `/api/cron/model-comparisons` | Expire and purge model-comparison pairs (`CRON_SECRET` required). |
 | `POST` | `/api/queues/consolidate` | Internal QStash consumer for memory consolidation. |
 | `POST` | `/api/queues/archive` | Internal QStash consumer for session archive. |
 | `POST` | `/api/queues/analyze` | Internal QStash consumer for profile analysis. |

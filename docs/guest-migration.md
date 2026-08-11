@@ -1,6 +1,7 @@
 # Guest User Migration
 
-When a guest user (anonymous) registers or links a channel, their data is migrated to the registered account.
+When an anonymous web user registers, signs in, or links an external channel,
+their durable guest data is migrated to the registered account.
 
 ## Overview
 
@@ -15,14 +16,28 @@ When a guest user (anonymous) registers or links a channel, their data is migrat
         ├── Profile        ───►     │ All data unified
         ├── Preferences             │
         ├── Memories                │
-        └── SessionSummaries        │
+        ├── ConversationThreads     │
+        ├── AI turn traces          │
+        ├── SessionSummaries        │
+        └── Usage counters          │
 ```
 
 ## Migration Trigger
 
-Migration is triggered when a guest user links a channel (e.g., Telegram) to a registered account via the `/link/telegram/[token]` flow.
+Cookie-backed web conversion is coordinated by
+`convertGuestForAuthenticatedUser()` in `src/lib/guest-conversion.ts`. It runs
+before authenticated chat data is loaded, including the chat layout,
+`/chat/[id]`, and `GET /api/chats`. The client may also retry it with
+`POST /api/guest/convert` after the rendered layout could not mutate cookies.
 
-**File:** `src/lib/guest-migration.ts`
+Telegram and WhatsApp linking flows also call the lower-level migration when an
+external guest identity is connected to an authenticated account.
+
+The guest cookie is cleared after successful conversion, when it is stale, or
+when it already belongs to the authenticated user. A retryable transaction
+failure preserves the cookie so a later request can try again.
+
+**Files:** `src/lib/guest-conversion.ts`, `src/lib/guest-migration.ts`
 
 ## Conflict Resolution Strategy
 
@@ -40,11 +55,15 @@ When the guest user has data that conflicts with the registered user's existing 
 | --------------------- | ----------------------------------- |
 | **Messages**          | All moved to registered user        |
 | **Chats**             | All moved to registered user        |
+| **ConversationThreads** | All moved with their chats/messages |
+| **AiTurnTraces**      | All moved with their conversation threads |
 | **Profile**           | Merge with recency priority         |
 | **Preferences**       | Merge with recency priority         |
 | **Memories**          | Move or update based on recency     |
 | **SessionSummaries**  | All moved to registered user        |
 | **DailyUsage**        | Aggregated (counters are summed)    |
+| **DailyUploadUsage**  | Aggregated by UTC day               |
+| **In-flight reservations** | Deleted instead of transferred because claims are identity-scoped |
 | **ChannelIdentities** | Updated to point to registered user |
 
 ## Conflict Logging
@@ -80,6 +99,18 @@ Conflicts are saved as a special memory entry `_migration_conflicts` for referen
 | `target_newer` | Target data was more recent, kept original  |
 
 ## API Usage
+
+Authenticated application surfaces normally call the cookie-aware coordinator:
+
+```typescript
+import { convertGuestForAuthenticatedUser } from "@/lib/guest-conversion";
+
+const outcome = await convertGuestForAuthenticatedUser(userId);
+// no_cookie | stale_cookie | already_owned | migrated | retryable_failure
+```
+
+Channel-linking flows that already resolved both internal user IDs call the
+lower-level atomic migration directly:
 
 ```typescript
 import { migrateGuestToUser } from "@/lib/guest-migration";

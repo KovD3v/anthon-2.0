@@ -21,8 +21,8 @@ Anthon 2.0 is built on Next.js 16 with the App Router, following a modular archi
                                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                        API Routes                                │
-│  /api/chat  │  /api/chats  │  /api/rag/* │ /api/usage          │
-│  /api/preferences │ /api/guest/* │ /api/webhooks/*            │
+│  /api/chat │ /api/chats │ /api/coaching/* │ /api/rag/*         │
+│  /api/guest/* │ /api/admin/* │ /api/queues/* │ /api/webhooks/* │
 └─────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
@@ -66,16 +66,23 @@ app/
 
 | Module                   | Purpose                            |
 | ------------------------ | ---------------------------------- |
-| `ai/orchestrator.ts`     | Main chat streaming, prompt modes, and tool gating |
-| `ai/session-manager.ts`  | Builds conversation context        |
-| `ai/rag.ts`              | Document search with embeddings    |
-| `ai/memory-extractor.ts` | Extracts and stores user memories  |
-| `ai/cost-calculator.ts`  | Tracks AI usage costs              |
+| `ai/orchestrator.ts`     | Main chat preparation, streaming, prompt composition, and tool exposure |
+| `ai/capability-arbitration.ts` | Per-message optional-capability classifier plus deterministic normalization |
+| `ai/turn-plan.ts`        | Immutable response, context, prompt, and capability plan |
+| `ai/session-manager.ts`  | Builds channel-scoped conversation context and summaries |
+| `ai/rag.ts` / `ai/tools/rag.ts` | pgvector retrieval and bounded agentic RAG tool |
+| `ai/tools/memory.ts`     | Guarded memory read/write/approval/delete operations |
+| `ai/tools/routine-proposal.ts` | Validated proposal-only routine tool |
+| `ai/tools/tinyfish.ts`   | TinyFish web search/fetch tools |
+| `ai/cost-calculator.ts`  | Normalizes model, token, capability, timing, and cost metrics |
 | `ai/providers/`          | OpenRouter model and provider routing |
-| `ai/tools/tinyfish.ts`   | TinyFish web search/fetch tools    |
+| `channel-flow/`          | Shared Web, Telegram, and WhatsApp execution/persistence flow |
+| `coaching/`              | Routine contracts, runner state, return flow, and analytics |
+| `model-experiments/`     | Guarded paired comparisons, votes, lifecycle, and maintenance |
+| `voice/`                 | Voice admission, durable generation, private delivery, and cleanup |
 | `auth.ts`                | Clerk authentication utilities     |
 | `api/responses.ts`       | Shared API response helpers        |
-| `rate-limit/`            | Usage limits per subscription tier (types, config, usage tracking, checking, upgrade CTA) |
+| `rate-limit/`            | Atomic usage reservations, reconciliation, and upgrade state |
 | `organizations/`         | B2B organization management (Clerk API wrappers, audit logging, helpers, service logic) |
 | `db.ts`                  | Prisma client instance             |
 
@@ -96,40 +103,48 @@ components/
           │
           ▼
 2. POST /api/chat
-   ├── Check rate limit
-   ├── Validate input
-   └── Start streaming
+   ├── Authenticate user or guest
+   ├── Validate the message and claimed attachments
+   ├── Resolve effective entitlements
+   └── Claim the idempotency key and reserve finite usage
           │
           ▼
-3. Orchestrator
+3. Shared channel flow + orchestrator
    ├── Resolve model and OpenRouter provider options
-   ├── Classify prompt modules and choose prompt mode
-   ├── Get conversation context when needed
-   ├── Gate RAG and web tools by intent
-   └── Stream response with selected tools
+   ├── Arbitrate optional capabilities for this message
+   ├── Normalize and freeze one immutable TurnPlan
+   ├── Build same-thread context when selected
+   └── Stream with only the selected, server-authorized tools
           │
           ▼
 4. Tools (if invoked)
    ├── tinyfishSearch / tinyfishFetch
-   ├── updateProfile
-   ├── updatePreferences
-   ├── saveMemory
-   └── addNotes
+   ├── searchRag
+   ├── get/update user context
+   ├── guarded memory operations
+   └── proposeRoutine (proposal only)
           │
           ▼
-5. Save message to database
-   ├── Track tokens/cost
-   └── Update daily usage
+5. Persistence barrier
+   ├── Save exactly one assistant message and normalized metrics
+   ├── Reconcile the usage reservation atomically
+   ├── Persist the completed capability decision
+   └── Retain bounded recovery data if final persistence fails
           │
           ▼
 6. Stream response to client
+   └── Optionally enqueue durable voice generation after text persists
 ```
 
 ## Key Design Decisions
 
-### Session-Based Context
+### Thread-Scoped Context
 
-Messages are grouped into sessions (15-minute gaps = new session). Long sessions are summarized to stay within token limits while preserving context.
+Raw context is scoped by `ConversationThread`, never shared across channels.
+Web chats map one-to-one to a thread; Telegram and WhatsApp use their stable
+external thread identifier. Rolling thread summaries keep long conversations
+within limits. The older 15-minute session grouping remains for maintenance and
+archival compatibility, not as the primary live-chat boundary.
 
 ### RAG with pgvector
 
@@ -139,9 +154,20 @@ Documents are chunked and embedded using `openai/text-embedding-3-small` (1536 d
 
 The `ChannelIdentity` model allows users to interact via Web, Telegram, or WhatsApp with a unified profile and memory.
 
-### Tool-Based Memory
+### Guarded Tool-Based Memory
 
-The AI can use tools (`saveMemory`, `updateProfile`) to persist important user information, creating a personalized coaching experience.
+In agentic mode, the AI may use bounded memory and user-context tools when the
+immutable capability decision permits them. Ordinary low-risk facts may be
+saved silently; sensitive facts require attributable confirmation, and deletion
+requires explicit intent plus one exact server-resolved target. Guests cannot
+persist memory.
+
+### Coaching Routine Loop
+
+The assistant can propose a validated routine inside a message, but the tool
+cannot save or run it. User acceptance persists a reusable `Routine`; execution
+and check-in happen inline through `RoutineAttempt`, with repeat/adapt chats
+referencing the original routine rather than copying it.
 
 ### Fast Chat Path
 

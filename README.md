@@ -7,8 +7,10 @@ An AI-powered coaching chat application built with Next.js 16, featuring intelli
 -   **AI Coaching Chat** - Streaming conversations via OpenRouter with plan-based model routing, prompt caching, and provider latency routing
 -   **RAG System** - Knowledge retrieval using pgvector embeddings with intent gating to avoid unnecessary retrieval
 -   **Web Search Tools** - TinyFish search/fetch tools for current external information
--   **Session Management** - Intelligent context building with automatic summarization
--   **Persistent Memory** - AI remembers user preferences and important information
+-   **Thread-Scoped Context** - Channel-isolated history with rolling summaries and bounded recovery
+-   **Guarded Persistent Memory** - Per-turn read/write tools with approval and exact-target deletion safeguards
+-   **Interactive Coaching Routines** - Validated in-chat routine proposals, timers, attempts, check-ins, history, repeat, and adapt flows
+-   **Model Comparisons and AI Traces** - Guarded paired experiments plus encrypted, expiring operational traces for administrators
 -   **Automated Maintenance** - Background jobs for memory consolidation and profile analysis via QStash
 -   **Multi-Channel** - Web, Telegram, and WhatsApp support with unified user identity
 -   **Rate Limiting** - Usage tracking with subscription tiers
@@ -45,16 +47,20 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | [Getting Started](./docs/getting-started.md) | Setup + user/admin runbook (non-technical) |
 | [Architecture](./docs/architecture.md)       | System architecture and project structure  |
 | [Database](./docs/database.md)               | Prisma schema and data models              |
-| [AI System](./docs/ai-system.md)             | Orchestrator, RAG, sessions, and memory    |
+| [AI System](./docs/ai-system.md)             | Orchestrator, capabilities, thread context, RAG, and memory |
 | [Maintenance](./docs/maintenance.md)         | Automated jobs and QStash integration      |
 | [API Reference](./docs/api.md)               | REST API endpoints documentation           |
 | [Authentication](./docs/authentication.md)   | Clerk integration and user roles           |
 | [Rate Limiting](./docs/rate-limiting.md)     | Usage limits and subscription tiers        |
+| [User Plan States](./docs/user-plan-states.md) | Product-facing plan, upload, context, and voice behavior |
 | [Organizations](./docs/organizations.md)     | B2B contracts, seats, and Clerk org sync   |
 | [Guest Migration](./docs/guest-migration.md) | Guest-to-registered migration flow          |
 | [Telegram Webhook](./docs/telegram-webhook.md) | Telegram bot webhook processing          |
 | [WhatsApp Webhook](./docs/whatsapp-webhook.md) | WhatsApp Cloud API webhook processing    |
+| [Async Voice Generation](./docs/voice-async-generation.md) | Durable voice queue and recovery flow |
+| [Private Voice Storage](./docs/voice-storage.md) | Private Blob delivery and retention policy |
 | [QA Test Plan](./docs/qa-test-plan.md)       | Test scope, execution flow, and bug reporting |
+| [Benchmarks](./docs/benchmarks/)             | Model, metadata, voice, and conversational-quality evidence |
 
 ## 🛠 Tech Stack
 
@@ -78,7 +84,11 @@ anthon-2.0/
 │   │   └── api/         # API routes
 │   ├── components/    # Shared UI components
 │   ├── lib/           # Core business logic
-│   │   ├── ai/        # AI orchestrator, RAG, sessions
+│   │   ├── ai/        # Orchestration, capability planning, RAG, memory
+│   │   ├── channel-flow/ # Shared Web/Telegram/WhatsApp execution
+│   │   ├── coaching/  # Routine contracts, runner, and return flow
+│   │   ├── model-experiments/ # Paired comparison lifecycle
+│   │   ├── voice/     # Durable voice generation and storage
 │   │   └── ...        # Auth, rate-limit, utils
 │   └── hooks/         # React hooks
 ├── prisma/            # Database schema & migrations

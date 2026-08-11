@@ -53,11 +53,20 @@ OPENROUTER_API_KEY="sk-or-..."
 Feature-specific variables:
 
 - Uploads: `BLOB_READ_WRITE_TOKEN`
+- Private generated voice: `VOICE_BLOB_READ_WRITE_TOKEN`
 - Web search tools: `TINYFISH_API_KEY`
+- Agentic optional-capability rollout: `AI_CAPABILITY_PLANNER_MODE=agentic`
+- Encrypted AI trace content: `AI_TRACE_ENCRYPTION_KEY`
 - Maintenance jobs: `QSTASH_URL`, `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `CRON_SECRET`, `APP_URL`
 - Telegram channel: `TELEGRAM_*`
 - WhatsApp channel: `WHATSAPP_*`
 - Voice generation: `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`
+- Product analytics and feature flags: `POSTHOG_API_KEY`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`
+
+`AI_CAPABILITY_PLANNER_MODE` accepts `legacy` or `agentic`; missing and invalid
+values resolve to `legacy`. Configure it independently per Vercel environment.
+The current staged rollout enables `agentic` in Preview while Production stays
+on `legacy` until promotion is explicitly approved.
 
 `NEXT_PUBLIC_APP_URL` is used for link generation (channel linking, embedding headers, callbacks).
 

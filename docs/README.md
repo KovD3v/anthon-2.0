@@ -9,17 +9,20 @@ Welcome to the Anthon 2.0 documentation. Anthon is an AI-powered coaching chat a
 | [Getting Started](./getting-started.md) | Setup + user/admin runbook (non-technical)   |
 | [Architecture](./architecture.md)       | System architecture and project structure    |
 | [Database](./database.md)               | Prisma schema and data models                |
-| [AI System](./ai-system.md)             | Orchestrator, routing, tools, RAG, sessions, and memory |
+| [AI System](./ai-system.md)             | Orchestrator, routing, tools, RAG, thread context, and memory |
 | [Maintenance](./maintenance.md)         | Automated jobs, cron trigger, and QStash queues |
 | [API Reference](./api.md)               | REST API endpoints documentation             |
 | [Authentication](./authentication.md)   | Clerk integration and user roles             |
 | [Rate Limiting](./rate-limiting.md)     | Usage limits and subscription tiers          |
+| [User Plan States](./user-plan-states.md) | Product-facing plan, upload, context, and voice behavior |
 | [Organizations](./organizations.md)     | B2B contracts, seats, and entitlement model  |
 | [Guest Migration](./guest-migration.md) | Guest to registered user data migration      |
 | [Telegram Webhook](./telegram-webhook.md) | Telegram bot webhook flow                  |
 | [WhatsApp Webhook](./whatsapp-webhook.md) | WhatsApp Cloud API webhook flow            |
+| [Async Voice Generation](./voice-async-generation.md) | Durable voice queue, retry, and recovery flow |
 | [Private Voice Storage](./voice-storage.md) | Private web voice upload, delivery, and retention policy |
 | [QA Test Plan](./qa-test-plan.md)       | Test checklist, execution process, and GitHub issue workflow |
+| [Benchmarks](./benchmarks/)             | Model, metadata, voice, and conversational-quality evidence |
 
 ## 🛠 Technology Stack
 
