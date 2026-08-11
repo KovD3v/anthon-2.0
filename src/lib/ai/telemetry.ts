@@ -1,5 +1,9 @@
 import { normalizePreDeliveryCapabilityUsage } from "@/lib/ai/capability-usage";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
+import {
+  type ExecutionRouteTrace,
+  parseExecutionRouteTrace,
+} from "@/lib/ai/execution-route-trace";
 import { createLogger } from "@/lib/logger";
 import { getPostHogClient } from "@/lib/posthog";
 
@@ -22,6 +26,28 @@ export type AiGenerationTelemetryContext = {
 
 function boundedLabel(value: string | null | undefined) {
   return value?.slice(0, MAX_LABEL_LENGTH);
+}
+
+function executionRouteTelemetryProperties(trace: ExecutionRouteTrace) {
+  return {
+    routing_mode: trace.routingMode,
+    eligible_profile: trace.eligibleProfile,
+    planned_profile: trace.plannedProfile,
+    executed_profile: trace.executedProfile,
+    task_kind: trace.taskKind,
+    decision_source: trace.decisionSource,
+    confidence_bucket: trace.confidenceBucket,
+    policy_version: trace.policyVersion,
+    classifier_version: trace.classifierVersion,
+    attempt_count: trace.attempts.length,
+    escalated: trace.escalation !== undefined,
+    ...(trace.escalation ? { escalation_reason: trace.escalation.reason } : {}),
+    classification_latency_ms: trace.classificationLatencyMs,
+    routing_overhead_ms: trace.routingOverheadMs,
+    ...(trace.totalRequestTimeToFirstTokenMs !== undefined
+      ? { total_request_ttft_ms: trace.totalRequestTimeToFirstTokenMs }
+      : {}),
+  };
 }
 
 /**
@@ -92,6 +118,9 @@ export function captureAiGenerationMetadata({
               toolUtilizedCount: metrics.toolOutcomes.utilized,
             }
           : {}),
+        ...(metrics.executionRoute
+          ? executionRouteTelemetryProperties(metrics.executionRoute)
+          : {}),
         reasoningTimeMs: metrics.reasoningTimeMs,
       },
     });
@@ -100,6 +129,57 @@ export function captureAiGenerationMetadata({
     telemetryLogger.warn(
       "ai.telemetry.capture_failed",
       "Failed to capture AI generation metadata",
+      {
+        errorName: error instanceof Error ? error.name : "unknown",
+        traceId: boundedLabel(context.traceId),
+      },
+    );
+  }
+}
+
+/**
+ * Emits one privacy-safe routing event when a routed turn reaches a terminal
+ * outcome, including failures that never create assistant metrics or a message.
+ */
+export function captureAiExecutionRouting({
+  context,
+  executionRoute,
+  costUsd,
+}: {
+  context: AiGenerationTelemetryContext;
+  executionRoute: ExecutionRouteTrace;
+  costUsd?: number;
+}) {
+  const trace = parseExecutionRouteTrace(executionRoute);
+  if (!trace) {
+    telemetryLogger.warn(
+      "ai.telemetry.invalid_execution_route",
+      "Skipped invalid execution route telemetry",
+      { traceId: boundedLabel(context.traceId) },
+    );
+    return;
+  }
+
+  const terminalOutcome = trace.attempts.at(-1)?.outcome;
+  if (!terminalOutcome) return;
+
+  try {
+    getPostHogClient().capture({
+      distinctId: boundedLabel(context.distinctId) ?? "unknown",
+      event: "ai_execution_routing",
+      properties: {
+        ...executionRouteTelemetryProperties(trace),
+        terminal_outcome: terminalOutcome,
+        ...(typeof costUsd === "number" && Number.isFinite(costUsd)
+          ? { total_cost_usd: costUsd }
+          : {}),
+        $ai_trace_id: boundedLabel(context.traceId),
+      },
+    });
+  } catch (error) {
+    telemetryLogger.warn(
+      "ai.telemetry.routing_capture_failed",
+      "Failed to capture AI execution routing",
       {
         errorName: error instanceof Error ? error.name : "unknown",
         traceId: boundedLabel(context.traceId),

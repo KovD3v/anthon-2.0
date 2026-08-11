@@ -522,4 +522,66 @@ describe("ai/cost-calculator", () => {
 
     expect(result.inputTokens).toBe(0);
   });
+
+  it("aggregates all execution attempts while preserving delivered model and generation fields", () => {
+    const startTime = new Date("2026-02-17T12:00:00.000Z").getTime();
+    const executionRoute = {
+      schemaVersion: 1,
+      routingMode: "active",
+      policyVersion: 1,
+      classifierVersion: 1,
+      eligibleProfile: "light",
+      plannedProfile: "light",
+      executedProfile: "standard",
+      taskKind: "rewrite",
+      decisionSource: "classifier",
+      confidenceBucket: "high",
+      reasonCodes: ["classifier_light", "task_allowlisted"],
+      classificationLatencyMs: 25,
+      routingOverheadMs: 2,
+      attempts: [
+        {
+          sequence: 1,
+          profile: "light",
+          outcome: "failed_before_stream",
+          generationTimeMs: 50,
+          inputTokens: 5,
+          outputTokens: 0,
+          reasoningTokens: 0,
+          costUsd: 0.001,
+        },
+        {
+          sequence: 2,
+          profile: "standard",
+          outcome: "completed",
+          generationTimeMs: 800,
+          inputTokens: 50,
+          outputTokens: 25,
+          reasoningTokens: 7,
+          costUsd: 0.006,
+        },
+      ],
+      escalation: {
+        from: "light",
+        to: "standard",
+        reason: "empty_response",
+      },
+    } as const;
+
+    const result = extractAIMetrics("standard-model", startTime, {
+      text: "delivered",
+      usage: { promptTokens: 50, completionTokens: 25 },
+      executionRoute,
+    });
+
+    expect(result).toMatchObject({
+      model: "standard-model",
+      generationTimeMs: 10_000,
+      inputTokens: 55,
+      outputTokens: 25,
+      reasoningTokens: 7,
+      costUsd: 0.007,
+      executionRoute,
+    });
+  });
 });

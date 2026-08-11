@@ -9,6 +9,10 @@ import {
   type CapabilityUsage,
   normalizeCapabilityUsage,
 } from "./capability-usage";
+import {
+  type ExecutionRouteTrace,
+  sumExecutionAttemptUsage,
+} from "./execution-route-trace";
 import { type CostResult, calculateCost as tokenlensCost } from "./tokenlens";
 import type { ToolOutcomeSummary } from "./tool-outcomes";
 import { redactToolCalls } from "./tool-privacy";
@@ -158,6 +162,8 @@ export interface AIMetrics {
   tracePayload?: Record<string, unknown>;
   /** Validated separately from tool telemetry for routine-card persistence. */
   routineProposal?: unknown;
+  /** Bounded execution routing trace for a chat turn, if routing was evaluated. */
+  executionRoute?: ExecutionRouteTrace;
 }
 
 interface FinishResultInput {
@@ -188,6 +194,7 @@ interface FinishResultInput {
   routineUsed?: boolean;
   /** Advisory selection only. Actual voice usage is added after delivery. */
   voiceOutput?: boolean;
+  executionRoute?: ExecutionRouteTrace;
 }
 
 /**
@@ -287,9 +294,14 @@ export function extractAIMetrics(
     ...(finishResult.routineUsed === true ? ["routine"] : []),
   ]);
 
-  // Calculate cost: prefer OpenRouter's cost if available, otherwise calculate with TokenLens
-  // NOTE: We use the FULL input tokens for cost calculation before subtraction
-  const costUsd =
+  const attemptUsage = finishResult.executionRoute
+    ? sumExecutionAttemptUsage(finishResult.executionRoute.attempts)
+    : undefined;
+
+  // Calculate cost: prefer aggregate attempt usage, then OpenRouter's cost,
+  // otherwise calculate with TokenLens. Use full input before display adjustment.
+  const extractedCostUsd =
+    attemptUsage?.costUsd ??
     finishResult.providerCostUsd ??
     costFromOpenRouter ??
     calculateCost(
@@ -305,13 +317,12 @@ export function extractAIMetrics(
     0,
     inputTokens - excludePromptTokens - excludeToolTokens,
   );
-
   return {
     model: modelId,
     provider: extractProvider(finishResult.providerMetadata),
-    inputTokens: adjustedInputTokens,
-    outputTokens,
-    reasoningTokens,
+    inputTokens: attemptUsage?.inputTokens ?? adjustedInputTokens,
+    outputTokens: attemptUsage?.outputTokens ?? outputTokens,
+    reasoningTokens: attemptUsage?.reasoningTokens ?? reasoningTokens,
     toolCalls: toolCalls.length > 0 ? toolCalls : null,
     toolCallCount,
     toolResultChars,
@@ -320,9 +331,10 @@ export function extractAIMetrics(
     ragUsed,
     ragChunksCount,
     capabilitiesUsed,
-    costUsd,
+    costUsd: attemptUsage?.costUsd ?? extractedCostUsd,
     generationTimeMs,
     reasoningTimeMs: null, // Not available from OpenRouter currently
+    executionRoute: finishResult.executionRoute,
   };
 }
 
