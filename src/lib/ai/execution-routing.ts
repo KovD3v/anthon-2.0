@@ -393,9 +393,11 @@ export function parseExecutionRoutingConfig(
   }
 
   const taskList = env.AI_EXECUTION_ROUTING_TASKS?.trim();
+  if (!taskList) return EMPTY_ROUTING_CONFIG;
+
   const enabledTaskKinds = taskList
-    ? taskList.split(",").map((taskKind) => taskKind.trim())
-    : [];
+    .split(",")
+    .map((taskKind) => taskKind.trim());
 
   if (
     !enabledTaskKinds.every((taskKind) => isLightTaskKind(taskKind as TaskKind))

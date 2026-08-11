@@ -239,6 +239,23 @@ describe("execution routing", () => {
     });
   });
 
+  it.each([undefined, ""])(
+    "fails closed when the active rollout task allowlist is %s",
+    (tasks) => {
+      expect(
+        parseExecutionRoutingConfig({
+          AI_EXECUTION_ROUTING_MODE: "active",
+          AI_EXECUTION_ROUTING_PERCENT: "25",
+          ...(tasks === undefined ? {} : { AI_EXECUTION_ROUTING_TASKS: tasks }),
+        }),
+      ).toEqual({
+        mode: "off",
+        allocationPercent: 0,
+        enabledTaskKinds: [],
+      });
+    },
+  );
+
   it("defaults invalid rollout config to off", () => {
     expect(parseExecutionRoutingConfig({})).toEqual({
       mode: "off",

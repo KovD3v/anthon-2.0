@@ -389,14 +389,14 @@ export const TURN_ROUTING_FIXTURES = [
     protectedStandard: PROTECTED,
   },
   {
-    id: "en-oversized-output",
+    id: "en-oversized-input",
     language: "en",
     userMessage: "Rewrite this text while keeping every detail.",
     context: "",
     expectedProfile: "standard",
     expectedTaskKind: "rewrite",
     protectedStandard: PROTECTED,
-    normalization: { requestedOutputTokens: 601 },
+    normalization: { estimatedInputTokens: 8_001 },
   },
 ] as const satisfies readonly TurnRoutingFixture[];
 

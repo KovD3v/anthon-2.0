@@ -30,6 +30,21 @@ describe("turn routing benchmark", () => {
     ).toHaveLength(24);
   });
 
+  it("includes independent protected fixtures for both token-limit vetoes", () => {
+    expect(
+      TURN_ROUTING_FIXTURES.some(
+        ({ normalization }) =>
+          (normalization?.estimatedInputTokens ?? 0) > 8_000,
+      ),
+    ).toBe(true);
+    expect(
+      TURN_ROUTING_FIXTURES.some(
+        ({ normalization }) =>
+          (normalization?.requestedOutputTokens ?? 0) > 600,
+      ),
+    ).toBe(true);
+  });
+
   it("scores a complete expected run with no route or task-kind errors", () => {
     expect(scoreTurnRouting(expectedResults())).toMatchObject({
       total: 36,
