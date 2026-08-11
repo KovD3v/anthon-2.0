@@ -6,7 +6,6 @@ import {
   Brain,
   CalendarClock,
   RotateCcw,
-  Sparkles,
   Target,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -377,23 +376,6 @@ export default function ChatPage() {
               ))}
             </div>
 
-            <div className="mt-6 hidden items-center justify-center gap-3 md:flex">
-              <span className="h-px w-8 bg-border" />
-              <span className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
-                oppure
-              </span>
-              <span className="h-px w-8 bg-border" />
-            </div>
-
-            <Button
-              onClick={() => createChat()}
-              size="lg"
-              variant="outline"
-              className="mt-5 hidden min-h-11 gap-2 md:inline-flex"
-            >
-              <Sparkles className="h-5 w-5" />
-              Conversazione libera
-            </Button>
             {chats.length > 0 && !mostRecentChat && (
               <p className="mt-6 text-sm text-muted-foreground">
                 Hai {chats.length} conversazion
