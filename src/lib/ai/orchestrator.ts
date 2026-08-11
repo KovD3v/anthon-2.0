@@ -2200,6 +2200,17 @@ export async function streamChat({
               capabilityDecision,
               capabilityPlannerMode,
             );
+            if (
+              memoryRecallDecision.mode === "active" &&
+              recallContext.factCount + recallContext.evidenceCount > 0
+            ) {
+              metrics.capabilitiesUsed = [
+                ...new Set([
+                  ...(metrics.capabilitiesUsed ?? []),
+                  "recall" as const,
+                ]),
+              ];
+            }
             await onFinish({
               text,
               metrics: attachTurnTrace(metrics),
@@ -2317,6 +2328,14 @@ export async function streamChat({
         capabilityDecision,
         capabilityPlannerMode,
       );
+      if (
+        memoryRecallDecision.mode === "active" &&
+        recallContext.factCount + recallContext.evidenceCount > 0
+      ) {
+        metrics.capabilitiesUsed = [
+          ...new Set([...(metrics.capabilitiesUsed ?? []), "recall" as const]),
+        ];
+      }
       if (routineProposal !== undefined) {
         metrics.routineProposal = routineProposal;
       }

@@ -124,6 +124,7 @@ const CAPABILITY_INDICATORS: Record<
   rag: { label: "Contesto", icon: FileSearch },
   web: { label: "Ricerca", icon: FileSearch },
   memory: { label: "Memoria", icon: Database },
+  recall: { label: "Ricordo", icon: Brain },
   routine: { label: "Routine", icon: ListChecks },
   voice: { label: "Voce", icon: Volume2 },
 };

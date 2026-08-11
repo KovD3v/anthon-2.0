@@ -220,7 +220,14 @@ describe("MessageList rendered interactions", () => {
             {
               type: "data-aiCapabilities",
               data: {
-                capabilities: ["rag", "web", "memory", "routine", "voice"],
+                capabilities: [
+                  "rag",
+                  "web",
+                  "memory",
+                  "recall",
+                  "routine",
+                  "voice",
+                ],
               },
             },
           ],
@@ -231,7 +238,14 @@ describe("MessageList rendered interactions", () => {
     const indicators = screen.getByRole("list", {
       name: "Capacità usate",
     });
-    for (const label of ["Contesto", "Ricerca", "Memoria", "Routine", "Voce"]) {
+    for (const label of [
+      "Contesto",
+      "Ricerca",
+      "Memoria",
+      "Ricordo",
+      "Routine",
+      "Voce",
+    ]) {
       expect(within(indicators).getByText(label)).toBeTruthy();
     }
     expect(within(indicators).queryByRole("button")).toBeNull();
