@@ -66,12 +66,21 @@ vi.mock("./AudioPlayer", () => ({
 vi.mock("./AudioRecorder", () => ({
   AudioRecorder: ({
     onRecordingComplete,
+    onRecordingStateChange,
   }: {
     onRecordingComplete: (attachment: AttachmentData) => void;
+    onRecordingStateChange?: (isBusy: boolean) => void;
   }) => (
-    <button type="button" onClick={() => onRecordingComplete(recordedAudio)}>
-      Registra messaggio vocale
-    </button>
+    <>
+      <button type="button" onClick={() => onRecordingComplete(recordedAudio)}>
+        Registra messaggio vocale
+      </button>
+      <button
+        type="button"
+        aria-label="Simula registrazione in corso"
+        onClick={() => onRecordingStateChange?.(true)}
+      />
+    </>
   ),
 }));
 
@@ -294,6 +303,22 @@ describe("ChatInput keyboard behavior", () => {
 });
 
 describe("ChatInput audio attachments", () => {
+  it("shows only the recorder controls while recording is active", () => {
+    renderChatInput();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Simula registrazione in corso" }),
+    );
+
+    expect(screen.queryByRole("button", { name: "Allega file" })).toBeNull();
+    expect(
+      screen.queryByRole("textbox", { name: "Scrivi un messaggio" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Invia messaggio" }),
+    ).toBeNull();
+  });
+
   it("replaces the text composer with uploaded audio and submits it alone", async () => {
     const uploadedAudio: AttachmentData = {
       id: "audio-1",

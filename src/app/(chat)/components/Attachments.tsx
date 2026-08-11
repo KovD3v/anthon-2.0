@@ -8,6 +8,7 @@ import {
   FileText,
   Image as ImageIcon,
   Mic,
+  Paperclip,
   X,
 } from "lucide-react";
 import NextImage from "next/image";
@@ -169,7 +170,7 @@ export function AttachmentButton({
       title="Allega file"
       aria-label="Allega file"
     >
-      <File className="h-5 w-5" />
+      <Paperclip className="h-5 w-5" />
     </Button>
   );
 }

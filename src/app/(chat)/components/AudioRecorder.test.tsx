@@ -79,4 +79,24 @@ describe("AudioRecorder", () => {
     });
     expect(screen.getByText("01:01")).toBeTruthy();
   });
+
+  it("reports the busy state while recording", async () => {
+    const onRecordingStateChange = vi.fn();
+    render(
+      <AudioRecorder
+        onRecordingComplete={vi.fn()}
+        onRecordingStateChange={onRecordingStateChange}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Registra messaggio vocale" }),
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onRecordingStateChange).toHaveBeenLastCalledWith(true);
+  });
 });

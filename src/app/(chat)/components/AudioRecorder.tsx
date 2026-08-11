@@ -9,6 +9,7 @@ import { CHAT_REACTIVITY_COPY } from "../chat/chat-reactivity-ui";
 
 interface AudioRecorderProps {
   onRecordingComplete: (attachment: AttachmentData) => void;
+  onRecordingStateChange?: (isBusy: boolean) => void;
   disabled?: boolean;
 }
 
@@ -23,6 +24,7 @@ type RecordingState =
 
 export function AudioRecorder({
   onRecordingComplete,
+  onRecordingStateChange,
   disabled,
 }: AudioRecorderProps) {
   const [recordingState, setRecordingState] = useState<RecordingState>("idle");
@@ -213,10 +215,19 @@ export function AudioRecorder({
     recordingState === "converting" ||
     recordingState === "uploading" ||
     recordingState === "requesting";
+  const isBusy = isRecording || isProcessing;
   const durationLabel = formatDuration(recordingDuration);
   const buttonLabel = isRecording
     ? "Ferma registrazione"
     : "Registra messaggio vocale";
+
+  useEffect(() => {
+    onRecordingStateChange?.(isBusy);
+
+    return () => {
+      onRecordingStateChange?.(false);
+    };
+  }, [isBusy, onRecordingStateChange]);
 
   return (
     <div className="relative flex min-w-0 items-center gap-2">
