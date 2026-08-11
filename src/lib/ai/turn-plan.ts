@@ -1,3 +1,8 @@
+import type {
+  ExecutionDecision,
+  ExecutionPolicy,
+  PlannedExecution,
+} from "./execution-routing";
 import {
   matchesAtomicCoachingIntent,
   matchesBriefResponseIntent,
@@ -35,6 +40,7 @@ export type TurnPlan = {
   responseLength: "brief" | "normal" | "extended";
   inputOrigin: "text" | "transcribed_voice" | "direct_media";
   outputMode: "text" | "voice";
+  execution: PlannedExecution;
   history: {
     scope: "none" | "thread";
     includeSummary: boolean;
@@ -100,7 +106,55 @@ export type TurnPlanInput = {
   memoryDeleteTarget?: string | null;
   classifier?: TurnPlanClassifierDecision | null;
   fullMaxRawTurns: number;
+  executionDecision?: ExecutionDecision;
+  plannedExecution?: PlannedExecution;
 };
+
+function defaultStandardExecution(): PlannedExecution {
+  const primary: ExecutionPolicy = {
+    version: 1,
+    profile: "standard",
+    promptProfile: "existing",
+    toolPolicy: "planned",
+    reasoningBudget: "normal",
+  };
+
+  return {
+    routingMode: "off",
+    eligibleProfile: "standard",
+    plannedProfile: "standard",
+    reasonCodes: [],
+    primary,
+  };
+}
+
+function historyForExecution(
+  input: TurnPlanInput,
+  existingHistory: TurnPlan["history"],
+): TurnPlan["history"] {
+  if (input.plannedExecution?.plannedProfile !== "light") {
+    return existingHistory;
+  }
+
+  switch (input.executionDecision?.contextDependency) {
+    case "none":
+      return {
+        scope: "none",
+        includeSummary: false,
+        maxRawTurns: 0,
+        maxRawChars: 0,
+      };
+    case "recent":
+      return {
+        scope: "thread",
+        includeSummary: false,
+        maxRawTurns: 1,
+        maxRawChars: 4_000,
+      };
+    default:
+      throw new Error("Planned light execution requires bounded context.");
+  }
+}
 
 export function planTurn(input: TurnPlanInput): TurnPlan {
   const text = input.userMessage.trim();
@@ -126,6 +180,7 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
   );
 
   const responseLength = matchesBriefResponseIntent(text) ? "brief" : "normal";
+  const execution = input.plannedExecution ?? defaultStandardExecution();
   if (responseLength === "brief") reasonCodes.push("BRIEF_REQUEST");
   if (input.isFirstTurn) reasonCodes.push("FIRST_TURN");
   if (input.outputMode === "voice") reasonCodes.push("VOICE_OUTPUT");
@@ -152,12 +207,13 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
       responseLength,
       inputOrigin: input.inputOrigin,
       outputMode: input.outputMode,
-      history: {
+      execution,
+      history: historyForExecution(input, {
         scope: input.isFirstTurn ? "none" : "thread",
         includeSummary: false,
         maxRawTurns: 2,
         maxRawChars: 4_000,
-      },
+      }),
       capabilities: {
         ...emptyCapabilities(),
         webSearch,
@@ -255,23 +311,32 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
     responseLength,
     inputOrigin: input.inputOrigin,
     outputMode: input.outputMode,
-    history: input.isFirstTurn
-      ? { scope: "none", includeSummary: false, maxRawTurns: 0, maxRawChars: 0 }
-      : compact
+    execution,
+    history: historyForExecution(
+      input,
+      input.isFirstTurn
         ? {
-            scope: "thread",
-            includeSummary: true,
-            maxRawTurns: 3,
-            maxRawChars: 4_000,
+            scope: "none",
+            includeSummary: false,
+            maxRawTurns: 0,
+            maxRawChars: 0,
           }
-        : {
-            scope: "thread",
-            includeSummary: true,
-            maxRawTurns: webSearch
-              ? Math.min(2, Math.max(1, input.fullMaxRawTurns))
-              : Math.max(1, input.fullMaxRawTurns),
-            maxRawChars: 12_000,
-          },
+        : compact
+          ? {
+              scope: "thread",
+              includeSummary: true,
+              maxRawTurns: 3,
+              maxRawChars: 4_000,
+            }
+          : {
+              scope: "thread",
+              includeSummary: true,
+              maxRawTurns: webSearch
+                ? Math.min(2, Math.max(1, input.fullMaxRawTurns))
+                : Math.max(1, input.fullMaxRawTurns),
+              maxRawChars: 12_000,
+            },
+    ),
     capabilities: {
       webSearch,
       webFetch,

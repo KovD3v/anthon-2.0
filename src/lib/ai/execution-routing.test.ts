@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CapabilityDecision } from "./capability-arbitration";
 import {
+  buildPlannedExecution,
   EXECUTION_POLICY_VERSION,
   type ExecutionReasonCode,
   freezeTurnDecision,
@@ -329,6 +330,52 @@ describe("execution routing", () => {
     const second = resolvePlannedProfile(decision, config, "same-key-123");
 
     expect(first).toEqual(second);
+  });
+
+  it("builds a versioned light bundle with a prevalidated standard fallback", () => {
+    const planned = buildPlannedExecution({
+      decision: route(),
+      config: {
+        mode: "active",
+        allocationPercent: 100,
+        enabledTaskKinds: ["rewrite"],
+      },
+      stableKey: "light-policy",
+    });
+
+    expect(planned).toMatchObject({
+      routingMode: "active",
+      eligibleProfile: "light",
+      plannedProfile: "light",
+      primary: {
+        version: 1,
+        profile: "light",
+        promptProfile: "light",
+        toolPolicy: "none",
+        reasoningBudget: "minimal",
+        maxOutputTokens: 600,
+      },
+      standardFallback: {
+        version: 1,
+        profile: "standard",
+        promptProfile: "existing",
+        toolPolicy: "planned",
+        reasoningBudget: "normal",
+      },
+    });
+    expect(Object.isFrozen(planned.primary)).toBe(true);
+    expect(Object.isFrozen(planned.standardFallback)).toBe(true);
+  });
+
+  it("builds no fallback for planned standard execution", () => {
+    const planned = buildPlannedExecution({
+      decision: route(),
+      config: { mode: "off", allocationPercent: 0, enabledTaskKinds: [] },
+      stableKey: "standard-policy",
+    });
+
+    expect(planned.primary.profile).toBe("standard");
+    expect(planned.standardFallback).toBeUndefined();
   });
 
   it("exports versioned policy constants", () => {

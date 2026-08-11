@@ -1,4 +1,5 @@
 import type { JSONObject } from "@ai-sdk/provider";
+import type { ExecutionProfile } from "../execution-routing";
 import {
   type ProviderHealthSnapshot,
   rankProviderRoutes,
@@ -85,6 +86,22 @@ export function getOpenRouterProviderOptionsForModel(
   env: Env = process.env,
 ): JSONObject {
   return getCachedOpenRouterProviderOptions(env, modelId);
+}
+
+export function getOpenRouterProviderOptionsForExecution(
+  modelId: string,
+  profile: ExecutionProfile,
+  env: Env = process.env,
+): JSONObject {
+  const options = getOpenRouterProviderOptionsForModel(modelId, env);
+  if (profile === "standard") {
+    return options;
+  }
+
+  return {
+    ...options,
+    reasoning: { enabled: false, max_tokens: 1 },
+  };
 }
 
 function getCachedOpenRouterProviderOptions(

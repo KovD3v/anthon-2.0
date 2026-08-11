@@ -75,11 +75,28 @@ export type ExecutionRoutingConfig = {
   enabledTaskKinds: LightTaskKind[];
 };
 
-type PlannedExecution = {
+export type ExecutionPolicy = {
+  version: 1;
+  profile: ExecutionProfile;
+  promptProfile: "light" | "existing";
+  toolPolicy: "none" | "planned";
+  reasoningBudget: "minimal" | "normal";
+  maxOutputTokens?: number;
+};
+
+export type PlannedExecution = {
   routingMode: RoutingMode;
   eligibleProfile: ExecutionProfile;
   plannedProfile: ExecutionProfile;
   reasonCodes: ExecutionReasonCode[];
+  primary: ExecutionPolicy;
+  standardFallback?: ExecutionPolicy;
+};
+
+export type BuildPlannedExecutionInput = {
+  decision: ExecutionDecision;
+  config: ExecutionRoutingConfig;
+  stableKey: string;
 };
 
 type NormalizeExecutionDecisionInput = {
@@ -152,13 +169,22 @@ function freezeExecutionDecision(
 }
 
 function freezePlannedExecution(result: PlannedExecution): PlannedExecution {
-  if (Object.isFrozen(result) && Object.isFrozen(result.reasonCodes)) {
+  if (
+    Object.isFrozen(result) &&
+    Object.isFrozen(result.reasonCodes) &&
+    Object.isFrozen(result.primary) &&
+    (!result.standardFallback || Object.isFrozen(result.standardFallback))
+  ) {
     return result;
   }
 
   return Object.freeze({
     ...result,
     reasonCodes: Object.freeze([...result.reasonCodes]),
+    primary: Object.freeze({ ...result.primary }),
+    ...(result.standardFallback
+      ? { standardFallback: Object.freeze({ ...result.standardFallback }) }
+      : {}),
   }) as unknown as PlannedExecution;
 }
 
@@ -398,75 +424,122 @@ function isAllocated(stableKey: string, allocationPercent: number): boolean {
   return bucket < allocationPercent * 100;
 }
 
+function resolvePlannedProfileSelection(
+  decision: ExecutionDecision,
+  config: ExecutionRoutingConfig,
+  stableKey: string,
+): Pick<
+  PlannedExecution,
+  "routingMode" | "eligibleProfile" | "plannedProfile" | "reasonCodes"
+> {
+  const reasonCodes: ExecutionReasonCode[] = [];
+
+  if (config.mode === "off") {
+    addReason(reasonCodes, "rollout_off");
+    return {
+      routingMode: config.mode,
+      eligibleProfile: decision.eligibleProfile,
+      plannedProfile: "standard",
+      reasonCodes,
+    };
+  }
+
+  if (config.mode === "shadow") {
+    addReason(reasonCodes, "rollout_shadow");
+    return {
+      routingMode: config.mode,
+      eligibleProfile: decision.eligibleProfile,
+      plannedProfile: "standard",
+      reasonCodes,
+    };
+  }
+
+  if (decision.eligibleProfile !== "light") {
+    return {
+      routingMode: config.mode,
+      eligibleProfile: decision.eligibleProfile,
+      plannedProfile: "standard",
+      reasonCodes,
+    };
+  }
+
+  if (!isLightTaskKind(decision.taskKind)) {
+    addReason(reasonCodes, "runtime_invariant");
+    return {
+      routingMode: config.mode,
+      eligibleProfile: decision.eligibleProfile,
+      plannedProfile: "standard",
+      reasonCodes,
+    };
+  }
+
+  if (!config.enabledTaskKinds.includes(decision.taskKind)) {
+    addReason(reasonCodes, "task_rollout_disabled");
+    return {
+      routingMode: config.mode,
+      eligibleProfile: decision.eligibleProfile,
+      plannedProfile: "standard",
+      reasonCodes,
+    };
+  }
+
+  if (!isAllocated(stableKey, config.allocationPercent)) {
+    return {
+      routingMode: config.mode,
+      eligibleProfile: decision.eligibleProfile,
+      plannedProfile: "standard",
+      reasonCodes,
+    };
+  }
+
+  return {
+    routingMode: config.mode,
+    eligibleProfile: decision.eligibleProfile,
+    plannedProfile: "light",
+    reasonCodes,
+  };
+}
+
+function standardExecutionPolicy(): ExecutionPolicy {
+  return {
+    version: 1,
+    profile: "standard",
+    promptProfile: "existing",
+    toolPolicy: "planned",
+    reasoningBudget: "normal",
+  };
+}
+
+function lightExecutionPolicy(): ExecutionPolicy {
+  return {
+    version: 1,
+    profile: "light",
+    promptProfile: "light",
+    toolPolicy: "none",
+    reasoningBudget: "minimal",
+    maxOutputTokens: LIGHT_MAX_OUTPUT_TOKENS,
+  };
+}
+
+export function buildPlannedExecution({
+  decision,
+  config,
+  stableKey,
+}: BuildPlannedExecutionInput): PlannedExecution {
+  const selection = resolvePlannedProfileSelection(decision, config, stableKey);
+  const light = selection.plannedProfile === "light";
+
+  return freezePlannedExecution({
+    ...selection,
+    primary: light ? lightExecutionPolicy() : standardExecutionPolicy(),
+    ...(light ? { standardFallback: standardExecutionPolicy() } : {}),
+  });
+}
+
 export function resolvePlannedProfile(
   decision: ExecutionDecision,
   config: ExecutionRoutingConfig,
   stableKey: string,
 ): PlannedExecution {
-  const reasonCodes: ExecutionReasonCode[] = [];
-
-  if (config.mode === "off") {
-    addReason(reasonCodes, "rollout_off");
-    return freezePlannedExecution({
-      routingMode: config.mode,
-      eligibleProfile: decision.eligibleProfile,
-      plannedProfile: "standard",
-      reasonCodes,
-    });
-  }
-
-  if (config.mode === "shadow") {
-    addReason(reasonCodes, "rollout_shadow");
-    return freezePlannedExecution({
-      routingMode: config.mode,
-      eligibleProfile: decision.eligibleProfile,
-      plannedProfile: "standard",
-      reasonCodes,
-    });
-  }
-
-  if (decision.eligibleProfile !== "light") {
-    return freezePlannedExecution({
-      routingMode: config.mode,
-      eligibleProfile: decision.eligibleProfile,
-      plannedProfile: "standard",
-      reasonCodes,
-    });
-  }
-
-  if (!isLightTaskKind(decision.taskKind)) {
-    addReason(reasonCodes, "runtime_invariant");
-    return freezePlannedExecution({
-      routingMode: config.mode,
-      eligibleProfile: decision.eligibleProfile,
-      plannedProfile: "standard",
-      reasonCodes,
-    });
-  }
-
-  if (!config.enabledTaskKinds.includes(decision.taskKind)) {
-    addReason(reasonCodes, "task_rollout_disabled");
-    return freezePlannedExecution({
-      routingMode: config.mode,
-      eligibleProfile: decision.eligibleProfile,
-      plannedProfile: "standard",
-      reasonCodes,
-    });
-  }
-
-  if (!isAllocated(stableKey, config.allocationPercent)) {
-    return freezePlannedExecution({
-      routingMode: config.mode,
-      eligibleProfile: decision.eligibleProfile,
-      plannedProfile: "standard",
-      reasonCodes,
-    });
-  }
-
-  return freezePlannedExecution({
-    routingMode: config.mode,
-    eligibleProfile: decision.eligibleProfile,
-    plannedProfile: "light",
-    reasonCodes,
-  });
+  return buildPlannedExecution({ decision, config, stableKey });
 }

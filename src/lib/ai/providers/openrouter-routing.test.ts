@@ -3,6 +3,7 @@ import { generateText } from "ai";
 import { describe, expect, it, vi } from "vitest";
 import {
   getOpenRouterProviderOptions,
+  getOpenRouterProviderOptionsForExecution,
   getOpenRouterProviderOptionsForModel,
   getOpenRouterProviderRouting,
 } from "./openrouter-routing";
@@ -30,6 +31,31 @@ describe("ai/providers/openrouter-routing", () => {
       provider: {
         sort: "latency",
       },
+      service_tier: "priority",
+      reasoning: { enabled: true, effort: "max" },
+    });
+  });
+
+  it("changes only reasoning options for light execution", () => {
+    expect(
+      getOpenRouterProviderOptionsForExecution(
+        "openai/gpt-5.6-luna",
+        "light",
+        {},
+      ),
+    ).toEqual({
+      provider: { sort: "latency" },
+      service_tier: "priority",
+      reasoning: { enabled: false, max_tokens: 1 },
+    });
+    expect(
+      getOpenRouterProviderOptionsForExecution(
+        "openai/gpt-5.6-luna",
+        "standard",
+        {},
+      ),
+    ).toEqual({
+      provider: { sort: "latency" },
       service_tier: "priority",
       reasoning: { enabled: true, effort: "max" },
     });

@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
+import {
+  buildPlannedExecution,
+  type ExecutionDecision,
+} from "./execution-routing";
 import { planLegacyTurn, planTurn } from "./turn-plan";
+
+const standardExecutionDecision: ExecutionDecision = {
+  eligibleProfile: "standard",
+  taskKind: "coaching",
+  contextDependency: "deep",
+  source: "rule",
+  confidenceBucket: "high",
+  reasonCodes: [],
+  policyVersion: 1,
+  classifierVersion: 1,
+};
 
 function plan(overrides: Partial<Parameters<typeof planTurn>[0]> = {}) {
   return planTurn({
@@ -11,6 +26,12 @@ function plan(overrides: Partial<Parameters<typeof planTurn>[0]> = {}) {
     webSearchEnabled: false,
     webFetchEnabled: false,
     fullMaxRawTurns: 10,
+    executionDecision: standardExecutionDecision,
+    plannedExecution: buildPlannedExecution({
+      decision: standardExecutionDecision,
+      config: { mode: "off", allocationPercent: 0, enabledTaskKinds: [] },
+      stableKey: "turn-plan-test",
+    }),
     ...overrides,
   });
 }
@@ -26,6 +47,103 @@ describe("turn plan", () => {
       maxRawTurns: 3,
       maxRawChars: 4_000,
     });
+  });
+
+  it("projects a self-contained light execution into a zero-history bundle", () => {
+    const executionDecision: ExecutionDecision = {
+      ...standardExecutionDecision,
+      eligibleProfile: "light",
+      taskKind: "rewrite",
+      contextDependency: "none",
+      source: "classifier",
+    };
+    const lightSelfContained = plan({
+      userMessage: "Riscrivi questa frase in modo più chiaro.",
+      executionDecision,
+      plannedExecution: buildPlannedExecution({
+        decision: executionDecision,
+        config: {
+          mode: "active",
+          allocationPercent: 100,
+          enabledTaskKinds: ["rewrite"],
+        },
+        stableKey: "light-self-contained",
+      }),
+    });
+
+    expect(lightSelfContained.execution).toMatchObject({
+      routingMode: "active",
+      eligibleProfile: "light",
+      plannedProfile: "light",
+      primary: {
+        profile: "light",
+        promptProfile: "light",
+        toolPolicy: "none",
+        reasoningBudget: "minimal",
+        maxOutputTokens: 600,
+      },
+    });
+    expect(lightSelfContained.history).toEqual({
+      scope: "none",
+      includeSummary: false,
+      maxRawTurns: 0,
+      maxRawChars: 0,
+    });
+  });
+
+  it("keeps one exact recent turn for a light reference", () => {
+    const executionDecision: ExecutionDecision = {
+      ...standardExecutionDecision,
+      eligibleProfile: "light",
+      taskKind: "rewrite",
+      contextDependency: "recent",
+      source: "classifier",
+    };
+    const lightRecent = plan({
+      userMessage: "Rendilo più breve.",
+      executionDecision,
+      plannedExecution: buildPlannedExecution({
+        decision: executionDecision,
+        config: {
+          mode: "active",
+          allocationPercent: 100,
+          enabledTaskKinds: ["rewrite"],
+        },
+        stableKey: "light-recent",
+      }),
+    });
+
+    expect(lightRecent.history).toEqual({
+      scope: "thread",
+      includeSummary: false,
+      maxRawTurns: 1,
+      maxRawChars: 4_000,
+    });
+  });
+
+  it("keeps a shadow-eligible light turn on the existing standard execution", () => {
+    const executionDecision: ExecutionDecision = {
+      ...standardExecutionDecision,
+      eligibleProfile: "light",
+      taskKind: "rewrite",
+      contextDependency: "none",
+      source: "classifier",
+    };
+    const shadowLight = plan({
+      executionDecision,
+      plannedExecution: buildPlannedExecution({
+        decision: executionDecision,
+        config: {
+          mode: "shadow",
+          allocationPercent: 100,
+          enabledTaskKinds: ["rewrite"],
+        },
+        stableKey: "shadow-light",
+      }),
+    });
+
+    expect(shadowLight.execution.plannedProfile).toBe("standard");
+    expect(shadowLight.promptProfile).toBe("compact");
   });
 
   it("treats brevity as output policy rather than compact eligibility", () => {
