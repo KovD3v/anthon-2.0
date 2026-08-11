@@ -4,7 +4,10 @@ export type MemoryRecallDecision = Readonly<{
   reason: string;
 }>;
 
-function decision(mode: MemoryRecallMode, reason: string): MemoryRecallDecision {
+function decision(
+  mode: MemoryRecallMode,
+  reason: string,
+): MemoryRecallDecision {
   return Object.freeze({ mode, reason });
 }
 
@@ -17,7 +20,11 @@ export async function resolveMemoryRecallMode(input: {
   if (!input.memoryEnabled) return decision("off", "memory_disabled");
   const configured = process.env.AI_MEMORY_RECALL_MODE;
   if (!configured) return decision("off", "default_off");
-  if (configured !== "off" && configured !== "shadow" && configured !== "active") {
+  if (
+    configured !== "off" &&
+    configured !== "shadow" &&
+    configured !== "active"
+  ) {
     return decision("off", "invalid_mode");
   }
   return decision(configured, "configured");

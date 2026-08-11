@@ -83,7 +83,10 @@ const capabilityVoteSchema = z.object({
 });
 const capabilityClassifierSchema = z.object(
   Object.fromEntries(
-    classifierCapabilities.map((capability) => [capability, capabilityVoteSchema]),
+    classifierCapabilities.map((capability) => [
+      capability,
+      capabilityVoteSchema,
+    ]),
   ) as Record<ClassifierCapability, typeof capabilityVoteSchema>,
 );
 
@@ -122,7 +125,8 @@ export function acceptCapabilityVotes(
   const accepted: Partial<CapabilityDecision> = {};
   for (const capability of classifierCapabilities) {
     const vote = output[capability];
-    if (!vote || vote.confidence < CAPABILITY_CLASSIFIER_MIN_CONFIDENCE) continue;
+    if (!vote || vote.confidence < CAPABILITY_CLASSIFIER_MIN_CONFIDENCE)
+      continue;
     if (vote.decision === "yes") accepted[capability] = true;
     if (vote.decision === "no") accepted[capability] = false;
   }

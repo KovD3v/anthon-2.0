@@ -14,16 +14,21 @@ describe("memory recall release", () => {
     ["invalid", false, true, "off", "invalid_mode"],
     ["shadow", false, true, "shadow", "configured"],
     ["active", false, true, "active", "configured"],
-  ])("resolves mode fail closed", async (env, isGuest, enabled, mode, reason) => {
-    if (env === undefined) delete process.env.AI_MEMORY_RECALL_MODE;
-    else process.env.AI_MEMORY_RECALL_MODE = env;
-    const { resolveMemoryRecallMode } = await import("./memory-recall-release");
-    const result = await resolveMemoryRecallMode({
-      userId: "user-1",
-      isGuest,
-      memoryEnabled: enabled,
-    });
-    expect(result).toEqual({ mode, reason });
-    expect(Object.isFrozen(result)).toBe(true);
-  });
+  ])(
+    "resolves mode fail closed",
+    async (env, isGuest, enabled, mode, reason) => {
+      if (env === undefined) delete process.env.AI_MEMORY_RECALL_MODE;
+      else process.env.AI_MEMORY_RECALL_MODE = env;
+      const { resolveMemoryRecallMode } = await import(
+        "./memory-recall-release"
+      );
+      const result = await resolveMemoryRecallMode({
+        userId: "user-1",
+        isGuest,
+        memoryEnabled: enabled,
+      });
+      expect(result).toEqual({ mode, reason });
+      expect(Object.isFrozen(result)).toBe(true);
+    },
+  );
 });

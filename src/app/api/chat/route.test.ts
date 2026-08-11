@@ -2473,7 +2473,8 @@ describe("POST /api/chat", () => {
       userText: "hello world",
       assistantText: "Assistant reply",
     });
-    expect(mocks.waitUntil).toHaveBeenCalledTimes(3);
+    // Thread summary, trace, conversation-recall index, and fact consolidation.
+    expect(mocks.waitUntil).toHaveBeenCalledTimes(4);
   });
 
   it("returns 500 when downstream streaming fails", async () => {

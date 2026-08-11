@@ -13,7 +13,11 @@ export type RecallContextResult = {
   allowedEvidenceIds: Set<string>;
 };
 
-async function bounded<T>(promise: Promise<T>, deadlineMs: number, fallback: T) {
+async function bounded<T>(
+  promise: Promise<T>,
+  deadlineMs: number,
+  fallback: T,
+) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
     promise,
@@ -35,10 +39,17 @@ export async function buildRecallContext(input: {
   const factStarted = performance.now();
   const factPromise = input.plan.facts.enabled
     ? bounded(
-        recallFacts({ userId: input.userId, query: input.query, limit: input.plan.facts.limit }),
+        recallFacts({
+          userId: input.userId,
+          query: input.query,
+          limit: input.plan.facts.limit,
+        }),
         input.plan.facts.deadlineMs,
         { facts: [], degraded: true },
-      ).then((result) => ({ ...result, elapsed: Math.round(performance.now() - factStarted) }))
+      ).then((result) => ({
+        ...result,
+        elapsed: Math.round(performance.now() - factStarted),
+      }))
     : Promise.resolve({ facts: [], degraded: false, elapsed: 0 });
 
   const conversationStarted = performance.now();
@@ -48,16 +59,35 @@ export async function buildRecallContext(input: {
           userId: input.userId,
           conversationThreadId: input.conversationThreadId,
           query: input.query,
-          scope: input.plan.conversations.allowCrossChannel ? "all_channels" : "current_thread",
+          scope: input.plan.conversations.allowCrossChannel
+            ? "all_channels"
+            : "current_thread",
         }),
         input.plan.conversations.allowCrossChannel
           ? input.plan.conversations.globalDeadlineMs
           : input.plan.conversations.currentDeadlineMs,
-        { packets: [], scope: "current_thread" as const, degraded: true, elapsedMs: 0 },
-      ).then((result) => ({ ...result, elapsed: Math.round(performance.now() - conversationStarted) }))
-    : Promise.resolve({ packets: [], scope: "current_thread" as const, degraded: false, elapsedMs: 0, elapsed: 0 });
+        {
+          packets: [],
+          scope: "current_thread" as const,
+          degraded: true,
+          elapsedMs: 0,
+        },
+      ).then((result) => ({
+        ...result,
+        elapsed: Math.round(performance.now() - conversationStarted),
+      }))
+    : Promise.resolve({
+        packets: [],
+        scope: "current_thread" as const,
+        degraded: false,
+        elapsedMs: 0,
+        elapsed: 0,
+      });
 
-  const [facts, conversations] = await Promise.all([factPromise, conversationPromise]);
+  const [facts, conversations] = await Promise.all([
+    factPromise,
+    conversationPromise,
+  ]);
   const active = input.decision.mode === "active";
   const allowedEvidenceIds = new Set(
     active ? conversations.packets.map((packet) => packet.id) : [],
@@ -71,7 +101,10 @@ export async function buildRecallContext(input: {
     ),
   ];
   return {
-    prompt: active && (facts.facts.length || conversations.packets.length) ? lines.join("\n").slice(0, 6_000) : "",
+    prompt:
+      active && (facts.facts.length || conversations.packets.length)
+        ? lines.join("\n").slice(0, 6_000)
+        : "",
     factCount: facts.facts.length,
     evidenceCount: conversations.packets.length,
     factRecallMs: facts.elapsed,
