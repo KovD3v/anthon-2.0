@@ -33,11 +33,13 @@ The AI subsystem powers chat generation, retrieval, personalization, and backgro
 
 1. Resolve effective entitlements (`resolveEffectiveEntitlements`).
 2. Select model by plan/role/tier.
-3. Arbitrate capabilities for this message and normalize the result through
-   deterministic server-side policy.
+3. Resolve the fail-closed memory-recall release decision once, then arbitrate
+   capabilities independently so one uncertain vote cannot erase confident
+   decisions for other capabilities.
 4. Build an immutable `TurnPlan` that independently selects response length,
    thread history, capabilities, and prompt profile.
-5. Build same-thread conversation context via `buildThreadContext` when needed.
+5. In parallel with same-thread context, run the no-LLM recall planner and load
+   at most eight relevant facts plus optional current-thread-first evidence.
 6. Route retrieval according to the planner mode:
    - In legacy mode, use the `shouldUseRag`/`getRagContext` prefetch path when
      the turn plan selects RAG. A non-fallback classifier decision may allow
@@ -94,6 +96,9 @@ The orchestrator composes tools from several factories:
   - `tinyfishFetch`
 - `createRagTools()` (agentic mode only):
   - `searchRag` (one bounded retrieval per turn)
+- `createConversationRecallTools(context)` (active recall only):
+  - `searchPastConversations` (current thread first)
+  - `expandConversationEvidence` (same-turn opaque evidence IDs only)
 
 The orchestrator does not expose every tool on every turn. Profile and
 preference tools are enabled only when the selected plan allows persistent
@@ -157,6 +162,31 @@ Truth precedence is: the user's current explicit statement, explicit profile
 or preference fields, confirmed durable facts, recent inferred facts, then
 historical conversation evidence. Explicit ordinary changes may revise a fact;
 sensitive conflicts always use approval.
+
+### Proactive recall release and operations
+
+`AI_MEMORY_RECALL_MODE` is a closed `off | shadow | active` switch and defaults
+to `off`. Guests and sessions with memory disabled always resolve to `off`.
+`shadow` runs bounded retrieval and records only aggregate counts/timings but
+injects no context and exposes no recall IDs or tools. `active` injects only the
+selected evidence and enables bounded deep-recall tools. Roll back immediately
+by setting the mode to `off`; persistence and recovery consume the immutable
+per-turn decision and never reread the environment.
+
+Tool policy classifies each allowlisted operation as required, read, mutation,
+or proposal, with prerequisites and per-turn budgets. Explicit memory deletion
+and attributable approval resolution remain deterministic required actions;
+optional model initiative cannot suppress them. Telemetry records only the
+considered, allowed, called, succeeded, useful, and utilized counts plus recall
+mode, counts, bounded timings, and degradation. It excludes facts, queries,
+excerpts, URLs, source IDs, arguments, and tool results.
+
+The offline benchmark runs with `bun run benchmark:memory-recall`. It defaults
+to 30 fictionalized Italian fixtures and requires explicit `--allow-db-read`
+and `--allow-db-mutation` authority before accessing or changing database data.
+The report defines its fixture version, source, filters, action recall/overuse,
+fact and evidence quality, duplicate/conflict safety, unsupported claims,
+latency percentiles, and cost.
 
 ### Prompt modes
 

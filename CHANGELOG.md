@@ -10,6 +10,14 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Added
 
+- Added proactive, bounded durable-fact recall and current-thread-first search
+  over past conversations, with opaque evidence expansion, asynchronous
+  indexing, resumable backfill, and an offline 30-scenario benchmark.
+- Added fail-closed `off`, `shadow`, and `active` recall modes, independent
+  capability votes, closed tool policy, and privacy-safe tool-funnel metrics.
+- Added a discreet non-interactive “Ricordo” chat indicator when active recall
+  materially contributes facts or conversation evidence.
+
 - Added a reproducible conversational-quality benchmark with ten synthetic
   Italian coaching scenarios, fixed-Luna baseline/candidate artifacts, blind
   pairwise judging, structural diagnostics, and a CLI for replicated runs.
