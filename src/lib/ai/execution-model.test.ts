@@ -12,9 +12,7 @@ describe("ai/execution-model", () => {
         standardModelId: "openai/gpt-5.6-luna",
       }),
     ).toBe("deepseek/deepseek-v4-flash-0731");
-    expect(LIGHT_EXECUTION_MODEL_ID).toBe(
-      "deepseek/deepseek-v4-flash-0731",
-    );
+    expect(LIGHT_EXECUTION_MODEL_ID).toBe("deepseek/deepseek-v4-flash-0731");
   });
 
   it("preserves the plan-resolved model for standard attempts", () => {

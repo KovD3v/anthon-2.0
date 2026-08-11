@@ -74,11 +74,7 @@ const RECENT_ERROR_STRONG_PENALTY_SECONDS = 25;
 const RECENT_ERROR_COOLDOWN_THRESHOLD = 3;
 const PRIORITY_SERVICE_TIER_MODEL_IDS = new Set(["openai/gpt-5.6-luna"]);
 const MAX_REASONING_MODEL_IDS = new Set(["openai/gpt-5.6-luna"]);
-const DEEPSEEK_LIGHT_PROVIDERS = [
-  "Together",
-  "CoreWeave",
-  "Ambient",
-] as const;
+const DEEPSEEK_LIGHT_PROVIDERS = ["Together", "CoreWeave", "Ambient"] as const;
 const DEEPSEEK_LIGHT_MAX_PROMPT_PRICE = 0.15;
 const DEEPSEEK_LIGHT_MAX_COMPLETION_PRICE = 0.3;
 const providerOptionsCache = new Map<string, JSONObject>();
@@ -125,9 +121,7 @@ function getDeepSeekLightProviderOptions(options: JSONObject): JSONObject {
       )
     : [...DEEPSEEK_LIGHT_PROVIDERS];
   if (configuredOnly && only.length === 0) {
-    throw new Error(
-      "DeepSeek light routing has no safe configured provider.",
-    );
+    throw new Error("DeepSeek light routing has no safe configured provider.");
   }
 
   const {
@@ -155,8 +149,7 @@ function getDeepSeekLightProviderOptions(options: JSONObject): JSONObject {
           DEEPSEEK_LIGHT_MAX_PROMPT_PRICE,
         ),
         completion: Math.min(
-          configuredMaxPrice?.completion ??
-            DEEPSEEK_LIGHT_MAX_COMPLETION_PRICE,
+          configuredMaxPrice?.completion ?? DEEPSEEK_LIGHT_MAX_COMPLETION_PRICE,
           DEEPSEEK_LIGHT_MAX_COMPLETION_PRICE,
         ),
       },

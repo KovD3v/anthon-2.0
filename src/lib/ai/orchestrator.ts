@@ -19,6 +19,7 @@ import {
 } from "@/lib/ai/capability-arbitration";
 import { filterCapabilityUsageByDecision } from "@/lib/ai/capability-usage";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
+import { resolveExecutionAttemptModelId } from "@/lib/ai/execution-model";
 import type {
   ExecutionAttemptTrace,
   ExecutionRouteTrace,
@@ -29,7 +30,6 @@ import {
   parseExecutionRoutingConfig,
   type TurnDecision,
 } from "@/lib/ai/execution-routing";
-import { resolveExecutionAttemptModelId } from "@/lib/ai/execution-model";
 import {
   evaluateWebSearchRule,
   getWebSearchDomainType,
@@ -1736,7 +1736,7 @@ async function* observeNoToolAttempt(
 
 function withAttemptUsage(
   attempt: ExecutionAttemptTrace,
-  state: NoToolAttemptState | undefined,
+  state: Pick<NoToolAttemptState, "usage" | "providerMetadata"> | undefined,
 ): ExecutionAttemptTrace {
   const costUsd = getOpenRouterCost(state?.providerMetadata);
   return {
@@ -2975,7 +2975,7 @@ export async function streamChat({
           : {}),
         generationTimeMs: Math.max(0, Date.now() - standardAttemptStartedAt),
       },
-      { profile: "standard", text: "", usage, providerMetadata },
+      { usage, providerMetadata },
     );
     const aggregateCostUsd = sumCosts(collectedOpenRouterCosts);
     const standardAttempt =

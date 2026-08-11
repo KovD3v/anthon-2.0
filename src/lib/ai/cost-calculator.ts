@@ -88,6 +88,10 @@ const OPENROUTER_PRICE_FALLBACKS: Record<
     prompt: 0.00000009,
     completion: 0.00000018,
   },
+  "deepseek/deepseek-v4-flash-0731": {
+    prompt: 0.00000014,
+    completion: 0.00000028,
+  },
   "google/gemini-2.5-flash-lite": {
     prompt: 0.0000001,
     completion: 0.0000004,

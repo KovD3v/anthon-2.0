@@ -314,6 +314,30 @@ describe("ai/cost-calculator", () => {
     expect(result.costUsd).toBeCloseTo(0.00018);
   });
 
+  it("uses the safe-pool pricing fallback for DeepSeek light", () => {
+    mocks.calculateCost.mockReturnValue({
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      model: "deepseek/deepseek-v4-flash-0731",
+    });
+
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+    const result = extractAIMetrics(
+      "deepseek/deepseek-v4-flash-0731",
+      startTime,
+      {
+        text: "done",
+        usage: {
+          promptTokens: 1000,
+          completionTokens: 500,
+        },
+      },
+    );
+
+    expect(result.costUsd).toBeCloseTo(0.00028, 8);
+  });
+
   it("uses Tencent Hy3 OpenRouter pricing fallback", () => {
     mocks.calculateCost.mockReturnValue({
       inputCost: 0,
