@@ -449,13 +449,15 @@ export async function tryCreateModelComparisonResponse(
     await releaseReservation();
     throw error;
   }
-  if (!isSafeModelComparisonTurn(prepared.turnPlan, input.userMessage)) {
-    await releaseReservation();
+  const reusePreparedTurn = () =>
     input.onPreparedTurnRejected?.({
       turnDecision: prepared.turnDecision,
       capabilityPlannerMode: prepared.capabilityPlannerMode,
       classificationLatencyMs: prepared.classificationLatencyMs,
     });
+  if (!isSafeModelComparisonTurn(prepared.turnPlan, input.userMessage)) {
+    await releaseReservation();
+    reusePreparedTurn();
     return null;
   }
 
@@ -472,6 +474,8 @@ export async function tryCreateModelComparisonResponse(
       countryCode: countryCode ?? experiment.targetCountry,
       capabilityPlannerMode: prepared.capabilityPlannerMode,
       turnDecision: prepared.turnDecision,
+      routingMode: prepared.plannedExecution.routingMode,
+      plannedProfile: prepared.plannedExecution.plannedProfile,
     });
     await prisma.modelExperimentPair.update({
       where: { id: pairResult.pair.id },
@@ -497,7 +501,10 @@ export async function tryCreateModelComparisonResponse(
     } else {
       await releaseReservation();
     }
-    if (isExpectedPairAdmissionRace(error)) return null;
+    if (isExpectedPairAdmissionRace(error)) {
+      reusePreparedTurn();
+      return null;
+    }
     throw error;
   }
   if (!pairResult) throw new Error("MODEL_COMPARISON_PAIR_NOT_CREATED");

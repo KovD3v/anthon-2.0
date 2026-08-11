@@ -597,6 +597,23 @@ describe("channel-flow/run", () => {
         }) as never,
       }),
     },
+    {
+      label: "unknown top-level field",
+      decision: freezeTurnDecision({
+        ...immutableTurnDecision(),
+        privateMessage: "must not be projected away",
+      } as TurnDecision),
+    },
+    {
+      label: "unknown nested execution field",
+      decision: freezeTurnDecision({
+        ...immutableTurnDecision(),
+        execution: {
+          ...immutableTurnDecision().execution,
+          privateMessage: "must not be projected away",
+        } as TurnDecision["execution"],
+      }),
+    },
   ])("forces standard for a $label", async ({ decision }) => {
     mocks.streamChat.mockImplementation(async ({ preparedTurnContext }) => ({
       ...preparedTurnContext,
@@ -638,6 +655,83 @@ describe("channel-flow/run", () => {
     expect(result.turnDecision).toBe(forwarded);
     expect(result.executionMetadataValid).toBe(false);
     expect(result.capabilityMetadataValid).toBe(true);
+  });
+
+  it("keeps invalid prepared capability provenance disabled after fallback synthesis", async () => {
+    const invalidCapabilities = Object.freeze({
+      ...immutableTurnDecision().capabilities,
+      privateMessage: "must not enable consolidation",
+    }) as CapabilityDecision;
+    const invalidTurnDecision = freezeTurnDecision({
+      ...immutableTurnDecision(),
+      capabilities: invalidCapabilities,
+    });
+    mocks.streamChat.mockImplementation(
+      async ({ preparedTurnContext, onFinish }) => {
+        const fallbackDecision = preparedTurnContext.turnDecision;
+        const metrics = {
+          model: "test-model",
+          inputTokens: 1,
+          outputTokens: 1,
+          reasoningTokens: null,
+          reasoningContent: null,
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0,
+          generationTimeMs: 1,
+          reasoningTimeMs: null,
+        };
+        await onFinish?.({
+          text: "answer",
+          metrics,
+          turnDecision: fallbackDecision,
+          capabilityDecision: fallbackDecision.capabilities,
+          capabilityPlannerMode: preparedTurnContext.capabilityPlannerMode,
+        });
+        return {
+          ...preparedTurnContext,
+          capabilityDecision: fallbackDecision.capabilities,
+          textStream: (async function* () {
+            yield "answer";
+          })(),
+        };
+      },
+    );
+
+    const result = await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      userMessageText: "rewrite this",
+      parts: [{ type: "text", text: "rewrite this" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: true,
+      },
+      ai: {
+        preparedTurnContext: {
+          turnDecision: invalidTurnDecision,
+          capabilityPlannerMode: "agentic",
+          classificationLatencyMs: 9,
+        },
+      },
+      execution: { mode: "text" },
+      persistence: { channel: "WEB", saveAssistantMessage: true },
+    });
+
+    expect(result.capabilityMetadataValid).toBe(false);
+    expect(result.executionMetadataValid).toBe(false);
+    expect(result.capabilityDecision).toBeUndefined();
+    expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowMemoryExtraction: false,
+        allowConversationIndexing: false,
+        capabilityDecision: undefined,
+        capabilityPlannerMode: undefined,
+      }),
+    );
   });
 
   it("restores an agentic recovery decision and enables shared consolidation", async () => {

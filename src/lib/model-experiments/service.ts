@@ -1,8 +1,15 @@
 import { Prisma } from "@/generated/prisma";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
-import type { TurnDecision } from "@/lib/ai/execution-routing";
+import type {
+  ExecutionProfile,
+  RoutingMode,
+  TurnDecision,
+} from "@/lib/ai/execution-routing";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
-import { serializeSafeTurnDecision } from "@/lib/ai/turn-decision-metadata";
+import {
+  parseSafeTurnDecision,
+  serializeSafeTurnDecision,
+} from "@/lib/ai/turn-decision-metadata";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { reconcileAiUsageInTransaction } from "@/lib/rate-limit";
@@ -24,6 +31,54 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 function asJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
+}
+
+function serializeComparisonTurnDecision(
+  decision: TurnDecision,
+  routingMode?: RoutingMode,
+  plannedProfile?: ExecutionProfile,
+) {
+  return {
+    ...serializeSafeTurnDecision(decision),
+    ...(routingMode && plannedProfile
+      ? { routing: { routingMode, plannedProfile } }
+      : {}),
+  };
+}
+
+function comparisonRoutingProperties(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const stored = value as Record<string, unknown>;
+  const decision = parseSafeTurnDecision({
+    version: stored.version,
+    capabilities: stored.capabilities,
+    execution: stored.execution,
+  });
+  if (!decision) return {};
+
+  const routing =
+    stored.routing &&
+    typeof stored.routing === "object" &&
+    !Array.isArray(stored.routing)
+      ? (stored.routing as Record<string, unknown>)
+      : undefined;
+  const routingMode = routing?.routingMode;
+  const plannedProfile = routing?.plannedProfile;
+  return {
+    routing_mode:
+      routingMode === "off" ||
+      routingMode === "shadow" ||
+      routingMode === "active"
+        ? routingMode
+        : undefined,
+    eligible_profile: decision.execution.eligibleProfile,
+    planned_profile:
+      plannedProfile === "light" || plannedProfile === "standard"
+        ? plannedProfile
+        : undefined,
+    task_kind: decision.execution.taskKind,
+    policy_version: decision.execution.policyVersion,
+  };
 }
 
 async function lockModelExperiment(
@@ -243,6 +298,8 @@ export async function createModelComparisonPair({
   countryCode,
   capabilityPlannerMode,
   turnDecision,
+  routingMode,
+  plannedProfile,
   now = new Date(),
   random = Math.random,
 }: {
@@ -254,6 +311,8 @@ export async function createModelComparisonPair({
   countryCode: string;
   capabilityPlannerMode?: "legacy" | "agentic";
   turnDecision?: TurnDecision;
+  routingMode?: RoutingMode;
+  plannedProfile?: ExecutionProfile;
   now?: Date;
   random?: () => number;
 }) {
@@ -310,7 +369,15 @@ export async function createModelComparisonPair({
         sourceMessageId,
         ...(capabilityPlannerMode ? { capabilityPlannerMode } : {}),
         ...(turnDecision
-          ? { turnDecision: asJson(serializeSafeTurnDecision(turnDecision)) }
+          ? {
+              turnDecision: asJson(
+                serializeComparisonTurnDecision(
+                  turnDecision,
+                  routingMode,
+                  plannedProfile,
+                ),
+              ),
+            }
           : {}),
         slotAVariantId: slotA.id,
         slotBVariantId: slotB.id,
@@ -614,6 +681,7 @@ export async function resolveModelComparisonPair({
       sourceText: getTextFromParts(pair.sourceMessage.parts),
       responseText: response.text,
       capabilityPlannerMode: pair.capabilityPlannerMode,
+      routingProperties: comparisonRoutingProperties(pair.turnDecision),
     };
   });
 
@@ -637,6 +705,7 @@ export async function resolveModelComparisonPair({
         output_tokens: result.response?.outputTokens,
         cost_usd: result.response?.costUsd,
         generation_time_ms: result.response?.generationTimeMs,
+        ...result.routingProperties,
       },
     );
     void safelyRefreshConversationThreadSummary(

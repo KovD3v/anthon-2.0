@@ -139,6 +139,48 @@ function isKnownCapabilityPlannerMode(
   return value === "legacy" || value === "agentic";
 }
 
+const TURN_DECISION_KEYS = ["version", "capabilities", "execution"] as const;
+const CAPABILITY_DECISION_KEYS = [
+  "rag",
+  "webSearch",
+  "webFetch",
+  "memoryRead",
+  "memoryWrite",
+  "memoryDelete",
+  "memoryDeleteTarget",
+  "routineProposal",
+  "userContext",
+  "voiceOutput",
+  "source",
+  "reasonCodes",
+] as const;
+const EXECUTION_DECISION_KEYS = [
+  "eligibleProfile",
+  "taskKind",
+  "contextDependency",
+  "source",
+  "confidenceBucket",
+  "reasonCodes",
+  "policyVersion",
+  "classifierVersion",
+] as const;
+
+function hasExactOwnKeys(
+  value: unknown,
+  expectedKeys: readonly string[],
+): value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const actualKeys = Reflect.ownKeys(value);
+  return (
+    actualKeys.length === expectedKeys.length &&
+    actualKeys.every(
+      (key) => typeof key === "string" && expectedKeys.includes(key),
+    )
+  );
+}
+
 function isImmutableCapabilityDecision(
   value: unknown,
 ): value is CapabilityDecision {
@@ -224,7 +266,12 @@ const FALLBACK_CAPABILITY_DECISION = Object.freeze({
 }) as unknown as CapabilityDecision;
 
 function isSafeCapabilityDecision(value: unknown): value is CapabilityDecision {
-  if (!isImmutableCapabilityDecision(value)) return false;
+  if (
+    !hasExactOwnKeys(value, CAPABILITY_DECISION_KEYS) ||
+    !isImmutableCapabilityDecision(value)
+  ) {
+    return false;
+  }
   try {
     serializeSafeTurnDecision(
       createStandardFallbackTurnDecision(value as CapabilityDecision),
@@ -236,11 +283,13 @@ function isSafeCapabilityDecision(value: unknown): value is CapabilityDecision {
 }
 
 function isDeepFrozenTurnDecision(value: unknown): value is TurnDecision {
-  if (!value || typeof value !== "object" || !Object.isFrozen(value)) {
+  if (!hasExactOwnKeys(value, TURN_DECISION_KEYS) || !Object.isFrozen(value)) {
     return false;
   }
   const decision = value as TurnDecision;
   if (
+    !hasExactOwnKeys(decision.capabilities, CAPABILITY_DECISION_KEYS) ||
+    !hasExactOwnKeys(decision.execution, EXECUTION_DECISION_KEYS) ||
     !Object.isFrozen(decision.capabilities) ||
     !Object.isFrozen(decision.capabilities?.reasonCodes) ||
     !Object.isFrozen(decision.execution) ||
@@ -391,12 +440,14 @@ export async function runChannelFlow(
   let memoryRecallDecision: MemoryRecallDecision | undefined;
   const requestedPreparedTurnContext = ctx.ai?.preparedTurnContext;
   let preparedExecutionMetadataValid: boolean | undefined;
+  let preparedCapabilityMetadataInvalid = false;
   let preparedTurnContext = requestedPreparedTurnContext;
   if (requestedPreparedTurnContext) {
     const preparedCapabilityMetadataValid = hasValidCapabilityMetadata(
       requestedPreparedTurnContext.turnDecision?.capabilities,
       requestedPreparedTurnContext.capabilityPlannerMode,
     );
+    preparedCapabilityMetadataInvalid = !preparedCapabilityMetadataValid;
     preparedExecutionMetadataValid =
       preparedCapabilityMetadataValid &&
       isDeepFrozenTurnDecision(requestedPreparedTurnContext.turnDecision) &&
@@ -441,10 +492,12 @@ export async function runChannelFlow(
       : undefined;
     const candidateCapabilities =
       immutableTurnDecision?.capabilities ?? candidateCapabilityDecision;
-    capabilityMetadataValid = hasValidCapabilityMetadata(
-      candidateCapabilities,
-      candidateCapabilityPlannerMode,
-    );
+    capabilityMetadataValid =
+      !preparedCapabilityMetadataInvalid &&
+      hasValidCapabilityMetadata(
+        candidateCapabilities,
+        candidateCapabilityPlannerMode,
+      );
     if (capabilityMetadataValid) {
       capabilityDecision = candidateCapabilities as CapabilityDecision;
       capabilityPlannerMode = isKnownCapabilityPlannerMode(

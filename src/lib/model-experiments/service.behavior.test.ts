@@ -121,6 +121,37 @@ const turnDecision = Object.freeze({
   }),
 }) as unknown as TurnDecision;
 
+const storedTurnDecision = {
+  version: 1,
+  capabilities: {
+    rag: false,
+    webSearch: false,
+    webFetch: false,
+    memoryRead: false,
+    memoryWrite: false,
+    memoryDelete: true,
+    routineProposal: false,
+    userContext: false,
+    voiceOutput: false,
+    source: "classifier",
+    reasonCodes: ["delete_requires_exact_target"],
+  },
+  execution: {
+    eligibleProfile: "light",
+    taskKind: "rewrite",
+    contextDependency: "recent",
+    source: "classifier",
+    confidenceBucket: "high",
+    reasonCodes: ["classifier_light", "task_allowlisted"],
+    policyVersion: 1,
+    classifierVersion: 1,
+  },
+  routing: {
+    routingMode: "shadow",
+    plannedProfile: "standard",
+  },
+};
+
 function experiment(status = "DRAFT") {
   return {
     id: "experiment-1",
@@ -161,6 +192,7 @@ function unresolvedPair(
     capabilityPlannerMode: "legacy" | "agentic";
     canonicalMessage: { id: string } | null;
     responses: Array<Record<string, unknown>>;
+    turnDecision: unknown;
   }> = {},
 ) {
   const responseFor = (variant: typeof control, text: string) => ({
@@ -186,6 +218,7 @@ function unresolvedPair(
     conversationThreadId: "thread-1",
     countryCode: "IT",
     capabilityPlannerMode: overrides.capabilityPlannerMode ?? "legacy",
+    turnDecision: overrides.turnDecision ?? storedTurnDecision,
     status: overrides.status ?? "READY",
     vote: overrides.vote ?? null,
     canonicalMessage: overrides.canonicalMessage ?? null,
@@ -423,6 +456,8 @@ describe("model experiment service", () => {
         countryCode: "it",
         capabilityPlannerMode: "agentic",
         turnDecision,
+        routingMode: "shadow",
+        plannedProfile: "standard",
         now,
         random: () => 0.9,
       }),
@@ -437,32 +472,7 @@ describe("model experiment service", () => {
         slotBVariantId: "control",
         countryCode: "IT",
         capabilityPlannerMode: "agentic",
-        turnDecision: {
-          version: 1,
-          capabilities: {
-            rag: false,
-            webSearch: false,
-            webFetch: false,
-            memoryRead: false,
-            memoryWrite: false,
-            memoryDelete: true,
-            routineProposal: false,
-            userContext: false,
-            voiceOutput: false,
-            source: "classifier",
-            reasonCodes: ["delete_requires_exact_target"],
-          },
-          execution: {
-            eligibleProfile: "light",
-            taskKind: "rewrite",
-            contextDependency: "recent",
-            source: "classifier",
-            confidenceBucket: "high",
-            reasonCodes: ["classifier_light", "task_allowlisted"],
-            policyVersion: 1,
-            classifierVersion: 1,
-          },
-        },
+        turnDecision: storedTurnDecision,
         expiresAt: new Date("2026-08-01T10:00:00Z"),
       }),
       include: { responses: true, slotAVariant: true, slotBVariant: true },
@@ -822,7 +832,14 @@ describe("model experiment service", () => {
     expect(mocks.captureEvent).toHaveBeenCalledWith(
       "voted",
       "clerk-1",
-      expect.objectContaining({ choice: "A" }),
+      expect.objectContaining({
+        choice: "A",
+        routing_mode: "shadow",
+        eligible_profile: "light",
+        planned_profile: "standard",
+        task_kind: "rewrite",
+        policy_version: 1,
+      }),
     );
     expect(mocks.refreshSummary).toHaveBeenCalledWith("thread-1", "user-1");
     expect(mocks.extractMemories).not.toHaveBeenCalled();
@@ -900,7 +917,14 @@ describe("model experiment service", () => {
       expect(mocks.captureEvent).toHaveBeenCalledWith(
         expectedEvent,
         "clerk-1",
-        expect.objectContaining({ choice }),
+        expect.objectContaining({
+          choice,
+          routing_mode: "shadow",
+          eligible_profile: "light",
+          planned_profile: "standard",
+          task_kind: "rewrite",
+          policy_version: 1,
+        }),
       );
     },
   );

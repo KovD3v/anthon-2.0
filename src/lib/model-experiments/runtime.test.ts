@@ -402,6 +402,8 @@ describe("model comparison runtime", () => {
         countryCode: "IT",
         capabilityPlannerMode: "agentic",
         turnDecision: mocks.preparedTurnDecision,
+        routingMode: "shadow",
+        plannedProfile: "standard",
       }),
     );
     expect(mocks.finalizePair).toHaveBeenCalledWith({
@@ -966,6 +968,35 @@ describe("model comparison runtime", () => {
       classificationLatencyMs: 12,
     });
     expect(mocks.createPair).not.toHaveBeenCalled();
+    expect(mocks.releaseUsage).toHaveBeenCalledWith({
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+      userId: "user-1",
+    });
+  });
+
+  it("reuses the prepared turn after an expected pair admission race", async () => {
+    mocks.createPair.mockRejectedValueOnce(
+      new Error("PARTICIPANT_NOT_ELIGIBLE"),
+    );
+    const onPreparedTurnRejected = vi.fn();
+    const input = runtimeInput();
+
+    await expect(
+      tryCreateModelComparisonResponse({
+        ...input,
+        onPreparedTurnRejected,
+      }),
+    ).resolves.toBeNull();
+
+    expect(mocks.prepareChatTurn).toHaveBeenCalledTimes(1);
+    expect(onPreparedTurnRejected).toHaveBeenCalledTimes(1);
+    expect(onPreparedTurnRejected).toHaveBeenCalledWith({
+      turnDecision: mocks.preparedTurnDecision,
+      capabilityPlannerMode: "agentic",
+      classificationLatencyMs: 12,
+    });
+    expect(mocks.executePreparedChatTurn).not.toHaveBeenCalled();
     expect(mocks.releaseUsage).toHaveBeenCalledWith({
       reservationId: "reservation-1",
       claimToken: "claim-1",
