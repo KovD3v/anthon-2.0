@@ -42,7 +42,11 @@ function registerEvidence(userId: string, chunkId: string): string {
     }
   }
   const id = randomUUID();
-  evidenceRegistry.set(id, { userId, chunkId, expiresAt: now + EVIDENCE_TTL_MS });
+  evidenceRegistry.set(id, {
+    userId,
+    chunkId,
+    expiresAt: now + EVIDENCE_TTL_MS,
+  });
   return id;
 }
 
@@ -59,7 +63,10 @@ function excerptsFromContent(
     if (!available) break;
     const text = (match[2] ?? "").slice(0, available).trim();
     if (!text) continue;
-    excerpts.push({ role: match[1]?.toLowerCase() === "user" ? "user" : "assistant", text });
+    excerpts.push({
+      role: match[1]?.toLowerCase() === "user" ? "user" : "assistant",
+      text,
+    });
     used += text.length;
   }
   return excerpts;
@@ -100,7 +107,10 @@ async function queryScope(input: {
   `);
 }
 
-function packetize(userId: string, rows: SearchRow[]): ConversationEvidencePacket[] {
+function packetize(
+  userId: string,
+  rows: SearchRow[],
+): ConversationEvidencePacket[] {
   let remaining = 3_000;
   const packets: ConversationEvidencePacket[] = [];
   for (const row of rows.slice(0, 4)) {
@@ -111,7 +121,9 @@ function packetize(userId: string, rows: SearchRow[]): ConversationEvidencePacke
     remaining -= used;
     packets.push({
       id: registerEvidence(userId, row.id),
-      summary: (row.summary?.trim() || excerpts.map((item) => item.text).join(" ")).slice(0, 400),
+      summary: (
+        row.summary?.trim() || excerpts.map((item) => item.text).join(" ")
+      ).slice(0, 400),
       excerpts,
       occurredAt: row.sourceCreatedAt.toISOString(),
       channel: row.channel,
@@ -129,15 +141,29 @@ export async function searchPastConversations(input: {
 }): Promise<ConversationRecallResult> {
   const started = performance.now();
   const query = input.query.trim().slice(0, 500);
-  if (!query) return { packets: [], scope: "current_thread", degraded: false, elapsedMs: 0 };
+  if (!query)
+    return {
+      packets: [],
+      scope: "current_thread",
+      degraded: false,
+      elapsedMs: 0,
+    };
 
   let degraded = false;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 350);
   try {
-    const embedding = await generateEmbedding(query, { abortSignal: controller.signal, timeoutMs: 120 });
+    const embedding = await generateEmbedding(query, {
+      abortSignal: controller.signal,
+      timeoutMs: 120,
+    });
     degraded = embedding === null;
-    const current = await queryScope({ ...input, query, embedding, currentOnly: true });
+    const current = await queryScope({
+      ...input,
+      query,
+      embedding,
+      currentOnly: true,
+    });
     if (current.length >= 2 || input.scope !== "all_channels") {
       return {
         packets: packetize(input.userId, current),
@@ -146,9 +172,15 @@ export async function searchPastConversations(input: {
         elapsedMs: Math.round(performance.now() - started),
       };
     }
-    const global = await queryScope({ ...input, query, embedding, currentOnly: false });
+    const global = await queryScope({
+      ...input,
+      query,
+      embedding,
+      currentOnly: false,
+    });
     const deduped = [...current, ...global].filter(
-      (row, index, rows) => rows.findIndex((candidate) => candidate.id === row.id) === index,
+      (row, index, rows) =>
+        rows.findIndex((candidate) => candidate.id === row.id) === index,
     );
     return {
       packets: packetize(input.userId, deduped),
@@ -171,7 +203,12 @@ export async function searchPastConversations(input: {
 function textFromParts(parts: unknown, mediaType: string | null) {
   if (Array.isArray(parts)) {
     const text = parts
-      .filter((part) => typeof part === "object" && part !== null && (part as { type?: unknown }).type === "text")
+      .filter(
+        (part) =>
+          typeof part === "object" &&
+          part !== null &&
+          (part as { type?: unknown }).type === "text",
+      )
       .map((part) => (part as { text?: unknown }).text)
       .filter((text): text is string => typeof text === "string")
       .join("\n")
@@ -188,7 +225,11 @@ export async function expandConversationEvidence(input: {
   after?: number;
 }): Promise<ConversationEvidencePacket | null> {
   const registered = evidenceRegistry.get(input.evidenceId);
-  if (!registered || registered.userId !== input.userId || registered.expiresAt <= Date.now()) {
+  if (
+    !registered ||
+    registered.userId !== input.userId ||
+    registered.expiresAt <= Date.now()
+  ) {
     evidenceRegistry.delete(input.evidenceId);
     return null;
   }
@@ -221,13 +262,29 @@ export async function expandConversationEvidence(input: {
   let remaining = 4_000;
   const excerpts = messages.toReversed().flatMap((message) => {
     if (remaining <= 0) return [];
-    const text = textFromParts(message.parts, message.mediaType).slice(0, remaining);
+    const text = textFromParts(message.parts, message.mediaType).slice(
+      0,
+      remaining,
+    );
     remaining -= text.length;
-    return text ? [{ role: message.role === "USER" ? ("user" as const) : ("assistant" as const), text }] : [];
+    return text
+      ? [
+          {
+            role:
+              message.role === "USER"
+                ? ("user" as const)
+                : ("assistant" as const),
+            text,
+          },
+        ]
+      : [];
   });
   return {
     id: input.evidenceId,
-    summary: excerpts.map((item) => item.text).join(" ").slice(0, 400),
+    summary: excerpts
+      .map((item) => item.text)
+      .join(" ")
+      .slice(0, 400),
     excerpts,
     occurredAt: chunk.sourceCreatedAt.toISOString(),
     channel: chunk.channel,

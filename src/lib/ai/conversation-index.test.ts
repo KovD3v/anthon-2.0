@@ -11,7 +11,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({
   prisma: {
     $executeRaw: mocks.executeRaw,
-    message: { findMany: mocks.messageFindMany, findFirst: mocks.messageFindFirst },
+    message: {
+      findMany: mocks.messageFindMany,
+      findFirst: mocks.messageFindFirst,
+    },
     conversationThread: { findFirst: mocks.threadFindFirst },
   },
 }));
@@ -25,7 +28,9 @@ describe("conversation index", () => {
     vi.resetModules();
     vi.clearAllMocks();
     mocks.threadFindFirst.mockResolvedValue({ id: "thread-1", channel: "WEB" });
-    mocks.messageFindFirst.mockResolvedValue({ createdAt: new Date("2026-08-11T10:00:00Z") });
+    mocks.messageFindFirst.mockResolvedValue({
+      createdAt: new Date("2026-08-11T10:00:00Z"),
+    });
     mocks.messageFindMany.mockResolvedValue([
       {
         id: "message-4",
@@ -35,7 +40,9 @@ describe("conversation index", () => {
         createdAt: new Date("2026-08-11T10:00:00Z"),
       },
     ]);
-    mocks.generateEmbedding.mockResolvedValue(Array.from({ length: 1536 }, () => 0.1));
+    mocks.generateEmbedding.mockResolvedValue(
+      Array.from({ length: 1536 }, () => 0.1),
+    );
     mocks.executeRaw.mockResolvedValue(1);
   });
 

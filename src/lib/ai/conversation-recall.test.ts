@@ -14,11 +14,14 @@ vi.mock("@/lib/db", () => ({
     message: { findMany: mocks.messageFindMany },
   },
 }));
-vi.mock("@/lib/ai/embeddings", () => ({ generateEmbedding: mocks.generateEmbedding }));
+vi.mock("@/lib/ai/embeddings", () => ({
+  generateEmbedding: mocks.generateEmbedding,
+}));
 
 const row = (id: string, relevance = 0.9) => ({
   id,
-  content: "user: Prima della finale ero teso\nassistant: Abbiamo usato la respirazione",
+  content:
+    "user: Prima della finale ero teso\nassistant: Abbiamo usato la respirazione",
   summary: null,
   channel: "WEB",
   sourceCreatedAt: new Date("2026-08-10T10:00:00Z"),
@@ -29,7 +32,9 @@ describe("conversation recall", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    mocks.generateEmbedding.mockResolvedValue(Array.from({ length: 1536 }, () => 0.1));
+    mocks.generateEmbedding.mockResolvedValue(
+      Array.from({ length: 1536 }, () => 0.1),
+    );
   });
 
   it("returns sufficient current-thread evidence without a global query", async () => {
@@ -99,22 +104,32 @@ describe("conversation recall", () => {
       channel: "WEB",
     });
     mocks.messageFindMany.mockResolvedValue([
-      { role: "ASSISTANT", parts: [{ type: "text", text: "Respira" }], mediaType: null },
-      { role: "USER", parts: [{ type: "text", text: "La finale" }], mediaType: null },
+      {
+        role: "ASSISTANT",
+        parts: [{ type: "text", text: "Respira" }],
+        mediaType: null,
+      },
+      {
+        role: "USER",
+        parts: [{ type: "text", text: "La finale" }],
+        mediaType: null,
+      },
     ]);
-    const { expandConversationEvidence, searchPastConversations } = await import(
-      "./conversation-recall"
-    );
+    const { expandConversationEvidence, searchPastConversations } =
+      await import("./conversation-recall");
     const searched = await searchPastConversations({
       userId: "user-1",
       conversationThreadId: "thread-1",
       query: "finale",
       scope: "current_thread",
     });
+    const evidence = searched.packets[0];
+    expect(evidence).toBeDefined();
+    if (!evidence) throw new Error("Expected recall evidence");
 
     const expanded = await expandConversationEvidence({
       userId: "user-1",
-      evidenceId: searched.packets[0]!.id,
+      evidenceId: evidence.id,
       before: 9,
       after: 9,
     });

@@ -100,7 +100,10 @@ describe("channel-flow/persistence", () => {
       approvalsCreated: 0,
       rejected: 0,
     });
-    mocks.indexConversationWindow.mockResolvedValue({ status: "indexed", chunkId: "chunk-1" });
+    mocks.indexConversationWindow.mockResolvedValue({
+      status: "indexed",
+      chunkId: "chunk-1",
+    });
     mocks.markMemoryApprovalPresented.mockResolvedValue({
       status: "presented",
     });

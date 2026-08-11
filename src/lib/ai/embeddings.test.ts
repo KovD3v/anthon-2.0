@@ -17,7 +17,9 @@ describe("shared embedding client", () => {
   it("does not call the provider for empty input", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    const { generateEmbedding, generateEmbeddings } = await import("./embeddings");
+    const { generateEmbedding, generateEmbeddings } = await import(
+      "./embeddings"
+    );
 
     expect(await generateEmbedding("   ")).toBeNull();
     expect(await generateEmbeddings([])).toEqual([]);
@@ -60,11 +62,15 @@ describe("shared embedding client", () => {
   it("propagates caller abort to the request and resolves failure safely", async () => {
     const controller = new AbortController();
     controller.abort();
-    const fetchMock = vi.fn().mockRejectedValue(new DOMException("aborted", "AbortError"));
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValue(new DOMException("aborted", "AbortError"));
     vi.stubGlobal("fetch", fetchMock);
     const { generateEmbedding } = await import("./embeddings");
 
-    expect(await generateEmbedding("query", { abortSignal: controller.signal })).toBeNull();
+    expect(
+      await generateEmbedding("query", { abortSignal: controller.signal }),
+    ).toBeNull();
     expect(fetchMock.mock.calls[0]?.[1]?.signal.aborted).toBe(true);
   });
 });

@@ -403,7 +403,10 @@ export async function persistAssistantOutput({
         persistenceLogger.warn(
           "conversation_recall.index_failed",
           "Conversation recall indexing failed",
-          { errorName: error instanceof Error ? error.name : "unknown", userId },
+          {
+            errorName: error instanceof Error ? error.name : "unknown",
+            userId,
+          },
         );
       }),
     );

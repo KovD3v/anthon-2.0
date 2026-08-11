@@ -32,7 +32,10 @@ async function requestEmbeddings(
   if (inputs.length === 0) return [];
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    logger.error("ai.embedding.missing_key", "Embedding provider is unavailable");
+    logger.error(
+      "ai.embedding.missing_key",
+      "Embedding provider is unavailable",
+    );
     return inputs.map(() => null);
   }
 
@@ -44,7 +47,8 @@ async function requestEmbeddings(
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
-          "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+          "HTTP-Referer":
+            process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
           "X-Title": "Anthon Coach",
         },
         body: JSON.stringify({ model: EMBEDDING_MODEL_ID, input: inputs }),
@@ -68,7 +72,10 @@ async function requestEmbeddings(
       }
       return output;
     } catch (error) {
-      if (options?.abortSignal?.aborted || (error instanceof DOMException && error.name === "AbortError")) {
+      if (
+        options?.abortSignal?.aborted ||
+        (error instanceof DOMException && error.name === "AbortError")
+      ) {
         break;
       }
     }

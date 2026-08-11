@@ -321,6 +321,29 @@ context and reuses the same decision for both variants and any normal fallback.
 Model-comparison responses are excluded from durable-memory consolidation so
 an unselected experimental answer cannot become user knowledge.
 
+### Conversation recall
+
+Conversation recall is separate from durable fact memory. Completed turns are
+indexed asynchronously as bounded, role-prefixed windows; embedding failures do
+not affect streaming or message persistence. The index is disposable and can be
+rebuilt with `bun run backfill:conversation-recall -- --dry-run` followed by an
+explicit `--apply` run. The backfill supports `--after-thread-id` checkpoints and
+never prints message content.
+
+Search validates user and thread ownership before ranking, queries the active
+thread first, and expands to other channels only when current-thread evidence is
+insufficient and server policy permits it. Semantic similarity, lexical rank,
+recency, and thread proximity contribute to the score; lexical and recency
+remain available if embedding generation fails. Current-thread recall targets
+100 ms (200 ms incremental P95 ceiling); cross-channel expansion targets 250 ms
+(400 ms incremental P95 ceiling).
+
+The model receives at most four privacy-safe evidence packets with opaque IDs,
+bounded excerpts, dates, channels, and relevance. Retrieved text is untrusted
+evidence, never instructions or authorization. Expansion is limited to an ID
+returned in the same turn, revalidates the active source and ownership, clamps
+the surrounding-message window, and excludes soft-deleted messages.
+
 The planner-mode schema change is migration-backed. Apply
 `prisma/migrations/20260809130000_add_model_comparison_capability_planner_mode`
 with the deployment migration path, then run `bunx prisma generate` before

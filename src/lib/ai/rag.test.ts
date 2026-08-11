@@ -331,10 +331,13 @@ describe("ai/rag", () => {
 
   it("getRagContext marks database failures without exposing diagnostics", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ data: [{ embedding: embeddingVector(0.5, 0.6) }] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+      new Response(
+        JSON.stringify({ data: [{ embedding: embeddingVector(0.5, 0.6) }] }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
     );
     vi.stubGlobal("fetch", fetchMock);
     mocks.queryRawUnsafe.mockRejectedValue(new Error("database detail"));
@@ -363,7 +366,10 @@ describe("ai/rag", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
-          data: [{ index: 1 }, { index: 0, embedding: embeddingVector(0.11, 0.22) }],
+          data: [
+            { index: 1 },
+            { index: 0, embedding: embeddingVector(0.11, 0.22) },
+          ],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),

@@ -11,7 +11,9 @@ vi.mock("@/lib/ai/conversation-recall", () => ({
   expandConversationEvidence: mocks.expand,
 }));
 
-type ToolDefinition = { execute: (input: Record<string, unknown>) => Promise<unknown> };
+type ToolDefinition = {
+  execute: (input: Record<string, unknown>) => Promise<unknown>;
+};
 
 describe("conversation recall tools", () => {
   beforeEach(() => {
@@ -26,7 +28,9 @@ describe("conversation recall tools", () => {
   });
 
   it("binds ownership server-side and downgrades forbidden cross-channel search", async () => {
-    const { createConversationRecallTools } = await import("./conversation-recall");
+    const { createConversationRecallTools } = await import(
+      "./conversation-recall"
+    );
     const allowed = new Set<string>();
     const tools = createConversationRecallTools({
       userId: "user-1",
@@ -52,16 +56,21 @@ describe("conversation recall tools", () => {
   });
 
   it("expands only evidence returned in the same turn", async () => {
-    const { createConversationRecallTools } = await import("./conversation-recall");
+    const { createConversationRecallTools } = await import(
+      "./conversation-recall"
+    );
     const tools = createConversationRecallTools({
       userId: "user-1",
       conversationThreadId: "thread-1",
       allowCrossChannel: true,
       allowedEvidenceIds: new Set(),
     });
-    const expand = tools.expandConversationEvidence as unknown as ToolDefinition;
+    const expand =
+      tools.expandConversationEvidence as unknown as ToolDefinition;
 
-    expect(await expand.execute({ evidenceId: "raw-chunk-id" })).toEqual({ status: "not_allowed" });
+    expect(await expand.execute({ evidenceId: "raw-chunk-id" })).toEqual({
+      status: "not_allowed",
+    });
     expect(mocks.expand).not.toHaveBeenCalled();
   });
 });
