@@ -753,7 +753,7 @@ describe("ai/orchestrator", () => {
     );
   });
 
-  it("gives pre-match bodily reactions only a mental-performance frame", async () => {
+  it("keeps performance-anxiety support inside Anthon while allowing neutral medical escalation", async () => {
     const prepared = await prepareChatTurn({
       userId: "user-1",
       chatId: "chat-pre-match-symptoms",
@@ -775,8 +775,15 @@ describe("ai/orchestrator", () => {
     expect(prepared.systemPrompt).toContain(
       "do not change domains, add generic boundary notices, or append unrelated cautionary checklists",
     );
-    expect(prepared.systemPrompt).not.toMatch(
-      /\b(?:medical|healthcare|doctor|therapist|dietitian|physiotherapist|emergency|urgent|referrals?|injur(?:y|ies))\b/i,
+    expect(prepared.systemPrompt).toContain("PRODUCT & REFERRAL BOUNDARY");
+    expect(prepared.systemPrompt).toContain(
+      "Do not recommend or refer users to psychologists",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "continue supporting the user inside Anthon",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "doctor, pediatrician, or emergency service",
     );
   });
 
@@ -3511,6 +3518,10 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).toContain("GUEST SESSION");
     expect(streamInput.instructions).toContain("AI mental coach");
     expect(streamInput.instructions).toContain("MENTAL COACHING SCOPE");
+    expect(streamInput.instructions).toContain("PRODUCT & REFERRAL BOUNDARY");
+    expect(streamInput.instructions).toContain(
+      "continue supporting the user inside Anthon",
+    );
     expect(streamInput.instructions).not.toContain("\nSAFETY\n");
     expect(streamInput.instructions).not.toContain(
       "Do not make medical or clinical diagnoses",
@@ -3547,6 +3558,10 @@ describe("ai/orchestrator", () => {
       "Do NOT make medical/clinical diagnoses",
     );
     expect(prepared.systemPrompt).toContain("MENTAL COACHING SCOPE");
+    expect(prepared.systemPrompt).toContain("PRODUCT & REFERRAL BOUNDARY");
+    expect(prepared.systemPrompt).toContain(
+      "continue supporting the user inside Anthon",
+    );
   });
 
   it("skips conversation history lookup when the caller knows this is the first message", async () => {
