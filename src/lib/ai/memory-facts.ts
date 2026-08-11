@@ -18,6 +18,22 @@ type FactCacheEntry = {
   expiresAt: number;
 };
 
+type MemoryFactTransaction = {
+  memory: {
+    findFirst: (args: {
+      where: { userId: string; key: string };
+    }) => PromiseLike<{ value: Prisma.JsonValue } | null>;
+    upsert: (args: Prisma.MemoryUpsertArgs) => PromiseLike<{ id: string }>;
+  };
+  memoryRevision: {
+    findUnique: (args: {
+      where: { dedupeKey: string };
+      select: { memoryId: true };
+    }) => PromiseLike<{ memoryId: string } | null>;
+    create: (args: Prisma.MemoryRevisionCreateArgs) => PromiseLike<unknown>;
+  };
+};
+
 const factCache = new Map<string, FactCacheEntry>();
 
 export type RecalledFact = {
@@ -260,7 +276,8 @@ function canonicalFactInput(
   };
 }
 
-export async function rememberFact(
+export async function rememberFactInTransaction(
+  transaction: MemoryFactTransaction,
   requestedInput: FactMutationInput,
 ): Promise<FactMutationResult> {
   const input = canonicalFactInput(requestedInput);
@@ -269,71 +286,73 @@ export async function rememberFact(
     return { status: "rejected" };
   }
 
-  try {
-    const result = await prisma.$transaction(async (transaction) => {
-      const duplicate = await transaction.memoryRevision.findUnique({
-        where: { dedupeKey: input.dedupeKey },
-        select: { memoryId: true },
-      });
-      if (duplicate) {
-        return { status: "duplicate", factId: duplicate.memoryId } as const;
-      }
+  const duplicate = await transaction.memoryRevision.findUnique({
+    where: { dedupeKey: input.dedupeKey },
+    select: { memoryId: true },
+  });
+  if (duplicate) {
+    return { status: "duplicate", factId: duplicate.memoryId };
+  }
 
-      const previous = await transaction.memory.findFirst({
-        where: { userId: input.userId, key: input.key },
-      });
-      const timestamp = new Date().toISOString();
-      const nextValue = storedValue(input, timestamp);
-      const memory = await transaction.memory.upsert({
-        where: { userId_key: { userId: input.userId, key: input.key } },
-        update: {
-          value: nextValue,
-          category: input.category,
-          confidence: input.confidence,
-          sensitivity: input.sensitivity,
-          origin: input.origin,
-          status: "ACTIVE",
-          sourceMessageId: input.sourceMessageId,
-          sourceThreadId: input.sourceThreadId,
-          observedAt: input.observedAt ?? new Date(),
-          expiresAt: input.expiresAt,
-          ...(input.origin === "CONFIRMED"
-            ? { lastConfirmedAt: new Date() }
-            : {}),
-        },
-        create: {
-          userId: input.userId,
-          key: input.key,
-          value: nextValue,
-          category: input.category,
-          confidence: input.confidence,
-          sensitivity: input.sensitivity,
-          origin: input.origin,
-          sourceMessageId: input.sourceMessageId,
-          sourceThreadId: input.sourceThreadId,
-          observedAt: input.observedAt ?? new Date(),
-          expiresAt: input.expiresAt,
-          ...(input.origin === "CONFIRMED"
-            ? { lastConfirmedAt: new Date() }
-            : {}),
-        },
-        select: { id: true },
-      });
-      await transaction.memoryRevision.create({
-        data: {
-          userId: input.userId,
-          memoryId: memory.id,
-          sourceMessageId: input.sourceMessageId,
-          previousValue: previous?.value as Prisma.InputJsonValue | undefined,
-          nextValue,
-          origin: input.origin,
-          reason: "remember",
-          dedupeKey: input.dedupeKey,
-        },
-      });
-      return { status: "saved", factId: memory.id } as const;
-    });
-    if (result.status === "saved") invalidateFactCache(input.userId);
+  const previous = await transaction.memory.findFirst({
+    where: { userId: input.userId, key: input.key },
+  });
+  const timestamp = new Date().toISOString();
+  const nextValue = storedValue(input, timestamp);
+  const memory = await transaction.memory.upsert({
+    where: { userId_key: { userId: input.userId, key: input.key } },
+    update: {
+      value: nextValue,
+      category: input.category,
+      confidence: input.confidence,
+      sensitivity: input.sensitivity,
+      origin: input.origin,
+      status: "ACTIVE",
+      sourceMessageId: input.sourceMessageId,
+      sourceThreadId: input.sourceThreadId,
+      observedAt: input.observedAt ?? new Date(),
+      expiresAt: input.expiresAt,
+      ...(input.origin === "CONFIRMED" ? { lastConfirmedAt: new Date() } : {}),
+    },
+    create: {
+      userId: input.userId,
+      key: input.key,
+      value: nextValue,
+      category: input.category,
+      confidence: input.confidence,
+      sensitivity: input.sensitivity,
+      origin: input.origin,
+      sourceMessageId: input.sourceMessageId,
+      sourceThreadId: input.sourceThreadId,
+      observedAt: input.observedAt ?? new Date(),
+      expiresAt: input.expiresAt,
+      ...(input.origin === "CONFIRMED" ? { lastConfirmedAt: new Date() } : {}),
+    },
+    select: { id: true },
+  });
+  await transaction.memoryRevision.create({
+    data: {
+      userId: input.userId,
+      memoryId: memory.id,
+      sourceMessageId: input.sourceMessageId,
+      previousValue: previous?.value as Prisma.InputJsonValue | undefined,
+      nextValue,
+      origin: input.origin,
+      reason: "remember",
+      dedupeKey: input.dedupeKey,
+    },
+  });
+  return { status: "saved", factId: memory.id };
+}
+
+export async function rememberFact(
+  requestedInput: FactMutationInput,
+): Promise<FactMutationResult> {
+  try {
+    const result = await prisma.$transaction((transaction) =>
+      rememberFactInTransaction(transaction, requestedInput),
+    );
+    if (result.status === "saved") invalidateFactCache(requestedInput.userId);
     return result;
   } catch (error) {
     memoryLogger.warn(
@@ -341,7 +360,7 @@ export async function rememberFact(
       "Durable fact save failed",
       {
         errorName: error instanceof Error ? error.name : "unknown",
-        userId: input.userId,
+        userId: requestedInput.userId,
       },
     );
     return { status: "rejected" };

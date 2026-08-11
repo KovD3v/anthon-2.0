@@ -447,9 +447,16 @@ git commit -m "refactor(ai): enforce fact lifecycle in user controls"
 - Modify: `src/lib/ai/memory-extractor.test.ts`
 - Modify: `src/lib/ai/memory-approval.ts`
 - Modify: `src/lib/ai/memory-approval.test.ts`
+- Modify: `src/lib/ai/memory-facts.ts`
 - Modify: `src/lib/channel-flow/persistence.ts`
 - Modify: `src/lib/channel-flow/persistence.test.ts`
+- Modify: `src/lib/channel-flow/run.ts`
+- Modify: `src/lib/channel-flow/run.test.ts`
+- Modify: `src/lib/channel-flow/types.ts`
+- Modify: `src/lib/channels/web/chat-route-handler.ts`
 - Modify: `src/app/api/chat/route.test.ts`
+- Modify: `src/lib/model-experiments/service.ts`
+- Modify: `src/lib/model-experiments/service.behavior.test.ts`
 
 **Interfaces:**
 - Consumes canonical routing and fact mutations from Tasks 2-4.
@@ -524,7 +531,7 @@ Expected: PASS.
 - [ ] **Step 7: Commit consolidation**
 
 ```bash
-git add src/lib/ai/memory-consolidator.ts src/lib/ai/memory-consolidator.test.ts src/lib/ai/memory-extractor.ts src/lib/ai/memory-extractor.test.ts src/lib/ai/memory-approval.ts src/lib/ai/memory-approval.test.ts src/lib/channel-flow/persistence.ts src/lib/channel-flow/persistence.test.ts src/app/api/chat/route.test.ts
+git add src/lib/ai/memory-consolidator.ts src/lib/ai/memory-consolidator.test.ts src/lib/ai/memory-extractor.ts src/lib/ai/memory-extractor.test.ts src/lib/ai/memory-approval.ts src/lib/ai/memory-approval.test.ts src/lib/ai/memory-facts.ts src/lib/channel-flow/persistence.ts src/lib/channel-flow/persistence.test.ts src/lib/channel-flow/run.ts src/lib/channel-flow/run.test.ts src/lib/channel-flow/types.ts src/lib/channels/web/chat-route-handler.ts src/app/api/chat/route.test.ts src/lib/model-experiments/service.ts src/lib/model-experiments/service.behavior.test.ts
 git commit -m "feat(ai): consolidate durable facts after every turn"
 ```
 

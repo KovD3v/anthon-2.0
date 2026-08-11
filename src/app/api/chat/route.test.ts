@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
   reconcileAiUsageForRecovery: vi.fn(),
   streamChat: vi.fn(),
   generateChatMetadata: vi.fn(),
-  extractAndSaveMemories: vi.fn(),
+  consolidateTurnMemory: vi.fn(),
   trackInboundUserMessageFunnelProgress: vi.fn(),
   isBillingSyncStale: vi.fn(),
   syncPersonalSubscriptionFromClerk: vi.fn(),
@@ -120,8 +120,8 @@ vi.mock("@/lib/ai/chat-title", () => ({
   generateChatMetadata: mocks.generateChatMetadata,
 }));
 
-vi.mock("@/lib/ai/memory-extractor", () => ({
-  extractAndSaveMemories: mocks.extractAndSaveMemories,
+vi.mock("@/lib/ai/memory-consolidator", () => ({
+  consolidateTurnMemory: mocks.consolidateTurnMemory,
 }));
 
 vi.mock("@/lib/analytics/funnel", () => ({
@@ -303,7 +303,7 @@ describe("POST /api/chat", () => {
     mocks.reconcileAiUsageForRecovery.mockReset();
     mocks.streamChat.mockReset();
     mocks.generateChatMetadata.mockReset();
-    mocks.extractAndSaveMemories.mockReset();
+    mocks.consolidateTurnMemory.mockReset();
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
     mocks.isBillingSyncStale.mockReset();
     mocks.syncPersonalSubscriptionFromClerk.mockReset();
@@ -411,7 +411,12 @@ describe("POST /api/chat", () => {
     );
     mocks.attachmentCreate.mockResolvedValue({ id: "att-voice-1" });
     mocks.incrementUsage.mockResolvedValue({});
-    mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.consolidateTurnMemory.mockResolvedValue({
+      considered: 0,
+      persisted: 0,
+      approvalsCreated: 0,
+      rejected: 0,
+    });
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
     mocks.isBillingSyncStale.mockImplementation(
@@ -1443,7 +1448,14 @@ describe("POST /api/chat", () => {
     expect(mocks.generateVoice).not.toHaveBeenCalled();
     expect(mocks.putPrivateVoiceBlob).not.toHaveBeenCalled();
     expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
-    expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
+    expect(mocks.consolidateTurnMemory).toHaveBeenCalledWith({
+      userId: "user-1",
+      inboundMessageId: "msg-user-1",
+      conversationThreadId: "thread-1",
+      userText: "Mandami un vocale rapido",
+      assistantText:
+        "Respira. Spalle morbide. Ora scegli una sola azione semplice.",
+    });
     expect(mocks.voiceGenerationJobCreate).toHaveBeenCalledWith({
       data: {
         messageId: "msg-assistant-1",
@@ -1474,7 +1486,7 @@ describe("POST /api/chat", () => {
     );
   });
 
-  it("extracts memories for authenticated voice only with valid legacy planner metadata", async () => {
+  it("consolidates memory for authenticated voice with valid legacy planner metadata", async () => {
     const capabilityDecision = Object.freeze({
       rag: false,
       webSearch: false,
@@ -1537,16 +1549,19 @@ describe("POST /api/chat", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.extractAndSaveMemories).toHaveBeenCalledWith(
-      "user-1",
-      "Mandami un vocale rapido",
-      "Assistant legacy voice reply",
-    );
+    expect(mocks.consolidateTurnMemory).toHaveBeenCalledWith({
+      userId: "user-1",
+      inboundMessageId: "msg-user-1",
+      conversationThreadId: "thread-1",
+      userText: "Mandami un vocale rapido",
+      assistantText: "Assistant legacy voice reply",
+    });
   });
 
   it.each([
     {
       label: "agentic",
+      expectedConsolidation: true,
       recovery: {
         capabilityMetadataValid: true,
         capabilityPlannerMode: "agentic" as const,
@@ -1566,13 +1581,15 @@ describe("POST /api/chat", () => {
         }),
       },
     },
-    { label: "old missing", recovery: {} },
+    { label: "old missing", expectedConsolidation: false, recovery: {} },
     {
       label: "invalid",
+      expectedConsolidation: false,
       recovery: { capabilityMetadataValid: false },
     },
     {
       label: "malformed agentic",
+      expectedConsolidation: false,
       recovery: {
         capabilityMetadataValid: true,
         capabilityPlannerMode: "agentic" as const,
@@ -1580,8 +1597,8 @@ describe("POST /api/chat", () => {
       },
     },
   ])(
-    "does not extract memories for voice recovery with $label planner metadata",
-    async ({ recovery }) => {
+    "applies consolidation policy for voice recovery with $label planner metadata",
+    async ({ recovery, expectedConsolidation }) => {
       mocks.decideWebVoiceMode.mockResolvedValue({
         mode: "VOICE",
         reason: "User explicitly requested voice",
@@ -1627,7 +1644,11 @@ describe("POST /api/chat", () => {
 
       expect(response.status).toBe(200);
       expect(mocks.streamChat).not.toHaveBeenCalled();
-      expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
+      if (expectedConsolidation) {
+        expect(mocks.consolidateTurnMemory).toHaveBeenCalledTimes(1);
+      } else {
+        expect(mocks.consolidateTurnMemory).not.toHaveBeenCalled();
+      }
     },
   );
 
@@ -2445,11 +2466,13 @@ describe("POST /api/chat", () => {
     expect(mocks.incrementUsage).not.toHaveBeenCalled();
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-user-1", "max");
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "max");
-    expect(mocks.extractAndSaveMemories).toHaveBeenCalledWith(
-      "user-1",
-      "hello world",
-      "Assistant reply",
-    );
+    expect(mocks.consolidateTurnMemory).toHaveBeenCalledWith({
+      userId: "user-1",
+      inboundMessageId: "msg-user-1",
+      conversationThreadId: "thread-1",
+      userText: "hello world",
+      assistantText: "Assistant reply",
+    });
     expect(mocks.waitUntil).toHaveBeenCalledTimes(3);
   });
 

@@ -459,10 +459,7 @@ export async function runChannelFlow(
       text: recovery.text,
       metrics: recovery.metrics,
       usageAlreadyReconciled: true,
-      allowMemoryExtraction:
-        memoryEnabled &&
-        recoveryMetadataValid &&
-        capabilityPlannerMode === "legacy",
+      allowMemoryExtraction: memoryEnabled && recoveryMetadataValid,
     });
     if (ctx.hooks?.onFinish) {
       await ctx.hooks.onFinish({
@@ -659,10 +656,7 @@ export async function runChannelFlow(
         await persistGeneratedOutput({
           text,
           metrics,
-          allowMemoryExtraction:
-            memoryEnabled &&
-            capabilityMetadataValid &&
-            capabilityPlannerMode === "legacy",
+          allowMemoryExtraction: memoryEnabled && capabilityMetadataValid,
         });
         if (ctx.hooks?.onFinish) {
           try {
