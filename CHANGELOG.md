@@ -120,6 +120,10 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Hardened light/standard execution routing by failing closed for empty task
+  allowlists, preserving route provenance through fallback paths, requiring
+  bounded recent context when a light turn depends on it, and ignoring
+  supplied transformation payloads when estimating response brevity.
 - Kept the chat composer coherent while voice recording or upload is active by
   hiding conflicting attachment, text, and send controls until the recorder is
   ready.
