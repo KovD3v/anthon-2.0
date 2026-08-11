@@ -68,6 +68,7 @@ app/
 | ------------------------ | ---------------------------------- |
 | `ai/orchestrator.ts`     | Main chat preparation, streaming, prompt composition, and tool exposure |
 | `ai/capability-arbitration.ts` | Per-message optional-capability classifier plus deterministic normalization |
+| `ai/turn-arbitration.ts` / `ai/execution-routing.ts` | Unified classifier proposal, immutable `TurnDecision`, and fail-closed light/standard execution policy |
 | `ai/turn-plan.ts`        | Immutable response, context, prompt, and capability plan |
 | `ai/session-manager.ts`  | Builds channel-scoped conversation context and summaries |
 | `ai/rag.ts` / `ai/tools/rag.ts` | pgvector retrieval and bounded agentic RAG tool |
@@ -111,7 +112,8 @@ components/
           ▼
 3. Shared channel flow + orchestrator
    ├── Resolve model and OpenRouter provider options
-   ├── Arbitrate optional capabilities for this message
+   ├── Reuse one unified classifier proposal for capabilities and execution routing
+   ├── Normalize and freeze one immutable TurnDecision (eligible/planned/executed profiles)
    ├── Normalize and freeze one immutable TurnPlan
    ├── Build same-thread context when selected
    └── Stream with only the selected, server-authorized tools
@@ -129,12 +131,33 @@ components/
    ├── Save exactly one assistant message and normalized metrics
    ├── Reconcile the usage reservation atomically
    ├── Persist the completed capability decision
-   └── Retain bounded recovery data if final persistence fails
+   └── Retain bounded recovery data if final persistence fails; recovery preserves
+       the immutable route and fails closed to standard if it is invalid
           │
           ▼
 6. Stream response to client
    └── Optionally enqueue durable voice generation after text persists
 ```
+
+### Execution routing
+
+The agentic classifier is called once per turn; its workload proposal is reused
+by deterministic execution routing, so the light/standard decision introduces
+no extra provider round trip. The policy allowlists only `social`, `rewrite`,
+`translate`, `format`, `extract`, and `summarize_supplied`; tools, uncertain
+classification, current/web knowledge, deep context, coaching/sensitivity,
+media, approvals, voice, or token-bound violations force standard.
+
+The deployed model mapping is unchanged. `light` changes only the execution
+bundle (minimal reasoning, no tools, bounded output), not a plan's selected
+model. A routing trace separates classifier latency, generation TTFT for the
+executed attempt, and total-request TTFT from request start; it never presents
+classifier time as generation time.
+
+The shared `AI_EXECUTION_ROUTING_MODE=off` kill switch spans Web, Telegram, and
+WhatsApp. In `shadow`, eligible/planned/executed telemetry is recorded while
+standard remains executed. `active` applies only a stable local percentage and
+configured task allowlist; invalid configuration fails closed to `off`.
 
 ## Key Design Decisions
 

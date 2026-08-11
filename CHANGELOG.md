@@ -10,6 +10,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Added
 
+- Added a fail-closed light/standard execution-routing rollout with a unified
+  classifier proposal, immutable route traces, shared Web/Telegram/WhatsApp
+  kill switch, and a 36-fixture bilingual live evaluation command.
 - Added proactive, bounded durable-fact recall and current-thread-first search
   over past conversations, with opaque evidence expansion, asynchronous
   indexing, resumable backfill, and an offline 30-scenario benchmark.

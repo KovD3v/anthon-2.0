@@ -175,6 +175,15 @@ assistant message. It stores provider/model identifiers, token and cost data,
 generation timing, RAG usage, redacted provider metadata, and bounded tool
 timing. Legacy scalar metrics remain on `Message` for compatibility.
 
+`MessageMetrics.executionRoute` stores the schema-validated, privacy-allowlisted
+routing trace: eligible, planned, and executed profile; task kind; policy and
+classifier versions; confidence bucket; reason codes; attempts; bounded timing;
+and an optional light-to-standard escalation. It excludes user text, classifier
+prose, prompts, tool arguments/results, source content, and raw provider
+metadata. Its timing fields remain separate: `classificationLatencyMs` covers
+the classifier, each attempt's `timeToFirstTokenMs` is generation TTFT, and
+`totalRequestTimeToFirstTokenMs` measures request-start-to-first-token TTFT.
+
 ### ConversationThread and ConversationThreadSummary
 
 `ConversationThread` is the stable raw-history boundary. Web chats have a
@@ -302,9 +311,11 @@ so concurrent requests cannot spend the same remaining daily allowance.
 
 Successful assistant persistence and usage reconciliation share a database
 transaction. If generation succeeds but persistence fails, bounded recovery
-fields retain the assistant text plus content-free metrics needed to finish a
-retry without calling the model or charging again. Expired and old terminal
-reservations are cleaned up during later reservations.
+fields retain the assistant text plus content-free metrics and immutable routing
+trace needed to finish a retry without calling the model or charging again.
+Invalid or missing recovered route metadata fails closed to standard execution;
+it is never recomputed from a later environment rollout value. Expired and old
+terminal reservations are cleaned up during later reservations.
 
 ### DailyUploadUsage and UploadReservation
 
@@ -328,8 +339,8 @@ Administrative definition for a guarded two-variant comparison. Related
 models store the control/candidate variants, enrolled participants, immutable
 pairs, per-variant responses, lifecycle audits, and the user's final vote or
 automatically selected canonical response. Each pair also persists the exact
-conversation thread, prompt mode, capability-planner mode, expiry, and content
-purge deadline used for that comparison.
+conversation thread, prompt mode, capability-planner mode, immutable
+`turnDecision`, expiry, and content purge deadline used for that comparison.
 
 ### AiTurnTrace and AiTraceAccessAudit
 

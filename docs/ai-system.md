@@ -352,6 +352,56 @@ context and reuses the same decision for both variants and any normal fallback.
 Model-comparison responses are excluded from durable-memory consolidation so
 an unselected experimental answer cannot become user knowledge.
 
+### Light execution routing rollout
+
+In agentic mode, the unified classifier returns one capability-and-workload
+proposal. Server-side arbitration then freezes one `TurnDecision`: capability
+authorization remains deterministic, while execution normalization derives an
+eligible `light` or `standard` profile. Routing reuses that classifier proposal;
+it adds no model or network round trip, and the existing plan-to-model mapping
+remains intentionally unchanged.
+
+Only high-confidence `social`, `rewrite`, `translate`, `format`, `extract`, and
+`summarize_supplied` work can be light-eligible. Any required or uncertain
+capability, external knowledge, deep context, coaching/sensitive or substantive
+reasoning, direct media, pending approval, voice delivery, input above 8,000
+tokens, output above 600 tokens, invalid/failed classification, or runtime
+version mismatch vetoes light execution.
+
+The profiles in telemetry are deliberately distinct:
+
+- **eligible** is the deterministic result of normalization;
+- **planned** is the rollout policy selection; and
+- **executed** is the terminal attempt, including a fail-closed standard retry
+  when a light attempt fails before streaming.
+
+`AI_EXECUTION_ROUTING_MODE` is a closed `off | shadow | active` switch.
+`AI_EXECUTION_ROUTING_PERCENT` is the stable local allocation percentage, and
+`AI_EXECUTION_ROUTING_TASKS` is a comma-separated subset of
+`social,rewrite,translate,format,extract,summarize_supplied`. Missing or invalid
+mode, percent, or task names resolve to `off`; the legacy
+`AI_EXECUTION_ROUTING_ALLOCATION_PERCENT` is read only as a backward-compatible
+alias when the canonical percent is absent. Allocation is stable for the same
+turn key and requires no network lookup.
+
+| Mode | Eligible profile | Planned/executed profile |
+| ---- | ---------------- | ------------------------ |
+| `off` | Computed in agentic mode | Always standard |
+| `shadow` | Computed and recorded | Always standard |
+| `active` | Computed | Eligible light only for the configured task cohort and stable allocation; otherwise standard |
+
+Use `off` as the shared kill switch for Web, Telegram, and WhatsApp. Roll out
+by deploying `off`, validating every channel, moving to 100% `shadow`, and
+reviewing at least 500 eligible examples per task family with zero protected
+false-light cases. Start `active` with social only, retain concurrent standard
+controls, then expand one mechanical task family at a time only after the
+latency, feedback, escalation, invariant, persistence, and recovery gates hold.
+
+Routing telemetry is privacy allowlisted: it records profile names, task kind,
+policy/classifier versions, confidence bucket, reason codes, counts, bounded
+latencies, and escalation status. It excludes classifier prose, user text,
+prompts, tool arguments/results, source content, and provider metadata.
+
 ### Conversation recall
 
 Conversation recall is separate from durable fact memory. Completed turns are

@@ -56,6 +56,7 @@ Feature-specific variables:
 - Private generated voice: `VOICE_BLOB_READ_WRITE_TOKEN`
 - Web search tools: `TINYFISH_API_KEY`
 - Agentic optional-capability rollout: `AI_CAPABILITY_PLANNER_MODE=agentic`
+- Light execution routing: `AI_EXECUTION_ROUTING_MODE=off`, `AI_EXECUTION_ROUTING_PERCENT=0`, `AI_EXECUTION_ROUTING_TASKS=`
 - Encrypted AI trace content: `AI_TRACE_ENCRYPTION_KEY`
 - Maintenance jobs: `QSTASH_URL`, `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `CRON_SECRET`, `APP_URL`
 - Telegram channel: `TELEGRAM_*`
@@ -67,6 +68,27 @@ Feature-specific variables:
 values resolve to `legacy`. Configure it independently per Vercel environment.
 The current staged rollout enables `agentic` in Preview while Production stays
 on `legacy` until promotion is explicitly approved.
+
+Execution routing is independent of model selection and remains disabled by
+default. `AI_EXECUTION_ROUTING_MODE` accepts `off`, `shadow`, or `active`;
+missing or invalid settings fail closed to `off`. In `off`, the agentic
+classifier can calculate eligibility but standard is planned and executed. In
+`shadow`, it also records routing telemetry while standard remains executed. In
+`active`, only the stable local cohort selected by
+`AI_EXECUTION_ROUTING_PERCENT` and `AI_EXECUTION_ROUTING_TASKS` can execute an
+eligible light turn. Tasks must be a comma-separated subset of
+`social,rewrite,translate,format,extract,summarize_supplied`; any invalid name
+fails closed to `off`. `AI_EXECUTION_ROUTING_ALLOCATION_PERCENT` is a temporary
+backward-compatible alias when the canonical percent is absent.
+
+Set `AI_EXECUTION_ROUTING_MODE=off` to kill routing across Web, Telegram, and
+WhatsApp. Before enabling `active`, deploy `off`, validate all channels, run
+100% `shadow`, review at least 500 eligible examples per task family with zero
+protected false-light outcomes, then start social-only canaries with concurrent
+standard controls. Advance only if total-request TTFT improves by at least 20%
+at median and p75, feedback/regeneration worsen by no more than one percentage
+point, operational escalations stay below 2%, and capability, persistence, and
+recovery invariants remain clean.
 
 `NEXT_PUBLIC_APP_URL` is used for link generation (channel linking, embedding headers, callbacks).
 
@@ -184,6 +206,7 @@ bun run start
 | `bun run test:coverage:integration` | Run integration coverage |
 | `bun run test:coverage` | Run unit + integration coverage |
 | `bun run test:all` | Run unit and integration coverage once each |
+| `bun run eval:turn-routing` | Run the live 36-fixture classifier evaluation (requires `OPENROUTER_API_KEY`; no database or PostHog writes) |
 | `bun run test:watch` | Run tests in watch mode |
 | `bun run test:ui` | Run tests with Vitest UI |
 

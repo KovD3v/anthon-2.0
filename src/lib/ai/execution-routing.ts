@@ -380,7 +380,9 @@ export function parseExecutionRoutingConfig(
     return EMPTY_ROUTING_CONFIG;
   }
 
-  const allocationPercentRaw = env.AI_EXECUTION_ROUTING_ALLOCATION_PERCENT;
+  const allocationPercentRaw =
+    env.AI_EXECUTION_ROUTING_PERCENT ??
+    env.AI_EXECUTION_ROUTING_ALLOCATION_PERCENT;
   const allocationPercent = Number(allocationPercentRaw);
   if (
     !Number.isFinite(allocationPercent) ||

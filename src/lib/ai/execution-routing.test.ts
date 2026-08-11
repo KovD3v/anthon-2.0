@@ -224,6 +224,21 @@ describe("execution routing", () => {
     });
   });
 
+  it("prefers the canonical percent setting over the legacy allocation alias", () => {
+    expect(
+      parseExecutionRoutingConfig({
+        AI_EXECUTION_ROUTING_MODE: "active",
+        AI_EXECUTION_ROUTING_PERCENT: "25",
+        AI_EXECUTION_ROUTING_ALLOCATION_PERCENT: "100",
+        AI_EXECUTION_ROUTING_TASKS: "social,rewrite,translate",
+      }),
+    ).toEqual({
+      mode: "active",
+      allocationPercent: 25,
+      enabledTaskKinds: ["social", "rewrite", "translate"],
+    });
+  });
+
   it("defaults invalid rollout config to off", () => {
     expect(parseExecutionRoutingConfig({})).toEqual({
       mode: "off",
