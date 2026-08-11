@@ -6,21 +6,39 @@ import {
   type PrepareStepFunction,
   type StepResult,
   streamText,
+  type TextStreamPart,
   type ToolSet,
+  toTextStream,
+  toUIMessageStream,
+  type UIMessage,
+  type UIMessageStreamOptions,
 } from "ai";
 import {
   type CapabilityDecision,
-  classifyCapabilities,
   getCapabilityPlannerMode,
-  normalizeCapabilityDecision,
 } from "@/lib/ai/capability-arbitration";
 import { filterCapabilityUsageByDecision } from "@/lib/ai/capability-usage";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
+import type {
+  ExecutionAttemptTrace,
+  ExecutionRouteTrace,
+} from "@/lib/ai/execution-route-trace";
+import {
+  buildPlannedExecution,
+  freezeTurnDecision,
+  LIGHT_MAX_OUTPUT_TOKENS,
+  normalizeExecutionDecision,
+  parseExecutionRoutingConfig,
+  TURN_CLASSIFIER_VERSION,
+  type TurnDecision,
+} from "@/lib/ai/execution-routing";
 import {
   evaluateWebSearchRule,
   getWebSearchDomainType,
   matchesBriefResponseIntent,
+  matchesComplexCoachingIntent,
 } from "@/lib/ai/intent";
+import { buildLightSystemPrompt } from "@/lib/ai/light-prompt";
 import type { PendingMemoryApproval } from "@/lib/ai/memory-approval";
 import {
   type MemoryRecallDecision,
@@ -37,18 +55,23 @@ import {
   normalizeMediaType,
   toOpenRouterMessages,
 } from "@/lib/ai/multimodal-media";
+import { streamWithPreDeliveryFallback } from "@/lib/ai/profiled-stream";
 import {
   getModelById,
   getModelForUser,
   getModelIdForPlan,
 } from "@/lib/ai/providers/openrouter";
-import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
+import {
+  getOpenRouterProviderOptionsForExecution,
+  getOpenRouterProviderOptionsForModel,
+} from "@/lib/ai/providers/openrouter-routing";
 import { getRagContext, shouldUseRag } from "@/lib/ai/rag";
 import { buildRecallContext } from "@/lib/ai/recall-context";
 import { planRecall } from "@/lib/ai/recall-planner";
 import { buildConversationContext } from "@/lib/ai/session-manager";
 import {
   type AiGenerationTelemetryContext,
+  captureAiExecutionRouting,
   captureAiGenerationMetadata,
 } from "@/lib/ai/telemetry";
 import { ToolOutcomeTracker } from "@/lib/ai/tool-outcomes";
@@ -71,6 +94,7 @@ import {
   formatTinyUserSnapshotForPrompt,
   formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
+import { arbitrateTurn } from "@/lib/ai/turn-arbitration";
 import { planLegacyTurn, planTurn, type TurnPlan } from "@/lib/ai/turn-plan";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -404,6 +428,7 @@ interface StreamChatOptions {
   onFinish?: (result: {
     text: string;
     metrics: AIMetrics;
+    turnDecision: TurnDecision;
     capabilityDecision: CapabilityDecision;
     capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
     memoryRecallDecision: MemoryRecallDecision;
@@ -1235,6 +1260,7 @@ async function runOpenRouterMultimodalCompletion({
   ragAttempted,
   voiceOutput,
   telemetryContext,
+  prepareMetrics,
   onFinish,
   abortSignal,
 }: {
@@ -1247,6 +1273,7 @@ async function runOpenRouterMultimodalCompletion({
   ragAttempted: boolean;
   voiceOutput: boolean;
   telemetryContext: AiGenerationTelemetryContext;
+  prepareMetrics?: (metrics: AIMetrics) => void;
   onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
   abortSignal?: AbortSignal;
 }): Promise<DirectMultimodalCompletion> {
@@ -1326,6 +1353,7 @@ async function runOpenRouterMultimodalCompletion({
     ragChunksCount,
     voiceOutput,
   });
+  prepareMetrics?.(metrics);
   captureAiGenerationMetadata({ context: telemetryContext, metrics });
 
   await onFinish?.({ text, metrics });
@@ -1431,7 +1459,48 @@ function toTurnPlanClassifier(
   };
 }
 
-async function arbitrateCapabilities({
+function estimateInputTokens(userMessage: string) {
+  return Math.max(1, Math.ceil(userMessage.length / 4));
+}
+
+function recoverPreparedCapabilityDecision({
+  capabilityDecision,
+  userMessage,
+  webSearchRule,
+  inputOrigin,
+  responseMode,
+  hasPendingApproval,
+}: {
+  capabilityDecision: CapabilityDecision;
+  userMessage: string;
+  webSearchRule: ReturnType<typeof evaluateWebSearchRule>;
+  inputOrigin: "text" | "transcribed_voice" | "direct_media";
+  responseMode: "text" | "voice";
+  hasPendingApproval: boolean;
+}) {
+  return freezeTurnDecision({
+    version: 1,
+    capabilities: capabilityDecision,
+    execution: normalizeExecutionDecision({
+      plannerMode: "agentic",
+      classifierOutcome: "failed",
+      classifierVersion: TURN_CLASSIFIER_VERSION,
+      capabilityProposal: null,
+      capabilityConfidence: 0,
+      workload: null,
+      capabilities: capabilityDecision,
+      hasDeterministicCoachingIntent: matchesComplexCoachingIntent(userMessage),
+      requiresExternalKnowledge: webSearchRule.enabled,
+      inputOrigin: inputOrigin === "text" ? "text" : "direct_media",
+      hasPendingApproval,
+      responseMode,
+      estimatedInputTokens: estimateInputTokens(userMessage),
+      requestedOutputTokens: LIGHT_MAX_OUTPUT_TOKENS,
+    }),
+  });
+}
+
+async function arbitrateChatTurn({
   userId,
   userMessage,
   isGuest,
@@ -1442,6 +1511,7 @@ async function arbitrateCapabilities({
   resolvedMemoryTarget,
   hasPendingMemoryApproval,
   capabilityPlannerMode,
+  inputOrigin,
   abortSignal,
 }: {
   userId: string;
@@ -1454,35 +1524,119 @@ async function arbitrateCapabilities({
   resolvedMemoryTarget: string | null;
   hasPendingMemoryApproval: boolean;
   capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
+  inputOrigin: "text" | "transcribed_voice" | "direct_media";
   abortSignal?: AbortSignal;
-}): Promise<CapabilityDecision> {
-  const explicitWebRule = getExplicitWebRule(webSearchRule);
-  const classifier =
-    capabilityPlannerMode === "agentic"
-      ? await classifyCapabilities({
-          userId,
-          userMessage,
-          context: `web_search_rule=${webSearchRule.reason}`,
-          modelId: PROMPT_MODULE_CLASSIFIER_MODEL_ID,
-          abortSignal,
-        })
-      : null;
-
-  const normalizedDecision = normalizeCapabilityDecision({
+}) {
+  return arbitrateTurn({
+    userId,
     userMessage,
+    classifierContext: `web_search_rule=${webSearchRule.reason}`,
+    classifierModelId: PROMPT_MODULE_CLASSIFIER_MODEL_ID,
+    plannerMode: capabilityPlannerMode,
     isGuest,
     memoryEnabled,
     voiceAllowed,
     responseMode,
-    explicitWebRule,
+    explicitWebRule: getExplicitWebRule(webSearchRule),
     allowConcurrentRoutineAndWeb: capabilityPlannerMode === "agentic",
     requireClassifierRoutineProposal: capabilityPlannerMode === "agentic",
     hasPendingMemoryApproval:
       capabilityPlannerMode === "agentic" && hasPendingMemoryApproval,
     resolvedMemoryTarget,
-    classifier,
+    hasDeterministicCoachingIntent: matchesComplexCoachingIntent(userMessage),
+    requiresExternalKnowledge: webSearchRule.enabled,
+    inputOrigin: inputOrigin === "text" ? "text" : "direct_media",
+    hasPendingApproval: hasPendingMemoryApproval,
+    estimatedInputTokens: estimateInputTokens(userMessage),
+    requestedOutputTokens: LIGHT_MAX_OUTPUT_TOKENS,
+    abortSignal,
   });
-  return normalizedDecision;
+}
+
+type NoToolAttemptState = {
+  profile: "light" | "standard";
+  text: string;
+  firstTokenAtMs?: number;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    outputTokenDetails?: { reasoningTokens?: number };
+  };
+  providerMetadata?: Record<string, unknown>;
+};
+
+async function* observeNoToolAttempt(
+  stream: AsyncIterable<TextStreamPart<ToolSet>>,
+  state: NoToolAttemptState,
+) {
+  for await (const part of stream) {
+    if (part.type === "text-delta") {
+      state.text += part.text;
+      if (part.text.length > 0) state.firstTokenAtMs ??= Date.now();
+    }
+    if (part.type === "finish-step") {
+      state.usage = part.usage;
+      state.providerMetadata = part.providerMetadata as
+        | Record<string, unknown>
+        | undefined;
+    }
+    if (part.type === "finish") state.usage = part.totalUsage;
+    yield part;
+  }
+}
+
+function withAttemptUsage(
+  attempt: ExecutionAttemptTrace,
+  state: NoToolAttemptState | undefined,
+): ExecutionAttemptTrace {
+  const costUsd = getOpenRouterCost(state?.providerMetadata);
+  return {
+    ...attempt,
+    ...(state?.usage?.inputTokens !== undefined
+      ? { inputTokens: state.usage.inputTokens }
+      : {}),
+    ...(state?.usage?.outputTokens !== undefined
+      ? { outputTokens: state.usage.outputTokens }
+      : {}),
+    ...(state?.usage?.outputTokenDetails?.reasoningTokens !== undefined
+      ? {
+          reasoningTokens: state.usage.outputTokenDetails.reasoningTokens,
+        }
+      : {}),
+    ...(costUsd !== undefined ? { costUsd } : {}),
+  };
+}
+
+function asyncIterableToReadableStream<T>(iterable: AsyncIterable<T>) {
+  const iterator = iterable[Symbol.asyncIterator]();
+  return new ReadableStream<T>({
+    async pull(controller) {
+      try {
+        const next = await iterator.next();
+        if (next.done) controller.close();
+        else controller.enqueue(next.value);
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    async cancel(reason) {
+      await iterator.return?.(reason);
+    },
+  });
+}
+
+async function* readableStreamToAsyncIterable<T>(stream: ReadableStream<T>) {
+  const reader = stream.getReader();
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) return;
+      yield next.value;
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 /**
@@ -1572,6 +1726,9 @@ export async function streamChat({
     pendingMemoryApproval?.userId === userId
       ? pendingMemoryApproval
       : undefined;
+  const inputOrigin =
+    requestedInputOrigin ??
+    (hasImages || hasAudio || hasFileParts ? "direct_media" : "text");
   const voiceEnabledResult = isGuest
     ? false
     : await (async () => {
@@ -1585,27 +1742,44 @@ export async function streamChat({
         );
         return planConfig.enabled && (voiceEnabled ?? true);
       })();
-  const capabilityDecision =
-    preparedCapabilityContext?.capabilityDecision ??
-    (await arbitrateCapabilities({
-      userId,
-      userMessage,
-      isGuest,
-      memoryEnabled,
-      voiceAllowed: voiceEnabledResult,
-      responseMode,
-      webSearchRule,
-      resolvedMemoryTarget,
-      hasPendingMemoryApproval: Boolean(attributablePendingMemoryApproval),
-      capabilityPlannerMode,
-      abortSignal,
-    }));
+  const arbitration = preparedCapabilityContext?.capabilityDecision
+    ? {
+        decision: recoverPreparedCapabilityDecision({
+          capabilityDecision: preparedCapabilityContext.capabilityDecision,
+          userMessage,
+          webSearchRule,
+          inputOrigin,
+          responseMode,
+          hasPendingApproval: Boolean(attributablePendingMemoryApproval),
+        }),
+        classificationLatencyMs: 0,
+      }
+    : await arbitrateChatTurn({
+        userId,
+        userMessage,
+        isGuest,
+        memoryEnabled,
+        voiceAllowed: voiceEnabledResult,
+        responseMode,
+        webSearchRule,
+        resolvedMemoryTarget,
+        hasPendingMemoryApproval: Boolean(attributablePendingMemoryApproval),
+        capabilityPlannerMode,
+        inputOrigin,
+        abortSignal,
+      });
+  const turnDecision = arbitration.decision;
+  const classificationLatencyMs = arbitration.classificationLatencyMs;
+  const capabilityDecision = turnDecision.capabilities;
+  const routingConfig = parseExecutionRoutingConfig(process.env);
+  const plannedExecution = buildPlannedExecution({
+    decision: turnDecision.execution,
+    config: routingConfig,
+    stableKey: userMessageId ?? chatId ?? userId,
+  });
   const memoryRecallDecision =
     preparedCapabilityContext?.memoryRecallDecision ??
     (await resolveMemoryRecallMode({ userId, isGuest, memoryEnabled }));
-  const inputOrigin =
-    requestedInputOrigin ??
-    (hasImages || hasAudio || hasFileParts ? "direct_media" : "text");
   const turnPlanInput = {
     userMessage,
     isGuest,
@@ -1626,6 +1800,8 @@ export async function streamChat({
       1,
       Math.floor(effectiveEntitlements.limits.maxContextMessages / 2),
     ),
+    executionDecision: turnDecision.execution,
+    plannedExecution,
   };
   const turnPlan =
     process.env.AI_TURN_PLANNER_MODE === "legacy"
@@ -1868,7 +2044,7 @@ export async function streamChat({
   const userStyleInstruction = analyzeUserStyle(conversationHistory);
 
   // Build system prompt with user context and optional RAG
-  const baseSystemPrompt = await LatencyLogger.measure(
+  const existingBaseSystemPrompt = await LatencyLogger.measure(
     "🛠️ Orchestrator: Build system prompt",
     async () => {
       if (promptMode === "simple_fast") {
@@ -1911,12 +2087,21 @@ export async function streamChat({
       });
     },
   );
-  let systemPrompt = directWebSearchEvidence
-    ? `${baseSystemPrompt}\n\n${formatDirectWebSearchEvidence(directWebSearchEvidence)}`
-    : baseSystemPrompt;
+  let existingSystemPrompt = directWebSearchEvidence
+    ? `${existingBaseSystemPrompt}\n\n${formatDirectWebSearchEvidence(directWebSearchEvidence)}`
+    : existingBaseSystemPrompt;
   if (recallContext.prompt) {
-    systemPrompt += `\n\n${recallContext.prompt}`;
+    existingSystemPrompt += `\n\n${recallContext.prompt}`;
   }
+  const lightSystemPrompt =
+    turnPlan.execution.plannedProfile === "light" && toolPlan.hasAny === false
+      ? buildLightSystemPrompt({
+          taskKind: turnDecision.execution.taskKind,
+          currentDate,
+          responseLength: turnPlan.responseLength,
+        })
+      : undefined;
+  const systemPrompt = lightSystemPrompt ?? existingSystemPrompt;
 
   // Build the last message with proper image/audio support
   let lastMessage: ModelMessage;
@@ -2098,6 +2283,9 @@ export async function streamChat({
   );
   const effectiveSystemPrompt = normalizedConversation.systemPrompt;
   const effectiveMessages = normalizedConversation.messages;
+  const standardConversation = lightSystemPrompt
+    ? moveSystemMessagesToInstructions(existingSystemPrompt, messages)
+    : normalizedConversation;
   const attachTurnTrace = (metrics: AIMetrics) => {
     const { memoryDeleteTarget: _memoryDeleteTarget, ...traceDecision } =
       capabilityDecision;
@@ -2107,6 +2295,10 @@ export async function streamChat({
       systemPrompt: effectiveSystemPrompt,
       messages: effectiveMessages as unknown as Record<string, unknown>,
       capabilityDecision: traceDecision,
+      turnDecision,
+      ...(metrics.executionRoute
+        ? { executionRoute: metrics.executionRoute }
+        : {}),
       history: {
         scope: turnPlan.history.scope,
         includedMessageCount: conversationHistory.length,
@@ -2171,6 +2363,71 @@ export async function streamChat({
   let previousToolExecutionMs = 0;
   let sawToolStep = false;
   const toolTiming: ToolTimingMetrics = {};
+  const executionReasonCodes = [
+    ...new Set([
+      ...turnDecision.execution.reasonCodes,
+      ...turnPlan.execution.reasonCodes,
+    ]),
+  ];
+  if (
+    turnPlan.execution.plannedProfile === "light" &&
+    toolPlan.hasAny &&
+    !executionReasonCodes.includes("runtime_invariant")
+  ) {
+    executionReasonCodes.push("runtime_invariant");
+  }
+  let executionRoute: ExecutionRouteTrace | undefined;
+  let routingTelemetryCaptured = false;
+  const providerPlanningCompletedAt = Date.now();
+  const routingOverheadMs = Math.max(
+    0,
+    providerPlanningCompletedAt - startTime - classificationLatencyMs,
+  );
+  const buildExecutionRoute = ({
+    attempts,
+    escalation,
+    totalRequestTimeToFirstTokenMs,
+  }: {
+    attempts: ExecutionAttemptTrace[];
+    escalation?: ExecutionRouteTrace["escalation"];
+    totalRequestTimeToFirstTokenMs?: number;
+  }) =>
+    deepFreeze({
+      schemaVersion: 1 as const,
+      routingMode: turnPlan.execution.routingMode,
+      policyVersion: turnDecision.execution.policyVersion,
+      classifierVersion: turnDecision.execution.classifierVersion,
+      eligibleProfile: turnPlan.execution.eligibleProfile,
+      plannedProfile: turnPlan.execution.plannedProfile,
+      executedProfile: attempts.at(-1)?.profile ?? "standard",
+      taskKind: turnDecision.execution.taskKind,
+      decisionSource: turnDecision.execution.source,
+      confidenceBucket: turnDecision.execution.confidenceBucket,
+      reasonCodes: executionReasonCodes,
+      classificationLatencyMs,
+      routingOverheadMs,
+      ...(totalRequestTimeToFirstTokenMs !== undefined
+        ? { totalRequestTimeToFirstTokenMs }
+        : {}),
+      attempts,
+      ...(escalation ? { escalation } : {}),
+    }) satisfies ExecutionRouteTrace;
+  const captureTerminalRouting = (route: ExecutionRouteTrace) => {
+    if (routingTelemetryCaptured) return;
+    routingTelemetryCaptured = true;
+    executionRoute = route;
+    const costs = route.attempts.flatMap((attempt) =>
+      attempt.costUsd === undefined ? [] : [attempt.costUsd],
+    );
+    captureAiExecutionRouting({
+      context: telemetryContext,
+      executionRoute: route,
+      ...(costs.length > 0 ? { costUsd: sumCosts(costs) } : {}),
+    });
+  };
+  const routedExecution =
+    turnPlan.execution.routingMode === "shadow" ||
+    turnPlan.execution.routingMode === "active";
 
   const hasDirectMultimodalMedia = hasSupportedOpenRouterMedia(
     effectiveMessages,
@@ -2188,6 +2445,30 @@ export async function streamChat({
       ragAttempted,
       voiceOutput: capabilityDecision.voiceOutput,
       telemetryContext,
+      prepareMetrics: routedExecution
+        ? (metrics) => {
+            const route = buildExecutionRoute({
+              attempts: [
+                {
+                  sequence: 1,
+                  profile: "standard",
+                  outcome: "completed",
+                  timeToFirstTokenMs: metrics.generationTimeMs,
+                  generationTimeMs: metrics.generationTimeMs,
+                  inputTokens: metrics.inputTokens,
+                  outputTokens: metrics.outputTokens,
+                  ...(metrics.reasoningTokens !== null
+                    ? { reasoningTokens: metrics.reasoningTokens }
+                    : {}),
+                  costUsd: metrics.costUsd,
+                },
+              ],
+              totalRequestTimeToFirstTokenMs: metrics.generationTimeMs,
+            });
+            metrics.executionRoute = route;
+            captureTerminalRouting(route);
+          }
+        : undefined,
       onFinish: onFinish
         ? async ({ text, metrics }) => {
             metrics.memoryRecall = {
@@ -2218,6 +2499,7 @@ export async function streamChat({
             await onFinish({
               text,
               metrics: attachTurnTrace(metrics),
+              turnDecision,
               capabilityDecision,
               capabilityPlannerMode,
               memoryRecallDecision,
@@ -2225,6 +2507,24 @@ export async function streamChat({
           }
         : undefined,
       abortSignal,
+    }).catch((error) => {
+      if (routedExecution && !routingTelemetryCaptured) {
+        captureTerminalRouting(
+          buildExecutionRoute({
+            attempts: [
+              {
+                sequence: 1,
+                profile: "standard",
+                outcome: abortSignal?.aborted
+                  ? "cancelled"
+                  : "failed_before_stream",
+                generationTimeMs: Math.max(0, Date.now() - startTime),
+              },
+            ],
+          }),
+        );
+      }
+      throw error;
     });
 
     aiLogger.info("ai.stream.started", "AI multimodal streaming started", {
@@ -2242,6 +2542,9 @@ export async function streamChat({
     return Object.assign(
       createDirectMultimodalStreamResult(completionPromise),
       {
+        turnDecision,
+        turnPlan,
+        classificationLatencyMs,
         capabilityDecision,
         capabilityPlannerMode,
         memoryRecallDecision,
@@ -2249,7 +2552,271 @@ export async function streamChat({
     );
   }
 
+  if (
+    turnPlan.execution.plannedProfile === "light" &&
+    toolPlan.hasAny === false
+  ) {
+    const attemptStates = new Map<1 | 2, NoToolAttemptState>();
+    const attempts: ExecutionAttemptTrace[] = [];
+    let escalationReason: "provider_error" | "empty_response" | undefined;
+
+    const createAttempt = (sequence: 1 | 2, profile: "light" | "standard") => {
+      const state: NoToolAttemptState = { profile, text: "" };
+      attemptStates.set(sequence, state);
+      const profilePolicy =
+        profile === "light"
+          ? turnPlan.execution.primary
+          : turnPlan.execution.standardFallback;
+      if (!profilePolicy) {
+        throw new Error("Planned light execution is missing standard fallback");
+      }
+      const conversation =
+        profile === "light" ? normalizedConversation : standardConversation;
+      const attemptResult = streamText({
+        model,
+        abortSignal,
+        instructions: conversation.systemPrompt,
+        messages: conversation.messages,
+        maxOutputTokens: profilePolicy.maxOutputTokens,
+        providerOptions: {
+          openrouter: {
+            promptCaching: true,
+            session_id: chatId ?? userId,
+            ...getOpenRouterProviderOptionsForExecution(modelId, profile),
+          },
+        },
+        headers: { "x-session-id": chatId ?? userId },
+      });
+      return observeNoToolAttempt(attemptResult.stream, state);
+    };
+    const profiledParts = streamWithPreDeliveryFallback({
+      primary: () => createAttempt(1, "light"),
+      fallback: () => createAttempt(2, "standard"),
+      signal: abortSignal ?? new AbortController().signal,
+      isVisible: (part) => part.type === "text-delta" && part.text.length > 0,
+      getError: (part) => (part.type === "error" ? part.error : undefined),
+      isCancellation: (part) => part.type === "abort",
+      onEscalation: (reason) => {
+        escalationReason = reason;
+      },
+      onAttempt: (attempt) => {
+        attempts.push(
+          withAttemptUsage(attempt, attemptStates.get(attempt.sequence)),
+        );
+      },
+    });
+    const terminalParts = (async function* () {
+      try {
+        for await (const part of profiledParts) yield part;
+        const deliveredState = attemptStates.get(
+          attempts.at(-1)?.sequence ?? 1,
+        );
+        if (!deliveredState) {
+          throw new Error("Profiled execution completed without attempt state");
+        }
+        const route = buildExecutionRoute({
+          attempts,
+          ...(escalationReason
+            ? {
+                escalation: {
+                  from: "light" as const,
+                  to: "standard" as const,
+                  reason: escalationReason,
+                },
+              }
+            : {}),
+          ...(deliveredState.firstTokenAtMs !== undefined
+            ? {
+                totalRequestTimeToFirstTokenMs: Math.max(
+                  0,
+                  deliveredState.firstTokenAtMs - startTime,
+                ),
+              }
+            : {}),
+        });
+        const usage = deliveredState.usage;
+        const deliveredAttempt = attempts.at(-1);
+        const metrics = await extractAIMetrics(
+          modelId,
+          Date.now() - (deliveredAttempt?.generationTimeMs ?? 0),
+          {
+            text: deliveredState.text,
+            usage: {
+              promptTokens: usage?.inputTokens,
+              completionTokens: usage?.outputTokens,
+              totalTokens: usage?.totalTokens,
+              outputTokenDetails: usage?.outputTokenDetails,
+            },
+            providerMetadata: deliveredState.providerMetadata,
+            executionRoute: route,
+            ragUsed: ragUsage.used,
+            ragChunksCount: ragUsage.chunkCount,
+            ragAttempted: ragUsage.attempted,
+            voiceOutput: capabilityDecision.voiceOutput,
+          },
+        );
+        if (deliveredAttempt) {
+          metrics.generationTimeMs = deliveredAttempt.generationTimeMs;
+        }
+        metrics.executionRoute = route;
+        metrics.memoryRecall = {
+          mode: memoryRecallDecision.mode,
+          reason: memoryRecallDecision.reason,
+          factCount: recallContext.factCount,
+          evidenceCount: recallContext.evidenceCount,
+          factRecallMs: recallContext.factRecallMs,
+          conversationRecallMs: recallContext.conversationRecallMs,
+          degraded: recallContext.degraded,
+        };
+        metrics.capabilitiesUsed = filterCapabilityUsageByDecision(
+          metrics.capabilitiesUsed,
+          capabilityDecision,
+          capabilityPlannerMode,
+        );
+        attachTurnTrace(metrics);
+        captureAiGenerationMetadata({ context: telemetryContext, metrics });
+        captureTerminalRouting(route);
+        await onFinish?.({
+          text: deliveredState.text,
+          metrics,
+          turnDecision,
+          capabilityDecision,
+          capabilityPlannerMode,
+          memoryRecallDecision,
+        });
+      } catch (error) {
+        if (attempts.length > 0 && !routingTelemetryCaptured) {
+          const terminalState = attemptStates.get(
+            attempts.at(-1)?.sequence ?? 1,
+          );
+          const route = buildExecutionRoute({
+            attempts,
+            ...(escalationReason
+              ? {
+                  escalation: {
+                    from: "light" as const,
+                    to: "standard" as const,
+                    reason: escalationReason,
+                  },
+                }
+              : {}),
+            ...(terminalState?.firstTokenAtMs !== undefined
+              ? {
+                  totalRequestTimeToFirstTokenMs: Math.max(
+                    0,
+                    terminalState.firstTokenAtMs - startTime,
+                  ),
+                }
+              : {}),
+          });
+          captureTerminalRouting(route);
+        }
+        throw error;
+      }
+    })();
+    const baseStream = asyncIterableToReadableStream(terminalParts);
+    const [textPartStream, remainingStream] = baseStream.tee();
+    const [uiPartStream, rawPartStream] = remainingStream.tee();
+    let uiStreamClaimed = false;
+    const createProfiledUiStream = (
+      options: UIMessageStreamOptions<UIMessage> = {},
+    ) => {
+      if (uiStreamClaimed) {
+        throw new Error("Profiled UI stream can only be consumed once");
+      }
+      uiStreamClaimed = true;
+      return toUIMessageStream({ stream: uiPartStream, ...options });
+    };
+    const profiledResult = {
+      stream: rawPartStream,
+      textStream: readableStreamToAsyncIterable(
+        toTextStream({ stream: textPartStream }),
+      ),
+      toUIMessageStream: createProfiledUiStream,
+      toUIMessageStreamResponse: (
+        options: UIMessageStreamOptions<UIMessage> & ResponseInit = {},
+      ) => {
+        const { messageMetadata: _messageMetadata, ...responseOptions } =
+          options;
+        return createUIMessageStreamResponse({
+          ...responseOptions,
+          stream: createProfiledUiStream(options),
+        });
+      },
+    };
+
+    return Object.assign(profiledResult, {
+      turnDecision,
+      turnPlan,
+      classificationLatencyMs,
+      capabilityDecision,
+      capabilityPlannerMode,
+      memoryRecallDecision,
+      get executionRoute() {
+        return executionRoute;
+      },
+    });
+  }
+
   // Stream the response
+  const standardAttemptStartedAt = Date.now();
+  let standardTimeToFirstTokenMs: number | undefined;
+  let standardTotalRequestTimeToFirstTokenMs: number | undefined;
+  const runtimeInvariantFallback =
+    turnPlan.execution.plannedProfile === "light" && toolPlan.hasAny;
+  const routedStandard = routedExecution;
+  const terminalStandardRoute = (
+    outcome: ExecutionAttemptTrace["outcome"],
+    usage?: NoToolAttemptState["usage"],
+    providerMetadata?: Record<string, unknown>,
+  ) => {
+    const standardAttemptWithFinalUsage = withAttemptUsage(
+      {
+        sequence: runtimeInvariantFallback ? 2 : 1,
+        profile: "standard",
+        outcome,
+        ...(standardTimeToFirstTokenMs !== undefined
+          ? { timeToFirstTokenMs: standardTimeToFirstTokenMs }
+          : {}),
+        generationTimeMs: Math.max(0, Date.now() - standardAttemptStartedAt),
+      },
+      { profile: "standard", text: "", usage, providerMetadata },
+    );
+    const aggregateCostUsd = sumCosts(collectedOpenRouterCosts);
+    const standardAttempt =
+      aggregateCostUsd === undefined
+        ? standardAttemptWithFinalUsage
+        : { ...standardAttemptWithFinalUsage, costUsd: aggregateCostUsd };
+    const attempts: ExecutionAttemptTrace[] = runtimeInvariantFallback
+      ? [
+          {
+            sequence: 1,
+            profile: "light",
+            outcome: "failed_before_stream",
+            generationTimeMs: 0,
+          },
+          standardAttempt,
+        ]
+      : [standardAttempt];
+    return buildExecutionRoute({
+      attempts,
+      ...(runtimeInvariantFallback
+        ? {
+            escalation: {
+              from: "light" as const,
+              to: "standard" as const,
+              reason: "runtime_invariant" as const,
+            },
+          }
+        : {}),
+      ...(standardTotalRequestTimeToFirstTokenMs !== undefined
+        ? {
+            totalRequestTimeToFirstTokenMs:
+              standardTotalRequestTimeToFirstTokenMs,
+          }
+        : {}),
+    });
+  };
   const result = streamText({
     model,
     abortSignal,
@@ -2277,6 +2844,40 @@ export async function streamChat({
     prepareStep: directWebSearchEvidence
       ? undefined
       : createToolLoopPrepareStep(toolPlan),
+    onChunk: ({ chunk }: { chunk: TextStreamPart<ToolSet> }) => {
+      if (
+        standardTimeToFirstTokenMs === undefined &&
+        chunk.type === "text-delta" &&
+        chunk.text.length > 0
+      ) {
+        standardTimeToFirstTokenMs = Math.max(
+          0,
+          Date.now() - standardAttemptStartedAt,
+        );
+        standardTotalRequestTimeToFirstTokenMs = Math.max(
+          0,
+          Date.now() - startTime,
+        );
+      }
+    },
+    onError: ({ error }: { error: unknown }) => {
+      if (!routedStandard || routingTelemetryCaptured) return;
+      const outcome =
+        standardTimeToFirstTokenMs === undefined
+          ? "failed_before_stream"
+          : "failed_during_stream";
+      captureTerminalRouting(terminalStandardRoute(outcome));
+      aiLogger.warn("ai.stream.execution_failed", "AI stream failed", {
+        error,
+        userId,
+        chatId,
+      });
+    },
+    onAbort: () => {
+      if (routedStandard && !routingTelemetryCaptured) {
+        captureTerminalRouting(terminalStandardRoute("cancelled"));
+      }
+    },
     onEnd: async ({
       text,
       usage,
@@ -2290,6 +2891,14 @@ export async function streamChat({
       };
     }) => {
       const meteredUsage = totalUsage ?? usage;
+      const standardRoute = routedStandard
+        ? (executionRoute ??
+          terminalStandardRoute(
+            "completed",
+            meteredUsage,
+            providerMetadata as Record<string, unknown>,
+          ))
+        : undefined;
 
       // Extract AI metrics including cost calculation.
       const metrics = await extractAIMetrics(modelId, startTime, {
@@ -2316,6 +2925,7 @@ export async function streamChat({
         ragAttempted: ragUsage.attempted,
         routineUsed: routineProposal !== undefined,
         voiceOutput: capabilityDecision.voiceOutput,
+        executionRoute: standardRoute,
       });
       metrics.memoryRecall = {
         mode: memoryRecallDecision.mode,
@@ -2343,7 +2953,9 @@ export async function streamChat({
       if (routineProposal !== undefined) {
         metrics.routineProposal = routineProposal;
       }
+      if (standardRoute) metrics.executionRoute = standardRoute;
       captureAiGenerationMetadata({ context: telemetryContext, metrics });
+      if (standardRoute) captureTerminalRouting(standardRoute);
 
       if (collectedToolCalls.length > 0) {
         aiLogger.info("ai.tool_loop.timing", "AI tool loop timing captured", {
@@ -2361,6 +2973,7 @@ export async function streamChat({
         await onFinish({
           text,
           metrics,
+          turnDecision,
           capabilityDecision,
           capabilityPlannerMode,
           memoryRecallDecision,
@@ -2478,9 +3091,15 @@ export async function streamChat({
     hasAudio: Boolean(hasAudio),
   });
   return Object.assign(result, {
+    turnDecision,
+    turnPlan,
+    classificationLatencyMs,
     capabilityDecision,
     capabilityPlannerMode,
     memoryRecallDecision,
+    get executionRoute() {
+      return executionRoute;
+    },
   });
 }
 
@@ -2512,6 +3131,9 @@ export interface PreparedChatTurn {
   systemPrompt: string;
   messages: ModelMessage[];
   turnPlan: TurnPlan;
+  turnDecision: TurnDecision;
+  classificationLatencyMs: number;
+  plannedExecution: TurnPlan["execution"];
   capabilityDecision: CapabilityDecision;
   capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
   memoryRecallDecision?: MemoryRecallDecision;
@@ -2565,7 +3187,7 @@ export async function prepareChatTurn({
     }));
   const webSearchRule = evaluateWebSearchRule(userMessage);
   const capabilityPlannerMode = getCapabilityPlannerMode();
-  const capabilityDecision = await arbitrateCapabilities({
+  const arbitration = await arbitrateChatTurn({
     userId,
     userMessage,
     isGuest: false,
@@ -2576,7 +3198,16 @@ export async function prepareChatTurn({
     resolvedMemoryTarget,
     hasPendingMemoryApproval: false,
     capabilityPlannerMode,
+    inputOrigin: "text",
     abortSignal,
+  });
+  const turnDecision = arbitration.decision;
+  const classificationLatencyMs = arbitration.classificationLatencyMs;
+  const capabilityDecision = turnDecision.capabilities;
+  const plannedExecution = buildPlannedExecution({
+    decision: turnDecision.execution,
+    config: parseExecutionRoutingConfig(process.env),
+    stableKey: userMessageId ?? chatId ?? userId,
   });
   const memoryRecallDecision = await resolveMemoryRecallMode({
     userId,
@@ -2615,6 +3246,8 @@ export async function prepareChatTurn({
       1,
       Math.floor(effectiveEntitlements.limits.maxContextMessages / 2),
     ),
+    executionDecision: turnDecision.execution,
+    plannedExecution,
   };
   const turnPlan =
     process.env.AI_TURN_PLANNER_MODE === "legacy"
@@ -2676,7 +3309,13 @@ export async function prepareChatTurn({
   const userStyle = analyzeUserStyle(conversationHistory);
   const recallContext = await recallContextPromise;
   let systemPrompt: string;
-  if (promptMode === "simple_fast") {
+  if (turnPlan.execution.plannedProfile === "light") {
+    systemPrompt = buildLightSystemPrompt({
+      taskKind: turnDecision.execution.taskKind,
+      currentDate,
+      responseLength: turnPlan.responseLength,
+    });
+  } else if (promptMode === "simple_fast") {
     const snapshot = await formatTinyUserSnapshotForPrompt(userId).catch(
       () => "",
     );
@@ -2750,6 +3389,9 @@ export async function prepareChatTurn({
     systemPrompt: normalizedConversation.systemPrompt,
     messages: structuredClone(normalizedConversation.messages),
     turnPlan: structuredClone(turnPlan),
+    turnDecision,
+    classificationLatencyMs,
+    plannedExecution: structuredClone(turnPlan.execution),
     capabilityDecision,
     capabilityPlannerMode,
     memoryRecallDecision,
