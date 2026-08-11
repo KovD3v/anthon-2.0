@@ -49,6 +49,7 @@
 **Files:**
 - Modify: `prisma/schema.prisma`
 - Create: `prisma/migrations/20260811120000_add_memory_fact_lifecycle/migration.sql`
+- Create: `src/lib/ai/memory-facts.ts`
 - Test: `src/lib/ai/memory-facts.test.ts`
 
 **Interfaces:**
@@ -173,10 +174,18 @@ bunx prisma generate
 
 Expected: both commands exit 0.
 
-- [ ] **Step 6: Commit the schema task**
+- [ ] **Step 6: Implement the minimal active-fact recall needed by the test**
+
+Create `src/lib/ai/memory-facts.ts` with the public `RecalledFact` projection
+and a bounded `recallFacts` query that applies `userId`, `status: ACTIVE`, and
+expiry constraints before returning content. Task 3 adds ranking, caching, and
+mutations after canonicalization exists.
+
+- [ ] **Step 7: Run the focused test and commit the schema task**
 
 ```bash
-git add prisma/schema.prisma prisma/migrations/20260811120000_add_memory_fact_lifecycle/migration.sql src/lib/ai/memory-facts.test.ts
+bunx vitest run src/lib/ai/memory-facts.test.ts
+git add prisma/schema.prisma prisma/migrations/20260811120000_add_memory_fact_lifecycle/migration.sql src/lib/ai/memory-facts.ts src/lib/ai/memory-facts.test.ts
 git commit -m "feat(ai): add durable fact lifecycle"
 ```
 
@@ -249,7 +258,7 @@ git commit -m "feat(ai): canonicalize durable knowledge"
 ### Task 3: Implement the durable fact service
 
 **Files:**
-- Create: `src/lib/ai/memory-facts.ts`
+- Modify: `src/lib/ai/memory-facts.ts`
 - Modify: `src/lib/ai/memory-facts.test.ts`
 
 **Interfaces:**
