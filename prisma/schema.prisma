@@ -30,6 +30,24 @@ enum MemoryApprovalStatus {
   EXPIRED
 }
 
+enum MemoryFactOrigin {
+  EXPLICIT
+  INFERRED
+  CONFIRMED
+  MIGRATED
+}
+
+enum MemoryFactSensitivity {
+  LOW
+  HIGH
+}
+
+enum MemoryFactStatus {
+  ACTIVE
+  SUPERSEDED
+  DELETED
+}
+
 // -----------------------------------------------------
 // USER (identità unica cross-canale)
 // -----------------------------------------------------
@@ -55,6 +73,7 @@ model User {
   profile                     Profile?
   preferences                 Preferences?
   memories                    Memory[]
+  memoryRevisions             MemoryRevision[]
   memoryApprovals             MemoryApproval[]
   routines                    Routine[]
   messages                    Message[]
@@ -506,6 +525,10 @@ model Message {
   canonicalModelExperimentPair ModelExperimentPair?  @relation("ModelExperimentCanonicalMessage")
   sourceRoutines                Routine[]             @relation("RoutineSourceMessage")
   memoryApprovals               MemoryApproval[]      @relation("MemoryApprovalSource")
+  sourcedMemories               Memory[]              @relation("MemoryFactSource")
+  memoryRevisions               MemoryRevision[]      @relation("MemoryRevisionSource")
+  memoryApprovalPresentations   MemoryApproval[]      @relation("MemoryApprovalPresentationAssistant")
+  memoryApprovalPresentationIns MemoryApproval[]      @relation("MemoryApprovalPresentationInbound")
 
   @@unique([channel, externalMessageId])
   @@unique([userId, channel, clientMessageId])
@@ -543,6 +566,7 @@ model ConversationThread {
   summary              ConversationThreadSummary?
   traces               AiTurnTrace[]
   modelExperimentPairs ModelExperimentPair[]
+  sourcedMemories       Memory[]                  @relation("MemoryFactSourceThread")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1015,11 +1039,51 @@ model Memory {
   value    Json
   category String @default("other")
 
+  origin          MemoryFactOrigin      @default(MIGRATED)
+  sensitivity     MemoryFactSensitivity @default(LOW)
+  confidence      Float                 @default(1)
+  status          MemoryFactStatus      @default(ACTIVE)
+  sourceMessageId String?
+  sourceMessage   Message?              @relation("MemoryFactSource", fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  sourceThreadId  String?
+  sourceThread    ConversationThread?   @relation("MemoryFactSourceThread", fields: [sourceThreadId], references: [id], onDelete: SetNull)
+  observedAt      DateTime              @default(now())
+  lastConfirmedAt DateTime?
+  expiresAt       DateTime?
+  revisions       MemoryRevision[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([userId, key])
   @@index([userId, category])
+  @@index([userId, status, updatedAt(sort: Desc)])
+  @@index([userId, expiresAt])
+  @@index([sourceMessageId])
+  @@index([sourceThreadId])
+}
+
+model MemoryRevision {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  memoryId String
+  memory   Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  sourceMessageId String?
+  sourceMessage   Message? @relation("MemoryRevisionSource", fields: [sourceMessageId], references: [id], onDelete: SetNull)
+
+  previousValue Json?
+  nextValue     Json?
+  origin        MemoryFactOrigin
+  reason        String
+  dedupeKey     String           @unique
+  createdAt     DateTime         @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([memoryId, createdAt(sort: Desc)])
+  @@index([sourceMessageId])
 }
 
 model MemoryApproval {
@@ -1029,6 +1093,11 @@ model MemoryApproval {
 
   sourceInboundMessageId String
   sourceInboundMessage   Message @relation("MemoryApprovalSource", fields: [sourceInboundMessageId], references: [id], onDelete: Cascade)
+
+  presentationInboundMessageId String?
+  presentationInboundMessage   Message? @relation("MemoryApprovalPresentationInbound", fields: [presentationInboundMessageId], references: [id], onDelete: SetNull)
+  presentationAssistantMessageId String?
+  presentationAssistantMessage   Message? @relation("MemoryApprovalPresentationAssistant", fields: [presentationAssistantMessageId], references: [id], onDelete: SetNull)
 
   key        String
   value      Json
@@ -1042,6 +1111,8 @@ model MemoryApproval {
 
   @@index([userId, status, createdAt])
   @@index([sourceInboundMessageId])
+  @@index([presentationInboundMessageId])
+  @@index([presentationAssistantMessageId])
 }
 
 // -----------------------------------------------------
