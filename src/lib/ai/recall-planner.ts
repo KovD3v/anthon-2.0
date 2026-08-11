@@ -13,9 +13,14 @@ export type RecallPlan = Readonly<{
   reasonCodes: readonly string[];
 }>;
 
-const atomicPattern = /^(ciao|salve|hey|hi|ok|okay|grazie|thanks|s[iì]|no)[.!?\s]*$/i;
-const historyPattern = /\b(ricord\w*|avevamo parlato|ne avevamo|l'altra volta|in passato|tempo fa|prima volta|scorsa volta|previously|last time|we discussed|before)\b/i;
-const continuityPattern = /\b(ancora|di nuovo|continua|riprend\w*|progress\w*|funzionat\w*|risultat\w*|impegn\w*|promess\w*|again|continue|progress|worked|outcome|commitment)\b/i;
+const atomicPattern =
+  /^(ciao|salve|hey|hi|ok|okay|grazie|thanks|s[iì]|no)[.!?\s]*$/i;
+const selfContainedUtilityPattern =
+  /\b(quanto fa|calcola|traduci|translate|che ore sono|what time)\b/i;
+const historyPattern =
+  /\b(ricord\w*|avevamo parlato|ne avevamo|l'altra volta|in passato|tempo fa|prima volta|scorsa volta|previously|last time|we discussed|before)\b/i;
+const continuityPattern =
+  /\b(ancora|di nuovo|continua|riprend\w*|progress\w*|funzionat\w*|risultat\w*|impegn\w*|promess\w*|again|continue|progress|worked|outcome|commitment)\b/i;
 
 export function planRecall(input: {
   message: string;
@@ -23,7 +28,11 @@ export function planRecall(input: {
   isGuest: boolean;
 }): RecallPlan {
   const message = input.message.trim();
-  const eligible = !input.isGuest && input.decision.mode !== "off" && !atomicPattern.test(message);
+  const eligible =
+    !input.isGuest &&
+    input.decision.mode !== "off" &&
+    !atomicPattern.test(message) &&
+    !selfContainedUtilityPattern.test(message);
   const explicitHistory = historyPattern.test(message);
   const continuity = continuityPattern.test(message);
   const conversationEnabled = eligible && (explicitHistory || continuity);
