@@ -850,6 +850,133 @@ describe("ai/orchestrator", () => {
     );
   });
 
+  it("selects one standard attempt before execution when a light plan requires a tool", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
+    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
+    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
+    mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
+
+    const result = await streamChat({
+      userId: "user-1",
+      chatId: "chat-light-tool-invariant",
+      userMessage: "Prendi nota: riscrivi in breve questo testo.",
+      effectiveEntitlements: baseEntitlements,
+    });
+
+    expect(result.turnDecision.execution.eligibleProfile).toBe("light");
+    expect(result.turnPlan.execution).toMatchObject({
+      eligibleProfile: "light",
+      plannedProfile: "standard",
+      reasonCodes: expect.arrayContaining(["runtime_invariant"]),
+    });
+    expect(mocks.streamText).toHaveBeenCalledTimes(1);
+    const input = mocks.streamText.mock.calls[0]?.[0] as {
+      tools: Record<string, unknown>;
+      maxOutputTokens?: number;
+      onChunk: (event: { chunk: { type: string; text?: string } }) => void;
+      onEnd: (event: Record<string, unknown>) => Promise<void>;
+    };
+    expect(input.tools).toHaveProperty("addNotes");
+    expect(input.maxOutputTokens).not.toBe(600);
+
+    vi.advanceTimersByTime(10);
+    input.onChunk({ chunk: { type: "text-delta", text: "Standard" } });
+    vi.advanceTimersByTime(20);
+    await input.onEnd({
+      text: "Standard",
+      usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+    });
+
+    const route =
+      mocks.captureAiExecutionRouting.mock.calls[0]?.[0]?.executionRoute;
+    expect(route.attempts).toEqual([
+      expect.objectContaining({
+        sequence: 1,
+        profile: "standard",
+        outcome: "completed",
+      }),
+    ]);
+    expect(route).not.toHaveProperty("escalation");
+  });
+
+  it("vetoes light before execution when active proactive recall is planned", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
+    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
+    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
+    vi.stubEnv("AI_MEMORY_RECALL_MODE", "active");
+    mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
+    mocks.buildRecallContext.mockResolvedValueOnce({
+      prompt: "### Contesto di richiamo\n- Preferisce esempi sul tennis",
+      factCount: 1,
+      evidenceCount: 0,
+      factRecallMs: 6,
+      conversationRecallMs: 0,
+      degraded: false,
+      allowedEvidenceIds: new Set(),
+    });
+
+    const result = await streamChat({
+      userId: "user-1",
+      chatId: "chat-light-proactive-recall",
+      conversationThreadId: "thread-1",
+      userMessage: "Rendilo piu breve",
+      effectiveEntitlements: baseEntitlements,
+    });
+
+    expect(result.turnDecision.execution.eligibleProfile).toBe("light");
+    expect(result.turnPlan.execution).toMatchObject({
+      eligibleProfile: "light",
+      plannedProfile: "standard",
+      reasonCodes: expect.arrayContaining(["runtime_invariant"]),
+    });
+    expect(mocks.streamText).toHaveBeenCalledTimes(1);
+    const input = mocks.streamText.mock.calls[0]?.[0] as {
+      instructions: string;
+      maxOutputTokens?: number;
+    };
+    expect(input.instructions).toContain("Preferisce esempi sul tennis");
+    expect(input.instructions).toContain("MENTAL COACHING SCOPE");
+    expect(input.maxOutputTokens).not.toBe(600);
+  });
+
+  it("vetoes light while preparing a turn with active proactive recall", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
+    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
+    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
+    vi.stubEnv("AI_MEMORY_RECALL_MODE", "active");
+    mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
+    mocks.buildRecallContext.mockResolvedValueOnce({
+      prompt: "### Contesto di richiamo\n- Preferisce esempi sul tennis",
+      factCount: 1,
+      evidenceCount: 0,
+      factRecallMs: 6,
+      conversationRecallMs: 0,
+      degraded: false,
+      allowedEvidenceIds: new Set(),
+    });
+
+    const prepared = await prepareChatTurn({
+      userId: "user-1",
+      chatId: "chat-prepared-proactive-recall",
+      conversationThreadId: "thread-1",
+      userMessageId: "message-proactive-recall",
+      userMessage: "Rendilo piu breve",
+      effectiveEntitlements: baseEntitlements,
+    });
+
+    expect(prepared.turnDecision.execution.eligibleProfile).toBe("light");
+    expect(prepared.plannedExecution).toMatchObject({
+      eligibleProfile: "light",
+      plannedProfile: "standard",
+      reasonCodes: expect.arrayContaining(["runtime_invariant"]),
+    });
+    expect(prepared.systemPrompt).toContain("Preferisce esempi sul tennis");
+    expect(prepared.systemPrompt).toContain("MENTAL COACHING SCOPE");
+  });
+
   it("records generation and total-request TTFT from the first non-empty light delta once", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
     vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
@@ -2051,6 +2178,75 @@ describe("ai/orchestrator", () => {
         traceId: "chat-image",
       }),
       metrics: expect.objectContaining({ inputTokens: 10, outputTokens: 20 }),
+    });
+  });
+
+  it("separates direct-media provider TTFT from total-request TTFT", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
+    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
+    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
+    const originalApiKey = process.env.OPENROUTER_API_KEY;
+    process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === TRUSTED_IMAGE_URL) {
+        vi.advanceTimersByTime(40);
+        return new Response(VALID_JPEG_BYTES, {
+          headers: {
+            "Content-Type": "image/jpeg",
+            "Content-Length": String(VALID_JPEG_BYTES.byteLength),
+          },
+        });
+      }
+      vi.advanceTimersByTime(30);
+      return Response.json({
+        id: "gen-direct-ttft",
+        model: "google/gemini-2.5-flash-lite",
+        choices: [{ message: { content: "Assetto stabile." } }],
+        usage: {
+          prompt_tokens: 50,
+          completion_tokens: 4,
+          total_tokens: 54,
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    try {
+      const result = await streamChat({
+        userId: "user-1",
+        chatId: "chat-direct-media-ttft",
+        userMessage: "Analizza la postura",
+        hasImages: true,
+        messageParts: [
+          { type: "text", text: "Analizza la postura" },
+          {
+            type: "file",
+            data: TRUSTED_IMAGE_URL,
+            mimeType: "image/jpeg",
+            size: VALID_JPEG_BYTES.byteLength,
+          },
+        ],
+      });
+
+      await expect(readTextStream(result.textStream)).resolves.toBe(
+        "Assetto stabile.",
+      );
+    } finally {
+      process.env.OPENROUTER_API_KEY = originalApiKey;
+    }
+
+    const route =
+      mocks.captureAiExecutionRouting.mock.calls[0]?.[0]?.executionRoute;
+    expect(route).toMatchObject({
+      totalRequestTimeToFirstTokenMs: 70,
+      attempts: [
+        expect.objectContaining({
+          sequence: 1,
+          profile: "standard",
+          timeToFirstTokenMs: 30,
+        }),
+      ],
     });
   });
 

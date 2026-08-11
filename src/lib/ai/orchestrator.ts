@@ -28,6 +28,7 @@ import {
   freezeTurnDecision,
   LIGHT_MAX_OUTPUT_TOKENS,
   normalizeExecutionDecision,
+  type PlannedExecution,
   parseExecutionRoutingConfig,
   TURN_CLASSIFIER_VERSION,
   type TurnDecision,
@@ -1213,6 +1214,12 @@ type DirectMultimodalCompletion = {
   metrics: AIMetrics;
 };
 
+type DirectMultimodalTiming = {
+  providerStartedAtMs: number;
+  firstTokenAtMs: number;
+  providerCompletedAtMs: number;
+};
+
 function extractOpenRouterResponseText(response: unknown) {
   const choice = (
     response as {
@@ -1273,7 +1280,7 @@ async function runOpenRouterMultimodalCompletion({
   ragAttempted: boolean;
   voiceOutput: boolean;
   telemetryContext: AiGenerationTelemetryContext;
-  prepareMetrics?: (metrics: AIMetrics) => void;
+  prepareMetrics?: (metrics: AIMetrics, timing: DirectMultimodalTiming) => void;
   onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
   abortSignal?: AbortSignal;
 }): Promise<DirectMultimodalCompletion> {
@@ -1289,6 +1296,7 @@ async function runOpenRouterMultimodalCompletion({
   );
   abortSignal?.throwIfAborted();
 
+  const providerStartedAtMs = Date.now();
   const response = await fetch(
     "https://openrouter.ai/api/v1/chat/completions",
     {
@@ -1322,6 +1330,8 @@ async function runOpenRouterMultimodalCompletion({
   if (!text.trim()) {
     throw new Error("OpenRouter multimodal chat returned no text content");
   }
+  const firstTokenAtMs = Date.now();
+  const providerCompletedAtMs = firstTokenAtMs;
 
   const usage = (
     payload as {
@@ -1353,7 +1363,11 @@ async function runOpenRouterMultimodalCompletion({
     ragChunksCount,
     voiceOutput,
   });
-  prepareMetrics?.(metrics);
+  prepareMetrics?.(metrics, {
+    providerStartedAtMs,
+    firstTokenAtMs,
+    providerCompletedAtMs,
+  });
   captureAiGenerationMetadata({ context: telemetryContext, metrics });
 
   await onFinish?.({ text, metrics });
@@ -1461,6 +1475,36 @@ function toTurnPlanClassifier(
 
 function estimateInputTokens(userMessage: string) {
   return Math.max(1, Math.ceil(userMessage.length / 4));
+}
+
+function selectStandardBeforeProviderExecution(
+  execution: PlannedExecution,
+): PlannedExecution {
+  if (execution.plannedProfile === "standard") return execution;
+  const standardPolicy = execution.standardFallback;
+  if (!standardPolicy) {
+    throw new Error("Planned light execution is missing standard fallback");
+  }
+
+  return Object.freeze({
+    routingMode: execution.routingMode,
+    eligibleProfile: execution.eligibleProfile,
+    plannedProfile: "standard",
+    reasonCodes: Object.freeze([
+      ...new Set([...execution.reasonCodes, "runtime_invariant" as const]),
+    ]),
+    primary: standardPolicy,
+  }) as PlannedExecution;
+}
+
+function hasProactiveRecall(
+  decision: MemoryRecallDecision,
+  plan: ReturnType<typeof planRecall>,
+) {
+  return (
+    decision.mode === "active" &&
+    (plan.facts.enabled || plan.conversations.enabled)
+  );
 }
 
 function recoverPreparedCapabilityDecision({
@@ -1772,7 +1816,7 @@ export async function streamChat({
   const classificationLatencyMs = arbitration.classificationLatencyMs;
   const capabilityDecision = turnDecision.capabilities;
   const routingConfig = parseExecutionRoutingConfig(process.env);
-  const plannedExecution = buildPlannedExecution({
+  const allocatedExecution = buildPlannedExecution({
     decision: turnDecision.execution,
     config: routingConfig,
     stableKey: userMessageId ?? chatId ?? userId,
@@ -1780,6 +1824,14 @@ export async function streamChat({
   const memoryRecallDecision =
     preparedCapabilityContext?.memoryRecallDecision ??
     (await resolveMemoryRecallMode({ userId, isGuest, memoryEnabled }));
+  const recallPlan = planRecall({
+    message: userMessage,
+    decision: memoryRecallDecision,
+    isGuest,
+  });
+  const plannedExecution = hasProactiveRecall(memoryRecallDecision, recallPlan)
+    ? selectStandardBeforeProviderExecution(allocatedExecution)
+    : allocatedExecution;
   const turnPlanInput = {
     userMessage,
     isGuest,
@@ -1803,27 +1855,34 @@ export async function streamChat({
     executionDecision: turnDecision.execution,
     plannedExecution,
   };
-  const turnPlan =
+  const createTurnPlan = (execution: PlannedExecution) =>
     process.env.AI_TURN_PLANNER_MODE === "legacy"
-      ? planLegacyTurn(turnPlanInput)
-      : planTurn(turnPlanInput);
+      ? planLegacyTurn({ ...turnPlanInput, plannedExecution: execution })
+      : planTurn({ ...turnPlanInput, plannedExecution: execution });
+  let turnPlan = createTurnPlan(plannedExecution);
+  let toolPlan = toolPlanFromTurnPlan(
+    turnPlan,
+    userMessage,
+    capabilityPlannerMode,
+    Boolean(attributablePendingMemoryApproval),
+  );
+  if (turnPlan.execution.plannedProfile === "light" && toolPlan.hasAny) {
+    turnPlan = createTurnPlan(
+      selectStandardBeforeProviderExecution(turnPlan.execution),
+    );
+    toolPlan = toolPlanFromTurnPlan(
+      turnPlan,
+      userMessage,
+      capabilityPlannerMode,
+      Boolean(attributablePendingMemoryApproval),
+    );
+  }
   const promptMode: PromptMode =
     turnPlan.promptProfile === "compact"
       ? "simple_fast"
       : turnPlan.promptProfile === "guest"
         ? "guest"
         : "full";
-  const toolPlan = toolPlanFromTurnPlan(
-    turnPlan,
-    userMessage,
-    capabilityPlannerMode,
-    Boolean(attributablePendingMemoryApproval),
-  );
-  const recallPlan = planRecall({
-    message: userMessage,
-    decision: memoryRecallDecision,
-    isGuest,
-  });
   const recallContextPromise = conversationThreadId
     ? buildRecallContext({
         userId,
@@ -2446,15 +2505,22 @@ export async function streamChat({
       voiceOutput: capabilityDecision.voiceOutput,
       telemetryContext,
       prepareMetrics: routedExecution
-        ? (metrics) => {
+        ? (metrics, timing) => {
+            const generationTimeToFirstTokenMs = Math.max(
+              0,
+              timing.firstTokenAtMs - timing.providerStartedAtMs,
+            );
             const route = buildExecutionRoute({
               attempts: [
                 {
                   sequence: 1,
                   profile: "standard",
                   outcome: "completed",
-                  timeToFirstTokenMs: metrics.generationTimeMs,
-                  generationTimeMs: metrics.generationTimeMs,
+                  timeToFirstTokenMs: generationTimeToFirstTokenMs,
+                  generationTimeMs: Math.max(
+                    0,
+                    timing.providerCompletedAtMs - timing.providerStartedAtMs,
+                  ),
                   inputTokens: metrics.inputTokens,
                   outputTokens: metrics.outputTokens,
                   ...(metrics.reasoningTokens !== null
@@ -2463,7 +2529,10 @@ export async function streamChat({
                   costUsd: metrics.costUsd,
                 },
               ],
-              totalRequestTimeToFirstTokenMs: metrics.generationTimeMs,
+              totalRequestTimeToFirstTokenMs: Math.max(
+                0,
+                timing.firstTokenAtMs - startTime,
+              ),
             });
             metrics.executionRoute = route;
             captureTerminalRouting(route);
@@ -2762,8 +2831,6 @@ export async function streamChat({
   const standardAttemptStartedAt = Date.now();
   let standardTimeToFirstTokenMs: number | undefined;
   let standardTotalRequestTimeToFirstTokenMs: number | undefined;
-  const runtimeInvariantFallback =
-    turnPlan.execution.plannedProfile === "light" && toolPlan.hasAny;
   const routedStandard = routedExecution;
   const terminalStandardRoute = (
     outcome: ExecutionAttemptTrace["outcome"],
@@ -2772,7 +2839,7 @@ export async function streamChat({
   ) => {
     const standardAttemptWithFinalUsage = withAttemptUsage(
       {
-        sequence: runtimeInvariantFallback ? 2 : 1,
+        sequence: 1,
         profile: "standard",
         outcome,
         ...(standardTimeToFirstTokenMs !== undefined
@@ -2787,28 +2854,8 @@ export async function streamChat({
       aggregateCostUsd === undefined
         ? standardAttemptWithFinalUsage
         : { ...standardAttemptWithFinalUsage, costUsd: aggregateCostUsd };
-    const attempts: ExecutionAttemptTrace[] = runtimeInvariantFallback
-      ? [
-          {
-            sequence: 1,
-            profile: "light",
-            outcome: "failed_before_stream",
-            generationTimeMs: 0,
-          },
-          standardAttempt,
-        ]
-      : [standardAttempt];
     return buildExecutionRoute({
-      attempts,
-      ...(runtimeInvariantFallback
-        ? {
-            escalation: {
-              from: "light" as const,
-              to: "standard" as const,
-              reason: "runtime_invariant" as const,
-            },
-          }
-        : {}),
+      attempts: [standardAttempt],
       ...(standardTotalRequestTimeToFirstTokenMs !== undefined
         ? {
             totalRequestTimeToFirstTokenMs:
@@ -3204,7 +3251,7 @@ export async function prepareChatTurn({
   const turnDecision = arbitration.decision;
   const classificationLatencyMs = arbitration.classificationLatencyMs;
   const capabilityDecision = turnDecision.capabilities;
-  const plannedExecution = buildPlannedExecution({
+  const allocatedExecution = buildPlannedExecution({
     decision: turnDecision.execution,
     config: parseExecutionRoutingConfig(process.env),
     stableKey: userMessageId ?? chatId ?? userId,
@@ -3214,15 +3261,19 @@ export async function prepareChatTurn({
     isGuest: false,
     memoryEnabled,
   });
+  const recallPlan = planRecall({
+    message: userMessage,
+    decision: memoryRecallDecision,
+    isGuest: false,
+  });
+  const plannedExecution = hasProactiveRecall(memoryRecallDecision, recallPlan)
+    ? selectStandardBeforeProviderExecution(allocatedExecution)
+    : allocatedExecution;
   const recallContextPromise = buildRecallContext({
     userId,
     conversationThreadId,
     query: userMessage,
-    plan: planRecall({
-      message: userMessage,
-      decision: memoryRecallDecision,
-      isGuest: false,
-    }),
+    plan: recallPlan,
     decision: memoryRecallDecision,
   });
   abortSignal?.throwIfAborted();
