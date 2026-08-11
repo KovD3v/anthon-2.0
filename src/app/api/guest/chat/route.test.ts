@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   waitUntil: vi.fn(),
@@ -81,6 +81,7 @@ vi.mock("@/lib/analytics/funnel", () => ({
     mocks.trackInboundUserMessageFunnelProgress,
 }));
 
+import { freezeTurnDecision } from "@/lib/ai/execution-routing";
 import { POST } from "./route";
 
 function buildRequest(body: unknown): Request {
@@ -180,7 +181,69 @@ const allowedRateLimit = {
   },
 };
 
+function offRoutingFixture() {
+  const turnDecision = freezeTurnDecision({
+    version: 1,
+    capabilities: {
+      rag: false,
+      webSearch: false,
+      webFetch: false,
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      memoryDeleteTarget: null,
+      routineProposal: false,
+      userContext: false,
+      voiceOutput: false,
+      source: "classifier",
+      reasonCodes: [],
+    },
+    execution: {
+      eligibleProfile: "light",
+      taskKind: "rewrite",
+      contextDependency: "recent",
+      source: "classifier",
+      confidenceBucket: "high",
+      reasonCodes: ["classifier_light", "task_allowlisted"],
+      policyVersion: 1,
+      classifierVersion: 1,
+    },
+  });
+  const executionRoute = Object.freeze({
+    schemaVersion: 1,
+    routingMode: "off",
+    policyVersion: 1,
+    classifierVersion: 1,
+    eligibleProfile: "light",
+    plannedProfile: "standard",
+    executedProfile: "standard",
+    taskKind: "rewrite",
+    decisionSource: "classifier",
+    confidenceBucket: "high",
+    reasonCodes: Object.freeze([
+      "classifier_light",
+      "task_allowlisted",
+      "rollout_off",
+    ]),
+    classificationLatencyMs: 11,
+    routingOverheadMs: 1,
+    attempts: Object.freeze([
+      Object.freeze({
+        sequence: 1,
+        profile: "standard",
+        outcome: "completed",
+        generationTimeMs: 20,
+      }),
+    ]),
+  });
+  return { turnDecision, executionRoute };
+}
+
 describe("POST /api/guest/chat", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     mocks.waitUntil.mockReset();
     mocks.start.mockReset();
@@ -458,18 +521,46 @@ describe("POST /api/guest/chat", () => {
     expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
-  it("saves inbound guest message and calls streamChat with guest flags", async () => {
+  it("persists one standard execution when guest routing is off", async () => {
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "off");
+    const { turnDecision, executionRoute } = offRoutingFixture();
     let streamArgs: Record<string, unknown> | undefined;
-    mocks.streamChat.mockImplementation(
-      async (args: Record<string, unknown>) => {
-        streamArgs = args;
-        return {
-          toUIMessageStream: emptyUiStream,
-          toUIMessageStreamResponse: () =>
-            Response.json({ ok: true, stream: true }, { status: 200 }),
-        };
-      },
-    );
+    mocks.streamChat.mockImplementation(async (args) => {
+      streamArgs = args;
+      return {
+        turnDecision,
+        classificationLatencyMs: 11,
+        capabilityDecision: turnDecision.capabilities,
+        capabilityPlannerMode: "agentic",
+        toUIMessageStream: () =>
+          new ReadableStream({
+            async start(controller) {
+              await args.onFinish?.({
+                text: "guest reply",
+                turnDecision,
+                capabilityDecision: turnDecision.capabilities,
+                capabilityPlannerMode: "agentic",
+                metrics: {
+                  model: "test-model",
+                  inputTokens: 2,
+                  outputTokens: 2,
+                  reasoningTokens: null,
+                  toolCalls: null,
+                  ragUsed: false,
+                  ragChunksCount: 0,
+                  costUsd: 0,
+                  generationTimeMs: 20,
+                  reasoningTimeMs: null,
+                  executionRoute,
+                },
+              });
+              controller.close();
+            },
+          }),
+        toUIMessageStreamResponse: () =>
+          Response.json({ ok: true, stream: true }, { status: 200 }),
+      };
+    });
 
     const response = await POST(
       buildRequest({
@@ -512,6 +603,16 @@ describe("POST /api/guest/chat", () => {
         channel: "WEB_GUEST",
       }),
     );
+    expect(mocks.messageMetricsCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        executionRoute: expect.objectContaining({
+          routingMode: "off",
+          eligibleProfile: "light",
+          plannedProfile: "standard",
+          executedProfile: "standard",
+        }),
+      }),
+    });
   });
 
   it("uses the last user message when multiple messages are submitted", async () => {

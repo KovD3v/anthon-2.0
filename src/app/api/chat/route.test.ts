@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
@@ -161,6 +161,7 @@ vi.mock("@/lib/voice/generation-jobs", () => ({
 }));
 
 import type { CapabilityDecision } from "@/lib/ai/capability-arbitration";
+import { freezeTurnDecision } from "@/lib/ai/execution-routing";
 import { getWebClientPayloadHash } from "@/lib/channel-flow/web-inbound";
 import { POST } from "./route";
 
@@ -275,6 +276,10 @@ const rateLimitAllowed = {
 };
 
 describe("POST /api/chat", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     mocks.auth.mockReset();
     mocks.waitUntil.mockReset();
@@ -476,7 +481,8 @@ describe("POST /api/chat", () => {
     mocks.tryCreateModelComparisonResponse.mockResolvedValue(null);
   });
 
-  it("reuses rejected comparison capability planning in the normal stream", async () => {
+  it("reuses the rejected comparison decision while routing off stays standard", async () => {
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "off");
     const capabilityDecision = Object.freeze({
       rag: false,
       webSearch: true,
@@ -490,17 +496,34 @@ describe("POST /api/chat", () => {
       voiceOutput: false,
       source: "classifier" as const,
       reasonCodes: Object.freeze([]),
+    }) as unknown as CapabilityDecision;
+    const turnDecision = freezeTurnDecision({
+      version: 1,
+      capabilities: capabilityDecision,
+      execution: {
+        eligibleProfile: "light",
+        taskKind: "rewrite",
+        contextDependency: "recent",
+        source: "classifier",
+        confidenceBucket: "high",
+        reasonCodes: ["classifier_light", "task_allowlisted"],
+        policyVersion: 1,
+        classifierVersion: 1,
+      },
     });
     mocks.tryCreateModelComparisonResponse.mockImplementation(
       async ({ onPreparedTurnRejected }) => {
         onPreparedTurnRejected?.({
-          capabilityDecision,
+          turnDecision,
           capabilityPlannerMode: "agentic",
+          classificationLatencyMs: 14,
         });
         return null;
       },
     );
     mocks.streamChat.mockResolvedValue({
+      turnDecision,
+      classificationLatencyMs: 14,
       capabilityDecision,
       capabilityPlannerMode: "agentic",
       textStream: (async function* () {})(),
@@ -522,9 +545,10 @@ describe("POST /api/chat", () => {
     expect(response.status).toBe(200);
     expect(mocks.streamChat).toHaveBeenCalledWith(
       expect.objectContaining({
-        preparedCapabilityContext: {
-          capabilityDecision,
+        preparedTurnContext: {
+          turnDecision,
           capabilityPlannerMode: "agentic",
+          classificationLatencyMs: 14,
         },
       }),
     );

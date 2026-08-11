@@ -35,11 +35,82 @@ vi.mock("@/lib/ai/memory-target", () => ({
 }));
 
 import type { CapabilityDecision } from "@/lib/ai/capability-arbitration";
+import type { ExecutionRouteTrace } from "@/lib/ai/execution-route-trace";
+import {
+  freezeTurnDecision,
+  type TurnDecision,
+} from "@/lib/ai/execution-routing";
 import { runChannelFlow } from "./run";
 
 type StreamResponseOptions = {
   messageMetadata?: (input: { part: unknown }) => unknown;
 };
+
+function immutableTurnDecision(
+  overrides: Partial<TurnDecision["execution"]> = {},
+): TurnDecision {
+  return freezeTurnDecision({
+    version: 1,
+    capabilities: {
+      rag: false,
+      webSearch: false,
+      webFetch: false,
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      memoryDeleteTarget: null,
+      routineProposal: false,
+      userContext: false,
+      voiceOutput: false,
+      source: "classifier",
+      reasonCodes: [],
+    },
+    execution: {
+      eligibleProfile: "light",
+      taskKind: "rewrite",
+      contextDependency: "recent",
+      source: "classifier",
+      confidenceBucket: "high",
+      reasonCodes: ["classifier_light", "task_allowlisted"],
+      policyVersion: 1,
+      classifierVersion: 1,
+      ...overrides,
+    },
+  });
+}
+
+function executionRoute(
+  overrides: Partial<ExecutionRouteTrace> = {},
+): ExecutionRouteTrace {
+  return Object.freeze({
+    schemaVersion: 1,
+    routingMode: "shadow",
+    policyVersion: 1,
+    classifierVersion: 1,
+    eligibleProfile: "light",
+    plannedProfile: "standard",
+    executedProfile: "standard",
+    taskKind: "rewrite",
+    decisionSource: "classifier",
+    confidenceBucket: "high",
+    reasonCodes: Object.freeze([
+      "classifier_light",
+      "task_allowlisted",
+      "rollout_shadow",
+    ]),
+    classificationLatencyMs: 12,
+    routingOverheadMs: 2,
+    attempts: Object.freeze([
+      Object.freeze({
+        sequence: 1,
+        profile: "standard",
+        outcome: "completed",
+        generationTimeMs: 100,
+      }),
+    ]),
+    ...overrides,
+  }) as unknown as ExecutionRouteTrace;
+}
 
 describe("channel-flow/run", () => {
   beforeEach(() => {
@@ -312,6 +383,11 @@ describe("channel-flow/run", () => {
       source: "classifier" as const,
       reasonCodes: Object.freeze([]),
     }) as unknown as CapabilityDecision;
+    const turnDecision = freezeTurnDecision({
+      ...immutableTurnDecision(),
+      capabilities: capabilityDecision,
+    });
+    const route = executionRoute();
     mocks.streamChat.mockImplementation(async ({ onFinish }) => {
       await onFinish?.({
         text: "answer",
@@ -328,7 +404,9 @@ describe("channel-flow/run", () => {
           costUsd: 0,
           generationTimeMs: 1,
           reasoningTimeMs: null,
+          executionRoute: route,
         },
+        turnDecision,
         capabilityDecision,
         capabilityPlannerMode: "agentic",
       });
@@ -366,6 +444,9 @@ describe("channel-flow/run", () => {
       mocks.persistAssistantOutput.mock.calls[0]?.[0].capabilityDecision,
     ).toBe(capabilityDecision);
     expect(result.capabilityMetadataValid).toBe(true);
+    expect(result.executionMetadataValid).toBe(true);
+    expect(result.turnDecision).toBe(turnDecision);
+    expect(result.metrics?.executionRoute).toBe(route);
     expect(result.capabilityDecision).toBe(capabilityDecision);
     expect(result.capabilityPlannerMode).toBe("agentic");
   });
@@ -385,7 +466,13 @@ describe("channel-flow/run", () => {
       source: "classifier" as const,
       reasonCodes: Object.freeze([]),
     }) as unknown as CapabilityDecision;
+    const turnDecision = freezeTurnDecision({
+      ...immutableTurnDecision(),
+      capabilities: capabilityDecision,
+    });
     mocks.streamChat.mockResolvedValue({
+      turnDecision,
+      classificationLatencyMs: 12,
       capabilityDecision,
       capabilityPlannerMode: "agentic",
       textStream: (async function* () {
@@ -415,6 +502,8 @@ describe("channel-flow/run", () => {
     });
 
     expect(result.capabilityDecision).toBe(capabilityDecision);
+    expect(result.turnDecision).toBe(turnDecision);
+    expect(result.executionMetadataValid).toBe(true);
     expect(result.capabilityPlannerMode).toBe("agentic");
     expect(result.capabilityMetadataValid).toBe(true);
   });
@@ -434,7 +523,13 @@ describe("channel-flow/run", () => {
       source: "classifier" as const,
       reasonCodes: Object.freeze([]),
     }) as unknown as CapabilityDecision;
+    const turnDecision = freezeTurnDecision({
+      ...immutableTurnDecision(),
+      capabilities: capabilityDecision,
+    });
     mocks.streamChat.mockResolvedValue({
+      turnDecision,
+      classificationLatencyMs: 9,
       capabilityDecision,
       capabilityPlannerMode: "agentic",
       textStream: (async function* () {})(),
@@ -453,9 +548,10 @@ describe("channel-flow/run", () => {
         allowVoiceOutput: true,
       },
       ai: {
-        preparedCapabilityContext: {
-          capabilityDecision,
+        preparedTurnContext: {
+          turnDecision,
           capabilityPlannerMode: "agentic",
+          classificationLatencyMs: 9,
         },
       },
       execution: { mode: "stream" },
@@ -464,12 +560,84 @@ describe("channel-flow/run", () => {
 
     expect(mocks.streamChat).toHaveBeenCalledWith(
       expect.objectContaining({
-        preparedCapabilityContext: {
-          capabilityDecision,
+        preparedTurnContext: {
+          turnDecision,
           capabilityPlannerMode: "agentic",
+          classificationLatencyMs: 9,
         },
       }),
     );
+    expect(
+      mocks.streamChat.mock.calls[0]?.[0].preparedTurnContext.turnDecision,
+    ).toBe(turnDecision);
+  });
+
+  it.each([
+    {
+      label: "mutable turn decision",
+      decision: { ...immutableTurnDecision() },
+    },
+    {
+      label: "unknown execution policy version",
+      decision: freezeTurnDecision({
+        ...immutableTurnDecision(),
+        execution: Object.freeze({
+          ...immutableTurnDecision().execution,
+          policyVersion: 2,
+        }) as never,
+      }),
+    },
+    {
+      label: "malformed execution reason code",
+      decision: freezeTurnDecision({
+        ...immutableTurnDecision(),
+        execution: Object.freeze({
+          ...immutableTurnDecision().execution,
+          reasonCodes: Object.freeze(["raw_message:do not persist"]),
+        }) as never,
+      }),
+    },
+  ])("forces standard for a $label", async ({ decision }) => {
+    mocks.streamChat.mockImplementation(async ({ preparedTurnContext }) => ({
+      ...preparedTurnContext,
+      capabilityDecision: preparedTurnContext.turnDecision.capabilities,
+      textStream: (async function* () {})(),
+      toUIMessageStream: () => new ReadableStream(),
+    }));
+
+    const result = await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      userMessageText: "rewrite this",
+      parts: [{ type: "text", text: "rewrite this" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: true,
+      },
+      ai: {
+        preparedTurnContext: {
+          turnDecision: decision as TurnDecision,
+          capabilityPlannerMode: "agentic",
+          classificationLatencyMs: 9,
+        },
+      },
+      execution: { mode: "stream" },
+      persistence: { channel: "WEB", saveAssistantMessage: false },
+    });
+
+    const forwarded = mocks.streamChat.mock.calls[0]?.[0].preparedTurnContext
+      .turnDecision as TurnDecision;
+    expect(forwarded.execution).toMatchObject({
+      eligibleProfile: "standard",
+      taskKind: "other",
+      source: "fallback",
+      reasonCodes: expect.arrayContaining(["runtime_invariant"]),
+    });
+    expect(result.turnDecision).toBe(forwarded);
+    expect(result.executionMetadataValid).toBe(false);
+    expect(result.capabilityMetadataValid).toBe(true);
   });
 
   it("restores an agentic recovery decision and enables shared consolidation", async () => {
@@ -487,6 +655,14 @@ describe("channel-flow/run", () => {
       source: "mixed" as const,
       reasonCodes: Object.freeze([]),
     }) as unknown as CapabilityDecision;
+    const route = executionRoute({
+      routingMode: "active",
+      eligibleProfile: "standard",
+      plannedProfile: "standard",
+      executedProfile: "standard",
+      taskKind: "knowledge",
+      reasonCodes: ["classifier_standard", "capability_required"],
+    });
     mocks.reserveAiUsage.mockResolvedValue({
       allowed: true,
       reservationId: "reservation-1",
@@ -504,8 +680,11 @@ describe("channel-flow/run", () => {
           costUsd: 0.01,
           generationTimeMs: 100,
           reasoningTimeMs: null,
+          executionRoute: route,
         },
         capabilityMetadataValid: true,
+        executionMetadataValid: true,
+        executionRoute: route,
         capabilityPlannerMode: "agentic",
         capabilityDecision,
       },
@@ -553,8 +732,96 @@ describe("channel-flow/run", () => {
       }),
     );
     expect(result.capabilityMetadataValid).toBe(true);
+    expect(result.executionMetadataValid).toBe(true);
+    expect(result.turnDecision).toMatchObject({
+      version: 1,
+      capabilities: capabilityDecision,
+      execution: {
+        eligibleProfile: "standard",
+        taskKind: "knowledge",
+        policyVersion: 1,
+        classifierVersion: 1,
+      },
+    });
+    expect(Object.isFrozen(result.turnDecision)).toBe(true);
+    expect(Object.isFrozen(result.turnDecision?.execution)).toBe(true);
+    expect(result.metrics?.executionRoute).toEqual(route);
+    expect(Object.isFrozen(result.metrics?.executionRoute)).toBe(true);
     expect(result.capabilityDecision).toBe(capabilityDecision);
     expect(result.capabilityPlannerMode).toBe("agentic");
+  });
+
+  it("preserves valid recovery capabilities while invalid execution metadata fails closed", async () => {
+    const capabilityDecision = immutableTurnDecision().capabilities;
+    mocks.reserveAiUsage.mockResolvedValue({
+      allowed: true,
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+      recovery: {
+        text: "recovered answer",
+        metrics: {
+          model: "recovered-model",
+          inputTokens: 10,
+          outputTokens: 4,
+          reasoningTokens: null,
+          toolCalls: null,
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.01,
+          generationTimeMs: 100,
+          reasoningTimeMs: null,
+        },
+        capabilityMetadataValid: true,
+        executionMetadataValid: false,
+        capabilityPlannerMode: "agentic",
+        capabilityDecision,
+      },
+    });
+
+    const result = await runChannelFlow({
+      channel: "TELEGRAM",
+      userId: "user-1",
+      conversationThreadId: "thread-1",
+      userMessageId: "inbound-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: {
+        allowed: true,
+        effectiveEntitlements: {
+          modelTier: "BASIC",
+          uploadLimits: {
+            maxUploadsPerDay: 25,
+            maxUploadBytesPerDay: 250 * 1024 * 1024,
+          },
+          limits: {
+            maxRequestsPerDay: 10,
+            maxInputTokensPerDay: 1_000,
+            maxOutputTokensPerDay: 1_000,
+            maxCostPerDay: 1,
+            maxContextMessages: 20,
+          },
+          sources: [],
+        },
+      },
+      options: {
+        allowAttachments: false,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: false,
+      },
+      execution: { mode: "text" },
+      persistence: { channel: "TELEGRAM", saveAssistantMessage: true },
+    });
+
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(result.capabilityMetadataValid).toBe(true);
+    expect(result.capabilityDecision).toBe(capabilityDecision);
+    expect(result.executionMetadataValid).toBe(false);
+    expect(result.turnDecision?.execution).toMatchObject({
+      eligibleProfile: "standard",
+      taskKind: "other",
+      source: "fallback",
+      reasonCodes: expect.arrayContaining(["runtime_invariant"]),
+    });
   });
 
   it.each([
@@ -1825,6 +2092,7 @@ describe("channel-flow/run", () => {
     expect(result).toEqual({
       assistantText: "",
       capabilityMetadataValid: false,
+      executionMetadataValid: false,
       persistence: { status: "skipped" },
       rateLimit: {
         status: "denied",

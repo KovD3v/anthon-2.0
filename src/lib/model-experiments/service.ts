@@ -1,6 +1,8 @@
 import { Prisma } from "@/generated/prisma";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
+import type { TurnDecision } from "@/lib/ai/execution-routing";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
+import { serializeSafeTurnDecision } from "@/lib/ai/turn-decision-metadata";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { reconcileAiUsageInTransaction } from "@/lib/rate-limit";
@@ -240,6 +242,7 @@ export async function createModelComparisonPair({
   sourceMessageId,
   countryCode,
   capabilityPlannerMode,
+  turnDecision,
   now = new Date(),
   random = Math.random,
 }: {
@@ -250,6 +253,7 @@ export async function createModelComparisonPair({
   sourceMessageId: string;
   countryCode: string;
   capabilityPlannerMode?: "legacy" | "agentic";
+  turnDecision?: TurnDecision;
   now?: Date;
   random?: () => number;
 }) {
@@ -305,6 +309,9 @@ export async function createModelComparisonPair({
         conversationThreadId,
         sourceMessageId,
         ...(capabilityPlannerMode ? { capabilityPlannerMode } : {}),
+        ...(turnDecision
+          ? { turnDecision: asJson(serializeSafeTurnDecision(turnDecision)) }
+          : {}),
         slotAVariantId: slotA.id,
         slotBVariantId: slotB.id,
         countryCode: countryCode.toUpperCase(),

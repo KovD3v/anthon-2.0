@@ -65,6 +65,7 @@ vi.mock("./analytics", () => ({
   },
 }));
 
+import type { TurnDecision } from "@/lib/ai/execution-routing";
 import {
   createModelComparisonPair,
   createModelExperiment,
@@ -91,6 +92,34 @@ const candidate = {
   provider: "openrouter",
   generationConfig: { fallbacks: false },
 };
+
+const turnDecision = Object.freeze({
+  version: 1,
+  capabilities: Object.freeze({
+    rag: false,
+    webSearch: false,
+    webFetch: false,
+    memoryRead: false,
+    memoryWrite: false,
+    memoryDelete: true,
+    memoryDeleteTarget: "private memory target",
+    routineProposal: false,
+    userContext: false,
+    voiceOutput: false,
+    source: "classifier",
+    reasonCodes: Object.freeze(["delete_requires_exact_target"]),
+  }),
+  execution: Object.freeze({
+    eligibleProfile: "light",
+    taskKind: "rewrite",
+    contextDependency: "recent",
+    source: "classifier",
+    confidenceBucket: "high",
+    reasonCodes: Object.freeze(["classifier_light", "task_allowlisted"]),
+    policyVersion: 1,
+    classifierVersion: 1,
+  }),
+}) as unknown as TurnDecision;
 
 function experiment(status = "DRAFT") {
   return {
@@ -393,6 +422,7 @@ describe("model experiment service", () => {
         sourceMessageId: "message-1",
         countryCode: "it",
         capabilityPlannerMode: "agentic",
+        turnDecision,
         now,
         random: () => 0.9,
       }),
@@ -407,6 +437,32 @@ describe("model experiment service", () => {
         slotBVariantId: "control",
         countryCode: "IT",
         capabilityPlannerMode: "agentic",
+        turnDecision: {
+          version: 1,
+          capabilities: {
+            rag: false,
+            webSearch: false,
+            webFetch: false,
+            memoryRead: false,
+            memoryWrite: false,
+            memoryDelete: true,
+            routineProposal: false,
+            userContext: false,
+            voiceOutput: false,
+            source: "classifier",
+            reasonCodes: ["delete_requires_exact_target"],
+          },
+          execution: {
+            eligibleProfile: "light",
+            taskKind: "rewrite",
+            contextDependency: "recent",
+            source: "classifier",
+            confidenceBucket: "high",
+            reasonCodes: ["classifier_light", "task_allowlisted"],
+            policyVersion: 1,
+            classifierVersion: 1,
+          },
+        },
         expiresAt: new Date("2026-08-01T10:00:00Z"),
       }),
       include: { responses: true, slotAVariant: true, slotBVariant: true },

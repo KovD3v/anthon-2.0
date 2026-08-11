@@ -25,12 +25,9 @@ import type {
 } from "@/lib/ai/execution-route-trace";
 import {
   buildPlannedExecution,
-  freezeTurnDecision,
   LIGHT_MAX_OUTPUT_TOKENS,
-  normalizeExecutionDecision,
   type PlannedExecution,
   parseExecutionRoutingConfig,
-  TURN_CLASSIFIER_VERSION,
   type TurnDecision,
 } from "@/lib/ai/execution-routing";
 import {
@@ -406,6 +403,12 @@ const SIMPLE_FAST_SYSTEM_PROMPT_TEMPLATE = [
   SIMPLE_FAST_DYNAMIC_CONTEXT,
 ].join("\n\n");
 
+export type PreparedTurnContext = {
+  turnDecision: TurnDecision;
+  capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
+  classificationLatencyMs: number;
+};
+
 interface StreamChatOptions {
   userId: string;
   chatId?: string;
@@ -451,11 +454,7 @@ interface StreamChatOptions {
   inputOrigin?: "text" | "transcribed_voice" | "direct_media";
   resolvedMemoryTarget?: string | null;
   routineProposalAllowed?: boolean;
-  preparedCapabilityContext?: {
-    capabilityDecision: CapabilityDecision;
-    capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
-    memoryRecallDecision?: MemoryRecallDecision;
-  };
+  preparedTurnContext?: PreparedTurnContext;
   benchmarkModelId?: string;
   abortSignal?: AbortSignal;
 }
@@ -1507,43 +1506,6 @@ function hasProactiveRecall(
   );
 }
 
-function recoverPreparedCapabilityDecision({
-  capabilityDecision,
-  userMessage,
-  webSearchRule,
-  inputOrigin,
-  responseMode,
-  hasPendingApproval,
-}: {
-  capabilityDecision: CapabilityDecision;
-  userMessage: string;
-  webSearchRule: ReturnType<typeof evaluateWebSearchRule>;
-  inputOrigin: "text" | "transcribed_voice" | "direct_media";
-  responseMode: "text" | "voice";
-  hasPendingApproval: boolean;
-}) {
-  return freezeTurnDecision({
-    version: 1,
-    capabilities: capabilityDecision,
-    execution: normalizeExecutionDecision({
-      plannerMode: "agentic",
-      classifierOutcome: "failed",
-      classifierVersion: TURN_CLASSIFIER_VERSION,
-      capabilityProposal: null,
-      capabilityConfidence: 0,
-      workload: null,
-      capabilities: capabilityDecision,
-      hasDeterministicCoachingIntent: matchesComplexCoachingIntent(userMessage),
-      requiresExternalKnowledge: webSearchRule.enabled,
-      inputOrigin: inputOrigin === "text" ? "text" : "direct_media",
-      hasPendingApproval,
-      responseMode,
-      estimatedInputTokens: estimateInputTokens(userMessage),
-      requestedOutputTokens: LIGHT_MAX_OUTPUT_TOKENS,
-    }),
-  });
-}
-
 async function arbitrateChatTurn({
   userId,
   userMessage,
@@ -1713,7 +1675,7 @@ export async function streamChat({
   inputOrigin: requestedInputOrigin,
   resolvedMemoryTarget = null,
   routineProposalAllowed = true,
-  preparedCapabilityContext,
+  preparedTurnContext,
   benchmarkModelId,
   abortSignal,
 }: StreamChatOptions) {
@@ -1764,8 +1726,7 @@ export async function streamChat({
   const hasFileParts = messageParts?.some((p) => p.type === "file") ?? false;
   const webSearchRule = evaluateWebSearchRule(userMessage);
   const capabilityPlannerMode =
-    preparedCapabilityContext?.capabilityPlannerMode ??
-    getCapabilityPlannerMode();
+    preparedTurnContext?.capabilityPlannerMode ?? getCapabilityPlannerMode();
   const attributablePendingMemoryApproval =
     pendingMemoryApproval?.userId === userId
       ? pendingMemoryApproval
@@ -1786,17 +1747,10 @@ export async function streamChat({
         );
         return planConfig.enabled && (voiceEnabled ?? true);
       })();
-  const arbitration = preparedCapabilityContext?.capabilityDecision
+  const arbitration = preparedTurnContext
     ? {
-        decision: recoverPreparedCapabilityDecision({
-          capabilityDecision: preparedCapabilityContext.capabilityDecision,
-          userMessage,
-          webSearchRule,
-          inputOrigin,
-          responseMode,
-          hasPendingApproval: Boolean(attributablePendingMemoryApproval),
-        }),
-        classificationLatencyMs: 0,
+        decision: preparedTurnContext.turnDecision,
+        classificationLatencyMs: preparedTurnContext.classificationLatencyMs,
       }
     : await arbitrateChatTurn({
         userId,
@@ -1821,9 +1775,11 @@ export async function streamChat({
     config: routingConfig,
     stableKey: userMessageId ?? chatId ?? userId,
   });
-  const memoryRecallDecision =
-    preparedCapabilityContext?.memoryRecallDecision ??
-    (await resolveMemoryRecallMode({ userId, isGuest, memoryEnabled }));
+  const memoryRecallDecision = await resolveMemoryRecallMode({
+    userId,
+    isGuest,
+    memoryEnabled,
+  });
   const recallPlan = planRecall({
     message: userMessage,
     decision: memoryRecallDecision,

@@ -155,6 +155,7 @@ vi.mock("@/lib/conversations/threads", () => ({
   ensureConversationThread: mocks.ensureConversationThread,
 }));
 
+import { freezeTurnDecision } from "@/lib/ai/execution-routing";
 import {
   downloadTelegramAudio,
   getPublicAppUrl,
@@ -168,6 +169,66 @@ import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/open
 import { GET, POST } from "./route";
 
 const originalEnv = { ...process.env };
+
+function offRoutingFixture() {
+  const turnDecision = freezeTurnDecision({
+    version: 1,
+    capabilities: {
+      rag: false,
+      webSearch: false,
+      webFetch: false,
+      memoryRead: false,
+      memoryWrite: false,
+      memoryDelete: false,
+      memoryDeleteTarget: null,
+      routineProposal: false,
+      userContext: false,
+      voiceOutput: false,
+      source: "classifier",
+      reasonCodes: [],
+    },
+    execution: {
+      eligibleProfile: "light",
+      taskKind: "rewrite",
+      contextDependency: "recent",
+      source: "classifier",
+      confidenceBucket: "high",
+      reasonCodes: ["classifier_light", "task_allowlisted"],
+      policyVersion: 1,
+      classifierVersion: 1,
+    },
+  });
+  return {
+    turnDecision,
+    executionRoute: Object.freeze({
+      schemaVersion: 1,
+      routingMode: "off",
+      policyVersion: 1,
+      classifierVersion: 1,
+      eligibleProfile: "light",
+      plannedProfile: "standard",
+      executedProfile: "standard",
+      taskKind: "rewrite",
+      decisionSource: "classifier",
+      confidenceBucket: "high",
+      reasonCodes: Object.freeze([
+        "classifier_light",
+        "task_allowlisted",
+        "rollout_off",
+      ]),
+      classificationLatencyMs: 10,
+      routingOverheadMs: 1,
+      attempts: Object.freeze([
+        Object.freeze({
+          sequence: 1,
+          profile: "standard",
+          outcome: "completed",
+          generationTimeMs: 42,
+        }),
+      ]),
+    }),
+  };
+}
 
 type InboundLifecycleState = {
   id: string;
@@ -1157,10 +1218,12 @@ describe("/api/webhooks/telegram", () => {
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
-  it("sync text message runs AI stream path and persists assistant output", async () => {
+  it("sync text persists one standard execution when routing is off", async () => {
     process.env.TELEGRAM_SYNC_WEBHOOK = "true";
     process.env.TELEGRAM_DISABLE_SEND = "true";
     process.env.OPENROUTER_API_KEY = "sk-test";
+    process.env.AI_EXECUTION_ROUTING_MODE = "off";
+    const { turnDecision, executionRoute } = offRoutingFixture();
 
     mocks.prismaMessageFindFirst.mockResolvedValue(null);
     mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
@@ -1198,9 +1261,17 @@ describe("/api/webhooks/telegram", () => {
           costUsd: 0.001,
           generationTimeMs: 42,
           reasoningTimeMs: 0,
+          executionRoute,
         },
+        turnDecision,
+        capabilityDecision: turnDecision.capabilities,
+        capabilityPlannerMode: "agentic",
       });
       return {
+        turnDecision,
+        classificationLatencyMs: 10,
+        capabilityDecision: turnDecision.capabilities,
+        capabilityPlannerMode: "agentic",
         textStream: (async function* () {
           yield "risposta finale";
         })(),
@@ -1236,12 +1307,12 @@ describe("/api/webhooks/telegram", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           channel: "TELEGRAM",
-          metadata: {
-            telegram: {
+          metadata: expect.objectContaining({
+            telegram: expect.objectContaining({
               inReplyTo: "msg_in_1",
               chatId: 100,
-            },
-          },
+            }),
+          }),
         }),
       }),
     );
@@ -1253,6 +1324,16 @@ describe("/api/webhooks/telegram", () => {
     );
     expect(mocks.incrementUsage).toHaveBeenCalledTimes(1);
     expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageMetricsCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        executionRoute: expect.objectContaining({
+          routingMode: "off",
+          eligibleProfile: "light",
+          plannedProfile: "standard",
+          executedProfile: "standard",
+        }),
+      }),
+    });
   });
 
   it("sync photo without caption uses default media prompt and marks images for AI", async () => {

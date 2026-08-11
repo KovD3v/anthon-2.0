@@ -10,6 +10,14 @@ import {
   normalizePreDeliveryCapabilityUsage,
 } from "@/lib/ai/capability-usage";
 import {
+  type ExecutionRouteTrace,
+  parseExecutionRouteTrace,
+} from "@/lib/ai/execution-route-trace";
+import {
+  freezeTurnDecision,
+  type TurnDecision,
+} from "@/lib/ai/execution-routing";
+import {
   getImmediatelyAttributableApproval,
   mightResolvePendingMemoryApproval,
 } from "@/lib/ai/memory-approval";
@@ -17,6 +25,7 @@ import type { MemoryRecallDecision } from "@/lib/ai/memory-recall-release";
 import { resolveExactMemoryDeleteTarget } from "@/lib/ai/memory-target";
 import { streamChat } from "@/lib/ai/orchestrator";
 import { createToolStreamRedactor } from "@/lib/ai/tool-privacy";
+import { serializeSafeTurnDecision } from "@/lib/ai/turn-decision-metadata";
 import { createLogger } from "@/lib/logger";
 import {
   reconcileAiUsageForRecovery,
@@ -177,7 +186,7 @@ function hasValidCapabilityMetadata(
   plannerMode: unknown,
 ): decision is CapabilityDecision {
   return (
-    isImmutableCapabilityDecision(decision) &&
+    isSafeCapabilityDecision(decision) &&
     isKnownCapabilityPlannerMode(plannerMode)
   );
 }
@@ -197,6 +206,144 @@ function hasValidRecoveryCapabilityMetadata(
     return decision === undefined;
   }
   return hasValidCapabilityMetadata(decision, plannerMode);
+}
+
+const FALLBACK_CAPABILITY_DECISION = Object.freeze({
+  rag: false,
+  webSearch: false,
+  webFetch: false,
+  memoryRead: false,
+  memoryWrite: false,
+  memoryDelete: false,
+  memoryDeleteTarget: null,
+  routineProposal: false,
+  userContext: false,
+  voiceOutput: false,
+  source: "fallback" as const,
+  reasonCodes: Object.freeze(["classifier_unavailable"]),
+}) as unknown as CapabilityDecision;
+
+function isSafeCapabilityDecision(value: unknown): value is CapabilityDecision {
+  if (!isImmutableCapabilityDecision(value)) return false;
+  try {
+    serializeSafeTurnDecision(
+      createStandardFallbackTurnDecision(value as CapabilityDecision),
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isDeepFrozenTurnDecision(value: unknown): value is TurnDecision {
+  if (!value || typeof value !== "object" || !Object.isFrozen(value)) {
+    return false;
+  }
+  const decision = value as TurnDecision;
+  if (
+    !Object.isFrozen(decision.capabilities) ||
+    !Object.isFrozen(decision.capabilities?.reasonCodes) ||
+    !Object.isFrozen(decision.execution) ||
+    !Object.isFrozen(decision.execution?.reasonCodes)
+  ) {
+    return false;
+  }
+  try {
+    serializeSafeTurnDecision(decision);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function createStandardFallbackTurnDecision(
+  capabilities: CapabilityDecision = FALLBACK_CAPABILITY_DECISION,
+): TurnDecision {
+  return freezeTurnDecision({
+    version: 1,
+    capabilities,
+    execution: {
+      eligibleProfile: "standard",
+      taskKind: "other",
+      contextDependency: "deep",
+      source: "fallback",
+      confidenceBucket: "low",
+      reasonCodes: ["runtime_invariant"],
+      policyVersion: 1,
+      classifierVersion: 1,
+    },
+  });
+}
+
+function isValidClassificationLatency(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    Number.isFinite(value) &&
+    value >= 0
+  );
+}
+
+function executionRouteMatchesDecision(
+  route: ExecutionRouteTrace,
+  decision: TurnDecision,
+) {
+  return (
+    route.policyVersion === decision.execution.policyVersion &&
+    route.classifierVersion === decision.execution.classifierVersion &&
+    route.eligibleProfile === decision.execution.eligibleProfile &&
+    route.taskKind === decision.execution.taskKind &&
+    route.decisionSource === decision.execution.source &&
+    route.confidenceBucket === decision.execution.confidenceBucket &&
+    decision.execution.reasonCodes.every((reasonCode) =>
+      route.reasonCodes.includes(reasonCode),
+    )
+  );
+}
+
+function validatedExecutionRoute(
+  value: unknown,
+  decision?: TurnDecision,
+): ExecutionRouteTrace | null {
+  const route = parseExecutionRouteTrace(value);
+  if (!route || (decision && !executionRouteMatchesDecision(route, decision))) {
+    return null;
+  }
+  return Object.freeze({
+    ...route,
+    reasonCodes: Object.freeze([...route.reasonCodes]),
+    attempts: Object.freeze(
+      route.attempts.map((attempt) => Object.freeze({ ...attempt })),
+    ),
+    ...(route.escalation
+      ? { escalation: Object.freeze({ ...route.escalation }) }
+      : {}),
+  }) as unknown as ExecutionRouteTrace;
+}
+
+function reconstructRecoveryTurnDecision(
+  capabilities: CapabilityDecision,
+  route: ExecutionRouteTrace,
+): TurnDecision {
+  const contextDependency = route.reasonCodes.includes("deep_context")
+    ? "deep"
+    : route.eligibleProfile === "light"
+      ? "recent"
+      : "deep";
+  return freezeTurnDecision({
+    version: 1,
+    capabilities,
+    execution: {
+      eligibleProfile: route.eligibleProfile,
+      taskKind: route.taskKind,
+      contextDependency,
+      source: route.decisionSource,
+      confidenceBucket: route.confidenceBucket,
+      reasonCodes: route.reasonCodes,
+      policyVersion: route.policyVersion,
+      classifierVersion: route.classifierVersion,
+    },
+  });
 }
 
 function withCancellation<T>(
@@ -239,7 +386,108 @@ export async function runChannelFlow(
   let capabilityPlannerMode: "legacy" | "agentic" | undefined;
   let capabilityMetadataValid = false;
   let capabilityDecision: CapabilityDecision | undefined;
+  let executionMetadataValid = false;
+  let turnDecision: TurnDecision | undefined;
   let memoryRecallDecision: MemoryRecallDecision | undefined;
+  const requestedPreparedTurnContext = ctx.ai?.preparedTurnContext;
+  let preparedExecutionMetadataValid: boolean | undefined;
+  let preparedTurnContext = requestedPreparedTurnContext;
+  if (requestedPreparedTurnContext) {
+    const preparedCapabilityMetadataValid = hasValidCapabilityMetadata(
+      requestedPreparedTurnContext.turnDecision?.capabilities,
+      requestedPreparedTurnContext.capabilityPlannerMode,
+    );
+    preparedExecutionMetadataValid =
+      preparedCapabilityMetadataValid &&
+      isDeepFrozenTurnDecision(requestedPreparedTurnContext.turnDecision) &&
+      isValidClassificationLatency(
+        requestedPreparedTurnContext.classificationLatencyMs,
+      );
+    if (!preparedExecutionMetadataValid) {
+      preparedTurnContext = {
+        turnDecision: createStandardFallbackTurnDecision(
+          preparedCapabilityMetadataValid
+            ? requestedPreparedTurnContext.turnDecision.capabilities
+            : FALLBACK_CAPABILITY_DECISION,
+        ),
+        capabilityPlannerMode: isKnownCapabilityPlannerMode(
+          requestedPreparedTurnContext.capabilityPlannerMode,
+        )
+          ? requestedPreparedTurnContext.capabilityPlannerMode
+          : "legacy",
+        classificationLatencyMs: 0,
+      };
+    }
+  }
+  let executionMetadataInvalid = preparedExecutionMetadataValid === false;
+
+  const applyTurnMetadata = ({
+    candidateTurnDecision,
+    candidateCapabilityDecision,
+    candidateCapabilityPlannerMode,
+    candidateClassificationLatencyMs,
+    metrics,
+  }: {
+    candidateTurnDecision?: unknown;
+    candidateCapabilityDecision?: unknown;
+    candidateCapabilityPlannerMode?: unknown;
+    candidateClassificationLatencyMs?: unknown;
+    metrics?: RunChannelFlowResult["metrics"];
+  }) => {
+    const immutableTurnDecision = isDeepFrozenTurnDecision(
+      candidateTurnDecision,
+    )
+      ? candidateTurnDecision
+      : undefined;
+    const candidateCapabilities =
+      immutableTurnDecision?.capabilities ?? candidateCapabilityDecision;
+    capabilityMetadataValid = hasValidCapabilityMetadata(
+      candidateCapabilities,
+      candidateCapabilityPlannerMode,
+    );
+    if (capabilityMetadataValid) {
+      capabilityDecision = candidateCapabilities as CapabilityDecision;
+      capabilityPlannerMode = isKnownCapabilityPlannerMode(
+        candidateCapabilityPlannerMode,
+      )
+        ? candidateCapabilityPlannerMode
+        : undefined;
+    } else {
+      capabilityDecision = undefined;
+      capabilityPlannerMode = undefined;
+    }
+
+    let currentExecutionMetadataValid = immutableTurnDecision !== undefined;
+    if (
+      candidateClassificationLatencyMs !== undefined &&
+      !isValidClassificationLatency(candidateClassificationLatencyMs)
+    ) {
+      currentExecutionMetadataValid = false;
+    }
+    if (metrics?.executionRoute !== undefined) {
+      currentExecutionMetadataValid = Boolean(
+        immutableTurnDecision &&
+          validatedExecutionRoute(
+            metrics.executionRoute,
+            immutableTurnDecision,
+          ),
+      );
+    }
+    if (!currentExecutionMetadataValid) {
+      executionMetadataInvalid = true;
+    }
+    executionMetadataValid =
+      currentExecutionMetadataValid && !executionMetadataInvalid;
+    turnDecision = executionMetadataValid
+      ? immutableTurnDecision
+      : preparedExecutionMetadataValid === false && immutableTurnDecision
+        ? immutableTurnDecision
+        : createStandardFallbackTurnDecision(
+            capabilityMetadataValid
+              ? capabilityDecision
+              : FALLBACK_CAPABILITY_DECISION,
+          );
+  };
 
   let finalMetrics: RunChannelFlowResult["metrics"];
   let persistence: RunChannelFlowResult["persistence"] =
@@ -251,6 +499,7 @@ export async function runChannelFlow(
     return {
       assistantText: "",
       capabilityMetadataValid: false,
+      executionMetadataValid: false,
       persistence: { status: "skipped" },
       rateLimit: {
         status: "denied",
@@ -277,6 +526,7 @@ export async function runChannelFlow(
     return {
       assistantText: "",
       capabilityMetadataValid: false,
+      executionMetadataValid: false,
       persistence: { status: "skipped" },
       rateLimit: {
         status: "denied",
@@ -447,7 +697,7 @@ export async function runChannelFlow(
 
   if (usageReservation?.recovery) {
     const recovery = usageReservation.recovery;
-    const recoveryMetadataValid =
+    const recoveryCapabilityMetadataValid =
       hasValidRecoveryCapabilityMetadata(
         recovery.capabilityMetadataValid,
         recovery.capabilityPlannerMode,
@@ -455,29 +705,55 @@ export async function runChannelFlow(
       ) &&
       (recovery.metrics.memoryRecall === undefined ||
         recovery.memoryRecallDecision !== undefined);
-    capabilityMetadataValid = recoveryMetadataValid;
-    if (recoveryMetadataValid && recovery.capabilityPlannerMode !== undefined) {
+    capabilityMetadataValid = recoveryCapabilityMetadataValid;
+    if (
+      recoveryCapabilityMetadataValid &&
+      recovery.capabilityPlannerMode !== undefined
+    ) {
       capabilityPlannerMode = recovery.capabilityPlannerMode;
       capabilityDecision = recovery.capabilityDecision;
       memoryRecallDecision = recovery.memoryRecallDecision;
     }
-    finalMetrics = recovery.metrics;
+    const recoveryExecutionRoute =
+      recovery.executionMetadataValid === true
+        ? validatedExecutionRoute(
+            recovery.executionRoute ?? recovery.metrics.executionRoute,
+          )
+        : null;
+    executionMetadataValid = recoveryExecutionRoute !== null;
+    const recoveryCapabilities =
+      recoveryCapabilityMetadataValid && recovery.capabilityDecision
+        ? recovery.capabilityDecision
+        : FALLBACK_CAPABILITY_DECISION;
+    turnDecision = recoveryExecutionRoute
+      ? reconstructRecoveryTurnDecision(
+          recoveryCapabilities,
+          recoveryExecutionRoute,
+        )
+      : createStandardFallbackTurnDecision(recoveryCapabilities);
+    const recoveryMetrics: NonNullable<RunChannelFlowResult["metrics"]> =
+      recoveryExecutionRoute
+        ? { ...recovery.metrics, executionRoute: recoveryExecutionRoute }
+        : recovery.metrics;
+    finalMetrics = recoveryMetrics;
     const message = await persistGeneratedOutput({
       text: recovery.text,
-      metrics: recovery.metrics,
+      metrics: recoveryMetrics,
       usageAlreadyReconciled: true,
-      allowMemoryExtraction: memoryEnabled && recoveryMetadataValid,
+      allowMemoryExtraction: memoryEnabled && recoveryCapabilityMetadataValid,
     });
     if (ctx.hooks?.onFinish) {
       await ctx.hooks.onFinish({
         text: recovery.text,
-        metrics: recovery.metrics,
+        metrics: recoveryMetrics,
       });
     }
     return {
       assistantText: mode === "text" ? recovery.text : "",
-      metrics: finalMetrics,
+      metrics: recoveryMetrics,
       capabilityMetadataValid,
+      executionMetadataValid,
+      turnDecision,
       capabilityDecision,
       capabilityPlannerMode: capabilityMetadataValid
         ? capabilityPlannerMode
@@ -496,7 +772,7 @@ export async function runChannelFlow(
               toUIMessageStreamResponse: () =>
                 createPersistedResponse(
                   recovery.text,
-                  recovery.metrics,
+                  recoveryMetrics,
                   includeTechnicalMetrics,
                 ),
             }
@@ -515,6 +791,8 @@ export async function runChannelFlow(
       assistantText: mode === "text" ? saved.text : "",
       metrics: saved.metrics,
       capabilityMetadataValid: false,
+      executionMetadataValid: false,
+      turnDecision: createStandardFallbackTurnDecision(),
       persistence,
       usageReservationId,
       usageReservationClaimToken,
@@ -613,27 +891,23 @@ export async function runChannelFlow(
         : undefined,
       effectiveEntitlements: ctx.rateLimit.effectiveEntitlements,
       skipConversationHistory: ctx.ai?.skipConversationHistory,
-      preparedCapabilityContext: ctx.ai?.preparedCapabilityContext,
+      preparedTurnContext,
       routineProposalAllowed: ctx.ai?.routineProposalAllowed !== false,
       abortSignal: generationAbortController.signal,
       onFinish: async ({
         text,
         metrics,
+        turnDecision: streamedTurnDecision,
         capabilityDecision: streamedCapabilityDecision,
         capabilityPlannerMode: streamedCapabilityPlannerMode,
         memoryRecallDecision: streamedMemoryRecallDecision,
       }) => {
-        capabilityMetadataValid = hasValidCapabilityMetadata(
-          streamedCapabilityDecision,
-          streamedCapabilityPlannerMode,
-        );
-        if (capabilityMetadataValid) {
-          capabilityDecision = streamedCapabilityDecision;
-          capabilityPlannerMode = streamedCapabilityPlannerMode;
-        } else {
-          capabilityDecision = undefined;
-          capabilityPlannerMode = undefined;
-        }
+        applyTurnMetadata({
+          candidateTurnDecision: streamedTurnDecision,
+          candidateCapabilityDecision: streamedCapabilityDecision,
+          candidateCapabilityPlannerMode: streamedCapabilityPlannerMode,
+          metrics,
+        });
         memoryRecallDecision = streamedMemoryRecallDecision;
         finalMetrics = metrics;
         generationAbortController.signal.throwIfAborted();
@@ -680,22 +954,17 @@ export async function runChannelFlow(
         }
       },
     });
-    if ("capabilityDecision" in streamResult) {
-      if (
-        hasValidCapabilityMetadata(
-          streamResult.capabilityDecision,
-          streamResult.capabilityPlannerMode,
-        )
-      ) {
-        capabilityDecision = streamResult.capabilityDecision;
-        capabilityPlannerMode = streamResult.capabilityPlannerMode;
-        memoryRecallDecision = streamResult.memoryRecallDecision;
-        capabilityMetadataValid = true;
-      } else {
-        capabilityDecision = undefined;
-        capabilityPlannerMode = undefined;
-        capabilityMetadataValid = false;
-      }
+    if (
+      "turnDecision" in streamResult ||
+      "capabilityDecision" in streamResult
+    ) {
+      applyTurnMetadata({
+        candidateTurnDecision: streamResult.turnDecision,
+        candidateCapabilityDecision: streamResult.capabilityDecision,
+        candidateCapabilityPlannerMode: streamResult.capabilityPlannerMode,
+        candidateClassificationLatencyMs: streamResult.classificationLatencyMs,
+      });
+      memoryRecallDecision = streamResult.memoryRecallDecision;
     }
   } catch (error) {
     detachRequestAbort();
@@ -708,6 +977,8 @@ export async function runChannelFlow(
       assistantText: "",
       metrics: finalMetrics,
       capabilityMetadataValid,
+      executionMetadataValid,
+      turnDecision,
       capabilityDecision,
       capabilityPlannerMode: capabilityMetadataValid
         ? capabilityPlannerMode
@@ -847,6 +1118,8 @@ export async function runChannelFlow(
     assistantText,
     metrics: finalMetrics,
     capabilityMetadataValid,
+    executionMetadataValid,
+    turnDecision,
     capabilityDecision,
     capabilityPlannerMode: capabilityMetadataValid
       ? capabilityPlannerMode

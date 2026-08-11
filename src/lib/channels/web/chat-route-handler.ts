@@ -567,11 +567,11 @@ export async function handleWebChatPost(request: Request) {
         const voiceUnavailableReason =
           getExplicitVoiceUnavailableReason(voiceDecision);
 
-        let preparedCapabilityContext:
+        let preparedTurnContext:
           | NonNullable<
               NonNullable<
                 Parameters<typeof runChannelFlow>[0]["ai"]
-              >["preparedCapabilityContext"]
+              >["preparedTurnContext"]
             >
           | undefined;
         const comparisonResponse = await tryCreateModelComparisonResponse({
@@ -592,7 +592,7 @@ export async function handleWebChatPost(request: Request) {
           effectiveEntitlements: rateLimitResult.effectiveEntitlements,
           skipConversationHistory: chat._count.messages === 0,
           onPreparedTurnRejected(context) {
-            preparedCapabilityContext = context;
+            preparedTurnContext = context;
           },
         });
         if (comparisonResponse) {
@@ -636,7 +636,7 @@ export async function handleWebChatPost(request: Request) {
             voiceUnavailableReason,
             skipConversationHistory: chat._count.messages === 0,
             routineProposalAllowed,
-            preparedCapabilityContext,
+            preparedTurnContext,
           },
           execution: {
             mode: "stream",

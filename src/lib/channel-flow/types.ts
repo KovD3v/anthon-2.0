@@ -1,7 +1,9 @@
 import type { Prisma } from "@/generated/prisma";
 import type { CapabilityDecision } from "@/lib/ai/capability-arbitration";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
+import type { TurnDecision } from "@/lib/ai/execution-routing";
 import type { MemoryRecallDecision } from "@/lib/ai/memory-recall-release";
+import type { PreparedTurnContext } from "@/lib/ai/orchestrator";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
 
 export type ChannelKind = "WEB" | "WEB_GUEST" | "TELEGRAM" | "WHATSAPP";
@@ -49,10 +51,7 @@ export interface InboundContext {
     voiceUnavailableReason?: string;
     skipConversationHistory?: boolean;
     routineProposalAllowed?: boolean;
-    preparedCapabilityContext?: {
-      capabilityDecision: CapabilityDecision;
-      capabilityPlannerMode: "legacy" | "agentic";
-    };
+    preparedTurnContext?: PreparedTurnContext;
     memoryRecallDecision?: MemoryRecallDecision;
   };
   execution?: {
@@ -84,6 +83,8 @@ export interface RunChannelFlowResult {
   assistantText: string;
   metrics?: AIMetrics;
   capabilityMetadataValid: boolean;
+  executionMetadataValid: boolean;
+  turnDecision?: TurnDecision;
   capabilityDecision?: CapabilityDecision;
   capabilityPlannerMode?: "legacy" | "agentic";
   memoryRecallDecision?: MemoryRecallDecision;

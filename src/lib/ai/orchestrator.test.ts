@@ -171,6 +171,7 @@ vi.mock("./turn-classification", async (importOriginal) => ({
 }));
 
 import type { CapabilityDecision } from "./capability-arbitration";
+import { freezeTurnDecision } from "./execution-routing";
 import {
   executePreparedChatTurn,
   prepareChatTurn,
@@ -1250,22 +1251,39 @@ describe("ai/orchestrator", () => {
     );
   });
 
-  it("reuses a prepared capability context without a second classifier call", async () => {
+  it("reuses a prepared turn decision without a second classifier call", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "legacy");
     const capabilityDecision = frozenCapabilityDecision({ webSearch: true });
+    const turnDecision = freezeTurnDecision({
+      version: 1,
+      capabilities: capabilityDecision,
+      execution: {
+        eligibleProfile: "standard",
+        taskKind: "knowledge",
+        contextDependency: "recent",
+        source: "classifier",
+        confidenceBucket: "high",
+        reasonCodes: ["classifier_standard", "capability_required"],
+        policyVersion: 1,
+        classifierVersion: 1,
+      },
+    });
 
     const result = await streamChat({
       userId: "user-1",
       chatId: "chat-prepared-capability",
       userMessage: "Cerca gli ultimi risultati",
       effectiveEntitlements: baseEntitlements,
-      preparedCapabilityContext: {
-        capabilityDecision,
+      preparedTurnContext: {
+        turnDecision,
         capabilityPlannerMode: "agentic",
+        classificationLatencyMs: 19,
       },
     });
 
     expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
+    expect(result.turnDecision).toBe(turnDecision);
+    expect(result.classificationLatencyMs).toBe(19);
     expect(result.capabilityDecision).toBe(capabilityDecision);
     expect(result.capabilityPlannerMode).toBe("agentic");
     expect(mocks.streamText.mock.calls.at(-1)?.[0]?.tools).toHaveProperty(
@@ -1294,9 +1312,23 @@ describe("ai/orchestrator", () => {
       conversationThreadId: "thread-1",
       userMessage: "Come preparo la gara?",
       effectiveEntitlements: baseEntitlements,
-      preparedCapabilityContext: {
-        capabilityDecision: frozenCapabilityDecision({ memoryRead: false }),
+      preparedTurnContext: {
+        turnDecision: freezeTurnDecision({
+          version: 1,
+          capabilities: frozenCapabilityDecision({ memoryRead: false }),
+          execution: {
+            eligibleProfile: "standard",
+            taskKind: "coaching",
+            contextDependency: "recent",
+            source: "classifier",
+            confidenceBucket: "high",
+            reasonCodes: ["classifier_standard", "task_not_allowlisted"],
+            policyVersion: 1,
+            classifierVersion: 1,
+          },
+        }),
         capabilityPlannerMode: "agentic",
+        classificationLatencyMs: 25,
       },
     });
 
