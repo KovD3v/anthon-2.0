@@ -159,6 +159,10 @@ describe("execution routing", () => {
       eligibleProfile: "standard",
       source: "fallback",
     });
+    expect(route({ classifierOutcome: "low_confidence" })).toMatchObject({
+      eligibleProfile: "standard",
+      source: "fallback",
+    });
     expect(route({ plannerMode: "legacy" })).toMatchObject({
       eligibleProfile: "standard",
       source: "fallback",

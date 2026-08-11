@@ -192,6 +192,7 @@ export function normalizeExecutionDecision(
   const hasFallbackFailure =
     input.plannerMode !== "agentic" ||
     input.classifierOutcome === "failed" ||
+    input.classifierOutcome === "low_confidence" ||
     input.classifierOutcome === "invalid" ||
     input.workload === null ||
     input.classifierVersion !== TURN_CLASSIFIER_VERSION;
