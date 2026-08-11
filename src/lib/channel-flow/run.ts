@@ -13,6 +13,7 @@ import {
   getImmediatelyAttributableApproval,
   mightResolvePendingMemoryApproval,
 } from "@/lib/ai/memory-approval";
+import type { MemoryRecallDecision } from "@/lib/ai/memory-recall-release";
 import { resolveExactMemoryDeleteTarget } from "@/lib/ai/memory-target";
 import { streamChat } from "@/lib/ai/orchestrator";
 import { createToolStreamRedactor } from "@/lib/ai/tool-privacy";
@@ -238,6 +239,7 @@ export async function runChannelFlow(
   let capabilityPlannerMode: "legacy" | "agentic" | undefined;
   let capabilityMetadataValid = false;
   let capabilityDecision: CapabilityDecision | undefined;
+  let memoryRecallDecision: MemoryRecallDecision | undefined;
 
   let finalMetrics: RunChannelFlowResult["metrics"];
   let persistence: RunChannelFlowResult["persistence"] =
@@ -389,6 +391,7 @@ export async function runChannelFlow(
         updateChatTimestamp: ctx.persistence?.updateChatTimestamp,
         revalidateTags: ctx.persistence?.revalidateTags,
         allowMemoryExtraction,
+        allowConversationIndexing: allowMemoryExtraction,
         capabilityDecision: capabilityMetadataValid
           ? capabilityDecision
           : undefined,
@@ -444,25 +447,26 @@ export async function runChannelFlow(
 
   if (usageReservation?.recovery) {
     const recovery = usageReservation.recovery;
-    const recoveryMetadataValid = hasValidRecoveryCapabilityMetadata(
-      recovery.capabilityMetadataValid,
-      recovery.capabilityPlannerMode,
-      recovery.capabilityDecision,
-    );
+    const recoveryMetadataValid =
+      hasValidRecoveryCapabilityMetadata(
+        recovery.capabilityMetadataValid,
+        recovery.capabilityPlannerMode,
+        recovery.capabilityDecision,
+      ) &&
+      (recovery.metrics.memoryRecall === undefined ||
+        recovery.memoryRecallDecision !== undefined);
     capabilityMetadataValid = recoveryMetadataValid;
     if (recoveryMetadataValid && recovery.capabilityPlannerMode !== undefined) {
       capabilityPlannerMode = recovery.capabilityPlannerMode;
       capabilityDecision = recovery.capabilityDecision;
+      memoryRecallDecision = recovery.memoryRecallDecision;
     }
     finalMetrics = recovery.metrics;
     const message = await persistGeneratedOutput({
       text: recovery.text,
       metrics: recovery.metrics,
       usageAlreadyReconciled: true,
-      allowMemoryExtraction:
-        memoryEnabled &&
-        recoveryMetadataValid &&
-        capabilityPlannerMode === "legacy",
+      allowMemoryExtraction: memoryEnabled && recoveryMetadataValid,
     });
     if (ctx.hooks?.onFinish) {
       await ctx.hooks.onFinish({
@@ -478,6 +482,7 @@ export async function runChannelFlow(
       capabilityPlannerMode: capabilityMetadataValid
         ? capabilityPlannerMode
         : undefined,
+      memoryRecallDecision,
       persistence,
       usageReservationId,
       usageReservationClaimToken,
@@ -616,6 +621,7 @@ export async function runChannelFlow(
         metrics,
         capabilityDecision: streamedCapabilityDecision,
         capabilityPlannerMode: streamedCapabilityPlannerMode,
+        memoryRecallDecision: streamedMemoryRecallDecision,
       }) => {
         capabilityMetadataValid = hasValidCapabilityMetadata(
           streamedCapabilityDecision,
@@ -628,6 +634,7 @@ export async function runChannelFlow(
           capabilityDecision = undefined;
           capabilityPlannerMode = undefined;
         }
+        memoryRecallDecision = streamedMemoryRecallDecision;
         finalMetrics = metrics;
         generationAbortController.signal.throwIfAborted();
         if (!text.trim()) {
@@ -646,6 +653,7 @@ export async function runChannelFlow(
                 capabilityDecision: capabilityMetadataValid
                   ? capabilityDecision
                   : undefined,
+                memoryRecallDecision,
               });
               markUsageReservationSettled();
             } catch (error) {
@@ -659,10 +667,7 @@ export async function runChannelFlow(
         await persistGeneratedOutput({
           text,
           metrics,
-          allowMemoryExtraction:
-            memoryEnabled &&
-            capabilityMetadataValid &&
-            capabilityPlannerMode === "legacy",
+          allowMemoryExtraction: memoryEnabled && capabilityMetadataValid,
         });
         if (ctx.hooks?.onFinish) {
           try {
@@ -684,6 +689,7 @@ export async function runChannelFlow(
       ) {
         capabilityDecision = streamResult.capabilityDecision;
         capabilityPlannerMode = streamResult.capabilityPlannerMode;
+        memoryRecallDecision = streamResult.memoryRecallDecision;
         capabilityMetadataValid = true;
       } else {
         capabilityDecision = undefined;
@@ -706,6 +712,7 @@ export async function runChannelFlow(
       capabilityPlannerMode: capabilityMetadataValid
         ? capabilityPlannerMode
         : undefined,
+      memoryRecallDecision,
       persistence,
       usageReservationId,
       usageReservationClaimToken,
@@ -844,6 +851,7 @@ export async function runChannelFlow(
     capabilityPlannerMode: capabilityMetadataValid
       ? capabilityPlannerMode
       : undefined,
+    memoryRecallDecision,
     persistence,
     usageReservationId,
     usageReservationClaimToken,

@@ -472,7 +472,7 @@ describe("channel-flow/run", () => {
     );
   });
 
-  it("restores an agentic recovery decision and keeps legacy extraction disabled", async () => {
+  it("restores an agentic recovery decision and enables shared consolidation", async () => {
     const capabilityDecision = Object.freeze({
       rag: true,
       webSearch: false,
@@ -547,7 +547,7 @@ describe("channel-flow/run", () => {
 
     expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
       expect.objectContaining({
-        allowMemoryExtraction: false,
+        allowMemoryExtraction: true,
         capabilityDecision,
         capabilityPlannerMode: "agentic",
       }),

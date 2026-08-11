@@ -112,14 +112,6 @@ function tokenize(value: string) {
     .filter((token) => token.length >= 3 && !NON_TARGET_WORDS.has(token));
 }
 
-function memoryContent(value: unknown): string {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    const content = (value as Record<string, unknown>).content;
-    if (typeof content === "string") return content;
-  }
-  return typeof value === "string" ? value : "";
-}
-
 function compactText(value: string) {
   return normalizeText(value)
     .replace(/[^a-z0-9]+/g, " ")
@@ -190,6 +182,12 @@ function uniqueStableFactCandidates(...values: string[]) {
     if (!isDuplicate) unique.push(candidate);
   }
   return unique;
+}
+
+async function getActiveMemories(userId: string) {
+  const { listActiveFacts } = await import("@/lib/ai/memory-facts");
+  const result = await listActiveFacts({ userId, limit: 64 });
+  return result.degraded ? null : result.facts;
 }
 
 async function getImmediatelyPrecedingContext(input: {
@@ -299,18 +297,12 @@ export async function resolveExactMemoryDeleteTarget(input: {
     });
     if (!factCandidates || factCandidates.length !== 1) return null;
 
-    const { prisma } = await import("@/lib/db");
-    const memories = await prisma.memory.findMany({
-      where: { userId: input.userId },
-      select: { key: true, category: true, value: true },
-    });
+    const memories = await getActiveMemories(input.userId);
+    if (!memories) return null;
     const matches = memories.filter(
       (memory) =>
         isDeletableStableMemoryKey(memory.key) &&
-        hasStrongContextMatch(
-          memoryContent(memory.value),
-          factCandidates[0] ?? "",
-        ),
+        hasStrongContextMatch(memory.content, factCandidates[0] ?? ""),
     );
 
     return matches.length === 1 ? (matches[0]?.key ?? null) : null;
@@ -318,11 +310,8 @@ export async function resolveExactMemoryDeleteTarget(input: {
 
   const queryTokens = new Set(tokenize(input.userMessage));
 
-  const { prisma } = await import("@/lib/db");
-  const memories = await prisma.memory.findMany({
-    where: { userId: input.userId },
-    select: { key: true, category: true, value: true },
-  });
+  const memories = await getActiveMemories(input.userId);
+  if (!memories) return null;
 
   const requestedKey = directMemoryKey(input.userMessage);
   if (requestedKey) {
@@ -339,7 +328,7 @@ export async function resolveExactMemoryDeleteTarget(input: {
     .filter((memory) => isDeletableStableMemoryKey(memory.key))
     .map((memory) => {
       const keyPhrase = normalizeText(memory.key.replaceAll("_", " "));
-      const content = memoryContent(memory.value);
+      const content = memory.content;
       const contentMatch = hasStrongContextMatch(content, input.userMessage);
       const keyMatch = normalizedMessage.includes(keyPhrase);
       const searchableKey = new Set(tokenize(memory.key));

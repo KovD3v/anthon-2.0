@@ -49,6 +49,7 @@
 **Files:**
 - Modify: `prisma/schema.prisma`
 - Create: `prisma/migrations/20260811130000_add_conversation_recall/migration.sql`
+- Create: `src/lib/ai/conversation-index.ts`
 - Create: `src/lib/ai/conversation-index.test.ts`
 
 **Interfaces:**
@@ -135,10 +136,18 @@ bunx prisma generate
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit schema and fixture**
+- [ ] **Step 6: Implement the minimal idempotent index boundary**
+
+Create `src/lib/ai/conversation-index.ts` with `indexConversationWindow` and
+the ownership/source validation required by the fixture. Task 3 adds window
+construction, embeddings, persistence scheduling, and cleanup after the shared
+embedding client exists.
+
+- [ ] **Step 7: Run the fixture and commit schema and boundary**
 
 ```bash
-git add prisma/schema.prisma prisma/migrations/20260811130000_add_conversation_recall/migration.sql src/lib/ai/conversation-index.test.ts
+bunx vitest run src/lib/ai/conversation-index.test.ts
+git add prisma/schema.prisma prisma/migrations/20260811130000_add_conversation_recall/migration.sql src/lib/ai/conversation-index.ts src/lib/ai/conversation-index.test.ts
 git commit -m "feat(ai): add conversation recall index"
 ```
 
@@ -205,7 +214,7 @@ git commit -m "refactor(ai): share embedding client"
 ### Task 3: Index bounded conversation windows asynchronously
 
 **Files:**
-- Create: `src/lib/ai/conversation-index.ts`
+- Modify: `src/lib/ai/conversation-index.ts`
 - Modify: `src/lib/ai/conversation-index.test.ts`
 - Modify: `src/lib/channel-flow/persistence.ts`
 - Modify: `src/lib/channel-flow/persistence.test.ts`

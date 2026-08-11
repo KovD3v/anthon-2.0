@@ -1,264 +1,141 @@
 import { generateText } from "ai";
 import { z } from "zod";
-import { MEMORY } from "@/lib/ai/constants";
 import {
   SUB_AGENT_MODEL_ID,
   subAgentModel,
 } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
-import { invalidateMemoriesForPromptCache } from "@/lib/ai/tools/memory";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
-import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 
 const extractorLogger = createLogger("ai");
-const MAX_CONCURRENT_MEMORY_UPSERTS = 4;
 
-// Schema for extracted memory facts
-const ExtractedFactsSchema = z.object({
-  facts: z.array(
-    z.object({
-      key: z
-        .string()
-        .describe(
-          "A unique key for this fact, e.g., 'user_name', 'user_sport', 'user_goal', 'user_preference_*'",
-        ),
-      value: z
-        .string()
-        .describe("The value of the fact extracted from the conversation"),
-      category: z
-        .enum([
-          "identity",
-          "sport",
-          "goal",
-          "preference",
-          "health",
-          "schedule",
-          "conversation_topic",
-          "other",
-        ])
-        .describe("Category of the fact"),
-      confidence: z
-        .number()
-        .min(0)
-        .max(1)
-        .describe("Confidence score 0-1 that this fact is accurate"),
-    }),
-  ),
+const MemoryCandidateSchema = z.object({
+  key: z.string().trim().min(3).max(80),
+  value: z.string().trim().min(1).max(1000),
+  category: z.enum([
+    "identity",
+    "sport",
+    "goal",
+    "preference",
+    "health",
+    "diagnosis",
+    "trauma",
+    "intimate",
+    "schedule",
+    "conversation_topic",
+    "other",
+  ]),
+  confidence: z.number().min(0).max(1),
+  sensitivity: z.enum(["LOW", "HIGH"]),
+  origin: z.enum(["EXPLICIT", "INFERRED"]),
+  explicitSetting: z.boolean(),
+  durability: z.enum(["DURABLE", "TRANSIENT"]),
+  evidence: z.string().trim().min(1).max(500),
 });
 
-type ExtractedFact = z.infer<typeof ExtractedFactsSchema>["facts"][number];
+const ExtractedFactsSchema = z.object({
+  facts: z.array(MemoryCandidateSchema).max(8),
+});
 
-type MemoryPersistenceFailure = {
-  error: unknown;
-  key: string;
-};
+export type MemoryCandidate = z.infer<typeof MemoryCandidateSchema>;
 
-/**
- * Extracts important facts from a conversation exchange and saves them to Memory.
- * This runs as a post-processing step after each assistant response.
- * Uses Gemini 2.5 Flash for fast extraction.
- */
-export async function extractAndSaveMemories(
-  userId: string,
-  userMessage: string,
-  assistantResponse: string,
-): Promise<void> {
-  // Skip extraction for very short messages (unlikely to contain useful info)
-  const MIN_MESSAGE_LENGTH = 20;
-  const MIN_WORD_COUNT = 5;
+function normalizeEvidence(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("it-IT")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  const wordCount = userMessage.trim().split(/\s+/).length;
-  if (userMessage.length < MIN_MESSAGE_LENGTH || wordCount < MIN_WORD_COUNT) {
-    return;
+function isUserSupported(userText: string, evidence: string) {
+  const normalizedEvidence = normalizeEvidence(evidence);
+  return (
+    normalizedEvidence.length >= 4 &&
+    normalizeEvidence(userText).includes(normalizedEvidence)
+  );
+}
+
+function extractJsonText(text: string | undefined) {
+  const trimmed = text?.trim();
+  if (!trimmed) return null;
+  return (
+    trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1]?.trim() ?? trimmed
+  );
+}
+
+function parseCandidates(text: string | undefined, userText: string) {
+  const jsonText = extractJsonText(text);
+  if (!jsonText) return null;
+  try {
+    const result = ExtractedFactsSchema.safeParse(JSON.parse(jsonText));
+    if (!result.success) return null;
+    return result.data.facts.filter((candidate) =>
+      isUserSupported(userText, candidate.evidence),
+    );
+  } catch {
+    return null;
+  }
+}
+
+export async function extractMemoryCandidates(input: {
+  userId: string;
+  userText: string;
+  assistantText: string;
+}): Promise<MemoryCandidate[]> {
+  const trimmedUserText = input.userText.trim();
+  if (trimmedUserText.length < 10 || trimmedUserText.split(/\s+/).length < 3) {
+    return [];
   }
 
   try {
     const result = await generateText({
       model: subAgentModel,
       temperature: 0,
-      maxOutputTokens: 500,
+      maxOutputTokens: 700,
       providerOptions: {
         openrouter: getOpenRouterProviderOptionsForModel(SUB_AGENT_MODEL_ID),
       },
-      instructions: `Sei un assistente che estrae informazioni importanti dalle conversazioni.
-Analizza lo scambio tra utente e assistente e estrai fatti persistenti sull'utente.
-
-Regole:
-- La scelta di cosa salvare è del modello: non usare solo parole chiave e non salvare ogni dettaglio.
-- Estrai solo fatti dichiarati esplicitamente dall'utente; non inferire fatti dall'assistente e non fare assunzioni
-- Priorità a: nome, sport praticato, obiettivi, preferenze, condizioni fisiche, disponibilità orarie
-- Ignora informazioni transitorie o specifiche del momento, salvo quando l'utente chiede esplicitamente di ricordarle
-- Usa key in snake_case in inglese (es: user_name, user_sport, user_goal)
-- Assegna confidence alta (>0.8) solo se l'informazione è chiara e non ambigua
-- Se non ci sono fatti da estrarre, restituisci un array vuoto
-- Rispondi solo con JSON valido nel formato {"facts":[...]}, senza markdown e senza testo extra`,
-      prompt: `Estrai i fatti importanti da questo scambio:
-
-UTENTE: ${userMessage}
-
-ASSISTENTE: ${assistantResponse}
-
-Restituisci i fatti estratti o un array vuoto se non ce ne sono.`,
+      instructions: `Estrai al massimo 8 candidati di memoria durevole forniti dall'utente.
+L'assistente non è mai la fonte: può solo disambiguare il contesto. Ogni candidato
+deve includere in evidence una citazione breve presente letteralmente nel testo utente.
+Classifica come TRANSIENT i dettagli del momento; explicitSetting è true soltanto per
+un'impostazione o preferenza esplicitamente richiesta. Usa HIGH per salute, diagnosi,
+trauma, sfera intima o fatti ad alto impatto. Non inventare e non completare dettagli.
+Restituisci solo JSON valido: {"facts":[{"key":"snake_case","value":"...",
+"category":"...","confidence":0.9,"sensitivity":"LOW|HIGH",
+"origin":"EXPLICIT|INFERRED","explicitSetting":false,
+"durability":"DURABLE|TRANSIENT","evidence":"testo utente"}]}.`,
+      prompt: `TESTO UTENTE:\n${input.userText}\n\nRISPOSTA ASSISTENTE (solo contesto, mai fonte):\n${input.assistantText}`,
     });
 
     await trackSupportAiUsage({
-      userId,
+      userId: input.userId,
       modelId: SUB_AGENT_MODEL_ID,
       usage: result.usage,
       providerMetadata: result.providerMetadata,
     });
 
-    const output = parseExtractorOutput(result.text);
-    if (!output) {
+    const candidates = parseCandidates(result.text, input.userText);
+    if (!candidates) {
       extractorLogger.warn(
-        "extraction_skipped",
-        "Memory extractor returned no parseable output",
-        { userId },
+        "ai.memory.extraction_unparseable",
+        "Memory extractor returned invalid structured output",
+        { userId: input.userId },
       );
-      return;
+      return [];
     }
-
-    // Filter facts with high enough confidence and save them.
-    const highConfidenceFacts = output.facts.filter(
-      (f) => f.confidence >= MEMORY.MIN_CONFIDENCE,
-    );
-
-    const factsToPersist = selectLatestFactsByKey(highConfidenceFacts);
-    const failures = await persistMemoryFacts(userId, factsToPersist);
-
-    if (failures.length > 0) {
-      extractorLogger.error(
-        "memory_persistence_failed",
-        "One or more memory facts could not be persisted",
-        {
-          error: failures.map(({ error }) => error),
-          failedKeys: failures.map(({ key }) => key),
-          userId,
-        },
-      );
-      return;
-    }
-
-    // Only invalidate after every selected write succeeds. A partial persistence
-    // failure keeps the cache and activity update on the previous all-or-nothing path.
-    if (factsToPersist.length > 0) {
-      invalidateMemoriesForPromptCache(userId);
-    }
-
-    // Update lastActivityAt for the user
-    await prisma.user.update({
-      where: { id: userId },
-      data: { lastActivityAt: new Date() },
-    });
+    return candidates;
   } catch (error) {
-    // Log error but don't throw - memory extraction is non-critical
-    extractorLogger.error("extraction_failed", "Error extracting memories", {
-      error,
-      userId,
-    });
-  }
-}
-
-/**
- * A response can repeat a key. Keeping the last accepted fact makes the final value
- * deterministic while ensuring concurrent writes never race on the same composite key.
- */
-function selectLatestFactsByKey(facts: ExtractedFact[]): ExtractedFact[] {
-  const factsByKey = new Map<string, ExtractedFact>();
-
-  for (const fact of facts) {
-    factsByKey.delete(fact.key);
-    factsByKey.set(fact.key, fact);
-  }
-
-  return [...factsByKey.values()];
-}
-
-async function persistMemoryFacts(
-  userId: string,
-  facts: ExtractedFact[],
-): Promise<MemoryPersistenceFailure[]> {
-  const failures: MemoryPersistenceFailure[] = [];
-
-  // Keep background extraction from flooding the connection pool. allSettled lets
-  // independent later batches run even when one write fails; the caller applies the
-  // all-or-nothing cache and activity policy after collecting every failure.
-  for (
-    let index = 0;
-    index < facts.length;
-    index += MAX_CONCURRENT_MEMORY_UPSERTS
-  ) {
-    const batch = facts.slice(index, index + MAX_CONCURRENT_MEMORY_UPSERTS);
-    const results = await Promise.allSettled(
-      batch.map((fact) => persistMemoryFact(userId, fact)),
+    extractorLogger.error(
+      "ai.memory.extraction_failed",
+      "Memory candidate extraction failed",
+      {
+        errorName: error instanceof Error ? error.name : "unknown",
+        userId: input.userId,
+      },
     );
-
-    for (const [batchIndex, result] of results.entries()) {
-      const fact = batch[batchIndex];
-      if (result.status === "rejected" && fact) {
-        failures.push({ error: result.reason, key: fact.key });
-      }
-    }
+    return [];
   }
-
-  return failures;
-}
-
-function persistMemoryFact(userId: string, fact: ExtractedFact) {
-  const timestamp = new Date().toISOString();
-
-  // Use the existing composite unique key (userId + key) for every write.
-  return prisma.memory.upsert({
-    where: {
-      userId_key: { userId, key: fact.key },
-    },
-    update: {
-      value: {
-        content: fact.value,
-        category: fact.category,
-        confidence: fact.confidence,
-        updatedAt: timestamp,
-      },
-    },
-    create: {
-      userId,
-      key: fact.key,
-      value: {
-        content: fact.value,
-        category: fact.category,
-        confidence: fact.confidence,
-        createdAt: timestamp,
-      },
-    },
-  });
-}
-
-function parseExtractorOutput(text: string | undefined) {
-  const jsonText = extractJsonText(text);
-  if (!jsonText) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(jsonText);
-    const result = ExtractedFactsSchema.safeParse(parsed);
-    return result.success ? result.data : null;
-  } catch {
-    return null;
-  }
-}
-
-function extractJsonText(text: string | undefined) {
-  const trimmed = text?.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fencedMatch?.[1]) {
-    return fencedMatch[1].trim();
-  }
-
-  return trimmed;
 }

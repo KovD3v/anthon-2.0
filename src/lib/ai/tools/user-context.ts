@@ -1,12 +1,17 @@
-import { clerkClient } from "@clerk/nextjs/server";
 import { tool } from "ai";
 import { z } from "zod";
+import {
+  updateCanonicalPreferences,
+  updateCanonicalProfile,
+} from "@/lib/ai/user-knowledge";
 import { prisma } from "@/lib/db";
-
-type UserContextPromptCacheEntry = {
-  value: string;
-  expiresAt: number;
-};
+import {
+  getTinyUserSnapshotCache,
+  getUserContextPromptCache,
+  invalidateUserContextPromptCache,
+  setTinyUserSnapshotCache,
+  setUserContextPromptCache,
+} from "./user-context-cache";
 
 type CompactMemoryValue = {
   content?: unknown;
@@ -21,13 +26,8 @@ const TINY_USER_SNAPSHOT_MEMORY_CATEGORIES = new Set([
   "preference",
   "schedule",
 ]);
-const userContextPromptCache = new Map<string, UserContextPromptCacheEntry>();
-const tinyUserSnapshotCache = new Map<string, UserContextPromptCacheEntry>();
 
-export function invalidateUserContextPromptCache(userId: string) {
-  userContextPromptCache.delete(userId);
-  tinyUserSnapshotCache.delete(userId);
-}
+export { invalidateUserContextPromptCache } from "./user-context-cache";
 
 /**
  * Creates user context tools with userId context injected via closure.
@@ -120,54 +120,7 @@ sport, obiettivi, livello di esperienza o altri dettagli del profilo.`,
       }),
       execute: async (params) => {
         try {
-          const profile = await prisma.profile.upsert({
-            where: { userId },
-            update: {
-              ...(params.name && { name: params.name }),
-              ...(params.sport && { sport: params.sport }),
-              ...(params.goal && { goal: params.goal }),
-              ...(params.experience && {
-                experience: params.experience,
-              }),
-              ...(params.notes && { notes: params.notes }),
-            },
-            create: {
-              userId,
-              name: params.name,
-              sport: params.sport,
-              goal: params.goal,
-              experience: params.experience,
-              notes: params.notes,
-            },
-          });
-
-          // Sync name with Clerk
-          if (params.name) {
-            try {
-              const user = await prisma.user.findUnique({
-                where: { id: userId },
-                select: { clerkId: true },
-              });
-
-              if (user?.clerkId) {
-                const [firstName, ...lastNameParts] = params.name.split(" ");
-                const lastName = lastNameParts.join(" ") || undefined;
-                const client = await clerkClient();
-                await client.users.updateUser(user.clerkId, {
-                  firstName,
-                  lastName,
-                });
-              }
-            } catch (clerkError) {
-              console.error(
-                "[updateProfile] Error syncing with Clerk:",
-                clerkError,
-              );
-              // Don't fail the request if Clerk sync fails
-            }
-          }
-
-          invalidateUserContextPromptCache(userId);
+          const profile = await updateCanonicalProfile(userId, params);
 
           return {
             success: true,
@@ -220,28 +173,7 @@ CRITICAL: You MUST provide at least one parameter. Do not call with empty argume
             };
           }
 
-          const preferences = await prisma.preferences.upsert({
-            where: { userId },
-            update: {
-              ...(params.tone && { tone: params.tone }),
-              ...(params.mode && { mode: params.mode }),
-              ...(params.language && {
-                language: params.language,
-              }),
-              ...(params.push !== undefined && {
-                push: params.push,
-              }),
-            },
-            create: {
-              userId,
-              tone: params.tone,
-              mode: params.mode,
-              language: params.language ?? "IT",
-              push: params.push ?? true,
-            },
-          });
-
-          invalidateUserContextPromptCache(userId);
+          const preferences = await updateCanonicalPreferences(userId, params);
 
           return {
             success: true,
@@ -322,7 +254,7 @@ Esempi: "Tende ad essere più motivato il lunedì", "Preferisce esempi pratici",
 export async function formatUserContextForPrompt(
   userId: string,
 ): Promise<string> {
-  const cached = userContextPromptCache.get(userId);
+  const cached = getUserContextPromptCache(userId);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.value;
   }
@@ -371,7 +303,7 @@ export async function formatUserContextForPrompt(
   }
 
   const value = lines.join("\n");
-  userContextPromptCache.set(userId, {
+  setUserContextPromptCache(userId, {
     value,
     expiresAt: Date.now() + USER_CONTEXT_PROMPT_CACHE_TTL_MS,
   });
@@ -386,7 +318,7 @@ export async function formatUserContextForPrompt(
 export async function formatTinyUserSnapshotForPrompt(
   userId: string,
 ): Promise<string> {
-  const cached = tinyUserSnapshotCache.get(userId);
+  const cached = getTinyUserSnapshotCache(userId);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.value;
   }
@@ -438,7 +370,7 @@ export async function formatTinyUserSnapshotForPrompt(
   }
 
   const value = lines.join("\n");
-  tinyUserSnapshotCache.set(userId, {
+  setTinyUserSnapshotCache(userId, {
     value,
     expiresAt: Date.now() + TINY_USER_SNAPSHOT_CACHE_TTL_MS,
   });

@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   memoryApprovalCreate: vi.fn(),
   memoryApprovalFindFirst: vi.fn(),
   memoryApprovalUpdateMany: vi.fn(),
-  memoryUpsert: vi.fn(),
+  rememberFactInTransaction: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => {
@@ -21,9 +21,6 @@ vi.mock("@/lib/db", () => {
       findFirst: mocks.memoryApprovalFindFirst,
       updateMany: mocks.memoryApprovalUpdateMany,
     },
-    memory: {
-      upsert: mocks.memoryUpsert,
-    },
   };
 
   return {
@@ -34,9 +31,16 @@ vi.mock("@/lib/db", () => {
   };
 });
 
+vi.mock("@/lib/ai/memory-facts", () => ({
+  rememberFactInTransaction: mocks.rememberFactInTransaction,
+  invalidateFactCache: vi.fn(),
+}));
+
 import {
   createMemoryApproval,
   getImmediatelyAttributableApproval,
+  getUnpresentedMemoryApproval,
+  markMemoryApprovalPresented,
   mightResolvePendingMemoryApproval,
   resolveMemoryApproval,
 } from "./memory-approval";
@@ -54,6 +58,7 @@ const sourceMessage = {
     id: "assistant-source",
     userId: "user-1",
     conversationThreadId: "thread-1",
+    sourceInboundMessageId: "inbound-source",
     direction: "OUTBOUND" as const,
     role: "ASSISTANT" as const,
     deletedAt: null,
@@ -70,6 +75,8 @@ const pendingApproval = {
   id: "approval-1",
   userId: "user-1",
   sourceInboundMessageId: "inbound-source",
+  presentationInboundMessageId: "inbound-source",
+  presentationAssistantMessageId: "assistant-source",
   key: "knee_injury",
   value: "Dolore persistente al ginocchio sinistro",
   category: "health",
@@ -79,6 +86,8 @@ const pendingApproval = {
   expiresAt: new Date("2026-08-09T18:13:30.000Z"),
   resolvedAt: null,
   sourceInboundMessage: sourceMessage,
+  presentationInboundMessage: sourceMessage,
+  presentationAssistantMessage: sourceMessage.generatedResponse,
 };
 
 describe("ai/memory-approval", () => {
@@ -91,7 +100,7 @@ describe("ai/memory-approval", () => {
     mocks.memoryApprovalCreate.mockReset();
     mocks.memoryApprovalFindFirst.mockReset();
     mocks.memoryApprovalUpdateMany.mockReset();
-    mocks.memoryUpsert.mockReset();
+    mocks.rememberFactInTransaction.mockReset();
 
     mocks.transaction.mockImplementation(async (callback) =>
       callback({
@@ -104,11 +113,13 @@ describe("ai/memory-approval", () => {
           findFirst: mocks.memoryApprovalFindFirst,
           updateMany: mocks.memoryApprovalUpdateMany,
         },
-        memory: { upsert: mocks.memoryUpsert },
       }),
     );
     mocks.memoryApprovalUpdateMany.mockResolvedValue({ count: 1 });
-    mocks.memoryUpsert.mockResolvedValue({ id: "memory-1" });
+    mocks.rememberFactInTransaction.mockResolvedValue({
+      status: "saved",
+      factId: "memory-1",
+    });
   });
 
   it("loads approval context only for plausible approval or rejection text", () => {
@@ -174,6 +185,73 @@ describe("ai/memory-approval", () => {
     });
   });
 
+  it("returns only one unpresented approval from the same conversation", async () => {
+    mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
+
+    const result = await getUnpresentedMemoryApproval({
+      userId: "user-1",
+      conversationId: "thread-1",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({ id: "approval-1", key: "knee_injury" }),
+    );
+    expect(mocks.memoryApprovalFindFirst).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        status: "PENDING",
+        expiresAt: { gt: now },
+        presentationInboundMessageId: null,
+        presentationAssistantMessageId: null,
+        sourceInboundMessage: {
+          conversationThreadId: "thread-1",
+          deletedAt: null,
+        },
+      },
+      orderBy: { createdAt: "asc" },
+      select: expect.any(Object),
+    });
+  });
+
+  it("links an approval to an owned inbound and its persisted assistant response", async () => {
+    mocks.messageFindFirst
+      .mockResolvedValueOnce({
+        id: "inbound-presentation",
+        conversationThreadId: "thread-1",
+      })
+      .mockResolvedValueOnce({
+        id: "assistant-presentation",
+        conversationThreadId: "thread-1",
+        sourceInboundMessageId: "inbound-presentation",
+      });
+
+    await expect(
+      markMemoryApprovalPresented({
+        userId: "user-1",
+        approvalId: "approval-1",
+        presentationInboundMessageId: "inbound-presentation",
+        presentationAssistantMessageId: "assistant-presentation",
+      }),
+    ).resolves.toEqual({ status: "presented" });
+    expect(mocks.memoryApprovalUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: "approval-1",
+        userId: "user-1",
+        status: "PENDING",
+        expiresAt: { gt: now },
+        presentationInboundMessageId: null,
+        presentationAssistantMessageId: null,
+        sourceInboundMessage: {
+          conversationThreadId: "thread-1",
+        },
+      },
+      data: {
+        presentationInboundMessageId: "inbound-presentation",
+        presentationAssistantMessageId: "assistant-presentation",
+      },
+    });
+  });
+
   it("rejects approval creation for another user's inbound message", async () => {
     mocks.messageFindFirst.mockResolvedValueOnce(null);
 
@@ -219,6 +297,36 @@ describe("ai/memory-approval", () => {
       confidence: 0.94,
       expiresAt: pendingApproval.expiresAt,
     });
+    expect(mocks.memoryApprovalFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          presentationInboundMessageId: "inbound-source",
+          presentationAssistantMessageId: "assistant-source",
+        }),
+      }),
+    );
+  });
+
+  it("does not resolve a sensitive candidate before its confirmation request was presented", async () => {
+    mocks.memoryApprovalFindFirst.mockResolvedValueOnce({
+      ...pendingApproval,
+      presentationInboundMessageId: null,
+      presentationAssistantMessageId: null,
+      presentationInboundMessage: null,
+      presentationAssistantMessage: null,
+    });
+
+    await expect(
+      resolveMemoryApproval({
+        userId: "user-1",
+        approvalId: "approval-1",
+        decision: "approve",
+        currentUserMessageId: "inbound-current",
+      }),
+    ).resolves.toEqual({ status: "stale" });
+    expect(mocks.memoryApprovalUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.rememberFactInTransaction).not.toHaveBeenCalled();
+    expect(mocks.messageFindFirst).not.toHaveBeenCalled();
   });
 
   it("does not attribute an approval after an unrelated subsequent user turn", async () => {
@@ -307,25 +415,21 @@ describe("ai/memory-approval", () => {
       },
       data: { status: "APPROVED", resolvedAt: now },
     });
-    expect(mocks.memoryUpsert).toHaveBeenCalledTimes(1);
-    expect(mocks.memoryUpsert).toHaveBeenCalledWith({
-      where: {
-        userId_key: { userId: "user-1", key: "knee_injury" },
-      },
-      update: expect.objectContaining({
-        category: "health",
-        value: expect.objectContaining({
-          content: "Dolore persistente al ginocchio sinistro",
-          confidence: 0.94,
-        }),
-      }),
-      create: expect.objectContaining({
+    expect(mocks.rememberFactInTransaction).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
         userId: "user-1",
         key: "knee_injury",
+        value: "Dolore persistente al ginocchio sinistro",
         category: "health",
+        confidence: 0.94,
+        sensitivity: "HIGH",
+        origin: "CONFIRMED",
+        sourceMessageId: "inbound-source",
+        sourceThreadId: "thread-1",
+        dedupeKey: "approval:approval-1",
       }),
-      select: { id: true },
-    });
+    );
   });
 
   it("does not resolve an approval when the preceding inbound turn is ambiguous", async () => {
@@ -345,7 +449,7 @@ describe("ai/memory-approval", () => {
 
     expect(result).toEqual({ status: "stale" });
     expect(mocks.memoryApprovalUpdateMany).not.toHaveBeenCalled();
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    expect(mocks.rememberFactInTransaction).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -358,12 +462,9 @@ describe("ai/memory-approval", () => {
     async (_name, generatedResponsePatch) => {
       mocks.memoryApprovalFindFirst.mockResolvedValueOnce({
         ...pendingApproval,
-        sourceInboundMessage: {
-          ...sourceMessage,
-          generatedResponse: {
-            ...sourceMessage.generatedResponse,
-            ...generatedResponsePatch,
-          },
+        presentationAssistantMessage: {
+          ...sourceMessage.generatedResponse,
+          ...generatedResponsePatch,
         },
       });
       mocks.messageFindFirst.mockResolvedValueOnce(currentMessage);
@@ -386,7 +487,7 @@ describe("ai/memory-approval", () => {
 
       expect(result).toEqual({ status: "stale" });
       expect(mocks.memoryApprovalUpdateMany).not.toHaveBeenCalled();
-      expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+      expect(mocks.rememberFactInTransaction).not.toHaveBeenCalled();
     },
   );
 
@@ -422,7 +523,7 @@ describe("ai/memory-approval", () => {
     });
 
     expect(result).toEqual({ status: "stale" });
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    expect(mocks.rememberFactInTransaction).not.toHaveBeenCalled();
   });
 
   it("expires a stale pending approval without writing memory", async () => {
@@ -443,7 +544,7 @@ describe("ai/memory-approval", () => {
       where: { id: "approval-1", userId: "user-1", status: "PENDING" },
       data: { status: "EXPIRED", resolvedAt: now },
     });
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    expect(mocks.rememberFactInTransaction).not.toHaveBeenCalled();
   });
 
   it("rejects without creating or changing a memory", async () => {
@@ -471,7 +572,7 @@ describe("ai/memory-approval", () => {
       },
       data: { status: "REJECTED", resolvedAt: now },
     });
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    expect(mocks.rememberFactInTransaction).not.toHaveBeenCalled();
   });
 
   it.each(["Sì.", "Va bene.", "Sì, salvalo in memoria.", "Salvalo."])(
@@ -492,7 +593,7 @@ describe("ai/memory-approval", () => {
       });
 
       expect(result).toEqual({ status: "approved", memoryId: "memory-1" });
-      expect(mocks.memoryUpsert).toHaveBeenCalledTimes(1);
+      expect(mocks.rememberFactInTransaction).toHaveBeenCalledTimes(1);
     },
   );
 
@@ -512,7 +613,7 @@ describe("ai/memory-approval", () => {
     });
 
     expect(result).toEqual({ status: "rejected" });
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    expect(mocks.rememberFactInTransaction).not.toHaveBeenCalled();
   });
 
   it("does not let an unrelated remember command approve a pending health fact", async () => {
@@ -537,7 +638,7 @@ describe("ai/memory-approval", () => {
 
     expect(result).toEqual({ status: "stale" });
     expect(mocks.memoryApprovalUpdateMany).not.toHaveBeenCalled();
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    expect(mocks.rememberFactInTransaction).not.toHaveBeenCalled();
   });
 
   it("does not approve a changed fact that overlaps the pending fact", async () => {
@@ -562,6 +663,6 @@ describe("ai/memory-approval", () => {
 
     expect(result).toEqual({ status: "stale" });
     expect(mocks.memoryApprovalUpdateMany).not.toHaveBeenCalled();
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    expect(mocks.rememberFactInTransaction).not.toHaveBeenCalled();
   });
 });

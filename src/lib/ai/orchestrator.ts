@@ -23,6 +23,10 @@ import {
 } from "@/lib/ai/intent";
 import type { PendingMemoryApproval } from "@/lib/ai/memory-approval";
 import {
+  type MemoryRecallDecision,
+  resolveMemoryRecallMode,
+} from "@/lib/ai/memory-recall-release";
+import {
   getMultimodalMediaKind,
   hasSupportedOpenRouterMedia,
   isBase64Payload,
@@ -40,12 +44,17 @@ import {
 } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { getRagContext, shouldUseRag } from "@/lib/ai/rag";
+import { buildRecallContext } from "@/lib/ai/recall-context";
+import { planRecall } from "@/lib/ai/recall-planner";
 import { buildConversationContext } from "@/lib/ai/session-manager";
 import {
   type AiGenerationTelemetryContext,
   captureAiGenerationMetadata,
 } from "@/lib/ai/telemetry";
+import { ToolOutcomeTracker } from "@/lib/ai/tool-outcomes";
+import { resolveToolPolicy, type ToolPolicy } from "@/lib/ai/tool-policy";
 import { redactToolCalls, type SafeToolCall } from "@/lib/ai/tool-privacy";
+import { createConversationRecallTools } from "@/lib/ai/tools/conversation-recall";
 import {
   createMemoryTools,
   formatMemoriesForPrompt,
@@ -397,6 +406,7 @@ interface StreamChatOptions {
     metrics: AIMetrics;
     capabilityDecision: CapabilityDecision;
     capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
+    memoryRecallDecision: MemoryRecallDecision;
   }) => void;
   onStepFinish?: (step: {
     text?: string;
@@ -418,6 +428,7 @@ interface StreamChatOptions {
   preparedCapabilityContext?: {
     capabilityDecision: CapabilityDecision;
     capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
+    memoryRecallDecision?: MemoryRecallDecision;
   };
   benchmarkModelId?: string;
   abortSignal?: AbortSignal;
@@ -692,6 +703,11 @@ function createToolsWithContext(
     userMessageId?: string;
     pendingMemoryApproval?: PendingMemoryApproval;
     toolPlan: ToolPlan;
+    memoryRecallDecision?: MemoryRecallDecision;
+    conversationThreadId?: string;
+    allowedEvidenceIds?: Set<string>;
+    allowCrossChannelRecall?: boolean;
+    recallToolsEnabled?: boolean;
   },
 ) {
   const toolPlan = options.toolPlan;
@@ -729,6 +745,24 @@ function createToolsWithContext(
     ...webTools,
   };
 
+  if (
+    options.memoryRecallDecision?.mode === "active" &&
+    options.recallToolsEnabled === true &&
+    options.conversationThreadId &&
+    options.allowedEvidenceIds
+  ) {
+    Object.assign(
+      tools,
+      createConversationRecallTools({
+        userId,
+        conversationThreadId: options.conversationThreadId,
+        allowCrossChannel: options.allowCrossChannelRecall === true,
+        allowedEvidenceIds: options.allowedEvidenceIds,
+      }),
+    );
+    tools.recallFacts = createMemoryTools(userId).recallFacts;
+  }
+
   if (toolPlan.routineProposal) {
     Object.assign(tools, createRoutineProposalTool());
   }
@@ -743,7 +777,8 @@ function createToolsWithContext(
       ...(toolPlan.memoryDelete
         ? { deleteTargetKey: toolPlan.memoryDeleteTarget }
         : {}),
-      ...(toolPlan.memoryWrite && options.userMessageId
+      ...((toolPlan.memoryWrite || toolPlan.memoryDelete) &&
+      options.userMessageId
         ? { sourceInboundMessageId: options.userMessageId }
         : {}),
       ...(toolPlan.memoryApprovalResolve &&
@@ -801,7 +836,11 @@ function createToolsWithContext(
 function instrumentToolExecutions(
   tools: Record<string, unknown>,
   timing: { toolExecutionMs: number },
+  policies?: Map<string, ToolPolicy>,
+  outcomes?: ToolOutcomeTracker,
 ) {
+  const callCounts = new Map<string, number>();
+  const completed = new Set<string>();
   return Object.fromEntries(
     Object.entries(tools).map(([name, candidate]) => {
       if (!candidate || typeof candidate !== "object") {
@@ -820,9 +859,23 @@ function instrumentToolExecutions(
         {
           ...toolConfig,
           execute: async (...args: unknown[]) => {
+            const policy = policies?.get(name);
+            const calls = callCounts.get(name) ?? 0;
+            if (
+              policy &&
+              (calls >= policy.maxCalls ||
+                policy.requires.some((required) => !completed.has(required)))
+            ) {
+              return { status: "not_allowed" };
+            }
+            callCounts.set(name, calls + 1);
+            outcomes?.called(name);
             const startedAt = Date.now();
             try {
-              return await toolConfig.execute?.(...args);
+              const result = await toolConfig.execute?.(...args);
+              completed.add(name);
+              outcomes?.completed(name, result);
+              return result;
             } finally {
               timing.toolExecutionMs += Math.max(0, Date.now() - startedAt);
             }
@@ -1547,6 +1600,9 @@ export async function streamChat({
       capabilityPlannerMode,
       abortSignal,
     }));
+  const memoryRecallDecision =
+    preparedCapabilityContext?.memoryRecallDecision ??
+    (await resolveMemoryRecallMode({ userId, isGuest, memoryEnabled }));
   const inputOrigin =
     requestedInputOrigin ??
     (hasImages || hasAudio || hasFileParts ? "direct_media" : "text");
@@ -1587,6 +1643,28 @@ export async function streamChat({
     capabilityPlannerMode,
     Boolean(attributablePendingMemoryApproval),
   );
+  const recallPlan = planRecall({
+    message: userMessage,
+    decision: memoryRecallDecision,
+    isGuest,
+  });
+  const recallContextPromise = conversationThreadId
+    ? buildRecallContext({
+        userId,
+        conversationThreadId,
+        query: userMessage,
+        plan: recallPlan,
+        decision: memoryRecallDecision,
+      })
+    : Promise.resolve({
+        prompt: "",
+        factCount: 0,
+        evidenceCount: 0,
+        factRecallMs: 0,
+        conversationRecallMs: 0,
+        degraded: false,
+        allowedEvidenceIds: new Set<string>(),
+      });
   const classifierRagEnabled =
     capabilityDecision.source !== "fallback" && capabilityDecision.rag;
   const userContextEnabled = turnPlan.capabilities.userContext;
@@ -1644,15 +1722,19 @@ export async function streamChat({
         return "No user context available.";
       });
   const userMemoriesPromise =
-    memoryEnabled === false || !userContextEnabled
+    memoryEnabled === false
       ? Promise.resolve("Persistent memory is disabled for this session.")
-      : formatMemoriesForPrompt(userId).catch((error) => {
-          aiLogger.error("ai.memories.error", "Memory enrichment failed", {
-            error,
-            userId,
-          });
-          return "No user memories available.";
-        });
+      : memoryRecallDecision.mode !== "off"
+        ? Promise.resolve("")
+        : !userContextEnabled
+          ? Promise.resolve("")
+          : formatMemoriesForPrompt(userId).catch((error) => {
+              aiLogger.error("ai.memories.error", "Memory enrichment failed", {
+                error,
+                userId,
+              });
+              return "No user memories available.";
+            });
   const userSnapshotPromise =
     turnPlan.promptProfile === "compact"
       ? formatTinyUserSnapshotForPrompt(userId).catch((error) => {
@@ -1769,10 +1851,12 @@ export async function streamChat({
     { ragContext, ragAttempted, ragUsed, ragChunksCount },
     conversationHistory,
     directWebSearchEvidence,
+    recallContext,
   ] = await Promise.all([
     ragPromise,
     conversationHistoryPromise,
     directWebSearchPromise,
+    recallContextPromise,
   ]);
   const ragUsage = {
     attempted: ragAttempted,
@@ -1827,9 +1911,12 @@ export async function streamChat({
       });
     },
   );
-  const systemPrompt = directWebSearchEvidence
+  let systemPrompt = directWebSearchEvidence
     ? `${baseSystemPrompt}\n\n${formatDirectWebSearchEvidence(directWebSearchEvidence)}`
     : baseSystemPrompt;
+  if (recallContext.prompt) {
+    systemPrompt += `\n\n${recallContext.prompt}`;
+  }
 
   // Build the last message with proper image/audio support
   let lastMessage: ModelMessage;
@@ -2041,11 +2128,37 @@ export async function streamChat({
         userMessageId,
         pendingMemoryApproval: attributablePendingMemoryApproval,
         toolPlan,
+        memoryRecallDecision,
+        conversationThreadId,
+        allowedEvidenceIds: recallContext.allowedEvidenceIds,
+        allowCrossChannelRecall: recallPlan.conversations.allowCrossChannel,
+        recallToolsEnabled:
+          recallPlan.facts.enabled || recallPlan.conversations.enabled,
       });
+  const toolOutcomes = new ToolOutcomeTracker(Object.keys(rawTools));
+  const toolPolicies = new Map<string, ToolPolicy>();
+  const policyTools = Object.fromEntries(
+    Object.entries(rawTools).filter(([name]) => {
+      const policy = resolveToolPolicy(name, {
+        isGuest,
+        recallActive: memoryRecallDecision.mode === "active",
+        capabilities: capabilityDecision,
+      });
+      if (!policy) return false;
+      toolPolicies.set(name, policy);
+      toolOutcomes.allowed(name);
+      return true;
+    }),
+  );
   const toolTimingState = {
     toolExecutionMs: directWebSearchEvidence?.durationMs ?? 0,
   };
-  const tools = instrumentToolExecutions(rawTools, toolTimingState);
+  const tools = instrumentToolExecutions(
+    policyTools,
+    toolTimingState,
+    toolPolicies,
+    toolOutcomes,
+  );
 
   // Collect tool calls during execution
   const collectedToolCalls: SafeToolCall[] = directWebSearchEvidence
@@ -2077,16 +2190,37 @@ export async function streamChat({
       telemetryContext,
       onFinish: onFinish
         ? async ({ text, metrics }) => {
+            metrics.memoryRecall = {
+              mode: memoryRecallDecision.mode,
+              reason: memoryRecallDecision.reason,
+              factCount: recallContext.factCount,
+              evidenceCount: recallContext.evidenceCount,
+              factRecallMs: recallContext.factRecallMs,
+              conversationRecallMs: recallContext.conversationRecallMs,
+              degraded: recallContext.degraded,
+            };
             metrics.capabilitiesUsed = filterCapabilityUsageByDecision(
               metrics.capabilitiesUsed,
               capabilityDecision,
               capabilityPlannerMode,
             );
+            if (
+              memoryRecallDecision.mode === "active" &&
+              recallContext.factCount + recallContext.evidenceCount > 0
+            ) {
+              metrics.capabilitiesUsed = [
+                ...new Set([
+                  ...(metrics.capabilitiesUsed ?? []),
+                  "recall" as const,
+                ]),
+              ];
+            }
             await onFinish({
               text,
               metrics: attachTurnTrace(metrics),
               capabilityDecision,
               capabilityPlannerMode,
+              memoryRecallDecision,
             });
           }
         : undefined,
@@ -2110,6 +2244,7 @@ export async function streamChat({
       {
         capabilityDecision,
         capabilityPlannerMode,
+        memoryRecallDecision,
       },
     );
   }
@@ -2182,11 +2317,29 @@ export async function streamChat({
         routineUsed: routineProposal !== undefined,
         voiceOutput: capabilityDecision.voiceOutput,
       });
+      metrics.memoryRecall = {
+        mode: memoryRecallDecision.mode,
+        reason: memoryRecallDecision.reason,
+        factCount: recallContext.factCount,
+        evidenceCount: recallContext.evidenceCount,
+        factRecallMs: recallContext.factRecallMs,
+        conversationRecallMs: recallContext.conversationRecallMs,
+        degraded: recallContext.degraded,
+      };
+      metrics.toolOutcomes = toolOutcomes.summary();
       metrics.capabilitiesUsed = filterCapabilityUsageByDecision(
         metrics.capabilitiesUsed,
         capabilityDecision,
         capabilityPlannerMode,
       );
+      if (
+        memoryRecallDecision.mode === "active" &&
+        recallContext.factCount + recallContext.evidenceCount > 0
+      ) {
+        metrics.capabilitiesUsed = [
+          ...new Set([...(metrics.capabilitiesUsed ?? []), "recall" as const]),
+        ];
+      }
       if (routineProposal !== undefined) {
         metrics.routineProposal = routineProposal;
       }
@@ -2210,6 +2363,7 @@ export async function streamChat({
           metrics,
           capabilityDecision,
           capabilityPlannerMode,
+          memoryRecallDecision,
         });
       }
     },
@@ -2231,6 +2385,11 @@ export async function streamChat({
         step.toolCalls &&
         Array.isArray(step.toolCalls) &&
         step.toolCalls.length > 0;
+      if (!stepHasToolCalls && step.text?.trim()) {
+        for (const toolCall of collectedToolCalls) {
+          toolOutcomes.utilized(toolCall.name);
+        }
+      }
       if (stepHasToolCalls) {
         sawToolStep = true;
         const currentToolExecutionMs = toolTimingState.toolExecutionMs;
@@ -2321,6 +2480,7 @@ export async function streamChat({
   return Object.assign(result, {
     capabilityDecision,
     capabilityPlannerMode,
+    memoryRecallDecision,
   });
 }
 
@@ -2354,6 +2514,7 @@ export interface PreparedChatTurn {
   turnPlan: TurnPlan;
   capabilityDecision: CapabilityDecision;
   capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
+  memoryRecallDecision?: MemoryRecallDecision;
   promptMode: PromptMode;
   ragUsed: boolean;
   ragChunksCount: number;
@@ -2416,6 +2577,22 @@ export async function prepareChatTurn({
     hasPendingMemoryApproval: false,
     capabilityPlannerMode,
     abortSignal,
+  });
+  const memoryRecallDecision = await resolveMemoryRecallMode({
+    userId,
+    isGuest: false,
+    memoryEnabled,
+  });
+  const recallContextPromise = buildRecallContext({
+    userId,
+    conversationThreadId,
+    query: userMessage,
+    plan: planRecall({
+      message: userMessage,
+      decision: memoryRecallDecision,
+      isGuest: false,
+    }),
+    decision: memoryRecallDecision,
   });
   abortSignal?.throwIfAborted();
   const turnPlanInput = {
@@ -2497,6 +2674,7 @@ export async function prepareChatTurn({
     day: "numeric",
   });
   const userStyle = analyzeUserStyle(conversationHistory);
+  const recallContext = await recallContextPromise;
   let systemPrompt: string;
   if (promptMode === "simple_fast") {
     const snapshot = await formatTinyUserSnapshotForPrompt(userId).catch(
@@ -2515,7 +2693,9 @@ export async function prepareChatTurn({
             () => "No user context available.",
           )
         : Promise.resolve(""),
-      memoryEnabled && turnPlan.capabilities.userContext
+      memoryEnabled &&
+      turnPlan.capabilities.userContext &&
+      memoryRecallDecision.mode === "off"
         ? formatMemoriesForPrompt(userId).catch(
             () => "No user memories available.",
           )
@@ -2543,6 +2723,7 @@ export async function prepareChatTurn({
       },
     });
   }
+  if (recallContext.prompt) systemPrompt += `\n\n${recallContext.prompt}`;
 
   const history = [...conversationHistory];
   const last = history.at(-1);
@@ -2571,6 +2752,7 @@ export async function prepareChatTurn({
     turnPlan: structuredClone(turnPlan),
     capabilityDecision,
     capabilityPlannerMode,
+    memoryRecallDecision,
     promptMode,
     ragUsed,
     ragChunksCount: ragResult.chunkCount,

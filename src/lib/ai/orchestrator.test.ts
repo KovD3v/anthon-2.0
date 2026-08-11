@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => ({
   openrouter: vi.fn(),
   trackSupportAiUsage: vi.fn(),
   classifyCapabilities: vi.fn(),
+  buildRecallContext: vi.fn(),
+  createConversationRecallTools: vi.fn(),
 }));
 
 vi.mock("node:dns/promises", () => ({
@@ -72,6 +74,9 @@ vi.mock("@/lib/ai/rag", () => ({
   getRagContext: mocks.getRagContext,
   shouldUseRag: mocks.shouldUseRag,
 }));
+vi.mock("@/lib/ai/recall-context", () => ({
+  buildRecallContext: mocks.buildRecallContext,
+}));
 
 vi.mock("@/lib/ai/session-manager", () => ({
   buildConversationContext: mocks.buildConversationContext,
@@ -92,6 +97,9 @@ vi.mock("@/lib/ai/tools/routine-proposal", () => ({
 
 vi.mock("@/lib/ai/tools/rag", () => ({
   createRagTools: mocks.createRagTools,
+}));
+vi.mock("@/lib/ai/tools/conversation-recall", () => ({
+  createConversationRecallTools: mocks.createConversationRecallTools,
 }));
 
 vi.mock("@/lib/ai/tools/tinyfish", () => ({
@@ -236,6 +244,8 @@ describe("ai/orchestrator", () => {
     mocks.openrouter.mockReset();
     mocks.trackSupportAiUsage.mockReset();
     mocks.classifyCapabilities.mockReset();
+    mocks.buildRecallContext.mockReset();
+    mocks.createConversationRecallTools.mockReset();
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-02-17T16:00:00.000Z"));
@@ -333,6 +343,16 @@ describe("ai/orchestrator", () => {
     mocks.resolveEffectiveEntitlements.mockResolvedValue(baseEntitlements);
     mocks.getVoicePlanConfig.mockReturnValue({ enabled: true });
     mocks.classifyCapabilities.mockResolvedValue(null);
+    mocks.buildRecallContext.mockResolvedValue({
+      prompt: "",
+      factCount: 0,
+      evidenceCount: 0,
+      factRecallMs: 0,
+      conversationRecallMs: 0,
+      degraded: false,
+      allowedEvidenceIds: new Set(),
+    });
+    mocks.createConversationRecallTools.mockReturnValue({});
     mocks.extractAIMetrics.mockReturnValue({
       model: "google/gemini-test",
       inputTokens: 10,
@@ -615,6 +635,39 @@ describe("ai/orchestrator", () => {
     expect(mocks.streamText.mock.calls.at(-1)?.[0]?.tools).toHaveProperty(
       "tinyfishSearch",
     );
+  });
+
+  it("injects bounded proactive recall independently of the memory-read vote", async () => {
+    vi.stubEnv("AI_MEMORY_RECALL_MODE", "active");
+    mocks.buildRecallContext.mockResolvedValue({
+      prompt: "### Contesto di richiamo\n- Fatto: gioca a tennis",
+      factCount: 1,
+      evidenceCount: 0,
+      factRecallMs: 8,
+      conversationRecallMs: 0,
+      degraded: false,
+      allowedEvidenceIds: new Set(),
+    });
+    mocks.createMemoryTools.mockReturnValue({
+      recallFacts: "fact-recall-tool",
+    });
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-recall",
+      conversationThreadId: "thread-1",
+      userMessage: "Come preparo la gara?",
+      effectiveEntitlements: baseEntitlements,
+      preparedCapabilityContext: {
+        capabilityDecision: frozenCapabilityDecision({ memoryRead: false }),
+        capabilityPlannerMode: "agentic",
+      },
+    });
+
+    const streamInput = mocks.streamText.mock.calls.at(-1)?.[0];
+    expect(streamInput.instructions).toContain("gioca a tennis");
+    expect(streamInput.tools).toHaveProperty("recallFacts");
+    expect(mocks.formatMemoriesForPrompt).not.toHaveBeenCalled();
   });
 
   it("reuses one decision for normal tools, metrics, and finish persistence", async () => {
@@ -3014,6 +3067,7 @@ describe("ai/orchestrator", () => {
     await streamChat({
       userId: "user-1",
       chatId: "chat-agentic-legacy-composition",
+      userMessageId: "inbound-delete",
       userMessage:
         "Dimentica questa informazione, cerca online fonti e confrontale con i documenti caricati; poi dammi una routine pratica.",
       resolvedMemoryTarget: "training_goal",
@@ -3066,6 +3120,7 @@ describe("ai/orchestrator", () => {
     });
     expect(mocks.createMemoryTools).toHaveBeenCalledWith("user-1", {
       deleteTargetKey: "training_goal",
+      sourceInboundMessageId: "inbound-delete",
     });
 
     await streamInput.onEnd({

@@ -1,4 +1,6 @@
 import { invalidateCoachingContextPromptCaches } from "@/lib/ai/coaching-context-cache";
+import { listActiveFacts } from "@/lib/ai/memory-facts";
+import { updateCanonicalProfile } from "@/lib/ai/user-knowledge";
 import {
   badRequest,
   jsonOk,
@@ -9,7 +11,7 @@ import {
 import { getAuthUser } from "@/lib/auth";
 import {
   coachingProfilePatchSchema,
-  projectCoachingMemory,
+  projectCoachingFact,
 } from "@/lib/coaching-context";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
@@ -27,30 +29,15 @@ export async function GET() {
         profile: {
           select: { sport: true, goal: true, experience: true },
         },
-        memories: {
-          orderBy: { updatedAt: "desc" },
-          select: {
-            id: true,
-            value: true,
-            category: true,
-            updatedAt: true,
-          },
-        },
       },
     });
     if (!dbUser) return notFound("Utente non trovato");
 
-    const memories = dbUser.memories
-      .map(projectCoachingMemory)
-      .filter((memory) => memory !== null);
-    const skipped = dbUser.memories.length - memories.length;
-    if (skipped > 0) {
-      contextLogger.warn(
-        "context.memory_invalid",
-        "Skipped malformed coaching memories",
-        { count: skipped, userId: user.id },
-      );
+    const factResult = await listActiveFacts({ userId: user.id, limit: 64 });
+    if (factResult.degraded) {
+      return serverError("Errore interno del server");
     }
+    const memories = factResult.facts.map(projectCoachingFact);
 
     return jsonOk({
       profile: dbUser.profile ?? {
@@ -92,14 +79,13 @@ export async function PATCH(request: Request) {
     const parsed = coachingProfilePatchSchema.safeParse(body);
     if (!parsed.success) return badRequest("Profilo di coaching non valido");
 
-    const profile = await prisma.profile.upsert({
-      where: { userId: user.id },
-      update: parsed.data,
-      create: { userId: user.id, ...parsed.data },
-      select: { sport: true, goal: true, experience: true },
-    });
+    const profile = await updateCanonicalProfile(user.id, parsed.data);
     invalidateCoachingContextPromptCaches(user.id);
-    return jsonOk(profile);
+    return jsonOk({
+      sport: profile.sport,
+      goal: profile.goal,
+      experience: profile.experience,
+    });
   } catch (error) {
     contextLogger.error(
       "context.patch_error",

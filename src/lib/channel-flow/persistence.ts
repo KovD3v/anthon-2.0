@@ -5,7 +5,9 @@ import {
   filterCapabilityUsageByDecision,
   normalizePreDeliveryCapabilityUsage,
 } from "@/lib/ai/capability-usage";
-import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
+import { indexConversationWindow } from "@/lib/ai/conversation-index";
+import { markMemoryApprovalPresented } from "@/lib/ai/memory-approval";
+import { consolidateTurnMemory } from "@/lib/ai/memory-consolidator";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
 import {
   redactToolCalls,
@@ -63,6 +65,28 @@ function buildAssistantMetadata(
           capabilitiesUsed: normalizePreDeliveryCapabilityUsage(
             metrics.capabilitiesUsed,
           ),
+        }
+      : {}),
+    ...(metrics.memoryRecall
+      ? {
+          memoryRecall: {
+            mode: metrics.memoryRecall.mode,
+            reason: metrics.memoryRecall.reason,
+            factCount: Math.max(0, Math.floor(metrics.memoryRecall.factCount)),
+            evidenceCount: Math.max(
+              0,
+              Math.floor(metrics.memoryRecall.evidenceCount),
+            ),
+            factRecallMs: Math.max(
+              0,
+              Math.floor(metrics.memoryRecall.factRecallMs),
+            ),
+            conversationRecallMs: Math.max(
+              0,
+              Math.floor(metrics.memoryRecall.conversationRecallMs),
+            ),
+            degraded: metrics.memoryRecall.degraded,
+          },
         }
       : {}),
   };
@@ -183,6 +207,8 @@ export async function persistAssistantOutput({
   updateChatTimestamp = false,
   revalidateTags: tags = [],
   allowMemoryExtraction = false,
+  allowConversationIndexing = true,
+  presentedMemoryApprovalId,
   capabilityDecision,
   capabilityPlannerMode = "legacy",
   waitUntil,
@@ -320,6 +346,34 @@ export async function persistAssistantOutput({
   });
   const { message } = persisted;
 
+  if (presentedMemoryApprovalId && userMessageId && persisted.created) {
+    try {
+      const presentation = await markMemoryApprovalPresented({
+        userId,
+        approvalId: presentedMemoryApprovalId,
+        presentationInboundMessageId: userMessageId,
+        presentationAssistantMessageId: message.id,
+      });
+      if (presentation.status === "stale") {
+        persistenceLogger.warn(
+          "memory.approval_presentation_stale",
+          "Sensitive-memory presentation could not be attributed",
+          { userId, messageId: message.id },
+        );
+      }
+    } catch (error) {
+      persistenceLogger.error(
+        "memory.approval_presentation_failed",
+        "Sensitive-memory presentation linking failed",
+        {
+          errorName: error instanceof Error ? error.name : "unknown",
+          userId,
+          messageId: message.id,
+        },
+      );
+    }
+  }
+
   if (updateChatTimestamp && chatId) {
     try {
       await prisma.chat.update({
@@ -362,6 +416,25 @@ export async function persistAssistantOutput({
       waitUntil,
       safelyRefreshConversationThreadSummary(conversationThreadId, userId),
     );
+    if (allowConversationIndexing) {
+      scheduleBackground(
+        waitUntil,
+        indexConversationWindow({
+          userId,
+          conversationThreadId,
+          throughMessageId: message.id,
+        }).catch((error) => {
+          persistenceLogger.warn(
+            "conversation_recall.index_failed",
+            "Conversation recall indexing failed",
+            {
+              errorName: error instanceof Error ? error.name : "unknown",
+              userId,
+            },
+          );
+        }),
+      );
+    }
   }
 
   if (
@@ -397,20 +470,23 @@ export async function persistAssistantOutput({
   if (
     !allowMemoryExtraction ||
     !persisted.created ||
-    capabilityPlannerMode === "agentic"
+    !userMessageId ||
+    !userMessageText.trim()
   ) {
     return message;
   }
 
-  const memoryTask = extractAndSaveMemories(
+  const memoryTask = consolidateTurnMemory({
     userId,
-    userMessageText,
-    text,
-  ).catch((error) => {
+    inboundMessageId: userMessageId,
+    ...(conversationThreadId ? { conversationThreadId } : {}),
+    userText: userMessageText,
+    assistantText: text,
+  }).catch((error) => {
     persistenceLogger.error(
-      "memory.extraction_failed",
-      "Memory extraction error",
-      { error },
+      "memory.consolidation_failed",
+      "Post-turn memory consolidation failed",
+      { errorName: error instanceof Error ? error.name : "unknown", userId },
     );
   });
 

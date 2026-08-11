@@ -5,6 +5,11 @@ const mocks = vi.hoisted(() => ({
   memoryFindMany: vi.fn(),
   memoryUpsert: vi.fn(),
   memoryDeleteMany: vi.fn(),
+  recallFacts: vi.fn(),
+  rememberFact: vi.fn(),
+  reviseFact: vi.fn(),
+  forgetFact: vi.fn(),
+  findActiveFactIdByKey: vi.fn(),
   createMemoryApproval: vi.fn(),
   resolveMemoryApproval: vi.fn(),
 }));
@@ -28,6 +33,15 @@ vi.mock("@/lib/ai/memory-approval", () => ({
   resolveMemoryApproval: mocks.resolveMemoryApproval,
 }));
 
+vi.mock("@/lib/ai/memory-facts", () => ({
+  invalidateFactCache: vi.fn(),
+  recallFacts: mocks.recallFacts,
+  rememberFact: mocks.rememberFact,
+  reviseFact: mocks.reviseFact,
+  forgetFact: mocks.forgetFact,
+  findActiveFactIdByKey: mocks.findActiveFactIdByKey,
+}));
+
 import {
   createMemoryTools,
   formatMemoriesForPrompt,
@@ -46,12 +60,20 @@ describe("ai/tools/memory", () => {
     mocks.memoryFindMany.mockReset();
     mocks.memoryUpsert.mockReset();
     mocks.memoryDeleteMany.mockReset();
+    mocks.recallFacts.mockReset();
+    mocks.rememberFact.mockReset();
+    mocks.reviseFact.mockReset();
+    mocks.forgetFact.mockReset();
+    mocks.findActiveFactIdByKey.mockReset();
     mocks.createMemoryApproval.mockReset();
     mocks.resolveMemoryApproval.mockReset();
   });
 
   it("atomically saves or overwrites one low-risk stable key", async () => {
-    mocks.memoryUpsert.mockResolvedValue({ id: "memory-1" });
+    mocks.rememberFact.mockResolvedValue({
+      status: "saved",
+      factId: "memory-1",
+    });
 
     const tools = createMemoryTools("user-1", {
       sourceInboundMessageId: "inbound-1",
@@ -69,24 +91,19 @@ describe("ai/tools/memory", () => {
     });
 
     expect(result).toEqual({ status: "saved", memoryId: "memory-1" });
-    expect(mocks.memoryUpsert).toHaveBeenCalledWith({
-      where: {
-        userId_key: { userId: "user-1", key: "training_schedule" },
-      },
-      update: expect.objectContaining({
-        category: "schedule",
-        value: expect.objectContaining({
-          content: "Tuesday and Thursday",
-          confidence: 0.91,
-        }),
-      }),
-      create: expect.objectContaining({
+    expect(mocks.rememberFact).toHaveBeenCalledWith(
+      expect.objectContaining({
         userId: "user-1",
         key: "training_schedule",
+        value: "Tuesday and Thursday",
         category: "schedule",
+        confidence: 0.91,
+        sensitivity: "LOW",
+        origin: "INFERRED",
+        sourceMessageId: "inbound-1",
+        dedupeKey: "tool:inbound-1:training_schedule",
       }),
-      select: { id: true },
-    });
+    );
   });
 
   it("rejects a low-confidence fact without creating memory or approval", async () => {
@@ -106,7 +123,7 @@ describe("ai/tools/memory", () => {
     });
 
     expect(result).toEqual({ status: "rejected" });
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
     expect(mocks.createMemoryApproval).not.toHaveBeenCalled();
   });
 
@@ -148,7 +165,7 @@ describe("ai/tools/memory", () => {
       category: "health",
       confidence: 0.92,
     });
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
   });
 
   it("lets the model request approval without supplying server ownership context", async () => {
@@ -297,13 +314,18 @@ describe("ai/tools/memory", () => {
 
     expect(result).toEqual({ status: "approval_required" });
     expect(mocks.createMemoryApproval).toHaveBeenCalled();
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
   });
 
   it("deletes only the exact stable key bound by the turn plan", async () => {
-    mocks.memoryDeleteMany.mockResolvedValue({ count: 1 });
+    mocks.findActiveFactIdByKey.mockResolvedValue("memory-1");
+    mocks.forgetFact.mockResolvedValue({
+      status: "forgotten",
+      factId: "memory-1",
+    });
     const tools = createMemoryTools("user-1", {
       deleteTargetKey: "training_goal",
+      sourceInboundMessageId: "inbound-delete",
     });
     const deleteMemory = tools.deleteMemory as unknown as ToolDefinition<{
       status: string;
@@ -312,15 +334,23 @@ describe("ai/tools/memory", () => {
     const result = await deleteMemory.execute({ key: "other_memory" });
 
     expect(result).toEqual({ status: "deleted" });
-    expect(mocks.memoryDeleteMany).toHaveBeenCalledWith({
-      where: { userId: "user-1", key: "training_goal" },
+    expect(mocks.findActiveFactIdByKey).toHaveBeenCalledWith(
+      "user-1",
+      "training_goal",
+    );
+    expect(mocks.forgetFact).toHaveBeenCalledWith({
+      userId: "user-1",
+      factId: "memory-1",
+      sourceMessageId: "inbound-delete",
+      dedupeKey: "tool:inbound-delete:forget:memory-1",
     });
   });
 
   it("returns not_found for an absent exact target", async () => {
-    mocks.memoryDeleteMany.mockResolvedValue({ count: 0 });
+    mocks.findActiveFactIdByKey.mockResolvedValue(null);
     const tools = createMemoryTools("user-1", {
       deleteTargetKey: "training_goal",
+      sourceInboundMessageId: "inbound-delete",
     });
     const deleteMemory = tools.deleteMemory as unknown as ToolDefinition<{
       status: string;
@@ -342,7 +372,8 @@ describe("ai/tools/memory", () => {
       const result = await deleteMemory.execute({ key: "training_goal" });
 
       expect(result).toEqual({ status: "ambiguous" });
-      expect(mocks.memoryDeleteMany).not.toHaveBeenCalled();
+      expect(mocks.findActiveFactIdByKey).not.toHaveBeenCalled();
+      expect(mocks.forgetFact).not.toHaveBeenCalled();
     },
   );
 
@@ -377,12 +408,7 @@ describe("ai/tools/memory", () => {
   });
 
   it("getMemories returns a non-fatal error when memory storage is unavailable", async () => {
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    mocks.memoryFindMany.mockRejectedValue(
-      new Error("missing category column"),
-    );
+    mocks.recallFacts.mockResolvedValue({ facts: [], degraded: true });
 
     const tools = createMemoryTools("user-1");
     const getMemories = tools.getMemories as unknown as ToolDefinition<{
@@ -393,11 +419,19 @@ describe("ai/tools/memory", () => {
 
     expect(result.success).toBe(false);
     expect(result.message).toContain("Errore nel recuperare");
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "[getMemories] Error:",
-      expect.any(Error),
-    );
-    consoleErrorSpy.mockRestore();
+    expect(mocks.memoryFindMany).not.toHaveBeenCalled();
+  });
+
+  it("exposes modern fact tools with legacy aliases during rollout", () => {
+    const tools = createMemoryTools("user-1", {
+      sourceInboundMessageId: "inbound-1",
+      deleteTargetKey: "training_goal",
+    });
+
+    expect(tools.recallFacts).toBe(tools.getMemories);
+    expect(tools.rememberFact).toBe(tools.saveMemory);
+    expect(tools.forgetFact).toBe(tools.deleteMemory);
+    expect(tools).toHaveProperty("reviseFact");
   });
 
   it("formatMemoriesForPrompt caches output and supports invalidation", async () => {

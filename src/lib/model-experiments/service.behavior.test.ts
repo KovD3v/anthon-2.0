@@ -719,7 +719,7 @@ describe("model experiment service", () => {
     });
   });
 
-  it("resolves a ready vote exactly once and schedules context side effects", async () => {
+  it("resolves a ready vote without consolidating comparison output", async () => {
     const pair = unresolvedPair();
     const message = { id: "assistant-1" };
     const updatedPair = {
@@ -769,11 +769,7 @@ describe("model experiment service", () => {
       expect.objectContaining({ choice: "A" }),
     );
     expect(mocks.refreshSummary).toHaveBeenCalledWith("thread-1", "user-1");
-    expect(mocks.extractMemories).toHaveBeenCalledWith(
-      "user-1",
-      "Source question",
-      "Control response",
-    );
+    expect(mocks.extractMemories).not.toHaveBeenCalled();
   });
 
   it("does not extract memories again for an agentic comparison", async () => {

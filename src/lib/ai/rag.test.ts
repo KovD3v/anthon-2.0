@@ -57,6 +57,11 @@ vi.mock("@/lib/ai/usage-meter", () => ({
 
 const originalOpenRouterKey = process.env.OPENROUTER_API_KEY;
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+const embeddingVector = (first: number, second = first) => [
+  first,
+  second,
+  ...Array.from({ length: 1534 }, () => 0),
+];
 
 async function loadModule() {
   return await import("./rag");
@@ -254,7 +259,7 @@ describe("ai/rag", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
+          data: [{ embedding: embeddingVector(0.1, 0.2) }],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
@@ -273,7 +278,7 @@ describe("ai/rag", () => {
     ]);
     expect(mocks.queryRawUnsafe).toHaveBeenCalledWith(
       expect.stringContaining("ORDER BY rc.embedding <=> $1::vector"),
-      "[0.1,0.2,0.3]",
+      `[${embeddingVector(0.1, 0.2).join(",")}]`,
       5,
     );
   });
@@ -282,7 +287,7 @@ describe("ai/rag", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
+          data: [{ embedding: embeddingVector(0.1, 0.2) }],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
@@ -305,7 +310,7 @@ describe("ai/rag", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
-          data: [{ embedding: [0.5, 0.6] }],
+          data: [{ embedding: embeddingVector(0.5, 0.6) }],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
@@ -326,10 +331,13 @@ describe("ai/rag", () => {
 
   it("getRagContext marks database failures without exposing diagnostics", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ data: [{ embedding: [0.5, 0.6] }] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+      new Response(
+        JSON.stringify({ data: [{ embedding: embeddingVector(0.5, 0.6) }] }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
     );
     vi.stubGlobal("fetch", fetchMock);
     mocks.queryRawUnsafe.mockRejectedValue(new Error("database detail"));
@@ -358,7 +366,10 @@ describe("ai/rag", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
-          data: [{ index: 1 }, { index: 0, embedding: [0.11, 0.22] }],
+          data: [
+            { index: 1 },
+            { index: 0, embedding: embeddingVector(0.11, 0.22) },
+          ],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
@@ -385,7 +396,7 @@ describe("ai/rag", () => {
       "doc-1",
       expect.any(String),
       expect.any(Number),
-      "[0.11,0.22]",
+      `[${embeddingVector(0.11, 0.22).join(",")}]`,
     );
   });
 
@@ -402,8 +413,8 @@ describe("ai/rag", () => {
       new Response(
         JSON.stringify({
           data: [
-            { index: 1, embedding: [0.9, 0.8] },
-            { index: 0, embedding: [0.1, 0.2] },
+            { index: 1, embedding: embeddingVector(0.9, 0.8) },
+            { index: 0, embedding: embeddingVector(0.1, 0.2) },
           ],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
@@ -424,13 +435,13 @@ describe("ai/rag", () => {
     expect(mocks.executeRawUnsafe).toHaveBeenNthCalledWith(
       1,
       expect.stringContaining('UPDATE "RagChunk" SET embedding'),
-      "[0.1,0.2]",
+      `[${embeddingVector(0.1, 0.2).join(",")}]`,
       "chunk-1",
     );
     expect(mocks.executeRawUnsafe).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining('UPDATE "RagChunk" SET embedding'),
-      "[0.9,0.8]",
+      `[${embeddingVector(0.9, 0.8).join(",")}]`,
       "chunk-2",
     );
   });

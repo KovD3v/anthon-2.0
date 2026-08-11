@@ -27,6 +27,8 @@
     "knip": "knip",
     "eval:chat-metadata": "bun run scripts/evaluate-chat-metadata-models.ts",
     "benchmark:conversation": "bun run scripts/run-conversation-benchmark.ts",
+    "benchmark:memory-recall": "bun run scripts/run-memory-recall-benchmark.ts",
+    "backfill:conversation-recall": "bun run scripts/backfill-conversation-recall.ts",
     "analyze": "next experimental-analyze"
   },
   "prisma": {

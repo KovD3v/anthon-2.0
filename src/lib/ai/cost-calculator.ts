@@ -10,6 +10,7 @@ import {
   normalizeCapabilityUsage,
 } from "./capability-usage";
 import { type CostResult, calculateCost as tokenlensCost } from "./tokenlens";
+import type { ToolOutcomeSummary } from "./tool-outcomes";
 import { redactToolCalls } from "./tool-privacy";
 
 export {
@@ -135,6 +136,16 @@ export interface AIMetrics {
     firstModelStepMs?: number;
     toolExecutionMs?: number;
     finalModelStepMs?: number;
+  };
+  toolOutcomes?: ToolOutcomeSummary;
+  memoryRecall?: {
+    mode: "off" | "shadow" | "active";
+    reason: string;
+    factCount: number;
+    evidenceCount: number;
+    factRecallMs: number;
+    conversationRecallMs: number;
+    degraded: boolean;
   };
   ragAttempted?: boolean;
   ragUsed: boolean;

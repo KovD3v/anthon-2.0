@@ -7,6 +7,14 @@ import {
   resolveMemoryApproval as resolvePendingMemoryApproval,
 } from "@/lib/ai/memory-approval";
 import {
+  findActiveFactIdByKey,
+  forgetFact as forgetDurableFact,
+  invalidateFactCache,
+  recallFacts as recallDurableFacts,
+  rememberFact as rememberDurableFact,
+  reviseFact as reviseDurableFact,
+} from "@/lib/ai/memory-facts";
+import {
   isDeletableStableMemoryKey,
   isExactStableMemoryKey,
 } from "@/lib/ai/memory-target";
@@ -17,14 +25,14 @@ type MemoriesPromptCacheEntry = {
   expiresAt: number;
 };
 
-const MEMORIES_PROMPT_CACHE_TTL_MS = 30 * 1000; // 30s
+const MEMORIES_PROMPT_CACHE_TTL_MS = 30 * 1000;
 const memoriesPromptCache = new Map<string, MemoriesPromptCacheEntry>();
 
 export function invalidateMemoriesForPromptCache(userId: string) {
   memoriesPromptCache.delete(userId);
+  invalidateFactCache(userId);
 }
 
-// Type for memory value stored in JSON
 interface MemoryValue {
   content: unknown;
   category: string;
@@ -33,7 +41,7 @@ interface MemoryValue {
   updatedAt?: string;
 }
 
-const memoryCategorySchema = z.enum([
+const memoryCategories = [
   "identity",
   "sport",
   "goal",
@@ -45,7 +53,8 @@ const memoryCategorySchema = z.enum([
   "schedule",
   "conversation_topic",
   "other",
-]);
+] as const;
+const memoryCategorySchema = z.enum(memoryCategories);
 const sensitiveMemoryCategories = new Set([
   "health",
   "diagnosis",
@@ -60,7 +69,10 @@ const stableMemoryKeySchema = z
 
 type CreateMemoryToolsOptions = {
   deleteTargetKey?: string | null;
+  reviseTarget?: { id: string; key: string } | null;
   sourceInboundMessageId?: string;
+  sourceThreadId?: string;
+  memoryWriteOrigin?: "EXPLICIT" | "INFERRED";
   pendingMemoryApproval?: PendingMemoryApproval;
   currentUserMessageId?: string;
 };
@@ -80,296 +92,289 @@ function requiresServerApproval(input: {
   );
 }
 
-/**
- * Creates memory tools with userId context injected via closure.
- * This factory pattern allows passing userId to tool execute functions.
- */
 export function createMemoryTools(
   userId: string,
   options?: CreateMemoryToolsOptions,
 ) {
-  const deleteTargetKey = options?.deleteTargetKey ?? null;
-  return {
-    getMemories: tool({
-      description: `Recupera tutte le informazioni salvate sull'utente dalla memoria persistente.
-Usa questo tool all'inizio della conversazione per ricordare fatti importanti sull'utente
-come nome, sport praticato, obiettivi, preferenze e altre informazioni personali.`,
-      inputSchema: z.object({
-        category: z
-          .enum([
-            "all",
-            "identity",
-            "sport",
-            "goal",
-            "preference",
-            "health",
-            "diagnosis",
-            "trauma",
-            "intimate",
-            "schedule",
-            "conversation_topic",
-            "other",
-          ])
-          .optional()
-          .describe(
-            "Filtra per categoria specifica o 'all' per tutte le memorie",
-          ),
-      }),
-      execute: async ({ category }) => {
-        try {
-          const memories = await prisma.memory.findMany({
-            where: {
-              userId,
-              ...(category && category !== "all" ? { category } : {}),
-            },
-            orderBy: { createdAt: "desc" },
-          });
-
-          if (memories.length === 0) {
-            return {
-              success: true,
-              data: null,
-              message: "Nessuna memoria salvata per questo utente.",
-            };
-          }
-
-          const formattedMemories = memories.map((m) => {
-            const value = m.value as unknown as MemoryValue;
-            return {
-              key: m.key,
-              value: value.content,
-              category: m.category, // use column, not JSON
-              confidence: value.confidence,
-            };
-          });
-
-          return {
-            success: true,
-            data: formattedMemories,
-            message: `Trovate ${formattedMemories.length} memorie.`,
-          };
-        } catch (error) {
-          console.error("[getMemories] Error:", error);
-          return {
-            success: false,
-            data: null,
-            message: "Errore nel recuperare le memorie.",
-          };
-        }
-      },
+  const recallFacts = tool({
+    description: `Recupera fatti durevoli pertinenti dalla memoria persistente dell'utente.
+Usa una query concreta e una categoria opzionale. I risultati sono già limitati,
+validi e ordinati dal server; non chiedere tutte le memorie se bastano pochi fatti.`,
+    inputSchema: z.object({
+      query: z.string().trim().max(500).optional(),
+      category: z.enum(["all", ...memoryCategories]).optional(),
     }),
+    execute: async ({ query, category }) => {
+      const result = await recallDurableFacts({
+        userId,
+        query: query?.trim() || (category === "all" ? "" : category) || "",
+        categories: category && category !== "all" ? [category] : undefined,
+        limit: 8,
+      });
+      if (result.degraded) {
+        return {
+          success: false,
+          data: null,
+          message: "Errore nel recuperare le memorie.",
+        };
+      }
+      if (result.facts.length === 0) {
+        return {
+          success: true,
+          data: null,
+          message: "Nessuna memoria salvata per questo utente.",
+        };
+      }
+      return {
+        success: true,
+        data: result.facts.map((fact) => ({
+          key: fact.key,
+          value: fact.content,
+          category: fact.category,
+          confidence: fact.confidence,
+        })),
+        message: `Trovate ${result.facts.length} memorie pertinenti.`,
+      };
+    },
+  });
 
-    saveMemory: tool({
-      description: `Salva o sovrascrive in modo silenzioso un singolo fatto durevole con una chiave stabile esatta.
-Puoi inferire con prudenza fatti ordinari a basso rischio solo con confidence sufficiente; non dire mai all'utente che il tool è stato eseguito.
-Per salute, diagnosi, trauma, sfera intima o qualunque fatto ad alto impatto, non salvare direttamente: crea una richiesta e chiedi una conferma naturale nella risposta.`,
-      inputSchema: z.object({
-        key: stableMemoryKeySchema.describe(
-          "Chiave univoca in snake_case (es: knee_injury, training_schedule)",
-        ),
-        value: z.string().describe("Il valore dell'informazione da salvare"),
-        category: memoryCategorySchema.describe("Categoria dell'informazione"),
-        confidence: z.number().min(0).max(1),
-        sensitivity: z
-          .enum(["low", "high"])
-          .describe(
-            "Usa high per informazioni sensibili o ad alto impatto, anche se la categoria sembra generica",
-          ),
-      }),
-      execute: async ({ key, value, category, confidence, sensitivity }) => {
-        if (
-          confidence < MEMORY.MIN_CONFIDENCE ||
-          !isExactStableMemoryKey(key)
-        ) {
-          return { status: "rejected" as const };
-        }
-
-        const requiresApproval = requiresServerApproval({
-          key,
-          value,
-          category,
-          sensitivity,
-        });
-        if (requiresApproval) {
-          if (!options?.sourceInboundMessageId) {
-            return { status: "rejected" as const };
-          }
-          try {
-            await createMemoryApproval({
-              userId,
-              sourceInboundMessageId: options.sourceInboundMessageId,
-              key,
-              value,
-              category,
-              confidence,
-            });
-            return { status: "approval_required" as const };
-          } catch {
-            return { status: "rejected" as const };
-          }
-        }
-
+  const rememberFact = tool({
+    description: `Salva o sovrascrive in modo silenzioso un singolo fatto durevole.
+Puoi inferire con prudenza fatti ordinari a basso rischio; non dire mai all'utente
+che il tool è stato eseguito. Per fatti sensibili chiedi una conferma naturale.`,
+    inputSchema: z.object({
+      key: stableMemoryKeySchema,
+      value: z.string().trim().min(1).max(1000),
+      category: memoryCategorySchema,
+      confidence: z.number().min(0).max(1),
+      sensitivity: z.enum(["low", "high"]),
+    }),
+    execute: async ({ key, value, category, confidence, sensitivity }) => {
+      if (
+        confidence < MEMORY.MIN_CONFIDENCE ||
+        !options?.sourceInboundMessageId
+      ) {
+        return { status: "rejected" as const };
+      }
+      if (requiresServerApproval({ key, value, category, sensitivity })) {
         try {
-          const timestamp = new Date().toISOString();
-          const memory = await prisma.memory.upsert({
-            where: { userId_key: { userId, key } },
-            update: {
-              category,
-              value: {
-                content: value,
-                category,
-                confidence,
-                updatedAt: timestamp,
-              },
-            },
-            create: {
-              userId,
-              key,
-              category,
-              value: {
-                content: value,
-                category,
-                confidence,
-                createdAt: timestamp,
-              },
-            },
-            select: { id: true },
+          await createMemoryApproval({
+            userId,
+            sourceInboundMessageId: options.sourceInboundMessageId,
+            key,
+            value,
+            category,
+            confidence,
           });
-
-          invalidateMemoriesForPromptCache(userId);
-          return { status: "saved" as const, memoryId: memory.id };
+          return { status: "approval_required" as const };
         } catch {
           return { status: "rejected" as const };
         }
-      },
-    }),
+      }
 
-    requestMemoryApproval: tool({
-      description: `Crea in modo silenzioso una richiesta server-side per un singolo fatto sensibile che non può essere salvato direttamente.
-Dopo il tool, chiedi una conferma naturale senza citare tool, id o meccanismi interni.`,
-      inputSchema: z.object({
-        key: stableMemoryKeySchema,
-        value: z.string(),
-        category: memoryCategorySchema,
-        confidence: z.number().min(MEMORY.MIN_CONFIDENCE).max(1),
-      }),
-      execute: async ({ key, value, category, confidence }) => {
-        if (!options?.sourceInboundMessageId) {
-          throw new Error("Missing server-owned inbound message context");
-        }
+      const result = await rememberDurableFact({
+        userId,
+        key,
+        value,
+        category,
+        confidence,
+        sensitivity: sensitivity === "high" ? "HIGH" : "LOW",
+        origin: options.memoryWriteOrigin ?? "INFERRED",
+        sourceMessageId: options.sourceInboundMessageId,
+        sourceThreadId: options.sourceThreadId,
+        dedupeKey: `tool:${options.sourceInboundMessageId}:${key}`,
+      });
+      return result.status === "saved" || result.status === "duplicate"
+        ? { status: "saved" as const, memoryId: result.factId }
+        : { status: "rejected" as const };
+    },
+  });
+
+  const reviseFact = tool({
+    description: `Aggiorna in modo silenzioso un solo fatto esatto già risolto dal server.
+Non scegliere autonomamente l'identità del fatto e non usare questo tool per
+modifiche ampie o ambigue.`,
+    inputSchema: z.object({
+      value: z.string().trim().min(1).max(1000),
+      category: memoryCategorySchema,
+      confidence: z.number().min(0).max(1),
+      sensitivity: z.enum(["low", "high"]),
+    }),
+    execute: async ({ value, category, confidence, sensitivity }) => {
+      if (
+        !options?.reviseTarget ||
+        !options.sourceInboundMessageId ||
+        confidence < MEMORY.MIN_CONFIDENCE
+      ) {
+        return { status: "not_found" as const };
+      }
+      if (
+        requiresServerApproval({
+          key: options.reviseTarget.key,
+          value,
+          category,
+          sensitivity,
+        })
+      ) {
         await createMemoryApproval({
           userId,
           sourceInboundMessageId: options.sourceInboundMessageId,
-          key,
+          key: options.reviseTarget.key,
           value,
           category,
           confidence,
         });
         return { status: "approval_required" as const };
-      },
-    }),
+      }
+      const result = await reviseDurableFact({
+        userId,
+        factId: options.reviseTarget.id,
+        key: options.reviseTarget.key,
+        value,
+        category,
+        confidence,
+        sensitivity: sensitivity === "high" ? "HIGH" : "LOW",
+        origin: options.memoryWriteOrigin ?? "EXPLICIT",
+        sourceMessageId: options.sourceInboundMessageId,
+        sourceThreadId: options.sourceThreadId,
+        dedupeKey: `tool:${options.sourceInboundMessageId}:revise:${options.reviseTarget.id}`,
+      });
+      return result.status === "saved" || result.status === "duplicate"
+        ? { status: "saved" as const, memoryId: result.factId }
+        : { status: result.status };
+    },
+  });
 
-    resolveMemoryApproval: tool({
-      description: `Approva o rifiuta in modo silenzioso solo la richiesta server-side attribuita al turno immediatamente successivo.
-Usalo soltanto quando il messaggio corrente conferma o rifiuta esplicitamente il salvataggio: un sì generico o non collegato non è una conferma.`,
-      inputSchema: z.object({
-        decision: z.enum(["approve", "reject"]),
-      }),
-      execute: async ({ decision }) => {
-        const pendingApproval = options?.pendingMemoryApproval;
-        if (
-          !pendingApproval ||
-          pendingApproval.userId !== userId ||
-          !options.currentUserMessageId ||
-          !isExactStableMemoryKey(pendingApproval.key)
-        ) {
-          return { status: "stale" as const };
-        }
-        const result = await resolvePendingMemoryApproval({
-          userId,
-          approvalId: pendingApproval.id,
-          decision,
-          currentUserMessageId: options.currentUserMessageId,
-        });
-        if (result.status === "approved") {
-          invalidateMemoriesForPromptCache(userId);
-        }
-        return { status: result.status };
-      },
+  const requestMemoryApproval = tool({
+    description: `Crea in modo silenzioso una richiesta server-side per un singolo fatto sensibile.
+Dopo il tool, chiedi una conferma naturale senza citare tool, id o meccanismi interni.`,
+    inputSchema: z.object({
+      key: stableMemoryKeySchema,
+      value: z.string().trim().min(1).max(1000),
+      category: memoryCategorySchema,
+      confidence: z.number().min(MEMORY.MIN_CONFIDENCE).max(1),
     }),
+    execute: async ({ key, value, category, confidence }) => {
+      if (!options?.sourceInboundMessageId) {
+        throw new Error("Missing server-owned inbound message context");
+      }
+      await createMemoryApproval({
+        userId,
+        sourceInboundMessageId: options.sourceInboundMessageId,
+        key,
+        value,
+        category,
+        confidence,
+      });
+      return { status: "approval_required" as const };
+    },
+  });
 
-    deleteMemory: tool({
-      description: `Elimina in modo silenzioso una sola memoria già risolta dal server da una richiesta esplicita di dimenticare.
-Non accetta chiavi scelte dal modello, wildcard, categorie o richieste ampie.`,
-      inputSchema: z.object({}),
-      execute: async () => {
-        if (!isDeletableStableMemoryKey(deleteTargetKey)) {
-          return { status: "ambiguous" as const };
-        }
-        try {
-          const deleted = await prisma.memory.deleteMany({
-            where: { userId, key: deleteTargetKey },
-          });
-          if (deleted.count === 0) return { status: "not_found" as const };
-          invalidateMemoriesForPromptCache(userId);
-          return { status: "deleted" as const };
-        } catch {
-          return { status: "ambiguous" as const };
-        }
-      },
-    }),
+  const resolveMemoryApproval = tool({
+    description: `Approva o rifiuta in modo silenzioso solo la richiesta attribuita.
+Usalo soltanto quando il messaggio conferma o rifiuta esplicitamente il salvataggio:
+un sì generico o non collegato non è una conferma del turno immediatamente successivo.`,
+    inputSchema: z.object({ decision: z.enum(["approve", "reject"]) }),
+    execute: async ({ decision }) => {
+      const pendingApproval = options?.pendingMemoryApproval;
+      if (
+        !pendingApproval ||
+        pendingApproval.userId !== userId ||
+        !options.currentUserMessageId ||
+        !isExactStableMemoryKey(pendingApproval.key)
+      ) {
+        return { status: "stale" as const };
+      }
+      const result = await resolvePendingMemoryApproval({
+        userId,
+        approvalId: pendingApproval.id,
+        decision,
+        currentUserMessageId: options.currentUserMessageId,
+      });
+      if (result.status === "approved") {
+        invalidateMemoriesForPromptCache(userId);
+      }
+      return { status: result.status };
+    },
+  });
+
+  const forgetFact = tool({
+    description: `Elimina in modo silenzioso una sola memoria già risolta dal server
+da una richiesta esplicita. Non accetta chiavi scelte dal modello, wildcard o categorie.`,
+    inputSchema: z.object({}),
+    execute: async () => {
+      const key = options?.deleteTargetKey ?? null;
+      if (
+        !isDeletableStableMemoryKey(key) ||
+        !options?.sourceInboundMessageId
+      ) {
+        return { status: "ambiguous" as const };
+      }
+      const factId = await findActiveFactIdByKey(userId, key);
+      if (!factId) return { status: "not_found" as const };
+      const result = await forgetDurableFact({
+        userId,
+        factId,
+        sourceMessageId: options.sourceInboundMessageId,
+        dedupeKey: `tool:${options.sourceInboundMessageId}:forget:${factId}`,
+      });
+      if (result.status === "forgotten" || result.status === "duplicate") {
+        invalidateMemoriesForPromptCache(userId);
+        return { status: "deleted" as const };
+      }
+      return { status: result.status };
+    },
+  });
+
+  return {
+    recallFacts,
+    rememberFact,
+    reviseFact,
+    forgetFact,
+    requestMemoryApproval,
+    resolveMemoryApproval,
+    getMemories: recallFacts,
+    saveMemory: rememberFact,
+    deleteMemory: forgetFact,
   };
 }
 
-/**
- * Utility function to get all memories for a user (not a tool, for internal use).
- */
 async function getAllMemories(
   userId: string,
 ): Promise<Map<string, MemoryValue>> {
   const memories = await prisma.memory.findMany({
-    where: { userId },
+    where: {
+      userId,
+      status: "ACTIVE",
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
   });
 
   const memoryMap = new Map<string, MemoryValue>();
-  for (const m of memories) {
-    const val = m.value as unknown as MemoryValue;
-    // Use the column as source of truth for category
-    memoryMap.set(m.key, { ...val, category: m.category });
+  for (const memory of memories) {
+    const value = memory.value as unknown as MemoryValue;
+    memoryMap.set(memory.key, { ...value, category: memory.category });
   }
-
   return memoryMap;
 }
 
-/**
- * Formats memories into a readable string for system prompt injection.
- */
 export async function formatMemoriesForPrompt(userId: string): Promise<string> {
   const cached = memoriesPromptCache.get(userId);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.value;
-  }
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
 
   const memories = await getAllMemories(userId);
-
-  if (memories.size === 0) {
-    return "";
-  }
+  if (memories.size === 0) return "";
 
   const lines: string[] = ["## Informazioni salvate sull'utente:"];
-
-  // Group by category
   const byCategory = new Map<
     string,
     Array<{ key: string; value: MemoryValue }>
   >();
-
   for (const [key, value] of memories) {
-    const cat = value.category || "other";
-    if (!byCategory.has(cat)) {
-      byCategory.set(cat, []);
-    }
-    byCategory.get(cat)?.push({ key, value });
+    const category = value.category || "other";
+    const items = byCategory.get(category) ?? [];
+    items.push({ key, value });
+    byCategory.set(category, items);
   }
 
   const categoryLabels: Record<string, string> = {
@@ -385,9 +390,8 @@ export async function formatMemoriesForPrompt(userId: string): Promise<string> {
     conversation_topic: "💬 Temi di conversazione",
     other: "📝 Altro",
   };
-
-  for (const [cat, items] of byCategory) {
-    lines.push(`\n### ${categoryLabels[cat] || cat}`);
+  for (const [category, items] of byCategory) {
+    lines.push(`\n### ${categoryLabels[category] || category}`);
     for (const item of items) {
       lines.push(`- **${item.key.replace(/_/g, " ")}**: ${item.value.content}`);
     }

@@ -4,6 +4,7 @@ export const CAPABILITY_USAGE_VALUES = [
   "rag",
   "web",
   "memory",
+  "recall",
   "routine",
   "voice",
 ] as const;
@@ -53,6 +54,8 @@ export function filterCapabilityUsageByDecision(
         return (
           decision.memoryRead || decision.memoryWrite || decision.memoryDelete
         );
+      case "recall":
+        return true;
       case "routine":
         return decision.routineProposal;
       case "voice":

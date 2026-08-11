@@ -49,6 +49,7 @@
 **Files:**
 - Modify: `prisma/schema.prisma`
 - Create: `prisma/migrations/20260811120000_add_memory_fact_lifecycle/migration.sql`
+- Create: `src/lib/ai/memory-facts.ts`
 - Test: `src/lib/ai/memory-facts.test.ts`
 
 **Interfaces:**
@@ -173,10 +174,18 @@ bunx prisma generate
 
 Expected: both commands exit 0.
 
-- [ ] **Step 6: Commit the schema task**
+- [ ] **Step 6: Implement the minimal active-fact recall needed by the test**
+
+Create `src/lib/ai/memory-facts.ts` with the public `RecalledFact` projection
+and a bounded `recallFacts` query that applies `userId`, `status: ACTIVE`, and
+expiry constraints before returning content. Task 3 adds ranking, caching, and
+mutations after canonicalization exists.
+
+- [ ] **Step 7: Run the focused test and commit the schema task**
 
 ```bash
-git add prisma/schema.prisma prisma/migrations/20260811120000_add_memory_fact_lifecycle/migration.sql src/lib/ai/memory-facts.test.ts
+bunx vitest run src/lib/ai/memory-facts.test.ts
+git add prisma/schema.prisma prisma/migrations/20260811120000_add_memory_fact_lifecycle/migration.sql src/lib/ai/memory-facts.ts src/lib/ai/memory-facts.test.ts
 git commit -m "feat(ai): add durable fact lifecycle"
 ```
 
@@ -249,7 +258,7 @@ git commit -m "feat(ai): canonicalize durable knowledge"
 ### Task 3: Implement the durable fact service
 
 **Files:**
-- Create: `src/lib/ai/memory-facts.ts`
+- Modify: `src/lib/ai/memory-facts.ts`
 - Modify: `src/lib/ai/memory-facts.test.ts`
 
 **Interfaces:**
@@ -384,6 +393,9 @@ git commit -m "refactor(ai): route memory tools through fact service"
 ### Task 5: Route user controls and maintenance through the fact service
 
 **Files:**
+- Modify: `src/lib/ai/memory-facts.ts`
+- Modify: `src/lib/ai/memory-facts.test.ts`
+- Modify: `src/lib/ai/user-knowledge.ts`
 - Modify: `src/lib/coaching-context.ts`
 - Modify: `src/app/api/coaching-context/route.ts`
 - Modify: `src/app/api/coaching-context/route.test.ts`
@@ -422,7 +434,7 @@ Use active, non-expired fact snapshots from the service. Preserve the existing e
 
 ```bash
 bunx vitest run src/app/api/coaching-context/route.test.ts 'src/app/api/coaching-context/memories/[memoryId]/route.test.ts' src/lib/ai/memory-target.test.ts src/lib/maintenance/memory-consolidation.test.ts
-git add src/lib/coaching-context.ts src/app/api/coaching-context/route.ts src/app/api/coaching-context/route.test.ts 'src/app/api/coaching-context/memories/[memoryId]/route.ts' 'src/app/api/coaching-context/memories/[memoryId]/route.test.ts' src/lib/ai/memory-target.ts src/lib/ai/memory-target.test.ts src/lib/maintenance/memory-consolidation.ts src/lib/maintenance/memory-consolidation.test.ts
+git add src/lib/ai/memory-facts.ts src/lib/ai/memory-facts.test.ts src/lib/ai/user-knowledge.ts src/lib/coaching-context.ts src/app/api/coaching-context/route.ts src/app/api/coaching-context/route.test.ts 'src/app/api/coaching-context/memories/[memoryId]/route.ts' 'src/app/api/coaching-context/memories/[memoryId]/route.test.ts' src/lib/ai/memory-target.ts src/lib/ai/memory-target.test.ts src/lib/maintenance/memory-consolidation.ts src/lib/maintenance/memory-consolidation.test.ts
 git commit -m "refactor(ai): enforce fact lifecycle in user controls"
 ```
 
@@ -435,9 +447,16 @@ git commit -m "refactor(ai): enforce fact lifecycle in user controls"
 - Modify: `src/lib/ai/memory-extractor.test.ts`
 - Modify: `src/lib/ai/memory-approval.ts`
 - Modify: `src/lib/ai/memory-approval.test.ts`
+- Modify: `src/lib/ai/memory-facts.ts`
 - Modify: `src/lib/channel-flow/persistence.ts`
 - Modify: `src/lib/channel-flow/persistence.test.ts`
+- Modify: `src/lib/channel-flow/run.ts`
+- Modify: `src/lib/channel-flow/run.test.ts`
+- Modify: `src/lib/channel-flow/types.ts`
+- Modify: `src/lib/channels/web/chat-route-handler.ts`
 - Modify: `src/app/api/chat/route.test.ts`
+- Modify: `src/lib/model-experiments/service.ts`
+- Modify: `src/lib/model-experiments/service.behavior.test.ts`
 
 **Interfaces:**
 - Consumes canonical routing and fact mutations from Tasks 2-4.
@@ -512,7 +531,7 @@ Expected: PASS.
 - [ ] **Step 7: Commit consolidation**
 
 ```bash
-git add src/lib/ai/memory-consolidator.ts src/lib/ai/memory-consolidator.test.ts src/lib/ai/memory-extractor.ts src/lib/ai/memory-extractor.test.ts src/lib/ai/memory-approval.ts src/lib/ai/memory-approval.test.ts src/lib/channel-flow/persistence.ts src/lib/channel-flow/persistence.test.ts src/app/api/chat/route.test.ts
+git add src/lib/ai/memory-consolidator.ts src/lib/ai/memory-consolidator.test.ts src/lib/ai/memory-extractor.ts src/lib/ai/memory-extractor.test.ts src/lib/ai/memory-approval.ts src/lib/ai/memory-approval.test.ts src/lib/ai/memory-facts.ts src/lib/channel-flow/persistence.ts src/lib/channel-flow/persistence.test.ts src/lib/channel-flow/run.ts src/lib/channel-flow/run.test.ts src/lib/channel-flow/types.ts src/lib/channels/web/chat-route-handler.ts src/app/api/chat/route.test.ts src/lib/model-experiments/service.ts src/lib/model-experiments/service.behavior.test.ts
 git commit -m "feat(ai): consolidate durable facts after every turn"
 ```
 

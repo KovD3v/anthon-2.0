@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
+import { invalidateFactCache, rememberFactInTransaction } from "./memory-facts";
 import { isExactStableMemoryKey } from "./memory-target";
 
 const MEMORY_APPROVAL_TTL_MS = 15 * 60 * 1000;
@@ -17,7 +18,9 @@ const pendingApprovalSelect = {
 
 const resolvableApprovalSelect = {
   ...pendingApprovalSelect,
-  sourceInboundMessage: {
+  presentationInboundMessageId: true,
+  presentationAssistantMessageId: true,
+  presentationInboundMessage: {
     select: {
       id: true,
       userId: true,
@@ -26,16 +29,17 @@ const resolvableApprovalSelect = {
       role: true,
       deletedAt: true,
       createdAt: true,
-      generatedResponse: {
-        select: {
-          id: true,
-          userId: true,
-          conversationThreadId: true,
-          direction: true,
-          role: true,
-          deletedAt: true,
-        },
-      },
+    },
+  },
+  presentationAssistantMessage: {
+    select: {
+      id: true,
+      userId: true,
+      conversationThreadId: true,
+      sourceInboundMessageId: true,
+      direction: true,
+      role: true,
+      deletedAt: true,
     },
   },
 } satisfies Prisma.MemoryApprovalSelect;
@@ -149,6 +153,98 @@ export async function createMemoryApproval(input: {
   });
 }
 
+export async function getUnpresentedMemoryApproval(input: {
+  userId: string;
+  conversationId: string;
+}): Promise<PendingMemoryApproval | null> {
+  const now = new Date();
+  await prisma.memoryApproval.updateMany({
+    where: {
+      userId: input.userId,
+      status: "PENDING",
+      expiresAt: { lte: now },
+    },
+    data: { status: "EXPIRED", resolvedAt: now },
+  });
+  const approval = await prisma.memoryApproval.findFirst({
+    where: {
+      userId: input.userId,
+      status: "PENDING",
+      expiresAt: { gt: now },
+      presentationInboundMessageId: null,
+      presentationAssistantMessageId: null,
+      sourceInboundMessage: {
+        conversationThreadId: input.conversationId,
+        deletedAt: null,
+      },
+    },
+    orderBy: { createdAt: "asc" },
+    select: pendingApprovalSelect,
+  });
+  return approval ? toPendingMemoryApproval(approval) : null;
+}
+
+export async function markMemoryApprovalPresented(input: {
+  userId: string;
+  approvalId: string;
+  presentationInboundMessageId: string;
+  presentationAssistantMessageId: string;
+}): Promise<{ status: "presented" | "stale" }> {
+  const now = new Date();
+  return prisma.$transaction(async (tx) => {
+    const inbound = await tx.message.findFirst({
+      where: {
+        id: input.presentationInboundMessageId,
+        userId: input.userId,
+        direction: "INBOUND",
+        role: "USER",
+        deletedAt: null,
+      },
+      select: { id: true, conversationThreadId: true },
+    });
+    if (!inbound?.conversationThreadId) return { status: "stale" as const };
+
+    const assistant = await tx.message.findFirst({
+      where: {
+        id: input.presentationAssistantMessageId,
+        userId: input.userId,
+        conversationThreadId: inbound.conversationThreadId,
+        sourceInboundMessageId: inbound.id,
+        direction: "OUTBOUND",
+        role: "ASSISTANT",
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        conversationThreadId: true,
+        sourceInboundMessageId: true,
+      },
+    });
+    if (!assistant) return { status: "stale" as const };
+
+    const claimed = await tx.memoryApproval.updateMany({
+      where: {
+        id: input.approvalId,
+        userId: input.userId,
+        status: "PENDING",
+        expiresAt: { gt: now },
+        presentationInboundMessageId: null,
+        presentationAssistantMessageId: null,
+        sourceInboundMessage: {
+          conversationThreadId: inbound.conversationThreadId,
+        },
+      },
+      data: {
+        presentationInboundMessageId: inbound.id,
+        presentationAssistantMessageId: assistant.id,
+      },
+    });
+    return {
+      status: claimed.count === 1 ? ("presented" as const) : ("stale" as const),
+    };
+  });
+}
+
 export async function getImmediatelyAttributableApproval(input: {
   userId: string;
   conversationId: string;
@@ -230,7 +326,8 @@ export async function getImmediatelyAttributableApproval(input: {
     const approval = await tx.memoryApproval.findFirst({
       where: {
         userId: input.userId,
-        sourceInboundMessageId: previousInboundMessage.id,
+        presentationInboundMessageId: previousInboundMessage.id,
+        presentationAssistantMessageId: generatedResponse.id,
         status: "PENDING",
         expiresAt: { gt: now },
       },
@@ -349,7 +446,7 @@ export async function resolveMemoryApproval(input: {
 }> {
   const now = new Date();
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const approval = await tx.memoryApproval.findFirst({
       where: {
         id: input.approvalId,
@@ -372,20 +469,25 @@ export async function resolveMemoryApproval(input: {
       return { status: "stale" as const };
     }
 
-    const sourceMessage = approval.sourceInboundMessage;
+    const presentationInbound = approval.presentationInboundMessage;
+    const presentationAssistant = approval.presentationAssistantMessage;
     if (
-      !sourceMessage.conversationThreadId ||
-      sourceMessage.userId !== input.userId ||
-      sourceMessage.direction !== "INBOUND" ||
-      sourceMessage.role !== "USER" ||
-      sourceMessage.deletedAt !== null ||
-      !sourceMessage.generatedResponse ||
-      sourceMessage.generatedResponse.userId !== input.userId ||
-      sourceMessage.generatedResponse.conversationThreadId !==
-        sourceMessage.conversationThreadId ||
-      sourceMessage.generatedResponse.direction !== "OUTBOUND" ||
-      sourceMessage.generatedResponse.role !== "ASSISTANT" ||
-      sourceMessage.generatedResponse.deletedAt !== null
+      !approval.presentationInboundMessageId ||
+      !approval.presentationAssistantMessageId ||
+      typeof approval.value !== "string" ||
+      !presentationInbound?.conversationThreadId ||
+      presentationInbound.userId !== input.userId ||
+      presentationInbound.direction !== "INBOUND" ||
+      presentationInbound.role !== "USER" ||
+      presentationInbound.deletedAt !== null ||
+      !presentationAssistant ||
+      presentationAssistant.userId !== input.userId ||
+      presentationAssistant.conversationThreadId !==
+        presentationInbound.conversationThreadId ||
+      presentationAssistant.sourceInboundMessageId !== presentationInbound.id ||
+      presentationAssistant.direction !== "OUTBOUND" ||
+      presentationAssistant.role !== "ASSISTANT" ||
+      presentationAssistant.deletedAt !== null
     ) {
       return { status: "stale" as const };
     }
@@ -394,7 +496,7 @@ export async function resolveMemoryApproval(input: {
       where: {
         id: input.currentUserMessageId,
         userId: input.userId,
-        conversationThreadId: sourceMessage.conversationThreadId,
+        conversationThreadId: presentationInbound.conversationThreadId,
         direction: "INBOUND",
         role: "USER",
         deletedAt: null,
@@ -406,7 +508,7 @@ export async function resolveMemoryApproval(input: {
     const previousInboundMessages = await tx.message.findMany({
       where: {
         userId: input.userId,
-        conversationThreadId: sourceMessage.conversationThreadId,
+        conversationThreadId: presentationInbound.conversationThreadId,
         direction: "INBOUND",
         role: "USER",
         deletedAt: null,
@@ -426,7 +528,7 @@ export async function resolveMemoryApproval(input: {
     ) {
       return { status: "stale" as const };
     }
-    if (previousInboundMessage?.id !== approval.sourceInboundMessageId) {
+    if (previousInboundMessage?.id !== approval.presentationInboundMessageId) {
       return { status: "stale" as const };
     }
 
@@ -456,30 +558,27 @@ export async function resolveMemoryApproval(input: {
       return { status: "rejected" as const };
     }
 
-    const timestamp = now.toISOString();
-    const value = {
-      content: approval.value,
+    const memory = await rememberFactInTransaction(tx, {
+      userId: input.userId,
+      key: approval.key,
+      value: approval.value,
       category: approval.category,
       confidence: approval.confidence,
-      updatedAt: timestamp,
-    } satisfies Prisma.InputJsonObject;
-    const memory = await tx.memory.upsert({
-      where: {
-        userId_key: { userId: input.userId, key: approval.key },
-      },
-      update: {
-        category: approval.category,
-        value,
-      },
-      create: {
-        userId: input.userId,
-        key: approval.key,
-        category: approval.category,
-        value: { ...value, createdAt: timestamp },
-      },
-      select: { id: true },
+      sensitivity: "HIGH",
+      origin: "CONFIRMED",
+      sourceMessageId: approval.sourceInboundMessageId,
+      sourceThreadId: presentationInbound.conversationThreadId,
+      dedupeKey: `approval:${approval.id}`,
     });
+    if (
+      (memory.status !== "saved" && memory.status !== "duplicate") ||
+      !memory.factId
+    ) {
+      throw new Error("Approved memory fact could not be persisted");
+    }
 
-    return { status: "approved" as const, memoryId: memory.id };
+    return { status: "approved" as const, memoryId: memory.factId };
   });
+  if (result.status === "approved") invalidateFactCache(input.userId);
+  return result;
 }

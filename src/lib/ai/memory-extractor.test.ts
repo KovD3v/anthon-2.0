@@ -1,19 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
   loggerWarn: vi.fn(),
   loggerError: vi.fn(),
-  memoryUpsert: vi.fn(),
-  userUpdate: vi.fn(),
-  invalidateMemoriesForPromptCache: vi.fn(),
   trackSupportAiUsage: vi.fn(),
 }));
 
-vi.mock("ai", () => ({
-  generateText: mocks.generateText,
-}));
-
+vi.mock("ai", () => ({ generateText: mocks.generateText }));
 vi.mock("@/lib/logger", () => ({
   createLogger: () => ({
     debug: vi.fn(),
@@ -22,427 +16,143 @@ vi.mock("@/lib/logger", () => ({
     error: mocks.loggerError,
   }),
 }));
-
 vi.mock("@/lib/ai/providers/openrouter", () => ({
   subAgentModel: "sub-agent-model",
   SUB_AGENT_MODEL_ID: "sub-agent-model-id",
 }));
-
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
 
-vi.mock("@/lib/ai/tools/memory", () => ({
-  invalidateMemoriesForPromptCache: mocks.invalidateMemoriesForPromptCache,
-}));
-
-vi.mock("@/lib/db", () => ({
-  prisma: {
-    memory: {
-      upsert: mocks.memoryUpsert,
-    },
-    user: {
-      update: mocks.userUpdate,
-    },
-  },
-}));
-
-import { extractAndSaveMemories } from "./memory-extractor";
+import { extractMemoryCandidates } from "./memory-extractor";
 
 describe("ai/memory-extractor", () => {
   beforeEach(() => {
-    mocks.generateText.mockReset();
-    mocks.loggerWarn.mockReset();
-    mocks.loggerError.mockReset();
-    mocks.memoryUpsert.mockReset();
-    mocks.userUpdate.mockReset();
-    mocks.invalidateMemoriesForPromptCache.mockReset();
-    mocks.trackSupportAiUsage.mockReset();
-
-    mocks.memoryUpsert.mockResolvedValue({});
-    mocks.userUpdate.mockResolvedValue({});
+    vi.clearAllMocks();
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("returns early for short/low-word user messages", async () => {
-    await extractAndSaveMemories("user-1", "ciao", "Ciao!");
-
+  it("skips messages too short to contain a supported durable fact", async () => {
+    await expect(
+      extractMemoryCandidates({
+        userId: "user-1",
+        userText: "ciao",
+        assistantText: "Ciao!",
+      }),
+    ).resolves.toEqual([]);
     expect(mocks.generateText).not.toHaveBeenCalled();
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
-    expect(mocks.userUpdate).not.toHaveBeenCalled();
-    expect(mocks.invalidateMemoriesForPromptCache).not.toHaveBeenCalled();
   });
 
-  it("lets the post-generation model decide which facts deserve memory", async () => {
+  it("extracts strict user-supported candidates and records model usage", async () => {
     mocks.generateText.mockResolvedValue({
-      text: JSON.stringify({ facts: [] }),
+      text: JSON.stringify({
+        facts: [
+          {
+            key: "training_schedule",
+            value: "Martedì sera",
+            category: "schedule",
+            confidence: 0.94,
+            sensitivity: "LOW",
+            origin: "EXPLICIT",
+            explicitSetting: false,
+            durability: "DURABLE",
+            evidence: "mi alleno ogni martedì sera",
+          },
+        ],
+      }),
+      usage: { inputTokens: 80, outputTokens: 20 },
+      providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
     });
 
-    await extractAndSaveMemories(
-      "user-1",
-      "Domani ho una gara importante e vorrei gestire meglio la pressione.",
-      "Possiamo costruire una routine breve per il pre-gara.",
-    );
+    const result = await extractMemoryCandidates({
+      userId: "user-1",
+      userText: "Da questo mese mi alleno ogni martedì sera.",
+      assistantText: "Perfetto, organizziamo la settimana.",
+    });
 
+    expect(result).toEqual([
+      expect.objectContaining({
+        key: "training_schedule",
+        value: "Martedì sera",
+        evidence: "mi alleno ogni martedì sera",
+      }),
+    ]);
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
+        temperature: 0,
+        maxOutputTokens: 700,
         instructions: expect.stringContaining(
-          "La scelta di cosa salvare è del modello",
+          "L'assistente non è mai la fonte",
         ),
       }),
     );
-    expect(mocks.generateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        instructions: expect.stringContaining("non usare solo parole chiave"),
-      }),
-    );
-    expect(mocks.generateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        instructions: expect.stringContaining(
-          "solo fatti dichiarati esplicitamente dall'utente",
-        ),
-      }),
-    );
-  });
-
-  it("saves only high-confidence facts, invalidates cache, and updates activity", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-02-17T15:00:00.000Z"));
-
-    mocks.generateText.mockResolvedValue({
-      text: JSON.stringify({
-        facts: [
-          {
-            key: "user_sport",
-            value: "tennis",
-            category: "sport",
-            confidence: 0.9,
-          },
-          {
-            key: "user_note",
-            value: "likes training",
-            category: "preference",
-            confidence: 0.3,
-          },
-        ],
-      }),
-      usage: { inputTokens: 120, outputTokens: 30 },
-      providerMetadata: { openrouter: { usage: { cost: 0.002 } } },
-    });
-
-    await extractAndSaveMemories(
-      "user-1",
-      "I play tennis every Sunday and train consistently with my coach.",
-      "Great, we can structure your week around tennis sessions.",
-    );
-
-    expect(mocks.memoryUpsert).toHaveBeenCalledTimes(1);
-    expect(mocks.memoryUpsert).toHaveBeenCalledWith({
-      where: {
-        userId_key: { userId: "user-1", key: "user_sport" },
-      },
-      update: {
-        value: {
-          content: "tennis",
-          category: "sport",
-          confidence: 0.9,
-          updatedAt: "2026-02-17T15:00:00.000Z",
-        },
-      },
-      create: {
-        userId: "user-1",
-        key: "user_sport",
-        value: {
-          content: "tennis",
-          category: "sport",
-          confidence: 0.9,
-          createdAt: "2026-02-17T15:00:00.000Z",
-        },
-      },
-    });
-    expect(mocks.invalidateMemoriesForPromptCache).toHaveBeenCalledWith(
-      "user-1",
-    );
-    expect(mocks.userUpdate).toHaveBeenCalledWith({
-      where: { id: "user-1" },
-      data: { lastActivityAt: new Date("2026-02-17T15:00:00.000Z") },
-    });
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
       userId: "user-1",
       modelId: "sub-agent-model-id",
-      usage: { inputTokens: 120, outputTokens: 30 },
-      providerMetadata: { openrouter: { usage: { cost: 0.002 } } },
+      usage: { inputTokens: 80, outputTokens: 20 },
+      providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
     });
   });
 
-  it("persists distinct facts in bounded concurrent batches", async () => {
-    const resolveWrites: Array<() => void> = [];
-    mocks.memoryUpsert.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveWrites.push(resolve);
-        }),
-    );
+  it("rejects a candidate whose evidence is absent from the user message", async () => {
     mocks.generateText.mockResolvedValue({
       text: JSON.stringify({
         facts: [
           {
-            key: "user_name",
-            value: "Ada",
-            category: "identity",
-            confidence: 0.95,
-          },
-          {
-            key: "user_sport",
-            value: "tennis",
-            category: "sport",
-            confidence: 0.9,
-          },
-          {
-            key: "user_goal",
-            value: "win a match",
-            category: "goal",
-            confidence: 0.9,
-          },
-          {
-            key: "user_schedule",
-            value: "Sunday morning",
-            category: "schedule",
-            confidence: 0.9,
-          },
-          {
-            key: "user_preference",
-            value: "outdoor training",
+            key: "favorite_surface",
+            value: "Terra rossa",
             category: "preference",
-            confidence: 0.9,
-          },
-        ],
-      }),
-    });
-
-    const extraction = extractAndSaveMemories(
-      "user-1",
-      "My name is Ada, I play tennis, and I want to win a match this season.",
-      "We can build a schedule that supports your tennis goal.",
-    );
-
-    await vi.waitFor(() => {
-      expect(mocks.memoryUpsert).toHaveBeenCalledTimes(4);
-    });
-    expect(
-      mocks.memoryUpsert.mock.calls.map(([args]) => args.where.userId_key.key),
-    ).toEqual(["user_name", "user_sport", "user_goal", "user_schedule"]);
-
-    for (const resolve of resolveWrites.splice(0)) {
-      resolve();
-    }
-
-    await vi.waitFor(() => {
-      expect(mocks.memoryUpsert).toHaveBeenCalledTimes(5);
-    });
-    for (const resolve of resolveWrites.splice(0)) {
-      resolve();
-    }
-
-    await extraction;
-
-    expect(mocks.invalidateMemoriesForPromptCache).toHaveBeenCalledWith(
-      "user-1",
-    );
-    expect(mocks.userUpdate).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps only the latest accepted fact for duplicate keys", async () => {
-    mocks.generateText.mockResolvedValue({
-      text: JSON.stringify({
-        facts: [
-          {
-            key: "user_sport",
-            value: "running",
-            category: "sport",
-            confidence: 0.9,
-          },
-          {
-            key: "user_sport",
-            value: "cycling",
-            category: "sport",
             confidence: 0.95,
-          },
-          {
-            key: "user_sport",
-            value: "not-saved",
-            category: "sport",
-            confidence: 0.4,
-          },
-        ],
-      }),
-    });
-
-    await extractAndSaveMemories(
-      "user-1",
-      "I have switched from running to cycling as my main sport this year.",
-      "Cycling can be a great primary training focus.",
-    );
-
-    expect(mocks.memoryUpsert).toHaveBeenCalledTimes(1);
-    expect(mocks.memoryUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          userId_key: { userId: "user-1", key: "user_sport" },
-        },
-        update: expect.objectContaining({
-          value: expect.objectContaining({ content: "cycling" }),
-        }),
-        create: expect.objectContaining({
-          value: expect.objectContaining({ content: "cycling" }),
-        }),
-      }),
-    );
-  });
-
-  it("keeps the cache and activity untouched after a partial persistence failure", async () => {
-    const writeError = new Error("database unavailable");
-    mocks.memoryUpsert.mockImplementation((args) => {
-      if (args.where.userId_key.key === "user_goal") {
-        return Promise.reject(writeError);
-      }
-
-      return Promise.resolve({});
-    });
-    mocks.generateText.mockResolvedValue({
-      text: JSON.stringify({
-        facts: [
-          {
-            key: "user_name",
-            value: "Ada",
-            category: "identity",
-            confidence: 0.95,
-          },
-          {
-            key: "user_sport",
-            value: "tennis",
-            category: "sport",
-            confidence: 0.9,
-          },
-          {
-            key: "user_goal",
-            value: "win a match",
-            category: "goal",
-            confidence: 0.9,
-          },
-          {
-            key: "user_schedule",
-            value: "Sunday morning",
-            category: "schedule",
-            confidence: 0.9,
-          },
-          {
-            key: "user_preference",
-            value: "outdoor training",
-            category: "preference",
-            confidence: 0.9,
+            sensitivity: "LOW",
+            origin: "INFERRED",
+            explicitSetting: false,
+            durability: "DURABLE",
+            evidence: "preferisci la terra rossa",
           },
         ],
       }),
+      usage: {},
+      providerMetadata: {},
     });
 
     await expect(
-      extractAndSaveMemories(
-        "user-1",
-        "My name is Ada, I play tennis, and I want to win a match this season.",
-        "We can build a schedule that supports your tennis goal.",
-      ),
-    ).resolves.toBeUndefined();
-
-    expect(mocks.memoryUpsert).toHaveBeenCalledTimes(5);
-    expect(mocks.invalidateMemoriesForPromptCache).not.toHaveBeenCalled();
-    expect(mocks.userUpdate).not.toHaveBeenCalled();
-    expect(mocks.loggerError).toHaveBeenCalledWith(
-      "memory_persistence_failed",
-      "One or more memory facts could not be persisted",
-      {
-        error: [writeError],
-        failedKeys: ["user_goal"],
+      extractMemoryCandidates({
         userId: "user-1",
-      },
-    );
-  });
-
-  it("updates last activity even when no facts pass confidence threshold", async () => {
-    mocks.generateText.mockResolvedValue({
-      text: JSON.stringify({
-        facts: [
-          {
-            key: "user_goal",
-            value: "win next match",
-            category: "goal",
-            confidence: 0.5,
-          },
-        ],
+        userText: "Non so quale superficie scegliere per il prossimo torneo.",
+        assistantText: "Probabilmente preferisci la terra rossa.",
       }),
-    });
-
-    await extractAndSaveMemories(
-      "user-1",
-      "I may have a goal but I am not sure yet about specifics.",
-      "Thanks, we can refine your goals together.",
-    );
-
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
-    expect(mocks.invalidateMemoriesForPromptCache).not.toHaveBeenCalled();
-    expect(mocks.userUpdate).toHaveBeenCalledTimes(1);
+    ).resolves.toEqual([]);
   });
 
-  it("skips invalid extractor output without logging an error", async () => {
+  it("returns no candidates for malformed structured output", async () => {
     mocks.generateText.mockResolvedValue({
-      text: "",
-      usage: { inputTokens: 20, outputTokens: 0 },
-      providerMetadata: { openrouter: { usage: { cost: 0.0001 } } },
+      text: '```json\n{"facts":[{"key":"missing-fields"}]}\n```',
+      usage: {},
+      providerMetadata: {},
     });
-
-    await extractAndSaveMemories(
-      "user-1",
-      "I play football every week and want to improve endurance quickly.",
-      "Let's build a progressive training plan.",
-    );
-
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
-    expect(mocks.userUpdate).not.toHaveBeenCalled();
-    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
-      userId: "user-1",
-      modelId: "sub-agent-model-id",
-      usage: { inputTokens: 20, outputTokens: 0 },
-      providerMetadata: { openrouter: { usage: { cost: 0.0001 } } },
-    });
-    expect(mocks.loggerWarn).toHaveBeenCalledWith(
-      "extraction_skipped",
-      "Memory extractor returned no parseable output",
-      expect.objectContaining({ userId: "user-1" }),
-    );
-    expect(mocks.loggerError).not.toHaveBeenCalled();
-  });
-
-  it("swallows extraction errors and does not throw", async () => {
-    mocks.generateText.mockRejectedValue(new Error("extractor unavailable"));
 
     await expect(
-      extractAndSaveMemories(
-        "user-1",
-        "I play football every week and want to improve endurance quickly.",
-        "Let's build a progressive training plan.",
-      ),
-    ).resolves.toBeUndefined();
+      extractMemoryCandidates({
+        userId: "user-1",
+        userText: "Mi alleno stabilmente tre volte ogni settimana.",
+        assistantText: "Ottimo.",
+      }),
+    ).resolves.toEqual([]);
+    expect(mocks.loggerWarn).toHaveBeenCalled();
+  });
 
-    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
-    expect(mocks.userUpdate).not.toHaveBeenCalled();
-    expect(mocks.loggerError).toHaveBeenCalledWith(
-      "extraction_failed",
-      "Error extracting memories",
-      expect.objectContaining({ userId: "user-1" }),
+  it("fails open without logging conversation content", async () => {
+    mocks.generateText.mockRejectedValue(new Error("provider unavailable"));
+
+    await expect(
+      extractMemoryCandidates({
+        userId: "user-1",
+        userText: "Informazione privata che non deve entrare nei log.",
+        assistantText: "Ricevuto.",
+      }),
+    ).resolves.toEqual([]);
+    expect(JSON.stringify(mocks.loggerError.mock.calls)).not.toContain(
+      "Informazione privata",
     );
   });
 });

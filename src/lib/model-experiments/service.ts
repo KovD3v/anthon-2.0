@@ -1,6 +1,5 @@
 import { Prisma } from "@/generated/prisma";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
-import { extractAndSaveMemories } from "@/lib/ai/memory-extractor";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
@@ -643,23 +642,6 @@ export async function resolveModelComparisonPair({
         { error, pairId },
       ),
     );
-    if (
-      result.capabilityPlannerMode === "legacy" &&
-      result.sourceText &&
-      result.responseText
-    ) {
-      void extractAndSaveMemories(
-        userId,
-        result.sourceText,
-        result.responseText,
-      ).catch((error) =>
-        logger.warn(
-          "model_comparison.memory_failed",
-          "Comparison memory extraction failed",
-          { error, pairId },
-        ),
-      );
-    }
   }
   return result;
 }

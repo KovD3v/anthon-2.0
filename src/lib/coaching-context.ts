@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { RecalledFact } from "@/lib/ai/memory-facts";
 import { prisma } from "@/lib/db";
 
 export const COACHING_MEMORY_CATEGORIES = [
@@ -58,6 +59,20 @@ export function projectCoachingMemory(memory: {
     content: value.content.trim(),
     category,
     updatedAt: memory.updatedAt.toISOString(),
+  };
+}
+
+export function projectCoachingFact(fact: RecalledFact) {
+  const category = COACHING_MEMORY_CATEGORIES.includes(
+    fact.category as (typeof COACHING_MEMORY_CATEGORIES)[number],
+  )
+    ? (fact.category as (typeof COACHING_MEMORY_CATEGORIES)[number])
+    : "other";
+  return {
+    id: fact.id,
+    content: fact.content,
+    category,
+    updatedAt: fact.updatedAt.toISOString(),
   };
 }
 

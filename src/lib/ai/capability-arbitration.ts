@@ -77,20 +77,18 @@ function normalizeResolvedMemoryTarget(target: string | null | undefined) {
   return isDeletableStableMemoryKey(target) ? target : null;
 }
 
-const capabilityClassifierSchema = z
-  .object({
-    rag: z.enum(["yes", "no", "uncertain"]),
-    webSearch: z.enum(["yes", "no", "uncertain"]),
-    webFetch: z.enum(["yes", "no", "uncertain"]),
-    memoryRead: z.enum(["yes", "no", "uncertain"]),
-    memoryWrite: z.enum(["yes", "no", "uncertain"]),
-    memoryDelete: z.enum(["yes", "no", "uncertain"]),
-    routineProposal: z.enum(["yes", "no", "uncertain"]),
-    userContext: z.enum(["yes", "no", "uncertain"]),
-    voiceOutput: z.enum(["yes", "no", "uncertain"]),
-    confidence: z.number().min(0).max(1),
-  })
-  .strict();
+const capabilityVoteSchema = z.object({
+  decision: z.enum(["yes", "no", "uncertain"]),
+  confidence: z.number().min(0).max(1),
+});
+const capabilityClassifierSchema = z.object(
+  Object.fromEntries(
+    classifierCapabilities.map((capability) => [
+      capability,
+      capabilityVoteSchema,
+    ]),
+  ) as Record<ClassifierCapability, typeof capabilityVoteSchema>,
+);
 
 type ClassifierInput = {
   userMessage: string;
@@ -106,8 +104,9 @@ export function buildCapabilityClassifierPrompt(
 ) {
   return `Classify optional capabilities for the next Anthon chat turn.
 
-Return yes only when the capability is materially useful for this message.
-Use uncertain for any capability that cannot be selected with confidence.
+Return an independent decision and confidence for every capability. Return yes
+only when that capability is materially useful. One uncertain capability must
+not change another capability's confident vote.
 memoryWrite may be yes for explicit persistence requests and for clearly stated, ordinary low-risk durable facts that will remain useful in future coaching turns. Keep it no for guesses, transient details, and low-confidence inferences. Sensitive or high-impact facts are always subject to server-side approval policy and cannot be downgraded by this classifier.
 Voice output requires an explicit voice response mode.
 
@@ -118,28 +117,20 @@ User message:
 ${JSON.stringify(userMessage)}`;
 }
 
-function hasUncertainCapability(
-  output: z.infer<typeof capabilityClassifierSchema>,
-) {
-  return Object.entries(output).some(
-    ([key, value]) => key !== "confidence" && value === "uncertain",
-  );
-}
-
-function toClassifierDecision(
-  output: z.infer<typeof capabilityClassifierSchema>,
+export function acceptCapabilityVotes(
+  output: Partial<
+    Record<ClassifierCapability, z.infer<typeof capabilityVoteSchema>>
+  >,
 ): Partial<CapabilityDecision> {
-  return {
-    rag: output.rag === "yes",
-    webSearch: output.webSearch === "yes",
-    webFetch: output.webFetch === "yes",
-    memoryRead: output.memoryRead === "yes",
-    memoryWrite: output.memoryWrite === "yes",
-    memoryDelete: output.memoryDelete === "yes",
-    routineProposal: output.routineProposal === "yes",
-    userContext: output.userContext === "yes",
-    voiceOutput: output.voiceOutput === "yes",
-  };
+  const accepted: Partial<CapabilityDecision> = {};
+  for (const capability of classifierCapabilities) {
+    const vote = output[capability];
+    if (!vote || vote.confidence < CAPABILITY_CLASSIFIER_MIN_CONFIDENCE)
+      continue;
+    if (vote.decision === "yes") accepted[capability] = true;
+    if (vote.decision === "no") accepted[capability] = false;
+  }
+  return accepted;
 }
 
 export async function classifyCapabilities({
@@ -188,15 +179,9 @@ export async function classifyCapabilities({
     }
 
     const parsed = capabilityClassifierSchema.safeParse(result.output);
-    if (
-      !parsed.success ||
-      parsed.data.confidence < CAPABILITY_CLASSIFIER_MIN_CONFIDENCE ||
-      hasUncertainCapability(parsed.data)
-    ) {
-      return null;
-    }
-
-    return toClassifierDecision(parsed.data);
+    if (!parsed.success) return null;
+    const accepted = acceptCapabilityVotes(parsed.data);
+    return Object.keys(accepted).length > 0 ? accepted : null;
   } catch (error) {
     abortSignal?.throwIfAborted();
     capabilityLogger.warn(

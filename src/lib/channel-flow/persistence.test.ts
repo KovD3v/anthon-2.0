@@ -9,7 +9,9 @@ const mocks = vi.hoisted(() => ({
   voiceGenerationJobCreate: vi.fn(),
   chatUpdate: vi.fn(),
   incrementUsage: vi.fn(),
-  extractAndSaveMemories: vi.fn(),
+  consolidateTurnMemory: vi.fn(),
+  indexConversationWindow: vi.fn(),
+  markMemoryApprovalPresented: vi.fn(),
   captureAiTurnTrace: vi.fn(),
   revalidateTag: vi.fn(),
 }));
@@ -35,8 +37,14 @@ vi.mock("@/lib/rate-limit", () => ({
   incrementUsage: mocks.incrementUsage,
 }));
 
-vi.mock("@/lib/ai/memory-extractor", () => ({
-  extractAndSaveMemories: mocks.extractAndSaveMemories,
+vi.mock("@/lib/ai/memory-consolidator", () => ({
+  consolidateTurnMemory: mocks.consolidateTurnMemory,
+}));
+vi.mock("@/lib/ai/conversation-index", () => ({
+  indexConversationWindow: mocks.indexConversationWindow,
+}));
+vi.mock("@/lib/ai/memory-approval", () => ({
+  markMemoryApprovalPresented: mocks.markMemoryApprovalPresented,
 }));
 
 vi.mock("@/lib/ai/trace", () => ({
@@ -63,7 +71,9 @@ describe("channel-flow/persistence", () => {
     mocks.voiceGenerationJobCreate.mockReset();
     mocks.chatUpdate.mockReset();
     mocks.incrementUsage.mockReset();
-    mocks.extractAndSaveMemories.mockReset();
+    mocks.consolidateTurnMemory.mockReset();
+    mocks.indexConversationWindow.mockReset();
+    mocks.markMemoryApprovalPresented.mockReset();
     mocks.captureAiTurnTrace.mockReset();
     mocks.revalidateTag.mockReset();
 
@@ -84,7 +94,19 @@ describe("channel-flow/persistence", () => {
     mocks.voiceGenerationJobCreate.mockResolvedValue({ id: "voice-job-1" });
     mocks.chatUpdate.mockResolvedValue({});
     mocks.incrementUsage.mockResolvedValue({});
-    mocks.extractAndSaveMemories.mockResolvedValue(undefined);
+    mocks.consolidateTurnMemory.mockResolvedValue({
+      considered: 0,
+      persisted: 0,
+      approvalsCreated: 0,
+      rejected: 0,
+    });
+    mocks.indexConversationWindow.mockResolvedValue({
+      status: "indexed",
+      chunkId: "chunk-1",
+    });
+    mocks.markMemoryApprovalPresented.mockResolvedValue({
+      status: "presented",
+    });
     mocks.captureAiTurnTrace.mockResolvedValue({ id: "trace-1" });
   });
 
@@ -147,6 +169,7 @@ describe("channel-flow/persistence", () => {
 
     await persistAssistantOutput({
       userId: "user-1",
+      userMessageId: "inbound-1",
       chatId: "chat-1",
       channel: "WEB",
       text: "assistant",
@@ -177,19 +200,21 @@ describe("channel-flow/persistence", () => {
     });
     expect(mocks.incrementUsage).toHaveBeenCalledWith("user-1", 5, 8, 0.02, 1);
     expect(mocks.revalidateTag).toHaveBeenCalledTimes(2);
-    expect(mocks.extractAndSaveMemories).toHaveBeenCalledWith(
-      "user-1",
-      "hello",
-      "assistant",
-    );
+    expect(mocks.consolidateTurnMemory).toHaveBeenCalledWith({
+      userId: "user-1",
+      inboundMessageId: "inbound-1",
+      userText: "hello",
+      assistantText: "assistant",
+    });
     expect(waitUntil).toHaveBeenCalledTimes(1);
   });
 
-  it("does not schedule the legacy extractor for an agentic turn with no memory tool call", async () => {
+  it("schedules consolidation for an agentic turn with no memory tool call", async () => {
     const waitUntil = vi.fn();
 
     await persistAssistantOutput({
       userId: "user-1",
+      userMessageId: "inbound-agentic",
       chatId: "chat-1",
       channel: "WEB",
       text: "assistant",
@@ -211,8 +236,79 @@ describe("channel-flow/persistence", () => {
       waitUntil,
     });
 
-    expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
-    expect(waitUntil).not.toHaveBeenCalled();
+    expect(mocks.consolidateTurnMemory).toHaveBeenCalledWith({
+      userId: "user-1",
+      inboundMessageId: "inbound-agentic",
+      userText: "I train on Tuesday and Thursday.",
+      assistantText: "assistant",
+    });
+    expect(waitUntil).toHaveBeenCalledTimes(1);
+  });
+
+  it("schedules conversation indexing after a linked turn is persisted", async () => {
+    const waitUntil = vi.fn();
+
+    await persistAssistantOutput({
+      userId: "user-1",
+      userMessageId: "inbound-index",
+      conversationThreadId: "thread-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "ricordi la finale?",
+      metrics: {
+        model: "test-model",
+        inputTokens: 5,
+        outputTokens: 8,
+        reasoningTokens: 0,
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0,
+        generationTimeMs: 10,
+        reasoningTimeMs: 0,
+      },
+      allowMemoryExtraction: false,
+      waitUntil,
+    });
+
+    expect(mocks.indexConversationWindow).toHaveBeenCalledWith({
+      userId: "user-1",
+      conversationThreadId: "thread-1",
+      throughMessageId: "msg-1",
+    });
+    expect(waitUntil).toHaveBeenCalledTimes(2);
+  });
+
+  it("links a forced sensitive-memory presentation to the persisted assistant", async () => {
+    await persistAssistantOutput({
+      userId: "user-1",
+      userMessageId: "inbound-presentation",
+      conversationThreadId: "thread-1",
+      channel: "WEB",
+      text: "Vuoi che tenga a mente questa informazione?",
+      userMessageText: "Continuiamo.",
+      metrics: {
+        model: "test-model",
+        inputTokens: 5,
+        outputTokens: 8,
+        reasoningTokens: 0,
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.002,
+        generationTimeMs: 50,
+        reasoningTimeMs: 0,
+      },
+      allowMemoryExtraction: true,
+      presentedMemoryApprovalId: "approval-1",
+    });
+
+    expect(mocks.markMemoryApprovalPresented).toHaveBeenCalledWith({
+      userId: "user-1",
+      approvalId: "approval-1",
+      presentationInboundMessageId: "inbound-presentation",
+      presentationAssistantMessageId: "msg-1",
+    });
   });
 
   it("does not infer planner mode from process state during persistence", async () => {
@@ -220,6 +316,7 @@ describe("channel-flow/persistence", () => {
 
     await persistAssistantOutput({
       userId: "user-1",
+      userMessageId: "inbound-legacy",
       channel: "WEB",
       text: "assistant",
       userMessageText: "I train on Tuesday and Thursday.",
@@ -238,7 +335,7 @@ describe("channel-flow/persistence", () => {
       allowMemoryExtraction: true,
     });
 
-    expect(mocks.extractAndSaveMemories).toHaveBeenCalledTimes(1);
+    expect(mocks.consolidateTurnMemory).toHaveBeenCalledTimes(1);
   });
 
   it("persists only completed capabilities allowed by the immutable agentic decision", async () => {
@@ -899,7 +996,7 @@ describe("channel-flow/persistence", () => {
     });
 
     expect(mocks.chatUpdate).not.toHaveBeenCalled();
-    expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
+    expect(mocks.consolidateTurnMemory).not.toHaveBeenCalled();
   });
 
   it("returns the assistant message when chat timestamp update fails after create", async () => {
@@ -938,6 +1035,7 @@ describe("channel-flow/persistence", () => {
 
     const result = await persistAssistantOutput({
       userId: "user-1",
+      userMessageId: "inbound-usage-failure",
       chatId: "chat-1",
       channel: "WEB",
       text: "assistant",
@@ -958,6 +1056,6 @@ describe("channel-flow/persistence", () => {
     });
 
     expect(result).toEqual({ id: "msg-created" });
-    expect(mocks.extractAndSaveMemories).toHaveBeenCalledTimes(1);
+    expect(mocks.consolidateTurnMemory).toHaveBeenCalledTimes(1);
   });
 });
