@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma";
 import type { CapabilityDecision } from "@/lib/ai/capability-arbitration";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
+import type { MemoryRecallDecision } from "@/lib/ai/memory-recall-release";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
 
 export type ChannelKind = "WEB" | "WEB_GUEST" | "TELEGRAM" | "WHATSAPP";
@@ -52,6 +53,7 @@ export interface InboundContext {
       capabilityDecision: CapabilityDecision;
       capabilityPlannerMode: "legacy" | "agentic";
     };
+    memoryRecallDecision?: MemoryRecallDecision;
   };
   execution?: {
     mode?: "stream" | "text";
@@ -84,6 +86,7 @@ export interface RunChannelFlowResult {
   capabilityMetadataValid: boolean;
   capabilityDecision?: CapabilityDecision;
   capabilityPlannerMode?: "legacy" | "agentic";
+  memoryRecallDecision?: MemoryRecallDecision;
   usageReservationId?: string;
   usageReservationClaimToken?: string;
   usageAlreadyReconciled?: boolean;
