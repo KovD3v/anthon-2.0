@@ -759,6 +759,7 @@ model ModelExperimentPair {
   countryCode           String                    @db.VarChar(2)
   promptMode            String?
   capabilityPlannerMode CapabilityPlannerMode     @default(legacy)
+  turnDecision          Json?
   exposedAt          DateTime?
   readyAt            DateTime?
   resolvedAt         DateTime?
@@ -916,6 +917,7 @@ model MessageMetrics {
   ragChunksCount Int?
 
   providerMetadata Json?
+  executionRoute  Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

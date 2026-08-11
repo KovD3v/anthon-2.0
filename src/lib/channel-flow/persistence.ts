@@ -6,6 +6,11 @@ import {
   normalizePreDeliveryCapabilityUsage,
 } from "@/lib/ai/capability-usage";
 import { indexConversationWindow } from "@/lib/ai/conversation-index";
+import {
+  type ExecutionRouteTrace,
+  parseExecutionRouteTrace,
+} from "@/lib/ai/execution-route-trace";
+import type { TurnDecision } from "@/lib/ai/execution-routing";
 import { markMemoryApprovalPresented } from "@/lib/ai/memory-approval";
 import { consolidateTurnMemory } from "@/lib/ai/memory-consolidator";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
@@ -14,7 +19,12 @@ import {
   redactTraceMetadata,
   redactTracePayload,
 } from "@/lib/ai/tool-privacy";
-import { captureAiTurnTrace } from "@/lib/ai/trace";
+import {
+  buildExecutionRoutingSummary,
+  buildExecutionRoutingTraceMetadata,
+  captureAiTurnTrace,
+} from "@/lib/ai/trace";
+import { serializeSafeTurnDecision } from "@/lib/ai/turn-decision-metadata";
 import {
   getRoutineProposalFromToolCalls,
   storedRoutineProposalSchema,
@@ -48,6 +58,7 @@ function scheduleBackground(
 function buildAssistantMetadata(
   metadata: Prisma.InputJsonValue | undefined,
   metrics: PersistAssistantOutputInput["metrics"],
+  executionRoute: ExecutionRouteTrace | null,
 ): Prisma.InputJsonValue | undefined {
   const aiMetrics = {
     ...(metrics.toolCallCount !== undefined
@@ -89,6 +100,9 @@ function buildAssistantMetadata(
           },
         }
       : {}),
+    ...(executionRoute
+      ? { executionRouting: buildExecutionRoutingSummary(executionRoute) }
+      : {}),
   };
 
   if (Object.keys(aiMetrics).length === 0) {
@@ -119,6 +133,7 @@ function buildAssistantMetadata(
 function buildMessageMetricsData(
   messageId: string,
   metrics: PersistAssistantOutputInput["metrics"],
+  executionRoute: ExecutionRouteTrace | null,
 ) {
   return {
     messageId,
@@ -136,7 +151,26 @@ function buildMessageMetricsData(
     toolTiming: metrics.toolTiming as Prisma.InputJsonValue | undefined,
     ragUsed: metrics.ragUsed,
     ragChunksCount: metrics.ragChunksCount,
+    ...(executionRoute
+      ? { executionRoute: executionRoute as Prisma.InputJsonValue }
+      : {}),
   };
+}
+
+function safeTracePayload(
+  tracePayload: Record<string, unknown>,
+): Record<string, unknown> {
+  const { turnDecision, ...payload } = tracePayload;
+  if (!turnDecision) return payload;
+
+  try {
+    return {
+      ...payload,
+      turnDecision: serializeSafeTurnDecision(turnDecision as TurnDecision),
+    };
+  } catch {
+    return payload;
+  }
 }
 
 export async function markVoiceCapabilityDelivered(messageId: string) {
@@ -228,7 +262,14 @@ export async function persistAssistantOutput({
         ),
       }
     : metrics;
-  const assistantMetadata = buildAssistantMetadata(metadata, persistedMetrics);
+  const executionRoute = metrics.executionRoute
+    ? parseExecutionRouteTrace(metrics.executionRoute)
+    : null;
+  const assistantMetadata = buildAssistantMetadata(
+    metadata,
+    persistedMetrics,
+    executionRoute,
+  );
   const directRoutineProposal = storedRoutineProposalSchema.safeParse(
     metrics.routineProposal,
   );
@@ -312,7 +353,7 @@ export async function persistAssistantOutput({
     });
 
     await tx.messageMetrics.create({
-      data: buildMessageMetricsData(createdMessage.id, metrics),
+      data: buildMessageMetricsData(createdMessage.id, metrics, executionRoute),
     });
 
     // The message and its voice job must either both exist or neither exists.
@@ -457,11 +498,17 @@ export async function persistAssistantOutput({
           outputTokens: metrics.outputTokens,
           costUsd: metrics.costUsd,
           generationTimeMs: metrics.generationTimeMs,
+          ...(executionRoute
+            ? {
+                executionRouting:
+                  buildExecutionRoutingTraceMetadata(executionRoute),
+              }
+            : {}),
         }) as Record<string, unknown>,
         payload: redactTracePayload({
           userMessageText,
           assistantText: text,
-          ...metrics.tracePayload,
+          ...safeTracePayload(metrics.tracePayload),
         }) as Record<string, unknown>,
       }),
     );

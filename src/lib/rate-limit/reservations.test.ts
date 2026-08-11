@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   reservationUpdate: vi.fn(),
   dailyUsageFindUnique: vi.fn(),
   dailyUsageUpsert: vi.fn(),
+  arbitrateTurn: vi.fn(),
 }));
 
 const tx = {
@@ -38,8 +39,13 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/ai/turn-arbitration", () => ({
+  arbitrateTurn: mocks.arbitrateTurn,
+}));
+
 import type { CapabilityDecision } from "@/lib/ai/capability-arbitration";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
+import type { ExecutionRouteTrace } from "@/lib/ai/execution-route-trace";
 import {
   reconcileAiUsageForRecovery,
   reconcileAiUsageInTransaction,
@@ -72,6 +78,51 @@ const metrics = {
   generationTimeMs: 250,
   reasoningTimeMs: 50,
 } as unknown as AIMetrics;
+
+function escalatedExecutionRoute(): ExecutionRouteTrace {
+  return {
+    schemaVersion: 1,
+    routingMode: "active",
+    policyVersion: 1,
+    classifierVersion: 1,
+    eligibleProfile: "light",
+    plannedProfile: "light",
+    executedProfile: "standard",
+    taskKind: "rewrite",
+    decisionSource: "classifier",
+    confidenceBucket: "high",
+    reasonCodes: ["classifier_light", "task_allowlisted"],
+    classificationLatencyMs: 14,
+    routingOverheadMs: 3,
+    totalRequestTimeToFirstTokenMs: 210,
+    attempts: [
+      {
+        sequence: 1,
+        profile: "light",
+        outcome: "failed_before_stream",
+        generationTimeMs: 40,
+        inputTokens: 10,
+        costUsd: 0.001,
+      },
+      {
+        sequence: 2,
+        profile: "standard",
+        outcome: "completed",
+        timeToFirstTokenMs: 150,
+        generationTimeMs: 300,
+        inputTokens: 30,
+        outputTokens: 20,
+        reasoningTokens: 4,
+        costUsd: 0.006,
+      },
+    ],
+    escalation: {
+      from: "light",
+      to: "standard",
+      reason: "empty_response",
+    },
+  };
+}
 
 function reservation(overrides: Record<string, unknown> = {}) {
   return {
@@ -301,6 +352,90 @@ describe("AI usage reservations", () => {
     expect(result.recovery.capabilityMetadataValid).toBe(true);
     expect(result.recovery.capabilityPlannerMode).toBe("legacy");
     expect(result.recovery.capabilityDecision).toBeUndefined();
+    expect(result.recovery.executionMetadataValid).toBe(false);
+    expect(result.recovery.executionRoute).toBeUndefined();
+    expect(result.recovery.executionRoute?.executedProfile ?? "standard").toBe(
+      "standard",
+    );
+  });
+
+  it("restores a valid route as independently validated frozen metadata", async () => {
+    const executionRoute = escalatedExecutionRoute();
+    mocks.reservationFindUnique.mockResolvedValue(
+      reservation({
+        status: "RECONCILED",
+        recoveryText: "saved provider output",
+        recoveryMetrics: {
+          ...metrics,
+          executionRoute,
+        },
+      }),
+    );
+
+    const result = await reserveAiUsage({
+      userId: "user-1",
+      requestKey: "message-1",
+      limits: finiteLimits,
+    });
+
+    if (!result.allowed || !result.recovery) {
+      throw new Error("Expected a recovered result");
+    }
+    expect(result.recovery.capabilityMetadataValid).toBe(false);
+    expect(result.recovery.executionMetadataValid).toBe(true);
+    expect(result.recovery.executionRoute).toEqual(executionRoute);
+    expect(Object.isFrozen(result.recovery.executionRoute)).toBe(true);
+    expect(Object.isFrozen(result.recovery.executionRoute?.reasonCodes)).toBe(
+      true,
+    );
+    expect(Object.isFrozen(result.recovery.executionRoute?.attempts)).toBe(
+      true,
+    );
+    expect(Object.isFrozen(result.recovery.executionRoute?.attempts[0])).toBe(
+      true,
+    );
+    expect(Object.isFrozen(result.recovery.executionRoute?.escalation)).toBe(
+      true,
+    );
+    expect(result.recovery.metrics).not.toHaveProperty("executionRoute");
+    expect(mocks.arbitrateTurn).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["profile", { executedProfile: "turbo" }],
+    ["version", { schemaVersion: 2 }],
+    ["attempt", { attempts: [] }],
+    ["reason code", { reasonCodes: ["raw_classifier_prose"] }],
+  ])("rejects malformed execution %s metadata", async (_label, override) => {
+    mocks.reservationFindUnique.mockResolvedValue(
+      reservation({
+        status: "RECONCILED",
+        recoveryText: "saved provider output",
+        recoveryMetrics: {
+          ...metrics,
+          capabilityPlanner: { mode: "legacy" },
+          executionRoute: {
+            ...escalatedExecutionRoute(),
+            ...override,
+          },
+        },
+      }),
+    );
+
+    const result = await reserveAiUsage({
+      userId: "user-1",
+      requestKey: "message-1",
+      limits: finiteLimits,
+    });
+
+    if (!result.allowed || !result.recovery) {
+      throw new Error("Expected a recovered result");
+    }
+    expect(result.recovery.capabilityMetadataValid).toBe(true);
+    expect(result.recovery.executionMetadataValid).toBe(false);
+    expect(result.recovery.executionRoute).toBeUndefined();
+    expect(result.recovery.metrics).not.toHaveProperty("executionRoute");
+    expect(mocks.arbitrateTurn).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -553,6 +688,15 @@ describe("AI usage reservations", () => {
       source: "mixed" as const,
       reasonCodes: [],
     } satisfies CapabilityDecision;
+    const executionRoute = escalatedExecutionRoute();
+    const routedMetrics = {
+      ...metrics,
+      inputTokens: 40,
+      outputTokens: 20,
+      reasoningTokens: 4,
+      costUsd: 0.007,
+      executionRoute,
+    } satisfies AIMetrics;
 
     await expect(
       reconcileAiUsageForRecovery({
@@ -560,7 +704,7 @@ describe("AI usage reservations", () => {
         claimToken: "claim-current",
         userId: "user-1",
         text: longText,
-        metrics,
+        metrics: routedMetrics,
         capabilityPlannerMode: "agentic",
         capabilityDecision,
       }),
@@ -571,7 +715,7 @@ describe("AI usage reservations", () => {
         claimToken: "claim-current",
         userId: "user-1",
         text: longText,
-        metrics,
+        metrics: routedMetrics,
         capabilityPlannerMode: "agentic",
         capabilityDecision,
       }),
@@ -582,8 +726,8 @@ describe("AI usage reservations", () => {
     expect(persisted.recoveryText).toHaveLength(128 * 1024);
     expect(persisted.recoveryMetrics).toMatchObject({
       model: "test/model",
-      inputTokens: 12,
-      outputTokens: 7,
+      inputTokens: 40,
+      outputTokens: 20,
       toolCalls: null,
       capabilityPlanner: {
         mode: "agentic",
@@ -604,6 +748,32 @@ describe("AI usage reservations", () => {
       persisted.recoveryMetrics.capabilityPlanner.decision,
     ).not.toHaveProperty("memoryDeleteTarget");
     expect(persisted.recoveryExpiresAt).toBeInstanceOf(Date);
+
+    expect(persisted.recoveryMetrics).toMatchObject({
+      inputTokens: 40,
+      outputTokens: 20,
+      reasoningTokens: 4,
+      costUsd: 0.007,
+      executionRoute,
+    });
+
+    const recovered = await reserveAiUsage({
+      userId: "user-1",
+      requestKey: "message-1",
+      limits: finiteLimits,
+    });
+    if (!recovered.allowed || !recovered.recovery) {
+      throw new Error("Expected routed recovery");
+    }
+    expect(recovered.recovery.metrics).toMatchObject({
+      inputTokens: 40,
+      outputTokens: 20,
+      reasoningTokens: 4,
+      costUsd: 0.007,
+    });
+    expect(recovered.recovery.executionRoute?.attempts).toHaveLength(2);
+    expect(recovered.recovery.executionMetadataValid).toBe(true);
+    expect(mocks.arbitrateTurn).not.toHaveBeenCalled();
   });
 
   it("releases only a currently claimed reservation", async () => {

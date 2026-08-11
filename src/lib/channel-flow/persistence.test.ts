@@ -47,7 +47,8 @@ vi.mock("@/lib/ai/memory-approval", () => ({
   markMemoryApprovalPresented: mocks.markMemoryApprovalPresented,
 }));
 
-vi.mock("@/lib/ai/trace", () => ({
+vi.mock("@/lib/ai/trace", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ai/trace")>()),
   captureAiTurnTrace: mocks.captureAiTurnTrace,
 }));
 
@@ -55,10 +56,56 @@ vi.mock("next/cache", () => ({
   revalidateTag: mocks.revalidateTag,
 }));
 
+import type { ExecutionRouteTrace } from "@/lib/ai/execution-route-trace";
 import {
   markVoiceCapabilityDelivered,
   persistAssistantOutput,
 } from "./persistence";
+
+function escalatedExecutionRoute(): ExecutionRouteTrace {
+  return {
+    schemaVersion: 1,
+    routingMode: "active",
+    policyVersion: 1,
+    classifierVersion: 1,
+    eligibleProfile: "light",
+    plannedProfile: "light",
+    executedProfile: "standard",
+    taskKind: "rewrite",
+    decisionSource: "classifier",
+    confidenceBucket: "high",
+    reasonCodes: ["classifier_light", "task_allowlisted"],
+    classificationLatencyMs: 14,
+    routingOverheadMs: 3,
+    totalRequestTimeToFirstTokenMs: 210,
+    attempts: [
+      {
+        sequence: 1,
+        profile: "light",
+        outcome: "failed_before_stream",
+        generationTimeMs: 40,
+        inputTokens: 10,
+        costUsd: 0.001,
+      },
+      {
+        sequence: 2,
+        profile: "standard",
+        outcome: "completed",
+        timeToFirstTokenMs: 150,
+        generationTimeMs: 300,
+        inputTokens: 30,
+        outputTokens: 20,
+        reasoningTokens: 4,
+        costUsd: 0.006,
+      },
+    ],
+    escalation: {
+      from: "light",
+      to: "standard",
+      reason: "empty_response",
+    },
+  };
+}
 
 describe("channel-flow/persistence", () => {
   beforeEach(() => {
@@ -516,6 +563,82 @@ describe("channel-flow/persistence", () => {
     );
   });
 
+  it("stores the full validated route only in metrics and bounded summaries elsewhere", async () => {
+    const executionRoute = escalatedExecutionRoute();
+    const waitUntil = vi.fn();
+
+    await persistAssistantOutput({
+      userId: "user-1",
+      userMessageId: "inbound-route",
+      conversationThreadId: "thread-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "Riscrivi questo testo.",
+      metrics: {
+        model: "test-model",
+        inputTokens: 40,
+        outputTokens: 20,
+        reasoningTokens: 4,
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.007,
+        generationTimeMs: 300,
+        reasoningTimeMs: 20,
+        executionRoute,
+        turnPlan: { execution: { profile: "light" } },
+        tracePayload: { toolCalls: [] },
+      },
+      metadata: { source: "test" },
+      waitUntil,
+    });
+
+    expect(mocks.messageMetricsCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ executionRoute }),
+    });
+    expect(mocks.messageCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        metadata: {
+          source: "test",
+          ai: {
+            executionRouting: {
+              eligibleProfile: "light",
+              plannedProfile: "light",
+              executedProfile: "standard",
+              taskKind: "rewrite",
+              policyVersion: 1,
+              attemptCount: 2,
+              escalated: true,
+            },
+          },
+        },
+      }),
+    });
+    const assistantMetadata =
+      mocks.messageCreate.mock.calls[0]?.[0].data.metadata.ai.executionRouting;
+    expect(assistantMetadata).not.toHaveProperty("attempts");
+    expect(assistantMetadata).not.toHaveProperty("reasonCodes");
+    expect(assistantMetadata).not.toHaveProperty("routingOverheadMs");
+    expect(mocks.captureAiTurnTrace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          executionRouting: {
+            eligibleProfile: "light",
+            plannedProfile: "light",
+            executedProfile: "standard",
+            taskKind: "rewrite",
+            policyVersion: 1,
+            attemptCount: 2,
+            escalated: true,
+            totalRequestTimeToFirstTokenMs: 210,
+            routingOverheadMs: 3,
+            escalationReason: "empty_response",
+          },
+        }),
+      }),
+    );
+  });
+
   it("removes exact memory targets and tool payloads from trace metadata", async () => {
     const waitUntil = vi.fn();
 
@@ -541,6 +664,35 @@ describe("channel-flow/persistence", () => {
           memoryDeleteTarget: "training_schedule",
         },
         tracePayload: {
+          turnDecision: {
+            version: 1,
+            capabilities: {
+              rag: false,
+              webSearch: false,
+              webFetch: false,
+              memoryRead: false,
+              memoryWrite: false,
+              memoryDelete: true,
+              memoryDeleteTarget: "training_schedule",
+              routineProposal: false,
+              userContext: false,
+              voiceOutput: false,
+              source: "mixed",
+              reasonCodes: ["delete_requires_exact_target"],
+              rawClassifierOutput: "private classifier output",
+            },
+            execution: {
+              eligibleProfile: "standard",
+              taskKind: "coaching",
+              contextDependency: "deep",
+              source: "mixed",
+              confidenceBucket: "high",
+              reasonCodes: ["capability_required", "deep_context"],
+              policyVersion: 1,
+              classifierVersion: 1,
+              classifierProse: "private classifier prose",
+            },
+          },
           toolCalls: [
             {
               name: "deleteMemory",
@@ -572,6 +724,12 @@ describe("channel-flow/persistence", () => {
     expect(
       JSON.stringify(mocks.captureAiTurnTrace.mock.calls[0]),
     ).not.toContain("memory-1");
+    expect(
+      JSON.stringify(mocks.captureAiTurnTrace.mock.calls[0]),
+    ).not.toContain("private classifier output");
+    expect(
+      JSON.stringify(mocks.captureAiTurnTrace.mock.calls[0]),
+    ).not.toContain("private classifier prose");
   });
 
   it("persists a validated routine proposal after the assistant text", async () => {

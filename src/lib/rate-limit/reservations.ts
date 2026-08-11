@@ -6,6 +6,10 @@ import {
 } from "@/lib/ai/capability-arbitration";
 import { normalizePreDeliveryCapabilityUsage } from "@/lib/ai/capability-usage";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
+import {
+  type ExecutionRouteTrace,
+  parseExecutionRouteTrace,
+} from "@/lib/ai/execution-route-trace";
 import type { MemoryRecallDecision } from "@/lib/ai/memory-recall-release";
 import { prisma } from "@/lib/db";
 import type { RateLimits } from "./types";
@@ -25,6 +29,8 @@ export interface AiUsageRecovery {
   text: string;
   metrics: AIMetrics;
   capabilityMetadataValid: boolean;
+  executionMetadataValid: boolean;
+  executionRoute?: ExecutionRouteTrace;
   capabilityPlannerMode?: "legacy" | "agentic";
   capabilityDecision?: CapabilityDecision;
   memoryRecallDecision?: MemoryRecallDecision;
@@ -179,10 +185,12 @@ function parseRecovery(
     providerMetadata: _providerMetadata,
     reasoningContent: _reasoningContent,
     capabilityPlanner: rawCapabilityPlanner,
+    executionRoute: rawExecutionRoute,
     ...safeMetrics
   } = metrics as Record<string, unknown>;
   const capabilityPlanner =
     parseRecoveryCapabilityPlanner(rawCapabilityPlanner);
+  const executionRoute = parseFrozenExecutionRoute(rawExecutionRoute);
   return {
     text,
     metrics: {
@@ -192,10 +200,30 @@ function parseRecovery(
       ),
     } as unknown as AIMetrics,
     capabilityMetadataValid: capabilityPlanner !== undefined,
+    executionMetadataValid: executionRoute !== undefined,
+    executionRoute,
     capabilityPlannerMode: capabilityPlanner?.mode,
     capabilityDecision: capabilityPlanner?.decision,
     memoryRecallDecision: parseRecoveryMemoryRecall(safeMetrics.memoryRecall),
   };
+}
+
+function parseFrozenExecutionRoute(
+  value: unknown,
+): ExecutionRouteTrace | undefined {
+  const parsed = parseExecutionRouteTrace(value);
+  if (!parsed) return undefined;
+
+  return Object.freeze({
+    ...parsed,
+    reasonCodes: Object.freeze([...parsed.reasonCodes]),
+    attempts: Object.freeze(
+      parsed.attempts.map((attempt) => Object.freeze({ ...attempt })),
+    ),
+    ...(parsed.escalation
+      ? { escalation: Object.freeze({ ...parsed.escalation }) }
+      : {}),
+  }) as unknown as ExecutionRouteTrace;
 }
 
 function parseRecoveryMemoryRecall(
@@ -641,6 +669,9 @@ function recoverableMetrics(
           : {}),
       }
     : undefined;
+  const executionRoute = metrics.executionRoute
+    ? parseExecutionRouteTrace(metrics.executionRoute)
+    : null;
   const minimal = {
     model: metrics.model,
     provider: metrics.provider,
@@ -659,6 +690,7 @@ function recoverableMetrics(
     costUsd: metrics.costUsd,
     generationTimeMs: metrics.generationTimeMs,
     reasoningTimeMs: metrics.reasoningTimeMs,
+    ...(executionRoute ? { executionRoute } : {}),
     ...(capabilityPlanner ? { capabilityPlanner } : {}),
     ...(metrics.memoryRecall && memoryRecallDecision
       ? {
