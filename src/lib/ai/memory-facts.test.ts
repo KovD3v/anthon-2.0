@@ -13,6 +13,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     memory: {
       findMany: mocks.memoryFindMany,
+      findFirst: mocks.memoryFindFirst,
     },
     $transaction: vi.fn(async (operation) =>
       operation({
@@ -31,6 +32,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import {
+  findActiveFactIdByKey,
   forgetFact,
   invalidateFactCache,
   recallFacts,
@@ -273,6 +275,23 @@ describe("durable fact recall", () => {
         nextValue: undefined,
         reason: "forget",
       }),
+    });
+  });
+
+  it("resolves an active fact id only inside the authenticated user scope", async () => {
+    mocks.memoryFindFirst.mockResolvedValue({ id: "memory-1" });
+
+    await expect(
+      findActiveFactIdByKey("user-1", "training_schedule"),
+    ).resolves.toBe("memory-1");
+    expect(mocks.memoryFindFirst).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        key: "training_schedule",
+        status: "ACTIVE",
+        OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }],
+      },
+      select: { id: true },
     });
   });
 });

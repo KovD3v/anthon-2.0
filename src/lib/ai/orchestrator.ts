@@ -743,7 +743,8 @@ function createToolsWithContext(
       ...(toolPlan.memoryDelete
         ? { deleteTargetKey: toolPlan.memoryDeleteTarget }
         : {}),
-      ...(toolPlan.memoryWrite && options.userMessageId
+      ...((toolPlan.memoryWrite || toolPlan.memoryDelete) &&
+      options.userMessageId
         ? { sourceInboundMessageId: options.userMessageId }
         : {}),
       ...(toolPlan.memoryApprovalResolve &&

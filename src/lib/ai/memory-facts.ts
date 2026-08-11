@@ -175,6 +175,22 @@ export async function recallFacts({
   }
 }
 
+export async function findActiveFactIdByKey(
+  userId: string,
+  key: string,
+): Promise<string | null> {
+  const fact = await prisma.memory.findFirst({
+    where: {
+      userId,
+      key,
+      status: "ACTIVE",
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
+    select: { id: true },
+  });
+  return fact?.id ?? null;
+}
+
 function storedValue(input: FactMutationInput, timestamp: string) {
   return {
     content: input.value.trim(),

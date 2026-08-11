@@ -3014,6 +3014,7 @@ describe("ai/orchestrator", () => {
     await streamChat({
       userId: "user-1",
       chatId: "chat-agentic-legacy-composition",
+      userMessageId: "inbound-delete",
       userMessage:
         "Dimentica questa informazione, cerca online fonti e confrontale con i documenti caricati; poi dammi una routine pratica.",
       resolvedMemoryTarget: "training_goal",
@@ -3066,6 +3067,7 @@ describe("ai/orchestrator", () => {
     });
     expect(mocks.createMemoryTools).toHaveBeenCalledWith("user-1", {
       deleteTargetKey: "training_goal",
+      sourceInboundMessageId: "inbound-delete",
     });
 
     await streamInput.onEnd({
