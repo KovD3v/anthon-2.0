@@ -4,10 +4,14 @@ import { m } from "framer-motion";
 import {
   ChevronDown,
   ChevronUp,
+  CircleAlert,
   Code,
   FileText,
+  Flame,
   HelpCircle,
   Lightbulb,
+  MessageCircle,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { useState } from "react";
@@ -19,7 +23,16 @@ interface SuggestedAction {
   id: string;
   label: string;
   prompt: string;
-  icon?: "lightbulb" | "code" | "document" | "sparkles" | "help";
+  icon?:
+    | "lightbulb"
+    | "code"
+    | "document"
+    | "sparkles"
+    | "help"
+    | "alert"
+    | "confidence"
+    | "flame"
+    | "message";
   category?: string;
 }
 
@@ -52,35 +65,35 @@ interface SuggestedActionsProps {
  */
 const DEFAULT_SUGGESTIONS: SuggestedAction[] = [
   {
-    id: "clarify",
-    label: "Aiutami a capire meglio questo concetto",
+    id: "anxiety",
+    label: "Ansia, pressione o paura di sbagliare",
     prompt:
-      "Puoi spiegarmelo in termini più semplici? Vorrei comprendere meglio il concetto di base.",
-    icon: "help",
-    category: "Comprensione",
+      "Sto vivendo ansia, pressione o paura di sbagliare. Aiutami a gestire tensioni, giudizio e pensieri negativi.",
+    icon: "alert",
+    category: "Gestisci tensioni, giudizio e pensieri negativi",
   },
   {
-    id: "example",
-    label: "Dammi un esempio",
-    prompt: "Puoi farmi un esempio concreto di come funziona nella pratica?",
-    icon: "lightbulb",
-    category: "Esempi",
+    id: "confidence",
+    label: "Fiducia e sicurezza mentale",
+    prompt:
+      "Voglio lavorare sulla mia fiducia e sicurezza mentale. Aiutami a ritrovare convinzione e sicurezza in campo.",
+    icon: "confidence",
+    category: "Ritrova convinzione e sicurezza in campo",
   },
   {
-    id: "action",
-    label: "Cosa dovrei fare dopo?",
+    id: "important-match",
+    label: "Preparati a una partita importante",
     prompt:
-      "In base a quanto abbiamo discusso, quale azione specifica dovrei intraprendere successivamente?",
-    icon: "sparkles",
-    category: "Prossimo passo",
+      "Ho una partita importante in arrivo. Aiutami ad arrivare al momento che conta lucido e pronto.",
+    icon: "flame",
+    category: "Arriva al momento che conta lucido e pronto",
   },
   {
-    id: "deeper",
-    label: "Approfondisci questo argomento",
-    prompt:
-      "Vorrei esplorare questo argomento più a fondo. Quali aspetti dovrei considerare?",
-    icon: "document",
-    category: "Approfondimento",
+    id: "other",
+    label: "Voglio parlarti di altro",
+    prompt: "Voglio parlarti di altro. Ti racconto cosa sta succedendo.",
+    icon: "message",
+    category: "Raccontami cosa sta succedendo",
   },
 ];
 
@@ -263,12 +276,20 @@ function SuggestionCard({
  */
 function getIcon(icon: SuggestedAction["icon"], className: string) {
   switch (icon) {
+    case "alert":
+      return <CircleAlert className={className} />;
     case "lightbulb":
       return <Lightbulb className={className} />;
     case "code":
       return <Code className={className} />;
     case "document":
       return <FileText className={className} />;
+    case "confidence":
+      return <ShieldCheck className={className} />;
+    case "flame":
+      return <Flame className={className} />;
+    case "message":
+      return <MessageCircle className={className} />;
     case "sparkles":
       return <Sparkles className={className} />;
     case "help":
