@@ -2,21 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getAuthUser: vi.fn(),
-  findFirst: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
+  getActiveFactById: vi.fn(),
+  reviseFact: vi.fn(),
+  forgetFact: vi.fn(),
   invalidate: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ getAuthUser: mocks.getAuthUser }));
-vi.mock("@/lib/db", () => ({
-  prisma: {
-    memory: {
-      findFirst: mocks.findFirst,
-      update: mocks.update,
-      delete: mocks.delete,
-    },
-  },
+vi.mock("@/lib/db", () => ({ prisma: {} }));
+vi.mock("@/lib/ai/memory-facts", () => ({
+  getActiveFactById: mocks.getActiveFactById,
+  reviseFact: mocks.reviseFact,
+  forgetFact: mocks.forgetFact,
 }));
 vi.mock("@/lib/ai/coaching-context-cache", () => ({
   invalidateCoachingContextPromptCaches: mocks.invalidate,
@@ -39,12 +36,20 @@ describe("/api/coaching-context/memories/[memoryId]", () => {
       user: { id: "user-1" },
       error: null,
     });
-    mocks.findFirst.mockResolvedValue({ id: "memory-1" });
-    mocks.update.mockResolvedValue({
+    mocks.getActiveFactById.mockResolvedValue({
       id: "memory-1",
-      value: { content: "Allenamento martedì" },
+      key: "training_schedule",
+      content: "Allenamento martedì",
       category: "schedule",
+      confidence: 1,
+      origin: "EXPLICIT",
+      observedAt: new Date("2026-07-31T08:00:00.000Z"),
       updatedAt: new Date("2026-07-31T08:00:00.000Z"),
+    });
+    mocks.reviseFact.mockResolvedValue({ status: "saved", factId: "memory-1" });
+    mocks.forgetFact.mockResolvedValue({
+      status: "forgotten",
+      factId: "memory-1",
     });
   });
 
@@ -53,9 +58,9 @@ describe("/api/coaching-context/memories/[memoryId]", () => {
       request({ content: "Allenamento martedì", category: "schedule" }),
       context,
     );
-    expect(mocks.findFirst).toHaveBeenCalledWith({
-      where: { id: "memory-1", userId: "user-1" },
-      select: { id: true },
+    expect(mocks.getActiveFactById).toHaveBeenCalledWith({
+      userId: "user-1",
+      factId: "memory-1",
     });
   });
 
@@ -66,30 +71,28 @@ describe("/api/coaching-context/memories/[memoryId]", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "memory-1" },
-        data: {
-          category: "schedule",
-          value: expect.objectContaining({
-            content: "Allenamento martedì",
-            category: "schedule",
-            confidence: 1,
-          }),
-        },
-      }),
-    );
+    expect(mocks.reviseFact).toHaveBeenCalledWith({
+      userId: "user-1",
+      factId: "memory-1",
+      key: "training_schedule",
+      value: "Allenamento martedì",
+      category: "schedule",
+      confidence: 1,
+      sensitivity: "LOW",
+      origin: "EXPLICIT",
+      dedupeKey: expect.stringMatching(/^coaching-context:revise:/),
+    });
     expect(mocks.invalidate).toHaveBeenCalledWith("user-1");
   });
 
   it("does not reveal a missing or foreign memory", async () => {
-    mocks.findFirst.mockResolvedValue(null);
+    mocks.getActiveFactById.mockResolvedValue(null);
     const response = await PATCH(
       request({ content: "Text", category: "other" }),
       context,
     );
     expect(response.status).toBe(404);
-    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.reviseFact).not.toHaveBeenCalled();
   });
 
   it("rejects empty content and unknown categories", async () => {
@@ -109,7 +112,26 @@ describe("/api/coaching-context/memories/[memoryId]", () => {
       context,
     );
     expect(response.status).toBe(200);
-    expect(mocks.delete).toHaveBeenCalledWith({ where: { id: "memory-1" } });
+    expect(mocks.forgetFact).toHaveBeenCalledWith({
+      userId: "user-1",
+      factId: "memory-1",
+      dedupeKey: "coaching-context:forget:user-1:memory-1",
+    });
     expect(mocks.invalidate).toHaveBeenCalledWith("user-1");
+  });
+
+  it("treats a repeated delete as an idempotent success", async () => {
+    mocks.forgetFact.mockResolvedValue({
+      status: "duplicate",
+      factId: "memory-1",
+    });
+
+    const response = await DELETE(
+      new Request("http://localhost", { method: "DELETE" }),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ deleted: true });
   });
 });

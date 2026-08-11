@@ -1,4 +1,10 @@
+import { createHash } from "node:crypto";
 import { invalidateCoachingContextPromptCaches } from "@/lib/ai/coaching-context-cache";
+import {
+  forgetFact,
+  getActiveFactById,
+  reviseFact,
+} from "@/lib/ai/memory-facts";
 import {
   badRequest,
   jsonOk,
@@ -9,13 +15,25 @@ import {
 import { getAuthUser } from "@/lib/auth";
 import {
   coachingMemoryPatchSchema,
-  projectCoachingMemory,
+  projectCoachingFact,
 } from "@/lib/coaching-context";
-import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 
 const memoryLogger = createLogger("ai");
 type RouteContext = { params: Promise<{ memoryId: string }> };
+
+function revisionDedupeKey(input: {
+  userId: string;
+  memoryId: string;
+  content: string;
+  category: string;
+}) {
+  const digest = createHash("sha256")
+    .update(`${input.category}\0${input.content}`)
+    .digest("hex")
+    .slice(0, 24);
+  return `coaching-context:revise:${input.userId}:${input.memoryId}:${digest}`;
+}
 
 export async function PATCH(request: Request, { params }: RouteContext) {
   try {
@@ -23,9 +41,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     if (error || !user) return unauthorized(error || "Non autorizzato");
     const { memoryId } = await params;
 
-    const memory = await prisma.memory.findFirst({
-      where: { id: memoryId, userId: user.id },
-      select: { id: true },
+    const memory = await getActiveFactById({
+      userId: user.id,
+      factId: memoryId,
     });
     if (!memory) return notFound("Memoria non trovata");
 
@@ -38,27 +56,32 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     const parsed = coachingMemoryPatchSchema.safeParse(body);
     if (!parsed.success) return badRequest("Memoria non valida");
 
-    const now = new Date();
-    const updated = await prisma.memory.update({
-      where: { id: memory.id },
-      data: {
-        category: parsed.data.category,
-        value: {
-          content: parsed.data.content,
-          category: parsed.data.category,
-          confidence: 1,
-          updatedAt: now.toISOString(),
-        },
-      },
-      select: {
-        id: true,
-        value: true,
-        category: true,
-        updatedAt: true,
-      },
+    const result = await reviseFact({
+      userId: user.id,
+      factId: memory.id,
+      key: memory.key,
+      value: parsed.data.content,
+      category: parsed.data.category,
+      confidence: 1,
+      sensitivity: parsed.data.category === "health" ? "HIGH" : "LOW",
+      origin: "EXPLICIT",
+      dedupeKey: revisionDedupeKey({
+        userId: user.id,
+        memoryId: memory.id,
+        ...parsed.data,
+      }),
     });
+    if (result.status === "not_found") return notFound("Memoria non trovata");
+    if (result.status !== "saved" && result.status !== "duplicate") {
+      return serverError("Errore interno del server");
+    }
+    const updated = await getActiveFactById({
+      userId: user.id,
+      factId: memory.id,
+    });
+    if (!updated) return notFound("Memoria non trovata");
     invalidateCoachingContextPromptCaches(user.id);
-    return jsonOk(projectCoachingMemory(updated));
+    return jsonOk(projectCoachingFact(updated));
   } catch (error) {
     memoryLogger.error("memory.patch_error", "Failed to update memory", {
       error,
@@ -73,13 +96,15 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     if (error || !user) return unauthorized(error || "Non autorizzato");
     const { memoryId } = await params;
 
-    const memory = await prisma.memory.findFirst({
-      where: { id: memoryId, userId: user.id },
-      select: { id: true },
+    const result = await forgetFact({
+      userId: user.id,
+      factId: memoryId,
+      dedupeKey: `coaching-context:forget:${user.id}:${memoryId}`,
     });
-    if (!memory) return notFound("Memoria non trovata");
-
-    await prisma.memory.delete({ where: { id: memory.id } });
+    if (result.status === "not_found") return notFound("Memoria non trovata");
+    if (result.status !== "forgotten" && result.status !== "duplicate") {
+      return serverError("Errore interno del server");
+    }
     invalidateCoachingContextPromptCaches(user.id);
     return jsonOk({ deleted: true });
   } catch (error) {

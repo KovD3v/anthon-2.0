@@ -1,19 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
   outputObject: vi.fn(),
-  memoryFindMany: vi.fn(),
-  transaction: vi.fn(),
+  listActiveFacts: vi.fn(),
+  rememberFact: vi.fn(),
+  reviseFact: vi.fn(),
+  forgetFact: vi.fn(),
   invalidateMemoriesForPromptCache: vi.fn(),
   trackSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
   generateText: mocks.generateText,
-  Output: {
-    object: mocks.outputObject,
-  },
+  Output: { object: mocks.outputObject },
 }));
 
 vi.mock("@/lib/ai/providers/openrouter", () => ({
@@ -29,179 +29,195 @@ vi.mock("@/lib/ai/tools/memory", () => ({
   invalidateMemoriesForPromptCache: mocks.invalidateMemoriesForPromptCache,
 }));
 
-vi.mock("@/lib/db", () => ({
-  prisma: {
-    memory: {
-      findMany: mocks.memoryFindMany,
-    },
-    $transaction: mocks.transaction,
-  },
+vi.mock("@/lib/ai/memory-facts", () => ({
+  listActiveFacts: mocks.listActiveFacts,
+  rememberFact: mocks.rememberFact,
+  reviseFact: mocks.reviseFact,
+  forgetFact: mocks.forgetFact,
 }));
 
 import { consolidateMemories } from "./memory-consolidation";
 
 function buildMemories(count: number) {
-  return Array.from({ length: count }, (_, i) => ({
-    id: `memory-${i + 1}`,
-    key: `key-${i + 1}`,
-    value: {
-      content: `content-${i + 1}`,
-      category: "preference",
-      confidence: 0.8,
-    },
+  return Array.from({ length: count }, (_, index) => ({
+    id: `memory-${index + 1}`,
+    key: `detail_${index + 1}`,
+    content: `content-${index + 1}`,
+    category: "other",
+    confidence: 0.8,
+    origin: "INFERRED" as const,
+    observedAt: new Date("2026-02-17T11:00:00.000Z"),
+    updatedAt: new Date("2026-02-17T11:00:00.000Z"),
   }));
 }
 
 describe("maintenance/memory-consolidation", () => {
   beforeEach(() => {
-    mocks.generateText.mockReset();
-    mocks.outputObject.mockReset();
-    mocks.memoryFindMany.mockReset();
-    mocks.transaction.mockReset();
-    mocks.invalidateMemoriesForPromptCache.mockReset();
-    mocks.trackSupportAiUsage.mockReset();
-
+    vi.clearAllMocks();
     mocks.outputObject.mockReturnValue({ schema: "mocked-schema" });
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.listActiveFacts.mockResolvedValue({
+      degraded: false,
+      facts: buildMemories(5),
+    });
+    mocks.rememberFact.mockResolvedValue({
+      status: "saved",
+      factId: "memory-new",
+    });
+    mocks.reviseFact.mockResolvedValue({
+      status: "saved",
+      factId: "memory-1",
+    });
+    mocks.forgetFact.mockResolvedValue({ status: "forgotten" });
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("returns early when there are fewer than 5 memories", async () => {
-    mocks.memoryFindMany.mockResolvedValue(buildMemories(4));
-
-    await consolidateMemories("user-1");
-
-    expect(mocks.generateText).not.toHaveBeenCalled();
-    expect(mocks.transaction).not.toHaveBeenCalled();
-    expect(mocks.invalidateMemoriesForPromptCache).not.toHaveBeenCalled();
-  });
-
-  it("returns without applying changes when AI output has no consolidations", async () => {
-    mocks.memoryFindMany.mockResolvedValue(buildMemories(5));
-    mocks.generateText.mockResolvedValue({
-      usage: { inputTokens: 40, outputTokens: 5 },
-      providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
-      output: {
-        memories: [],
-      },
+  it("returns early when fewer than five active facts remain", async () => {
+    mocks.listActiveFacts.mockResolvedValue({
+      degraded: false,
+      facts: buildMemories(4),
     });
 
     await consolidateMemories("user-1");
 
-    expect(mocks.generateText).toHaveBeenCalledTimes(1);
+    expect(mocks.listActiveFacts).toHaveBeenCalledWith({
+      userId: "user-1",
+      limit: 64,
+    });
+    expect(mocks.generateText).not.toHaveBeenCalled();
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
+  });
+
+  it("returns without mutations when the model finds no consolidations", async () => {
+    mocks.generateText.mockResolvedValue({
+      usage: { inputTokens: 40, outputTokens: 5 },
+      providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
+      output: { memories: [] },
+    });
+
+    await consolidateMemories("user-1");
+
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
       userId: "user-1",
       modelId: "maintenance-model-id",
       usage: { inputTokens: 40, outputTokens: 5 },
       providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
     });
-    expect(mocks.transaction).not.toHaveBeenCalled();
-    expect(mocks.invalidateMemoriesForPromptCache).not.toHaveBeenCalled();
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
+    expect(mocks.forgetFact).not.toHaveBeenCalled();
   });
 
-  it("applies consolidation changes in a transaction and invalidates prompt cache", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-02-17T12:00:00.000Z"));
-
-    mocks.memoryFindMany.mockResolvedValue(buildMemories(5));
+  it("creates a revisioned consolidated fact before soft-forgetting originals", async () => {
     mocks.generateText.mockResolvedValue({
       usage: { inputTokens: 80, outputTokens: 20 },
       providerMetadata: { openrouter: { usage: { cost: 0.003 } } },
       output: {
         memories: [
           {
-            originalKeys: ["key-1", "key-2"],
-            newKey: "user_sport",
-            newValue: "tennis",
-            category: "sport",
+            originalKeys: ["detail_1", "detail_2"],
+            newKey: "match_preparation",
+            newValue: "Routine breve prima della partita",
+            category: "other",
             confidence: 0.95,
-            reasoning: "Merged duplicate sport facts",
-          },
-          {
-            originalKeys: ["key-3"],
-            newKey: "user_goal",
-            newValue: "increase endurance",
-            category: "goal",
-            confidence: 0.9,
-            reasoning: "Higher confidence and specificity",
+            reasoning: "Merged duplicates",
           },
         ],
       },
     });
 
-    const tx = {
-      memory: {
-        deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
-        upsert: vi.fn().mockResolvedValue({}),
-      },
-    };
-
-    mocks.transaction.mockImplementation(
-      async (fn: (client: typeof tx) => Promise<unknown>) => await fn(tx),
-    );
-
     await consolidateMemories("user-1");
 
-    expect(mocks.generateText).toHaveBeenCalledWith(
+    expect(mocks.rememberFact).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: "maintenance-model",
-        prompt: expect.stringContaining("- [key-1]"),
+        userId: "user-1",
+        key: "match_preparation",
+        value: "Routine breve prima della partita",
+        origin: "INFERRED",
+        dedupeKey: expect.stringMatching(/^maintenance:remember:/),
       }),
     );
-    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
-      userId: "user-1",
-      modelId: "maintenance-model-id",
-      usage: { inputTokens: 80, outputTokens: 20 },
-      providerMetadata: { openrouter: { usage: { cost: 0.003 } } },
-    });
-    expect(tx.memory.deleteMany).toHaveBeenNthCalledWith(1, {
-      where: {
+    expect(mocks.forgetFact).toHaveBeenCalledTimes(2);
+    expect(mocks.forgetFact).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
         userId: "user-1",
-        key: { in: ["key-1", "key-2"] },
-      },
-    });
-    expect(tx.memory.upsert).toHaveBeenNthCalledWith(1, {
-      where: {
-        userId_key: { userId: "user-1", key: "user_sport" },
-      },
-      update: {
-        value: {
-          content: "tennis",
-          category: "sport",
-          confidence: 0.95,
-          consolidatedAt: "2026-02-17T12:00:00.000Z",
-          reasoning: "Merged duplicate sport facts",
-        },
-      },
-      create: {
-        userId: "user-1",
-        key: "user_sport",
-        value: {
-          content: "tennis",
-          category: "sport",
-          confidence: 0.95,
-          consolidatedAt: "2026-02-17T12:00:00.000Z",
-          reasoning: "Merged duplicate sport facts",
-          createdAt: "2026-02-17T12:00:00.000Z",
-        },
-      },
-    });
-    expect(tx.memory.deleteMany).toHaveBeenCalledTimes(2);
-    expect(tx.memory.upsert).toHaveBeenCalledTimes(2);
+        factId: "memory-1",
+        dedupeKey: expect.stringMatching(/^maintenance:forget:/),
+      }),
+    );
     expect(mocks.invalidateMemoriesForPromptCache).toHaveBeenCalledWith(
       "user-1",
     );
   });
 
-  it("swallows AI errors and does not throw", async () => {
-    mocks.memoryFindMany.mockResolvedValue(buildMemories(7));
-    mocks.generateText.mockRejectedValue(new Error("ai unavailable"));
+  it("revises an existing target and does not forget it", async () => {
+    mocks.generateText.mockResolvedValue({
+      usage: {},
+      providerMetadata: {},
+      output: {
+        memories: [
+          {
+            originalKeys: ["detail_1", "detail_2"],
+            newKey: "detail_1",
+            newValue: "Consolidated",
+            category: "other",
+            confidence: 0.9,
+            reasoning: "Merged duplicates",
+          },
+        ],
+      },
+    });
 
+    await consolidateMemories("user-1");
+
+    expect(mocks.reviseFact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        factId: "memory-1",
+        key: "detail_1",
+        dedupeKey: expect.stringMatching(/^maintenance:revise:/),
+      }),
+    );
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
+    expect(mocks.forgetFact).toHaveBeenCalledTimes(1);
+    expect(mocks.forgetFact).toHaveBeenCalledWith(
+      expect.objectContaining({ factId: "memory-2" }),
+    );
+  });
+
+  it("keeps originals when the consolidated fact cannot be persisted", async () => {
+    mocks.generateText.mockResolvedValue({
+      usage: {},
+      providerMetadata: {},
+      output: {
+        memories: [
+          {
+            originalKeys: ["detail_1", "detail_2"],
+            newKey: "match_preparation",
+            newValue: "Routine breve",
+            category: "other",
+            confidence: 0.9,
+            reasoning: "Merged duplicates",
+          },
+        ],
+      },
+    });
+    mocks.rememberFact.mockResolvedValue({ status: "rejected" });
+
+    await consolidateMemories("user-1");
+
+    expect(mocks.forgetFact).not.toHaveBeenCalled();
+  });
+
+  it("fails open when active-fact loading or model analysis fails", async () => {
+    mocks.listActiveFacts.mockResolvedValue({ degraded: true, facts: [] });
     await expect(consolidateMemories("user-1")).resolves.toBeUndefined();
-    expect(mocks.transaction).not.toHaveBeenCalled();
-    expect(mocks.invalidateMemoriesForPromptCache).not.toHaveBeenCalled();
+    expect(mocks.generateText).not.toHaveBeenCalled();
+
+    mocks.listActiveFacts.mockResolvedValue({
+      degraded: false,
+      facts: buildMemories(7),
+    });
+    mocks.generateText.mockRejectedValue(new Error("ai unavailable"));
+    await expect(consolidateMemories("user-1")).resolves.toBeUndefined();
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
   });
 });

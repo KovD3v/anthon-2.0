@@ -393,6 +393,9 @@ git commit -m "refactor(ai): route memory tools through fact service"
 ### Task 5: Route user controls and maintenance through the fact service
 
 **Files:**
+- Modify: `src/lib/ai/memory-facts.ts`
+- Modify: `src/lib/ai/memory-facts.test.ts`
+- Modify: `src/lib/ai/user-knowledge.ts`
 - Modify: `src/lib/coaching-context.ts`
 - Modify: `src/app/api/coaching-context/route.ts`
 - Modify: `src/app/api/coaching-context/route.test.ts`
@@ -431,7 +434,7 @@ Use active, non-expired fact snapshots from the service. Preserve the existing e
 
 ```bash
 bunx vitest run src/app/api/coaching-context/route.test.ts 'src/app/api/coaching-context/memories/[memoryId]/route.test.ts' src/lib/ai/memory-target.test.ts src/lib/maintenance/memory-consolidation.test.ts
-git add src/lib/coaching-context.ts src/app/api/coaching-context/route.ts src/app/api/coaching-context/route.test.ts 'src/app/api/coaching-context/memories/[memoryId]/route.ts' 'src/app/api/coaching-context/memories/[memoryId]/route.test.ts' src/lib/ai/memory-target.ts src/lib/ai/memory-target.test.ts src/lib/maintenance/memory-consolidation.ts src/lib/maintenance/memory-consolidation.test.ts
+git add src/lib/ai/memory-facts.ts src/lib/ai/memory-facts.test.ts src/lib/ai/user-knowledge.ts src/lib/coaching-context.ts src/app/api/coaching-context/route.ts src/app/api/coaching-context/route.test.ts 'src/app/api/coaching-context/memories/[memoryId]/route.ts' 'src/app/api/coaching-context/memories/[memoryId]/route.test.ts' src/lib/ai/memory-target.ts src/lib/ai/memory-target.test.ts src/lib/maintenance/memory-consolidation.ts src/lib/maintenance/memory-consolidation.test.ts
 git commit -m "refactor(ai): enforce fact lifecycle in user controls"
 ```
 

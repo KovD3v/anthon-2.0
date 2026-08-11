@@ -39,7 +39,7 @@ export type FactMutationInput = {
   confidence: number;
   sensitivity: "LOW" | "HIGH";
   origin: "EXPLICIT" | "INFERRED" | "CONFIRMED" | "MIGRATED";
-  sourceMessageId: string;
+  sourceMessageId?: string;
   sourceThreadId?: string;
   dedupeKey: string;
   observedAt?: Date;
@@ -173,6 +173,49 @@ export async function recallFacts({
     );
     return { facts: [], degraded: true };
   }
+}
+
+export async function listActiveFacts({
+  userId,
+  limit = MAX_FACT_SNAPSHOT_SIZE,
+  now = new Date(),
+}: {
+  userId: string;
+  limit?: number;
+  now?: Date;
+}): Promise<{ facts: RecalledFact[]; degraded: boolean }> {
+  const take = Math.min(MAX_FACT_SNAPSHOT_SIZE, Math.max(1, Math.floor(limit)));
+  try {
+    const facts = await loadFactSnapshot(userId, now);
+    return { facts: facts.slice(0, take), degraded: false };
+  } catch (error) {
+    memoryLogger.warn(
+      "ai.memory.fact_list_failed",
+      "Active fact listing failed",
+      { errorName: error instanceof Error ? error.name : "unknown", userId },
+    );
+    return { facts: [], degraded: true };
+  }
+}
+
+export async function getActiveFactById({
+  userId,
+  factId,
+  now = new Date(),
+}: {
+  userId: string;
+  factId: string;
+  now?: Date;
+}): Promise<RecalledFact | null> {
+  const memory = await prisma.memory.findFirst({
+    where: {
+      id: factId,
+      userId,
+      status: "ACTIVE",
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+  });
+  return memory ? projectFact(memory) : null;
 }
 
 export async function findActiveFactIdByKey(
@@ -377,7 +420,7 @@ export async function reviseFact(
 export async function forgetFact(input: {
   userId: string;
   factId: string;
-  sourceMessageId: string;
+  sourceMessageId?: string;
   dedupeKey: string;
 }): Promise<FactMutationResult> {
   try {

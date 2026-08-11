@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const memoryFindMany = vi.hoisted(() => vi.fn());
+const listActiveFacts = vi.hoisted(() => vi.fn());
 const messageFindFirst = vi.hoisted(() => vi.fn());
 const messageFindMany = vi.hoisted(() => vi.fn());
 
@@ -9,6 +10,9 @@ vi.mock("@/lib/db", () => ({
     memory: { findMany: memoryFindMany },
     message: { findFirst: messageFindFirst, findMany: messageFindMany },
   },
+}));
+vi.mock("@/lib/ai/memory-facts", () => ({
+  listActiveFacts,
 }));
 
 import {
@@ -19,6 +23,26 @@ import {
 describe("ai/memory-target", () => {
   beforeEach(() => {
     memoryFindMany.mockReset();
+    listActiveFacts.mockReset();
+    listActiveFacts.mockImplementation(async () => ({
+      degraded: false,
+      facts: (await memoryFindMany()).map(
+        (memory: {
+          key: string;
+          category: string;
+          value: { content: string };
+        }) => ({
+          id: `id-${memory.key}`,
+          key: memory.key,
+          category: memory.category,
+          content: memory.value.content,
+          confidence: 1,
+          origin: "EXPLICIT",
+          observedAt: new Date("2026-08-10T10:00:00Z"),
+          updatedAt: new Date("2026-08-10T10:00:00Z"),
+        }),
+      ),
+    }));
     messageFindFirst.mockReset();
     messageFindMany.mockReset();
   });
@@ -397,6 +421,11 @@ describe("ai/memory-target", () => {
         userMessage: "Dimentica la mia preferenza: mi alleno al mattino.",
       }),
     ).resolves.toBe("training_schedule");
+
+    expect(listActiveFacts).toHaveBeenCalledWith({
+      userId: "user-1",
+      limit: 64,
+    });
   });
 
   it("prefers a factual qualifier over a generic category alias", async () => {

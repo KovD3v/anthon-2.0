@@ -34,7 +34,9 @@ vi.mock("@/lib/db", () => ({
 import {
   findActiveFactIdByKey,
   forgetFact,
+  getActiveFactById,
   invalidateFactCache,
+  listActiveFacts,
   recallFacts,
   rememberFact,
   reviseFact,
@@ -145,6 +147,27 @@ describe("durable fact recall", () => {
     invalidateFactCache("user-1");
     await recallFacts({ userId: "user-1", query: "orario" });
     expect(mocks.memoryFindMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("lists bounded active facts and resolves an exact active fact by id", async () => {
+    const now = new Date("2026-08-11T12:00:00.000Z");
+    mocks.memoryFindMany.mockResolvedValue([
+      buildFact({ id: "memory-1" }),
+      buildFact({ id: "memory-2", key: "match_routine" }),
+    ]);
+    mocks.memoryFindFirst.mockResolvedValue(
+      buildFact({ id: "memory-2", key: "match_routine" }),
+    );
+
+    await expect(
+      listActiveFacts({ userId: "user-1", limit: 1, now }),
+    ).resolves.toEqual({
+      degraded: false,
+      facts: [expect.objectContaining({ id: "memory-1" })],
+    });
+    await expect(
+      getActiveFactById({ userId: "user-1", factId: "memory-2", now }),
+    ).resolves.toEqual(expect.objectContaining({ id: "memory-2" }));
   });
 
   it("creates one current fact and one append-only revision", async () => {
@@ -258,7 +281,6 @@ describe("durable fact recall", () => {
     const result = await forgetFact({
       userId: "user-1",
       factId: "memory-1",
-      sourceMessageId: "message-3",
       dedupeKey: "memory:message-3:forget:memory-1",
     });
 
@@ -273,6 +295,7 @@ describe("durable fact recall", () => {
       data: expect.objectContaining({
         previousValue: { content: "Martedì sera" },
         nextValue: undefined,
+        sourceMessageId: undefined,
         reason: "forget",
       }),
     });

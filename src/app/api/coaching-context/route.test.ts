@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getAuthUser: vi.fn(),
   userFindUnique: vi.fn(),
-  profileUpsert: vi.fn(),
+  listActiveFacts: vi.fn(),
+  updateCanonicalProfile: vi.fn(),
   invalidate: vi.fn(),
 }));
 
@@ -11,8 +12,13 @@ vi.mock("@/lib/auth", () => ({ getAuthUser: mocks.getAuthUser }));
 vi.mock("@/lib/db", () => ({
   prisma: {
     user: { findUnique: mocks.userFindUnique },
-    profile: { upsert: mocks.profileUpsert },
   },
+}));
+vi.mock("@/lib/ai/memory-facts", () => ({
+  listActiveFacts: mocks.listActiveFacts,
+}));
+vi.mock("@/lib/ai/user-knowledge", () => ({
+  updateCanonicalProfile: mocks.updateCanonicalProfile,
 }));
 vi.mock("@/lib/ai/coaching-context-cache", () => ({
   invalidateCoachingContextPromptCaches: mocks.invalidate,
@@ -36,16 +42,23 @@ describe("/api/coaching-context", () => {
     });
     mocks.userFindUnique.mockResolvedValue({
       profile: { sport: "Tennis", goal: "Più fiducia", experience: null },
-      memories: [
+    });
+    mocks.listActiveFacts.mockResolvedValue({
+      degraded: false,
+      facts: [
         {
           id: "memory-1",
-          value: { content: "Partita domenica", confidence: 0.9 },
+          key: "match_schedule",
+          content: "Partita domenica",
           category: "schedule",
+          confidence: 0.9,
+          origin: "EXPLICIT",
+          observedAt: new Date("2026-07-31T08:00:00.000Z"),
           updatedAt: new Date("2026-07-31T08:00:00.000Z"),
         },
       ],
     });
-    mocks.profileUpsert.mockResolvedValue({
+    mocks.updateCanonicalProfile.mockResolvedValue({
       sport: "Tennis",
       goal: "Restare lucido",
       experience: null,
@@ -76,10 +89,8 @@ describe("/api/coaching-context", () => {
   it("skips malformed memory values", async () => {
     mocks.userFindUnique.mockResolvedValue({
       profile: null,
-      memories: [
-        { id: "bad", value: {}, category: "other", updatedAt: new Date() },
-      ],
     });
+    mocks.listActiveFacts.mockResolvedValue({ degraded: false, facts: [] });
 
     const response = await GET();
     await expect(response.json()).resolves.toEqual({
@@ -95,15 +106,9 @@ describe("/api/coaching-context", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.profileUpsert).toHaveBeenCalledWith({
-      where: { userId: "user-1" },
-      update: { goal: "Restare lucido", experience: null },
-      create: {
-        userId: "user-1",
-        goal: "Restare lucido",
-        experience: null,
-      },
-      select: { sport: true, goal: true, experience: true },
+    expect(mocks.updateCanonicalProfile).toHaveBeenCalledWith("user-1", {
+      goal: "Restare lucido",
+      experience: null,
     });
     expect(mocks.invalidate).toHaveBeenCalledWith("user-1");
   });
@@ -114,6 +119,15 @@ describe("/api/coaching-context", () => {
     expect((await PATCH(patchRequest({ goal: "x".repeat(501) }))).status).toBe(
       400,
     );
-    expect(mocks.profileUpsert).not.toHaveBeenCalled();
+    expect(mocks.updateCanonicalProfile).not.toHaveBeenCalled();
+  });
+
+  it("loads memories through the bounded active-fact service", async () => {
+    await GET();
+
+    expect(mocks.listActiveFacts).toHaveBeenCalledWith({
+      userId: "user-1",
+      limit: 64,
+    });
   });
 });

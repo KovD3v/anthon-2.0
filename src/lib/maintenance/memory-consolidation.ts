@@ -1,5 +1,12 @@
+import { createHash } from "node:crypto";
 import { generateText, Output } from "ai";
 import { z } from "zod";
+import {
+  forgetFact,
+  listActiveFacts,
+  rememberFact,
+  reviseFact,
+} from "@/lib/ai/memory-facts";
 import {
   MAINTENANCE_MODEL_ID,
   maintenanceModel,
@@ -7,10 +14,27 @@ import {
 import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { invalidateMemoriesForPromptCache } from "@/lib/ai/tools/memory";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
-import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 
 const consolidationLogger = createLogger("maintenance");
+
+function consolidationDedupeKey(
+  action: "remember" | "revise" | "forget",
+  userId: string,
+  payload: string,
+) {
+  const digest = createHash("sha256")
+    .update(payload)
+    .digest("hex")
+    .slice(0, 24);
+  return `maintenance:${action}:${userId}:${digest}`;
+}
+
+function sensitivityForCategory(category: string) {
+  return ["health", "diagnosis", "trauma", "intimate"].includes(category)
+    ? ("HIGH" as const)
+    : ("LOW" as const);
+}
 
 // Schema for consolidated memories
 const ConsolidatedMemoriesSchema = z.object({
@@ -32,30 +56,23 @@ const ConsolidatedMemoriesSchema = z.object({
  * Consolidates user memories by identifying duplicates, conflicts, or outdated facts.
  */
 export async function consolidateMemories(userId: string): Promise<void> {
-  // 1. Fetch all memories
-  const memories = await prisma.memory.findMany({
-    where: { userId },
-  });
+  const activeFacts = await listActiveFacts({ userId, limit: 64 });
+  if (activeFacts.degraded) return;
+  const memories = activeFacts.facts;
 
   if (memories.length < 5) {
     // Too few memories to consolidate
     return;
   }
 
-  // Format for AI
   const memoryList = memories
-    .map((m) => {
-      const val = m.value as {
-        content: string;
-        category: string;
-        confidence: number;
-      };
-      return `- [${m.key}] (${val.category}, conf:${val.confidence}): ${val.content}`;
-    })
+    .map(
+      (memory) =>
+        `- [${memory.key}] (${memory.category}, conf:${memory.confidence}): ${memory.content}`,
+    )
     .join("\n");
 
   try {
-    // 2. Analyze with AI
     const result = await generateText({
       model: maintenanceModel,
       output: Output.object({ schema: ConsolidatedMemoriesSchema }),
@@ -66,11 +83,11 @@ export async function consolidateMemories(userId: string): Promise<void> {
 Il tuo compito è analizzare una lista di fatti (memorie) e consolidarli AGGRESSIVAMENTE.
 
 Regole di consolidamento:
-1. UNIRE duplicati (es: "user_sport: tennis" e "sport: tennis" -> diventa "user_sport: tennis").
+1. UNIRE soltanto duplicati reali mantenendo una chiave specifica esistente quando possibile.
 2. RISOLVERE conflitti (scegli sempre il valore più specifico o recente).
 3. RAGGRUPPARE fatti correlati.
 4. Rimuovere chiavi ridondanti.
-5. Se vedi "user_X" e "X", uniscili in "user_X".
+5. Non creare chiavi generiche di profilo come user_sport, user_goal o user_name.
 
 Devi restituire un array di oggetti con 'originalKeys' (da eliminare) e 'newKey'/'newValue' (da creare/aggiornare).
 NON aver paura di unire.`,
@@ -98,49 +115,61 @@ NON aver paura di unire.`,
       { userId, count: changes.length },
     );
 
-    // 3. Apply changes via transaction
-    await prisma.$transaction(async (tx) => {
-      for (const change of changes) {
-        // Delete original keys
-        await tx.memory.deleteMany({
-          where: {
-            userId,
-            key: { in: change.originalKeys },
-          },
-        });
+    let changed = false;
+    for (const change of changes) {
+      const originals = memories.filter((memory) =>
+        change.originalKeys.includes(memory.key),
+      );
+      if (originals.length === 0) continue;
 
-        // Create new consolidated memory
-        await tx.memory.upsert({
-          where: {
-            userId_key: { userId, key: change.newKey },
-          },
-          update: {
-            value: {
-              content: change.newValue,
-              category: change.category,
-              confidence: change.confidence,
-              consolidatedAt: new Date().toISOString(),
-              reasoning: change.reasoning,
-            },
-          },
-          create: {
+      const payload = `${change.newKey}\0${change.newValue}\0${change.category}`;
+      const target = originals.find((memory) => memory.key === change.newKey);
+      const mutation = target
+        ? await reviseFact({
+            userId,
+            factId: target.id,
+            key: change.newKey,
+            value: change.newValue,
+            category: change.category,
+            confidence: change.confidence,
+            sensitivity: sensitivityForCategory(change.category),
+            origin: "INFERRED",
+            dedupeKey: consolidationDedupeKey(
+              "revise",
+              userId,
+              `${target.id}\0${payload}`,
+            ),
+          })
+        : await rememberFact({
             userId,
             key: change.newKey,
-            value: {
-              content: change.newValue,
-              category: change.category,
-              confidence: change.confidence,
-              consolidatedAt: new Date().toISOString(),
-              reasoning: change.reasoning,
-              createdAt: new Date().toISOString(),
-            },
-          },
+            value: change.newValue,
+            category: change.category,
+            confidence: change.confidence,
+            sensitivity: sensitivityForCategory(change.category),
+            origin: "INFERRED",
+            dedupeKey: consolidationDedupeKey("remember", userId, payload),
+          });
+      if (mutation.status !== "saved" && mutation.status !== "duplicate") {
+        continue;
+      }
+      changed = true;
+
+      for (const original of originals) {
+        if (original.id === target?.id) continue;
+        await forgetFact({
+          userId,
+          factId: original.id,
+          dedupeKey: consolidationDedupeKey(
+            "forget",
+            userId,
+            `${payload}\0${original.id}`,
+          ),
         });
       }
-    });
+    }
 
-    // Invalidate cache
-    invalidateMemoriesForPromptCache(userId);
+    if (changed) invalidateMemoriesForPromptCache(userId);
   } catch (error) {
     consolidationLogger.error(
       "consolidation_failed",

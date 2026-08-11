@@ -6,11 +6,11 @@ import { invalidateUserContextPromptCache } from "./tools/user-context-cache";
 const knowledgeLogger = createLogger("ai");
 
 export type CanonicalProfilePatch = {
-  name?: string;
-  sport?: string;
-  goal?: string;
-  experience?: string;
-  notes?: string;
+  name?: string | null;
+  sport?: string | null;
+  goal?: string | null;
+  experience?: string | null;
+  notes?: string | null;
 };
 
 export type CanonicalPreferencesPatch = {
