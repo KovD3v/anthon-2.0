@@ -29,6 +29,7 @@ import {
   parseExecutionRoutingConfig,
   type TurnDecision,
 } from "@/lib/ai/execution-routing";
+import { resolveExecutionAttemptModelId } from "@/lib/ai/execution-model";
 import {
   evaluateWebSearchRule,
   getWebSearchDomainType,
@@ -1701,6 +1702,7 @@ async function arbitrateChatTurn({
 
 type NoToolAttemptState = {
   profile: "light" | "standard";
+  modelId: string;
   text: string;
   firstTokenAtMs?: number;
   usage?: {
@@ -2742,7 +2744,18 @@ export async function streamChat({
     let escalationReason: "provider_error" | "empty_response" | undefined;
 
     const createAttempt = (sequence: 1 | 2, profile: "light" | "standard") => {
-      const state: NoToolAttemptState = { profile, text: "" };
+      const attemptModelId = resolveExecutionAttemptModelId({
+        profile,
+        standardModelId: modelId,
+        explicitModelId: benchmarkModelId,
+      });
+      const attemptModel =
+        attemptModelId === modelId ? model : getModelById(attemptModelId);
+      const state: NoToolAttemptState = {
+        profile,
+        modelId: attemptModelId,
+        text: "",
+      };
       attemptStates.set(sequence, state);
       const profilePolicy =
         profile === "light"
@@ -2754,7 +2767,7 @@ export async function streamChat({
       const conversation =
         profile === "light" ? normalizedConversation : standardConversation;
       const attemptResult = streamText({
-        model,
+        model: attemptModel,
         abortSignal,
         instructions: conversation.systemPrompt,
         messages: conversation.messages,
@@ -2763,7 +2776,10 @@ export async function streamChat({
           openrouter: {
             promptCaching: true,
             session_id: chatId ?? userId,
-            ...getOpenRouterProviderOptionsForExecution(modelId, profile),
+            ...getOpenRouterProviderOptionsForExecution(
+              attemptModelId,
+              profile,
+            ),
           },
         },
         headers: { "x-session-id": chatId ?? userId },
@@ -2818,7 +2834,7 @@ export async function streamChat({
         const usage = deliveredState.usage;
         const deliveredAttempt = attempts.at(-1);
         const metrics = await extractAIMetrics(
-          modelId,
+          deliveredState.modelId,
           Date.now() - (deliveredAttempt?.generationTimeMs ?? 0),
           {
             text: deliveredState.text,

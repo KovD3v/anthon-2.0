@@ -827,6 +827,7 @@ describe("ai/orchestrator", () => {
       "chat-active-light",
     );
     const input = mocks.streamText.mock.calls.at(-1)?.[0] as {
+      model: unknown;
       instructions: string;
       messages: Array<{ role: string; content: unknown }>;
       tools?: unknown;
@@ -843,11 +844,68 @@ describe("ai/orchestrator", () => {
     ]);
     expect(input.tools).toBeUndefined();
     expect(input.maxOutputTokens).toBe(600);
+    expect(mocks.getModelById).toHaveBeenCalledWith(
+      "deepseek/deepseek-v4-flash-0731",
+    );
+    expect(input.model).toBe("candidate-model");
     expect(input.providerOptions.openrouter).toMatchObject({
+      provider: {
+        sort: "latency",
+        only: ["Together", "CoreWeave", "Ambient"],
+        allow_fallbacks: true,
+        require_parameters: true,
+        max_price: { prompt: 0.15, completion: 0.3 },
+      },
       reasoning: { enabled: false, max_tokens: 1 },
     });
     await expect(readTextStream(result.textStream)).resolves.toBe(
       "Versione breve",
+    );
+    expect(mocks.extractAIMetrics).toHaveBeenCalledWith(
+      "deepseek/deepseek-v4-flash-0731",
+      expect.any(Number),
+      expect.objectContaining({ text: "Versione breve" }),
+    );
+  });
+
+  it("preserves an explicit benchmark model on an active light turn", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
+    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
+    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
+    mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
+    mocks.streamText.mockReturnValueOnce(noToolTextStream(["Breve"]));
+
+    const result = await streamChat({
+      userId: "user-1",
+      chatId: "chat-active-light-benchmark",
+      userMessage: "Rendi questo testo più breve: prova lunga",
+      benchmarkModelId: "candidate/model",
+      effectiveEntitlements: baseEntitlements,
+    });
+
+    await expect(readTextStream(result.textStream)).resolves.toBe("Breve");
+    expect(mocks.getModelById).toHaveBeenCalledTimes(1);
+    expect(mocks.getModelById).toHaveBeenCalledWith("candidate/model");
+    const input = mocks.streamText.mock.calls.at(-1)?.[0] as {
+      model: unknown;
+      providerOptions: {
+        openrouter: {
+          provider?: { only?: string[] };
+          reasoning?: { enabled?: boolean };
+        };
+      };
+    };
+    expect(input.model).toBe("candidate-model");
+    expect(input.providerOptions.openrouter.provider?.only).toBeUndefined();
+    expect(input.providerOptions.openrouter.reasoning).toEqual({
+      enabled: false,
+      max_tokens: 1,
+    });
+    expect(mocks.extractAIMetrics).toHaveBeenCalledWith(
+      "candidate/model",
+      expect.any(Number),
+      expect.objectContaining({ text: "Breve" }),
     );
   });
 
@@ -1210,6 +1268,13 @@ describe("ai/orchestrator", () => {
 
     await expect(readTextStream(result.textStream)).resolves.toBe("Standard");
     expect(mocks.streamText).toHaveBeenCalledTimes(2);
+    expect(mocks.streamText.mock.calls[0]?.[0]?.model).toBe("candidate-model");
+    expect(mocks.streamText.mock.calls[1]?.[0]?.model).toBe("base-model");
+    expect(mocks.extractAIMetrics).toHaveBeenCalledWith(
+      "google/gemini-test",
+      expect.any(Number),
+      expect.objectContaining({ text: "Standard" }),
+    );
     expect(onFinish).toHaveBeenCalledWith(
       expect.objectContaining({
         turnDecision: result.turnDecision,
