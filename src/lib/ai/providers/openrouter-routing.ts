@@ -1,4 +1,5 @@
 import type { JSONObject } from "@ai-sdk/provider";
+import { LIGHT_EXECUTION_MODEL_ID } from "../execution-model";
 import type { ExecutionProfile } from "../execution-routing";
 import {
   type ProviderHealthSnapshot,
@@ -73,6 +74,13 @@ const RECENT_ERROR_STRONG_PENALTY_SECONDS = 25;
 const RECENT_ERROR_COOLDOWN_THRESHOLD = 3;
 const PRIORITY_SERVICE_TIER_MODEL_IDS = new Set(["openai/gpt-5.6-luna"]);
 const MAX_REASONING_MODEL_IDS = new Set(["openai/gpt-5.6-luna"]);
+const DEEPSEEK_LIGHT_PROVIDERS = [
+  "Together",
+  "CoreWeave",
+  "Ambient",
+] as const;
+const DEEPSEEK_LIGHT_MAX_PROMPT_PRICE = 0.15;
+const DEEPSEEK_LIGHT_MAX_COMPLETION_PRICE = 0.3;
 const providerOptionsCache = new Map<string, JSONObject>();
 
 export function getOpenRouterProviderOptions(
@@ -98,8 +106,61 @@ export function getOpenRouterProviderOptionsForExecution(
     return options;
   }
 
+  if (modelId === LIGHT_EXECUTION_MODEL_ID) {
+    return getDeepSeekLightProviderOptions(options);
+  }
+
   return {
     ...options,
+    reasoning: { enabled: false, max_tokens: 1 },
+  };
+}
+
+function getDeepSeekLightProviderOptions(options: JSONObject): JSONObject {
+  const provider = (options.provider ?? {}) as OpenRouterProviderRouting;
+  const configuredOnly = provider.only;
+  const only = configuredOnly
+    ? DEEPSEEK_LIGHT_PROVIDERS.filter((candidate) =>
+        configuredOnly.includes(candidate),
+      )
+    : [...DEEPSEEK_LIGHT_PROVIDERS];
+  if (configuredOnly && only.length === 0) {
+    throw new Error(
+      "DeepSeek light routing has no safe configured provider.",
+    );
+  }
+
+  const {
+    order: _order,
+    only: _only,
+    sort: _sort,
+    allow_fallbacks: _allowFallbacks,
+    require_parameters: _requireParameters,
+    max_price: configuredMaxPrice,
+    ...compatibleProviderOptions
+  } = provider;
+
+  return {
+    ...options,
+    provider: {
+      ...compatibleProviderOptions,
+      sort: "latency",
+      only,
+      allow_fallbacks: true,
+      require_parameters: true,
+      max_price: {
+        ...configuredMaxPrice,
+        prompt: Math.min(
+          configuredMaxPrice?.prompt ?? DEEPSEEK_LIGHT_MAX_PROMPT_PRICE,
+          DEEPSEEK_LIGHT_MAX_PROMPT_PRICE,
+        ),
+        completion: Math.min(
+          configuredMaxPrice?.completion ??
+            DEEPSEEK_LIGHT_MAX_COMPLETION_PRICE,
+          DEEPSEEK_LIGHT_MAX_COMPLETION_PRICE,
+        ),
+      },
+    },
     reasoning: { enabled: false, max_tokens: 1 },
   };
 }
