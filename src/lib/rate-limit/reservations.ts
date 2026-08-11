@@ -6,6 +6,7 @@ import {
 } from "@/lib/ai/capability-arbitration";
 import { normalizePreDeliveryCapabilityUsage } from "@/lib/ai/capability-usage";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
+import type { MemoryRecallDecision } from "@/lib/ai/memory-recall-release";
 import { prisma } from "@/lib/db";
 import type { RateLimits } from "./types";
 
@@ -26,6 +27,7 @@ export interface AiUsageRecovery {
   capabilityMetadataValid: boolean;
   capabilityPlannerMode?: "legacy" | "agentic";
   capabilityDecision?: CapabilityDecision;
+  memoryRecallDecision?: MemoryRecallDecision;
 }
 
 export interface AiUsagePersistedAssistant
@@ -192,7 +194,35 @@ function parseRecovery(
     capabilityMetadataValid: capabilityPlanner !== undefined,
     capabilityPlannerMode: capabilityPlanner?.mode,
     capabilityDecision: capabilityPlanner?.decision,
+    memoryRecallDecision: parseRecoveryMemoryRecall(safeMetrics.memoryRecall),
   };
+}
+
+function parseRecoveryMemoryRecall(
+  value: unknown,
+): MemoryRecallDecision | undefined {
+  if (!isRecord(value)) return undefined;
+  const {
+    mode,
+    reason,
+    factCount,
+    evidenceCount,
+    factRecallMs,
+    conversationRecallMs,
+    degraded,
+  } = value;
+  if (
+    (mode !== "off" && mode !== "shadow" && mode !== "active") ||
+    typeof reason !== "string" ||
+    reason.length > 128 ||
+    !Number.isInteger(factCount) ||
+    !Number.isInteger(evidenceCount) ||
+    !Number.isInteger(factRecallMs) ||
+    !Number.isInteger(conversationRecallMs) ||
+    typeof degraded !== "boolean"
+  )
+    return undefined;
+  return Object.freeze({ mode, reason });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -587,6 +617,7 @@ function recoverableMetrics(
   metrics: AIMetrics,
   capabilityPlannerMode?: "legacy" | "agentic",
   capabilityDecision?: CapabilityDecision,
+  memoryRecallDecision?: MemoryRecallDecision,
 ): Prisma.InputJsonValue {
   const capabilityPlanner = capabilityPlannerMode
     ? {
@@ -629,6 +660,15 @@ function recoverableMetrics(
     generationTimeMs: metrics.generationTimeMs,
     reasoningTimeMs: metrics.reasoningTimeMs,
     ...(capabilityPlanner ? { capabilityPlanner } : {}),
+    ...(metrics.memoryRecall && memoryRecallDecision
+      ? {
+          memoryRecall: {
+            ...metrics.memoryRecall,
+            mode: memoryRecallDecision.mode,
+            reason: memoryRecallDecision.reason,
+          },
+        }
+      : {}),
   };
   const serialized = JSON.stringify(minimal);
   if (Buffer.byteLength(serialized, "utf8") > MAX_RECOVERY_METRICS_BYTES) {
@@ -647,6 +687,7 @@ export async function reconcileAiUsageForRecovery({
   metrics,
   capabilityPlannerMode,
   capabilityDecision,
+  memoryRecallDecision,
 }: {
   reservationId: string;
   claimToken: string;
@@ -655,6 +696,7 @@ export async function reconcileAiUsageForRecovery({
   metrics: AIMetrics;
   capabilityPlannerMode?: "legacy" | "agentic";
   capabilityDecision?: CapabilityDecision;
+  memoryRecallDecision?: MemoryRecallDecision;
 }) {
   return prisma.$transaction(async (tx) => {
     await lockUser(tx, userId);
@@ -697,6 +739,7 @@ export async function reconcileAiUsageForRecovery({
           metrics,
           capabilityPlannerMode,
           capabilityDecision,
+          memoryRecallDecision,
         ),
         recoveryExpiresAt: new Date(Date.now() + RECOVERY_RETENTION_MS),
         reconciledAt: new Date(),

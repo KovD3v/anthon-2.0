@@ -406,6 +406,7 @@ interface StreamChatOptions {
     metrics: AIMetrics;
     capabilityDecision: CapabilityDecision;
     capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
+    memoryRecallDecision: MemoryRecallDecision;
   }) => void;
   onStepFinish?: (step: {
     text?: string;
@@ -2204,6 +2205,7 @@ export async function streamChat({
               metrics: attachTurnTrace(metrics),
               capabilityDecision,
               capabilityPlannerMode,
+              memoryRecallDecision,
             });
           }
         : undefined,
@@ -2338,6 +2340,7 @@ export async function streamChat({
           metrics,
           capabilityDecision,
           capabilityPlannerMode,
+          memoryRecallDecision,
         });
       }
     },

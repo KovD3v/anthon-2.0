@@ -123,6 +123,7 @@ export interface PersistAssistantOutputInput {
   updateChatTimestamp?: boolean;
   revalidateTags?: string[];
   allowMemoryExtraction?: boolean;
+  allowConversationIndexing?: boolean;
   presentedMemoryApprovalId?: string;
   capabilityDecision?: CapabilityDecision;
   capabilityPlannerMode?: "legacy" | "agentic";

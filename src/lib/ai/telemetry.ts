@@ -71,6 +71,18 @@ export function captureAiGenerationMetadata({
           metrics.capabilitiesUsed,
         ),
         toolCallCount: metrics.toolCallCount ?? 0,
+        ...(metrics.memoryRecall
+          ? {
+              memoryRecallMode: metrics.memoryRecall.mode,
+              memoryRecallReason: boundedLabel(metrics.memoryRecall.reason),
+              memoryRecallFactCount: metrics.memoryRecall.factCount,
+              memoryRecallEvidenceCount: metrics.memoryRecall.evidenceCount,
+              memoryRecallFactMs: metrics.memoryRecall.factRecallMs,
+              memoryRecallConversationMs:
+                metrics.memoryRecall.conversationRecallMs,
+              memoryRecallDegraded: metrics.memoryRecall.degraded,
+            }
+          : {}),
         ...(metrics.toolOutcomes
           ? {
               toolConsideredCount: metrics.toolOutcomes.considered,

@@ -67,6 +67,28 @@ function buildAssistantMetadata(
           ),
         }
       : {}),
+    ...(metrics.memoryRecall
+      ? {
+          memoryRecall: {
+            mode: metrics.memoryRecall.mode,
+            reason: metrics.memoryRecall.reason,
+            factCount: Math.max(0, Math.floor(metrics.memoryRecall.factCount)),
+            evidenceCount: Math.max(
+              0,
+              Math.floor(metrics.memoryRecall.evidenceCount),
+            ),
+            factRecallMs: Math.max(
+              0,
+              Math.floor(metrics.memoryRecall.factRecallMs),
+            ),
+            conversationRecallMs: Math.max(
+              0,
+              Math.floor(metrics.memoryRecall.conversationRecallMs),
+            ),
+            degraded: metrics.memoryRecall.degraded,
+          },
+        }
+      : {}),
   };
 
   if (Object.keys(aiMetrics).length === 0) {
@@ -185,6 +207,7 @@ export async function persistAssistantOutput({
   updateChatTimestamp = false,
   revalidateTags: tags = [],
   allowMemoryExtraction = false,
+  allowConversationIndexing = true,
   presentedMemoryApprovalId,
   capabilityDecision,
   capabilityPlannerMode = "legacy",
@@ -393,23 +416,25 @@ export async function persistAssistantOutput({
       waitUntil,
       safelyRefreshConversationThreadSummary(conversationThreadId, userId),
     );
-    scheduleBackground(
-      waitUntil,
-      indexConversationWindow({
-        userId,
-        conversationThreadId,
-        throughMessageId: message.id,
-      }).catch((error) => {
-        persistenceLogger.warn(
-          "conversation_recall.index_failed",
-          "Conversation recall indexing failed",
-          {
-            errorName: error instanceof Error ? error.name : "unknown",
-            userId,
-          },
-        );
-      }),
-    );
+    if (allowConversationIndexing) {
+      scheduleBackground(
+        waitUntil,
+        indexConversationWindow({
+          userId,
+          conversationThreadId,
+          throughMessageId: message.id,
+        }).catch((error) => {
+          persistenceLogger.warn(
+            "conversation_recall.index_failed",
+            "Conversation recall indexing failed",
+            {
+              errorName: error instanceof Error ? error.name : "unknown",
+              userId,
+            },
+          );
+        }),
+      );
+    }
   }
 
   if (
