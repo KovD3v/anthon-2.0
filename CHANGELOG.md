@@ -51,6 +51,9 @@ Version numbers describe the application's user-facing behavior and its document
   for staged validation.
 - Removed the redundant safety-limit instructions from the full, guest, and
   compact system prompts, relying on the model's built-in safety behavior.
+- Recentered competition-related bodily reactions on mental-performance
+  coaching, removed health and safety intent routing, and kept generic medical
+  reminders out of Anthon's coaching instructions and benchmark anchors.
 - Refined the mobile chat entry flow by centering the landing content,
   hiding secondary starter actions, compacting the returning-chat card, and
   exposing authenticated file-upload and voice-recording entrypoints with
