@@ -71,6 +71,15 @@ export function captureAiGenerationMetadata({
           metrics.capabilitiesUsed,
         ),
         toolCallCount: metrics.toolCallCount ?? 0,
+        ...(metrics.toolOutcomes
+          ? {
+              toolConsideredCount: metrics.toolOutcomes.considered,
+              toolAllowedCount: metrics.toolOutcomes.allowed,
+              toolSucceededCount: metrics.toolOutcomes.succeeded,
+              toolUsefulCount: metrics.toolOutcomes.useful,
+              toolUtilizedCount: metrics.toolOutcomes.utilized,
+            }
+          : {}),
         reasoningTimeMs: metrics.reasoningTimeMs,
       },
     });

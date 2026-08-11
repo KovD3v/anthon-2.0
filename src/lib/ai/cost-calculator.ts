@@ -11,6 +11,7 @@ import {
 } from "./capability-usage";
 import { type CostResult, calculateCost as tokenlensCost } from "./tokenlens";
 import { redactToolCalls } from "./tool-privacy";
+import type { ToolOutcomeSummary } from "./tool-outcomes";
 
 export {
   CAPABILITY_USAGE_VALUES,
@@ -136,6 +137,7 @@ export interface AIMetrics {
     toolExecutionMs?: number;
     finalModelStepMs?: number;
   };
+  toolOutcomes?: ToolOutcomeSummary;
   ragAttempted?: boolean;
   ragUsed: boolean;
   ragChunksCount: number;
