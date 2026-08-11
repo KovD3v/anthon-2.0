@@ -1,5 +1,4 @@
 import {
-  matchesHealthRiskIntent,
   matchesMemoryDeleteIntent,
   matchesMemoryWriteIntent,
   matchesNotesWriteIntent,
@@ -53,7 +52,6 @@ export function isParticipantCadenceEligible(
 export function isCheaplySafeModelComparisonMessage(userMessage: string) {
   return (
     !matchesVoiceIntent(userMessage) &&
-    !matchesHealthRiskIntent(userMessage) &&
     !matchesMemoryWriteIntent(userMessage) &&
     !matchesMemoryDeleteIntent(userMessage) &&
     !matchesProfileWriteIntent(userMessage) &&
@@ -79,7 +77,6 @@ export function isSafeModelComparisonTurn(
     !capabilities.profileWrite &&
     !capabilities.preferenceWrite &&
     !capabilities.notesWrite &&
-    !turnPlan.reasonCodes.includes("HEALTH_OR_SAFETY") &&
     !matchesRoutineProposalIntent(userMessage) &&
     !matchesVoiceIntent(userMessage)
   );

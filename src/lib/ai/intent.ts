@@ -143,12 +143,6 @@ export function matchesVoiceIntent(message: string) {
   );
 }
 
-export function matchesHealthRiskIntent(message: string) {
-  return /\b(dolore|male|infortun|trauma|sintom|farmac|medic|diagnosi|stiramento|frattura|commozione)\b/i.test(
-    message,
-  );
-}
-
 export function evaluateWebSearchRule(userMessage = ""): WebSearchRuleDecision {
   const delegatedSearchIntent =
     /\b(non\s+(riesco|posso|trovo|ho\s+trovato|sono\s+riuscit[ao])|non\s+ho\s+(trovato|potuto\s+cercare))\b.{0,80}\b(cercare|trovare|online|web|internet|google)\b.{0,80}\b(puoi|potresti|riesci)\b.{0,50}\b(cercare|controllare|verificare|farlo|farla)\b|\b(puoi|potresti|riesci)\b.{0,50}\b(cercare|controllare|verificare|farlo|farla)\b.{0,80}\b(non\s+(riesco|posso|trovo|ho\s+trovato|sono\s+riuscit[ao])|non\s+ho\s+(trovato|potuto\s+cercare))\b/i;

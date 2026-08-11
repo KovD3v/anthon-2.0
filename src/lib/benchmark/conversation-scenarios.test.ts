@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { CONVERSATIONAL_REALITY_SCENARIOS } from "./conversation-scenarios";
 
 describe("benchmark/conversation-scenarios", () => {
-  it("covers the ten conversational failure families", () => {
-    expect(CONVERSATIONAL_REALITY_SCENARIOS).toHaveLength(10);
+  it("covers the conversational failure families", () => {
+    expect(CONVERSATIONAL_REALITY_SCENARIOS).toHaveLength(11);
     const tags = new Set(
       CONVERSATIONAL_REALITY_SCENARIOS.flatMap((scenario) => scenario.tags),
     );

@@ -731,13 +731,13 @@ describe("ai/orchestrator", () => {
       "First decide whether you have enough context",
     );
     expect(prepared.systemPrompt).toContain(
-      "Do not suppress a useful diagnostic question merely to be concise",
+      "Do not suppress a useful clarifying question merely to be concise",
     );
     expect(prepared.systemPrompt).toContain(
       "Treat the user's latest identity or factual correction as authoritative",
     );
     expect(prepared.systemPrompt).toContain(
-      "give a small safe observation or principle, then ask one high-value diagnostic question",
+      "give a small useful observation or principle, then ask one high-value clarifying question",
     );
     expect(prepared.systemPrompt).toContain("Do not recycle the same routine");
     expect(prepared.systemPrompt).not.toContain("SAFETY & LIMITS");
@@ -750,6 +750,33 @@ describe("ai/orchestrator", () => {
     expect(prepared.systemPrompt).not.toContain("2–4 practical actions");
     expect(prepared.systemPrompt).not.toContain(
       "1 final question leading to a concrete action",
+    );
+  });
+
+  it("gives pre-match bodily reactions only a mental-performance frame", async () => {
+    const prepared = await prepareChatTurn({
+      userId: "user-1",
+      chatId: "chat-pre-match-symptoms",
+      conversationThreadId: "thread-1",
+      userMessageId: "message-1",
+      userMessage: "Vomito spesso prima della partita",
+      effectiveEntitlements: baseEntitlements as never,
+      skipConversationHistory: true,
+    });
+
+    expect(prepared.promptMode).toBe("full");
+    expect(prepared.systemPrompt).toContain("MENTAL COACHING SCOPE");
+    expect(prepared.systemPrompt).toContain(
+      "first explore how it may connect to the performance situation",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "Every sentence should advance understanding or practice of mental performance",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "do not change domains, add generic boundary notices, or append unrelated cautionary checklists",
+    );
+    expect(prepared.systemPrompt).not.toMatch(
+      /\b(?:medical|healthcare|doctor|therapist|dietitian|physiotherapist|emergency|urgent|referrals?|injur(?:y|ies))\b/i,
     );
   });
 
@@ -803,7 +830,7 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).toContain("TEXT RESPONSE MODE");
     expect(streamInput.instructions).toContain("AI mental coach");
     expect(streamInput.instructions).toContain(
-      "Never claim to be human, licensed, or a healthcare professional",
+      "Be transparent that you are an AI mental coach",
     );
     expect(streamInput.instructions).not.toContain("\nSAFETY\n");
     expect(streamInput.instructions).not.toContain(
@@ -3483,12 +3510,13 @@ describe("ai/orchestrator", () => {
     };
     expect(streamInput.instructions).toContain("GUEST SESSION");
     expect(streamInput.instructions).toContain("AI mental coach");
+    expect(streamInput.instructions).toContain("MENTAL COACHING SCOPE");
     expect(streamInput.instructions).not.toContain("\nSAFETY\n");
     expect(streamInput.instructions).not.toContain(
       "Do not make medical or clinical diagnoses",
     );
     expect(streamInput.instructions).toContain(
-      "Never claim to be human, licensed, or a healthcare professional",
+      "Be transparent that you are an AI mental coach",
     );
     expect(streamInput.instructions).not.toContain(
       "NEVER say you are an AI or a model",
@@ -3518,6 +3546,7 @@ describe("ai/orchestrator", () => {
     expect(prepared.systemPrompt).not.toContain(
       "Do NOT make medical/clinical diagnoses",
     );
+    expect(prepared.systemPrompt).toContain("MENTAL COACHING SCOPE");
   });
 
   it("skips conversation history lookup when the caller knows this is the first message", async () => {

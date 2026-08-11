@@ -2,7 +2,6 @@ import {
   matchesAtomicCoachingIntent,
   matchesBriefResponseIntent,
   matchesComplexCoachingIntent,
-  matchesHealthRiskIntent,
   matchesMemoryDeleteIntent,
   matchesMemoryReadIntent,
   matchesMemoryWriteIntent,
@@ -28,7 +27,6 @@ export type TurnPlanReasonCode =
   | "USER_CONTEXT_CLASSIFIER"
   | "PERSISTENT_READ"
   | "PERSISTENT_WRITE"
-  | "HEALTH_OR_SAFETY"
   | "VOICE_OUTPUT";
 
 export type TurnPlan = {
@@ -175,7 +173,6 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
   }
 
   const directMedia = input.inputOrigin === "direct_media";
-  const health = matchesHealthRiskIntent(text);
   const memoryRead =
     agenticDecision?.memoryRead ?? matchesMemoryReadIntent(text);
   const memoryWrite =
@@ -219,7 +216,6 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
       Boolean(classifier?.accepted && classifier.userContext === "needed"));
 
   if (directMedia) reasonCodes.push("DIRECT_MEDIA");
-  if (health) reasonCodes.push("HEALTH_OR_SAFETY");
   if (webSearch) reasonCodes.push("WEB_SEARCH");
   if (matchesRagIntent(text)) reasonCodes.push("RAG_RULE");
   if (classifier?.accepted && classifier.rag)
@@ -236,7 +232,6 @@ export function planTurn(input: TurnPlanInput): TurnPlan {
   const selectedRag = agenticDecision?.rag ?? deterministicRag;
   const requiresFull =
     directMedia ||
-    health ||
     webSearch ||
     selectedRag ||
     requestedUserContext ||
@@ -324,7 +319,6 @@ export function planLegacyTurn(input: TurnPlanInput): TurnPlan {
   const legacyFastEligible =
     !input.isGuest &&
     matchesSimpleFastIntent(input.userMessage) &&
-    !matchesHealthRiskIntent(input.userMessage) &&
     !matchesRagIntent(input.userMessage) &&
     !matchesMemoryReadIntent(input.userMessage) &&
     !matchesMemoryWriteIntent(input.userMessage) &&

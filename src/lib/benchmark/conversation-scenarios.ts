@@ -117,6 +117,28 @@ const seeds: ScenarioSeed[] = [
       "Se il respiro si blocca alla partenza, lavoriamo prima sull'espirazione lunga e su un segnale semplice nei primi secondi.",
   },
   {
+    id: "conversation-pre-match-bodily-reaction",
+    tag: "question-quality",
+    persona: "Atleta con una reazione fisica ricorrente legata alla partita",
+    first: "Vomito spesso prima della partita.",
+    second:
+      "Succede solo prima di giocare, soprattutto quando penso che deludero tutti.",
+    firstExpectations: {
+      adviceReadiness: "ask_first",
+      expectedContextFacts: ["partita"],
+      questionPolicy: "diagnostic",
+    },
+    secondExpectations: {
+      adviceReadiness: "answer_now",
+      expectedContextFacts: ["partita", "deludero"],
+      questionPolicy: "optional",
+    },
+    highFirst:
+      "Il fatto che accada prima della partita rende importante capire il legame con la pressione, senza dare per scontata una causa: succede solo quando devi giocare o anche in altri momenti?",
+    highSecond:
+      "Il nodo sembra la paura di deludere, che alza l'attivazione fino alla nausea. Lavoriamo su un reset pre-partita breve, un obiettivo controllabile per i primi minuti e una nota dopo la gara per capire cosa cambia la reazione.",
+  },
+  {
     id: "conversation-no-ritual-question",
     tag: "naturalness",
     persona: "Utente che chiede una frase pronta",

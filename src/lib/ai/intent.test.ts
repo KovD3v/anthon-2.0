@@ -3,7 +3,6 @@ import {
   evaluateWebSearchRule,
   getWebSearchDomainType,
   matchesBriefResponseIntent,
-  matchesHealthRiskIntent,
   matchesMemoryDeleteIntent,
   matchesMemoryReadIntent,
   matchesMemoryWriteIntent,
@@ -294,11 +293,6 @@ describe("ai/intent", () => {
       true,
     );
     expect(matchesRagIntent("Motivami")).toBe(false);
-  });
-
-  it("matchesHealthRiskIntent detects injury and symptom language", () => {
-    expect(matchesHealthRiskIntent("Ho dolore al ginocchio")).toBe(true);
-    expect(matchesHealthRiskIntent("Sono carico per la gara")).toBe(false);
   });
 
   it("matchesVoiceIntent detects natural Italian voice requests", () => {

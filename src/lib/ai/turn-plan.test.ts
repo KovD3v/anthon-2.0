@@ -38,6 +38,16 @@ describe("turn plan", () => {
     expect(result.capabilities.userContext).toBe(true);
   });
 
+  it("does not classify a pre-match bodily reaction as health or safety", () => {
+    const result = plan({
+      userMessage: "Vomito spesso prima della partita",
+    });
+
+    expect(result.promptProfile).toBe("full");
+    expect(result.reasonCodes).not.toContain("HEALTH_OR_SAFETY");
+    expect(result.capabilities.userContext).toBe(true);
+  });
+
   it("promotes accepted classifier RAG and user-context decisions", () => {
     const result = plan({
       userMessage: "Rispondi breve",
