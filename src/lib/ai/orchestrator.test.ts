@@ -950,6 +950,64 @@ describe("ai/orchestrator", () => {
     expect(mocks.streamText.mock.calls[0]?.[0]?.maxOutputTokens).not.toBe(600);
   });
 
+  it("treats literal brief text inside supplied translation data as data, not a brevity instruction", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
+    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
+    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "translate");
+    mocks.classifyCapabilities.mockResolvedValueOnce(
+      lightClassification({
+        taskKind: "translate",
+        contextDependency: "none",
+        knowledgeNeed: "supplied_only",
+      }),
+    );
+    const longTranslation = `Traduci in inglese: brief ${"testo ".repeat(500)}`;
+
+    const result = await streamChat({
+      userId: "user-1",
+      chatId: "chat-long-translation-brief-data",
+      userMessage: longTranslation,
+      effectiveEntitlements: baseEntitlements,
+    });
+
+    expect(result.turnDecision.execution).toMatchObject({
+      eligibleProfile: "standard",
+      reasonCodes: expect.arrayContaining(["output_limit"]),
+    });
+    expect(mocks.streamText).toHaveBeenCalledTimes(1);
+    expect(mocks.streamText.mock.calls[0]?.[0]?.maxOutputTokens).not.toBe(600);
+  });
+
+  it("keeps genuine brief translation instructions before supplied text eligible for light routing", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
+    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
+    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "translate");
+    mocks.classifyCapabilities.mockResolvedValueOnce(
+      lightClassification({
+        taskKind: "translate",
+        contextDependency: "none",
+        knowledgeNeed: "supplied_only",
+      }),
+    );
+    const longTranslation = `Traduci in inglese, in breve: ${"testo ".repeat(500)}`;
+
+    const result = await streamChat({
+      userId: "user-1",
+      chatId: "chat-long-translation-brief-instruction",
+      userMessage: longTranslation,
+      effectiveEntitlements: baseEntitlements,
+    });
+
+    expect(result.turnDecision.execution).toMatchObject({
+      eligibleProfile: "light",
+      reasonCodes: expect.not.arrayContaining(["output_limit"]),
+    });
+    expect(mocks.streamText).toHaveBeenCalledTimes(1);
+    expect(mocks.streamText.mock.calls[0]?.[0]?.maxOutputTokens).toBe(600);
+  });
+
   it("selects one standard attempt before execution when a light plan requires a tool", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
     vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");

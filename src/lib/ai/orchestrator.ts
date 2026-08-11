@@ -217,18 +217,44 @@ async function loadBoundedRecentContext({
 }
 
 function requestedOutputTokensForRouting(userMessage: string): number {
+  const routingInstructionText =
+    extractRoutingInstructionTextForSuppliedTransform(userMessage);
   const explicitWordCounts = Array.from(
-    userMessage.matchAll(/\b(\d{1,5})\s*(?:parole|words)\b/gi),
+    routingInstructionText.matchAll(/\b(\d{1,5})\s*(?:parole|words)\b/gi),
     (match) => Number(match[1]),
   ).filter(Number.isFinite);
   const explicitOutputTokens = explicitWordCounts.length
     ? Math.ceil(Math.max(...explicitWordCounts) * 1.5)
     : 0;
-  const responsePolicyTokens = matchesBriefResponseIntent(userMessage)
+  const responsePolicyTokens = matchesBriefResponseIntent(
+    routingInstructionText,
+  )
     ? ROUTING_BRIEF_OUTPUT_TOKENS
     : Math.max(ROUTING_NORMAL_OUTPUT_FLOOR, estimateInputTokens(userMessage));
 
   return Math.max(explicitOutputTokens, responsePolicyTokens);
+}
+
+function extractRoutingInstructionTextForSuppliedTransform(
+  userMessage: string,
+) {
+  const normalizedMessage = userMessage.trim();
+
+  if (
+    !/^\s*(?:traduci|translate|riscrivi|rewrite|riformula|rephrase|formatta|format|estrai|extract|riassumi|summarizza|summarize)\b/i.test(
+      normalizedMessage,
+    )
+  ) {
+    return normalizedMessage;
+  }
+
+  const suppliedTextBoundary = normalizedMessage.search(/[:\n]/);
+
+  if (suppliedTextBoundary === -1) {
+    return normalizedMessage;
+  }
+
+  return normalizedMessage.slice(0, suppliedTextBoundary);
 }
 
 function moveSystemMessagesToInstructions(
