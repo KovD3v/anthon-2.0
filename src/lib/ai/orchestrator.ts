@@ -707,6 +707,7 @@ function createToolsWithContext(
     conversationThreadId?: string;
     allowedEvidenceIds?: Set<string>;
     allowCrossChannelRecall?: boolean;
+    recallToolsEnabled?: boolean;
   },
 ) {
   const toolPlan = options.toolPlan;
@@ -746,6 +747,7 @@ function createToolsWithContext(
 
   if (
     options.memoryRecallDecision?.mode === "active" &&
+    options.recallToolsEnabled === true &&
     options.conversationThreadId &&
     options.allowedEvidenceIds
   ) {
@@ -2130,6 +2132,8 @@ export async function streamChat({
         conversationThreadId,
         allowedEvidenceIds: recallContext.allowedEvidenceIds,
         allowCrossChannelRecall: recallPlan.conversations.allowCrossChannel,
+        recallToolsEnabled:
+          recallPlan.facts.enabled || recallPlan.conversations.enabled,
       });
   const toolOutcomes = new ToolOutcomeTracker(Object.keys(rawTools));
   const toolPolicies = new Map<string, ToolPolicy>();
@@ -2381,6 +2385,11 @@ export async function streamChat({
         step.toolCalls &&
         Array.isArray(step.toolCalls) &&
         step.toolCalls.length > 0;
+      if (!stepHasToolCalls && step.text?.trim()) {
+        for (const toolCall of collectedToolCalls) {
+          toolOutcomes.utilized(toolCall.name);
+        }
+      }
       if (stepHasToolCalls) {
         sawToolStep = true;
         const currentToolExecutionMs = toolTimingState.toolExecutionMs;
