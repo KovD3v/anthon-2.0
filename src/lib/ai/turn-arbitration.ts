@@ -79,6 +79,7 @@ export async function arbitrateTurn(
             abortSignal: input.abortSignal,
           })
         : legacyClassification();
+    input.abortSignal?.throwIfAborted();
   } catch (error) {
     input.abortSignal?.throwIfAborted();
     throw error;
@@ -117,6 +118,7 @@ export async function arbitrateTurn(
     estimatedInputTokens: input.estimatedInputTokens,
     requestedOutputTokens: input.requestedOutputTokens,
   });
+  input.abortSignal?.throwIfAborted();
 
   return {
     decision: freezeTurnDecision({

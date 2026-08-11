@@ -166,6 +166,7 @@ export async function classifyTurn({
       import("@/lib/ai/providers/openrouter-routing"),
       import("@/lib/ai/usage-meter"),
     ]);
+    abortSignal?.throwIfAborted();
     const result = await LatencyLogger.measure(
       "🧭 Orchestrator: Turn classifier",
       () =>
@@ -182,6 +183,7 @@ export async function classifyTurn({
           prompt: buildTurnClassifierPrompt(userMessage, context),
         }),
     );
+    abortSignal?.throwIfAborted();
 
     if (userId) {
       await trackSupportAiUsage({
@@ -190,9 +192,11 @@ export async function classifyTurn({
         usage: result.usage,
         providerMetadata: result.providerMetadata,
       });
+      abortSignal?.throwIfAborted();
     }
 
     const proposal = parseTurnClassifierOutput(result.output);
+    abortSignal?.throwIfAborted();
     if (!proposal) {
       return {
         proposal: null,

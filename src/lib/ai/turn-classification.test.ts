@@ -253,4 +253,32 @@ describe("turn classification contract", () => {
       }),
     ).rejects.toBe(abortError);
   });
+
+  it("propagates cancellation that occurs while metering usage", async () => {
+    const controller = new AbortController();
+    const abortError = new DOMException("request cancelled", "AbortError");
+    let resolveUsage: (() => void) | undefined;
+    mocks.trackSupportAiUsage.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUsage = resolve;
+        }),
+    );
+
+    const classification = classifyTurn({
+      userId: "user-1",
+      userMessage: "Rendilo più breve",
+      context: "context",
+      modelId: "classifier-model",
+      abortSignal: controller.signal,
+    });
+
+    await vi.waitFor(() => {
+      expect(mocks.trackSupportAiUsage).toHaveBeenCalledTimes(1);
+    });
+    controller.abort(abortError);
+    resolveUsage?.();
+
+    await expect(classification).rejects.toBe(abortError);
+  });
 });

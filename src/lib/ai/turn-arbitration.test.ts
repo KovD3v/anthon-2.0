@@ -154,4 +154,21 @@ describe("turn arbitration", () => {
       arbitrateTurn(agenticInput({ abortSignal: controller.signal })),
     ).rejects.toBe(abortError);
   });
+
+  it("propagates cancellation after classification resolves", async () => {
+    const controller = new AbortController();
+    const abortError = new DOMException("request cancelled", "AbortError");
+    mocks.classifyTurn.mockImplementationOnce(async () => {
+      controller.abort(abortError);
+      return {
+        proposal: classifierProposal,
+        outcome: "accepted",
+        latencyMs: 25,
+      };
+    });
+
+    await expect(
+      arbitrateTurn(agenticInput({ abortSignal: controller.signal })),
+    ).rejects.toBe(abortError);
+  });
 });
