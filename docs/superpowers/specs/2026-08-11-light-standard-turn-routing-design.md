@@ -163,6 +163,7 @@ type ExecutionReasonCode =
   | "output_limit"
   | "classifier_failure"
   | "legacy_mode"
+  | "task_rollout_disabled"
   | "rollout_off"
   | "rollout_shadow"
   | "runtime_invariant";
@@ -170,6 +171,7 @@ type ExecutionReasonCode =
 type ExecutionDecision = {
   eligibleProfile: ExecutionProfile;
   taskKind: TaskKind;
+  contextDependency: "none" | "recent" | "deep";
   source: "classifier" | "rule" | "mixed" | "fallback";
   confidenceBucket: "low" | "medium" | "high";
   reasonCodes: ExecutionReasonCode[];
@@ -252,7 +254,7 @@ Profiles are versioned bundles rather than unrelated switches:
 type ExecutionPolicy = {
   version: number;
   profile: ExecutionProfile;
-  promptProfile: "light" | "full";
+  promptProfile: "light" | "existing";
   historyPolicy: HistoryPolicy;
   toolPolicy: "none" | "planned";
   reasoningBudget: "minimal" | "normal";
@@ -275,7 +277,7 @@ Light does not mean no context. A request such as `Rendilo più breve` remains l
 
 ### Standard policy
 
-Preserve the current full planning and execution behavior, including the existing prompt modules, history rules, capabilities, tools, and response policy.
+Preserve the current planning and execution behavior, including the existing `compact`, `guest`, and `full` prompt modes, history rules, capabilities, tools, and response policy. The `existing` execution prompt profile delegates to the `TurnPlan` prompt profile selected by that behavior.
 
 ### Runtime invariant
 
@@ -417,7 +419,7 @@ Every latency, cost, and quality report must be segmentable by eligible, planned
 
 ## Rollout control
 
-A shared server-side resolver selects `off`, `shadow`, or `active` once per turn. The resolved mode is propagated with the turn rather than evaluated independently in each channel. Failure to resolve rollout state produces `off`.
+A shared synchronous server-side resolver selects `off`, `shadow`, or `active` once per turn. It also resolves a deterministic allocation percentage and a closed allowlist of active task families. The resolved configuration is propagated with the turn rather than evaluated independently in each channel. It performs no request-critical network lookup; missing or invalid configuration produces `off` with zero allocation. In active mode, an eligible light task whose family is not in the rollout allowlist executes standard with `task_rollout_disabled`.
 
 The rollout sequence is:
 
