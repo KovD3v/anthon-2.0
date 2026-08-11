@@ -243,7 +243,8 @@ Plan-level defaults:
 | `pro` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash` | `google/gemini-2.5-flash-lite` |
 | `admin` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash` | `google/gemini-2.5-flash-lite` |
 
-Luna requests opt into OpenRouter's OpenAI priority service tier. OpenRouter
+Luna requests opt into OpenRouter's OpenAI priority service tier and explicitly
+use `max` reasoning effort. OpenRouter
 may fall back according to its priority-tier routing rules, and the existing
 DeepSeek model fallback remains configured.
 

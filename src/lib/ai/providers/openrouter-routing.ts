@@ -71,6 +71,7 @@ const RECENT_ERROR_LIGHT_PENALTY_SECONDS = 8;
 const RECENT_ERROR_STRONG_PENALTY_SECONDS = 25;
 const RECENT_ERROR_COOLDOWN_THRESHOLD = 3;
 const PRIORITY_SERVICE_TIER_MODEL_IDS = new Set(["openai/gpt-5.6-luna"]);
+const MAX_REASONING_MODEL_IDS = new Set(["openai/gpt-5.6-luna"]);
 const providerOptionsCache = new Map<string, JSONObject>();
 
 export function getOpenRouterProviderOptions(
@@ -101,6 +102,9 @@ function getCachedOpenRouterProviderOptions(
     ...(provider ? { provider } : {}),
     ...(modelId && PRIORITY_SERVICE_TIER_MODEL_IDS.has(modelId)
       ? { service_tier: "priority" }
+      : {}),
+    ...(modelId && MAX_REASONING_MODEL_IDS.has(modelId)
+      ? { reasoning: { enabled: true, effort: "max" } }
       : {}),
   };
   providerOptionsCache.set(cacheKey, options);

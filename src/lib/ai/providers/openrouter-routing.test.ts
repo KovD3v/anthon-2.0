@@ -23,7 +23,7 @@ describe("ai/providers/openrouter-routing", () => {
     });
   });
 
-  it("requests OpenAI priority service for the Luna orchestrator", () => {
+  it("requests OpenAI priority service and max reasoning for Luna", () => {
     expect(
       getOpenRouterProviderOptionsForModel("openai/gpt-5.6-luna", {}),
     ).toEqual({
@@ -31,6 +31,7 @@ describe("ai/providers/openrouter-routing", () => {
         sort: "latency",
       },
       service_tier: "priority",
+      reasoning: { enabled: true, effort: "max" },
     });
   });
 
@@ -39,7 +40,10 @@ describe("ai/providers/openrouter-routing", () => {
     const fetchMock = vi.fn(
       async (_input: RequestInfo | URL, init?: RequestInit) => {
         const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-        expect(body).toMatchObject({ service_tier: "priority" });
+        expect(body).toMatchObject({
+          service_tier: "priority",
+          reasoning: { enabled: true, effort: "max" },
+        });
         expect(body).not.toHaveProperty("extraBody");
 
         return new Response(
