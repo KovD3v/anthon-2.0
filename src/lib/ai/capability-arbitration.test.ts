@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  acceptCapabilityVotes,
   buildCapabilityClassifierPrompt,
   getCapabilityPlannerMode,
   normalizeCapabilityDecision,
@@ -21,6 +22,15 @@ function arbitrate(
 }
 
 describe("capability arbitration", () => {
+  it("accepts confident capability votes independently", () => {
+    expect(
+      acceptCapabilityVotes({
+        memoryWrite: { decision: "yes", confidence: 0.92 },
+        webFetch: { decision: "uncertain", confidence: 0.4 },
+        webSearch: { decision: "no", confidence: 0.84 },
+      }),
+    ).toEqual({ memoryWrite: true, webSearch: false });
+  });
   it("keeps classifier-selected RAG and web capabilities together", () => {
     const decision = arbitrate({
       classifier: { rag: true, webSearch: true, webFetch: true },
