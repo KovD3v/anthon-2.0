@@ -75,6 +75,7 @@ model User {
   memories                    Memory[]
   memoryRevisions             MemoryRevision[]
   memoryApprovals             MemoryApproval[]
+  conversationRecallChunks   ConversationRecallChunk[]
   routines                    Routine[]
   messages                    Message[]
   attachments                 Attachment[]
@@ -567,12 +568,36 @@ model ConversationThread {
   traces               AiTurnTrace[]
   modelExperimentPairs ModelExperimentPair[]
   sourcedMemories       Memory[]                  @relation("MemoryFactSourceThread")
+  recallChunks          ConversationRecallChunk[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, channel, externalThreadId])
   @@index([userId, channel, updatedAt(sort: Desc)])
+}
+
+model ConversationRecallChunk {
+  id                   String             @id @default(cuid())
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationThreadId String
+  conversationThread   ConversationThread @relation(fields: [conversationThreadId], references: [id], onDelete: Cascade)
+  channel              Channel
+  startMessageId       String
+  endMessageId         String
+  throughMessageId     String
+  content              String             @db.Text
+  summary              String?            @db.Text
+  sourceCreatedAt      DateTime
+  embedding            Unsupported("vector(1536)")?
+  indexVersion         Int                @default(1)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@unique([conversationThreadId, throughMessageId, indexVersion])
+  @@index([userId, conversationThreadId, sourceCreatedAt(sort: Desc)])
+  @@index([userId, channel, sourceCreatedAt(sort: Desc)])
 }
 
 // -----------------------------------------------------
