@@ -55,8 +55,8 @@ The AI subsystem powers chat generation, retrieval, personalization, and backgro
 8. Run `streamText` with the selected tools and callbacks.
 9. Persist usage metrics, model info, token/cost telemetry, capability usage,
    and tool timing.
-10. In legacy mode, schedule the post-generation memory extractor in the
-    background; in agentic mode, memory tools are the turn's write path.
+10. For every eligible authenticated completed turn, schedule durable-memory
+    consolidation in the background independently of planner mode or tool use.
 
 ### Per-message capability arbitration
 
@@ -78,11 +78,12 @@ the deterministic fallback.
 The orchestrator composes tools from several factories:
 
 - `createMemoryTools(userId)`:
-  - `getMemories`
-  - `saveMemory` (create or update/overwrite by stable key)
+  - `recallFacts` (`getMemories` compatibility alias)
+  - `rememberFact` (`saveMemory` compatibility alias)
+  - `reviseFact`
+  - `forgetFact` (`deleteMemory` compatibility alias)
   - `requestMemoryApproval`
   - `resolveMemoryApproval`
-  - `deleteMemory` (only for a server-resolved exact target)
 - `createUserContextTools(userId)`:
   - `getUserContext`
   - `updateProfile`
@@ -96,29 +97,66 @@ The orchestrator composes tools from several factories:
 
 The orchestrator does not expose every tool on every turn. Profile and
 preference tools are enabled only when the selected plan allows persistent
-changes. In agentic mode, memory tools can silently save ordinary, low-risk
-facts stated or prudently inferred by the conversation. `saveMemory` creates a
-new record or updates/overwrites the record for the same stable key. Sensitive
-or high-impact facts are not written directly: they create a pending
-server-side approval and require a natural confirmation on the next attributable
-turn. If an attributable pending approval exists, web model-comparison
-admission is deferred before pairing so that turn can reach the normal approval
-resolver. Explicit deletion is limited to a single exact, server-resolved
-memory target; ambiguous, wildcard, category-wide, or inferred deletion is a
-no-op.
+changes. Memory tools can silently save ordinary, low-risk facts stated or
+prudently inferred by the conversation. Every mutation is user-scoped,
+idempotent, and revisioned. Sensitive or high-impact facts are not written
+directly: they create a pending server-side approval. A confirmation is valid
+only after one assistant response has been durably linked as the natural
+presentation and the user's immediately following same-thread reply explicitly
+approves or rejects it. Explicit deletion is limited to one exact,
+server-resolved fact; ambiguous, wildcard, category-wide, or inferred deletion
+is a no-op.
 
 `proposeRoutine` is proposal-only and validated. It may be called at most once
 per turn and cannot save, run, archive, or mutate a `Routine` or
 `RoutineAttempt`. The routine schema and server checks enforce the allowed
 step kinds, limits, and optional terminal feedback form.
 
-Legacy mode keeps the post-generation memory extractor and its compatibility
-behavior. Agentic mode uses the validated memory tools as the turn's write
-path; model-comparison pairs persist their planner mode so agentic responses
-do not trigger the legacy extractor a second time.
+Tool mutations handle explicit in-turn actions. Independently, shared channel
+persistence schedules post-turn consolidation for valid authenticated Web,
+Telegram, and WhatsApp responses in both planner modes. Guest turns, invalid
+recovery metadata, empty or deleted inbound messages, duplicate persistence,
+and model-comparison output do not enter consolidation.
 
 `tinyfishSearch` is enabled for current or explicit web-search intent, and
 `tinyfishFetch` only when URL/page/source reading is useful.
+
+## Durable Fact Memory
+
+Durable user knowledge has one canonical owner:
+
+- `Profile`: name, sport, primary goal, experience, birthday, and profile notes.
+- `Preferences`: explicit interaction settings such as language, tone, mode,
+  voice, and notifications.
+- `Memory`: flexible durable coaching facts that do not belong to a fixed field.
+- conversation messages: historical evidence, not a substitute fact store.
+
+`src/lib/ai/memory-canonicalization.ts` prevents a flexible fact from shadowing
+a profile or preference field. `src/lib/ai/memory-facts.ts` owns bounded recall,
+remember, revise, and soft-forget operations. An active fact records origin,
+sensitivity, confidence, source message/thread, observation time, optional
+expiry, and lifecycle status. `MemoryRevision` records the previous and next
+value, source, reason, and a unique deduplication identity for every mutation.
+Forgetting changes the fact to `DELETED`; it does not hard-delete audit history.
+
+Recall applies user ownership, `ACTIVE` status, and expiry constraints in the
+database before local ranking. It caches a maximum 64-row user snapshot for 30
+seconds, returns at most eight prompt facts, and fails open with no recalled
+facts when storage is unavailable. The operational target is at most 25 ms for
+a cached fact snapshot and the incremental P95 ceiling is 100 ms.
+
+`src/lib/ai/memory-consolidator.ts` runs after response persistence and never
+blocks streaming. It extracts at most eight bounded candidates from user text;
+the assistant may disambiguate context but is never accepted as evidence.
+Unsupported, transient, low-confidence, or inferred interaction settings are
+rejected. Ordinary candidates route to their canonical owner with
+`memory:<inboundMessageId>:<canonicalKey>` idempotency. Sensitive candidates
+remain unpresented approvals until a later normal turn requests confirmation.
+
+Truth precedence is: the user's current explicit statement, explicit profile
+or preference fields, confirmed durable facts, recent inferred facts, then
+historical conversation evidence. Explicit ordinary changes may revise a fact;
+sensitive conflicts always use approval.
 
 ### Prompt modes
 
@@ -270,8 +308,8 @@ providers that support cache/session affinity can reuse prompt context.
 
 | Mode | Behavior |
 | ---- | -------- |
-| `legacy` | Compatibility path: preserves the legacy RAG/web separation and post-generation memory extraction. |
-| `agentic` | Runs the per-message capability classifier, permits composable RAG + web, and delegates validated optional actions to the selected tools. |
+| `legacy` | Compatibility path that preserves legacy RAG/web separation; shared post-turn fact consolidation still runs. |
+| `agentic` | Runs per-message capability classification, composable RAG + web, and validated optional tools; shared consolidation still runs. |
 
 The default remains `legacy` until the rollout is deliberately changed. The
 separate `AI_TURN_PLANNER_MODE` compatibility switch is not repurposed by this
@@ -279,9 +317,9 @@ rollout.
 
 Capability decisions are shared immutably through the common channel flow for
 Web, Telegram, and WhatsApp. Web model-comparison preparation freezes the
-context and reuses the same decision for both variants and any normal fallback;
-the pair stores `capabilityPlannerMode` so legacy memory extraction is not
-duplicated for agentic comparisons.
+context and reuses the same decision for both variants and any normal fallback.
+Model-comparison responses are excluded from durable-memory consolidation so
+an unselected experimental answer cannot become user knowledge.
 
 The planner-mode schema change is migration-backed. Apply
 `prisma/migrations/20260809130000_add_model_comparison_capability_planner_mode`
