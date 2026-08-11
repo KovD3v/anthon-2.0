@@ -1,5 +1,3 @@
-import { generateText, Output } from "ai";
-import { z } from "zod";
 import {
   matchesMemoryDeleteIntent,
   matchesMemoryReadIntent,
@@ -8,14 +6,7 @@ import {
   matchesRoutineProposalIntent,
   shouldEnableWebFetchTool,
 } from "@/lib/ai/intent";
-import { LatencyLogger } from "@/lib/latency-logger";
-import { createLogger } from "@/lib/logger";
 import { isDeletableStableMemoryKey } from "./memory-target";
-
-const capabilityLogger = createLogger("ai");
-const CAPABILITY_CLASSIFIER_TIMEOUT_MS = 900;
-const CAPABILITY_CLASSIFIER_MIN_CONFIDENCE = 0.7;
-const MAX_CLASSIFIER_CONTEXT_CHARS = 2_000;
 
 export type CapabilityDecision = {
   rag: boolean;
@@ -75,122 +66,6 @@ type ClassifierCapability = (typeof CLASSIFIER_CAPABILITIES)[number];
 
 function normalizeResolvedMemoryTarget(target: string | null | undefined) {
   return isDeletableStableMemoryKey(target) ? target : null;
-}
-
-const capabilityVoteSchema = z.object({
-  decision: z.enum(["yes", "no", "uncertain"]),
-  confidence: z.number().min(0).max(1),
-});
-const capabilityClassifierSchema = z.object(
-  Object.fromEntries(
-    CLASSIFIER_CAPABILITIES.map((capability) => [
-      capability,
-      capabilityVoteSchema,
-    ]),
-  ) as Record<ClassifierCapability, typeof capabilityVoteSchema>,
-);
-
-type ClassifierInput = {
-  userMessage: string;
-  context: string;
-  modelId: string;
-  userId?: string;
-  abortSignal?: AbortSignal;
-};
-
-export function buildCapabilityClassifierPrompt(
-  userMessage: string,
-  context: string,
-) {
-  return `Classify optional capabilities for the next Anthon chat turn.
-
-Return an independent decision and confidence for every capability. Return yes
-only when that capability is materially useful. One uncertain capability must
-not change another capability's confident vote.
-memoryWrite may be yes for explicit persistence requests and for clearly stated, ordinary low-risk durable facts that will remain useful in future coaching turns. Keep it no for guesses, transient details, and low-confidence inferences. Sensitive or high-impact facts are always subject to server-side approval policy and cannot be downgraded by this classifier.
-Voice output requires an explicit voice response mode.
-
-Context:
-${context.slice(0, MAX_CLASSIFIER_CONTEXT_CHARS)}
-
-User message:
-${JSON.stringify(userMessage)}`;
-}
-
-export function acceptCapabilityVotes(
-  output: Partial<
-    Record<ClassifierCapability, z.infer<typeof capabilityVoteSchema>>
-  >,
-): Partial<CapabilityDecision> {
-  const accepted: Partial<CapabilityDecision> = {};
-  for (const capability of CLASSIFIER_CAPABILITIES) {
-    const vote = output[capability];
-    if (!vote || vote.confidence < CAPABILITY_CLASSIFIER_MIN_CONFIDENCE)
-      continue;
-    if (vote.decision === "yes") accepted[capability] = true;
-    if (vote.decision === "no") accepted[capability] = false;
-  }
-  return accepted;
-}
-
-export async function classifyCapabilities({
-  userMessage,
-  context,
-  modelId,
-  userId,
-  abortSignal,
-}: ClassifierInput): Promise<Partial<CapabilityDecision> | null> {
-  abortSignal?.throwIfAborted();
-
-  try {
-    const [
-      { openrouter },
-      { getOpenRouterProviderOptionsForModel },
-      { trackSupportAiUsage },
-    ] = await Promise.all([
-      import("@/lib/ai/providers/openrouter"),
-      import("@/lib/ai/providers/openrouter-routing"),
-      import("@/lib/ai/usage-meter"),
-    ]);
-    const result = await LatencyLogger.measure(
-      "🧭 Orchestrator: Capability classifier",
-      () =>
-        generateText({
-          model: openrouter(modelId),
-          output: Output.object({ schema: capabilityClassifierSchema }),
-          temperature: 0,
-          maxOutputTokens: 120,
-          abortSignal,
-          timeout: { totalMs: CAPABILITY_CLASSIFIER_TIMEOUT_MS },
-          providerOptions: {
-            openrouter: getOpenRouterProviderOptionsForModel(modelId),
-          },
-          prompt: buildCapabilityClassifierPrompt(userMessage, context),
-        }),
-    );
-
-    if (userId) {
-      await trackSupportAiUsage({
-        userId,
-        modelId,
-        usage: result.usage,
-        providerMetadata: result.providerMetadata,
-      });
-    }
-
-    const parsed = capabilityClassifierSchema.safeParse(result.output);
-    if (!parsed.success) return null;
-    const accepted = acceptCapabilityVotes(parsed.data);
-    return Object.keys(accepted).length > 0 ? accepted : null;
-  } catch (error) {
-    abortSignal?.throwIfAborted();
-    capabilityLogger.warn(
-      "ai.capability_arbitration.classifier_failed",
-      "Capability classifier failed; using deterministic arbitration",
-      { error, modelId },
-    );
-    return null;
-  }
 }
 
 function addReason(reasonCodes: string[], reason: string) {

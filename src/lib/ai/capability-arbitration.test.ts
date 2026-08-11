@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  acceptCapabilityVotes,
-  buildCapabilityClassifierPrompt,
   getCapabilityPlannerMode,
   normalizeCapabilityDecision,
 } from "./capability-arbitration";
@@ -22,15 +20,6 @@ function arbitrate(
 }
 
 describe("capability arbitration", () => {
-  it("accepts confident capability votes independently", () => {
-    expect(
-      acceptCapabilityVotes({
-        memoryWrite: { decision: "yes", confidence: 0.92 },
-        webFetch: { decision: "uncertain", confidence: 0.4 },
-        webSearch: { decision: "no", confidence: 0.84 },
-      }),
-    ).toEqual({ memoryWrite: true, webSearch: false });
-  });
   it("keeps classifier-selected RAG and web capabilities together", () => {
     const decision = arbitrate({
       classifier: { rag: true, webSearch: true, webFetch: true },
@@ -249,18 +238,6 @@ describe("capability arbitration", () => {
     });
 
     expect(decision.memoryWrite).toBe(true);
-  });
-
-  it("does not require explicit persistence language for low-risk classifier selection", () => {
-    const prompt = buildCapabilityClassifierPrompt(
-      "Di solito mi alleno al mattino.",
-      "web_search_rule=not_required",
-    );
-
-    expect(prompt).toContain("ordinary low-risk durable facts");
-    expect(prompt).not.toContain(
-      "Persistent-memory changes require an explicit user request",
-    );
   });
 });
 

@@ -1,7 +1,13 @@
+import { generateText, Output } from "ai";
 import { z } from "zod";
+import { LatencyLogger } from "@/lib/latency-logger";
+import { createLogger } from "@/lib/logger";
 import { CLASSIFIER_CAPABILITIES } from "./capability-arbitration";
 
 const MAX_CLASSIFIER_CONTEXT_CHARS = 2_000;
+const TURN_CLASSIFIER_TIMEOUT_MS = 900;
+const LIGHT_MIN_CONFIDENCE = 0.9;
+const classifierLogger = createLogger("ai");
 
 export const TASK_KINDS = [
   "social",
@@ -40,6 +46,20 @@ export type TurnClassifierProposal = {
   capabilities: CapabilityClassifierProposal;
   capabilityConfidence: number;
   workload: WorkloadProposal;
+};
+
+export type TurnClassificationResult = {
+  proposal: TurnClassifierProposal | null;
+  outcome: "accepted" | "invalid" | "low_confidence" | "failed";
+  latencyMs: number;
+};
+
+export type TurnClassificationInput = {
+  userMessage: string;
+  context: string;
+  modelId: string;
+  userId?: string;
+  abortSignal?: AbortSignal;
 };
 
 const classifierCapabilityValueSchema = z.enum(["yes", "no", "uncertain"]);
@@ -124,4 +144,82 @@ ${context.slice(0, MAX_CLASSIFIER_CONTEXT_CHARS)}
 
 User message:
 ${JSON.stringify(userMessage)}`;
+}
+
+export async function classifyTurn({
+  userMessage,
+  context,
+  modelId,
+  userId,
+  abortSignal,
+}: TurnClassificationInput): Promise<TurnClassificationResult> {
+  abortSignal?.throwIfAborted();
+  const startedAt = Date.now();
+
+  try {
+    const [
+      { openrouter },
+      { getOpenRouterProviderOptionsForModel },
+      { trackSupportAiUsage },
+    ] = await Promise.all([
+      import("@/lib/ai/providers/openrouter"),
+      import("@/lib/ai/providers/openrouter-routing"),
+      import("@/lib/ai/usage-meter"),
+    ]);
+    const result = await LatencyLogger.measure(
+      "🧭 Orchestrator: Turn classifier",
+      () =>
+        generateText({
+          model: openrouter(modelId),
+          output: Output.object({ schema: turnClassifierProposalSchema }),
+          temperature: 0,
+          maxOutputTokens: 220,
+          abortSignal,
+          timeout: { totalMs: TURN_CLASSIFIER_TIMEOUT_MS },
+          providerOptions: {
+            openrouter: getOpenRouterProviderOptionsForModel(modelId),
+          },
+          prompt: buildTurnClassifierPrompt(userMessage, context),
+        }),
+    );
+
+    if (userId) {
+      await trackSupportAiUsage({
+        userId,
+        modelId,
+        usage: result.usage,
+        providerMetadata: result.providerMetadata,
+      });
+    }
+
+    const proposal = parseTurnClassifierOutput(result.output);
+    if (!proposal) {
+      return {
+        proposal: null,
+        outcome: "invalid",
+        latencyMs: Date.now() - startedAt,
+      };
+    }
+
+    return {
+      proposal,
+      outcome:
+        proposal.workload.confidence < LIGHT_MIN_CONFIDENCE
+          ? "low_confidence"
+          : "accepted",
+      latencyMs: Date.now() - startedAt,
+    };
+  } catch (error) {
+    abortSignal?.throwIfAborted();
+    classifierLogger.warn(
+      "ai.turn_classification.classifier_failed",
+      "Turn classifier failed; using deterministic arbitration",
+      { error, modelId },
+    );
+    return {
+      proposal: null,
+      outcome: "failed",
+      latencyMs: Date.now() - startedAt,
+    };
+  }
 }
