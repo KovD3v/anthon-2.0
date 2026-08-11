@@ -64,6 +64,10 @@ export function captureAiGenerationMetadata({
   context: AiGenerationTelemetryContext;
   metrics: AIMetrics;
 }) {
+  const executionRoute = metrics.executionRoute
+    ? parseExecutionRouteTrace(metrics.executionRoute)
+    : null;
+
   try {
     getPostHogClient().capture({
       distinctId: boundedLabel(context.distinctId) ?? "unknown",
@@ -118,8 +122,8 @@ export function captureAiGenerationMetadata({
               toolUtilizedCount: metrics.toolOutcomes.utilized,
             }
           : {}),
-        ...(metrics.executionRoute
-          ? executionRouteTelemetryProperties(metrics.executionRoute)
+        ...(executionRoute
+          ? executionRouteTelemetryProperties(executionRoute)
           : {}),
         reasoningTimeMs: metrics.reasoningTimeMs,
       },

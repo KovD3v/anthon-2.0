@@ -112,6 +112,92 @@ describe("parseExecutionRouteTrace", () => {
   });
 
   it.each([
+    ["a cancelled first attempt", "cancelled"],
+    ["a failed-during-stream first attempt", "failed_during_stream"],
+  ])("rejects an escalation after %s", (_label, outcome) => {
+    expect(
+      parseExecutionRouteTrace({
+        ...completedStandardTrace,
+        routingMode: "active",
+        eligibleProfile: "light",
+        plannedProfile: "light",
+        executedProfile: "standard",
+        taskKind: "rewrite",
+        attempts: [
+          {
+            sequence: 1,
+            profile: "light",
+            outcome,
+            generationTimeMs: 10,
+          },
+          {
+            sequence: 2,
+            profile: "standard",
+            outcome: "completed",
+            generationTimeMs: 20,
+          },
+        ],
+        escalation: {
+          from: "light",
+          to: "standard",
+          reason: "provider_error",
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it.each(["completed", "cancelled"] as const)(
+    "rejects a retry after a terminal %s attempt",
+    (outcome) => {
+      expect(
+        parseExecutionRouteTrace({
+          ...completedStandardTrace,
+          attempts: [
+            {
+              sequence: 1,
+              profile: "standard",
+              outcome,
+              generationTimeMs: 10,
+            },
+            {
+              sequence: 2,
+              profile: "standard",
+              outcome: "completed",
+              generationTimeMs: 20,
+            },
+          ],
+        }),
+      ).toBeNull();
+    },
+  );
+
+  it("requires escalation when attempts transition from light to standard", () => {
+    expect(
+      parseExecutionRouteTrace({
+        ...completedStandardTrace,
+        routingMode: "active",
+        eligibleProfile: "light",
+        plannedProfile: "light",
+        taskKind: "rewrite",
+        attempts: [
+          {
+            sequence: 1,
+            profile: "light",
+            outcome: "failed_before_stream",
+            generationTimeMs: 10,
+          },
+          {
+            sequence: 2,
+            profile: "standard",
+            outcome: "completed",
+            generationTimeMs: 20,
+          },
+        ],
+      }),
+    ).toBeNull();
+  });
+
+  it.each([
     ["an invalid profile", { executedProfile: "premium" }],
     [
       "more than two attempts",
@@ -136,6 +222,21 @@ describe("parseExecutionRouteTrace", () => {
     ["a free-form reason", { reasonCodes: ["user said something secret"] }],
     ["a missing executed profile", { executedProfile: undefined }],
     ["an unrecognized key", { classifierProse: "SECRET_CLASSIFIER_PROSE" }],
+    ["an invalid policy version", { policyVersion: 2 }],
+    ["an invalid classifier version", { classifierVersion: 2 }],
+    [
+      "an invalid attempt outcome",
+      {
+        attempts: [
+          {
+            ...completedStandardTrace.attempts[0],
+            outcome: "recovered",
+          },
+        ],
+      },
+    ],
+    ["a negative routing latency", { routingOverheadMs: -1 }],
+    ["a non-finite classification latency", { classificationLatencyMs: NaN }],
   ])("rejects %s", (_label, invalidValue) => {
     expect(
       parseExecutionRouteTrace({ ...completedStandardTrace, ...invalidValue }),

@@ -208,15 +208,15 @@ describe("captureAiGenerationMetadata", () => {
             to: "standard",
             reason: "empty_response",
           },
-          userText: "SECRET_USER_TEXT",
-          prompt: "SECRET_PROMPT",
-          classifierProse: "SECRET_CLASSIFIER_PROSE",
-          reasoning: "SECRET_REASONING",
-          url: "https://secret.example/SECRET_URL",
-          memory: "SECRET_MEMORY",
-          toolPayload: { secret: "SECRET_TOOL_PAYLOAD" },
-        } as never,
-      },
+        },
+        userText: "SECRET_USER_TEXT",
+        prompt: "SECRET_PROMPT",
+        classifierProse: "SECRET_CLASSIFIER_PROSE",
+        reasoning: "SECRET_REASONING",
+        url: "https://secret.example/SECRET_URL",
+        memory: "SECRET_MEMORY",
+        toolPayload: { secret: "SECRET_TOOL_PAYLOAD" },
+      } as never,
     });
 
     expect(mocks.capture).toHaveBeenCalledWith({
@@ -253,6 +253,53 @@ describe("captureAiGenerationMetadata", () => {
     ]) {
       expect(captured).not.toContain(secret);
     }
+  });
+
+  it("omits malformed execution-route scalars from generation telemetry", () => {
+    captureAiGenerationMetadata({
+      context: { distinctId: "user-1", traceId: "trace-1" },
+      metrics: {
+        model: "standard-model",
+        inputTokens: 60,
+        outputTokens: 20,
+        reasoningTokens: null,
+        toolCalls: null,
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.007,
+        generationTimeMs: 800,
+        reasoningTimeMs: null,
+        executionRoute: {
+          schemaVersion: 1,
+          routingMode: "UNSAFE_ROUTE_MODE",
+          policyVersion: 1,
+          classifierVersion: 1,
+          eligibleProfile: "light",
+          plannedProfile: "light",
+          executedProfile: "standard",
+          taskKind: "UNSAFE_TASK_KIND",
+          decisionSource: "classifier",
+          confidenceBucket: "high",
+          reasonCodes: ["classifier_light"],
+          classificationLatencyMs: 25,
+          routingOverheadMs: 2,
+          attempts: [
+            {
+              sequence: 1,
+              profile: "standard",
+              outcome: "completed",
+              generationTimeMs: 800,
+            },
+          ],
+        },
+      } as never,
+    });
+
+    const properties = mocks.capture.mock.calls[0]?.[0].properties;
+    expect(properties).not.toHaveProperty("routing_mode");
+    expect(properties).not.toHaveProperty("task_kind");
+    expect(JSON.stringify(properties)).not.toContain("UNSAFE_ROUTE_MODE");
+    expect(JSON.stringify(properties)).not.toContain("UNSAFE_TASK_KIND");
   });
 
   it("captures a terminal route failure without assistant metrics", () => {

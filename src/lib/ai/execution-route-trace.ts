@@ -118,17 +118,40 @@ const executionRouteTraceSchema = z
       });
     }
 
+    const firstAttempt = trace.attempts[0];
+    const retryAttempt = trace.attempts[1];
+    if (
+      retryAttempt &&
+      (firstAttempt?.outcome === "completed" ||
+        firstAttempt?.outcome === "cancelled")
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Completed and cancelled attempts cannot be retried.",
+        path: ["attempts", 1],
+      });
+    }
+
+    const isLightToStandardTransition =
+      firstAttempt?.profile === "light" && retryAttempt?.profile === "standard";
+    if (isLightToStandardTransition && !trace.escalation) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "A light-to-standard transition requires an escalation.",
+        path: ["escalation"],
+      });
+    }
+
     if (!trace.escalation) return;
 
-    const firstAttempt = trace.attempts[0];
     if (
       trace.routingMode !== "active" ||
       trace.eligibleProfile !== "light" ||
       trace.plannedProfile !== "light" ||
       trace.attempts.length !== 2 ||
       firstAttempt?.profile !== "light" ||
-      firstAttempt.outcome === "completed" ||
-      trace.attempts[1]?.profile !== "standard"
+      firstAttempt.outcome !== "failed_before_stream" ||
+      retryAttempt?.profile !== "standard"
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
