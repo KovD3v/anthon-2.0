@@ -5,6 +5,7 @@ import {
   filterCapabilityUsageByDecision,
   normalizePreDeliveryCapabilityUsage,
 } from "@/lib/ai/capability-usage";
+import { indexConversationWindow } from "@/lib/ai/conversation-index";
 import { markMemoryApprovalPresented } from "@/lib/ai/memory-approval";
 import { consolidateTurnMemory } from "@/lib/ai/memory-consolidator";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
@@ -391,6 +392,20 @@ export async function persistAssistantOutput({
     scheduleBackground(
       waitUntil,
       safelyRefreshConversationThreadSummary(conversationThreadId, userId),
+    );
+    scheduleBackground(
+      waitUntil,
+      indexConversationWindow({
+        userId,
+        conversationThreadId,
+        throughMessageId: message.id,
+      }).catch((error) => {
+        persistenceLogger.warn(
+          "conversation_recall.index_failed",
+          "Conversation recall indexing failed",
+          { errorName: error instanceof Error ? error.name : "unknown", userId },
+        );
+      }),
     );
   }
 

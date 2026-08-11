@@ -33,24 +33,23 @@ export async function indexConversationWindow(input: {
   });
   if (!thread) return { status: "skipped" };
 
+  const throughMessage = await prisma.message.findFirst({
+    where: {
+      id: input.throughMessageId,
+      userId: input.userId,
+      conversationThreadId: input.conversationThreadId,
+      deletedAt: null,
+    },
+    select: { createdAt: true },
+  });
+  if (!throughMessage) return { status: "skipped" };
+
   const messages = await prisma.message.findMany({
     where: {
       userId: input.userId,
       conversationThreadId: input.conversationThreadId,
       deletedAt: null,
-      createdAt: {
-        lte: (
-          await prisma.message.findFirst({
-            where: {
-              id: input.throughMessageId,
-              userId: input.userId,
-              conversationThreadId: input.conversationThreadId,
-              deletedAt: null,
-            },
-            select: { createdAt: true },
-          })
-        )?.createdAt,
-      },
+      createdAt: { lte: throughMessage.createdAt },
     },
     select: {
       id: true,
@@ -110,4 +109,22 @@ export async function indexConversationWindow(input: {
     `,
   );
   return { status: "indexed", chunkId };
+}
+
+export async function removeOrphanedConversationRecall(): Promise<number> {
+  return prisma.$executeRaw(
+    Prisma.sql`
+      DELETE FROM "ConversationRecallChunk" crc
+      WHERE NOT EXISTS (
+        SELECT 1 FROM "ConversationThread" ct
+        WHERE ct."id" = crc."conversationThreadId" AND ct."userId" = crc."userId"
+      ) OR NOT EXISTS (
+        SELECT 1 FROM "Message" m
+        WHERE m."id" = crc."throughMessageId"
+          AND m."userId" = crc."userId"
+          AND m."conversationThreadId" = crc."conversationThreadId"
+          AND m."deletedAt" IS NULL
+      )
+    `,
+  );
 }

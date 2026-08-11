@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   chatUpdate: vi.fn(),
   incrementUsage: vi.fn(),
   consolidateTurnMemory: vi.fn(),
+  indexConversationWindow: vi.fn(),
   markMemoryApprovalPresented: vi.fn(),
   captureAiTurnTrace: vi.fn(),
   revalidateTag: vi.fn(),
@@ -38,6 +39,9 @@ vi.mock("@/lib/rate-limit", () => ({
 
 vi.mock("@/lib/ai/memory-consolidator", () => ({
   consolidateTurnMemory: mocks.consolidateTurnMemory,
+}));
+vi.mock("@/lib/ai/conversation-index", () => ({
+  indexConversationWindow: mocks.indexConversationWindow,
 }));
 vi.mock("@/lib/ai/memory-approval", () => ({
   markMemoryApprovalPresented: mocks.markMemoryApprovalPresented,
@@ -68,6 +72,7 @@ describe("channel-flow/persistence", () => {
     mocks.chatUpdate.mockReset();
     mocks.incrementUsage.mockReset();
     mocks.consolidateTurnMemory.mockReset();
+    mocks.indexConversationWindow.mockReset();
     mocks.markMemoryApprovalPresented.mockReset();
     mocks.captureAiTurnTrace.mockReset();
     mocks.revalidateTag.mockReset();
@@ -95,6 +100,7 @@ describe("channel-flow/persistence", () => {
       approvalsCreated: 0,
       rejected: 0,
     });
+    mocks.indexConversationWindow.mockResolvedValue({ status: "indexed", chunkId: "chunk-1" });
     mocks.markMemoryApprovalPresented.mockResolvedValue({
       status: "presented",
     });
@@ -234,6 +240,40 @@ describe("channel-flow/persistence", () => {
       assistantText: "assistant",
     });
     expect(waitUntil).toHaveBeenCalledTimes(1);
+  });
+
+  it("schedules conversation indexing after a linked turn is persisted", async () => {
+    const waitUntil = vi.fn();
+
+    await persistAssistantOutput({
+      userId: "user-1",
+      userMessageId: "inbound-index",
+      conversationThreadId: "thread-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "ricordi la finale?",
+      metrics: {
+        model: "test-model",
+        inputTokens: 5,
+        outputTokens: 8,
+        reasoningTokens: 0,
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0,
+        generationTimeMs: 10,
+        reasoningTimeMs: 0,
+      },
+      allowMemoryExtraction: false,
+      waitUntil,
+    });
+
+    expect(mocks.indexConversationWindow).toHaveBeenCalledWith({
+      userId: "user-1",
+      conversationThreadId: "thread-1",
+      throughMessageId: "msg-1",
+    });
+    expect(waitUntil).toHaveBeenCalledTimes(2);
   });
 
   it("links a forced sensitive-memory presentation to the persisted assistant", async () => {
