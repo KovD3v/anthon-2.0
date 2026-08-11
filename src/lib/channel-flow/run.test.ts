@@ -918,6 +918,93 @@ describe("channel-flow/run", () => {
     });
   });
 
+  it("fails impossible kill-switch recovery routes closed to standard", async () => {
+    const capabilityDecision = immutableTurnDecision().capabilities;
+    const impossibleRoute = executionRoute({
+      routingMode: "off",
+      plannedProfile: "standard",
+      executedProfile: "light",
+      attempts: [
+        {
+          sequence: 1,
+          profile: "light",
+          outcome: "completed",
+          generationTimeMs: 100,
+        },
+      ],
+    });
+    mocks.reserveAiUsage.mockResolvedValue({
+      allowed: true,
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+      recovery: {
+        text: "recovered answer",
+        metrics: {
+          model: "recovered-model",
+          inputTokens: 10,
+          outputTokens: 4,
+          reasoningTokens: null,
+          toolCalls: null,
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.01,
+          generationTimeMs: 100,
+          reasoningTimeMs: null,
+          executionRoute: impossibleRoute,
+        },
+        capabilityMetadataValid: true,
+        executionMetadataValid: true,
+        executionRoute: impossibleRoute,
+        capabilityPlannerMode: "agentic",
+        capabilityDecision,
+      },
+    });
+
+    const result = await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      chatId: "chat-impossible-recovery",
+      userMessageId: "inbound-impossible-recovery",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: {
+        allowed: true,
+        effectiveEntitlements: {
+          modelTier: "BASIC",
+          uploadLimits: {
+            maxUploadsPerDay: 25,
+            maxUploadBytesPerDay: 250 * 1024 * 1024,
+          },
+          limits: {
+            maxRequestsPerDay: 10,
+            maxInputTokensPerDay: 1_000,
+            maxOutputTokensPerDay: 1_000,
+            maxCostPerDay: 1,
+            maxContextMessages: 20,
+          },
+          sources: [],
+        },
+      },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: false,
+      },
+      execution: { mode: "text" },
+      persistence: { channel: "WEB", saveAssistantMessage: true },
+    });
+
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(result.executionMetadataValid).toBe(false);
+    expect(result.metrics?.executionRoute).toBeUndefined();
+    expect(result.turnDecision?.execution).toMatchObject({
+      eligibleProfile: "standard",
+      taskKind: "other",
+      source: "fallback",
+      reasonCodes: expect.arrayContaining(["runtime_invariant"]),
+    });
+  });
+
   it.each([
     { name: "missing", recovery: {} },
     { name: "invalid", recovery: { capabilityMetadataValid: false } },

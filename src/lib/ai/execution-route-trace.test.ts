@@ -171,6 +171,74 @@ describe("parseExecutionRouteTrace", () => {
     },
   );
 
+  it.each(["off", "shadow"] as const)(
+    "rejects light execution while routing is %s",
+    (routingMode) => {
+      expect(
+        parseExecutionRouteTrace({
+          ...completedStandardTrace,
+          routingMode,
+          eligibleProfile: "light",
+          plannedProfile: "standard",
+          executedProfile: "light",
+          taskKind: "rewrite",
+          attempts: [
+            {
+              sequence: 1,
+              profile: "light",
+              outcome: "completed",
+              generationTimeMs: 20,
+            },
+          ],
+        }),
+      ).toBeNull();
+    },
+  );
+
+  it("rejects a second standard attempt without a planned-light escalation", () => {
+    expect(
+      parseExecutionRouteTrace({
+        ...completedStandardTrace,
+        routingMode: "active",
+        attempts: [
+          {
+            sequence: 1,
+            profile: "standard",
+            outcome: "failed_before_stream",
+            generationTimeMs: 10,
+          },
+          {
+            sequence: 2,
+            profile: "standard",
+            outcome: "completed",
+            generationTimeMs: 20,
+          },
+        ],
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects standard execution for an active planned-light route without escalation", () => {
+    expect(
+      parseExecutionRouteTrace({
+        ...completedStandardTrace,
+        routingMode: "active",
+        eligibleProfile: "light",
+        plannedProfile: "light",
+        executedProfile: "standard",
+        taskKind: "rewrite",
+        attempts: [
+          {
+            sequence: 1,
+            profile: "standard",
+            outcome: "completed",
+            generationTimeMs: 20,
+          },
+        ],
+      }),
+    ).toBeNull();
+  });
+
   it("requires escalation when attempts transition from light to standard", () => {
     expect(
       parseExecutionRouteTrace({

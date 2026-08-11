@@ -29,28 +29,31 @@ type LightTaskKind = (typeof LIGHT_TASK_KINDS)[number];
 export type ExecutionProfile = "light" | "standard";
 export type RoutingMode = "off" | "shadow" | "active";
 
-export type ExecutionReasonCode =
-  | "classifier_light"
-  | "classifier_standard"
-  | "task_allowlisted"
-  | "task_not_allowlisted"
-  | "low_confidence"
-  | "capability_required"
-  | "capability_uncertain"
-  | "external_knowledge"
-  | "deep_context"
-  | "sensitive_content"
-  | "direct_media"
-  | "pending_approval"
-  | "voice_output"
-  | "input_limit"
-  | "output_limit"
-  | "classifier_failure"
-  | "legacy_mode"
-  | "task_rollout_disabled"
-  | "rollout_off"
-  | "rollout_shadow"
-  | "runtime_invariant";
+export const EXECUTION_REASON_CODES = [
+  "classifier_light",
+  "classifier_standard",
+  "task_allowlisted",
+  "task_not_allowlisted",
+  "low_confidence",
+  "capability_required",
+  "capability_uncertain",
+  "external_knowledge",
+  "deep_context",
+  "sensitive_content",
+  "direct_media",
+  "pending_approval",
+  "voice_output",
+  "input_limit",
+  "output_limit",
+  "classifier_failure",
+  "legacy_mode",
+  "task_rollout_disabled",
+  "rollout_off",
+  "rollout_shadow",
+  "runtime_invariant",
+] as const;
+
+export type ExecutionReasonCode = (typeof EXECUTION_REASON_CODES)[number];
 
 export type ExecutionDecision = {
   eligibleProfile: ExecutionProfile;
@@ -58,7 +61,7 @@ export type ExecutionDecision = {
   contextDependency: "none" | "recent" | "deep";
   source: "classifier" | "rule" | "mixed" | "fallback";
   confidenceBucket: "low" | "medium" | "high";
-  reasonCodes: ExecutionReasonCode[];
+  reasonCodes: readonly ExecutionReasonCode[];
   policyVersion: 1;
   classifierVersion: 1;
 };
@@ -72,7 +75,7 @@ export type TurnDecision = {
 export type ExecutionRoutingConfig = {
   mode: RoutingMode;
   allocationPercent: number;
-  enabledTaskKinds: LightTaskKind[];
+  enabledTaskKinds: readonly LightTaskKind[];
 };
 
 export type ExecutionPolicy = {
@@ -88,7 +91,7 @@ export type PlannedExecution = {
   routingMode: RoutingMode;
   eligibleProfile: ExecutionProfile;
   plannedProfile: ExecutionProfile;
-  reasonCodes: ExecutionReasonCode[];
+  reasonCodes: readonly ExecutionReasonCode[];
   primary: ExecutionPolicy;
   standardFallback?: ExecutionPolicy;
 };
@@ -114,6 +117,7 @@ type NormalizeExecutionDecisionInput = {
   responseMode: "text" | "voice";
   estimatedInputTokens: number;
   requestedOutputTokens: number;
+  hasRecentContext: boolean;
 };
 
 const EMPTY_ROUTING_CONFIG: ExecutionRoutingConfig = {
@@ -277,6 +281,10 @@ export function normalizeExecutionDecision(
     addReason(reasonCodes, "deep_context");
   }
 
+  if (workload?.contextDependency === "recent" && !input.hasRecentContext) {
+    addReason(reasonCodes, "deep_context");
+  }
+
   if (
     workload?.sensitivity === "coaching" ||
     workload?.reasoningDepth === "substantive" ||
@@ -313,6 +321,7 @@ export function normalizeExecutionDecision(
     isLightTaskKind(taskKind) &&
     workload.reasoningDepth === "minimal" &&
     workload.contextDependency !== "deep" &&
+    (workload.contextDependency !== "recent" || input.hasRecentContext) &&
     workload.knowledgeNeed !== "external" &&
     workload.sensitivity === "ordinary" &&
     !input.hasDeterministicCoachingIntent &&

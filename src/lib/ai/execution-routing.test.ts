@@ -106,6 +106,7 @@ function route(
     responseMode: "text",
     estimatedInputTokens: LIGHT_MAX_INPUT_TOKENS,
     requestedOutputTokens: LIGHT_MAX_OUTPUT_TOKENS,
+    hasRecentContext: true,
     ...overrides,
   });
 }

@@ -4,31 +4,8 @@ import type {
   ExecutionReasonCode,
   RoutingMode,
 } from "./execution-routing";
+import { EXECUTION_REASON_CODES } from "./execution-routing";
 import type { TaskKind } from "./turn-classification";
-
-const EXECUTION_REASON_CODES = [
-  "classifier_light",
-  "classifier_standard",
-  "task_allowlisted",
-  "task_not_allowlisted",
-  "low_confidence",
-  "capability_required",
-  "capability_uncertain",
-  "external_knowledge",
-  "deep_context",
-  "sensitive_content",
-  "direct_media",
-  "pending_approval",
-  "voice_output",
-  "input_limit",
-  "output_limit",
-  "classifier_failure",
-  "legacy_mode",
-  "task_rollout_disabled",
-  "rollout_off",
-  "rollout_shadow",
-  "runtime_invariant",
-] as const satisfies readonly ExecutionReasonCode[];
 
 const TASK_KINDS = [
   "social",
@@ -120,38 +97,62 @@ const executionRouteTraceSchema = z
 
     const firstAttempt = trace.attempts[0];
     const retryAttempt = trace.attempts[1];
-    if (
-      retryAttempt &&
-      (firstAttempt?.outcome === "completed" ||
-        firstAttempt?.outcome === "cancelled")
-    ) {
+    const plannedStandard = trace.plannedProfile === "standard";
+
+    if (trace.routingMode !== "active" && !plannedStandard) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Completed and cancelled attempts cannot be retried.",
-        path: ["attempts", 1],
+        message: "Off and shadow routes must plan standard execution.",
+        path: ["plannedProfile"],
       });
     }
 
-    const isLightToStandardTransition =
-      firstAttempt?.profile === "light" && retryAttempt?.profile === "standard";
-    if (isLightToStandardTransition && !trace.escalation) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "A light-to-standard transition requires an escalation.",
-        path: ["escalation"],
-      });
+    if (plannedStandard) {
+      if (
+        trace.attempts.length !== 1 ||
+        firstAttempt?.profile !== "standard" ||
+        trace.executedProfile !== "standard" ||
+        trace.escalation
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Standard execution permits exactly one standard attempt.",
+          path: ["attempts"],
+        });
+      }
+      return;
     }
-
-    if (!trace.escalation) return;
 
     if (
       trace.routingMode !== "active" ||
       trace.eligibleProfile !== "light" ||
-      trace.plannedProfile !== "light" ||
+      firstAttempt?.profile !== "light"
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Light execution requires an active eligible-light route.",
+        path: ["plannedProfile"],
+      });
+    }
+
+    if (!retryAttempt) {
+      if (trace.executedProfile !== "light" || trace.escalation) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "A single light attempt must execute light without escalation.",
+          path: ["executedProfile"],
+        });
+      }
+      return;
+    }
+
+    if (
       trace.attempts.length !== 2 ||
-      firstAttempt?.profile !== "light" ||
       firstAttempt.outcome !== "failed_before_stream" ||
-      retryAttempt?.profile !== "standard"
+      retryAttempt.profile !== "standard" ||
+      trace.executedProfile !== "standard" ||
+      !trace.escalation
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -189,11 +190,11 @@ export type ExecutionRouteTrace = {
   taskKind: TaskKind;
   decisionSource: "classifier" | "rule" | "mixed" | "fallback";
   confidenceBucket: "low" | "medium" | "high";
-  reasonCodes: ExecutionReasonCode[];
+  reasonCodes: readonly ExecutionReasonCode[];
   classificationLatencyMs: number;
   routingOverheadMs: number;
   totalRequestTimeToFirstTokenMs?: number;
-  attempts: ExecutionAttemptTrace[];
+  attempts: readonly ExecutionAttemptTrace[];
   escalation?: {
     from: "light";
     to: "standard";

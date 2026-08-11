@@ -434,3 +434,13 @@ export function scoreTurnRouting(
     passed: protectedFalseLight === 0,
   };
 }
+
+export function shouldFailTurnRoutingEvaluation(
+  results: readonly TurnRoutingResult[],
+): boolean {
+  if (results.length === 0) return true;
+  if (scoreTurnRouting(results).protectedFalseLight > 0) return true;
+  return results.some(
+    ({ outcome }) => outcome === "failed" || outcome === "invalid",
+  );
+}

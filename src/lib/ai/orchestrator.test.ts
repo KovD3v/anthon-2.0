@@ -851,6 +851,105 @@ describe("ai/orchestrator", () => {
     );
   });
 
+  it("grounds a recent-dependent light route in the same bounded thread turn", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
+    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
+    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
+    mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
+    mocks.buildThreadContext.mockResolvedValue({
+      messages: [
+        { role: "user", content: "Scrivi una frase molto lunga" },
+        {
+          role: "assistant",
+          content: "Questa è la frase esatta da rendere più breve.",
+        },
+      ],
+    });
+    mocks.streamText.mockReturnValueOnce(noToolTextStream(["Frase breve."]));
+
+    const result = await streamChat({
+      userId: "user-1",
+      chatId: "chat-recent-grounded",
+      conversationThreadId: "thread-recent-grounded",
+      userMessageId: "message-recent-grounded",
+      userMessage: "Rendilo più breve",
+      effectiveEntitlements: baseEntitlements,
+    });
+
+    expect(result.turnDecision.execution.eligibleProfile).toBe("light");
+    expect(mocks.classifyCapabilities).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.stringContaining(
+          "Questa è la frase esatta da rendere più breve.",
+        ),
+      }),
+    );
+    expect(mocks.buildThreadContext).toHaveBeenCalledTimes(1);
+    expect(mocks.streamText.mock.calls[0]?.[0]?.messages).toEqual([
+      { role: "user", content: "Scrivi una frase molto lunga" },
+      {
+        role: "assistant",
+        content: "Questa è la frase esatta da rendere più breve.",
+      },
+      { role: "user", content: "Rendilo più breve" },
+    ]);
+  });
+
+  it("fails recent-dependent light routing closed when no bounded referent exists", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
+    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
+    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
+    mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
+    mocks.buildThreadContext.mockResolvedValue({ messages: [] });
+
+    const result = await streamChat({
+      userId: "user-1",
+      chatId: "chat-recent-missing",
+      conversationThreadId: "thread-recent-missing",
+      userMessageId: "message-recent-missing",
+      userMessage: "Rendilo più breve",
+      effectiveEntitlements: baseEntitlements,
+    });
+
+    expect(result.turnDecision.execution).toMatchObject({
+      eligibleProfile: "standard",
+      reasonCodes: expect.arrayContaining(["deep_context"]),
+    });
+    expect(mocks.streamText).toHaveBeenCalledTimes(1);
+    expect(mocks.streamText.mock.calls[0]?.[0]?.maxOutputTokens).not.toBe(600);
+  });
+
+  it("vetoes a long translation whose policy-derived output exceeds 600 tokens", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
+    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
+    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "translate");
+    mocks.classifyCapabilities.mockResolvedValueOnce(
+      lightClassification({
+        taskKind: "translate",
+        contextDependency: "none",
+        knowledgeNeed: "supplied_only",
+      }),
+    );
+    const longTranslation = `Traduci in inglese: ${"testo ".repeat(500)}`;
+
+    const result = await streamChat({
+      userId: "user-1",
+      chatId: "chat-long-translation",
+      userMessage: longTranslation,
+      effectiveEntitlements: baseEntitlements,
+    });
+
+    expect(result.turnDecision.execution).toMatchObject({
+      eligibleProfile: "standard",
+      reasonCodes: expect.arrayContaining(["output_limit"]),
+    });
+    expect(mocks.streamText).toHaveBeenCalledTimes(1);
+    expect(mocks.streamText.mock.calls[0]?.[0]?.maxOutputTokens).not.toBe(600);
+  });
+
   it("selects one standard attempt before execution when a light plan requires a tool", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
     vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
@@ -908,6 +1007,12 @@ describe("ai/orchestrator", () => {
     vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     vi.stubEnv("AI_MEMORY_RECALL_MODE", "active");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
+    mocks.buildThreadContext.mockResolvedValue({
+      messages: [
+        { role: "user", content: "Testo lungo" },
+        { role: "assistant", content: "Versione da accorciare" },
+      ],
+    });
     mocks.buildRecallContext.mockResolvedValueOnce({
       prompt: "### Contesto di richiamo\n- Preferisce esempi sul tennis",
       factCount: 1,
@@ -949,6 +1054,12 @@ describe("ai/orchestrator", () => {
     vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     vi.stubEnv("AI_MEMORY_RECALL_MODE", "active");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
+    mocks.buildThreadContext.mockResolvedValue({
+      messages: [
+        { role: "user", content: "Testo lungo" },
+        { role: "assistant", content: "Versione da accorciare" },
+      ],
+    });
     mocks.buildRecallContext.mockResolvedValueOnce({
       prompt: "### Contesto di richiamo\n- Preferisce esempi sul tennis",
       factCount: 1,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   scoreTurnRouting,
+  shouldFailTurnRoutingEvaluation,
   TURN_ROUTING_FIXTURES,
   type TurnRoutingResult,
 } from "./turn-routing";
@@ -33,17 +34,35 @@ describe("turn routing benchmark", () => {
   it("includes independent protected fixtures for both token-limit vetoes", () => {
     expect(
       TURN_ROUTING_FIXTURES.some(
-        ({ normalization }) =>
-          (normalization?.estimatedInputTokens ?? 0) > 8_000,
+        (fixture) =>
+          ("normalization" in fixture
+            ? "estimatedInputTokens" in fixture.normalization
+              ? fixture.normalization.estimatedInputTokens
+              : 0
+            : 0) > 8_000,
       ),
     ).toBe(true);
     expect(
       TURN_ROUTING_FIXTURES.some(
-        ({ normalization }) =>
-          (normalization?.requestedOutputTokens ?? 0) > 600,
+        (fixture) =>
+          ("normalization" in fixture
+            ? "requestedOutputTokens" in fixture.normalization
+              ? fixture.normalization.requestedOutputTokens
+              : 0
+            : 0) > 600,
       ),
     ).toBe(true);
   });
+
+  it.each(["failed", "invalid"] as const)(
+    "fails the live gate for a partial %s provider response",
+    (outcome) => {
+      const results = expectedResults();
+      results[0] = { ...results[0], outcome };
+
+      expect(shouldFailTurnRoutingEvaluation(results)).toBe(true);
+    },
+  );
 
   it("scores a complete expected run with no route or task-kind errors", () => {
     expect(scoreTurnRouting(expectedResults())).toMatchObject({

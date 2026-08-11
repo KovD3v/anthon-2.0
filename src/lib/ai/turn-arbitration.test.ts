@@ -54,6 +54,7 @@ function agenticInput(
     hasPendingApproval: false,
     estimatedInputTokens: 120,
     requestedOutputTokens: 120,
+    hasRecentContext: true,
     ...overrides,
   };
 }
@@ -141,6 +142,37 @@ describe("turn arbitration", () => {
     expect(result.decision.execution).toMatchObject({
       eligibleProfile: "standard",
       reasonCodes: expect.arrayContaining(["classifier_failure"]),
+    });
+  });
+
+  it("accepts recent-dependent light work only when its bounded referent exists", async () => {
+    mocks.classifyTurn.mockResolvedValue({
+      proposal: {
+        ...classifierProposal,
+        workload: {
+          ...classifierProposal.workload,
+          contextDependency: "recent",
+          knowledgeNeed: "conversation",
+        },
+      },
+      outcome: "accepted",
+      latencyMs: 25,
+    });
+
+    await expect(
+      arbitrateTurn(agenticInput({ hasRecentContext: true })),
+    ).resolves.toMatchObject({
+      decision: { execution: { eligibleProfile: "light" } },
+    });
+    await expect(
+      arbitrateTurn(agenticInput({ hasRecentContext: false })),
+    ).resolves.toMatchObject({
+      decision: {
+        execution: {
+          eligibleProfile: "standard",
+          reasonCodes: expect.arrayContaining(["deep_context"]),
+        },
+      },
     });
   });
 

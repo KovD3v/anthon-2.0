@@ -25,7 +25,6 @@ import type {
 } from "@/lib/ai/execution-route-trace";
 import {
   buildPlannedExecution,
-  LIGHT_MAX_OUTPUT_TOKENS,
   type PlannedExecution,
   parseExecutionRoutingConfig,
   type TurnDecision,
@@ -108,6 +107,9 @@ const WEB_SEARCH_DEFAULT_SNIPPET_CHARS = 180;
 const WEB_SEARCH_BRIEF_RESULTS = 3;
 const WEB_SEARCH_BRIEF_SNIPPET_CHARS = 160;
 const WEB_SEARCH_DIRECT_MAX_OUTPUT_TOKENS = 120;
+const ROUTING_BRIEF_OUTPUT_TOKENS = 200;
+const ROUTING_NORMAL_OUTPUT_FLOOR = 160;
+const ROUTING_RECENT_CONTEXT_MAX_CHARS = 1_600;
 
 function modelMessageContentToText(content: unknown): string {
   if (typeof content === "string") return content;
@@ -121,6 +123,112 @@ function modelMessageContentToText(content: unknown): string {
     })
     .filter(Boolean)
     .join("\n");
+}
+
+type BoundedRecentContext = {
+  messages: ModelMessage[];
+  classifierContext: string;
+  available: boolean;
+};
+
+const EMPTY_BOUNDED_RECENT_CONTEXT: BoundedRecentContext = {
+  messages: [],
+  classifierContext: "recent_thread_context=unavailable",
+  available: false,
+};
+
+function toBoundedRecentContext(
+  messages: ModelMessage[],
+): BoundedRecentContext {
+  const contentLines = messages.flatMap((message) => {
+    if (message.role !== "user" && message.role !== "assistant") return [];
+    const content = modelMessageContentToText(message.content);
+    return content ? [`${message.role}: ${JSON.stringify(content)}`] : [];
+  });
+  const classifierContext = contentLines.join("\n");
+
+  if (
+    contentLines.length === 0 ||
+    classifierContext.length > ROUTING_RECENT_CONTEXT_MAX_CHARS
+  ) {
+    return EMPTY_BOUNDED_RECENT_CONTEXT;
+  }
+
+  return {
+    messages,
+    classifierContext: `recent_thread_context:\n${classifierContext}`,
+    available: true,
+  };
+}
+
+async function loadBoundedRecentContext({
+  userId,
+  chatId,
+  conversationThreadId,
+  userMessageId,
+  userMessage,
+  skipConversationHistory,
+}: {
+  userId: string;
+  chatId?: string;
+  conversationThreadId?: string;
+  userMessageId?: string;
+  userMessage: string;
+  skipConversationHistory: boolean;
+}): Promise<BoundedRecentContext> {
+  if (skipConversationHistory) return EMPTY_BOUNDED_RECENT_CONTEXT;
+
+  try {
+    if (conversationThreadId) {
+      const { buildThreadContext } = await import("@/lib/ai/thread-context");
+      const context = await buildThreadContext(
+        conversationThreadId,
+        {
+          includeSummary: false,
+          maxRawTurns: 1,
+          maxRawChars: ROUTING_RECENT_CONTEXT_MAX_CHARS,
+        },
+        userMessageId,
+      );
+      return toBoundedRecentContext(context.messages);
+    }
+
+    if (chatId) {
+      const messages = await buildConversationContext(userId, 2, chatId);
+      const priorMessages = messages.slice(-2);
+      const lastMessage = priorMessages.at(-1);
+      if (
+        lastMessage?.role === "user" &&
+        modelMessageContentToText(lastMessage.content) === userMessage
+      ) {
+        priorMessages.pop();
+      }
+      return toBoundedRecentContext(priorMessages);
+    }
+  } catch (error) {
+    aiLogger.error(
+      "ai.turn_classification.recent_context_failed",
+      "Recent classifier context could not be loaded; recent light routing is disabled",
+      { error, userId, chatId, conversationThreadId },
+    );
+  }
+
+  return EMPTY_BOUNDED_RECENT_CONTEXT;
+}
+
+function requestedOutputTokensForRouting(userMessage: string): number {
+  const explicitWordCounts = Array.from(
+    userMessage.matchAll(/\b(\d{1,5})\s*(?:parole|words)\b/gi),
+    (match) => Number(match[1]),
+  ).filter(Number.isFinite);
+  const explicitOutputTokens = explicitWordCounts.length
+    ? Math.ceil(Math.max(...explicitWordCounts) * 1.5)
+    : 0;
+  const responsePolicyTokens = matchesBriefResponseIntent(userMessage)
+    ? ROUTING_BRIEF_OUTPUT_TOKENS
+    : Math.max(ROUTING_NORMAL_OUTPUT_FLOOR, estimateInputTokens(userMessage));
+
+  return Math.max(explicitOutputTokens, responsePolicyTokens);
 }
 
 function moveSystemMessagesToInstructions(
@@ -1518,6 +1626,7 @@ async function arbitrateChatTurn({
   hasPendingMemoryApproval,
   capabilityPlannerMode,
   inputOrigin,
+  recentContext,
   abortSignal,
 }: {
   userId: string;
@@ -1531,12 +1640,16 @@ async function arbitrateChatTurn({
   hasPendingMemoryApproval: boolean;
   capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
   inputOrigin: "text" | "transcribed_voice" | "direct_media";
+  recentContext: BoundedRecentContext;
   abortSignal?: AbortSignal;
 }) {
   return arbitrateTurn({
     userId,
     userMessage,
-    classifierContext: `web_search_rule=${webSearchRule.reason}`,
+    classifierContext: [
+      `web_search_rule=${webSearchRule.reason}`,
+      recentContext.classifierContext,
+    ].join("\n"),
     classifierModelId: PROMPT_MODULE_CLASSIFIER_MODEL_ID,
     plannerMode: capabilityPlannerMode,
     isGuest,
@@ -1554,7 +1667,8 @@ async function arbitrateChatTurn({
     inputOrigin: inputOrigin === "text" ? "text" : "direct_media",
     hasPendingApproval: hasPendingMemoryApproval,
     estimatedInputTokens: estimateInputTokens(userMessage),
-    requestedOutputTokens: LIGHT_MAX_OUTPUT_TOKENS,
+    requestedOutputTokens: requestedOutputTokensForRouting(userMessage),
+    hasRecentContext: recentContext.available,
     abortSignal,
   });
 }
@@ -1747,6 +1861,17 @@ export async function streamChat({
         );
         return planConfig.enabled && (voiceEnabled ?? true);
       })();
+  const recentClassifierContext =
+    preparedTurnContext || capabilityPlannerMode !== "agentic"
+      ? EMPTY_BOUNDED_RECENT_CONTEXT
+      : await loadBoundedRecentContext({
+          userId,
+          chatId,
+          conversationThreadId,
+          userMessageId,
+          userMessage,
+          skipConversationHistory,
+        });
   const arbitration = preparedTurnContext
     ? {
         decision: preparedTurnContext.turnDecision,
@@ -1764,6 +1889,7 @@ export async function streamChat({
         hasPendingMemoryApproval: Boolean(attributablePendingMemoryApproval),
         capabilityPlannerMode,
         inputOrigin,
+        recentContext: recentClassifierContext,
         abortSignal,
       });
   const turnDecision = arbitration.decision;
@@ -1862,43 +1988,47 @@ export async function streamChat({
   const conversationHistoryPromise =
     turnPlan.history.scope === "none"
       ? Promise.resolve<ModelMessage[]>([])
-      : LatencyLogger.measure(
-          "📋 Orchestrator: Get conversation history",
-          async () => {
-            if (conversationThreadId) {
-              const { buildThreadContext } = await import(
-                "@/lib/ai/thread-context"
+      : turnPlan.execution.plannedProfile === "light" &&
+          turnDecision.execution.contextDependency === "recent" &&
+          recentClassifierContext.available
+        ? Promise.resolve(recentClassifierContext.messages)
+        : LatencyLogger.measure(
+            "📋 Orchestrator: Get conversation history",
+            async () => {
+              if (conversationThreadId) {
+                const { buildThreadContext } = await import(
+                  "@/lib/ai/thread-context"
+                );
+                const context = await buildThreadContext(
+                  conversationThreadId,
+                  {
+                    includeSummary: turnPlan.history.includeSummary,
+                    maxRawTurns: turnPlan.history.maxRawTurns,
+                    maxRawChars: turnPlan.history.maxRawChars,
+                  },
+                  userMessageId,
+                );
+                return context.messages;
+              }
+              return buildConversationContext(
+                userId,
+                turnPlan.history.maxRawTurns * 2,
+                chatId,
               );
-              const context = await buildThreadContext(
-                conversationThreadId,
-                {
-                  includeSummary: turnPlan.history.includeSummary,
-                  maxRawTurns: turnPlan.history.maxRawTurns,
-                  maxRawChars: turnPlan.history.maxRawChars,
-                },
-                userMessageId,
-              );
-              return context.messages;
-            }
-            return buildConversationContext(
-              userId,
-              turnPlan.history.maxRawTurns * 2,
-              chatId,
-            );
-          },
-        ).catch((error) => {
-          aiLogger.error(
-            "ai.conversation_history.error",
-            "Conversation history enrichment failed",
-            {
-              error,
-              userId,
-              chatId,
-              conversationThreadId,
             },
-          );
-          return [];
-        });
+          ).catch((error) => {
+            aiLogger.error(
+              "ai.conversation_history.error",
+              "Conversation history enrichment failed",
+              {
+                error,
+                userId,
+                chatId,
+                conversationThreadId,
+              },
+            );
+            return [];
+          });
   const userContextPromise = !userContextEnabled
     ? Promise.resolve("")
     : formatUserContextForPrompt(userId).catch((error) => {
@@ -3190,6 +3320,17 @@ export async function prepareChatTurn({
     }));
   const webSearchRule = evaluateWebSearchRule(userMessage);
   const capabilityPlannerMode = getCapabilityPlannerMode();
+  const recentClassifierContext =
+    capabilityPlannerMode === "agentic"
+      ? await loadBoundedRecentContext({
+          userId,
+          chatId,
+          conversationThreadId,
+          userMessageId,
+          userMessage,
+          skipConversationHistory,
+        })
+      : EMPTY_BOUNDED_RECENT_CONTEXT;
   const arbitration = await arbitrateChatTurn({
     userId,
     userMessage,
@@ -3202,6 +3343,7 @@ export async function prepareChatTurn({
     hasPendingMemoryApproval: false,
     capabilityPlannerMode,
     inputOrigin: "text",
+    recentContext: recentClassifierContext,
     abortSignal,
   });
   const turnDecision = arbitration.decision;
@@ -3266,19 +3408,23 @@ export async function prepareChatTurn({
   const conversationHistory =
     turnPlan.history.scope === "none"
       ? []
-      : (
-          await (
-            await import("@/lib/ai/thread-context")
-          ).buildThreadContext(
-            conversationThreadId,
-            {
-              includeSummary: turnPlan.history.includeSummary,
-              maxRawTurns: turnPlan.history.maxRawTurns,
-              maxRawChars: turnPlan.history.maxRawChars,
-            },
-            userMessageId,
-          )
-        ).messages;
+      : turnPlan.execution.plannedProfile === "light" &&
+          turnDecision.execution.contextDependency === "recent" &&
+          recentClassifierContext.available
+        ? recentClassifierContext.messages
+        : (
+            await (
+              await import("@/lib/ai/thread-context")
+            ).buildThreadContext(
+              conversationThreadId,
+              {
+                includeSummary: turnPlan.history.includeSummary,
+                maxRawTurns: turnPlan.history.maxRawTurns,
+                maxRawChars: turnPlan.history.maxRawChars,
+              },
+              userMessageId,
+            )
+          ).messages;
   const classifierRagEnabled =
     capabilityDecision.source !== "fallback" && capabilityDecision.rag;
   const ragResult = turnPlan.capabilities.rag

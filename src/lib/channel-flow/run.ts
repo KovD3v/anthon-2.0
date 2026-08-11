@@ -784,10 +784,12 @@ export async function runChannelFlow(
           recoveryExecutionRoute,
         )
       : createStandardFallbackTurnDecision(recoveryCapabilities);
+    const { executionRoute: _untrustedExecutionRoute, ...baseRecoveryMetrics } =
+      recovery.metrics;
     const recoveryMetrics: NonNullable<RunChannelFlowResult["metrics"]> =
       recoveryExecutionRoute
-        ? { ...recovery.metrics, executionRoute: recoveryExecutionRoute }
-        : recovery.metrics;
+        ? { ...baseRecoveryMetrics, executionRoute: recoveryExecutionRoute }
+        : baseRecoveryMetrics;
     finalMetrics = recoveryMetrics;
     const message = await persistGeneratedOutput({
       text: recovery.text,

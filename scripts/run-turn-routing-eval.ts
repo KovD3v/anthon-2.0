@@ -10,6 +10,7 @@ import {
 } from "@/lib/ai/turn-classification";
 import {
   scoreTurnRouting,
+  shouldFailTurnRoutingEvaluation,
   TURN_ROUTING_FIXTURES,
   type TurnRoutingFixture,
   type TurnRoutingResult,
@@ -78,6 +79,7 @@ async function evaluateFixture(
     responseMode,
     estimatedInputTokens: normalization?.estimatedInputTokens ?? 32,
     requestedOutputTokens: normalization?.requestedOutputTokens ?? 160,
+    hasRecentContext: fixture.context.trim().length > 0,
   });
 
   return {
@@ -140,11 +142,15 @@ async function main() {
   const invalidResponses = results.filter(
     ({ outcome }) => outcome === "invalid",
   ).length;
+  const failedResponses = results.filter(
+    ({ outcome }) => outcome === "failed",
+  ).length;
   const output = {
     model: CLASSIFIER_MODEL_ID,
     concurrency: CONCURRENCY,
     successfulClassifications,
     invalidResponses,
+    failedResponses,
     score,
     results: results.map(compactResult),
   };
@@ -160,14 +166,11 @@ async function main() {
       `- Correct: ${score.correct}/${score.total}; task kind: ${score.taskKindCorrect}/${score.total}`,
       `- False light: ${score.falseLight} (protected: ${score.protectedFalseLight}); false standard: ${score.falseStandard}`,
       `- Invalid responses: ${invalidResponses}`,
+      `- Failed responses: ${failedResponses}`,
     ].join("\n"),
   );
 
-  if (
-    score.protectedFalseLight > 0 ||
-    successfulClassifications === 0 ||
-    invalidResponses > 0
-  ) {
+  if (shouldFailTurnRoutingEvaluation(results)) {
     process.exitCode = 1;
   }
 }

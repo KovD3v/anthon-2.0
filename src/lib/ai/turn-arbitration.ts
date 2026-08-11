@@ -30,6 +30,7 @@ export type TurnArbitrationInput = Omit<
   hasPendingApproval: boolean;
   estimatedInputTokens: number;
   requestedOutputTokens: number;
+  hasRecentContext: boolean;
   abortSignal?: AbortSignal;
 };
 
@@ -117,6 +118,7 @@ export async function arbitrateTurn(
     responseMode: input.responseMode,
     estimatedInputTokens: input.estimatedInputTokens,
     requestedOutputTokens: input.requestedOutputTokens,
+    hasRecentContext: input.hasRecentContext,
   });
   input.abortSignal?.throwIfAborted();
 

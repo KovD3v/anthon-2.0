@@ -1,6 +1,9 @@
 import { z } from "zod";
-import type { ExecutionReasonCode, TurnDecision } from "./execution-routing";
-import { freezeTurnDecision } from "./execution-routing";
+import {
+  EXECUTION_REASON_CODES,
+  freezeTurnDecision,
+  type TurnDecision,
+} from "./execution-routing";
 import { TASK_KINDS } from "./turn-classification";
 
 const CAPABILITY_REASON_CODES = [
@@ -13,30 +16,6 @@ const CAPABILITY_REASON_CODES = [
   "web_rule_forbidden",
   "web_rule_required",
 ] as const;
-
-const EXECUTION_REASON_CODES = [
-  "classifier_light",
-  "classifier_standard",
-  "task_allowlisted",
-  "task_not_allowlisted",
-  "low_confidence",
-  "capability_required",
-  "capability_uncertain",
-  "external_knowledge",
-  "deep_context",
-  "sensitive_content",
-  "direct_media",
-  "pending_approval",
-  "voice_output",
-  "input_limit",
-  "output_limit",
-  "classifier_failure",
-  "legacy_mode",
-  "task_rollout_disabled",
-  "rollout_off",
-  "rollout_shadow",
-  "runtime_invariant",
-] as const satisfies readonly ExecutionReasonCode[];
 
 const safeCapabilityDecisionSchema = z
   .object({
