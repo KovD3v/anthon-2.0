@@ -358,8 +358,17 @@ In agentic mode, the unified classifier returns one capability-and-workload
 proposal. Server-side arbitration then freezes one `TurnDecision`: capability
 authorization remains deterministic, while execution normalization derives an
 eligible `light` or `standard` profile. Routing reuses that classifier proposal;
-it adds no model or network round trip, and the existing plan-to-model mapping
-remains intentionally unchanged.
+it adds no model or network round trip. In active production routing, a light
+attempt uses `deepseek/deepseek-v4-flash-0731`; standard turns continue to use
+the plan-resolved orchestrator model, currently `openai/gpt-5.6-luna`. Explicit
+benchmark model IDs remain authoritative for controlled comparisons.
+
+DeepSeek light requests use OpenRouter latency sorting over the closed provider
+pool `Together,CoreWeave,Ambient`, with provider fallback and parameter support
+required. Prompt and completion prices are capped at `$0.15/M` and `$0.30/M`.
+If every provider fails or returns an empty response before visible output, the
+single existing profile escalation retries with the standard model and prompt;
+it does not retry DeepSeek as a standard attempt.
 
 Only high-confidence `social`, `rewrite`, `translate`, `format`, `extract`, and
 `summarize_supplied` work can be light-eligible. Any required or uncertain

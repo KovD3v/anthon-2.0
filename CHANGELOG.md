@@ -57,6 +57,10 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Routed active light-profile turns through DeepSeek V4 Flash 0731 using a
+  latency-sorted OpenRouter pool limited to Together, CoreWeave, and Ambient,
+  while retaining the plan-resolved standard model for standard turns and
+  pre-stream escalations.
 - Replaced generic chat suggestions with focused coaching starters for
   performance anxiety, confidence, important-match preparation, and open-ended
   situations, and removed the separate desktop “Conversazione libera” action
