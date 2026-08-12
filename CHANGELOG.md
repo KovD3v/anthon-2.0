@@ -57,6 +57,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Aligned Anthon's written rhythm with the real coach's conversational style:
+  shorter and more spoken turns, lighter punctuation, rarer contextual emoji,
+  and a more occasional automatic voice cadence across chat channels.
 - Refined motion across chat, routines, search, shared popups, navigation, and
   progress indicators with interruptible transitions, compositor-friendly
   transforms, consistent easing, reduced-motion behavior, and steadier focus

@@ -3,7 +3,7 @@ import { PlanResolutionError } from "@/lib/plans";
 import { getVoicePlanConfig } from "./config";
 
 describe("voice/config", () => {
-  it("keeps the same deterministic cadence across paid plans", () => {
+  it("keeps the same occasional conversational cadence across paid plans", () => {
     const basic = getVoicePlanConfig("ACTIVE", "USER", "my-basic-plan");
     const plus = getVoicePlanConfig("ACTIVE", "USER", "my-basic_plus-plan");
     const pro = getVoicePlanConfig("ACTIVE", "USER", "my-pro-plan");
@@ -11,11 +11,11 @@ describe("voice/config", () => {
     expect(basic.cadence).toEqual(plus.cadence);
     expect(plus.cadence).toEqual(pro.cadence);
     expect(basic.cadence).toEqual({
-      strongMinTurns: 1,
-      strongCooldownMs: 5 * 60 * 1000,
-      naturalMinTurns: 3,
-      naturalCooldownMs: 15 * 60 * 1000,
-      maxAutomaticPerHour: 3,
+      strongMinTurns: 2,
+      strongCooldownMs: 15 * 60 * 1000,
+      naturalMinTurns: 8,
+      naturalCooldownMs: 60 * 60 * 1000,
+      maxAutomaticPerHour: 2,
       maxConsecutiveAudio: 2,
       antiDroughtTurns: 8,
       naturalConfidence: 0.6,

@@ -71,4 +71,16 @@ describe("light system prompt", () => {
       ).toThrow("cannot use the light prompt");
     },
   );
+
+  it("uses Anthon's compact conversational voice for light social turns", () => {
+    const prompt = buildLightSystemPrompt({
+      taskKind: "social",
+      currentDate: "2026-08-11",
+      responseLength: "brief",
+    });
+
+    expect(prompt).toContain("natural chat voice");
+    expect(prompt).toContain("one short line");
+    expect(prompt).toContain("Default to no emoji");
+  });
 });

@@ -24,12 +24,14 @@ const MAINTENANCE_MODEL_ID = "google/gemini-2.5-flash-lite";
 const ORCHESTRATOR_MODEL_ID = "openai/gpt-5.6-luna";
 const ORCHESTRATOR_FALLBACK_MODEL_IDS = ["deepseek/deepseek-v4-flash"];
 
+// Keep unsolicited audio occasional. Explicit voice requests bypass these
+// cadence gates in decideVoiceDelivery and remain limited only by hard policy.
 const DEFAULT_VOICE_CADENCE: VoicePlanConfig["cadence"] = {
-  strongMinTurns: 1,
-  strongCooldownMs: 5 * 60 * 1000,
-  naturalMinTurns: 3,
-  naturalCooldownMs: 15 * 60 * 1000,
-  maxAutomaticPerHour: 3,
+  strongMinTurns: 2,
+  strongCooldownMs: 15 * 60 * 1000,
+  naturalMinTurns: 8,
+  naturalCooldownMs: 60 * 60 * 1000,
+  maxAutomaticPerHour: 2,
   maxConsecutiveAudio: 2,
   antiDroughtTurns: 8,
   naturalConfidence: 0.6,

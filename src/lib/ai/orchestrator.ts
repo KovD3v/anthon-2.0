@@ -18,6 +18,10 @@ import {
   getCapabilityPlannerMode,
 } from "@/lib/ai/capability-arbitration";
 import { filterCapabilityUsageByDecision } from "@/lib/ai/capability-usage";
+import {
+  analyzeUserStyle,
+  PROMPT_ANTHON_CONVERSATIONAL_VOICE,
+} from "@/lib/ai/communication-style";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
 import { resolveExecutionAttemptModelId } from "@/lib/ai/execution-model";
 import type {
@@ -454,6 +458,7 @@ function buildFullSystemPromptTemplate(modules: FullPromptModules) {
     PROMPT_PRODUCT_REFERRAL_BOUNDARY,
     PROMPT_FULL_PRIORITIES,
     PROMPT_STYLE,
+    PROMPT_ANTHON_CONVERSATIONAL_VOICE,
     modules.userContextEnabled
       ? PROMPT_LANGUAGE_RESPONSE_RULES
       : PROMPT_LANGUAGE_AUTO_DETECT_RULES,
@@ -501,6 +506,8 @@ STYLE
 - Avoid long lists unless the user asks for detail.
 - For coaching requests, give concrete next actions and one useful follow-up question.
 
+${PROMPT_ANTHON_CONVERSATIONAL_VOICE}
+
 GUEST SESSION
 - Persistent profile, preferences, and memory are unavailable in this guest session.
 - If the user shares personal details, use them in this conversation only.
@@ -534,6 +541,7 @@ const SIMPLE_FAST_SYSTEM_PROMPT_TEMPLATE = [
   PROMPT_IDENTITY,
   PROMPT_MENTAL_COACHING_SCOPE,
   PROMPT_PRODUCT_REFERRAL_BOUNDARY,
+  PROMPT_ANTHON_CONVERSATIONAL_VOICE,
   SIMPLE_FAST_RESPONSE_POLICY,
   SIMPLE_FAST_DYNAMIC_CONTEXT,
 ].join("\n\n");
@@ -3752,55 +3760,3 @@ function sumCosts(costs: number[]) {
 
 // Export types for external use
 export type { StreamChatOptions, AIMetrics };
-
-/**
- * Heuristically analyzes user's recent messages to determine preferred style.
- * No LLM calls - purely statistical.
- */
-function analyzeUserStyle(history: ModelMessage[]): string {
-  try {
-    // Get last 5 user messages
-    const userMessages = history
-      .filter((m) => m.role === "user")
-      .slice(-5)
-      .map((m) => (typeof m.content === "string" ? m.content : ""))
-      .filter((c) => c.length > 0);
-
-    if (userMessages.length === 0) return "";
-
-    // 1. Calculate average length
-    const totalChars = userMessages.reduce((acc, m) => acc + m.length, 0);
-    const avgLength = totalChars / userMessages.length;
-
-    // 2. Check for emoji usage
-    const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
-    const hasEmojis = userMessages.some((m) => emojiRegex.test(m));
-
-    // 3. Check for formality (very basic)
-    const informalMarkers = ["plz", "thx", "cmq", "nn", "ke", "ciao", "ehi"];
-    const isInformal = userMessages.some((m) =>
-      informalMarkers.some((marker) => m.toLowerCase().includes(marker)),
-    );
-
-    let instruction = "- ";
-
-    // Length adaptation
-    if (avgLength < 30) {
-      instruction += "Be very concise and direct (user is brief). ";
-    } else if (avgLength > 200) {
-      instruction += "You can elaborate in detail (user is discursive). ";
-    }
-
-    // Tone adaptation
-    if (hasEmojis) {
-      instruction += "Use some emojis to mirror informal style. ";
-    }
-    if (isInformal) {
-      instruction += "Use a friendly and relaxed tone. ";
-    }
-
-    return instruction === "- " ? "" : instruction;
-  } catch (_error) {
-    return "";
-  }
-}

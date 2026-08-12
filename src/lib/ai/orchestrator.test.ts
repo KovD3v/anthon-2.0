@@ -1721,6 +1721,8 @@ describe("ai/orchestrator", () => {
 
     expect(prepared.promptMode).toBe("full");
     expect(prepared.systemPrompt).toContain("MENTAL COACHING SCOPE");
+    expect(prepared.systemPrompt).toContain("ANTHON CONVERSATIONAL VOICE");
+    expect(prepared.systemPrompt).toContain("Emoji are exceptional");
     expect(prepared.systemPrompt).toContain(
       "first explore how it may connect to the performance situation",
     );
@@ -4544,6 +4546,8 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).toContain("GUEST SESSION");
     expect(streamInput.instructions).toContain("AI mental coach");
     expect(streamInput.instructions).toContain("MENTAL COACHING SCOPE");
+    expect(streamInput.instructions).toContain("ANTHON CONVERSATIONAL VOICE");
+    expect(streamInput.instructions).toContain("Emoji are exceptional");
     expect(streamInput.instructions).toContain("PRODUCT & REFERRAL BOUNDARY");
     expect(streamInput.instructions).toContain(
       "continue supporting the user inside Anthon",
@@ -4584,6 +4588,8 @@ describe("ai/orchestrator", () => {
       "Do NOT make medical/clinical diagnoses",
     );
     expect(prepared.systemPrompt).toContain("MENTAL COACHING SCOPE");
+    expect(prepared.systemPrompt).toContain("ANTHON CONVERSATIONAL VOICE");
+    expect(prepared.systemPrompt).toContain("Default to compact turns");
     expect(prepared.systemPrompt).toContain("PRODUCT & REFERRAL BOUNDARY");
     expect(prepared.systemPrompt).toContain(
       "continue supporting the user inside Anthon",
