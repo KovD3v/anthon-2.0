@@ -1179,7 +1179,7 @@ describe("mobile chat landing navigation", () => {
     },
   );
 
-  it.each(["/chat/usage", "/chat/routines", "/chat/unexpected/nested"])(
+  it.each(["/chat/routines", "/chat/unexpected/nested"])(
     "treats %s as non-conversation chrome with a safe guest continuation",
     async (pathname) => {
       mocks.pathname = pathname;

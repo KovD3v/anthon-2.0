@@ -19,7 +19,7 @@ describe("rate-limit/paywall", () => {
           },
           secondaryCta: {
             label: "Controlla utilizzo",
-            url: "/chat/usage",
+            url: "/profile#utilizzo",
           },
         },
       },
@@ -30,7 +30,10 @@ describe("rate-limit/paywall", () => {
       title: "Limite richieste raggiunto",
       message: "Registrati per continuare",
       primaryCta: { label: "Registrati ora", href: "/sign-up" },
-      secondaryCta: { label: "Controlla utilizzo", href: "/chat/usage" },
+      secondaryCta: {
+        label: "Controlla utilizzo",
+        href: "/profile#utilizzo",
+      },
     });
   });
 

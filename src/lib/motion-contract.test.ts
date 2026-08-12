@@ -35,13 +35,13 @@ describe("motion contracts", () => {
   it("keeps progress motion on compositor transforms with correct timing", () => {
     const routine = source("src/app/(chat)/components/RoutineRunner.tsx");
     const audio = source("src/app/(chat)/components/AudioPlayer.tsx");
-    const usage = source("src/app/(chat)/chat/usage/page.tsx");
+    const progress = source("src/components/ui/progress.tsx");
 
     expect(routine).not.toContain("transition-[width]");
     expect(routine).toContain("scaleX($" + "{progress.routinePercent / 100})");
     expect(routine).toContain("scaleX($" + "{progress.stepPercent / 100})");
     expect(audio).toContain("transition-transform duration-100 ease-linear");
-    expect(usage).toContain("scaleX($" + "{percent / 100})");
+    expect(progress).toContain("scaleX($" + "{normalizedValue / 100})");
   });
 
   it("does not use broad transitions in live application source", () => {
@@ -49,7 +49,7 @@ describe("motion contracts", () => {
       "src/app/(chat)/components/SuggestedActions.tsx",
       "src/app/(chat)/components/AudioRecorder.tsx",
       "src/app/(chat)/chat/page.tsx",
-      "src/app/(chat)/chat/usage/page.tsx",
+      "src/app/(marketing)/profile/components/UsageSection.tsx",
       "src/components/ui/progress.tsx",
       "src/components/ui/tabs.tsx",
     ]) {

@@ -100,7 +100,7 @@ export function getUpgradeInfo(
     primaryCta,
     secondaryCta: {
       label: "Controlla utilizzo",
-      url: "/chat/usage",
+      url: "/profile#utilizzo",
     },
   };
 }

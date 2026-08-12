@@ -496,9 +496,7 @@ export function LayoutClient({
   // Usage tracking state
   const [usageData, setUsageData] = useState(initialUsageData);
   const isConversationRoute =
-    pathname !== "/chat/usage" &&
-    pathname !== "/chat/routines" &&
-    /^\/chat\/[^/?#\\]+$/.test(pathname ?? "");
+    pathname !== "/chat/routines" && /^\/chat\/[^/?#\\]+$/.test(pathname ?? "");
   const safeChatContinuation =
     pathname === "/chat" || isConversationRoute ? pathname : "/chat";
   const guestRegistrationHref = `/sign-up?redirect_url=${encodeURIComponent(

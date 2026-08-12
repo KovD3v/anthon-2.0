@@ -19,7 +19,7 @@ describe("rate-limit/upgrade", () => {
       },
       secondaryCta: {
         label: "Controlla utilizzo",
-        url: "/chat/usage",
+        url: "/profile#utilizzo",
       },
     });
 
