@@ -12,6 +12,7 @@ import type { Usage } from "@/types/chat";
 import { BrowserTimeline } from "./technical-metrics/BrowserTimeline";
 import { LegacyLatencyTimeline } from "./technical-metrics/LegacyLatencyTimeline";
 import { ProfilerSummary } from "./technical-metrics/ProfilerSummary";
+import { RagToolDiagnostics } from "./technical-metrics/RagToolDiagnostics";
 import { ServerTimeline } from "./technical-metrics/ServerTimeline";
 
 interface TechnicalMetricsDetailsProps {
@@ -135,7 +136,8 @@ export function TechnicalMetricsDetails({
       usage.memoryRecall ||
       usage.ragAttempted !== undefined ||
       usage.serverTrace ||
-      usage.clientTrace,
+      usage.clientTrace ||
+      usage.developerDiagnostics,
   );
 
   if (!hasRichDiagnostics) {
@@ -307,6 +309,10 @@ export function TechnicalMetricsDetails({
         {!usage.serverTrace && routeTrace ? (
           <LegacyLatencyTimeline usage={usage} />
         ) : null}
+
+        {usage.developerDiagnostics && (
+          <RagToolDiagnostics diagnostics={usage.developerDiagnostics} />
+        )}
 
         {recordedDurationRows.length > 0 && (
           <section className="border-border/60 border-t px-3 py-3">
