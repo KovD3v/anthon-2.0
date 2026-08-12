@@ -77,6 +77,11 @@ Version numbers describe the application's user-facing behavior and its document
 - Aligned Anthon's written rhythm with the real coach's conversational style:
   shorter and more spoken turns, lighter punctuation, rarer contextual emoji,
   and a more occasional automatic voice cadence across chat channels.
+- Aligned Anthon's coaching decisions with the real coach's situational method:
+  choose the smallest useful intervention for pressure, confusion, errors,
+  setbacks, wins, or personal disclosures; ground identity reinforcement and
+  future confidence in evidence; reuse memory only when it sharpens the reply;
+  and ask a question only when its answer changes the next coaching move.
 - Refined motion across chat, routines, search, shared popups, navigation, and
   progress indicators with interruptible transitions, compositor-friendly
   transforms, consistent easing, reduced-motion behavior, and steadier focus
