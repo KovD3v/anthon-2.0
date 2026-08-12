@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#151512" />
+    <meta name="robots" content="noindex" />
+    <title>Sei offline — Anthon</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #151512;
+        color: #f8f5eb;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100dvh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+          max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+        background: #151512;
+      }
+
+      main {
+        width: min(100%, 420px);
+        text-align: center;
+      }
+
+      img {
+        width: 88px;
+        height: 88px;
+        border-radius: 22px;
+      }
+
+      h1 {
+        margin: 28px 0 12px;
+        font-size: clamp(2rem, 9vw, 3rem);
+        line-height: 1;
+        letter-spacing: -0.04em;
+      }
+
+      p {
+        margin: 0 auto;
+        max-width: 34ch;
+        color: #b9b7ae;
+        font-size: 1rem;
+        line-height: 1.55;
+      }
+
+      button {
+        margin-top: 28px;
+        min-height: 48px;
+        padding: 0 24px;
+        border: 0;
+        border-radius: 999px;
+        background: #f8f5eb;
+        color: #151512;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:focus-visible {
+        outline: 3px solid #8cbcff;
+        outline-offset: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icon-192.png" alt="" width="88" height="88" />
+      <h1>Sei offline</h1>
+      <p>
+        Anthon ha bisogno di una connessione per continuare la conversazione. Quando torni online,
+        riprova.
+      </p>
+      <button type="button" onclick="window.location.reload()">Riprova</button>
+    </main>
+  </body>
+</html>

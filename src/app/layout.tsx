@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { Suspense } from "react";
 import { IdentifyUser } from "@/components/providers/identify-user";
 import { MotionProvider } from "@/components/providers/motion-provider";
+import { PwaServiceWorker } from "@/components/providers/pwa-service-worker";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { SessionTaskGuard } from "@/components/providers/session-task-guard";
 import { ToastProvider } from "@/components/providers/toast-provider";
@@ -41,8 +42,12 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  applicationName: "Anthon",
   title: "Anthon - AI Mental Coach",
   description: "Il tuo mental coach personale basato sull'IA.",
+  icons: {
+    apple: "/apple-icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -65,6 +70,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className={`${barlow.className} antialiased`}>
+        <PwaServiceWorker />
         <ClerkProvider
           signInUrl="/sign-in"
           signUpUrl="/sign-up"
