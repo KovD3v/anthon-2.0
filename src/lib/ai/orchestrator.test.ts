@@ -2300,6 +2300,48 @@ describe("ai/orchestrator", () => {
     });
   });
 
+  it("attributes an OpenRouter standard fallback to the model that produced the step", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-standard-fallback",
+      userMessage: "same message",
+    });
+
+    const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
+      onStepEnd: (step: {
+        model: { provider: string; modelId: string };
+        text: string;
+        toolCalls: unknown[];
+        providerMetadata: Record<string, unknown>;
+      }) => void;
+      onEnd: (input: {
+        text: string;
+        usage: { inputTokens: number; outputTokens: number };
+        providerMetadata: Record<string, unknown>;
+      }) => Promise<void>;
+    };
+    streamInput.onStepEnd({
+      model: {
+        provider: "openrouter",
+        modelId: "deepseek/deepseek-v4-flash-0731",
+      },
+      text: "Risposta dal fallback",
+      toolCalls: [],
+      providerMetadata: { openrouter: { provider: "Together" } },
+    });
+    await streamInput.onEnd({
+      text: "Risposta dal fallback",
+      usage: { inputTokens: 10, outputTokens: 5 },
+      providerMetadata: { openrouter: { provider: "Together" } },
+    });
+
+    expect(mocks.extractAIMetrics).toHaveBeenCalledWith(
+      "deepseek/deepseek-v4-flash-0731",
+      expect.any(Number),
+      expect.objectContaining({ text: "Risposta dal fallback" }),
+    );
+  });
+
   it("routes image messages through OpenRouter REST with image_url content", async () => {
     const abortController = new AbortController();
     const originalApiKey = process.env.OPENROUTER_API_KEY;

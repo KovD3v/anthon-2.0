@@ -7,20 +7,20 @@ import {
   type ChatMetadataMessage,
   chatMetadataSchema,
 } from "@/lib/ai/chat-metadata-contract";
+import {
+  CHAT_METADATA_MODEL_CANDIDATES,
+  type ChatMetadataModelId,
+  getChatMetadataProviderOptions,
+} from "@/lib/ai/chat-metadata-model";
 import { extractAIMetrics } from "@/lib/ai/cost-calculator";
 import { openrouter } from "@/lib/ai/providers/openrouter";
-import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import type { ChatIcon } from "@/lib/chat-icons";
 
 (globalThis as { AI_SDK_LOG_WARNINGS?: boolean }).AI_SDK_LOG_WARNINGS = false;
 
-export const EVAL_MODELS = [
-  "inclusionai/ling-3.0-flash",
-  "qwen/qwen3.7-flash",
-  "deepseek/deepseek-v4-flash",
-] as const;
+export const EVAL_MODELS = CHAT_METADATA_MODEL_CANDIDATES;
 
-type EvalModel = (typeof EVAL_MODELS)[number];
+type EvalModel = ChatMetadataModelId;
 type EvalScenario = {
   id: string;
   messages: ChatMetadataMessage[];
@@ -59,7 +59,7 @@ type BlindReviewRow = {
   note: string;
 };
 
-type CandidateSummary = {
+export type CandidateSummary = {
   model: string;
   eligible: boolean;
   attempts: number;
@@ -352,13 +352,52 @@ function rankCandidates(summaries: CandidateSummary[]): CandidateSummary[] {
   );
 }
 
-function getProviderOptions(modelId: string) {
-  const options = getOpenRouterProviderOptionsForModel(modelId);
-  const provider =
-    options.provider && typeof options.provider === "object"
-      ? options.provider
-      : {};
-  return { ...options, provider: { ...provider, require_parameters: true } };
+const INCUMBENT_METADATA_MODEL_ID = "deepseek/deepseek-v4-flash";
+
+export function selectConsolidationDecision(summaries: CandidateSummary[]): {
+  selectedModel: string;
+  promoted: boolean;
+  reason: string;
+} {
+  const incumbent = summaries.find(
+    (summary) => summary.model === INCUMBENT_METADATA_MODEL_ID,
+  );
+  if (!incumbent) {
+    throw new Error("Metadata consolidation requires the incumbent summary");
+  }
+
+  const promotable = summaries
+    .filter(
+      (summary) =>
+        summary.model !== incumbent.model &&
+        summary.successRate === 1 &&
+        summary.titleScore >= incumbent.titleScore - 0.02 &&
+        summary.iconScore >= incumbent.iconScore - 0.05,
+    )
+    .sort(
+      (left, right) => (right.decisionScore ?? 0) - (left.decisionScore ?? 0),
+    );
+  const winner = promotable[0];
+
+  if (winner) {
+    return {
+      selectedModel: winner.model,
+      promoted: true,
+      reason: `${winner.model} cleared 100% structured-output reliability while staying within the incumbent quality guardrails.`,
+    };
+  }
+
+  const challengerFailures = summaries
+    .filter((summary) => summary.model !== incumbent.model)
+    .map(
+      (summary) => `${summary.model} ${summary.successes}/${summary.attempts}`,
+    )
+    .join("; ");
+  return {
+    selectedModel: incumbent.model,
+    promoted: false,
+    reason: `Retained the incumbent because no challenger cleared the structured-output reliability gate (${challengerFailures}).`,
+  };
 }
 
 async function runAttempt(
@@ -377,7 +416,9 @@ async function runAttempt(
       maxOutputTokens: 80,
       maxRetries: 0,
       timeout: { totalMs: timeoutMs },
-      providerOptions: { openrouter: getProviderOptions(model) },
+      providerOptions: {
+        openrouter: getChatMetadataProviderOptions(model),
+      },
       prompt: buildChatMetadataPrompt(
         buildChatMetadataContext(item.messages, item.fallbackUserText),
       ),
@@ -524,11 +565,11 @@ ${report.decision.reason}
 
 ${availability}
 
-The blinded review found strong title specificity overall. The main weaknesses were omission of the coach in the coach-conversation scenario, one unsupported urgency word in a vague opening, and inconsistent icon choice for pre-final pressure.
+No blinded semantic review is required for promotion when every challenger fails the structured-output reliability gate.
 
 ## Method
 
-Structured-output reliability is a gate. Eligible models are ranked by title quality (50%), icon fit (25%), reliability (15%), Italy end-to-end latency (7%), and cost (3%). Provider failures and exact model IDs are preserved; no alias or fallback substitution is allowed.
+Structured-output reliability is a gate: a challenger needs 24/24 valid outputs before it can replace the incumbent. Candidates are then ranked by title quality (50%), icon fit (25%), reliability (15%), Italy end-to-end latency (7%), and cost (3%). Provider failures and exact model IDs are preserved; no alias or fallback substitution is allowed.
 `;
 }
 
@@ -551,15 +592,7 @@ async function writeReport(
         row.note.trim().length > 0
       );
     });
-  const winner = reviewComplete
-    ? summaries.find((summary) => summary.eligible)
-    : undefined;
-  const decision = {
-    selectedModel: winner?.model ?? null,
-    reason: reviewComplete
-      ? `${winner?.model} was the only eligible candidate: ${winner?.successes}/${winner?.attempts} valid outputs, blinded title score ${winner?.titleScore}, icon score ${winner?.iconScore}, p50 ${winner?.latencyMs.p50} ms, and $${winner?.totalCostUsd} total cost.`
-      : "Complete the anonymous review file, then reaggregate without new provider calls.",
-  };
+  const decision = selectConsolidationDecision(summaries);
   const report = {
     generatedAt: new Date().toISOString(),
     region: "Italy local client network",

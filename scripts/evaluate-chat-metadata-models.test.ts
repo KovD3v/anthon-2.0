@@ -4,6 +4,7 @@ import {
   type EvalAttempt,
   percentile,
   scoreIcon,
+  selectConsolidationDecision,
   summarizeCandidate,
 } from "./evaluate-chat-metadata-models";
 
@@ -28,9 +29,9 @@ function attempt(
 describe("chat metadata model evaluation", () => {
   it("pins the exact requested candidates", () => {
     expect(EVAL_MODELS).toEqual([
-      "inclusionai/ling-3.0-flash",
-      "qwen/qwen3.7-flash",
       "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4-flash-0731",
+      "nvidia/nemotron-3.5-lightning",
     ]);
   });
 
@@ -102,5 +103,44 @@ describe("chat metadata model evaluation", () => {
     expect(summary.totalCostUsd).toBeCloseTo(0.003);
     expect(summary.latencyMs).toEqual({ p50: 90, p95: 210 });
     expect(summary.errors).toEqual({ TimeoutError: 1 });
+  });
+
+  it("retains the incumbent when every challenger fails structured output", () => {
+    const attempts = [
+      attempt({
+        model: "deepseek/deepseek-v4-flash",
+        scenarioId: "pre_competition_pressure",
+      }),
+      attempt({
+        model: "deepseek/deepseek-v4-flash-0731",
+        scenarioId: "pre_competition_pressure",
+      }),
+      attempt({
+        model: "deepseek/deepseek-v4-flash-0731",
+        scenarioId: "running_goal",
+        success: false,
+        output: undefined,
+        titleScore: 0,
+        iconScore: 0,
+      }),
+      attempt({
+        model: "nvidia/nemotron-3.5-lightning",
+        scenarioId: "pre_competition_pressure",
+        success: false,
+        output: undefined,
+        titleScore: 0,
+        iconScore: 0,
+      }),
+    ];
+    const summaries = EVAL_MODELS.map((model) =>
+      summarizeCandidate(model, attempts),
+    );
+
+    expect(selectConsolidationDecision(summaries)).toEqual(
+      expect.objectContaining({
+        selectedModel: "deepseek/deepseek-v4-flash",
+        promoted: false,
+      }),
+    );
   });
 });

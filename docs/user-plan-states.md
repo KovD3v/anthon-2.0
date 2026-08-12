@@ -178,7 +178,7 @@ Se non esiste un'altra fonte valida di entitlement, l'utente riceve `TRIAL`.
 | Componente | Modello |
 | --- | --- |
 | Orchestratore testuale | `openai/gpt-5.6-luna` |
-| Fallback orchestratore | `deepseek/deepseek-v4-flash` |
+| Fallback orchestratore | `deepseek/deepseek-v4-flash-0731` |
 | Elaborazione immagini | `moonshotai/kimi-k2.7-code` |
 | Manutenzione | `google/gemini-2.5-flash-lite` |
 

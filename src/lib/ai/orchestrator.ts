@@ -2970,6 +2970,7 @@ export async function streamChat({
 
   // Stream the response
   const standardAttemptStartedAt = Date.now();
+  let standardExecutedModelId = modelId;
   let standardTimeToFirstTokenMs: number | undefined;
   let standardTotalRequestTimeToFirstTokenMs: number | undefined;
   const routedStandard = routedExecution;
@@ -3089,32 +3090,36 @@ export async function streamChat({
         : undefined;
 
       // Extract AI metrics including cost calculation.
-      const metrics = await extractAIMetrics(modelId, startTime, {
-        text,
-        usage: {
-          promptTokens: meteredUsage?.inputTokens,
-          completionTokens: meteredUsage?.outputTokens,
-          totalTokens: meteredUsage?.totalTokens,
+      const metrics = await extractAIMetrics(
+        standardExecutedModelId,
+        startTime,
+        {
+          text,
+          usage: {
+            promptTokens: meteredUsage?.inputTokens,
+            completionTokens: meteredUsage?.outputTokens,
+            totalTokens: meteredUsage?.totalTokens,
+          },
+          providerMetadata: providerMetadata as Record<string, unknown>,
+          preferProviderUsage: !totalUsage,
+          providerCostUsd: sumCosts(collectedOpenRouterCosts),
+          collectedToolCalls:
+            collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
+          toolTiming:
+            collectedToolCalls.length > 0
+              ? {
+                  ...toolTiming,
+                  toolExecutionMs: toolTimingState.toolExecutionMs,
+                }
+              : undefined,
+          ragUsed: ragUsage.used,
+          ragChunksCount: ragUsage.chunkCount,
+          ragAttempted: ragUsage.attempted,
+          routineUsed: routineProposal !== undefined,
+          voiceOutput: capabilityDecision.voiceOutput,
+          executionRoute: standardRoute,
         },
-        providerMetadata: providerMetadata as Record<string, unknown>,
-        preferProviderUsage: !totalUsage,
-        providerCostUsd: sumCosts(collectedOpenRouterCosts),
-        collectedToolCalls:
-          collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
-        toolTiming:
-          collectedToolCalls.length > 0
-            ? {
-                ...toolTiming,
-                toolExecutionMs: toolTimingState.toolExecutionMs,
-              }
-            : undefined,
-        ragUsed: ragUsage.used,
-        ragChunksCount: ragUsage.chunkCount,
-        ragAttempted: ragUsage.attempted,
-        routineUsed: routineProposal !== undefined,
-        voiceOutput: capabilityDecision.voiceOutput,
-        executionRoute: standardRoute,
-      });
+      );
       metrics.memoryRecall = {
         mode: memoryRecallDecision.mode,
         reason: memoryRecallDecision.reason,
@@ -3170,6 +3175,10 @@ export async function streamChat({
     },
     onStepEnd: (step: StepResult<ToolSet>) => {
       const stepFinishedAt = Date.now();
+      const executedModelId = step.model?.modelId?.trim();
+      if (executedModelId) {
+        standardExecutedModelId = executedModelId;
+      }
       const stepElapsedMs = Math.max(
         0,
         stepFinishedAt - previousStepFinishedAt,

@@ -1,0 +1,2706 @@
+{
+  "generatedAt": "2026-08-12T17:06:47.278Z",
+  "region": "Italy local client network",
+  "models": [
+    "deepseek/deepseek-v4-flash",
+    "deepseek/deepseek-v4-flash-0731",
+    "nvidia/nemotron-3.5-lightning"
+  ],
+  "scenarios": [
+    {
+      "id": "pre_competition_pressure",
+      "conceptGroups": [["finale", "gara"], ["pressione", "ansia"]],
+      "acceptedIcons": ["TROPHY", "BRAIN", "SHIELD"],
+      "inappropriateIcons": ["CALENDAR_DAYS", "USERS", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "post_mistake_reset",
+      "conceptGroups": [["errore", "fallo"], ["reset", "ripartenza"]],
+      "acceptedIcons": ["REFRESH_CCW", "BRAIN"],
+      "inappropriateIcons": ["TROPHY", "CALENDAR_DAYS", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "short_mental_routine",
+      "conceptGroups": [["routine"], ["servizio", "trenta secondi"]],
+      "acceptedIcons": ["BRAIN", "TIMER"],
+      "inappropriateIcons": ["USERS", "HEART_PULSE", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "lost_motivation",
+      "conceptGroups": [["motivazione", "costanza"], ["allenamenti"]],
+      "acceptedIcons": ["FLAME", "BRAIN"],
+      "inappropriateIcons": ["TROPHY", "USERS", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "weekly_training_plan",
+      "conceptGroups": [["settimana", "settimanale"], ["allenamenti", "piano"]],
+      "acceptedIcons": ["CALENDAR_DAYS", "DUMBBELL", "ACTIVITY"],
+      "inappropriateIcons": ["TROPHY", "USERS", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "injury_safety_warning",
+      "conceptGroups": [["ginocchio", "dolore"], ["corsa"]],
+      "acceptedIcons": ["HEART_PULSE", "SHIELD", "ACTIVITY"],
+      "inappropriateIcons": ["FLAME", "TROPHY", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "talk_with_coach",
+      "conceptGroups": [
+        ["coach", "allenatore"],
+        ["parlare", "confronto", "vergogna"]
+      ],
+      "acceptedIcons": ["USERS", "BRAIN", "SHIELD"],
+      "inappropriateIcons": ["TIMER", "CALENDAR_DAYS", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "team_dynamics",
+      "conceptGroups": [["squadra", "compagni"], ["fiducia"]],
+      "acceptedIcons": ["USERS", "SHIELD"],
+      "inappropriateIcons": ["FOOTPRINTS", "TIMER", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "race_pace_timing",
+      "conceptGroups": [["ritmo", "passo"], ["dieci chilometri", "10 km"]],
+      "acceptedIcons": ["TIMER", "FOOTPRINTS"],
+      "inappropriateIcons": ["USERS", "DUMBBELL", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "running_goal",
+      "conceptGroups": [["mezza maratona"], ["due ore", "ottobre"]],
+      "acceptedIcons": ["FOOTPRINTS", "TARGET", "TIMER"],
+      "inappropriateIcons": ["USERS", "DUMBBELL", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "confidence_after_loss",
+      "conceptGroups": [["fiducia", "sicurezza"], ["sconfitta"]],
+      "acceptedIcons": ["SHIELD", "BRAIN", "REFRESH_CCW"],
+      "inappropriateIcons": ["CALENDAR_DAYS", "USERS", "MESSAGE_SQUARE"]
+    },
+    {
+      "id": "vague_opening",
+      "conceptGroups": [["parlare", "confronto"]],
+      "acceptedIcons": ["MESSAGE_SQUARE"],
+      "inappropriateIcons": ["TROPHY", "HEART_PULSE", "DUMBBELL"]
+    }
+  ],
+  "attemptsPerModel": 24,
+  "attempts": [
+    {
+      "anonymousId": "attempt-001",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "pre_competition_pressure",
+      "pass": 1,
+      "durationMs": 1288,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.0000214,
+      "inputTokens": 336,
+      "outputTokens": 23,
+      "output": {
+        "title": "Pressione finale partita domenica",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 336,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 23,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 359,
+            "cost": 0.0000214,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000214
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-002",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "pre_competition_pressure",
+      "pass": 1,
+      "durationMs": 1466,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00005236,
+      "inputTokens": 336,
+      "outputTokens": 19,
+      "output": {
+        "title": "Pressione prima della finale",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 336,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 19,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 355,
+            "cost": 0.00005236,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00005236
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-003",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "pre_competition_pressure",
+      "pass": 1,
+      "durationMs": 841,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 0.5,
+      "costUsd": 0.00008246,
+      "inputTokens": 535,
+      "outputTokens": 27,
+      "output": {
+        "title": "Pressione pre-finale domenicale",
+        "icon": "TIMER"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 535,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 27,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 562,
+            "cost": 0.00008246,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008246
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-004",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "post_mistake_reset",
+      "pass": 1,
+      "durationMs": 877,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00008428,
+      "inputTokens": 542,
+      "outputTokens": 30,
+      "output": {
+        "title": "Reset mentale dopo doppio fallo",
+        "icon": "REFRESH_CCW"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 542,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 30,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 572,
+            "cost": 0.00008428,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008428
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-005",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "post_mistake_reset",
+      "pass": 1,
+      "durationMs": 731,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00002076,
+      "inputTokens": 343,
+      "outputTokens": 26,
+      "output": {
+        "title": "Reset mentale dopo doppio fallo",
+        "icon": "REFRESH_CCW"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 343,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 369,
+            "cost": 0.00002076,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002076
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-006",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "post_mistake_reset",
+      "pass": 1,
+      "durationMs": 749,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.0000218,
+      "inputTokens": 340,
+      "outputTokens": 24,
+      "output": {
+        "title": "Resettare dopo doppio fallo",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 340,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 24,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 364,
+            "cost": 0.0000218,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000218
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-007",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "short_mental_routine",
+      "pass": 1,
+      "durationMs": 475,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00002145,
+      "inputTokens": 333,
+      "outputTokens": 24,
+      "output": {
+        "title": "Routine mentale 30 secondi servizio",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 333,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 24,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 357,
+            "cost": 0.00002145,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002145
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-008",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "short_mental_routine",
+      "pass": 1,
+      "durationMs": 764,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00001726,
+      "inputTokens": 334,
+      "outputTokens": 18,
+      "output": {
+        "title": "Routine mentale pre-servizio",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 334,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 18,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 352,
+            "cost": 0.00001726,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00001726
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-009",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "short_mental_routine",
+      "pass": 1,
+      "durationMs": 3335,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00008162,
+      "inputTokens": 533,
+      "outputTokens": 25,
+      "output": {
+        "title": "Routine mentale prima del servizio",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 533,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 25,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 558,
+            "cost": 0.00008162,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008162
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-010",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "lost_motivation",
+      "pass": 1,
+      "durationMs": 1870,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00008204,
+      "inputTokens": 534,
+      "outputTokens": 26,
+      "output": {
+        "title": "Ritrovare la motivazione persa",
+        "icon": "FLAME"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 534,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 560,
+            "cost": 0.00008204,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008204
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-011",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "lost_motivation",
+      "pass": 1,
+      "durationMs": 937,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00001824,
+      "inputTokens": 335,
+      "outputTokens": 21,
+      "output": {
+        "title": "Ritrovare la motivazione per allenarsi",
+        "icon": "FLAME"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 335,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 21,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 356,
+            "cost": 0.00001824,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00001824
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-012",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "lost_motivation",
+      "pass": 1,
+      "durationMs": 515,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00002205,
+      "inputTokens": 333,
+      "outputTokens": 27,
+      "output": {
+        "title": "Riacquisisci motivazione dopo tre settimane",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 333,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 27,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 360,
+            "cost": 0.00002205,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002205
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-013",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "weekly_training_plan",
+      "pass": 1,
+      "durationMs": 751,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.0000221,
+      "inputTokens": 338,
+      "outputTokens": 26,
+      "output": {
+        "title": "Organizzare tre allenamenti settimanali",
+        "icon": "CALENDAR_DAYS"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 338,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 364,
+            "cost": 0.0000221,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000221
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-014",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "weekly_training_plan",
+      "pass": 1,
+      "durationMs": 1128,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00005586,
+      "inputTokens": 339,
+      "outputTokens": 30,
+      "output": {
+        "title": "Pianificazione settimanale senza sovraccarico",
+        "icon": "CALENDAR_DAYS"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 339,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 30,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 369,
+            "cost": 0.00005586,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00005586
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-015",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "weekly_training_plan",
+      "pass": 1,
+      "durationMs": 1349,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.000084,
+      "inputTokens": 538,
+      "outputTokens": 31,
+      "output": {
+        "title": "Pianificazione tre allenamenti settimanali",
+        "icon": "CALENDAR_DAYS"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 538,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 31,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 569,
+            "cost": 0.000084,
+            "costDetails": {
+              "upstreamInferenceCost": 0.000084
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-016",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "injury_safety_warning",
+      "pass": 1,
+      "durationMs": 1040,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00008386,
+      "inputTokens": 535,
+      "outputTokens": 32,
+      "output": {
+        "title": "Dolore acuto al ginocchio nella corsa",
+        "icon": "HEART_PULSE"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 535,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 32,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 567,
+            "cost": 0.00008386,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008386
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-017",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "injury_safety_warning",
+      "pass": 1,
+      "durationMs": 579,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_NoObjectGeneratedError",
+      "errorMessage": "No object generated: response did not match schema."
+    },
+    {
+      "anonymousId": "attempt-018",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "injury_safety_warning",
+      "pass": 1,
+      "durationMs": 458,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_NoObjectGeneratedError",
+      "errorMessage": "No object generated: response did not match schema."
+    },
+    {
+      "anonymousId": "attempt-019",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "talk_with_coach",
+      "pass": 1,
+      "durationMs": 444,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00002145,
+      "inputTokens": 337,
+      "outputTokens": 23,
+      "output": {
+        "title": "Vergogna dopo sconfitte sportive",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 337,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 23,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 360,
+            "cost": 0.00002145,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002145
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-020",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "talk_with_coach",
+      "pass": 1,
+      "durationMs": 797,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00001796,
+      "inputTokens": 335,
+      "outputTokens": 20,
+      "output": {
+        "title": "Gestire la vergogna dopo le sconfitte",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 335,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 20,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 355,
+            "cost": 0.00001796,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00001796
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-021",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "talk_with_coach",
+      "pass": 1,
+      "durationMs": 1162,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00008176,
+      "inputTokens": 534,
+      "outputTokens": 25,
+      "output": {
+        "title": "Vergogna dopo le sconfitte",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 534,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 25,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 559,
+            "cost": 0.00008176,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008176
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-022",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "team_dynamics",
+      "pass": 1,
+      "durationMs": 696,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004676,
+      "inputTokens": 538,
+      "outputTokens": 26,
+      "output": {
+        "title": "Ricostruire fiducia in squadra",
+        "icon": "SHIELD"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 538,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 564,
+            "cost": 0.00004676,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004676
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-023",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "team_dynamics",
+      "pass": 1,
+      "durationMs": 1850,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00001908,
+      "inputTokens": 339,
+      "outputTokens": 22,
+      "output": {
+        "title": "Ricostruire fiducia dopo le accuse",
+        "icon": "SHIELD"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 339,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 22,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 361,
+            "cost": 0.00001908,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00001908
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-024",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "team_dynamics",
+      "pass": 1,
+      "durationMs": 485,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.0000213,
+      "inputTokens": 338,
+      "outputTokens": 22,
+      "output": {
+        "title": "Ricostruire fiducia squadra",
+        "icon": "USERS"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 338,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 22,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 360,
+            "cost": 0.0000213,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000213
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-025",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "race_pace_timing",
+      "pass": 1,
+      "durationMs": 440,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 0.5,
+      "costUsd": 0.00002175,
+      "inputTokens": 339,
+      "outputTokens": 24,
+      "output": {
+        "title": "Gestione ritmo gara 10km",
+        "icon": "ACTIVITY"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 339,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 24,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 363,
+            "cost": 0.00002175,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002175
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-026",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "race_pace_timing",
+      "pass": 1,
+      "durationMs": 1002,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00002104,
+      "inputTokens": 341,
+      "outputTokens": 28,
+      "output": {
+        "title": "Gestire il ritmo nei dieci chilometri",
+        "icon": "TIMER"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 341,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 28,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 369,
+            "cost": 0.00002104,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002104
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-027",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "race_pace_timing",
+      "pass": 1,
+      "durationMs": 967,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00008344,
+      "inputTokens": 540,
+      "outputTokens": 28,
+      "output": {
+        "title": "Gestione del ritmo nei dieci chilometri",
+        "icon": "TIMER"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 540,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 28,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 568,
+            "cost": 0.00008344,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008344
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-028",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "running_goal",
+      "pass": 1,
+      "durationMs": 670,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004662,
+      "inputTokens": 535,
+      "outputTokens": 27,
+      "output": {
+        "title": "Prima mezza maratona sotto due ore",
+        "icon": "TARGET"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 535,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 27,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 562,
+            "cost": 0.00004662,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004662
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-029",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "running_goal",
+      "pass": 1,
+      "durationMs": 611,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_NoObjectGeneratedError",
+      "errorMessage": "No object generated: response did not match schema."
+    },
+    {
+      "anonymousId": "attempt-030",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "running_goal",
+      "pass": 1,
+      "durationMs": 526,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00002165,
+      "inputTokens": 337,
+      "outputTokens": 24,
+      "output": {
+        "title": "Pianificazione prima mezza maratona",
+        "icon": "TARGET"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 337,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 24,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 361,
+            "cost": 0.00002165,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002165
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-031",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "confidence_after_loss",
+      "pass": 1,
+      "durationMs": 728,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00002115,
+      "inputTokens": 335,
+      "outputTokens": 22,
+      "output": {
+        "title": "Recupero fiducia dopo sconfitta",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 335,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 22,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 357,
+            "cost": 0.00002115,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002115
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-032",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "confidence_after_loss",
+      "pass": 1,
+      "durationMs": 1786,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00005362,
+      "inputTokens": 337,
+      "outputTokens": 23,
+      "output": {
+        "title": "Ritrovare fiducia nei colpi importanti",
+        "icon": "SHIELD"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Ambient",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 337,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 23,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 360,
+            "cost": 0.00005362,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00005362
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-033",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "confidence_after_loss",
+      "pass": 1,
+      "durationMs": 1227,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00008232,
+      "inputTokens": 536,
+      "outputTokens": 26,
+      "output": {
+        "title": "Sconfitta e fiducia nei colpi",
+        "icon": "SHIELD"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 536,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 562,
+            "cost": 0.00008232,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008232
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-034",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "vague_opening",
+      "pass": 1,
+      "durationMs": 1052,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00008148,
+      "inputTokens": 526,
+      "outputTokens": 28,
+      "output": {
+        "title": "Chiedere un momento per parlare",
+        "icon": "MESSAGE_SQUARE"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 526,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 28,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 554,
+            "cost": 0.00008148,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008148
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-035",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "vague_opening",
+      "pass": 1,
+      "durationMs": 2482,
+      "success": true,
+      "titleScore": 0.5,
+      "iconScore": 1,
+      "costUsd": 0.0000174,
+      "inputTokens": 327,
+      "outputTokens": 22,
+      "output": {
+        "title": "Prima conversazione e definizione obiettivo",
+        "icon": "MESSAGE_SQUARE"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 327,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 22,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 349,
+            "cost": 0.0000174,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000174
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-036",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "vague_opening",
+      "pass": 1,
+      "durationMs": 473,
+      "success": true,
+      "titleScore": 0.5,
+      "iconScore": 0.5,
+      "costUsd": 0.0000216,
+      "inputTokens": 328,
+      "outputTokens": 26,
+      "output": {
+        "title": "Sbloccare obiettivi di carriera",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 328,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 354,
+            "cost": 0.0000216,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000216
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-037",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "pre_competition_pressure",
+      "pass": 2,
+      "durationMs": 1566,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 0.5,
+      "costUsd": 0.00008218,
+      "inputTokens": 535,
+      "outputTokens": 26,
+      "output": {
+        "title": "Pressione prima della finale",
+        "icon": "HEART_PULSE"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 535,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 561,
+            "cost": 0.00008218,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008218
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-038",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "pre_competition_pressure",
+      "pass": 2,
+      "durationMs": 1337,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00001782,
+      "inputTokens": 336,
+      "outputTokens": 19,
+      "output": {
+        "title": "Pressione prima della finale",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 336,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 19,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 355,
+            "cost": 0.00001782,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00001782
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-039",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "pre_competition_pressure",
+      "pass": 2,
+      "durationMs": 443,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.0000214,
+      "inputTokens": 336,
+      "outputTokens": 23,
+      "output": {
+        "title": "Pressione finale partita domenica",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 336,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 23,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 359,
+            "cost": 0.0000214,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000214
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-040",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "post_mistake_reset",
+      "pass": 2,
+      "durationMs": 447,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.000022,
+      "inputTokens": 340,
+      "outputTokens": 25,
+      "output": {
+        "title": "Resettare dopo un doppio fallo",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 340,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 25,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 365,
+            "cost": 0.000022,
+            "costDetails": {
+              "upstreamInferenceCost": 0.000022
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-041",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "post_mistake_reset",
+      "pass": 2,
+      "durationMs": 988,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00002076,
+      "inputTokens": 343,
+      "outputTokens": 26,
+      "output": {
+        "title": "Reset mentale dopo doppio fallo",
+        "icon": "REFRESH_CCW"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 343,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 369,
+            "cost": 0.00002076,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002076
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-042",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "post_mistake_reset",
+      "pass": 2,
+      "durationMs": 822,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004844,
+      "inputTokens": 542,
+      "outputTokens": 30,
+      "output": {
+        "title": "Reset mentale dopo doppio fallo",
+        "icon": "REFRESH_CCW"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 542,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 30,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 572,
+            "cost": 0.00004844,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004844
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-043",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "short_mental_routine",
+      "pass": 2,
+      "durationMs": 1164,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00008162,
+      "inputTokens": 533,
+      "outputTokens": 25,
+      "output": {
+        "title": "Routine mentale pre-servizio",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 533,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 25,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 558,
+            "cost": 0.00008162,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008162
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-044",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "short_mental_routine",
+      "pass": 2,
+      "durationMs": 633,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.0000181,
+      "inputTokens": 334,
+      "outputTokens": 21,
+      "output": {
+        "title": "Routine mentale pre-servizio",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 334,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 21,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 355,
+            "cost": 0.0000181,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000181
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-045",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "short_mental_routine",
+      "pass": 2,
+      "durationMs": 531,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00002185,
+      "inputTokens": 333,
+      "outputTokens": 26,
+      "output": {
+        "title": "Routine mentale 30 secondi servizio",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 333,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 359,
+            "cost": 0.00002185,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002185
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-046",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "lost_motivation",
+      "pass": 2,
+      "durationMs": 479,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00002145,
+      "inputTokens": 333,
+      "outputTokens": 24,
+      "output": {
+        "title": "Ritrovare motivazione dopo tre settimane",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 333,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 24,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 357,
+            "cost": 0.00002145,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002145
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-047",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "lost_motivation",
+      "pass": 2,
+      "durationMs": 696,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.0000188,
+      "inputTokens": 335,
+      "outputTokens": 23,
+      "output": {
+        "title": "Ritrovare la motivazione per allenarsi",
+        "icon": "FLAME"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 335,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 23,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 358,
+            "cost": 0.0000188,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000188
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-048",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "lost_motivation",
+      "pass": 2,
+      "durationMs": 886,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.0000462,
+      "inputTokens": 534,
+      "outputTokens": 26,
+      "output": {
+        "title": "Ritrovare la motivazione persa",
+        "icon": "FLAME"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 534,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 560,
+            "cost": 0.0000462,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000462
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-049",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "weekly_training_plan",
+      "pass": 2,
+      "durationMs": 863,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004816,
+      "inputTokens": 538,
+      "outputTokens": 31,
+      "output": {
+        "title": "Pianificazione tre allenamenti settimanali",
+        "icon": "CALENDAR_DAYS"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 538,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 31,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 569,
+            "cost": 0.00004816,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004816
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-050",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "weekly_training_plan",
+      "pass": 2,
+      "durationMs": 609,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00001784,
+      "inputTokens": 339,
+      "outputTokens": 27,
+      "output": {
+        "title": "Pianificazione settimanale senza sovraccarico",
+        "icon": "CALENDAR_DAYS"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 339,
+            "promptTokensDetails": {
+              "cachedTokens": 338
+            },
+            "completionTokens": 27,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 366,
+            "cost": 0.00001784,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00001784
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-051",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "weekly_training_plan",
+      "pass": 2,
+      "durationMs": 490,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 0.5,
+      "costUsd": 0.0000215,
+      "inputTokens": 338,
+      "outputTokens": 23,
+      "output": {
+        "title": "Organizzare tre allenamenti settimana",
+        "icon": "TIMER"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 338,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 23,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 361,
+            "cost": 0.0000215,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000215
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-052",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "injury_safety_warning",
+      "pass": 2,
+      "durationMs": 463,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_NoObjectGeneratedError",
+      "errorMessage": "No object generated: response did not match schema."
+    },
+    {
+      "anonymousId": "attempt-053",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "injury_safety_warning",
+      "pass": 2,
+      "durationMs": 750,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_NoObjectGeneratedError",
+      "errorMessage": "No object generated: response did not match schema."
+    },
+    {
+      "anonymousId": "attempt-054",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "injury_safety_warning",
+      "pass": 2,
+      "durationMs": 1655,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00008386,
+      "inputTokens": 535,
+      "outputTokens": 32,
+      "output": {
+        "title": "Dolore acuto al ginocchio in corsa",
+        "icon": "HEART_PULSE"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 535,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 32,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 567,
+            "cost": 0.00008386,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00008386
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-055",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "talk_with_coach",
+      "pass": 2,
+      "durationMs": 1562,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00004592,
+      "inputTokens": 534,
+      "outputTokens": 25,
+      "output": {
+        "title": "Vergogna dopo le sconfitte",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 534,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 25,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 559,
+            "cost": 0.00004592,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004592
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-056",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "talk_with_coach",
+      "pass": 2,
+      "durationMs": 663,
+      "success": true,
+      "titleScore": 0.5,
+      "iconScore": 1,
+      "costUsd": 0.00001824,
+      "inputTokens": 335,
+      "outputTokens": 21,
+      "output": {
+        "title": "Senza valore dopo le sconfitte",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 335,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 21,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 356,
+            "cost": 0.00001824,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00001824
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-057",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "talk_with_coach",
+      "pass": 2,
+      "durationMs": 445,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00002185,
+      "inputTokens": 337,
+      "outputTokens": 25,
+      "output": {
+        "title": "Vergogna dopo sconfitte sportive",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 337,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 25,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 362,
+            "cost": 0.00002185,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002185
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-058",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "team_dynamics",
+      "pass": 2,
+      "durationMs": 544,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.0000215,
+      "inputTokens": 338,
+      "outputTokens": 23,
+      "output": {
+        "title": "Ricostruire fiducia in squadra",
+        "icon": "SHIELD"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 338,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 23,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 361,
+            "cost": 0.0000215,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000215
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-059",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "team_dynamics",
+      "pass": 2,
+      "durationMs": 1039,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00001644,
+      "inputTokens": 339,
+      "outputTokens": 22,
+      "output": {
+        "title": "Ricostruire fiducia dopo le accuse",
+        "icon": "SHIELD"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 339,
+            "promptTokensDetails": {
+              "cachedTokens": 338
+            },
+            "completionTokens": 22,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 361,
+            "cost": 0.00001644,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00001644
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-060",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "team_dynamics",
+      "pass": 2,
+      "durationMs": 857,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00004676,
+      "inputTokens": 538,
+      "outputTokens": 26,
+      "output": {
+        "title": "Ricostruire fiducia in squadra",
+        "icon": "SHIELD"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 538,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 564,
+            "cost": 0.00004676,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00004676
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-061",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "race_pace_timing",
+      "pass": 2,
+      "durationMs": 963,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.0000476,
+      "inputTokens": 540,
+      "outputTokens": 28,
+      "output": {
+        "title": "Gestione del ritmo nei dieci chilometri",
+        "icon": "TIMER"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 540,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 28,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 568,
+            "cost": 0.0000476,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000476
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-062",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "race_pace_timing",
+      "pass": 2,
+      "durationMs": 794,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.00001992,
+      "inputTokens": 341,
+      "outputTokens": 24,
+      "output": {
+        "title": "Gestire il ritmo nei dieci chilometri",
+        "icon": "TIMER"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 341,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 24,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 365,
+            "cost": 0.00001992,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00001992
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-063",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "race_pace_timing",
+      "pass": 2,
+      "durationMs": 511,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 0.5,
+      "costUsd": 0.00002195,
+      "inputTokens": 339,
+      "outputTokens": 25,
+      "output": {
+        "title": "Gestione ritmo gara dieci chilometri",
+        "icon": "ACTIVITY"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 339,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 25,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 364,
+            "cost": 0.00002195,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002195
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-064",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "running_goal",
+      "pass": 2,
+      "durationMs": 658,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_NoObjectGeneratedError",
+      "errorMessage": "No object generated: response did not match schema."
+    },
+    {
+      "anonymousId": "attempt-065",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "running_goal",
+      "pass": 2,
+      "durationMs": 2351,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_NoObjectGeneratedError",
+      "errorMessage": "No object generated: response did not match schema."
+    },
+    {
+      "anonymousId": "attempt-066",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "running_goal",
+      "pass": 2,
+      "durationMs": 727,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.0000805,
+      "inputTokens": 535,
+      "outputTokens": 20,
+      "output": {
+        "title": "Prima mezza maratona sotto due ore",
+        "icon": "TARGET"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 535,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 20,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 555,
+            "cost": 0.0000805,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000805
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-067",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "confidence_after_loss",
+      "pass": 2,
+      "durationMs": 1194,
+      "success": false,
+      "titleScore": 0,
+      "iconScore": 0,
+      "costUsd": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "errorName": "AI_NoObjectGeneratedError",
+      "errorMessage": "No object generated: response did not match schema."
+    },
+    {
+      "anonymousId": "attempt-068",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "confidence_after_loss",
+      "pass": 2,
+      "durationMs": 915,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00001886,
+      "inputTokens": 337,
+      "outputTokens": 23,
+      "output": {
+        "title": "Ritrovare fiducia nei colpi importanti",
+        "icon": "SHIELD"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 337,
+            "promptTokensDetails": {
+              "cachedTokens": 316
+            },
+            "completionTokens": 23,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 360,
+            "cost": 0.00001886,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00001886
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-069",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "confidence_after_loss",
+      "pass": 2,
+      "durationMs": 464,
+      "success": true,
+      "titleScore": 0.75,
+      "iconScore": 1,
+      "costUsd": 0.00002215,
+      "inputTokens": 335,
+      "outputTokens": 27,
+      "output": {
+        "title": "Riacquistare fiducia nei colpi importanti",
+        "icon": "BRAIN"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 335,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 27,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 362,
+            "cost": 0.00002215,
+            "costDetails": {
+              "upstreamInferenceCost": 0.00002215
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-070",
+      "model": "nvidia/nemotron-3.5-lightning",
+      "scenarioId": "vague_opening",
+      "pass": 2,
+      "durationMs": 439,
+      "success": true,
+      "titleScore": 0.5,
+      "iconScore": 0.5,
+      "costUsd": 0.0000216,
+      "inputTokens": 328,
+      "outputTokens": 26,
+      "output": {
+        "title": "Obiettivi di carriera e cambiamento",
+        "icon": "TARGET"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "DeepInfra",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 328,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 26,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 354,
+            "cost": 0.0000216,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000216
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-071",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "scenarioId": "vague_opening",
+      "pass": 2,
+      "durationMs": 1595,
+      "success": true,
+      "titleScore": 1,
+      "iconScore": 1,
+      "costUsd": 0.0000174,
+      "inputTokens": 327,
+      "outputTokens": 22,
+      "output": {
+        "title": "Parlare un attimo",
+        "icon": "MESSAGE_SQUARE"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "Together",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 327,
+            "promptTokensDetails": {
+              "cachedTokens": 314
+            },
+            "completionTokens": 22,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 349,
+            "cost": 0.0000174,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000174
+            }
+          }
+        }
+      }
+    },
+    {
+      "anonymousId": "attempt-072",
+      "model": "deepseek/deepseek-v4-flash",
+      "scenarioId": "vague_opening",
+      "pass": 2,
+      "durationMs": 1247,
+      "success": true,
+      "titleScore": 0.5,
+      "iconScore": 1,
+      "costUsd": 0.0000462,
+      "inputTokens": 526,
+      "outputTokens": 30,
+      "output": {
+        "title": "Chiedere un attimo di ascolto",
+        "icon": "MESSAGE_SQUARE"
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "provider": "CoreWeave",
+          "reasoning_details": [],
+          "usage": {
+            "promptTokens": 526,
+            "promptTokensDetails": {
+              "cachedTokens": 512
+            },
+            "completionTokens": 30,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "totalTokens": 556,
+            "cost": 0.0000462,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0000462
+            }
+          }
+        }
+      }
+    }
+  ],
+  "summaries": [
+    {
+      "model": "deepseek/deepseek-v4-flash",
+      "eligible": true,
+      "attempts": 24,
+      "successes": 23,
+      "successRate": 0.9583,
+      "titleScore": 0.9348,
+      "iconScore": 0.9565,
+      "totalCostUsd": 0.00157808,
+      "averageCostUsd": 0.00006861,
+      "latencyMs": {
+        "p50": 1040,
+        "p95": 1870
+      },
+      "errors": {
+        "AI_NoObjectGeneratedError": 1
+      },
+      "decisionScore": 0.8086
+    },
+    {
+      "model": "nvidia/nemotron-3.5-lightning",
+      "eligible": true,
+      "attempts": 24,
+      "successes": 21,
+      "successRate": 0.875,
+      "titleScore": 0.869,
+      "iconScore": 0.881,
+      "totalCostUsd": 0.00045495,
+      "averageCostUsd": 0.00002166,
+      "latencyMs": {
+        "p50": 485,
+        "p95": 751
+      },
+      "errors": {
+        "AI_NoObjectGeneratedError": 3
+      },
+      "decisionScore": 0.3119
+    },
+    {
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "eligible": true,
+      "attempts": 24,
+      "successes": 20,
+      "successRate": 0.8333,
+      "titleScore": 0.8375,
+      "iconScore": 1,
+      "totalCostUsd": 0.00047776,
+      "averageCostUsd": 0.00002389,
+      "latencyMs": {
+        "p50": 937,
+        "p95": 1850
+      },
+      "errors": {
+        "AI_NoObjectGeneratedError": 4
+      },
+      "decisionScore": 0.2916
+    }
+  ],
+  "reviewComplete": false,
+  "decision": {
+    "selectedModel": "deepseek/deepseek-v4-flash",
+    "promoted": false,
+    "reason": "Retained the incumbent because no challenger cleared the structured-output reliability gate (nvidia/nemotron-3.5-lightning 21/24; deepseek/deepseek-v4-flash-0731 20/24)."
+  }
+}

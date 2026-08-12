@@ -22,7 +22,7 @@ interface PlanCatalogEntry {
 
 const MAINTENANCE_MODEL_ID = "google/gemini-2.5-flash-lite";
 const ORCHESTRATOR_MODEL_ID = "openai/gpt-5.6-luna";
-const ORCHESTRATOR_FALLBACK_MODEL_IDS = ["deepseek/deepseek-v4-flash"];
+const ORCHESTRATOR_FALLBACK_MODEL_IDS = ["deepseek/deepseek-v4-flash-0731"];
 
 // Keep unsolicited audio occasional. Explicit voice requests bypass these
 // cadence gates in decideVoiceDelivery and remain limited only by hard policy.

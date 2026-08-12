@@ -5,15 +5,17 @@ import {
   type ChatMetadataMessage,
   chatMetadataSchema,
 } from "@/lib/ai/chat-metadata-contract";
+import {
+  CHAT_METADATA_MODEL_ID,
+  getChatMetadataProviderOptions,
+} from "@/lib/ai/chat-metadata-model";
 import { openrouter } from "@/lib/ai/providers/openrouter";
-import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import type { ChatIcon } from "@/lib/chat-icons";
 import { createLogger } from "@/lib/logger";
 
 const titleLogger = createLogger("ai");
 
-const CHAT_METADATA_MODEL_ID = "deepseek/deepseek-v4-flash";
 const MAX_TITLE_LENGTH = 55;
 const TRAILING_WEAK_WORD_PATTERN =
   /\s+(a|ad|al|allo|alla|ai|agli|alle|con|da|dal|dallo|dalla|dai|dagli|dalle|di|del|dello|della|dei|degli|delle|e|in|nel|nello|nella|nei|negli|nelle|o|per|su|sul|sullo|sulla|sui|sugli|sulle|tra|fra)$/i;
@@ -88,9 +90,7 @@ export async function generateChatMetadata(
       maxOutputTokens: 80,
       temperature: 0.2,
       providerOptions: {
-        openrouter: getOpenRouterProviderOptionsForModel(
-          CHAT_METADATA_MODEL_ID,
-        ),
+        openrouter: getChatMetadataProviderOptions(CHAT_METADATA_MODEL_ID),
       },
     });
     const rawOutput = result.output as { title?: unknown; icon?: unknown };

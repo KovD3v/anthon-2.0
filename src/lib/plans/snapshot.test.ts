@@ -16,7 +16,7 @@ describe("plans/snapshot", () => {
       "openai/gpt-5.6-luna",
     );
     expect(snapshot.policies.modelRouting.orchestratorFallbacks).toEqual([
-      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4-flash-0731",
     ]);
     expect(snapshot.policies.attachmentRetentionDays).toBe(60);
     expect(snapshot.policies.voice.maxPerWindow).toBe(20);
@@ -39,7 +39,7 @@ describe("plans/snapshot", () => {
         "openai/gpt-5.6-luna",
       );
       expect(snapshot.policies.modelRouting.orchestratorFallbacks).toEqual([
-        "deepseek/deepseek-v4-flash",
+        "deepseek/deepseek-v4-flash-0731",
       ]);
     }
   });
@@ -70,7 +70,7 @@ describe("plans/snapshot", () => {
       "openai/gpt-5.6-luna",
     );
     expect(snapshot.policies.modelRouting.orchestratorFallbacks).toEqual([
-      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4-flash-0731",
     ]);
     expect(snapshot.policies.voice.maxPerWindow).toBe(50);
   });

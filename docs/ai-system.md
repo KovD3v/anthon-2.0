@@ -306,16 +306,17 @@ Plan-level defaults:
 
 | Tier | Orchestrator | Fallback | Sub-agent |
 | ---- | ------------ | -------- | --------- |
-| `trial` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash` | `google/gemini-2.5-flash-lite` |
-| `basic` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash` | `google/gemini-2.5-flash-lite` |
-| `basic_plus` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash` | `google/gemini-2.5-flash` |
-| `pro` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash` | `google/gemini-2.5-flash-lite` |
-| `admin` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash` | `google/gemini-2.5-flash-lite` |
+| `trial` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash-0731` | `google/gemini-2.5-flash-lite` |
+| `basic` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash-0731` | `google/gemini-2.5-flash-lite` |
+| `basic_plus` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash-0731` | `google/gemini-2.5-flash` |
+| `pro` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash-0731` | `google/gemini-2.5-flash-lite` |
+| `admin` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash-0731` | `google/gemini-2.5-flash-lite` |
 
 Luna requests opt into OpenRouter's OpenAI priority service tier and explicitly
 use `max` reasoning effort. OpenRouter
-may fall back according to its priority-tier routing rules, and the existing
-DeepSeek model fallback remains configured.
+may fall back to DeepSeek V4 Flash 0731. Streaming metrics use the model ID
+reported by the executed OpenRouter step, so fallback traffic is not attributed
+to Luna.
 
 Image chat uses `moonshotai/kimi-k2.7-code` for the orchestrator unless an
 internal benchmark explicitly overrides the model.

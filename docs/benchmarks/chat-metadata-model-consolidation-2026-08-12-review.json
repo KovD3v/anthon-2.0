@@ -1,0 +1,722 @@
+[
+  {
+    "anonymousId": "attempt-001",
+    "scenarioId": "pre_competition_pressure",
+    "context": "PRIMO BISOGNO UTENTE: Domenica gioco la finale e sento troppa pressione prima di entrare in campo.",
+    "title": "Pressione finale partita domenica",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-002",
+    "scenarioId": "pre_competition_pressure",
+    "context": "PRIMO BISOGNO UTENTE: Domenica gioco la finale e sento troppa pressione prima di entrare in campo.",
+    "title": "Pressione prima della finale",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-003",
+    "scenarioId": "pre_competition_pressure",
+    "context": "PRIMO BISOGNO UTENTE: Domenica gioco la finale e sento troppa pressione prima di entrare in campo.",
+    "title": "Pressione pre-finale domenicale",
+    "icon": "TIMER",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-004",
+    "scenarioId": "post_mistake_reset",
+    "context": "PRIMO BISOGNO UTENTE: Dopo un doppio fallo continuo a pensarci e sbaglio anche il punto successivo. Come resetto?",
+    "title": "Reset mentale dopo doppio fallo",
+    "icon": "REFRESH_CCW",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-005",
+    "scenarioId": "post_mistake_reset",
+    "context": "PRIMO BISOGNO UTENTE: Dopo un doppio fallo continuo a pensarci e sbaglio anche il punto successivo. Come resetto?",
+    "title": "Reset mentale dopo doppio fallo",
+    "icon": "REFRESH_CCW",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-006",
+    "scenarioId": "post_mistake_reset",
+    "context": "PRIMO BISOGNO UTENTE: Dopo un doppio fallo continuo a pensarci e sbaglio anche il punto successivo. Come resetto?",
+    "title": "Resettare dopo doppio fallo",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-007",
+    "scenarioId": "short_mental_routine",
+    "context": "PRIMO BISOGNO UTENTE: Costruiamo una routine mentale di trenta secondi prima del servizio.",
+    "title": "Routine mentale 30 secondi servizio",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-008",
+    "scenarioId": "short_mental_routine",
+    "context": "PRIMO BISOGNO UTENTE: Costruiamo una routine mentale di trenta secondi prima del servizio.",
+    "title": "Routine mentale pre-servizio",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-009",
+    "scenarioId": "short_mental_routine",
+    "context": "PRIMO BISOGNO UTENTE: Costruiamo una routine mentale di trenta secondi prima del servizio.",
+    "title": "Routine mentale prima del servizio",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-010",
+    "scenarioId": "lost_motivation",
+    "context": "PRIMO BISOGNO UTENTE: Da tre settimane salto gli allenamenti e ho perso completamente la motivazione.",
+    "title": "Ritrovare la motivazione persa",
+    "icon": "FLAME",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-011",
+    "scenarioId": "lost_motivation",
+    "context": "PRIMO BISOGNO UTENTE: Da tre settimane salto gli allenamenti e ho perso completamente la motivazione.",
+    "title": "Ritrovare la motivazione per allenarsi",
+    "icon": "FLAME",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-012",
+    "scenarioId": "lost_motivation",
+    "context": "PRIMO BISOGNO UTENTE: Da tre settimane salto gli allenamenti e ho perso completamente la motivazione.",
+    "title": "Riacquisisci motivazione dopo tre settimane",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-013",
+    "scenarioId": "weekly_training_plan",
+    "context": "PRIMO BISOGNO UTENTE: Organizziamo i miei tre allenamenti della prossima settimana senza sovraccaricarmi.",
+    "title": "Organizzare tre allenamenti settimanali",
+    "icon": "CALENDAR_DAYS",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-014",
+    "scenarioId": "weekly_training_plan",
+    "context": "PRIMO BISOGNO UTENTE: Organizziamo i miei tre allenamenti della prossima settimana senza sovraccaricarmi.",
+    "title": "Pianificazione settimanale senza sovraccarico",
+    "icon": "CALENDAR_DAYS",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-015",
+    "scenarioId": "weekly_training_plan",
+    "context": "PRIMO BISOGNO UTENTE: Organizziamo i miei tre allenamenti della prossima settimana senza sovraccaricarmi.",
+    "title": "Pianificazione tre allenamenti settimanali",
+    "icon": "CALENDAR_DAYS",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-016",
+    "scenarioId": "injury_safety_warning",
+    "context": "PRIMO BISOGNO UTENTE: Durante la corsa sento un dolore acuto al ginocchio e aumenta a ogni passo.",
+    "title": "Dolore acuto al ginocchio nella corsa",
+    "icon": "HEART_PULSE",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-017",
+    "scenarioId": "injury_safety_warning",
+    "context": "PRIMO BISOGNO UTENTE: Durante la corsa sento un dolore acuto al ginocchio e aumenta a ogni passo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_NoObjectGeneratedError"
+  },
+  {
+    "anonymousId": "attempt-018",
+    "scenarioId": "injury_safety_warning",
+    "context": "PRIMO BISOGNO UTENTE: Durante la corsa sento un dolore acuto al ginocchio e aumenta a ogni passo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_NoObjectGeneratedError"
+  },
+  {
+    "anonymousId": "attempt-019",
+    "scenarioId": "talk_with_coach",
+    "context": "PRIMO BISOGNO UTENTE: Mi vergogno a dire al coach che dopo le sconfitte mi sento senza valore.",
+    "title": "Vergogna dopo sconfitte sportive",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-020",
+    "scenarioId": "talk_with_coach",
+    "context": "PRIMO BISOGNO UTENTE: Mi vergogno a dire al coach che dopo le sconfitte mi sento senza valore.",
+    "title": "Gestire la vergogna dopo le sconfitte",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-021",
+    "scenarioId": "talk_with_coach",
+    "context": "PRIMO BISOGNO UTENTE: Mi vergogno a dire al coach che dopo le sconfitte mi sento senza valore.",
+    "title": "Vergogna dopo le sconfitte",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-022",
+    "scenarioId": "team_dynamics",
+    "context": "PRIMO BISOGNO UTENTE: In squadra ci accusiamo dopo ogni errore e voglio ricostruire fiducia tra compagni.",
+    "title": "Ricostruire fiducia in squadra",
+    "icon": "SHIELD",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-023",
+    "scenarioId": "team_dynamics",
+    "context": "PRIMO BISOGNO UTENTE: In squadra ci accusiamo dopo ogni errore e voglio ricostruire fiducia tra compagni.",
+    "title": "Ricostruire fiducia dopo le accuse",
+    "icon": "SHIELD",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-024",
+    "scenarioId": "team_dynamics",
+    "context": "PRIMO BISOGNO UTENTE: In squadra ci accusiamo dopo ogni errore e voglio ricostruire fiducia tra compagni.",
+    "title": "Ricostruire fiducia squadra",
+    "icon": "USERS",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-025",
+    "scenarioId": "race_pace_timing",
+    "context": "PRIMO BISOGNO UTENTE: Parto troppo forte nei dieci chilometri e crollo nel finale: devo gestire il ritmo.",
+    "title": "Gestione ritmo gara 10km",
+    "icon": "ACTIVITY",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-026",
+    "scenarioId": "race_pace_timing",
+    "context": "PRIMO BISOGNO UTENTE: Parto troppo forte nei dieci chilometri e crollo nel finale: devo gestire il ritmo.",
+    "title": "Gestire il ritmo nei dieci chilometri",
+    "icon": "TIMER",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-027",
+    "scenarioId": "race_pace_timing",
+    "context": "PRIMO BISOGNO UTENTE: Parto troppo forte nei dieci chilometri e crollo nel finale: devo gestire il ritmo.",
+    "title": "Gestione del ritmo nei dieci chilometri",
+    "icon": "TIMER",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-028",
+    "scenarioId": "running_goal",
+    "context": "PRIMO BISOGNO UTENTE: Voglio correre la mia prima mezza maratona sotto le due ore a ottobre.",
+    "title": "Prima mezza maratona sotto due ore",
+    "icon": "TARGET",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-029",
+    "scenarioId": "running_goal",
+    "context": "PRIMO BISOGNO UTENTE: Voglio correre la mia prima mezza maratona sotto le due ore a ottobre.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_NoObjectGeneratedError"
+  },
+  {
+    "anonymousId": "attempt-030",
+    "scenarioId": "running_goal",
+    "context": "PRIMO BISOGNO UTENTE: Voglio correre la mia prima mezza maratona sotto le due ore a ottobre.",
+    "title": "Pianificazione prima mezza maratona",
+    "icon": "TARGET",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-031",
+    "scenarioId": "confidence_after_loss",
+    "context": "PRIMO BISOGNO UTENTE: Dopo la sconfitta di ieri non mi fido più dei miei colpi importanti.",
+    "title": "Recupero fiducia dopo sconfitta",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-032",
+    "scenarioId": "confidence_after_loss",
+    "context": "PRIMO BISOGNO UTENTE: Dopo la sconfitta di ieri non mi fido più dei miei colpi importanti.",
+    "title": "Ritrovare fiducia nei colpi importanti",
+    "icon": "SHIELD",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-033",
+    "scenarioId": "confidence_after_loss",
+    "context": "PRIMO BISOGNO UTENTE: Dopo la sconfitta di ieri non mi fido più dei miei colpi importanti.",
+    "title": "Sconfitta e fiducia nei colpi",
+    "icon": "SHIELD",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-034",
+    "scenarioId": "vague_opening",
+    "context": "PRIMO BISOGNO UTENTE: Ciao, possiamo parlare un attimo?",
+    "title": "Chiedere un momento per parlare",
+    "icon": "MESSAGE_SQUARE",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-035",
+    "scenarioId": "vague_opening",
+    "context": "PRIMO BISOGNO UTENTE: Ciao, possiamo parlare un attimo?",
+    "title": "Prima conversazione e definizione obiettivo",
+    "icon": "MESSAGE_SQUARE",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-036",
+    "scenarioId": "vague_opening",
+    "context": "PRIMO BISOGNO UTENTE: Ciao, possiamo parlare un attimo?",
+    "title": "Sbloccare obiettivi di carriera",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-037",
+    "scenarioId": "pre_competition_pressure",
+    "context": "PRIMO BISOGNO UTENTE: Domenica gioco la finale e sento troppa pressione prima di entrare in campo.",
+    "title": "Pressione prima della finale",
+    "icon": "HEART_PULSE",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-038",
+    "scenarioId": "pre_competition_pressure",
+    "context": "PRIMO BISOGNO UTENTE: Domenica gioco la finale e sento troppa pressione prima di entrare in campo.",
+    "title": "Pressione prima della finale",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-039",
+    "scenarioId": "pre_competition_pressure",
+    "context": "PRIMO BISOGNO UTENTE: Domenica gioco la finale e sento troppa pressione prima di entrare in campo.",
+    "title": "Pressione finale partita domenica",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-040",
+    "scenarioId": "post_mistake_reset",
+    "context": "PRIMO BISOGNO UTENTE: Dopo un doppio fallo continuo a pensarci e sbaglio anche il punto successivo. Come resetto?",
+    "title": "Resettare dopo un doppio fallo",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-041",
+    "scenarioId": "post_mistake_reset",
+    "context": "PRIMO BISOGNO UTENTE: Dopo un doppio fallo continuo a pensarci e sbaglio anche il punto successivo. Come resetto?",
+    "title": "Reset mentale dopo doppio fallo",
+    "icon": "REFRESH_CCW",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-042",
+    "scenarioId": "post_mistake_reset",
+    "context": "PRIMO BISOGNO UTENTE: Dopo un doppio fallo continuo a pensarci e sbaglio anche il punto successivo. Come resetto?",
+    "title": "Reset mentale dopo doppio fallo",
+    "icon": "REFRESH_CCW",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-043",
+    "scenarioId": "short_mental_routine",
+    "context": "PRIMO BISOGNO UTENTE: Costruiamo una routine mentale di trenta secondi prima del servizio.",
+    "title": "Routine mentale pre-servizio",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-044",
+    "scenarioId": "short_mental_routine",
+    "context": "PRIMO BISOGNO UTENTE: Costruiamo una routine mentale di trenta secondi prima del servizio.",
+    "title": "Routine mentale pre-servizio",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-045",
+    "scenarioId": "short_mental_routine",
+    "context": "PRIMO BISOGNO UTENTE: Costruiamo una routine mentale di trenta secondi prima del servizio.",
+    "title": "Routine mentale 30 secondi servizio",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-046",
+    "scenarioId": "lost_motivation",
+    "context": "PRIMO BISOGNO UTENTE: Da tre settimane salto gli allenamenti e ho perso completamente la motivazione.",
+    "title": "Ritrovare motivazione dopo tre settimane",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-047",
+    "scenarioId": "lost_motivation",
+    "context": "PRIMO BISOGNO UTENTE: Da tre settimane salto gli allenamenti e ho perso completamente la motivazione.",
+    "title": "Ritrovare la motivazione per allenarsi",
+    "icon": "FLAME",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-048",
+    "scenarioId": "lost_motivation",
+    "context": "PRIMO BISOGNO UTENTE: Da tre settimane salto gli allenamenti e ho perso completamente la motivazione.",
+    "title": "Ritrovare la motivazione persa",
+    "icon": "FLAME",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-049",
+    "scenarioId": "weekly_training_plan",
+    "context": "PRIMO BISOGNO UTENTE: Organizziamo i miei tre allenamenti della prossima settimana senza sovraccaricarmi.",
+    "title": "Pianificazione tre allenamenti settimanali",
+    "icon": "CALENDAR_DAYS",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-050",
+    "scenarioId": "weekly_training_plan",
+    "context": "PRIMO BISOGNO UTENTE: Organizziamo i miei tre allenamenti della prossima settimana senza sovraccaricarmi.",
+    "title": "Pianificazione settimanale senza sovraccarico",
+    "icon": "CALENDAR_DAYS",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-051",
+    "scenarioId": "weekly_training_plan",
+    "context": "PRIMO BISOGNO UTENTE: Organizziamo i miei tre allenamenti della prossima settimana senza sovraccaricarmi.",
+    "title": "Organizzare tre allenamenti settimana",
+    "icon": "TIMER",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-052",
+    "scenarioId": "injury_safety_warning",
+    "context": "PRIMO BISOGNO UTENTE: Durante la corsa sento un dolore acuto al ginocchio e aumenta a ogni passo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_NoObjectGeneratedError"
+  },
+  {
+    "anonymousId": "attempt-053",
+    "scenarioId": "injury_safety_warning",
+    "context": "PRIMO BISOGNO UTENTE: Durante la corsa sento un dolore acuto al ginocchio e aumenta a ogni passo.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_NoObjectGeneratedError"
+  },
+  {
+    "anonymousId": "attempt-054",
+    "scenarioId": "injury_safety_warning",
+    "context": "PRIMO BISOGNO UTENTE: Durante la corsa sento un dolore acuto al ginocchio e aumenta a ogni passo.",
+    "title": "Dolore acuto al ginocchio in corsa",
+    "icon": "HEART_PULSE",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-055",
+    "scenarioId": "talk_with_coach",
+    "context": "PRIMO BISOGNO UTENTE: Mi vergogno a dire al coach che dopo le sconfitte mi sento senza valore.",
+    "title": "Vergogna dopo le sconfitte",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-056",
+    "scenarioId": "talk_with_coach",
+    "context": "PRIMO BISOGNO UTENTE: Mi vergogno a dire al coach che dopo le sconfitte mi sento senza valore.",
+    "title": "Senza valore dopo le sconfitte",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-057",
+    "scenarioId": "talk_with_coach",
+    "context": "PRIMO BISOGNO UTENTE: Mi vergogno a dire al coach che dopo le sconfitte mi sento senza valore.",
+    "title": "Vergogna dopo sconfitte sportive",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-058",
+    "scenarioId": "team_dynamics",
+    "context": "PRIMO BISOGNO UTENTE: In squadra ci accusiamo dopo ogni errore e voglio ricostruire fiducia tra compagni.",
+    "title": "Ricostruire fiducia in squadra",
+    "icon": "SHIELD",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-059",
+    "scenarioId": "team_dynamics",
+    "context": "PRIMO BISOGNO UTENTE: In squadra ci accusiamo dopo ogni errore e voglio ricostruire fiducia tra compagni.",
+    "title": "Ricostruire fiducia dopo le accuse",
+    "icon": "SHIELD",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-060",
+    "scenarioId": "team_dynamics",
+    "context": "PRIMO BISOGNO UTENTE: In squadra ci accusiamo dopo ogni errore e voglio ricostruire fiducia tra compagni.",
+    "title": "Ricostruire fiducia in squadra",
+    "icon": "SHIELD",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-061",
+    "scenarioId": "race_pace_timing",
+    "context": "PRIMO BISOGNO UTENTE: Parto troppo forte nei dieci chilometri e crollo nel finale: devo gestire il ritmo.",
+    "title": "Gestione del ritmo nei dieci chilometri",
+    "icon": "TIMER",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-062",
+    "scenarioId": "race_pace_timing",
+    "context": "PRIMO BISOGNO UTENTE: Parto troppo forte nei dieci chilometri e crollo nel finale: devo gestire il ritmo.",
+    "title": "Gestire il ritmo nei dieci chilometri",
+    "icon": "TIMER",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-063",
+    "scenarioId": "race_pace_timing",
+    "context": "PRIMO BISOGNO UTENTE: Parto troppo forte nei dieci chilometri e crollo nel finale: devo gestire il ritmo.",
+    "title": "Gestione ritmo gara dieci chilometri",
+    "icon": "ACTIVITY",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-064",
+    "scenarioId": "running_goal",
+    "context": "PRIMO BISOGNO UTENTE: Voglio correre la mia prima mezza maratona sotto le due ore a ottobre.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_NoObjectGeneratedError"
+  },
+  {
+    "anonymousId": "attempt-065",
+    "scenarioId": "running_goal",
+    "context": "PRIMO BISOGNO UTENTE: Voglio correre la mia prima mezza maratona sotto le due ore a ottobre.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_NoObjectGeneratedError"
+  },
+  {
+    "anonymousId": "attempt-066",
+    "scenarioId": "running_goal",
+    "context": "PRIMO BISOGNO UTENTE: Voglio correre la mia prima mezza maratona sotto le due ore a ottobre.",
+    "title": "Prima mezza maratona sotto due ore",
+    "icon": "TARGET",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-067",
+    "scenarioId": "confidence_after_loss",
+    "context": "PRIMO BISOGNO UTENTE: Dopo la sconfitta di ieri non mi fido più dei miei colpi importanti.",
+    "title": null,
+    "icon": null,
+    "titleScore": null,
+    "iconScore": null,
+    "note": "Errore: AI_NoObjectGeneratedError"
+  },
+  {
+    "anonymousId": "attempt-068",
+    "scenarioId": "confidence_after_loss",
+    "context": "PRIMO BISOGNO UTENTE: Dopo la sconfitta di ieri non mi fido più dei miei colpi importanti.",
+    "title": "Ritrovare fiducia nei colpi importanti",
+    "icon": "SHIELD",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-069",
+    "scenarioId": "confidence_after_loss",
+    "context": "PRIMO BISOGNO UTENTE: Dopo la sconfitta di ieri non mi fido più dei miei colpi importanti.",
+    "title": "Riacquistare fiducia nei colpi importanti",
+    "icon": "BRAIN",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-070",
+    "scenarioId": "vague_opening",
+    "context": "PRIMO BISOGNO UTENTE: Ciao, possiamo parlare un attimo?",
+    "title": "Obiettivi di carriera e cambiamento",
+    "icon": "TARGET",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-071",
+    "scenarioId": "vague_opening",
+    "context": "PRIMO BISOGNO UTENTE: Ciao, possiamo parlare un attimo?",
+    "title": "Parlare un attimo",
+    "icon": "MESSAGE_SQUARE",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  },
+  {
+    "anonymousId": "attempt-072",
+    "scenarioId": "vague_opening",
+    "context": "PRIMO BISOGNO UTENTE: Ciao, possiamo parlare un attimo?",
+    "title": "Chiedere un attimo di ascolto",
+    "icon": "MESSAGE_SQUARE",
+    "titleScore": null,
+    "iconScore": null,
+    "note": ""
+  }
+]
