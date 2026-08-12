@@ -515,6 +515,19 @@ function normalizeClassificationKey(userMessage: string): string {
   return userMessage.toLowerCase().trim().replaceAll(/\s+/g, " ");
 }
 
+const SPORTS_CONTEXT_PATTERN =
+  /\b(?:partit|gara|campo|mister|coach|allen|gol|palla|ricezion|sport)\w*/u;
+const SPORTS_COACHING_NEED_PATTERN =
+  /\b(?:vomit|ansia|tension|paur|pression|concentra|lucid|motiv|sbagli|error|richiam|aiut|come|strateg|bloc|perd)\w*/u;
+
+function matchesConcreteSportsCoachingNeed(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    SPORTS_CONTEXT_PATTERN.test(normalized) &&
+    SPORTS_COACHING_NEED_PATTERN.test(normalized)
+  );
+}
+
 /**
  * Determine if a user query needs RAG context.
  * Uses multi-layer optimization to minimize expensive LLM calls.
@@ -532,7 +545,9 @@ export async function shouldUseRag(
 ): Promise<boolean> {
   const lower = userMessage.toLowerCase();
   const messageLength = userMessage.trim().length;
-  const hasPositiveKeyword = RAG_KEYWORDS.some((kw) => lower.includes(kw));
+  const hasPositiveKeyword =
+    RAG_KEYWORDS.some((kw) => lower.includes(kw)) ||
+    matchesConcreteSportsCoachingNeed(userMessage);
 
   // OPTIMIZATION 1: Fast local rejects before any database work, unless a
   // positive RAG keyword is present.

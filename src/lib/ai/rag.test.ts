@@ -193,6 +193,35 @@ describe("ai/rag", () => {
     expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "Vomito spesso prima della partita",
+    "Ora aiutami a fare gol",
+    "Dopo il richiamo del mister perdo lucidità in campo",
+  ])(
+    "shouldUseRag routes concrete sports coaching needs without the classifier: %s",
+    async (query) => {
+      mocks.ragDocumentCount.mockResolvedValue(1);
+      const { shouldUseRag } = await loadModule();
+
+      const result = await shouldUseRag(query);
+
+      expect(result).toBe(true);
+      expect(mocks.generateText).not.toHaveBeenCalled();
+    },
+  );
+
+  it("shouldUseRag does not treat non-sports fear as a sports coaching need", async () => {
+    mocks.ragDocumentCount.mockResolvedValue(1);
+    mocks.generateText.mockResolvedValue({
+      output: { needsRag: false, reason: "school concern" },
+    });
+    const { shouldUseRag } = await loadModule();
+
+    const result = await shouldUseRag("Ho paura di essere bocciato a scuola");
+
+    expect(result).toBe(false);
+  });
+
   it("shouldUseRag does not auto-enable RAG for generic question words", async () => {
     mocks.ragDocumentCount.mockResolvedValue(1);
     mocks.generateText.mockResolvedValue({
