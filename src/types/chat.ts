@@ -95,6 +95,62 @@ export interface Usage {
   cost: number;
   generationTimeMs?: number;
   reasoningTimeMs?: number;
+  model?: string;
+  provider?: string;
+  executedProfile?: "light" | "standard";
+  reasoningTokens?: number;
+  toolCallCount?: number;
+  toolResultChars?: number;
+  toolTiming?: {
+    firstModelStepMs?: number;
+    toolExecutionMs?: number;
+    finalModelStepMs?: number;
+  };
+  ragAttempted?: boolean;
+  ragUsed?: boolean;
+  ragChunksCount?: number;
+  memoryRecall?: {
+    mode: "off" | "shadow" | "active";
+    reason: string;
+    factCount: number;
+    evidenceCount: number;
+    factRecallMs: number;
+    conversationRecallMs: number;
+    degraded: boolean;
+  };
+  executionRoute?: {
+    routingMode: "off" | "shadow" | "active";
+    eligibleProfile: "light" | "standard";
+    plannedProfile: "light" | "standard";
+    executedProfile: "light" | "standard";
+    taskKind: string;
+    decisionSource: "classifier" | "rule" | "mixed" | "fallback";
+    confidenceBucket: "low" | "medium" | "high";
+    reasonCodes: string[];
+    classificationLatencyMs: number;
+    routingOverheadMs: number;
+    totalRequestTimeToFirstTokenMs?: number;
+    attempts: Array<{
+      sequence: 1 | 2;
+      profile: "light" | "standard";
+      outcome:
+        | "completed"
+        | "failed_before_stream"
+        | "failed_during_stream"
+        | "cancelled";
+      timeToFirstTokenMs?: number;
+      generationTimeMs: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      reasoningTokens?: number;
+      costUsd?: number;
+    }>;
+    escalation?: {
+      from: "light";
+      to: "standard";
+      reason: "provider_error" | "empty_response" | "runtime_invariant";
+    };
+  };
 }
 
 // -----------------------------------------------------

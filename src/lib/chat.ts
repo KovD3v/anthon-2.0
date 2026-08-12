@@ -6,7 +6,10 @@ import { toRoutineCardData } from "@/lib/coaching/routine";
 import { prisma } from "@/lib/db";
 import type { ModelComparisonData } from "@/lib/model-experiments/types";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
-import { resolveTechnicalMetricsVisibility } from "@/lib/technical-metrics";
+import {
+  buildTechnicalUsage,
+  resolveTechnicalMetricsVisibility,
+} from "@/lib/technical-metrics";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 import { getVoicePlanConfig } from "@/lib/voice";
 import type { Chat, ChatData, ChatMessage } from "@/types/chat";
@@ -185,11 +188,26 @@ async function getSharedChatUncached(
             model: true,
             inputTokens: true,
             outputTokens: true,
+            reasoningTokens: true,
             costUsd: true,
             generationTimeMs: true,
             reasoningTimeMs: true,
             ragUsed: true,
+            ragChunksCount: true,
             toolCalls: true,
+            metrics: {
+              select: {
+                model: true,
+                provider: true,
+                reasoningTokens: true,
+                toolCallCount: true,
+                toolResultChars: true,
+                toolTiming: true,
+                ragUsed: true,
+                ragChunksCount: true,
+                executionRoute: true,
+              },
+            },
             feedback: true,
             metadata: true,
             voiceGenerationJob: {
@@ -276,6 +294,13 @@ async function getSharedChatUncached(
       });
   const mappedMessages: ChatMessage[] = messagesToReturn.map((m) => {
     const voiceReasonCode = getVoiceReasonCode(m.metadata);
+    const modelComparisonCanonical = isModelComparisonCanonical(m.metadata);
+    const usage = canReceiveTechnicalMetrics
+      ? buildTechnicalUsage(m, {
+          includeDiagnostics:
+            process.env.NODE_ENV === "development" && !modelComparisonCanonical,
+        })
+      : undefined;
 
     return {
       id: m.id,
@@ -290,25 +315,11 @@ async function getSharedChatUncached(
         : withoutCoachingRoutineParts(m.parts),
       createdAt: m.createdAt.toISOString(),
       ...(canReceiveTechnicalMetrics &&
-      !isModelComparisonCanonical(m.metadata) &&
+      !modelComparisonCanonical &&
       m.model !== null
         ? { model: m.model }
         : {}),
-      ...(canReceiveTechnicalMetrics && m.inputTokens !== null
-        ? {
-            usage: {
-              inputTokens: m.inputTokens,
-              outputTokens: m.outputTokens ?? 0,
-              cost: m.costUsd ?? 0,
-              ...(m.generationTimeMs !== null
-                ? { generationTimeMs: m.generationTimeMs }
-                : {}),
-              ...(m.reasoningTimeMs !== null
-                ? { reasoningTimeMs: m.reasoningTimeMs }
-                : {}),
-            },
-          }
-        : {}),
+      ...(usage ? { usage } : {}),
       ...(canReceiveTechnicalMetrics && m.ragUsed !== null
         ? { ragUsed: m.ragUsed }
         : {}),

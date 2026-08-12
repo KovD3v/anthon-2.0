@@ -19,7 +19,10 @@ import {
 } from "@/lib/coaching/routine";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
-import { resolveTechnicalMetricsVisibility } from "@/lib/technical-metrics";
+import {
+  buildTechnicalUsage,
+  resolveTechnicalMetricsVisibility,
+} from "@/lib/technical-metrics";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 import { deletePrivateVoiceBlobsForMessages } from "@/lib/voice/attachment-cleanup";
 
@@ -165,11 +168,26 @@ export async function GET(request: Request, { params }: RouteParams) {
         model: true,
         inputTokens: true,
         outputTokens: true,
+        reasoningTokens: true,
         costUsd: true,
         generationTimeMs: true,
         reasoningTimeMs: true,
         ragUsed: true,
+        ragChunksCount: true,
         toolCalls: true,
+        metrics: {
+          select: {
+            model: true,
+            provider: true,
+            reasoningTokens: true,
+            toolCallCount: true,
+            toolResultChars: true,
+            toolTiming: true,
+            ragUsed: true,
+            ragChunksCount: true,
+            executionRoute: true,
+          },
+        },
         feedback: true,
         metadata: true,
         voiceGenerationJob: {
@@ -309,59 +327,53 @@ export async function GET(request: Request, { params }: RouteParams) {
       isOwner: chat.userId === user.id,
       createdAt: chat.createdAt.toISOString(),
       updatedAt: chat.updatedAt.toISOString(),
-      messages: messagesToReturn.map((m) => ({
-        id: m.id,
-        ...(m.clientMessageId ? { clientMessageId: m.clientMessageId } : {}),
-        ...(m.sourceInboundMessage?.clientMessageId
-          ? { sourceClientMessageId: m.sourceInboundMessage.clientMessageId }
-          : {}),
-        role: m.role.toLowerCase(),
-        parts: canReceiveRoutineProposal
-          ? m.parts
-          : withoutCoachingRoutineParts(m.parts),
-        createdAt: m.createdAt.toISOString(),
-        ...(canReceiveTechnicalMetrics && m.model !== null
-          ? { model: m.model }
-          : {}),
-        ...(canReceiveTechnicalMetrics && m.inputTokens !== null
-          ? {
-              usage: {
-                inputTokens: m.inputTokens,
-                outputTokens: m.outputTokens ?? 0,
-                cost: m.costUsd ?? 0,
-                ...(m.generationTimeMs !== null
-                  ? { generationTimeMs: m.generationTimeMs }
+      messages: messagesToReturn.map((m) => {
+        const usage = canReceiveTechnicalMetrics
+          ? buildTechnicalUsage(m, {
+              includeDiagnostics: process.env.NODE_ENV === "development",
+            })
+          : undefined;
+
+        return {
+          id: m.id,
+          ...(m.clientMessageId ? { clientMessageId: m.clientMessageId } : {}),
+          ...(m.sourceInboundMessage?.clientMessageId
+            ? { sourceClientMessageId: m.sourceInboundMessage.clientMessageId }
+            : {}),
+          role: m.role.toLowerCase(),
+          parts: canReceiveRoutineProposal
+            ? m.parts
+            : withoutCoachingRoutineParts(m.parts),
+          createdAt: m.createdAt.toISOString(),
+          ...(canReceiveTechnicalMetrics && m.model !== null
+            ? { model: m.model }
+            : {}),
+          ...(usage ? { usage } : {}),
+          ...(canReceiveTechnicalMetrics && m.ragUsed !== null
+            ? { ragUsed: m.ragUsed }
+            : {}),
+          ...(canReceiveTechnicalMetrics && m.toolCalls !== null
+            ? { toolCalls: redactToolCalls(m.toolCalls) }
+            : {}),
+          feedback: m.feedback,
+          feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
+          voice: m.voiceGenerationJob
+            ? {
+                status: m.voiceGenerationJob.status,
+                ...(m.voiceGenerationJob.errorCode
+                  ? { errorCode: m.voiceGenerationJob.errorCode }
                   : {}),
-                ...(m.reasoningTimeMs !== null
-                  ? { reasoningTimeMs: m.reasoningTimeMs }
-                  : {}),
-              },
-            }
-          : {}),
-        ...(canReceiveTechnicalMetrics && m.ragUsed !== null
-          ? { ragUsed: m.ragUsed }
-          : {}),
-        ...(canReceiveTechnicalMetrics && m.toolCalls !== null
-          ? { toolCalls: redactToolCalls(m.toolCalls) }
-          : {}),
-        feedback: m.feedback,
-        feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
-        voice: m.voiceGenerationJob
-          ? {
-              status: m.voiceGenerationJob.status,
-              ...(m.voiceGenerationJob.errorCode
-                ? { errorCode: m.voiceGenerationJob.errorCode }
-                : {}),
-              isExplicitRequest: isExplicitVoiceRequest(m.metadata),
-            }
-          : undefined,
-        attachments: m.attachments.map((attachment) => ({
-          ...attachment,
-          blobUrl: attachment.contentType.startsWith("audio/")
-            ? `/api/voice/messages/${m.id}`
-            : attachment.blobUrl,
-        })),
-      })),
+                isExplicitRequest: isExplicitVoiceRequest(m.metadata),
+              }
+            : undefined,
+          attachments: m.attachments.map((attachment) => ({
+            ...attachment,
+            blobUrl: attachment.contentType.startsWith("audio/")
+              ? `/api/voice/messages/${m.id}`
+              : attachment.blobUrl,
+          })),
+        };
+      }),
       pagination: {
         hasMore,
         nextCursor,

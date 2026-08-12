@@ -4,7 +4,10 @@ import type { Prisma } from "@/generated/prisma";
 import { redactToolCalls } from "@/lib/ai/tool-privacy";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
-import { resolveTechnicalMetricsVisibility } from "@/lib/technical-metrics";
+import {
+  buildTechnicalUsage,
+  resolveTechnicalMetricsVisibility,
+} from "@/lib/technical-metrics";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 import { deletePrivateVoiceBlobsForMessages } from "@/lib/voice/attachment-cleanup";
 
@@ -83,11 +86,27 @@ export async function GET(request: Request) {
         model: true,
         inputTokens: true,
         outputTokens: true,
+        reasoningTokens: true,
         costUsd: true,
         generationTimeMs: true,
         reasoningTimeMs: true,
         ragUsed: true,
+        ragChunksCount: true,
         toolCalls: true,
+        metadata: true,
+        metrics: {
+          select: {
+            model: true,
+            provider: true,
+            reasoningTokens: true,
+            toolCallCount: true,
+            toolResultChars: true,
+            toolTiming: true,
+            ragUsed: true,
+            ragChunksCount: true,
+            executionRoute: true,
+          },
+        },
         chat: { select: { visibility: true, userId: true } },
       },
     });
@@ -108,6 +127,11 @@ export async function GET(request: Request) {
         isPrivateOwner:
           msg.chat?.visibility === "PRIVATE" && msg.chat.userId === user.id,
       });
+      const usage = includeTechnicalMetrics
+        ? buildTechnicalUsage(msg, {
+            includeDiagnostics: process.env.NODE_ENV === "development",
+          })
+        : undefined;
 
       return {
         id: msg.id,
@@ -118,21 +142,7 @@ export async function GET(request: Request) {
         ...(includeTechnicalMetrics && msg.model !== null
           ? { model: msg.model }
           : {}),
-        ...(includeTechnicalMetrics && msg.inputTokens !== null
-          ? {
-              usage: {
-                inputTokens: msg.inputTokens,
-                outputTokens: msg.outputTokens ?? 0,
-                cost: msg.costUsd ?? 0,
-                ...(msg.generationTimeMs !== null
-                  ? { generationTimeMs: msg.generationTimeMs }
-                  : {}),
-                ...(msg.reasoningTimeMs !== null
-                  ? { reasoningTimeMs: msg.reasoningTimeMs }
-                  : {}),
-              },
-            }
-          : {}),
+        ...(usage ? { usage } : {}),
         ...(includeTechnicalMetrics && msg.ragUsed !== null
           ? { ragUsed: msg.ragUsed }
           : {}),
