@@ -488,7 +488,7 @@ export const SESSION = {
 };
 
 export const RAG = {
-  SIMILARITY_THRESHOLD: 0.4,
+  SIMILARITY_THRESHOLD: 0.35,
   BATCH_SIZE: 10,
   MAX_RESULTS: 5,
   CHUNK_SIZE: 800,
