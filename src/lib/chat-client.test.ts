@@ -5,6 +5,7 @@ import {
   convertToUIMessages,
   extractTextFromParts,
   hasPendingVoiceGeneration,
+  hasPersistedAssistantResponseForClientMessage,
   normalizeFilePartForPreview,
 } from "./chat-client";
 
@@ -77,6 +78,34 @@ describe("chat-client", () => {
         { voice: { status: "READY" } },
         { voice: { status: "FAILED", errorCode: "EXPIRED" } },
       ]),
+    ).toBe(false);
+  });
+
+  it("recognizes an assistant response persisted for a failed client turn", () => {
+    const messages = convertToUIMessages([
+      {
+        id: "persisted-user",
+        clientMessageId: "client-turn-1",
+        role: "user",
+        content: "Domanda",
+        parts: [{ type: "text", text: "Domanda" }],
+        createdAt: "2026-02-16T10:02:00.000Z",
+      },
+      {
+        id: "persisted-assistant",
+        sourceClientMessageId: "client-turn-1",
+        role: "assistant",
+        content: "Risposta già salvata",
+        parts: [{ type: "text", text: "Risposta già salvata" }],
+        createdAt: "2026-02-16T10:02:01.000Z",
+      },
+    ]);
+
+    expect(
+      hasPersistedAssistantResponseForClientMessage(messages, "client-turn-1"),
+    ).toBe(true);
+    expect(
+      hasPersistedAssistantResponseForClientMessage(messages, "client-turn-2"),
     ).toBe(false);
   });
 

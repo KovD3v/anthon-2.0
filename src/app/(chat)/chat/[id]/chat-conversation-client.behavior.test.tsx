@@ -151,6 +151,8 @@ vi.mock("@/lib/chat-client", () => ({
   convertToUIMessages: (messages: ChatData["messages"]) =>
     messages.map((message) => ({
       id: message.id,
+      clientMessageId: message.clientMessageId,
+      sourceClientMessageId: message.sourceClientMessageId,
       role: message.role,
       parts:
         Array.isArray(message.parts) && message.parts.length > 0
@@ -160,6 +162,21 @@ vi.mock("@/lib/chat-client", () => ({
   extractTextFromParts: (parts: Array<{ type: string; text?: string }>) =>
     parts.find((part) => part.type === "text")?.text ?? "",
   hasPendingVoiceGeneration: () => false,
+  hasPersistedAssistantResponseForClientMessage: (
+    messages: Array<{
+      role: string;
+      sourceClientMessageId?: string;
+    }>,
+    clientMessageId?: string,
+  ) =>
+    Boolean(
+      clientMessageId &&
+        messages.some(
+          (message) =>
+            message.role === "assistant" &&
+            message.sourceClientMessageId === clientMessageId,
+        ),
+    ),
 }));
 
 vi.mock("@/lib/rate-limit/paywall", () => ({
@@ -744,6 +761,66 @@ describe("ChatConversationClient pagination and recovery", () => {
 
     expect(mocks.clearError).toHaveBeenCalledOnce();
     expect(mocks.sendMessage).toHaveBeenCalledOnce();
+  });
+
+  it("reconciles a persisted assistant response after a stream failure", async () => {
+    const failedTurn: ChatData = {
+      ...initialChatData,
+      messages: [
+        {
+          id: "client-turn-1",
+          role: "user",
+          content: "Domanda inviata",
+          parts: [{ type: "text", text: "Domanda inviata" }],
+          createdAt: "2026-07-15T12:00:02.000Z",
+        },
+      ],
+    };
+    const recoveredChat: ChatData = {
+      ...failedTurn,
+      messages: [
+        {
+          id: "persisted-user",
+          clientMessageId: "client-turn-1",
+          role: "user",
+          content: "Domanda inviata",
+          parts: [{ type: "text", text: "Domanda inviata" }],
+          createdAt: "2026-07-15T12:00:02.000Z",
+        },
+        {
+          id: "persisted-assistant",
+          sourceClientMessageId: "client-turn-1",
+          role: "assistant",
+          content: "Risposta già salvata",
+          parts: [{ type: "text", text: "Risposta già salvata" }],
+          createdAt: "2026-07-15T12:00:03.000Z",
+        },
+      ],
+    };
+
+    mocks.chatState.status = "error";
+    mocks.chatState.error = new Error("Load failed");
+    mocks.clearError.mockImplementation(() => {
+      mocks.chatState.status = "ready";
+      mocks.chatState.error = null;
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(recoveredChat), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderConversation(failedTurn);
+
+    await waitFor(() => expect(mocks.clearError).toHaveBeenCalledOnce());
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/guest/chats/chat-1");
+    expect(mocks.setMessages).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "persisted-assistant" }),
+      ]),
+    );
   });
 
   it("does not log or toast an expected rate-limit rejection", async () => {

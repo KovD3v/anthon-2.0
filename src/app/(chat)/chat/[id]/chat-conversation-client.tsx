@@ -17,6 +17,7 @@ import {
   convertToUIMessages,
   extractTextFromParts,
   hasPendingVoiceGeneration,
+  hasPersistedAssistantResponseForClientMessage,
 } from "@/lib/chat-client";
 import {
   parseRoutineSourceHydrationPayload,
@@ -156,6 +157,7 @@ export function ChatConversationClient({
   const [isSubmitInFlight, setIsSubmitInFlight] = useState(false);
   const [isResponseSettling, setIsResponseSettling] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isRecoveringChatError, setIsRecoveringChatError] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [comparisonDeltas, setComparisonDeltas] = useState<
     Record<string, Partial<Record<ModelComparisonSlot, string>>>
@@ -165,6 +167,7 @@ export function ChatConversationClient({
 
   const trialActivationAttemptedRef = useRef(false);
   const trialActivationInFlightRef = useRef(false);
+  const chatErrorRecoveryKeyRef = useRef<string | null>(null);
   const submitInFlightRef = useRef(false);
   const pendingInitialMessageSubmittedRef = useRef(false);
   const voiceGenerationPollAttemptsRef = useRef(0);
@@ -1018,11 +1021,18 @@ export function ChatConversationClient({
     }
   }, [chatId, streamingMessages, status, updateCachedChat]);
 
+  const failedClientMessageId = useMemo(() => {
+    const failedUserMessage = [...streamingMessages]
+      .reverse()
+      .find((message) => message.role === "user");
+    return failedUserMessage?.clientMessageId ?? failedUserMessage?.id;
+  }, [streamingMessages]);
+
   const formattedError:
     | { message: string; title?: string }
     | PaywallCardContent
     | null = (() => {
-    if (!chatError) return null;
+    if (!chatError || isRecoveringChatError) return null;
     try {
       if (chatError.message.trim().startsWith("{")) {
         const parsed = JSON.parse(chatError.message);
@@ -1037,6 +1047,67 @@ export function ChatConversationClient({
     }
     return { message: chatError.message };
   })();
+
+  useEffect(() => {
+    if (!chatError) {
+      chatErrorRecoveryKeyRef.current = null;
+      setIsRecoveringChatError(false);
+      return;
+    }
+
+    if (isExpectedChatRejection(chatError, isGuest)) {
+      setIsRecoveringChatError(false);
+      return;
+    }
+
+    const clientMessageId = failedClientMessageId;
+    if (!clientMessageId) {
+      setIsRecoveringChatError(false);
+      return;
+    }
+
+    const recoveryKey = [
+      chatId,
+      clientMessageId,
+      chatError.name,
+      chatError.message,
+    ].join(":");
+    if (chatErrorRecoveryKeyRef.current === recoveryKey) return;
+    chatErrorRecoveryKeyRef.current = recoveryKey;
+
+    let cancelled = false;
+    setIsRecoveringChatError(true);
+
+    void refreshChatData().then((recoveredMessages) => {
+      if (cancelled) return;
+
+      if (
+        recoveredMessages &&
+        hasPersistedAssistantResponseForClientMessage(
+          recoveredMessages,
+          clientMessageId,
+        )
+      ) {
+        setMessages(recoveredMessages);
+        clearError();
+        setIsResponseSettling(false);
+      }
+
+      setIsRecoveringChatError(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    chatError,
+    chatId,
+    clearError,
+    isGuest,
+    refreshChatData,
+    setMessages,
+    failedClientMessageId,
+  ]);
 
   useEffect(() => {
     if (!chatError || isExpectedChatRejection(chatError, isGuest)) return;

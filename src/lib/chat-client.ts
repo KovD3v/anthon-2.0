@@ -31,6 +31,24 @@ export function hasPendingVoiceGeneration(
 }
 
 /**
+ * A stream can fail after the server has persisted the assistant response.
+ * Match the optimistic browser turn to its durable response before showing a
+ * network error to the user.
+ */
+export function hasPersistedAssistantResponseForClientMessage(
+  messages: Array<Pick<ChatUIMessage, "role" | "sourceClientMessageId">>,
+  clientMessageId: string | undefined,
+): boolean {
+  if (!clientMessageId) return false;
+
+  return messages.some(
+    (message) =>
+      message.role === "assistant" &&
+      message.sourceClientMessageId === clientMessageId,
+  );
+}
+
+/**
  * Convert database messages to UIMessage format for the AI SDK while
  * preserving trusted, server-serialized parts.
  * This function is client-safe.
