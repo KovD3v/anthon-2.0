@@ -16,6 +16,7 @@ type RequestedTraceStatus = ServerTraceV1["status"];
 export interface ServerSpanHandle {
   readonly id: number;
   end(status?: ServerSpanStatus, finalAttributes?: ServerSpanAttributes): void;
+  annotate(attributes: ServerSpanAttributes): void;
 }
 
 export interface ServerTraceCollector {
@@ -36,6 +37,21 @@ export interface ServerTraceCollector {
   snapshot(status: RequestedTraceStatus): ServerTraceV1;
 }
 
+export type ModelAttemptTrace = {
+  observeTextDelta(text: string): void;
+  complete(provider?: string): void;
+  empty(provider?: string): void;
+  fail(provider?: string): void;
+  cancel(provider?: string): void;
+};
+
+export type ToolExecutionTrace = {
+  notAllowed(): void;
+  complete(): void;
+  fail(): void;
+  cancel(): void;
+};
+
 type MutableSpan = {
   id: number;
   parentId?: number;
@@ -49,6 +65,7 @@ type MutableSpan = {
 const NOOP_SPAN: ServerSpanHandle = {
   id: 0,
   end() {},
+  annotate() {},
 };
 
 const OUTCOMES = new Set([
@@ -175,11 +192,19 @@ export function createServerTraceCollector(
     return {
       id: span.id,
       end(status = "completed", finalAttributes) {
-        if (ended) return;
+        if (ended || span.status !== undefined) return;
         ended = true;
         span.durationMs = boundedMilliseconds(elapsed() - span.startOffsetMs);
         span.status = status;
         span.attributes = mergeAttributes(span.attributes, finalAttributes);
+      },
+      annotate(finalAttributes) {
+        const sanitized = sanitizeAttributes(finalAttributes);
+        if (!sanitized) return;
+        span.attributes = {
+          ...sanitized,
+          ...span.attributes,
+        };
       },
     };
   };
@@ -205,6 +230,21 @@ export function createServerTraceCollector(
     },
     markCancelled() {
       cancelled = true;
+      const cancelledAt = elapsed();
+      for (const span of spans) {
+        if (span.status !== undefined) continue;
+        span.durationMs = boundedMilliseconds(cancelledAt - span.startOffsetMs);
+        span.status = "cancelled";
+        if (
+          span.name === "provider_wait" ||
+          span.name === "model_stream" ||
+          span.name === "tool"
+        ) {
+          span.attributes = mergeAttributes(span.attributes, {
+            outcome: "cancelled",
+          });
+        }
+      }
     },
     snapshot(requestedStatus) {
       const totalMs = elapsed();
@@ -264,4 +304,141 @@ export function createServerTraceCollector(
       );
     },
   };
+}
+
+export function startModelAttemptTrace(
+  collector: ServerTraceCollector | undefined,
+  attributes: Pick<
+    ServerSpanAttributes,
+    "attemptSequence" | "profile" | "model"
+  >,
+): ModelAttemptTrace {
+  const providerWait =
+    collector?.startSpan("provider_wait", attributes) ?? NOOP_SPAN;
+  const modelStream =
+    collector?.startSpan("model_stream", attributes) ?? NOOP_SPAN;
+  let sawText = false;
+  let providerWaitEnded = false;
+  let ended = false;
+
+  const endProviderWait = (
+    status: ServerSpanStatus,
+    outcome?: ServerSpanAttributes["outcome"],
+    provider?: string,
+  ) => {
+    if (providerWaitEnded) return;
+    providerWaitEnded = true;
+    providerWait.end(status, {
+      ...(outcome ? { outcome } : {}),
+      ...(provider ? { provider } : {}),
+    });
+  };
+
+  const finish = (
+    status: ServerSpanStatus,
+    outcome: NonNullable<ServerSpanAttributes["outcome"]>,
+    provider?: string,
+  ) => {
+    if (ended) return;
+    ended = true;
+    endProviderWait(status, outcome, provider);
+    providerWait.annotate({
+      outcome,
+      ...(provider ? { provider } : {}),
+    });
+    modelStream.end(status, {
+      outcome,
+      ...(provider ? { provider } : {}),
+    });
+  };
+
+  return {
+    observeTextDelta(text) {
+      if (ended || text.length === 0) return;
+      if (!sawText) {
+        sawText = true;
+        collector?.markFirstToken();
+        endProviderWait("completed");
+      }
+    },
+    complete(provider) {
+      finish(
+        sawText ? "completed" : "failed",
+        sawText ? "completed" : "empty_response",
+        provider,
+      );
+    },
+    empty(provider) {
+      finish("failed", "empty_response", provider);
+    },
+    fail(provider) {
+      finish(
+        "failed",
+        sawText ? "failed_during_stream" : "failed_before_stream",
+        provider,
+      );
+    },
+    cancel(provider) {
+      finish("cancelled", "cancelled", provider);
+    },
+  };
+}
+
+export function startToolExecutionTrace(
+  collector: ServerTraceCollector | undefined,
+  toolName: string,
+): ToolExecutionTrace {
+  const span =
+    collector?.startSpan("tool", {
+      toolName,
+    }) ?? NOOP_SPAN;
+  let ended = false;
+  const finish = (
+    status: ServerSpanStatus,
+    outcome: NonNullable<ServerSpanAttributes["outcome"]>,
+  ) => {
+    if (ended) return;
+    ended = true;
+    span.end(status, { outcome });
+  };
+
+  return {
+    notAllowed() {
+      finish("completed", "not_allowed");
+    },
+    complete() {
+      finish("completed", "completed");
+    },
+    fail() {
+      finish("failed", "failed_during_stream");
+    },
+    cancel() {
+      finish("cancelled", "cancelled");
+    },
+  };
+}
+
+export function extractSelectedProvider(
+  providerMetadata: Record<string, unknown> | undefined,
+): string | undefined {
+  const openrouter = providerMetadata?.openrouter;
+  if (
+    !openrouter ||
+    typeof openrouter !== "object" ||
+    Array.isArray(openrouter)
+  ) {
+    return undefined;
+  }
+  const metadata = openrouter as Record<string, unknown>;
+  for (const key of [
+    "provider",
+    "providerName",
+    "provider_name",
+    "selectedProvider",
+    "selected_provider",
+  ]) {
+    const value = boundedLabel(metadata[key]);
+    if (value) return value;
+  }
+  return undefined;
 }

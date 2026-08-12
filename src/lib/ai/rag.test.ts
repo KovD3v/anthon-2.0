@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createServerTraceCollector } from "@/lib/response-profiler/server-trace";
 
 const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
@@ -327,6 +328,43 @@ describe("ai/rag", () => {
     expect(context.text).toContain("**Doc X**");
     expect(context.text).toContain("Chunk content");
     expect(context.chunkCount).toBe(1);
+  });
+
+  it("profiles embedding and vector retrieval without query or chunk content", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ embedding: embeddingVector(0.5, 0.6) }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.queryRawUnsafe.mockResolvedValue([
+      {
+        content: "SECRET_CHUNK_CONTENT",
+        title: "SECRET_TITLE",
+        similarity: 0.88,
+      },
+    ]);
+    const collector = createServerTraceCollector();
+    const { getRagContext } = await loadModule();
+
+    await getRagContext("SECRET_QUERY", collector);
+
+    const trace = collector.snapshot("completed");
+    expect(trace.spans).toEqual([
+      expect.objectContaining({ name: "rag_embedding", status: "completed" }),
+      expect.objectContaining({
+        name: "rag_search",
+        status: "completed",
+        attributes: { ragChunkCount: 1 },
+      }),
+    ]);
+    const serialized = JSON.stringify(trace);
+    expect(serialized).not.toContain("SECRET_QUERY");
+    expect(serialized).not.toContain("SECRET_CHUNK_CONTENT");
+    expect(serialized).not.toContain("SECRET_TITLE");
   });
 
   it("getRagContext marks database failures without exposing diagnostics", async () => {

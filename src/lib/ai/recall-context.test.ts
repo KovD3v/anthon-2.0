@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createServerTraceCollector } from "@/lib/response-profiler/server-trace";
 
 const mocks = vi.hoisted(() => ({ recallFacts: vi.fn(), search: vi.fn() }));
 vi.mock("@/lib/ai/memory-facts", () => ({ recallFacts: mocks.recallFacts }));
@@ -82,5 +83,67 @@ describe("recall context", () => {
     expect(result.factCount).toBe(1);
     expect(result.evidenceCount).toBe(1);
     expect(result.allowedEvidenceIds.size).toBe(0);
+  });
+
+  it("profiles fact and conversation recall as concurrent content-safe spans", async () => {
+    let clock = 0;
+    let resolveFacts:
+      | ((value: { facts: never[]; degraded: false }) => void)
+      | undefined;
+    let resolveConversations:
+      | ((value: {
+          packets: never[];
+          degraded: false;
+          scope: "current_thread";
+          elapsedMs: number;
+        }) => void)
+      | undefined;
+    mocks.recallFacts.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveFacts = resolve;
+        }),
+    );
+    mocks.search.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveConversations = resolve;
+        }),
+    );
+    const collector = createServerTraceCollector({ now: () => clock });
+    const { buildRecallContext } = await import("./recall-context");
+
+    const pending = buildRecallContext({
+      userId: "user-1",
+      conversationThreadId: "thread-secret",
+      query: "SECRET_QUERY",
+      plan,
+      decision: { mode: "active", reason: "configured" },
+      traceCollector: collector,
+    });
+    clock = 20;
+    resolveFacts?.({ facts: [], degraded: false });
+    await Promise.resolve();
+    clock = 35;
+    resolveConversations?.({
+      packets: [],
+      degraded: false,
+      scope: "current_thread",
+      elapsedMs: 35,
+    });
+    await pending;
+
+    const trace = collector.snapshot("completed");
+    expect(trace.spans).toEqual([
+      expect.objectContaining({
+        name: "memory_facts",
+        startOffsetMs: 0,
+      }),
+      expect.objectContaining({
+        name: "conversation_recall",
+        startOffsetMs: 0,
+      }),
+    ]);
+    expect(JSON.stringify(trace)).not.toContain("SECRET_QUERY");
   });
 });

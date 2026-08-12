@@ -2,6 +2,7 @@ import { type Tool, tool } from "ai";
 import { z } from "zod";
 import { getRagContext } from "@/lib/ai/rag";
 import { createLogger } from "@/lib/logger";
+import type { ServerTraceCollector } from "@/lib/response-profiler/server-trace";
 
 const ragToolLogger = createLogger("ai");
 const DEFAULT_MAX_QUERY_CHARACTERS = 1_000;
@@ -12,7 +13,10 @@ export type RagToolResult = {
   context: string;
 };
 
-export function createRagTools(options?: { maxQueryCharacters?: number }): {
+export function createRagTools(options?: {
+  maxQueryCharacters?: number;
+  traceCollector?: ServerTraceCollector;
+}): {
   searchRag: Tool;
 } {
   const maxQueryCharacters =
@@ -43,7 +47,9 @@ export function createRagTools(options?: { maxQueryCharacters?: number }): {
         searchCalls += 1;
 
         try {
-          const result = await getRagContext(boundedQuery);
+          const result = options?.traceCollector
+            ? await getRagContext(boundedQuery, options.traceCollector)
+            : await getRagContext(boundedQuery);
           if (result.failed) {
             ragToolLogger.error(
               "ai.rag.tool.failed",

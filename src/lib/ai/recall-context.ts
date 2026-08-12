@@ -2,6 +2,7 @@ import { searchPastConversations } from "@/lib/ai/conversation-recall";
 import { recallFacts } from "@/lib/ai/memory-facts";
 import type { MemoryRecallDecision } from "@/lib/ai/memory-recall-release";
 import type { RecallPlan } from "@/lib/ai/recall-planner";
+import type { ServerTraceCollector } from "@/lib/response-profiler/server-trace";
 
 export type RecallContextResult = {
   prompt: string;
@@ -35,17 +36,23 @@ export async function buildRecallContext(input: {
   query: string;
   plan: RecallPlan;
   decision: MemoryRecallDecision;
+  traceCollector?: ServerTraceCollector;
 }): Promise<RecallContextResult> {
   const factStarted = performance.now();
+  const loadFacts = () =>
+    bounded(
+      recallFacts({
+        userId: input.userId,
+        query: input.query,
+        limit: input.plan.facts.limit,
+      }),
+      input.plan.facts.deadlineMs,
+      { facts: [], degraded: true },
+    );
   const factPromise = input.plan.facts.enabled
-    ? bounded(
-        recallFacts({
-          userId: input.userId,
-          query: input.query,
-          limit: input.plan.facts.limit,
-        }),
-        input.plan.facts.deadlineMs,
-        { facts: [], degraded: true },
+    ? (input.traceCollector
+        ? input.traceCollector.measure("memory_facts", loadFacts)
+        : loadFacts()
       ).then((result) => ({
         ...result,
         elapsed: Math.round(performance.now() - factStarted),
@@ -53,25 +60,30 @@ export async function buildRecallContext(input: {
     : Promise.resolve({ facts: [], degraded: false, elapsed: 0 });
 
   const conversationStarted = performance.now();
+  const loadConversations = () =>
+    bounded(
+      searchPastConversations({
+        userId: input.userId,
+        conversationThreadId: input.conversationThreadId,
+        query: input.query,
+        scope: input.plan.conversations.allowCrossChannel
+          ? "all_channels"
+          : "current_thread",
+      }),
+      input.plan.conversations.allowCrossChannel
+        ? input.plan.conversations.globalDeadlineMs
+        : input.plan.conversations.currentDeadlineMs,
+      {
+        packets: [],
+        scope: "current_thread" as const,
+        degraded: true,
+        elapsedMs: 0,
+      },
+    );
   const conversationPromise = input.plan.conversations.enabled
-    ? bounded(
-        searchPastConversations({
-          userId: input.userId,
-          conversationThreadId: input.conversationThreadId,
-          query: input.query,
-          scope: input.plan.conversations.allowCrossChannel
-            ? "all_channels"
-            : "current_thread",
-        }),
-        input.plan.conversations.allowCrossChannel
-          ? input.plan.conversations.globalDeadlineMs
-          : input.plan.conversations.currentDeadlineMs,
-        {
-          packets: [],
-          scope: "current_thread" as const,
-          degraded: true,
-          elapsedMs: 0,
-        },
+    ? (input.traceCollector
+        ? input.traceCollector.measure("conversation_recall", loadConversations)
+        : loadConversations()
       ).then((result) => ({
         ...result,
         elapsed: Math.round(performance.now() - conversationStarted),

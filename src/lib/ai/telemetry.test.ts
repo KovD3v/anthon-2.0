@@ -68,6 +68,17 @@ describe("captureAiGenerationMetadata", () => {
           systemPrompt: "SECRET_SYSTEM_PROMPT",
           output: "SECRET_OUTPUT",
         },
+        serverTrace: {
+          version: 1,
+          status: "completed",
+          totalMs: 123,
+          spans: [
+            {
+              name: "model_stream",
+              provider: "SECRET_TRACE_PROVIDER",
+            },
+          ],
+        },
       } as never,
     });
 
@@ -98,6 +109,7 @@ describe("captureAiGenerationMetadata", () => {
       "SECRET_SYSTEM_PROMPT",
       "SECRET_OUTPUT",
       "SECRET_PROVIDER_PAYLOAD",
+      "SECRET_TRACE_PROVIDER",
     ]) {
       expect(captured).not.toContain(secret);
     }

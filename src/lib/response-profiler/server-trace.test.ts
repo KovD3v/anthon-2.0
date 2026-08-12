@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { MAX_SERVER_SPANS, parseServerTrace } from "./contracts";
-import { createServerTraceCollector } from "./server-trace";
+import {
+  createServerTraceCollector,
+  startModelAttemptTrace,
+  startToolExecutionTrace,
+} from "./server-trace";
 
 describe("ServerTraceCollector", () => {
   it("records sequential and overlapping spans on one monotonic timeline", () => {
@@ -130,6 +134,135 @@ describe("ServerTraceCollector", () => {
     expect(collector.snapshot("completed").timeToFirstTokenMs).toBe(45);
   });
 
+  it("keeps failed Light and delivered Standard attempts distinct", () => {
+    let clock = 0;
+    const collector = createServerTraceCollector({ now: () => clock });
+    const light = startModelAttemptTrace(collector, {
+      attemptSequence: 1,
+      profile: "light",
+      model: "light-model",
+    });
+    clock = 12;
+    light.fail("Fireworks");
+
+    clock = 15;
+    const standard = startModelAttemptTrace(collector, {
+      attemptSequence: 2,
+      profile: "standard",
+      model: "standard-model",
+    });
+    clock = 40;
+    standard.observeTextDelta("");
+    standard.observeTextDelta("prima parola");
+    clock = 55;
+    standard.observeTextDelta(" seconda parola");
+    clock = 80;
+    standard.complete("Nebius");
+
+    const trace = collector.snapshot("completed");
+    expect(trace.timeToFirstTokenMs).toBe(40);
+    expect(trace.spans).toEqual([
+      expect.objectContaining({
+        name: "provider_wait",
+        status: "failed",
+        attributes: expect.objectContaining({
+          attemptSequence: 1,
+          profile: "light",
+          model: "light-model",
+          provider: "Fireworks",
+          outcome: "failed_before_stream",
+        }),
+      }),
+      expect.objectContaining({
+        name: "model_stream",
+        status: "failed",
+        attributes: expect.objectContaining({
+          attemptSequence: 1,
+          profile: "light",
+          model: "light-model",
+          provider: "Fireworks",
+          outcome: "failed_before_stream",
+        }),
+      }),
+      expect.objectContaining({
+        name: "provider_wait",
+        durationMs: 25,
+        status: "completed",
+        attributes: expect.objectContaining({
+          attemptSequence: 2,
+          profile: "standard",
+          provider: "Nebius",
+          outcome: "completed",
+        }),
+      }),
+      expect.objectContaining({
+        name: "model_stream",
+        durationMs: 65,
+        status: "completed",
+        attributes: expect.objectContaining({
+          attemptSequence: 2,
+          profile: "standard",
+          model: "standard-model",
+          provider: "Nebius",
+          outcome: "completed",
+        }),
+      }),
+    ]);
+  });
+
+  it("records each tool invocation outcome and closes cancelled work", () => {
+    let clock = 0;
+    const collector = createServerTraceCollector({ now: () => clock });
+
+    const blocked = startToolExecutionTrace(collector, "saveMemory");
+    clock = 5;
+    blocked.notAllowed();
+    const succeeded = startToolExecutionTrace(collector, "searchRag");
+    clock = 15;
+    succeeded.complete();
+    const failed = startToolExecutionTrace(collector, "webFetch");
+    clock = 25;
+    failed.fail();
+    const cancelledTool = startToolExecutionTrace(collector, "webSearch");
+    const cancelledAttempt = startModelAttemptTrace(collector, {
+      attemptSequence: 1,
+      profile: "standard",
+      model: "standard-model",
+    });
+    clock = 40;
+    cancelledTool.cancel();
+    cancelledAttempt.cancel();
+    collector.markCancelled();
+
+    expect(collector.snapshot("completed")).toMatchObject({
+      status: "cancelled",
+      spans: [
+        {
+          name: "tool",
+          status: "completed",
+          attributes: { outcome: "not_allowed", toolName: "saveMemory" },
+        },
+        {
+          name: "tool",
+          status: "completed",
+          attributes: { outcome: "completed", toolName: "searchRag" },
+        },
+        {
+          name: "tool",
+          status: "failed",
+          attributes: { outcome: "failed_during_stream", toolName: "webFetch" },
+        },
+        {
+          name: "tool",
+          status: "cancelled",
+          attributes: { outcome: "cancelled", toolName: "webSearch" },
+        },
+        expect.objectContaining({ name: "provider_wait", status: "cancelled" }),
+        expect.objectContaining({ name: "model_stream", status: "cancelled" }),
+      ],
+    });
+  });
+
   it("excludes open spans and marks the snapshot partial without closing them", () => {
     let clock = 0;
     const collector = createServerTraceCollector({ now: () => clock });
@@ -168,6 +301,38 @@ describe("ServerTraceCollector", () => {
         }),
       ],
     });
+  });
+
+  it("closes open provider, model, and tool spans when the request is cancelled", () => {
+    let clock = 0;
+    const collector = createServerTraceCollector({ now: () => clock });
+    collector.startSpan("provider_wait", { attemptSequence: 1 });
+    collector.startSpan("model_stream", { attemptSequence: 1 });
+    collector.startSpan("tool", { toolName: "searchRag" });
+    clock = 30;
+
+    collector.markCancelled();
+
+    expect(collector.snapshot("completed").spans).toEqual([
+      expect.objectContaining({
+        name: "provider_wait",
+        durationMs: 30,
+        status: "cancelled",
+        attributes: expect.objectContaining({ outcome: "cancelled" }),
+      }),
+      expect.objectContaining({
+        name: "model_stream",
+        durationMs: 30,
+        status: "cancelled",
+        attributes: expect.objectContaining({ outcome: "cancelled" }),
+      }),
+      expect.objectContaining({
+        name: "tool",
+        durationMs: 30,
+        status: "cancelled",
+        attributes: expect.objectContaining({ outcome: "cancelled" }),
+      }),
+    ]);
   });
 
   it("caps span collection and returns a valid partial trace", () => {
