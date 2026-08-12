@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
-import { Check, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Check, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,6 @@ interface ChatListProps {
   onDelete: (id: string) => void;
   onSelect: (id: string) => void;
   onCreate: () => void;
-  onSearch?: () => void;
   onRename: (id: string, newTitle: string) => Promise<boolean>;
   onPreFetch: (id: string) => void;
 }
@@ -33,7 +32,6 @@ export function ChatList({
   onDelete,
   onSelect,
   onCreate,
-  onSearch,
   onRename,
   onPreFetch,
 }: ChatListProps) {
@@ -62,22 +60,6 @@ export function ChatList({
           </div>
           {createChatButton.label}
         </Button>
-        {onSearch && (
-          <Button
-            type="button"
-            onClick={onSearch}
-            className="w-full justify-between border-border/50 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground dark:border-white/10"
-            variant="outline"
-          >
-            <span className="flex items-center gap-2">
-              <Search className="size-4" />
-              Cerca conversazioni
-            </span>
-            <kbd className="hidden rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[0.65rem] font-normal sm:inline dark:border-white/10">
-              ⌘K
-            </kbd>
-          </Button>
-        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2 pt-0">

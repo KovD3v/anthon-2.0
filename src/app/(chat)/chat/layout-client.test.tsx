@@ -74,23 +74,10 @@ vi.mock("@/lib/coaching/routine-client", () => ({
   fetchRoutineCollection: mocks.fetchRoutineCollection,
 }));
 vi.mock("../components/ChatList", () => ({
-  ChatList: ({
-    onDelete,
-    onSearch,
-  }: {
-    onDelete: (id: string) => Promise<boolean>;
-    onSearch?: () => void;
-  }) => (
-    <>
-      <button type="button" onClick={() => void onDelete("source-chat")}>
-        Elimina chat sorgente
-      </button>
-      {onSearch && (
-        <button type="button" onClick={onSearch}>
-          Cerca nelle conversazioni
-        </button>
-      )}
-    </>
+  ChatList: ({ onDelete }: { onDelete: (id: string) => Promise<boolean> }) => (
+    <button type="button" onClick={() => void onDelete("source-chat")}>
+      Elimina chat sorgente
+    </button>
   ),
 }));
 vi.mock("../components/SidebarBottom", () => ({ SidebarBottom: () => null }));

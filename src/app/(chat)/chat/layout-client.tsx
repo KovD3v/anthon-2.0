@@ -345,7 +345,7 @@ function SidebarContents({
   return (
     <div className="flex h-full w-72 flex-col pt-[env(safe-area-inset-top)]">
       <div className="shrink-0" data-testid="sidebar-header-actions">
-        <SidebarHeader onCollapse={onClose} />
+        <SidebarHeader onCollapse={onClose} onSearch={onSearch} />
       </div>
       <div
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -360,7 +360,6 @@ function SidebarContents({
           onDelete={onDelete}
           onSelect={onSelect}
           onCreate={onCreate}
-          onSearch={onSearch}
           onRename={onRename}
           onPreFetch={onPreFetch}
         />
