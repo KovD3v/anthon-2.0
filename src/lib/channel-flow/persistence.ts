@@ -35,6 +35,7 @@ import {
   incrementUsage,
   reconcileAiUsageInTransaction,
 } from "@/lib/rate-limit";
+import type { ServerTraceV1 } from "@/lib/response-profiler/contracts";
 import { getExternalInboundLeaseExpiry } from "./external-inbound-lease";
 import type { PersistAssistantOutputInput } from "./types";
 
@@ -134,6 +135,7 @@ function buildMessageMetricsData(
   messageId: string,
   metrics: PersistAssistantOutputInput["metrics"],
   executionRoute: ExecutionRouteTrace | null,
+  serverTrace?: ServerTraceV1,
 ) {
   return {
     messageId,
@@ -153,6 +155,9 @@ function buildMessageMetricsData(
     ragChunksCount: metrics.ragChunksCount,
     ...(executionRoute
       ? { executionRoute: executionRoute as Prisma.InputJsonValue }
+      : {}),
+    ...(serverTrace
+      ? { serverTrace: serverTrace as Prisma.InputJsonValue }
       : {}),
   };
 }
@@ -251,6 +256,7 @@ export async function persistAssistantOutput({
   usageReservationClaimToken,
   usageAlreadyReconciled = false,
   externalInboundClaimToken,
+  traceCollector,
 }: PersistAssistantOutputInput) {
   const persistedMetrics = capabilityDecision
     ? {
@@ -280,112 +286,148 @@ export async function persistAssistantOutput({
   const capabilitiesUsed = normalizePreDeliveryCapabilityUsage(
     persistedMetrics.capabilitiesUsed,
   );
+  const persistenceSpan = traceCollector?.startSpan("assistant_persistence");
 
-  const persisted = await prisma.$transaction(async (tx) => {
-    if (userMessageId && externalInboundClaimToken) {
-      const fenced = await tx.message.updateMany({
-        where: {
-          id: userMessageId,
-          userId,
-          externalInboundStatus: "PROCESSING",
-          externalInboundClaimToken,
-        },
+  let persisted: {
+    message: Awaited<ReturnType<typeof prisma.message.create>>;
+    created: boolean;
+  };
+  try {
+    persisted = await prisma.$transaction(async (tx) => {
+      if (userMessageId && externalInboundClaimToken) {
+        const fenced = await tx.message.updateMany({
+          where: {
+            id: userMessageId,
+            userId,
+            externalInboundStatus: "PROCESSING",
+            externalInboundClaimToken,
+          },
+          data: {
+            externalInboundLeaseExpiresAt: getExternalInboundLeaseExpiry(),
+          },
+        });
+        if (fenced.count !== 1) {
+          throw new Error("External inbound claim is stale");
+        }
+      }
+
+      if (userMessageId) {
+        const existing = await tx.message.findUnique({
+          where: { sourceInboundMessageId: userMessageId },
+        });
+        if (existing?.userId === userId) {
+          return { message: existing, created: false };
+        }
+        if (existing) throw new Error("Inbound response ownership mismatch");
+      }
+
+      const createdMessage = await tx.message.create({
         data: {
-          externalInboundLeaseExpiresAt: getExternalInboundLeaseExpiry(),
-        },
-      });
-      if (fenced.count !== 1) {
-        throw new Error("External inbound claim is stale");
-      }
-    }
-
-    if (userMessageId) {
-      const existing = await tx.message.findUnique({
-        where: { sourceInboundMessageId: userMessageId },
-      });
-      if (existing?.userId === userId) {
-        return { message: existing, created: false };
-      }
-      if (existing) throw new Error("Inbound response ownership mismatch");
-    }
-
-    const createdMessage = await tx.message.create({
-      data: {
-        userId,
-        ...(chatId ? { chatId } : {}),
-        ...(conversationThreadId ? { conversationThreadId } : {}),
-        ...(userMessageId ? { sourceInboundMessageId: userMessageId } : {}),
-        channel,
-        direction: "OUTBOUND",
-        role: "ASSISTANT",
-        type: messageType,
-        parts: [
-          { type: "text", text },
-          ...(capabilitiesUsed.length > 0
-            ? [
-                {
-                  type: "data-aiCapabilities",
-                  data: { capabilities: capabilitiesUsed },
-                },
-              ]
-            : []),
-          ...(routineProposal
-            ? [{ type: "data-coachingRoutine", data: routineProposal }]
-            : []),
-        ] as Prisma.InputJsonValue,
-        ...(mediaUrl ? { mediaUrl } : {}),
-        ...(mediaType ? { mediaType } : {}),
-        ...(assistantMetadata ? { metadata: assistantMetadata } : {}),
-        model: metrics.model,
-        inputTokens: metrics.inputTokens,
-        outputTokens: metrics.outputTokens,
-        reasoningTokens: metrics.reasoningTokens,
-        toolCalls:
-          safeToolCalls.length > 0
-            ? (safeToolCalls as Prisma.InputJsonValue)
-            : undefined,
-        ragUsed: metrics.ragUsed,
-        ragChunksCount: metrics.ragChunksCount,
-        costUsd: metrics.costUsd,
-        generationTimeMs: metrics.generationTimeMs,
-        reasoningTimeMs: metrics.reasoningTimeMs,
-      },
-    });
-
-    await tx.messageMetrics.create({
-      data: buildMessageMetricsData(createdMessage.id, metrics, executionRoute),
-    });
-
-    // The message and its voice job must either both exist or neither exists.
-    // That makes a reconnect safe even if the process returns before QStash
-    // receives its delivery request.
-    if (voiceGeneration) {
-      await tx.voiceGenerationJob.create({
-        data: {
-          messageId: createdMessage.id,
           userId,
-          expiresAt: voiceGeneration.expiresAt,
+          ...(chatId ? { chatId } : {}),
+          ...(conversationThreadId ? { conversationThreadId } : {}),
+          ...(userMessageId ? { sourceInboundMessageId: userMessageId } : {}),
+          channel,
+          direction: "OUTBOUND",
+          role: "ASSISTANT",
+          type: messageType,
+          parts: [
+            { type: "text", text },
+            ...(capabilitiesUsed.length > 0
+              ? [
+                  {
+                    type: "data-aiCapabilities",
+                    data: { capabilities: capabilitiesUsed },
+                  },
+                ]
+              : []),
+            ...(routineProposal
+              ? [{ type: "data-coachingRoutine", data: routineProposal }]
+              : []),
+          ] as Prisma.InputJsonValue,
+          ...(mediaUrl ? { mediaUrl } : {}),
+          ...(mediaType ? { mediaType } : {}),
+          ...(assistantMetadata ? { metadata: assistantMetadata } : {}),
+          model: metrics.model,
+          inputTokens: metrics.inputTokens,
+          outputTokens: metrics.outputTokens,
+          reasoningTokens: metrics.reasoningTokens,
+          toolCalls:
+            safeToolCalls.length > 0
+              ? (safeToolCalls as Prisma.InputJsonValue)
+              : undefined,
+          ragUsed: metrics.ragUsed,
+          ragChunksCount: metrics.ragChunksCount,
+          costUsd: metrics.costUsd,
+          generationTimeMs: metrics.generationTimeMs,
+          reasoningTimeMs: metrics.reasoningTimeMs,
         },
       });
-    }
 
-    if (usageReservationId) {
-      if (!usageReservationClaimToken) {
-        throw new Error("Usage reservation claim token is required");
-      }
-      await reconcileAiUsageInTransaction(tx, {
-        reservationId: usageReservationId,
-        claimToken: usageReservationClaimToken,
-        userId,
-        metrics,
-        assistantMessageId: createdMessage.id,
-        allowAlreadyReconciled: usageAlreadyReconciled,
+      await tx.messageMetrics.create({
+        data: buildMessageMetricsData(
+          createdMessage.id,
+          metrics,
+          executionRoute,
+          traceCollector?.snapshot("partial"),
+        ),
       });
-    }
 
-    return { message: createdMessage, created: true };
-  });
+      // The message and its voice job must either both exist or neither exists.
+      // That makes a reconnect safe even if the process returns before QStash
+      // receives its delivery request.
+      if (voiceGeneration) {
+        await tx.voiceGenerationJob.create({
+          data: {
+            messageId: createdMessage.id,
+            userId,
+            expiresAt: voiceGeneration.expiresAt,
+          },
+        });
+      }
+
+      if (usageReservationId) {
+        if (!usageReservationClaimToken) {
+          throw new Error("Usage reservation claim token is required");
+        }
+        await reconcileAiUsageInTransaction(tx, {
+          reservationId: usageReservationId,
+          claimToken: usageReservationClaimToken,
+          userId,
+          metrics,
+          assistantMessageId: createdMessage.id,
+          allowAlreadyReconciled: usageAlreadyReconciled,
+        });
+      }
+
+      return { message: createdMessage, created: true };
+    });
+    persistenceSpan?.end("completed");
+  } catch (error) {
+    persistenceSpan?.end("failed");
+    throw error;
+  }
   const { message } = persisted;
+
+  if (traceCollector && persisted.created) {
+    const completedTrace = traceCollector.snapshot("completed");
+    const finalizationTask = prisma.messageMetrics
+      .update({
+        where: { messageId: message.id },
+        data: { serverTrace: completedTrace as Prisma.InputJsonValue },
+      })
+      .catch((error) => {
+        persistenceLogger.warn(
+          "profiler.server_trace_finalize_failed",
+          "Failed finalizing server response trace",
+          {
+            messageId: message.id,
+            errorName: error instanceof Error ? error.name : "unknown",
+          },
+        );
+      });
+    scheduleBackground(waitUntil, finalizationTask);
+  }
 
   if (presentedMemoryApprovalId && userMessageId && persisted.created) {
     try {

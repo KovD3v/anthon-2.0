@@ -5,6 +5,7 @@ import type { TurnDecision } from "@/lib/ai/execution-routing";
 import type { MemoryRecallDecision } from "@/lib/ai/memory-recall-release";
 import type { PreparedTurnContext } from "@/lib/ai/orchestrator";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
+import type { ServerTraceCollector } from "@/lib/response-profiler/server-trace";
 
 export type ChannelKind = "WEB" | "WEB_GUEST" | "TELEGRAM" | "WHATSAPP";
 
@@ -133,6 +134,8 @@ export interface PersistAssistantOutputInput {
   usageReservationClaimToken?: string;
   usageAlreadyReconciled?: boolean;
   externalInboundClaimToken?: string;
+  /** Request-scoped, best-effort technical trace for the generated response. */
+  traceCollector?: ServerTraceCollector;
   /** Create the durable web TTS job in the same transaction as the message. */
   voiceGeneration?: {
     expiresAt: Date;
