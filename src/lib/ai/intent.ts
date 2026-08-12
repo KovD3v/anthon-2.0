@@ -75,8 +75,13 @@ export function matchesPersistentDataIntent(message: string) {
 }
 
 export function matchesMemoryReadIntent(message: string) {
-  return /\b(chi\s+sono|sai\s+chi\s+sono|mi\s+conosci|ti\s+ricordi\s+di\s+me|cosa\s+sai\s+di\s+me|che\s+cosa\s+sai\s+di\s+me|cosa\s+ricordi\s+di\s+me|che\s+cosa\s+ricordi\s+di\s+me|hai\s+memoria\s+di\s+me|recupera\s+(la\s+)?memoria|guarda\s+(la\s+)?memoria|leggi\s+(la\s+)?memoria|interroga\s+(la\s+)?memoria)\b/i.test(
-    message,
+  return (
+    /\b(chi\s+sono|sai\s+chi\s+sono|mi\s+conosci|ti\s+ricordi\s+di\s+me|cosa\s+sai\s+di\s+me|che\s+cosa\s+sai\s+di\s+me|cosa\s+ricordi\s+di\s+me|che\s+cosa\s+ricordi\s+di\s+me|hai\s+memoria\s+di\s+me|recupera\s+(la\s+)?memoria|guarda\s+(la\s+)?memoria|leggi\s+(la\s+)?memoria|interroga\s+(la\s+)?memoria)\b/i.test(
+      message,
+    ) ||
+    /\b(ricordami\s+(qual\s+è|quale|che\s+cosa|cosa)[\s\S]{0,120}\bsalvat\w*|remind\s+me\s+(of\s+)?(what|which|my)[\s\S]{0,120}\bsaved)\b/i.test(
+      message,
+    )
   );
 }
 

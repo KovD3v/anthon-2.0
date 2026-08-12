@@ -338,6 +338,27 @@ describe("ai/cost-calculator", () => {
     expect(result.costUsd).toBeCloseTo(0.00028, 8);
   });
 
+  it("uses the DeepInfra pricing fallback for the Nemotron classifier", () => {
+    mocks.calculateCost.mockReturnValue({
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      model: "nvidia/nemotron-3.5-lightning",
+    });
+
+    const startTime = new Date("2026-02-17T12:00:05.000Z").getTime();
+    const result = extractAIMetrics(
+      "nvidia/nemotron-3.5-lightning",
+      startTime,
+      {
+        text: "done",
+        usage: { promptTokens: 1000, completionTokens: 500 },
+      },
+    );
+
+    expect(result.costUsd).toBeCloseTo(0.00015, 8);
+  });
+
   it("uses Tencent Hy3 OpenRouter pricing fallback", () => {
     mocks.calculateCost.mockReturnValue({
       inputCost: 0,

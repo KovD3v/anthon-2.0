@@ -1,12 +1,15 @@
 import { normalizeCapabilityDecision } from "@/lib/ai/capability-arbitration";
 import {
+  hasUntrustedSuppliedTextInstructions,
   normalizeExecutionDecision,
+  resolveDeterministicTaskKind,
   TURN_CLASSIFIER_VERSION,
 } from "@/lib/ai/execution-routing";
 import {
   CAPABILITY_CLASSIFIER_MIN_CONFIDENCE,
   type CapabilityClassifierProposal,
   classifyTurn,
+  resolveTurnClassifierModelId,
 } from "@/lib/ai/turn-classification";
 import {
   scoreTurnRouting,
@@ -16,8 +19,7 @@ import {
   type TurnRoutingResult,
 } from "@/lib/benchmark/turn-routing";
 
-const CLASSIFIER_MODEL_ID =
-  process.env.PROMPT_MODULE_CLASSIFIER_MODEL_ID || "qwen/qwen3.6-27b";
+const CLASSIFIER_MODEL_ID = resolveTurnClassifierModelId();
 const CONCURRENCY = 2;
 
 function capabilityClassifier(
@@ -80,6 +82,10 @@ async function evaluateFixture(
     estimatedInputTokens: normalization?.estimatedInputTokens ?? 32,
     requestedOutputTokens: normalization?.requestedOutputTokens ?? 160,
     hasRecentContext: fixture.context.trim().length > 0,
+    hasUntrustedSuppliedText: hasUntrustedSuppliedTextInstructions(
+      fixture.userMessage,
+    ),
+    deterministicTaskKind: resolveDeterministicTaskKind(fixture.userMessage),
   });
 
   return {

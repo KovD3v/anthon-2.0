@@ -55,14 +55,23 @@ describe("turn routing benchmark", () => {
   });
 
   it.each(["failed", "invalid"] as const)(
-    "fails the live gate for a partial %s provider response",
+    "allows one conservative %s fallback when the other 35 classifications are valid",
     (outcome) => {
       const results = expectedResults();
       results[0] = { ...results[0], outcome };
 
-      expect(shouldFailTurnRoutingEvaluation(results)).toBe(true);
+      expect(shouldFailTurnRoutingEvaluation(results)).toBe(false);
     },
   );
+
+  it("fails the live gate below 35 valid classifications", () => {
+    const results = expectedResults();
+    results[0] = { ...results[0], outcome: "failed" };
+    results[1] = { ...results[1], outcome: "invalid" };
+
+    expect(shouldFailTurnRoutingEvaluation(results)).toBe(true);
+    expect(scoreTurnRouting(results).passed).toBe(false);
+  });
 
   it("scores a complete expected run with no route or task-kind errors", () => {
     expect(scoreTurnRouting(expectedResults())).toMatchObject({

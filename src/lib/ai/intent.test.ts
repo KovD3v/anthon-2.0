@@ -186,6 +186,14 @@ describe("ai/intent", () => {
   it("memory intents detect reads, writes, and the shared natural delete family", () => {
     expect(matchesMemoryReadIntent("Cosa sai di me?")).toBe(true);
     expect(
+      matchesMemoryReadIntent(
+        "Ricordami qual è il mio obiettivo di allenamento salvato.",
+      ),
+    ).toBe(true);
+    expect(
+      matchesMemoryReadIntent("Remind me of my saved training goal."),
+    ).toBe(true);
+    expect(
       matchesMemoryWriteIntent("Ricordati che ho una partita domenica"),
     ).toBe(true);
     expect(matchesMemoryDeleteIntent("Dimentica quella informazione")).toBe(

@@ -97,6 +97,7 @@ import {
   formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
 import { arbitrateTurn } from "@/lib/ai/turn-arbitration";
+import { resolveTurnClassifierModelId } from "@/lib/ai/turn-classification";
 import { planLegacyTurn, planTurn, type TurnPlan } from "@/lib/ai/turn-plan";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -105,8 +106,7 @@ import type { EffectiveEntitlements } from "@/lib/organizations/types";
 
 const aiLogger = createLogger("ai");
 const MULTIMODAL_ORCHESTRATOR_MODEL_ID = "google/gemini-2.5-flash-lite";
-const PROMPT_MODULE_CLASSIFIER_MODEL_ID =
-  process.env.PROMPT_MODULE_CLASSIFIER_MODEL_ID || "qwen/qwen3.6-27b";
+const PROMPT_MODULE_CLASSIFIER_MODEL_ID = resolveTurnClassifierModelId();
 const WEB_SEARCH_DEFAULT_RESULTS = 4;
 const WEB_SEARCH_DEFAULT_SNIPPET_CHARS = 180;
 const WEB_SEARCH_BRIEF_RESULTS = 3;

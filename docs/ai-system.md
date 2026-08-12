@@ -358,10 +358,14 @@ In agentic mode, the unified classifier returns one capability-and-workload
 proposal. Server-side arbitration then freezes one `TurnDecision`: capability
 authorization remains deterministic, while execution normalization derives an
 eligible `light` or `standard` profile. Routing reuses that classifier proposal;
-it adds no model or network round trip. In active production routing, a light
-attempt uses `deepseek/deepseek-v4-flash-0731`; standard turns continue to use
-the plan-resolved orchestrator model, currently `openai/gpt-5.6-luna`. Explicit
-benchmark model IDs remain authoritative for controlled comparisons.
+it adds no model or network round trip. The default classifier is
+`nvidia/nemotron-3.5-lightning`, routed to DeepInfra with reasoning disabled,
+strict structured output, and a three-second fail-closed timeout. An explicit
+`PROMPT_MODULE_CLASSIFIER_MODEL_ID` still overrides that default. In active
+production routing, a light attempt uses `deepseek/deepseek-v4-flash-0731`;
+standard turns continue to use the plan-resolved orchestrator model, currently
+`openai/gpt-5.6-luna`. Explicit benchmark model IDs remain authoritative for
+controlled comparisons.
 
 DeepSeek light requests use OpenRouter latency sorting over the closed provider
 pool `Together,CoreWeave,Ambient`, with provider fallback and parameter support
@@ -375,7 +379,10 @@ Only high-confidence `social`, `rewrite`, `translate`, `format`, `extract`, and
 capability, external knowledge, deep context, coaching/sensitive or substantive
 reasoning, direct media, pending approval, voice delivery, input above 8,000
 tokens, output above 600 tokens, invalid/failed classification, or runtime
-version mismatch vetoes light execution.
+version mismatch vetoes light execution. Server-recognized memory, routine,
+voice, coaching, and direct-media intents also authoritatively normalize the
+task kind; transformation text containing embedded instructions is never
+light-eligible.
 
 The profiles in telemetry are deliberately distinct:
 

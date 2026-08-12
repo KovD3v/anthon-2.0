@@ -56,6 +56,7 @@ Feature-specific variables:
 - Private generated voice: `VOICE_BLOB_READ_WRITE_TOKEN`
 - Web search tools: `TINYFISH_API_KEY`
 - Agentic optional-capability rollout: `AI_CAPABILITY_PLANNER_MODE=agentic`
+- Turn classifier override: `PROMPT_MODULE_CLASSIFIER_MODEL_ID` (defaults to `nvidia/nemotron-3.5-lightning`)
 - Light execution routing: `AI_EXECUTION_ROUTING_MODE=off`, `AI_EXECUTION_ROUTING_PERCENT=0`, `AI_EXECUTION_ROUTING_TASKS=`
 - Encrypted AI trace content: `AI_TRACE_ENCRYPTION_KEY`
 - Maintenance jobs: `QSTASH_URL`, `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `CRON_SECRET`, `APP_URL`
@@ -206,7 +207,7 @@ bun run start
 | `bun run test:coverage:integration` | Run integration coverage |
 | `bun run test:coverage` | Run unit + integration coverage |
 | `bun run test:all` | Run unit and integration coverage once each |
-| `bun run eval:turn-routing` | Run the live 36-fixture classifier evaluation (requires `OPENROUTER_API_KEY`; no database or PostHog writes) |
+| `bun run eval:turn-routing` | Run the live 36-fixture classifier evaluation; the gate requires at least 35 valid classifications and zero protected false-light cases (requires `OPENROUTER_API_KEY`; no database or PostHog writes) |
 | `bun run test:watch` | Run tests in watch mode |
 | `bun run test:ui` | Run tests with Vitest UI |
 

@@ -3,6 +3,13 @@ import {
   freezeCapabilityDecision,
 } from "./capability-arbitration";
 import {
+  matchesMemoryDeleteIntent,
+  matchesMemoryReadIntent,
+  matchesMemoryWriteIntent,
+  matchesRoutineProposalIntent,
+  matchesVoiceIntent,
+} from "./intent";
+import {
   CAPABILITY_CLASSIFIER_MIN_CONFIDENCE,
   type CapabilityClassifierProposal,
   type TaskKind,
@@ -51,6 +58,7 @@ export const EXECUTION_REASON_CODES = [
   "rollout_off",
   "rollout_shadow",
   "runtime_invariant",
+  "untrusted_supplied_text",
 ] as const;
 
 export type ExecutionReasonCode = (typeof EXECUTION_REASON_CODES)[number];
@@ -118,6 +126,8 @@ type NormalizeExecutionDecisionInput = {
   estimatedInputTokens: number;
   requestedOutputTokens: number;
   hasRecentContext: boolean;
+  hasUntrustedSuppliedText: boolean;
+  deterministicTaskKind: TaskKind | null;
 };
 
 const EMPTY_ROUTING_CONFIG: ExecutionRoutingConfig = {
@@ -137,6 +147,37 @@ function addReason(
 
 function isLightTaskKind(taskKind: TaskKind): taskKind is LightTaskKind {
   return LIGHT_TASK_KINDS.includes(taskKind as LightTaskKind);
+}
+
+export function hasUntrustedSuppliedTextInstructions(
+  userMessage: string,
+): boolean {
+  const transformationRequest =
+    /\b(riassum\w*|riscriv\w*|traduc\w*|formatt\w*|estrai\w*|summari[sz]\w*|rewrit\w*|translat\w*|format\w*|extract\w*)\b/i;
+  const embeddedInstruction =
+    /\b(ignora\w*|ignore\w*|istruzion\w*|instruction\w*|rispondi\s+solo|reply\s+only|system\s+prompt)\b/i;
+
+  return (
+    transformationRequest.test(userMessage) &&
+    embeddedInstruction.test(userMessage)
+  );
+}
+
+export function resolveDeterministicTaskKind(
+  userMessage: string,
+): TaskKind | null {
+  if (
+    matchesMemoryReadIntent(userMessage) ||
+    matchesMemoryWriteIntent(userMessage) ||
+    matchesMemoryDeleteIntent(userMessage) ||
+    matchesVoiceIntent(userMessage)
+  ) {
+    return "other";
+  }
+  if (matchesRoutineProposalIntent(userMessage)) {
+    return "planning";
+  }
+  return null;
 }
 
 function hasUncertainCapability(
@@ -212,7 +253,15 @@ export function normalizeExecutionDecision(
 ): ExecutionDecision {
   const workload = input.workload;
   const reasonCodes: ExecutionReasonCode[] = [];
-  const taskKind = workload?.taskKind ?? "other";
+  const proposedTaskKind = workload?.taskKind ?? "other";
+  const taskKind: TaskKind =
+    input.inputOrigin === "direct_media" || input.hasPendingApproval
+      ? "other"
+      : input.deterministicTaskKind
+        ? input.deterministicTaskKind
+        : input.hasDeterministicCoachingIntent
+          ? "coaching"
+          : proposedTaskKind;
   const contextDependency = workload?.contextDependency ?? "deep";
   const confidenceBucket = toConfidenceBucket(workload?.confidence ?? null);
   const uncertainCapability =
@@ -313,6 +362,10 @@ export function normalizeExecutionDecision(
     addReason(reasonCodes, "output_limit");
   }
 
+  if (input.hasUntrustedSuppliedText) {
+    addReason(reasonCodes, "untrusted_supplied_text");
+  }
+
   const lightEligible =
     !hasFallbackFailure &&
     workload?.suggestedProfile === "light" &&
@@ -333,7 +386,8 @@ export function normalizeExecutionDecision(
     input.responseMode === "text" &&
     !input.capabilities.voiceOutput &&
     input.estimatedInputTokens <= LIGHT_MAX_INPUT_TOKENS &&
-    input.requestedOutputTokens <= LIGHT_MAX_OUTPUT_TOKENS;
+    input.requestedOutputTokens <= LIGHT_MAX_OUTPUT_TOKENS &&
+    !input.hasUntrustedSuppliedText;
 
   const eligibleProfile: ExecutionProfile = lightEligible
     ? "light"

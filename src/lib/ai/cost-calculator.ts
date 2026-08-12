@@ -108,6 +108,10 @@ const OPENROUTER_PRICE_FALLBACKS: Record<
     prompt: 0.00000074,
     completion: 0.0000035,
   },
+  "nvidia/nemotron-3.5-lightning": {
+    prompt: 0.00000005,
+    completion: 0.0000002,
+  },
   "openai/gpt-5.4-nano": { prompt: 0.0000002, completion: 0.00000125 },
   "openai/gpt-chat-latest": { prompt: 0.000005, completion: 0.00003 },
   "tencent/hy3-preview": { prompt: 0.000000066, completion: 0.00000026 },

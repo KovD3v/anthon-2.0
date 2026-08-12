@@ -5,7 +5,9 @@ import {
 } from "./capability-arbitration";
 import {
   freezeTurnDecision,
+  hasUntrustedSuppliedTextInstructions,
   normalizeExecutionDecision,
+  resolveDeterministicTaskKind,
   TURN_CLASSIFIER_VERSION,
   type TurnDecision,
 } from "./execution-routing";
@@ -119,6 +121,10 @@ export async function arbitrateTurn(
     estimatedInputTokens: input.estimatedInputTokens,
     requestedOutputTokens: input.requestedOutputTokens,
     hasRecentContext: input.hasRecentContext,
+    hasUntrustedSuppliedText: hasUntrustedSuppliedTextInstructions(
+      input.userMessage,
+    ),
+    deterministicTaskKind: resolveDeterministicTaskKind(input.userMessage),
   });
   input.abortSignal?.throwIfAborted();
 

@@ -5,9 +5,20 @@ import { createLogger } from "@/lib/logger";
 import { CLASSIFIER_CAPABILITIES } from "./capability-arbitration";
 
 const MAX_CLASSIFIER_CONTEXT_CHARS = 2_000;
-const TURN_CLASSIFIER_TIMEOUT_MS = 2_000;
+const TURN_CLASSIFIER_TIMEOUT_MS = 3_000;
 const LIGHT_MIN_CONFIDENCE = 0.9;
 const classifierLogger = createLogger("ai");
+
+export const DEFAULT_TURN_CLASSIFIER_MODEL_ID =
+  "nvidia/nemotron-3.5-lightning" as const;
+
+export function resolveTurnClassifierModelId(
+  env: Record<string, string | undefined> = process.env,
+): string {
+  return (
+    env.PROMPT_MODULE_CLASSIFIER_MODEL_ID || DEFAULT_TURN_CLASSIFIER_MODEL_ID
+  );
+}
 
 export const TASK_KINDS = [
   "social",
@@ -126,6 +137,10 @@ Capability rules:
 Workload definitions:
 - taskKind must be one of: social, rewrite, translate, format, extract, summarize_supplied, coaching, knowledge, planning, other.
 - social applies only when the message is lightweight social talk with no substantive disclosure, coaching request, planning request, or consequential judgement.
+- planning applies to requested routines, plans, protocols, or ordered steps, including when they concern coaching.
+- coaching applies to reflection, emotional support, or advice that does not primarily request a concrete plan or routine.
+- knowledge applies to factual questions, document lookup, or external information; do not use it for saved-memory operations.
+- other applies to memory operations, voice-output requests, and direct media.
 - contextDependency: none for self-contained requests, recent for a small exact recent window, deep for long or unresolved thread dependence.
 - knowledgeNeed: supplied_only when the answer can rely only on provided text, conversation for bounded thread context, external for outside or current knowledge.
 - reasoningDepth: minimal for straightforward transformations or direct answers, substantive for multi-step judgement, synthesis, diagnosis, or advice.
@@ -159,7 +174,7 @@ export async function classifyTurn({
   try {
     const [
       { openrouter },
-      { getOpenRouterProviderOptionsForModel },
+      { getOpenRouterProviderOptionsForClassifier },
       { trackSupportAiUsage },
     ] = await Promise.all([
       import("@/lib/ai/providers/openrouter"),
@@ -179,7 +194,7 @@ export async function classifyTurn({
           timeout: { totalMs: TURN_CLASSIFIER_TIMEOUT_MS },
           providerOptions: {
             openrouter: {
-              ...getOpenRouterProviderOptionsForModel(modelId),
+              ...getOpenRouterProviderOptionsForClassifier(modelId),
               reasoning: { enabled: false, max_tokens: 1 },
             },
           },

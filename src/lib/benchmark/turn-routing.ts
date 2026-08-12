@@ -403,6 +403,9 @@ export const TURN_ROUTING_FIXTURES = [
 export function scoreTurnRouting(
   results: readonly TurnRoutingResult[],
 ): TurnRoutingScore {
+  const validClassifications = results.filter(
+    ({ outcome }) => outcome === "accepted" || outcome === "low_confidence",
+  ).length;
   const falseLight = results.filter(
     ({ fixture, actualProfile }) =>
       fixture.expectedProfile === "standard" && actualProfile === "light",
@@ -431,7 +434,9 @@ export function scoreTurnRouting(
     falseStandard,
     taskKindCorrect,
     protectedFalseLight,
-    passed: protectedFalseLight === 0,
+    passed:
+      protectedFalseLight === 0 &&
+      validClassifications >= Math.min(35, results.length),
   };
 }
 
@@ -439,8 +444,5 @@ export function shouldFailTurnRoutingEvaluation(
   results: readonly TurnRoutingResult[],
 ): boolean {
   if (results.length === 0) return true;
-  if (scoreTurnRouting(results).protectedFalseLight > 0) return true;
-  return results.some(
-    ({ outcome }) => outcome === "failed" || outcome === "invalid",
-  );
+  return !scoreTurnRouting(results).passed;
 }

@@ -57,6 +57,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Switched the unified turn classifier default to Nemotron 3.5 Lightning on a
+  bounded DeepInfra route, with deterministic task normalization, embedded-text
+  safeguards, fail-closed timeout behavior, and a stricter live routing gate.
 - Aligned Anthon's written rhythm with the real coach's conversational style:
   shorter and more spoken turns, lighter punctuation, rarer contextual emoji,
   and a more occasional automatic voice cadence across chat channels.

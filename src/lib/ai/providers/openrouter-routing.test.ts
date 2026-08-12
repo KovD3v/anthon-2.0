@@ -3,6 +3,7 @@ import { generateText } from "ai";
 import { describe, expect, it, vi } from "vitest";
 import {
   getOpenRouterProviderOptions,
+  getOpenRouterProviderOptionsForClassifier,
   getOpenRouterProviderOptionsForExecution,
   getOpenRouterProviderOptionsForModel,
   getOpenRouterProviderRouting,
@@ -87,6 +88,33 @@ describe("ai/providers/openrouter-routing", () => {
           prompt: 0.15,
           completion: 0.3,
         },
+      },
+      reasoning: { enabled: false, max_tokens: 1 },
+    });
+  });
+
+  it("pins the Nemotron classifier to its fastest healthy structured-output endpoint", () => {
+    expect(
+      getOpenRouterProviderOptionsForClassifier(
+        "nvidia/nemotron-3.5-lightning",
+        {
+          OPENROUTER_PROVIDER_SORT: "throughput",
+          OPENROUTER_PROVIDER_ORDER: "DeepInfra,CoreWeave",
+          OPENROUTER_PROVIDER_ALLOW_FALLBACKS: "true",
+          OPENROUTER_PROVIDER_REQUIRE_PARAMETERS: "false",
+          OPENROUTER_PROVIDER_MAX_PROMPT_PRICE: "1",
+          OPENROUTER_PROVIDER_MAX_COMPLETION_PRICE: "2",
+          OPENROUTER_PROVIDER_DATA_COLLECTION: "deny",
+        },
+      ),
+    ).toEqual({
+      provider: {
+        sort: "latency",
+        only: ["DeepInfra"],
+        allow_fallbacks: false,
+        require_parameters: true,
+        data_collection: "deny",
+        max_price: { prompt: 0.05, completion: 0.2 },
       },
       reasoning: { enabled: false, max_tokens: 1 },
     });

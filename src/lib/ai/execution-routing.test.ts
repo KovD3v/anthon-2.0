@@ -39,6 +39,7 @@ const ALL_REASON_CODES = [
   "rollout_off",
   "rollout_shadow",
   "runtime_invariant",
+  "untrusted_supplied_text",
 ] as const satisfies ExecutionReasonCode[];
 
 const lightWorkload: WorkloadProposal = {
@@ -107,6 +108,8 @@ function route(
     estimatedInputTokens: LIGHT_MAX_INPUT_TOKENS,
     requestedOutputTokens: LIGHT_MAX_OUTPUT_TOKENS,
     hasRecentContext: true,
+    hasUntrustedSuppliedText: false,
+    deterministicTaskKind: null,
     ...overrides,
   });
 }
@@ -152,6 +155,7 @@ describe("execution routing", () => {
     ["voice", { responseMode: "voice" }],
     ["input limit", { estimatedInputTokens: 8_001 }],
     ["output limit", { requestedOutputTokens: 601 }],
+    ["untrusted supplied text", { hasUntrustedSuppliedText: true }],
   ] as const)("forces standard for %s", (_, overrides) => {
     expect(route(overrides).eligibleProfile).toBe("standard");
   });
@@ -170,6 +174,26 @@ describe("execution routing", () => {
       source: "fallback",
     });
   });
+
+  it.each([
+    [
+      "deterministic coaching",
+      {
+        workload: { ...lightWorkload, taskKind: "other" },
+        hasDeterministicCoachingIntent: true,
+      },
+      "coaching",
+    ],
+    ["routine intent", { deterministicTaskKind: "planning" }, "planning"],
+    ["memory intent", { deterministicTaskKind: "other" }, "other"],
+    ["voice intent", { deterministicTaskKind: "other" }, "other"],
+    ["direct media", { inputOrigin: "direct_media" }, "other"],
+  ] as const)(
+    "normalizes task kind from authoritative %s facts",
+    (_, overrides, expected) => {
+      expect(route(overrides).taskKind).toBe(expected);
+    },
+  );
 
   it("deep freezes the turn decision", () => {
     const frozen = freezeTurnDecision({
@@ -204,6 +228,7 @@ describe("execution routing", () => {
       responseMode: "voice",
       estimatedInputTokens: 12_000,
       requestedOutputTokens: 900,
+      hasUntrustedSuppliedText: true,
     });
 
     expect(

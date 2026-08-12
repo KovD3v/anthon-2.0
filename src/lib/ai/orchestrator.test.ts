@@ -4293,7 +4293,7 @@ describe("ai/orchestrator", () => {
     expect(mocks.classifyCapabilities).toHaveBeenCalledWith({
       userId: "user-1",
       userMessage: "Mi aggiorni sulla situazione di Messi?",
-      modelId: "qwen/qwen3.6-27b",
+      modelId: "nvidia/nemotron-3.5-lightning",
       context: expect.stringContaining("ambiguous_current_info"),
       abortSignal: abortController.signal,
     });

@@ -77,6 +77,9 @@ const MAX_REASONING_MODEL_IDS = new Set(["openai/gpt-5.6-luna"]);
 const DEEPSEEK_LIGHT_PROVIDERS = ["Together", "CoreWeave", "Ambient"] as const;
 const DEEPSEEK_LIGHT_MAX_PROMPT_PRICE = 0.15;
 const DEEPSEEK_LIGHT_MAX_COMPLETION_PRICE = 0.3;
+const NEMOTRON_CLASSIFIER_MODEL_ID = "nvidia/nemotron-3.5-lightning";
+const NEMOTRON_CLASSIFIER_MAX_PROMPT_PRICE = 0.05;
+const NEMOTRON_CLASSIFIER_MAX_COMPLETION_PRICE = 0.2;
 const providerOptionsCache = new Map<string, JSONObject>();
 
 export function getOpenRouterProviderOptions(
@@ -108,6 +111,54 @@ export function getOpenRouterProviderOptionsForExecution(
 
   return {
     ...options,
+    reasoning: { enabled: false, max_tokens: 1 },
+  };
+}
+
+export function getOpenRouterProviderOptionsForClassifier(
+  modelId: string,
+  env: Env = process.env,
+): JSONObject {
+  const options = getOpenRouterProviderOptionsForModel(modelId, env);
+  if (modelId !== NEMOTRON_CLASSIFIER_MODEL_ID) {
+    return {
+      ...options,
+      reasoning: { enabled: false, max_tokens: 1 },
+    };
+  }
+
+  const provider = (options.provider ?? {}) as OpenRouterProviderRouting;
+  const {
+    order: _order,
+    only: _only,
+    sort: _sort,
+    allow_fallbacks: _allowFallbacks,
+    require_parameters: _requireParameters,
+    max_price: configuredMaxPrice,
+    ...compatibleProviderOptions
+  } = provider;
+
+  return {
+    ...options,
+    provider: {
+      ...compatibleProviderOptions,
+      sort: "latency",
+      only: ["DeepInfra"],
+      allow_fallbacks: false,
+      require_parameters: true,
+      max_price: {
+        ...configuredMaxPrice,
+        prompt: Math.min(
+          configuredMaxPrice?.prompt ?? NEMOTRON_CLASSIFIER_MAX_PROMPT_PRICE,
+          NEMOTRON_CLASSIFIER_MAX_PROMPT_PRICE,
+        ),
+        completion: Math.min(
+          configuredMaxPrice?.completion ??
+            NEMOTRON_CLASSIFIER_MAX_COMPLETION_PRICE,
+          NEMOTRON_CLASSIFIER_MAX_COMPLETION_PRICE,
+        ),
+      },
+    },
     reasoning: { enabled: false, max_tokens: 1 },
   };
 }
