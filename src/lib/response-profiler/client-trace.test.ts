@@ -3,15 +3,10 @@ import { createClientTraceCollector, submitClientTrace } from "./client-trace";
 
 function completedCollector() {
   let clock = 100;
-  const frames: FrameRequestCallback[] = [];
   const collector = createClientTraceCollector({
     clientMessageId: "client-user-1",
     now: () => clock,
     documentVisibility: () => "visible",
-    requestAnimationFrame: (callback) => {
-      frames.push(callback);
-      return frames.length;
-    },
   });
   clock = 110;
   collector.markStreamOpened();
@@ -22,7 +17,7 @@ function completedCollector() {
   clock = 140;
   collector.markFirstDomText();
   clock = 150;
-  frames.shift()?.(clock);
+  collector.markFirstVisibleFrame();
   clock = 160;
   collector.markStreamCompleted();
   clock = 170;
@@ -60,12 +55,10 @@ describe("ClientTraceCollector", () => {
 
   it("suppresses a visible-frame milestone while hidden and stays partial", async () => {
     let clock = 0;
-    const frame = vi.fn();
     const collector = createClientTraceCollector({
       clientMessageId: "client-user-1",
       now: () => clock,
       documentVisibility: () => "hidden",
-      requestAnimationFrame: frame,
     });
     clock = 1;
     collector.markStreamOpened();
@@ -81,7 +74,6 @@ describe("ClientTraceCollector", () => {
     collector.markPersistedMessageResolved();
 
     await expect(collector.waitForPresentation()).resolves.toBeUndefined();
-    expect(frame).not.toHaveBeenCalled();
     expect(collector.snapshot().status).toBe("partial");
     expect(collector.snapshot().milestones).not.toHaveProperty(
       "firstVisibleFrameMs",
@@ -100,7 +92,6 @@ describe("ClientTraceCollector", () => {
 
   it("waits for the first visible frame before immutable submission", async () => {
     let clock = 0;
-    let frame: FrameRequestCallback | undefined;
     const fetchImpl = vi
       .fn()
       .mockResolvedValue(new Response(null, { status: 204 }));
@@ -108,10 +99,6 @@ describe("ClientTraceCollector", () => {
       clientMessageId: "client-user-1",
       now: () => clock,
       documentVisibility: () => "visible",
-      requestAnimationFrame: (callback) => {
-        frame = callback;
-        return 1;
-      },
     });
     clock = 1;
     collector.markStreamOpened();
@@ -134,7 +121,7 @@ describe("ClientTraceCollector", () => {
     await Promise.resolve();
     expect(fetchImpl).not.toHaveBeenCalled();
     clock = 7;
-    frame?.(clock);
+    collector.markFirstVisibleFrame();
     await expect(submission).resolves.toBe("stored");
 
     expect(fetchImpl).toHaveBeenCalledWith(
@@ -163,7 +150,6 @@ describe("ClientTraceCollector", () => {
       clientMessageId: "client-user-1",
       now: () => 0,
       documentVisibility: () => "visible",
-      requestAnimationFrame: () => 1,
     });
     collector.markStreamOpened();
     collector.markFirstChunkReceived();

@@ -41,15 +41,11 @@ export function createClientTraceCollector(options: {
   clientMessageId: string;
   now?: () => number;
   documentVisibility?: () => DocumentVisibilityState;
-  requestAnimationFrame?: (callback: FrameRequestCallback) => number;
 }): ClientTraceCollector {
   const now = options.now ?? (() => performance.now());
   const documentVisibility =
     options.documentVisibility ??
     (() => globalThis.document?.visibilityState ?? "visible");
-  const scheduleFrame =
-    options.requestAnimationFrame ??
-    globalThis.requestAnimationFrame?.bind(globalThis);
   let lastClock = 0;
   const readClock = () => {
     try {
@@ -97,9 +93,7 @@ export function createClientTraceCollector(options: {
       if (!mark("firstDomTextMs", "firstTextDeltaReceivedMs")) return;
       if (documentVisibility() === "hidden") {
         settlePresentation();
-        return;
       }
-      scheduleFrame?.(() => this.markFirstVisibleFrame());
     },
     markFirstVisibleFrame() {
       if (documentVisibility() === "hidden") {
