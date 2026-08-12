@@ -12,6 +12,7 @@ import type {
   ClientTraceV1,
   ServerTraceV1,
 } from "@/lib/response-profiler/contracts";
+import type { DeveloperDiagnosticsV1 } from "@/lib/response-profiler/developer-diagnostics";
 
 // -----------------------------------------------------
 // Attachments
@@ -101,6 +102,7 @@ export interface Usage {
   reasoningTimeMs?: number;
   serverTrace?: ServerTraceV1;
   clientTrace?: ClientTraceV1;
+  developerDiagnostics?: DeveloperDiagnosticsV1;
   model?: string;
   provider?: string;
   executedProfile?: "light" | "standard";

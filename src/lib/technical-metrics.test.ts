@@ -125,6 +125,37 @@ describe("resolveTechnicalMetricsVisibility", () => {
 });
 
 describe("buildTechnicalUsage", () => {
+  it("returns rich diagnostics only in development", () => {
+    const message = {
+      model: "model",
+      inputTokens: 10,
+      outputTokens: 5,
+      costUsd: 0.01,
+      generationTimeMs: 120,
+      reasoningTimeMs: null,
+      ragUsed: true,
+      toolCalls: null,
+      metrics: {
+        developerDiagnostics: {
+          version: 1,
+          tools: [],
+          truncated: false,
+        },
+      },
+    };
+
+    vi.stubEnv("NODE_ENV", "development");
+    expect(buildTechnicalUsage(message)).toHaveProperty(
+      "developerDiagnostics.version",
+      1,
+    );
+
+    vi.stubEnv("NODE_ENV", "production");
+    expect(buildTechnicalUsage(message)).not.toHaveProperty(
+      "developerDiagnostics",
+    );
+  });
+
   it("projects only valid response traces when diagnostics are authorized", () => {
     const baseMessage = {
       model: "model",

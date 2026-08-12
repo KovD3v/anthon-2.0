@@ -5,6 +5,10 @@ import {
   parseClientTrace,
   parseServerTrace,
 } from "@/lib/response-profiler/contracts";
+import {
+  isDeveloperDiagnosticsEnabled,
+  parseDeveloperDiagnostics,
+} from "@/lib/response-profiler/developer-diagnostics";
 import type { Usage } from "@/types/chat";
 
 type PersistedTechnicalMetricRow = {
@@ -24,6 +28,7 @@ type PersistedTechnicalMetricRow = {
   executionRoute?: unknown;
   serverTrace?: unknown;
   clientTrace?: unknown;
+  developerDiagnostics?: unknown;
 };
 
 interface PersistedTechnicalMessage {
@@ -141,6 +146,10 @@ export function buildTechnicalUsage(
   const clientTrace = includeDiagnostics
     ? parseClientTrace(metrics?.clientTrace)
     : null;
+  const developerDiagnostics =
+    includeDiagnostics && isDeveloperDiagnosticsEnabled()
+      ? parseDeveloperDiagnostics(metrics?.developerDiagnostics)
+      : undefined;
   const model = metrics?.model ?? message.model;
   const executedProfile = model
     ? model === LIGHT_EXECUTION_MODEL_ID
@@ -202,6 +211,7 @@ export function buildTechnicalUsage(
       : {}),
     ...(serverTrace ? { serverTrace } : {}),
     ...(clientTrace ? { clientTrace } : {}),
+    ...(developerDiagnostics ? { developerDiagnostics } : {}),
   };
 }
 

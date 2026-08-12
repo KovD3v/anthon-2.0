@@ -159,6 +159,12 @@ function buildMessageMetricsData(
     ...(serverTrace
       ? { serverTrace: serverTrace as Prisma.InputJsonValue }
       : {}),
+    ...(process.env.NODE_ENV === "development" && metrics.developerDiagnostics
+      ? {
+          developerDiagnostics:
+            metrics.developerDiagnostics as unknown as Prisma.InputJsonValue,
+        }
+      : {}),
   };
 }
 

@@ -319,6 +319,7 @@ describe("/api/chats/[id] route", () => {
             executionRoute: true,
             serverTrace: true,
             clientTrace: true,
+            developerDiagnostics: true,
           },
         },
         feedback: true,

@@ -107,6 +107,7 @@ export async function GET(request: Request) {
             executionRoute: true,
             serverTrace: true,
             clientTrace: true,
+            developerDiagnostics: true,
           },
         },
         chat: { select: { visibility: true, userId: true } },

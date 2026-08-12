@@ -920,6 +920,7 @@ model MessageMetrics {
   executionRoute  Json?
   serverTrace     Json?
   clientTrace     Json?
+  developerDiagnostics Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

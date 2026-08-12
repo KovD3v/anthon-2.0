@@ -188,6 +188,7 @@ export async function GET(request: Request, { params }: RouteParams) {
             executionRoute: true,
             serverTrace: true,
             clientTrace: true,
+            developerDiagnostics: true,
           },
         },
         feedback: true,
