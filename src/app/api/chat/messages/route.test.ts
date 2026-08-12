@@ -32,6 +32,19 @@ vi.mock("@/lib/voice/attachment-cleanup", () => ({
 
 import { DELETE, GET, PATCH } from "./route";
 
+const serverTraceFixture = {
+  version: 1,
+  status: "completed",
+  totalMs: 10,
+  timeToFirstTokenMs: 5,
+  spans: [],
+};
+const clientTraceFixture = {
+  version: 1,
+  status: "partial",
+  milestones: { requestStartedMs: 0 },
+};
+
 describe("/api/chat/messages route", () => {
   beforeEach(() => {
     mocks.auth.mockReset();
@@ -106,6 +119,10 @@ describe("/api/chat/messages route", () => {
         reasoningTimeMs: null,
         ragUsed: null,
         toolCalls: null,
+        metrics: {
+          serverTrace: serverTraceFixture,
+          clientTrace: clientTraceFixture,
+        },
         chat: { visibility: "PRIVATE", userId: "user-1" },
       },
     ]);
@@ -149,6 +166,8 @@ describe("/api/chat/messages route", () => {
             ragUsed: true,
             ragChunksCount: true,
             executionRoute: true,
+            serverTrace: true,
+            clientTrace: true,
           },
         },
         chat: { select: { visibility: true, userId: true } },
@@ -175,6 +194,10 @@ describe("/api/chat/messages route", () => {
             outputTokens: 25,
             cost: 0.02,
             generationTimeMs: 180,
+            model: "gpt-4o-mini",
+            executedProfile: "standard",
+            serverTrace: serverTraceFixture,
+            clientTrace: clientTraceFixture,
           },
         },
       ],
@@ -302,6 +325,10 @@ describe("/api/chat/messages route", () => {
               result: { approvalId: "approval-1" },
             },
           ],
+          metrics: {
+            serverTrace: serverTraceFixture,
+            clientTrace: clientTraceFixture,
+          },
           chat,
         },
       ]);
@@ -323,6 +350,8 @@ describe("/api/chat/messages route", () => {
             cost: 0.03,
             generationTimeMs: 180,
             reasoningTimeMs: 22,
+            serverTrace: serverTraceFixture,
+            clientTrace: clientTraceFixture,
           },
           ragUsed: true,
           toolCalls: [{ name: "saveMemory", status: "completed" }],
@@ -423,6 +452,8 @@ describe("/api/chat/messages route", () => {
             ragUsed: true,
             ragChunksCount: true,
             executionRoute: true,
+            serverTrace: true,
+            clientTrace: true,
           },
         },
         chat: { select: { visibility: true, userId: true } },

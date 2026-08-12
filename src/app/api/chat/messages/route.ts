@@ -105,6 +105,8 @@ export async function GET(request: Request) {
             ragUsed: true,
             ragChunksCount: true,
             executionRoute: true,
+            serverTrace: true,
+            clientTrace: true,
           },
         },
         chat: { select: { visibility: true, userId: true } },
@@ -128,9 +130,7 @@ export async function GET(request: Request) {
           msg.chat?.visibility === "PRIVATE" && msg.chat.userId === user.id,
       });
       const usage = includeTechnicalMetrics
-        ? buildTechnicalUsage(msg, {
-            includeDiagnostics: process.env.NODE_ENV === "development",
-          })
+        ? buildTechnicalUsage(msg)
         : undefined;
 
       return {

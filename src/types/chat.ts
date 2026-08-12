@@ -8,6 +8,10 @@
 import type { ChatIcon } from "@/lib/chat-icons";
 import type { RoutineCardData } from "@/lib/coaching/routine";
 import type { RoutineChatMode } from "@/lib/coaching/routine-chat";
+import type {
+  ClientTraceV1,
+  ServerTraceV1,
+} from "@/lib/response-profiler/contracts";
 
 // -----------------------------------------------------
 // Attachments
@@ -95,6 +99,8 @@ export interface Usage {
   cost: number;
   generationTimeMs?: number;
   reasoningTimeMs?: number;
+  serverTrace?: ServerTraceV1;
+  clientTrace?: ClientTraceV1;
   model?: string;
   provider?: string;
   executedProfile?: "light" | "standard";

@@ -52,6 +52,19 @@ vi.mock("@/lib/voice/attachment-cleanup", () => ({
 
 import { DELETE, GET, PATCH } from "./route";
 
+const serverTraceFixture = {
+  version: 1,
+  status: "completed",
+  totalMs: 10,
+  timeToFirstTokenMs: 5,
+  spans: [],
+};
+const clientTraceFixture = {
+  version: 1,
+  status: "partial",
+  milestones: { requestStartedMs: 0 },
+};
+
 function params(id = "chat-1"): Promise<{ id: string }> {
   return Promise.resolve({ id });
 }
@@ -114,6 +127,10 @@ describe("/api/chats/[id] route", () => {
             result: { approvalId: "approval-1" },
           },
         ],
+        metrics: {
+          serverTrace: serverTraceFixture,
+          clientTrace: clientTraceFixture,
+        },
         feedback: -1,
         metadata: { feedback: { reason: "too_generic" } },
         attachments: [
@@ -300,6 +317,8 @@ describe("/api/chats/[id] route", () => {
             ragUsed: true,
             ragChunksCount: true,
             executionRoute: true,
+            serverTrace: true,
+            clientTrace: true,
           },
         },
         feedback: true,
@@ -354,6 +373,12 @@ describe("/api/chats/[id] route", () => {
             cost: 0.01,
             generationTimeMs: 230,
             reasoningTimeMs: 22,
+            model: "gpt-4o-mini",
+            executedProfile: "standard",
+            toolCallCount: 1,
+            ragUsed: true,
+            serverTrace: serverTraceFixture,
+            clientTrace: clientTraceFixture,
           },
           ragUsed: true,
           toolCalls: [{ name: "saveMemory", status: "completed" }],
@@ -449,7 +474,13 @@ describe("/api/chats/[id] route", () => {
       if (testCase.expected) {
         expect(assistant).toMatchObject({
           model: "gpt-4o-mini",
-          usage: { inputTokens: 10, outputTokens: 12, cost: 0.01 },
+          usage: {
+            inputTokens: 10,
+            outputTokens: 12,
+            cost: 0.01,
+            serverTrace: serverTraceFixture,
+            clientTrace: clientTraceFixture,
+          },
           ragUsed: true,
           toolCalls: [{ name: "saveMemory", status: "completed" }],
         });

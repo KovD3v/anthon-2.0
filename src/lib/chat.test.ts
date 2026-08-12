@@ -51,6 +51,19 @@ vi.mock("@/lib/voice", () => ({
 
 import { getSharedChat, getSharedChats, getSharedChatWithRetry } from "./chat";
 
+const serverTraceFixture = {
+  version: 1,
+  status: "completed",
+  totalMs: 10,
+  timeToFirstTokenMs: 5,
+  spans: [],
+};
+const clientTraceFixture = {
+  version: 1,
+  status: "partial",
+  milestones: { requestStartedMs: 0 },
+};
+
 describe("lib/chat", () => {
   beforeEach(() => {
     mocks.unstableCache.mockReset();
@@ -358,6 +371,8 @@ describe("lib/chat", () => {
             ragUsed: true,
             ragChunksCount: true,
             executionRoute: true,
+            serverTrace: true,
+            clientTrace: true,
           },
         },
         feedback: true,
@@ -526,6 +541,10 @@ describe("lib/chat", () => {
             result: { approvalId: "approval-1" },
           },
         ],
+        metrics: {
+          serverTrace: serverTraceFixture,
+          clientTrace: clientTraceFixture,
+        },
         feedback: null,
         metadata: { raw: "must-not-leak" },
         voiceGenerationJob: null,
@@ -539,7 +558,13 @@ describe("lib/chat", () => {
     if (testCase.expected) {
       expect(message).toMatchObject({
         model: "private-model",
-        usage: { inputTokens: 11, outputTokens: 7, cost: 0.02 },
+        usage: {
+          inputTokens: 11,
+          outputTokens: 7,
+          cost: 0.02,
+          serverTrace: serverTraceFixture,
+          clientTrace: clientTraceFixture,
+        },
         ragUsed: true,
         toolCalls: [{ name: "saveMemory", status: "completed" }],
       });

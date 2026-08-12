@@ -1,6 +1,10 @@
 import type { UserRole } from "@/generated/prisma";
 import { LIGHT_EXECUTION_MODEL_ID } from "@/lib/ai/execution-model";
 import { parseExecutionRouteTrace } from "@/lib/ai/execution-route-trace";
+import {
+  parseClientTrace,
+  parseServerTrace,
+} from "@/lib/response-profiler/contracts";
 import type { Usage } from "@/types/chat";
 
 type PersistedTechnicalMetricRow = {
@@ -18,6 +22,8 @@ type PersistedTechnicalMetricRow = {
   ragUsed?: boolean | null;
   ragChunksCount?: number | null;
   executionRoute?: unknown;
+  serverTrace?: unknown;
+  clientTrace?: unknown;
 };
 
 interface PersistedTechnicalMessage {
@@ -129,6 +135,12 @@ export function buildTechnicalUsage(
   const executionRoute = includeDiagnostics
     ? parseExecutionRouteTrace(metrics?.executionRoute)
     : null;
+  const serverTrace = includeDiagnostics
+    ? parseServerTrace(metrics?.serverTrace)
+    : null;
+  const clientTrace = includeDiagnostics
+    ? parseClientTrace(metrics?.clientTrace)
+    : null;
   const model = metrics?.model ?? message.model;
   const executedProfile = model
     ? model === LIGHT_EXECUTION_MODEL_ID
@@ -188,6 +200,8 @@ export function buildTechnicalUsage(
           },
         }
       : {}),
+    ...(serverTrace ? { serverTrace } : {}),
+    ...(clientTrace ? { clientTrace } : {}),
   };
 }
 

@@ -186,6 +186,8 @@ export async function GET(request: Request, { params }: RouteParams) {
             ragUsed: true,
             ragChunksCount: true,
             executionRoute: true,
+            serverTrace: true,
+            clientTrace: true,
           },
         },
         feedback: true,
@@ -329,9 +331,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       updatedAt: chat.updatedAt.toISOString(),
       messages: messagesToReturn.map((m) => {
         const usage = canReceiveTechnicalMetrics
-          ? buildTechnicalUsage(m, {
-              includeDiagnostics: process.env.NODE_ENV === "development",
-            })
+          ? buildTechnicalUsage(m)
           : undefined;
 
         return {

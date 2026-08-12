@@ -206,6 +206,8 @@ async function getSharedChatUncached(
                 ragUsed: true,
                 ragChunksCount: true,
                 executionRoute: true,
+                serverTrace: true,
+                clientTrace: true,
               },
             },
             feedback: true,
@@ -297,8 +299,7 @@ async function getSharedChatUncached(
     const modelComparisonCanonical = isModelComparisonCanonical(m.metadata);
     const usage = canReceiveTechnicalMetrics
       ? buildTechnicalUsage(m, {
-          includeDiagnostics:
-            process.env.NODE_ENV === "development" && !modelComparisonCanonical,
+          includeDiagnostics: !modelComparisonCanonical,
         })
       : undefined;
 
