@@ -59,6 +59,8 @@ export interface InboundContext {
     mode?: "stream" | "text";
     /** Controls diagnostic metadata in UI stream/recovery/replay responses. */
     includeTechnicalMetrics?: boolean;
+    /** Request-scoped profiler shared by setup, generation, and persistence. */
+    traceCollector?: ServerTraceCollector;
     abortSignal?: AbortSignal;
     waitUntil?: (promise: Promise<unknown>) => void;
   };

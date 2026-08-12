@@ -40,6 +40,7 @@ import {
   freezeTurnDecision,
   type TurnDecision,
 } from "@/lib/ai/execution-routing";
+import { createServerTraceCollector } from "@/lib/response-profiler/server-trace";
 import { runChannelFlow } from "./run";
 
 type StreamResponseOptions = {
@@ -189,6 +190,55 @@ describe("channel-flow/run", () => {
         userMessage: "hello",
         routineProposalAllowed: true,
       }),
+    );
+  });
+
+  it("forwards one request trace collector to generation and persistence", async () => {
+    const traceCollector = createServerTraceCollector();
+    mocks.streamChat.mockImplementation(async ({ onFinish }) => {
+      await onFinish?.({
+        text: "answer",
+        metrics: {
+          model: "test-model",
+          inputTokens: 1,
+          outputTokens: 1,
+          reasoningTokens: null,
+          reasoningContent: null,
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0,
+          generationTimeMs: 1,
+          reasoningTimeMs: null,
+        },
+      } as never);
+      return {
+        textStream: (async function* () {
+          yield "answer";
+        })(),
+      };
+    });
+
+    await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: { allowed: true },
+      options: {
+        allowAttachments: false,
+        allowMemoryExtraction: false,
+        allowVoiceOutput: false,
+      },
+      execution: { mode: "text", traceCollector },
+      persistence: { channel: "WEB", saveAssistantMessage: true },
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({ traceCollector }),
+    );
+    expect(mocks.persistAssistantOutput).toHaveBeenCalledWith(
+      expect.objectContaining({ traceCollector }),
     );
   });
 
@@ -2747,6 +2797,8 @@ describe("channel-flow/run", () => {
 
   it("aborts upstream and releases an unreconciled reservation once when the consumer disconnects", async () => {
     const sourceCancel = vi.fn();
+    const traceCollector = createServerTraceCollector();
+    const markCancelled = vi.spyOn(traceCollector, "markCancelled");
     let upstreamSignal: AbortSignal | undefined;
     mocks.reserveAiUsage.mockResolvedValue({
       allowed: true,
@@ -2810,7 +2862,11 @@ describe("channel-flow/run", () => {
         allowMemoryExtraction: true,
         allowVoiceOutput: true,
       },
-      execution: { mode: "stream", abortSignal: requestAbort.signal },
+      execution: {
+        mode: "stream",
+        abortSignal: requestAbort.signal,
+        traceCollector,
+      },
       persistence: {
         channel: "WEB",
         saveAssistantMessage: false,
@@ -2835,6 +2891,8 @@ describe("channel-flow/run", () => {
       userId: "user-1",
     });
     expect(mocks.persistAssistantOutput).not.toHaveBeenCalled();
+    expect(markCancelled).toHaveBeenCalledTimes(1);
+    expect(traceCollector.snapshot("partial").status).toBe("cancelled");
   });
 
   it("waits for the in-flight reservation release when the consumer disconnects", async () => {

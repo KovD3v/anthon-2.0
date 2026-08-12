@@ -102,6 +102,7 @@ import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
+import type { ServerTraceCollector } from "@/lib/response-profiler/server-trace";
 
 const aiLogger = createLogger("ai");
 const MULTIMODAL_ORCHESTRATOR_MODEL_ID = "google/gemini-2.5-flash-lite";
@@ -599,6 +600,7 @@ interface StreamChatOptions {
   routineProposalAllowed?: boolean;
   preparedTurnContext?: PreparedTurnContext;
   benchmarkModelId?: string;
+  traceCollector?: ServerTraceCollector;
   abortSignal?: AbortSignal;
 }
 
@@ -1827,6 +1829,7 @@ export async function streamChat({
   routineProposalAllowed = true,
   preparedTurnContext,
   benchmarkModelId,
+  traceCollector: _traceCollector,
   abortSignal,
 }: StreamChatOptions) {
   // Record start time for performance tracking
