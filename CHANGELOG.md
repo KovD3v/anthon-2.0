@@ -10,6 +10,11 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Added
 
+- Added installable PWA support with an offline fallback page and automatic
+  service-worker registration.
+- Added localhost-only response diagnostics covering end-to-end latency,
+  routing, provider and model selection, token usage, cost, tools, memory, and
+  RAG activity.
 - Added a fail-closed light/standard execution-routing rollout with a unified
   classifier proposal, immutable route traces, shared Web/Telegram/WhatsApp
   kill switch, and a 36-fixture bilingual live evaluation command.
@@ -57,6 +62,11 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Migrated the shared interface primitives from Radix-based shadcn components
+  to Base UI while preserving the existing Anthon component contracts and
+  interaction behavior.
+- Broadened semantic RAG retrieval by lowering the calibrated similarity
+  threshold for relevant knowledge matches.
 - Replaced the legacy RAG fallback classifier with the shared bounded Nemotron
   route, while retaining Gemini Flash Lite for voice suitability after Nemotron
   failed the production-timeout voice smoke gate.
@@ -137,6 +147,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Stabilized turn-classifier latency by disabling provider-side reasoning and
+  allowing the bounded request enough time to complete before failing closed.
 - Hardened light/standard execution routing by failing closed for empty task
   allowlists, preserving route provenance through fallback paths, requiring
   bounded recent context when a light turn depends on it, and ignoring
