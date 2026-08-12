@@ -5,6 +5,74 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { TechnicalMetricsDetails } from "./TechnicalMetricsDetails";
 
+const completeProfilerUsage = {
+  inputTokens: 1_200,
+  outputTokens: 320,
+  reasoningTokens: 48,
+  cost: 0.00314,
+  generationTimeMs: 1_420,
+  model: "deepseek/deepseek-v4-flash-0731",
+  provider: "Together",
+  executedProfile: "standard" as const,
+  serverTrace: {
+    version: 1 as const,
+    status: "completed" as const,
+    totalMs: 1_400,
+    timeToFirstTokenMs: 390,
+    spans: [
+      {
+        id: 1,
+        name: "history" as const,
+        startOffsetMs: 20,
+        durationMs: 180,
+        status: "completed" as const,
+      },
+      {
+        id: 2,
+        name: "user_context" as const,
+        startOffsetMs: 40,
+        durationMs: 170,
+        status: "completed" as const,
+      },
+      {
+        id: 3,
+        name: "model_stream" as const,
+        startOffsetMs: 350,
+        durationMs: 1_000,
+        status: "completed" as const,
+        attributes: {
+          attemptSequence: 1 as const,
+          profile: "standard" as const,
+          model: "deepseek/deepseek-v4-flash-0731",
+          provider: "Together",
+          outcome: "completed" as const,
+        },
+      },
+      {
+        id: 4,
+        name: "assistant_persistence" as const,
+        startOffsetMs: 1_350,
+        durationMs: 50,
+        status: "completed" as const,
+      },
+    ],
+  },
+  clientTrace: {
+    version: 1 as const,
+    status: "completed" as const,
+    milestones: {
+      requestStartedMs: 0 as const,
+      streamOpenedMs: 12,
+      firstChunkReceivedMs: 410,
+      firstTextDeltaReceivedMs: 430,
+      firstDomTextMs: 460,
+      firstVisibleFrameMs: 480,
+      streamCompletedMs: 1_520,
+      persistedMessageResolvedMs: 1_610,
+    },
+  },
+};
+
 describe("TechnicalMetricsDetails", () => {
   it("renders nothing without authorized usage", () => {
     const { container } = render(<TechnicalMetricsDetails usage={undefined} />);
@@ -38,6 +106,74 @@ describe("TechnicalMetricsDetails", () => {
     expect(screen.getByText("Durata: 1,25 s")).toBeTruthy();
     expect(screen.queryByText(/costo/i)).toBeNull();
     expect(screen.queryByText(/rag/i)).toBeNull();
+    expect(screen.getByText("Dati legacy")).toBeTruthy();
+  });
+
+  it("opens and closes the native details control from the keyboard", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <TechnicalMetricsDetails
+        usage={{ inputTokens: 1, outputTokens: 1, cost: 0 }}
+      />,
+    );
+    const details = container.querySelector("details");
+    const summary = container.querySelector("summary");
+
+    await user.tab();
+    expect(document.activeElement).toBe(summary);
+    await user.keyboard("{Enter}");
+    expect(details?.open).toBe(true);
+    await user.keyboard(" ");
+    expect(details?.open).toBe(false);
+  });
+
+  it("renders the complete backend and browser profiler without additive timing claims", () => {
+    const { container } = render(
+      <TechnicalMetricsDetails usage={completeProfilerUsage} />,
+    );
+
+    const root = container.querySelector("details");
+    expect(root?.className).toContain("min-w-0");
+    expect(root?.className).toContain("max-w-full");
+    expect(root?.className).toContain("overflow-hidden");
+    expect(screen.getByText("Traccia completa")).toBeTruthy();
+    expect(screen.getByText("TTFT server")).toBeTruthy();
+    expect(screen.getByText("Primo delta")).toBeTruthy();
+    expect(screen.getByText("Primo testo visibile")).toBeTruthy();
+    expect(screen.getByText("Completamento percepito")).toBeTruthy();
+    expect(screen.getByText("320 token/s")).toBeTruthy();
+    expect(screen.getByText("Timeline backend")).toBeTruthy();
+    expect(screen.getByText("Timeline browser")).toBeTruthy();
+    expect(screen.getByText("Fuori dal backend misurato")).toBeTruthy();
+    expect(screen.queryByText("Latenza di rete")).toBeNull();
+    expect(screen.getByText(/non sono additive/i)).toBeTruthy();
+    expect(screen.getByText("Più lungo misurato")).toBeTruthy();
+    expect(screen.getAllByText(/Completato/).length).toBeGreaterThanOrEqual(4);
+    expect(root?.innerHTML).not.toContain("min-w-[");
+  });
+
+  it("labels partial traces and omits missing browser values instead of inventing zeroes", () => {
+    render(
+      <TechnicalMetricsDetails
+        usage={{
+          inputTokens: 10,
+          outputTokens: 4,
+          cost: 0.0001,
+          serverTrace: {
+            version: 1,
+            status: "partial",
+            totalMs: 80,
+            spans: [],
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Traccia parziale")).toBeTruthy();
+    expect(screen.queryByText("Primo delta")).toBeNull();
+    expect(screen.queryByText("Primo testo visibile")).toBeNull();
+    expect(screen.queryByText("Completamento percepito")).toBeNull();
+    expect(screen.queryByText("0 ms")).toBeNull();
   });
 
   it("opens rich localhost diagnostics and exposes routing, profiler, and context", () => {

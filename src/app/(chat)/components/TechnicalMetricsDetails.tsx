@@ -8,7 +8,11 @@ import {
   Gauge,
   Route,
 } from "lucide-react";
+import { deriveResponseProfilerSummary } from "@/lib/response-profiler/summary";
 import type { Usage } from "@/types/chat";
+import { BrowserTimeline } from "./technical-metrics/BrowserTimeline";
+import { ProfilerSummary } from "./technical-metrics/ProfilerSummary";
+import { ServerTimeline } from "./technical-metrics/ServerTimeline";
 
 interface TechnicalMetricsDetailsProps {
   usage: Usage | undefined;
@@ -74,6 +78,13 @@ function formatBytesFromChars(value: number | undefined) {
   }).format(value / 1000)}k caratteri`;
 }
 
+function toggleDetailsFromKeyboard(event: React.KeyboardEvent<HTMLElement>) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  const details = event.currentTarget.closest("details");
+  if (details) details.open = !details.open;
+}
+
 function MetricValue({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
@@ -111,6 +122,7 @@ export function TechnicalMetricsDetails({
   if (!usage) return null;
 
   const routeTrace = usage.executionRoute;
+  const profilerSummary = deriveResponseProfilerSummary(usage);
   const totalTokens = usage.inputTokens + usage.outputTokens;
   const generationDuration = formatDuration(usage.generationTimeMs);
   const cost = formatCost(usage.cost);
@@ -121,16 +133,24 @@ export function TechnicalMetricsDetails({
       routeTrace ||
       usage.toolTiming ||
       usage.memoryRecall ||
-      usage.ragAttempted !== undefined,
+      usage.ragAttempted !== undefined ||
+      usage.serverTrace ||
+      usage.clientTrace,
   );
 
   if (!hasRichDiagnostics) {
     return (
       <details className="mt-2 min-w-0 max-w-full border-border/50 border-t pt-2 text-xs text-muted-foreground">
-        <summary className="cursor-pointer font-medium text-foreground/80 marker:text-muted-foreground">
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: Native summary control gets a JSDOM-compatible keyboard fallback. */}
+        <summary
+          tabIndex={0}
+          onKeyDown={toggleDetailsFromKeyboard}
+          className="cursor-pointer font-medium text-foreground/80 marker:text-muted-foreground"
+        >
           Dettagli tecnici
         </summary>
         <div className="mt-2 flex min-w-0 max-w-full flex-wrap gap-x-3 gap-y-1 break-words">
+          <span className="font-medium text-foreground">Dati legacy</span>
           <span>{formatCount(totalTokens)} token totali</span>
           <span>{formatCount(usage.inputTokens)} in ingresso</span>
           <span>{formatCount(usage.outputTokens)} in uscita</span>
@@ -186,7 +206,12 @@ export function TechnicalMetricsDetails({
       open={hasRichDiagnostics || undefined}
       className="group/metrics mt-3 min-w-0 max-w-full overflow-hidden rounded-xl border border-border/70 bg-muted/25 text-xs text-muted-foreground open:bg-muted/40"
     >
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-inset [&::-webkit-details-marker]:hidden">
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: Native summary control gets a JSDOM-compatible keyboard fallback. */}
+      <summary
+        tabIndex={0}
+        onKeyDown={toggleDetailsFromKeyboard}
+        className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-inset [&::-webkit-details-marker]:hidden"
+      >
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
           <Activity className="h-3.5 w-3.5" aria-hidden="true" />
         </span>
@@ -208,8 +233,10 @@ export function TechnicalMetricsDetails({
       </summary>
 
       <div className="border-border/60 border-t">
+        <ProfilerSummary usage={usage} summary={profilerSummary} />
+
         {(usage.model || profile || usage.provider || routeTrace) && (
-          <section className="px-3 py-3">
+          <section className="border-border/60 border-t px-3 py-3">
             <SectionTitle icon={Cpu}>Esecuzione</SectionTitle>
             <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
               {usage.model && (
@@ -273,6 +300,14 @@ export function TechnicalMetricsDetails({
             )}
           </section>
         )}
+
+        {usage.serverTrace ? (
+          <ServerTimeline trace={usage.serverTrace} summary={profilerSummary} />
+        ) : null}
+
+        {usage.clientTrace ? (
+          <BrowserTimeline summary={profilerSummary} />
+        ) : null}
 
         {latencyRows.length > 0 && (
           <section className="border-border/60 border-t px-3 py-3">
