@@ -6,6 +6,7 @@ import {
 } from "@/lib/ai/execution-route-trace";
 import { createLogger } from "@/lib/logger";
 import { getPostHogClient } from "@/lib/posthog";
+import type { ClientTraceV1 } from "@/lib/response-profiler/contracts";
 
 const telemetryLogger = createLogger("ai");
 const MAX_LABEL_LENGTH = 128;
@@ -136,6 +137,45 @@ export function captureAiGenerationMetadata({
       {
         errorName: error instanceof Error ? error.name : "unknown",
         traceId: boundedLabel(context.traceId),
+      },
+    );
+  }
+}
+
+export function captureClientTraceStored({
+  distinctId,
+  trace,
+  model,
+  provider,
+  executionRoute,
+}: {
+  distinctId: string;
+  trace: ClientTraceV1;
+  model?: string | null;
+  provider?: string | null;
+  executionRoute?: unknown;
+}) {
+  const route = parseExecutionRouteTrace(executionRoute);
+  try {
+    getPostHogClient().capture({
+      distinctId: boundedLabel(distinctId) ?? "unknown",
+      event: "ai_client_response_trace",
+      properties: {
+        client_trace_status: trace.status,
+        first_delta_ms: trace.milestones.firstTextDeltaReceivedMs,
+        first_visible_ms: trace.milestones.firstVisibleFrameMs,
+        perceived_completion_ms: trace.milestones.streamCompletedMs,
+        model: boundedLabel(model),
+        provider: boundedLabel(provider),
+        executed_profile: route?.executedProfile,
+      },
+    });
+  } catch (error) {
+    telemetryLogger.warn(
+      "ai.telemetry.client_trace_capture_failed",
+      "Failed to capture client response trace summary",
+      {
+        errorName: error instanceof Error ? error.name : "unknown",
       },
     );
   }
