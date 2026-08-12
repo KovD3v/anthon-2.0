@@ -17,7 +17,22 @@ describe("Anthon communication style", () => {
     expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
       "Use punctuation lightly",
     );
-    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain("Default to none");
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
+      "selective but perceptible",
+    );
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain("two or three emoji");
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
+      "💪🏻, ❤️, 💥, 🔥, 🎯, 🤣, or 😂",
+    );
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
+      "one response in six to eight",
+    );
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).not.toContain(
+      "use at most one appropriate emoji",
+    );
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).not.toContain(
+      "do not use emoji in consecutive assistant replies",
+    );
     expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
       "never manufacture typos",
     );
@@ -37,7 +52,7 @@ describe("Anthon communication style", () => {
     expect(instruction).not.toContain("regularly uses emoji");
   });
 
-  it("mirrors repeated emoji use without allowing decoration or repetition", () => {
+  it("mirrors repeated emoji use with a contextual short cluster", () => {
     const instruction = analyzeUserStyle([
       userMessage("Ciao 💪🏻"),
       userMessage("Fatto ✅"),
@@ -45,7 +60,8 @@ describe("Anthon communication style", () => {
     ]);
 
     expect(instruction).toContain("regularly uses emoji");
-    expect(instruction).toContain("at most one");
-    expect(instruction).toContain("without decorative or repeated emoji");
+    expect(instruction).toContain("two or three");
+    expect(instruction).toContain("emotional moment fits");
+    expect(instruction).not.toContain("at most one");
   });
 });

@@ -4562,7 +4562,9 @@ describe("ai/orchestrator", () => {
       "Choose the coaching move before choosing the wording",
     );
     expect(streamInput.instructions).toContain("ANTHON CONVERSATIONAL VOICE");
-    expect(streamInput.instructions).toContain("Emoji are exceptional");
+    expect(streamInput.instructions).toContain(
+      "Emoji are selective but perceptible",
+    );
     expect(streamInput.instructions).toContain("PRODUCT & REFERRAL BOUNDARY");
     expect(streamInput.instructions).toContain(
       "continue supporting the user inside Anthon",

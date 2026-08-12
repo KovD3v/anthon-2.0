@@ -82,6 +82,10 @@ Version numbers describe the application's user-facing behavior and its document
   setbacks, wins, or personal disclosures; ground identity reinforcement and
   future confidence in evidence; reuse memory only when it sharpens the reply;
   and ask a question only when its answer changes the next coaching move.
+- Increased Anthon's contextual emoji expression with emotionally matched
+  clusters for encouragement, connection, achievement, intensity, focus, and
+  genuine playfulness, replacing the previous one-emoji hard cap while keeping
+  ordinary and sober replies undecorated.
 - Refined motion across chat, routines, search, shared popups, navigation, and
   progress indicators with interruptible transitions, compositor-friendly
   transforms, consistent easing, reduced-motion behavior, and steadier focus

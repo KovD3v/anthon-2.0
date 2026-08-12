@@ -81,6 +81,7 @@ describe("light system prompt", () => {
 
     expect(prompt).toContain("natural chat voice");
     expect(prompt).toContain("one short line");
-    expect(prompt).toContain("Default to no emoji");
+    expect(prompt).toContain("short contextual cluster");
+    expect(prompt).not.toContain("Default to no emoji");
   });
 });
