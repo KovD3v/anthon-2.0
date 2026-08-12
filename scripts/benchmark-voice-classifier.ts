@@ -1,45 +1,33 @@
 import { generateText, Output } from "ai";
-import { z } from "zod";
 import { openrouter } from "@/lib/ai/providers/openrouter";
-import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
+import { getOpenRouterProviderOptionsForClassifier } from "@/lib/ai/providers/openrouter-routing";
+import {
+  scoreVoiceClassifier,
+  type VoiceClassifierBenchmarkResult,
+} from "@/lib/benchmark/voice-classifier";
+import type { VoiceSuitability } from "@/lib/voice/decision";
+import { detectVoiceRequestIntent } from "@/lib/voice/policy";
+import { getDeterministicVoiceSuitability } from "@/lib/voice/suitability";
+import {
+  buildVoiceSuitabilityPrompt,
+  type VoiceSuitabilityCategory,
+  type VoiceSuitabilityPromptVariant,
+  voiceSuitabilitySchema,
+} from "@/lib/voice/suitability-prompt";
 
 (globalThis as { AI_SDK_LOG_WARNINGS?: boolean }).AI_SDK_LOG_WARNINGS = false;
 
-const DEFAULT_MODELS = [
-  "mistralai/ministral-3b-2512",
-  "google/gemini-2.5-flash-lite",
-];
+const NEMOTRON_MODEL = "nvidia/nemotron-3.5-lightning";
+const DEFAULT_MODELS = ["google/gemini-2.5-flash-lite", NEMOTRON_MODEL];
 const DEFAULT_RUNS = 100;
 const DEFAULT_TIMEOUT_MS = 1500;
-
-const suitabilitySchema = z.object({
-  category: z.enum([
-    "VOICE_STRONG",
-    "VOICE_NATURAL",
-    "TEXT_PREFERRED",
-    "TEXT_REQUIRED",
-  ]),
-  reason: z.enum([
-    "emotional_support",
-    "brief_motivation",
-    "reflective_coaching",
-    "storytelling",
-    "natural_conversation",
-    "short_factual",
-    "technical_or_structured",
-    "needs_visual_precision",
-    "unclear",
-  ]),
-  confidence: z.number().min(0).max(1),
-});
-
-type Category = z.infer<typeof suitabilitySchema>["category"];
 
 type Scenario = {
   id: string;
   userMessage: string;
   context: string;
-  expected: Category;
+  expected: VoiceSuitabilityCategory;
+  protectedText: boolean;
 };
 
 const scenarios: Scenario[] = [
@@ -48,59 +36,62 @@ const scenarios: Scenario[] = [
     userMessage: "Mi sento in ansia prima della gara, aiutami a calmarmi.",
     context: "assistant: Dimmi cosa senti nel corpo in questo momento.",
     expected: "VOICE_STRONG",
+    protectedText: false,
   },
   {
     id: "motivational_story",
     userMessage: "Raccontami una storia breve per ritrovare motivazione.",
     context: "assistant: Posso raccontarti un episodio sportivo.",
     expected: "VOICE_NATURAL",
+    protectedText: false,
   },
   {
     id: "short_factual",
     userMessage: "Che ore sono a Roma?",
     context: "assistant: Ti rispondo in modo diretto.",
     expected: "TEXT_PREFERRED",
+    protectedText: true,
   },
   {
     id: "structured_table",
     userMessage: "Scrivimi una tabella con serie, ripetizioni e recuperi.",
     context: "assistant: Preparo un piano strutturato.",
     expected: "TEXT_REQUIRED",
+    protectedText: true,
   },
   {
     id: "post_loss_support",
     userMessage: "Ho perso ancora e mi sento completamente bloccato.",
     context: "assistant: Sono qui, affrontiamolo un passo alla volta.",
     expected: "VOICE_STRONG",
+    protectedText: false,
   },
   {
     id: "reflective_coaching",
     userMessage: "Parliamo di cosa ho imparato dall'allenamento di oggi.",
     context: "assistant: Quale momento ti è rimasto più impresso?",
     expected: "VOICE_NATURAL",
+    protectedText: false,
   },
   {
     id: "link_only",
     userMessage: "Dammi solo il link alla pagina ufficiale.",
     context: "assistant: Ho trovato la fonte richiesta.",
     expected: "TEXT_PREFERRED",
+    protectedText: true,
   },
   {
     id: "exact_command",
     userMessage: "Mostrami il comando esatto da eseguire nel terminale.",
     context: "assistant: Serve precisione visiva.",
     expected: "TEXT_REQUIRED",
+    protectedText: true,
   },
 ];
 
-type RunResult = {
+type RunResult = VoiceClassifierBenchmarkResult & {
   model: string;
   scenarioId: string;
-  expected: Category;
-  durationMs: number;
-  success: boolean;
-  correct: boolean;
-  category?: Category;
   errorName?: string;
 };
 
@@ -125,8 +116,18 @@ function readModels(): string[] {
   return models;
 }
 
+function readNemotronVariant(): VoiceSuitabilityPromptVariant {
+  const index = process.argv.indexOf("--nemotron-variant");
+  if (index < 0) return "nemotron_a";
+  const value = process.argv[index + 1];
+  if (value !== "a" && value !== "b") {
+    throw new Error("--nemotron-variant must be a or b");
+  }
+  return value === "a" ? "nemotron_a" : "nemotron_b";
+}
+
 function getProviderOptions(modelId: string) {
-  const providerOptions = getOpenRouterProviderOptionsForModel(modelId);
+  const providerOptions = getOpenRouterProviderOptionsForClassifier(modelId);
   const provider =
     providerOptions.provider && typeof providerOptions.provider === "object"
       ? providerOptions.provider
@@ -137,70 +138,69 @@ function getProviderOptions(modelId: string) {
   };
 }
 
+function getEffectiveCategory(
+  scenario: Scenario,
+  rawCategory?: VoiceSuitabilityCategory,
+): VoiceSuitability {
+  const deterministic = getDeterministicVoiceSuitability({
+    userMessage: scenario.userMessage,
+    requestIntent: detectVoiceRequestIntent(scenario.userMessage),
+  });
+  return deterministic?.category ?? rawCategory ?? "TEXT_PREFERRED";
+}
+
 async function runClassification(
   model: string,
   scenario: Scenario,
   timeoutMs: number,
+  nemotronVariant: VoiceSuitabilityPromptVariant,
 ): Promise<RunResult> {
   const startedAt = performance.now();
   try {
     const result = await generateText({
       model: openrouter(model),
-      output: Output.object({ schema: suitabilitySchema }),
+      output: Output.object({ schema: voiceSuitabilitySchema }),
       temperature: 0,
       maxOutputTokens: 80,
       maxRetries: 0,
       timeout: { totalMs: timeoutMs },
       providerOptions: { openrouter: getProviderOptions(model) },
-      prompt: `Classify the best delivery format for this coaching response.
-
-VOICE_STRONG: emotional support, grounding, motivation, or a moment where tone materially helps.
-VOICE_NATURAL: reflective coaching, storytelling, or natural conversational explanation.
-TEXT_REQUIRED: code, dense data, exact commands, complex tables, or content that must be seen precisely.
-TEXT_PREFERRED: short factual or coordination content where audio adds little value.
-
-Recent conversation:
-${scenario.context}
-
-User: ${scenario.userMessage}
-Assistant response has not been generated yet.`,
+      prompt: buildVoiceSuitabilityPrompt(
+        {
+          recentConversation: scenario.context,
+          userMessage: scenario.userMessage,
+        },
+        model === NEMOTRON_MODEL ? nemotronVariant : "baseline",
+      ),
     });
+    const rawCategory = result.output.category;
     return {
       model,
       scenarioId: scenario.id,
       expected: scenario.expected,
+      protectedText: scenario.protectedText,
       durationMs: performance.now() - startedAt,
-      success: true,
-      correct: result.output.category === scenario.expected,
-      category: result.output.category,
+      rawCategory,
+      effectiveCategory: getEffectiveCategory(scenario, rawCategory),
     };
   } catch (error) {
     return {
       model,
       scenarioId: scenario.id,
       expected: scenario.expected,
+      protectedText: scenario.protectedText,
       durationMs: performance.now() - startedAt,
-      success: false,
-      correct: false,
+      effectiveCategory: getEffectiveCategory(scenario),
       errorName: error instanceof Error ? error.name : "UnknownError",
     };
   }
 }
 
-function percentile(values: number[], quantile: number): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const index = Math.min(
-    sorted.length - 1,
-    Math.ceil(quantile * sorted.length) - 1,
-  );
-  return Math.round(sorted[index] * 10) / 10;
-}
-
 function summarize(model: string, results: RunResult[]) {
   const modelResults = results.filter((result) => result.model === model);
-  const successful = modelResults.filter((result) => result.success);
-  const failures = modelResults.filter((result) => !result.success);
+  const failures = modelResults.filter(
+    (result) => result.rawCategory === undefined,
+  );
   const errorCounts = failures.reduce<Record<string, number>>(
     (counts, result) => {
       const name = result.errorName ?? "UnknownError";
@@ -213,45 +213,33 @@ function summarize(model: string, results: RunResult[]) {
     const matching = modelResults.filter(
       (result) => result.scenarioId === scenario.id,
     );
-    const matchingSuccesses = matching.filter((result) => result.success);
     return {
       id: scenario.id,
       expected: scenario.expected,
+      protectedText: scenario.protectedText,
       attempts: matching.length,
-      successRate: matchingSuccesses.length / matching.length,
-      accuracy: matchingSuccesses.length
-        ? matchingSuccesses.filter((result) => result.correct).length /
-          matchingSuccesses.length
-        : 0,
-      predictions: matching.reduce<Record<string, number>>((counts, result) => {
-        const prediction = result.category ?? "ERROR";
-        counts[prediction] = (counts[prediction] ?? 0) + 1;
-        return counts;
-      }, {}),
+      rawPredictions: matching.reduce<Record<string, number>>(
+        (counts, result) => {
+          const prediction = result.rawCategory ?? "ERROR";
+          counts[prediction] = (counts[prediction] ?? 0) + 1;
+          return counts;
+        },
+        {},
+      ),
+      effectivePredictions: matching.reduce<Record<string, number>>(
+        (counts, result) => {
+          counts[result.effectiveCategory] =
+            (counts[result.effectiveCategory] ?? 0) + 1;
+          return counts;
+        },
+        {},
+      ),
     };
   });
   return {
     model,
-    attempts: modelResults.length,
-    successes: successful.length,
-    successRate: successful.length / modelResults.length,
-    accuracy: successful.length
-      ? successful.filter((result) => result.correct).length / successful.length
-      : 0,
-    latencyMs: {
-      p50: percentile(
-        successful.map((result) => result.durationMs),
-        0.5,
-      ),
-      p95: percentile(
-        successful.map((result) => result.durationMs),
-        0.95,
-      ),
-      p99: percentile(
-        successful.map((result) => result.durationMs),
-        0.99,
-      ),
-    },
+    provider: model === NEMOTRON_MODEL ? "DeepInfra" : "OpenRouter latency",
+    score: scoreVoiceClassifier(modelResults),
     errors: errorCounts,
     scenarios: scenarioResults,
   };
@@ -260,13 +248,16 @@ function summarize(model: string, results: RunResult[]) {
 const runs = readIntegerArg("--runs", DEFAULT_RUNS);
 const timeoutMs = readIntegerArg("--timeout-ms", DEFAULT_TIMEOUT_MS);
 const models = readModels();
+const nemotronVariant = readNemotronVariant();
 const results: RunResult[] = [];
 
 for (let run = 0; run < runs; run += 1) {
   const scenario = scenarios[run % scenarios.length];
   const orderedModels = run % 2 === 0 ? models : [...models].reverse();
   for (const model of orderedModels) {
-    results.push(await runClassification(model, scenario, timeoutMs));
+    results.push(
+      await runClassification(model, scenario, timeoutMs, nemotronVariant),
+    );
   }
 }
 
@@ -278,6 +269,7 @@ console.log(
       runsPerModel: runs,
       timeoutMs,
       syntheticScenarios: scenarios.length,
+      nemotronVariant,
       summaries: models.map((model) => summarize(model, results)),
     },
     null,

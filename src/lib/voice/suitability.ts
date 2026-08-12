@@ -1,11 +1,14 @@
 import { generateText, Output } from "ai";
-import { z } from "zod";
 import { openrouter } from "@/lib/ai/providers/openrouter";
-import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
+import { getOpenRouterProviderOptionsForClassifier } from "@/lib/ai/providers/openrouter-routing";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { createLogger } from "@/lib/logger";
 import type { VoiceSuitabilityHint } from "./decision";
 import type { VoiceRequestIntent } from "./policy";
+import {
+  buildVoiceSuitabilityPrompt,
+  voiceSuitabilitySchema,
+} from "./suitability-prompt";
 
 const voiceLogger = createLogger("voice");
 const DEFAULT_SUITABILITY_MODEL =
@@ -24,27 +27,6 @@ const SHORT_FACTUAL_REQUEST_REGEX =
   /^\s*(?:che\s+or[ae]\s+(?:sono|[èe])(?:\s+(?:a|ad|in)\s+[^?!.]+)?|che\s+giorno\s+(?:[èe]|abbiamo)(?:\s+oggi)?|qual\s*[èe]\s+la\s+data(?:\s+di\s+oggi)?|qual\s*[èe]\s+il\s+punteggio(?:\s+[^?!.]+)?|what\s+time\s+is\s+it(?:\s+in\s+[^?!.]+)?|what(?:'s|\s+is)\s+(?:today'?s\s+)?date|what(?:'s|\s+is)\s+the\s+score(?:\s+[^?!.]+)?)\s*[?!.]?\s*$/i;
 const STRONG_MOMENT_REGEX =
   /\b(ansia|ansioso|panico|paura|stress|calma|calmarmi|respira|respiro|conforto|supporto|motivazione|incoraggia|overwhelm(?:ed|ing)?|anxious|panic|afraid|scared|breathe|breathing|comfort|support|encourag(?:e|ement)|grief|grieving)\b/i;
-
-const suitabilitySchema = z.object({
-  category: z.enum([
-    "VOICE_STRONG",
-    "VOICE_NATURAL",
-    "TEXT_PREFERRED",
-    "TEXT_REQUIRED",
-  ]),
-  reason: z.enum([
-    "emotional_support",
-    "brief_motivation",
-    "reflective_coaching",
-    "storytelling",
-    "natural_conversation",
-    "short_factual",
-    "technical_or_structured",
-    "needs_visual_precision",
-    "unclear",
-  ]),
-  confidence: z.number().min(0).max(1),
-});
 
 export interface DeterministicSuitabilityParams {
   userMessage: string;
@@ -85,7 +67,7 @@ export interface VoiceSuitabilityClassification extends VoiceSuitabilityHint {
 }
 
 function getClassifierProviderOptions(modelId: string) {
-  const providerOptions = getOpenRouterProviderOptionsForModel(modelId);
+  const providerOptions = getOpenRouterProviderOptionsForClassifier(modelId);
   const provider =
     providerOptions.provider && typeof providerOptions.provider === "object"
       ? providerOptions.provider
@@ -313,7 +295,7 @@ export async function classifyVoiceSuitability(
         .join("\n") || "No recent context.";
     const result = await generateText({
       model: openrouter(DEFAULT_SUITABILITY_MODEL),
-      output: Output.object({ schema: suitabilitySchema }),
+      output: Output.object({ schema: voiceSuitabilitySchema }),
       temperature: 0,
       maxOutputTokens: 80,
       maxRetries: 0,
@@ -322,20 +304,16 @@ export async function classifyVoiceSuitability(
       providerOptions: {
         openrouter: getClassifierProviderOptions(DEFAULT_SUITABILITY_MODEL),
       },
-      prompt: `Classify the best delivery format for this coaching response.
-
-VOICE_STRONG: emotional support, grounding, motivation, or a moment where tone materially helps.
-VOICE_NATURAL: reflective coaching, storytelling, or natural conversational explanation.
-TEXT_REQUIRED: code, dense data, exact commands, complex tables, or content that must be seen precisely.
-TEXT_PREFERRED: short factual or coordination content where audio adds little value.
-
-Do not reject voice merely because of one link, light formatting, an attachment, or the absence of emotional keywords. Judge whether spoken delivery improves this conversational moment.
-
-Recent conversation:
-${context}
-
-User: ${params.userMessage}
-${params.assistantText ? `Assistant: ${params.assistantText.slice(0, 700)}` : "Assistant response has not been generated yet."}`,
+      prompt: buildVoiceSuitabilityPrompt(
+        {
+          recentConversation: context,
+          userMessage: params.userMessage,
+          assistantText: params.assistantText,
+        },
+        DEFAULT_SUITABILITY_MODEL === "nvidia/nemotron-3.5-lightning"
+          ? "nemotron_a"
+          : "baseline",
+      ),
     });
     await trackSupportAiUsage({
       userId: params.userId,

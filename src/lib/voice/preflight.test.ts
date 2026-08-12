@@ -215,6 +215,7 @@ describe("voice/preflight", () => {
               require_parameters: true,
               sort: "latency",
             },
+            reasoning: { enabled: false, max_tokens: 1 },
           },
         },
       }),
