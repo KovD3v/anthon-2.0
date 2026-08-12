@@ -294,15 +294,15 @@ describe("ai/rag", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     mocks.queryRawUnsafe.mockResolvedValue([
-      { content: "Above threshold", title: "Doc A", similarity: 0.56 },
-      { content: "At threshold", title: "Doc B", similarity: 0.55 },
+      { content: "Above threshold", title: "Doc A", similarity: 0.41 },
+      { content: "At threshold", title: "Doc B", similarity: 0.4 },
     ]);
 
     const { searchDocuments } = await loadModule();
     const result = await searchDocuments("query text", 5);
 
     expect(result).toEqual([
-      { content: "Above threshold", title: "Doc A", similarity: 0.56 },
+      { content: "Above threshold", title: "Doc A", similarity: 0.41 },
     ]);
   });
 
