@@ -5,6 +5,7 @@ import {
   resolveDeterministicTaskKind,
   TURN_CLASSIFIER_VERSION,
 } from "@/lib/ai/execution-routing";
+import { normalizeClassifierProposalForArbitration } from "@/lib/ai/turn-arbitration";
 import {
   CAPABILITY_CLASSIFIER_MIN_CONFIDENCE,
   type CapabilityClassifierProposal,
@@ -46,7 +47,9 @@ async function evaluateFixture(
     modelId: CLASSIFIER_MODEL_ID,
   });
   const normalization = fixture.normalization;
-  const proposal = classification.proposal;
+  const proposal = normalizeClassifierProposalForArbitration(
+    classification.proposal,
+  );
   const responseMode = normalization?.responseMode ?? "text";
   const capabilities = normalizeCapabilityDecision({
     userMessage: fixture.userMessage,

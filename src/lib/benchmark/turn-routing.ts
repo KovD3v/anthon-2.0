@@ -436,6 +436,7 @@ export function scoreTurnRouting(
     protectedFalseLight,
     passed:
       protectedFalseLight === 0 &&
+      falseStandard <= 2 &&
       validClassifications >= Math.min(35, results.length),
   };
 }

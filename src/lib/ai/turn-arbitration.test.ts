@@ -79,6 +79,59 @@ describe("turn arbitration", () => {
     expect(result.classificationLatencyMs).toBe(25);
   });
 
+  it("discards spurious RAG and memory writes for self-contained transformations", async () => {
+    mocks.classifyTurn.mockResolvedValueOnce({
+      proposal: {
+        ...classifierProposal,
+        capabilities: {
+          ...classifierProposal.capabilities,
+          rag: "yes",
+          memoryWrite: "yes",
+        },
+      },
+      outcome: "accepted",
+      latencyMs: 25,
+    });
+
+    const result = await arbitrateTurn(
+      agenticInput({ userMessage: "Traduci in inglese: Ci sentiamo domani." }),
+    );
+
+    expect(result.decision.capabilities).toMatchObject({
+      rag: false,
+      memoryWrite: false,
+    });
+    expect(result.decision.execution.eligibleProfile).toBe("light");
+  });
+
+  it("preserves classifier capabilities when a transformation needs context", async () => {
+    mocks.classifyTurn.mockResolvedValueOnce({
+      proposal: {
+        ...classifierProposal,
+        capabilities: {
+          ...classifierProposal.capabilities,
+          rag: "yes",
+          memoryWrite: "yes",
+        },
+        workload: {
+          ...classifierProposal.workload,
+          contextDependency: "recent",
+          knowledgeNeed: "conversation",
+        },
+      },
+      outcome: "accepted",
+      latencyMs: 25,
+    });
+
+    const result = await arbitrateTurn(agenticInput());
+
+    expect(result.decision.capabilities).toMatchObject({
+      rag: true,
+      memoryWrite: true,
+    });
+    expect(result.decision.execution.eligibleProfile).toBe("standard");
+  });
+
   it("does not classify legacy turns", async () => {
     const result = await arbitrateTurn(agenticInput({ plannerMode: "legacy" }));
 

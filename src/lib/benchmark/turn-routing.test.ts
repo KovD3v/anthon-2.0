@@ -73,6 +73,21 @@ describe("turn routing benchmark", () => {
     expect(scoreTurnRouting(results).passed).toBe(false);
   });
 
+  it("fails the live gate when more than two eligible light turns fall back to standard", () => {
+    const results = expectedResults();
+    const lightResults = results.filter(
+      ({ fixture }) => fixture.expectedProfile === "light",
+    );
+    for (const result of lightResults.slice(0, 3)) {
+      result.actualProfile = "standard";
+    }
+
+    expect(scoreTurnRouting(results)).toMatchObject({
+      falseStandard: 3,
+      passed: false,
+    });
+  });
+
   it("scores a complete expected run with no route or task-kind errors", () => {
     expect(scoreTurnRouting(expectedResults())).toMatchObject({
       total: 36,

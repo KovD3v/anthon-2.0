@@ -16,7 +16,16 @@ import {
   type CapabilityClassifierProposal,
   classifyTurn,
   type TurnClassificationResult,
+  type TurnClassifierProposal,
 } from "./turn-classification";
+
+const SELF_CONTAINED_TRANSFORM_TASKS = new Set([
+  "rewrite",
+  "translate",
+  "format",
+  "extract",
+  "summarize_supplied",
+]);
 
 export type TurnArbitrationInput = Omit<
   CapabilityArbitrationInput,
@@ -59,6 +68,37 @@ function toCapabilityClassifierAdapter(
   ) as Partial<CapabilityDecision>;
 }
 
+export function normalizeClassifierProposalForArbitration(
+  proposal: TurnClassifierProposal | null,
+): TurnClassifierProposal | null {
+  if (
+    !proposal ||
+    !SELF_CONTAINED_TRANSFORM_TASKS.has(proposal.workload.taskKind) ||
+    proposal.workload.contextDependency !== "none" ||
+    proposal.workload.knowledgeNeed !== "supplied_only" ||
+    proposal.workload.reasoningDepth !== "minimal" ||
+    proposal.workload.sensitivity !== "ordinary"
+  ) {
+    return proposal;
+  }
+
+  if (
+    proposal.capabilities.rag === "no" &&
+    proposal.capabilities.memoryWrite === "no"
+  ) {
+    return proposal;
+  }
+
+  return {
+    ...proposal,
+    capabilities: {
+      ...proposal.capabilities,
+      rag: "no",
+      memoryWrite: "no",
+    },
+  };
+}
+
 function legacyClassification(): TurnClassificationResult {
   return {
     proposal: null,
@@ -88,7 +128,9 @@ export async function arbitrateTurn(
     throw error;
   }
 
-  const proposal = classification.proposal;
+  const proposal = normalizeClassifierProposalForArbitration(
+    classification.proposal,
+  );
   const capabilities = normalizeCapabilityDecision({
     userMessage: input.userMessage,
     isGuest: input.isGuest,
