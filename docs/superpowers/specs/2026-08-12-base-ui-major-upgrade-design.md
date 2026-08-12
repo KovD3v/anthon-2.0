@@ -23,7 +23,7 @@ backend-only major dependencies, or adopt AI Elements.
 
 ## Chosen direction
 
-Configure shadcn for the Base UI-backed `base-nova` family, then use the
+Configure shadcn for the Base UI-backed `base-luma` family, then use the
 generated Base UI variants as implementation references rather than blindly
 overwriting the repository's customized components. Preserve Anthon's existing
 semantic tokens, dimensions, variants, focus treatment, motion curves, dark
