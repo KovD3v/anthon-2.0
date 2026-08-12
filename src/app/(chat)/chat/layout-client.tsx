@@ -348,7 +348,7 @@ function SidebarContents({
         <SidebarHeader onCollapse={onClose} />
       </div>
       <div
-        className="min-h-0 flex-1 overflow-hidden"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
         data-testid="sidebar-chat-list"
       >
         <ChatList

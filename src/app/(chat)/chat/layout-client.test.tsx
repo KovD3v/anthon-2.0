@@ -758,6 +758,8 @@ describe("routine sidebar collection context", () => {
     const chats = screen.getByTestId("sidebar-chat-list");
     const shelf = screen.getByTestId("routine-sidebar-shelf");
     const profile = screen.getByTestId("sidebar-profile");
+    expect(chats.className).toContain("flex");
+    expect(chats.className).toContain("flex-col");
     expect(chats.className).toContain("min-h-0");
     expect(shelf.className).toContain("shrink-0");
     expect(
