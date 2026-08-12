@@ -138,31 +138,31 @@ export function SidebarBottom() {
             id="account-navigation-menu"
             role="menu"
             aria-label="Navigazione account"
-            className="absolute bottom-full left-0 mb-2 w-[calc(100%-16px)] mx-2 origin-bottom-left overflow-hidden rounded-xl border border-border dark:border-white/20 bg-background/95 dark:bg-black/60 backdrop-blur-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10"
+            className="absolute right-2 bottom-full left-2 z-50 mb-2 origin-bottom overflow-hidden rounded-xl border border-border/80 bg-popover text-popover-foreground dark:border-white/15"
           >
-            <div className="flex flex-col p-1">
+            <div className="flex flex-col p-1.5">
               {menuItems.map((item) => (
                 <button
                   type="button"
                   key={item.label}
                   onClick={() => handleAction(item.onClick)}
                   role="menuitem"
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-primary/10 hover:text-primary active:bg-primary/20"
+                  className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-foreground/80 outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:bg-accent/80 motion-reduce:transition-none"
                 >
-                  <item.icon className="h-4 w-4" />
+                  <item.icon className="size-[1.125rem] shrink-0" />
                   {item.label}
                 </button>
               ))}
-              <div className="my-1 h-px bg-border/50" />
+              <div className="mx-2 my-1 h-px bg-border/70" />
               <button
                 type="button"
                 onClick={() =>
                   handleAction(() => signOut({ redirectUrl: "/" }))
                 }
                 role="menuitem"
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive active:bg-destructive/20"
+                className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-destructive outline-none transition-colors hover:bg-destructive/10 focus-visible:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-inset active:bg-destructive/20 motion-reduce:transition-none"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="size-[1.125rem] shrink-0" />
                 Esci
               </button>
             </div>
@@ -170,23 +170,25 @@ export function SidebarBottom() {
         )}
       </AnimatePresence>
 
-      <div className="border-t border-border/50 dark:border-white/10 bg-background/80 dark:bg-background/40 backdrop-blur-md p-3">
+      <div className="border-t border-border/50 bg-background/80 px-3 py-2 backdrop-blur-md dark:border-white/10 dark:bg-background/40">
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
           aria-haspopup="menu"
           aria-expanded={isOpen}
           aria-controls="account-navigation-menu"
-          aria-label="Apri navigazione account"
-          className="group flex w-full items-center gap-2 rounded-xl bg-background/50 p-2.5 transition-[background-color,box-shadow,transform] hover:bg-background/80 hover:shadow-sm active:scale-[0.98]"
+          aria-label={isOpen ? "Chiudi menu account" : "Apri menu account"}
+          className={`group flex min-h-14 w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left outline-none transition-[background-color,transform] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:scale-[0.98] motion-reduce:transition-[background-color] motion-reduce:active:scale-100 ${
+            isOpen ? "bg-accent" : "bg-transparent"
+          }`}
         >
-          <div className="relative h-9 w-9 overflow-hidden rounded-full bg-linear-to-br from-primary/20 to-primary/10 ring-2 ring-border dark:ring-white/20 transition-[--tw-ring-color] group-hover:ring-primary/20">
+          <div className="relative size-10 shrink-0 overflow-hidden rounded-full bg-primary/10 ring-1 ring-border/80 transition-[--tw-ring-color] group-hover:ring-primary/30 dark:ring-white/15">
             {user?.imageUrl ? (
               <Image
                 src={user.imageUrl}
                 alt={user.fullName || "Utente"}
                 fill
-                sizes="36px"
+                sizes="40px"
                 className="object-cover"
               />
             ) : (
@@ -196,18 +198,18 @@ export function SidebarBottom() {
             )}
           </div>
 
-          <div className="flex flex-1 flex-col items-start overflow-hidden">
-            <span className="truncate text-sm font-semibold text-foreground/90">
+          <div className="flex min-w-0 flex-1 flex-col items-start">
+            <span className="w-full truncate text-sm font-semibold leading-5 text-foreground">
               {user?.fullName || "Utente"}
             </span>
-            <span className="truncate text-xs text-muted-foreground/80">
+            <span className="w-full truncate text-xs leading-4 text-muted-foreground">
               {user?.emailAddresses?.[0]?.emailAddress ||
                 "Email non disponibile"}
             </span>
           </div>
 
           <ChevronUp
-            className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
+            className={`size-4 shrink-0 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none ${
               isOpen ? "rotate-180" : ""
             }`}
           />
