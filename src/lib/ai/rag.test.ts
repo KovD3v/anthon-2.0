@@ -418,6 +418,35 @@ describe("ai/rag", () => {
     expect(mocks.queryRawUnsafe).not.toHaveBeenCalled();
   });
 
+  it("does not query the vector store when the embedding provider rejects the request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { searchDocuments } = await loadModule();
+    const result = await searchDocuments("query text", 5);
+
+    expect(result).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mocks.queryRawUnsafe).not.toHaveBeenCalled();
+  });
+
+  it("does not call the embedding provider for a blank search query", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { searchDocuments } = await loadModule();
+    const result = await searchDocuments("   ", 5);
+
+    expect(result).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mocks.queryRawUnsafe).not.toHaveBeenCalled();
+  });
+
   it("getRagContext formats search results for prompt injection", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
@@ -439,6 +468,36 @@ describe("ai/rag", () => {
     expect(context.text).toContain("**Doc X**");
     expect(context.text).toContain("Chunk content");
     expect(context.chunkCount).toBe(1);
+  });
+
+  it("getRagContext injects all accepted chunks in vector-search order", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ embedding: embeddingVector(0.7, 0.8) }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.queryRawUnsafe.mockResolvedValue([
+      { content: "First chunk", title: "Doc A", similarity: 0.61 },
+      { content: "Boundary chunk", title: "Doc B", similarity: 0.38 },
+      { content: "Second chunk", title: "Doc C", similarity: 0.42 },
+    ]);
+
+    const { getRagContext } = await loadModule();
+    const context = await getRagContext("topic");
+
+    expect(context.chunkCount).toBe(2);
+    expect(context.text).toContain("**Doc A**");
+    expect(context.text).toContain("First chunk");
+    expect(context.text).toContain("**Doc C**");
+    expect(context.text).toContain("Second chunk");
+    expect(context.text).not.toContain("Boundary chunk");
+    expect(context.text.indexOf("**Doc A**")).toBeLessThan(
+      context.text.indexOf("**Doc C**"),
+    );
   });
 
   it("getRagContext marks database failures without exposing diagnostics", async () => {
