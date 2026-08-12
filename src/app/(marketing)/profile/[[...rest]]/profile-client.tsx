@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { CoachingContextSection } from "../components/CoachingContextSection";
 import { PreferencesSection } from "../components/PreferencesSection";
+import { UsageSection } from "../components/UsageSection";
 
 export function ProfileClient() {
   const router = useRouter();
@@ -59,6 +60,8 @@ export function ProfileClient() {
             }}
           />
         </div>
+
+        <UsageSection />
 
         {/* Preferences Section */}
         <PreferencesSection />
