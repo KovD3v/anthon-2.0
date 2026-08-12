@@ -378,6 +378,66 @@ describe("ai/rag", () => {
     ]);
   });
 
+  it("keeps the production-calibrated match at 0.3834 and rejects the 0.3768 candidate", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ embedding: embeddingVector(0.1, 0.2) }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.queryRawUnsafe.mockResolvedValue([
+      {
+        content: "Production-calibrated accepted match",
+        title: "Doc A",
+        similarity: 0.3834,
+      },
+      {
+        content: "Production-calibrated rejected candidate",
+        title: "Doc B",
+        similarity: 0.3768,
+      },
+    ]);
+
+    const { searchDocuments } = await loadModule();
+    const result = await searchDocuments("Ho ansia di perdere la palla", 5);
+
+    expect(result).toEqual([
+      {
+        content: "Production-calibrated accepted match",
+        title: "Doc A",
+        similarity: 0.3834,
+      },
+    ]);
+  });
+
+  it("rejects matches that would have passed the previous 0.35 calibration", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ embedding: embeddingVector(0.1, 0.2) }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.queryRawUnsafe.mockResolvedValue([
+      { content: "Former threshold match", title: "Doc A", similarity: 0.3799 },
+      { content: "Former threshold match", title: "Doc B", similarity: 0.36 },
+      { content: "Former threshold match", title: "Doc C", similarity: 0.35 },
+    ]);
+
+    const { searchDocuments } = await loadModule();
+    const result = await searchDocuments(
+      "Vomito spesso prima della partita",
+      5,
+    );
+
+    expect(result).toEqual([]);
+  });
+
   it("reports an empty but successful retrieval when every match is at the threshold", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
