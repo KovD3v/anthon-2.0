@@ -68,7 +68,7 @@ interface CadenceHistory {
   voiceCountInPlanWindow: number;
   voiceCountLastHour: number;
   turnsSinceAudio: number;
-  millisecondsSinceAudio: number;
+  millisecondsSinceAudio: number | null;
   consecutiveAudio: number;
 }
 
@@ -169,7 +169,7 @@ async function getCadenceHistory(
     turnsSinceAudio: lastAudioIndex < 0 ? messages.length : lastAudioIndex,
     millisecondsSinceAudio: lastAudio
       ? Math.max(0, now.getTime() - lastAudio.createdAt.getTime())
-      : Number.POSITIVE_INFINITY,
+      : null,
     consecutiveAudio: consecutiveAudio < 0 ? messages.length : consecutiveAudio,
   };
 }
@@ -329,10 +329,10 @@ export async function decideVoiceDelivery(
     category === "VOICE_STRONG"
       ? params.planConfig.cadence.strongCooldownMs
       : params.planConfig.cadence.naturalCooldownMs;
-  if (
-    history.turnsSinceAudio < minTurns &&
-    history.millisecondsSinceAudio < cooldownMs
-  ) {
+  const timeCooldownElapsed =
+    history.millisecondsSinceAudio !== null &&
+    history.millisecondsSinceAudio >= cooldownMs;
+  if (history.turnsSinceAudio < minTurns && !timeCooldownElapsed) {
     return result(false, category, capacityState, "CADENCE_COOLDOWN", false);
   }
 

@@ -68,6 +68,18 @@ function baseParams() {
   };
 }
 
+function allowAutomaticVoiceCadence() {
+  mocks.messageFindMany.mockResolvedValue(
+    Array.from(
+      { length: enabledPlanConfig.cadence.naturalMinTurns },
+      (_, index) => ({
+        type: "TEXT",
+        createdAt: new Date(Date.now() - index * 60_000),
+      }),
+    ),
+  );
+}
+
 describe("voice/funnel", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -164,6 +176,8 @@ describe("voice/funnel", () => {
   });
 
   it("uses a deterministic strong-moment fast path", async () => {
+    allowAutomaticVoiceCadence();
+
     const result = await shouldGenerateVoice({
       ...baseParams(),
       userMessage: "I feel anxious and overwhelmed before tomorrow",
@@ -178,6 +192,8 @@ describe("voice/funnel", () => {
   });
 
   it("suppresses natural audio, but not strong audio, in yellow capacity", async () => {
+    allowAutomaticVoiceCadence();
+
     const natural = await shouldGenerateVoice({
       ...baseParams(),
       systemLoad: 0.2,

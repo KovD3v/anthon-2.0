@@ -64,6 +64,18 @@ function baseParams() {
   };
 }
 
+function allowAutomaticVoiceCadence() {
+  mocks.messageFindMany.mockResolvedValue(
+    Array.from(
+      { length: enabledPlanConfig.cadence.naturalMinTurns },
+      (_, index) => ({
+        type: "TEXT",
+        createdAt: new Date(Date.now() - index * 60_000),
+      }),
+    ),
+  );
+}
+
 describe("voice/preflight", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -187,6 +199,7 @@ describe("voice/preflight", () => {
   });
 
   it("classifies ordinary conversation without requiring keywords", async () => {
+    allowAutomaticVoiceCadence();
     const abortController = new AbortController();
     const result = await decideWebVoiceMode({
       ...baseParams(),
@@ -220,6 +233,17 @@ describe("voice/preflight", () => {
         },
       }),
     );
+  });
+
+  it("does not start a new web chat with unsolicited audio", async () => {
+    const result = await decideWebVoiceMode(baseParams());
+
+    expect(result).toMatchObject({
+      mode: "TEXT",
+      category: "VOICE_NATURAL",
+      reasonCode: "CADENCE_COOLDOWN",
+      source: "classifier",
+    });
   });
 
   it("propagates request cancellation instead of treating it as a classifier fallback", async () => {
@@ -356,6 +380,7 @@ describe("voice/preflight", () => {
 
   it("allows strong moments but suppresses natural audio in yellow state", async () => {
     mocks.getSystemLoad.mockResolvedValue(0.2);
+    allowAutomaticVoiceCadence();
 
     const natural = await decideWebVoiceMode(baseParams());
     const strong = await decideWebVoiceMode({

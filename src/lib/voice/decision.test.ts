@@ -142,6 +142,27 @@ describe("voice/decision", () => {
     expect(allowedByTime.reason.code).toBe("NATURAL_MOMENT");
   });
 
+  it("does not start a new chat with unsolicited audio", async () => {
+    const decision = await decideVoiceDelivery(baseParams());
+
+    expect(decision.shouldGenerateVoice).toBe(false);
+    expect(decision.reason.code).toBe("CADENCE_COOLDOWN");
+  });
+
+  it("allows automatic audio after enough text-only turns", async () => {
+    mocks.messageFindMany.mockResolvedValue(
+      Array.from({ length: config.cadence.naturalMinTurns }, (_, index) => ({
+        type: "TEXT",
+        createdAt: new Date(now.getTime() - index * 60_000),
+      })),
+    );
+
+    const decision = await decideVoiceDelivery(baseParams());
+
+    expect(decision.shouldGenerateVoice).toBe(true);
+    expect(decision.reason.code).toBe("NATURAL_MOMENT");
+  });
+
   it("uses the shorter strong cadence without allowing back-to-back audio", async () => {
     const strongParams = {
       ...baseParams(),
