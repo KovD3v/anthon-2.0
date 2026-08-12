@@ -1733,7 +1733,9 @@ describe("ai/orchestrator", () => {
     expect(prepared.promptMode).toBe("full");
     expect(prepared.systemPrompt).toContain("MENTAL COACHING SCOPE");
     expect(prepared.systemPrompt).toContain("ANTHON CONVERSATIONAL VOICE");
-    expect(prepared.systemPrompt).toContain("Emoji are exceptional");
+    expect(prepared.systemPrompt).toContain(
+      "Emoji are selective but perceptible",
+    );
     expect(prepared.systemPrompt).toContain(
       "first explore how it may connect to the performance situation",
     );
