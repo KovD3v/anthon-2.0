@@ -16,17 +16,22 @@ function expectedResults(): TurnRoutingResult[] {
 }
 
 describe("turn routing benchmark", () => {
-  it("covers exactly 36 bilingual expected routing outcomes", () => {
-    expect(TURN_ROUTING_FIXTURES).toHaveLength(36);
+  it("covers exactly 60 bilingual expected routing outcomes", () => {
+    expect(TURN_ROUTING_FIXTURES).toHaveLength(60);
     expect(
       TURN_ROUTING_FIXTURES.filter(({ language }) => language === "it"),
-    ).toHaveLength(18);
+    ).toHaveLength(30);
     expect(
       TURN_ROUTING_FIXTURES.filter(({ language }) => language === "en"),
-    ).toHaveLength(18);
+    ).toHaveLength(30);
     expect(
       TURN_ROUTING_FIXTURES.filter(
         ({ protectedStandard }) => protectedStandard,
+      ),
+    ).toHaveLength(36);
+    expect(
+      TURN_ROUTING_FIXTURES.filter(
+        ({ expectedProfile }) => expectedProfile === "light",
       ),
     ).toHaveLength(24);
   });
@@ -55,7 +60,7 @@ describe("turn routing benchmark", () => {
   });
 
   it.each(["failed", "invalid"] as const)(
-    "allows one conservative %s fallback when the other 35 classifications are valid",
+    "allows one conservative %s fallback when all other classifications are valid",
     (outcome) => {
       const results = expectedResults();
       results[0] = { ...results[0], outcome };
@@ -64,7 +69,7 @@ describe("turn routing benchmark", () => {
     },
   );
 
-  it("fails the live gate below 35 valid classifications", () => {
+  it("fails the live gate when two classifications are invalid", () => {
     const results = expectedResults();
     results[0] = { ...results[0], outcome: "failed" };
     results[1] = { ...results[1], outcome: "invalid" };
@@ -106,11 +111,12 @@ describe("turn routing benchmark", () => {
 
   it("scores a complete expected run with no route or task-kind errors", () => {
     expect(scoreTurnRouting(expectedResults())).toMatchObject({
-      total: 36,
-      correct: 36,
+      total: 60,
+      correct: 60,
+      profileCorrect: 60,
       falseLight: 0,
       falseStandard: 0,
-      taskKindCorrect: 36,
+      taskKindCorrect: 60,
       passed: true,
     });
   });
@@ -125,11 +131,12 @@ describe("turn routing benchmark", () => {
     protectedResult.actualProfile = "light";
 
     expect(scoreTurnRouting(results)).toMatchObject({
-      total: 36,
-      correct: 35,
+      total: 60,
+      correct: 59,
+      profileCorrect: 59,
       falseLight: 1,
       falseStandard: 0,
-      taskKindCorrect: 36,
+      taskKindCorrect: 60,
       protectedFalseLight: 1,
       passed: false,
     });

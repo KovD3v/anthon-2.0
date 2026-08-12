@@ -32,6 +32,7 @@ export type TurnRoutingResult = {
 export type TurnRoutingScore = {
   total: number;
   correct: number;
+  profileCorrect: number;
   falseLight: number;
   falseStandard: number;
   taskKindCorrect: number;
@@ -222,6 +223,124 @@ export const TURN_ROUTING_FIXTURES = [
     normalization: { requestedOutputTokens: 601 },
   },
   {
+    id: "it-social-thanks",
+    language: "it",
+    userMessage: "Grazie, mi sei stato utile.",
+    context: "",
+    expectedProfile: "light",
+    expectedTaskKind: "social",
+    protectedStandard: LIGHT,
+  },
+  {
+    id: "it-rewrite-natural",
+    language: "it",
+    userMessage: "Rendi più naturale: Domani non riesco a venire.",
+    context: "",
+    expectedProfile: "light",
+    expectedTaskKind: "rewrite",
+    protectedStandard: LIGHT,
+  },
+  {
+    id: "it-translate-spanish",
+    language: "it",
+    userMessage: "Traduci in spagnolo: In bocca al lupo.",
+    context: "",
+    expectedProfile: "light",
+    expectedTaskKind: "translate",
+    protectedStandard: LIGHT,
+  },
+  {
+    id: "it-format-checklist",
+    language: "it",
+    userMessage:
+      "Metti in checklist: comprare il pane, chiamare Luca, fare una passeggiata.",
+    context: "",
+    expectedProfile: "light",
+    expectedTaskKind: "format",
+    protectedStandard: LIGHT,
+  },
+  {
+    id: "it-extract-person",
+    language: "it",
+    userMessage: "Estrai il nome da: appuntamento con Giulia alle 15.",
+    context: "",
+    expectedProfile: "light",
+    expectedTaskKind: "extract",
+    protectedStandard: LIGHT,
+  },
+  {
+    id: "it-summarize-short",
+    language: "it",
+    userMessage:
+      "Riassumi in una frase: Ho finito il lavoro e ho spento il computer.",
+    context: "",
+    expectedProfile: "light",
+    expectedTaskKind: "summarize_supplied",
+    protectedStandard: LIGHT,
+  },
+  {
+    id: "it-coaching-guilt",
+    language: "it",
+    userMessage:
+      "Mi sento in colpa quando salto un allenamento: come posso gestirlo?",
+    context: "",
+    expectedProfile: "standard",
+    expectedTaskKind: "coaching",
+    protectedStandard: PROTECTED,
+    normalization: { hasDeterministicCoachingIntent: true },
+  },
+  {
+    id: "it-planning-presentation",
+    language: "it",
+    userMessage:
+      "Proponimi una sequenza di passi per preparare una presentazione.",
+    context: "",
+    expectedProfile: "standard",
+    expectedTaskKind: "planning",
+    protectedStandard: PROTECTED,
+  },
+  {
+    id: "it-current-weather",
+    language: "it",
+    userMessage: "Che tempo farà domani a Milano?",
+    context: "",
+    expectedProfile: "standard",
+    expectedTaskKind: "knowledge",
+    protectedStandard: PROTECTED,
+    normalization: {
+      explicitWebRule: "required",
+      requiresExternalKnowledge: true,
+    },
+  },
+  {
+    id: "it-memory-write",
+    language: "it",
+    userMessage: "Ricorda che preferisco allenarmi al mattino.",
+    context: "",
+    expectedProfile: "standard",
+    expectedTaskKind: "other",
+    protectedStandard: PROTECTED,
+  },
+  {
+    id: "it-document-search",
+    language: "it",
+    userMessage: "Cerca nei miei documenti la parola respirazione.",
+    context: "",
+    expectedProfile: "standard",
+    expectedTaskKind: "knowledge",
+    protectedStandard: PROTECTED,
+  },
+  {
+    id: "it-voice-short",
+    language: "it",
+    userMessage: "Mandami una risposta vocale breve.",
+    context: "",
+    expectedProfile: "standard",
+    expectedTaskKind: "other",
+    protectedStandard: PROTECTED,
+    normalization: { responseMode: "voice" },
+  },
+  {
     id: "en-social-greeting",
     language: "en",
     userMessage: "Hi! How are you?",
@@ -398,6 +517,121 @@ export const TURN_ROUTING_FIXTURES = [
     protectedStandard: PROTECTED,
     normalization: { estimatedInputTokens: 8_001 },
   },
+  {
+    id: "en-social-thanks",
+    language: "en",
+    userMessage: "Thanks, that helped.",
+    context: "",
+    expectedProfile: "light",
+    expectedTaskKind: "social",
+    protectedStandard: LIGHT,
+  },
+  {
+    id: "en-rewrite-natural",
+    language: "en",
+    userMessage: "Make this more natural: I cannot make it tomorrow.",
+    context: "",
+    expectedProfile: "light",
+    expectedTaskKind: "rewrite",
+    protectedStandard: LIGHT,
+  },
+  {
+    id: "en-translate-spanish",
+    language: "en",
+    userMessage: "Translate into Spanish: Good luck.",
+    context: "",
+    expectedProfile: "light",
+    expectedTaskKind: "translate",
+    protectedStandard: LIGHT,
+  },
+  {
+    id: "en-format-checklist",
+    language: "en",
+    userMessage: "Turn into a checklist: buy bread, call Luca, take a walk.",
+    context: "",
+    expectedProfile: "light",
+    expectedTaskKind: "format",
+    protectedStandard: LIGHT,
+  },
+  {
+    id: "en-extract-person",
+    language: "en",
+    userMessage: "Extract the name from: appointment with Julia at 3 PM.",
+    context: "",
+    expectedProfile: "light",
+    expectedTaskKind: "extract",
+    protectedStandard: LIGHT,
+  },
+  {
+    id: "en-summarize-short",
+    language: "en",
+    userMessage:
+      "Summarize in one sentence: I finished work and shut down the computer.",
+    context: "",
+    expectedProfile: "light",
+    expectedTaskKind: "summarize_supplied",
+    protectedStandard: LIGHT,
+  },
+  {
+    id: "en-coaching-guilt",
+    language: "en",
+    userMessage: "I feel guilty when I skip training; how can I handle it?",
+    context: "",
+    expectedProfile: "standard",
+    expectedTaskKind: "coaching",
+    protectedStandard: PROTECTED,
+    normalization: { hasDeterministicCoachingIntent: true },
+  },
+  {
+    id: "en-planning-presentation",
+    language: "en",
+    userMessage: "Propose a sequence of steps to prepare a presentation.",
+    context: "",
+    expectedProfile: "standard",
+    expectedTaskKind: "planning",
+    protectedStandard: PROTECTED,
+  },
+  {
+    id: "en-current-weather",
+    language: "en",
+    userMessage: "What will the weather be tomorrow in Milan?",
+    context: "",
+    expectedProfile: "standard",
+    expectedTaskKind: "knowledge",
+    protectedStandard: PROTECTED,
+    normalization: {
+      explicitWebRule: "required",
+      requiresExternalKnowledge: true,
+    },
+  },
+  {
+    id: "en-memory-write",
+    language: "en",
+    userMessage: "Remember that I prefer to train in the morning.",
+    context: "",
+    expectedProfile: "standard",
+    expectedTaskKind: "other",
+    protectedStandard: PROTECTED,
+  },
+  {
+    id: "en-document-search",
+    language: "en",
+    userMessage: "Search my documents for the word breathing.",
+    context: "",
+    expectedProfile: "standard",
+    expectedTaskKind: "knowledge",
+    protectedStandard: PROTECTED,
+  },
+  {
+    id: "en-voice-short",
+    language: "en",
+    userMessage: "Send me a short voice reply.",
+    context: "",
+    expectedProfile: "standard",
+    expectedTaskKind: "other",
+    protectedStandard: PROTECTED,
+    normalization: { responseMode: "voice" },
+  },
 ] as const satisfies readonly TurnRoutingFixture[];
 
 export function scoreTurnRouting(
@@ -430,6 +664,9 @@ export function scoreTurnRouting(
         actualProfile === fixture.expectedProfile &&
         actualTaskKind === fixture.expectedTaskKind,
     ).length,
+    profileCorrect: results.filter(
+      ({ fixture, actualProfile }) => actualProfile === fixture.expectedProfile,
+    ).length,
     falseLight,
     falseStandard,
     taskKindCorrect,
@@ -437,7 +674,8 @@ export function scoreTurnRouting(
     passed:
       protectedFalseLight === 0 &&
       falseStandard <= 2 &&
-      validClassifications >= Math.min(35, results.length),
+      results.length > 0 &&
+      validClassifications >= results.length - 1,
   };
 }
 

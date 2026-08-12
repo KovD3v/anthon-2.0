@@ -207,7 +207,7 @@ bun run start
 | `bun run test:coverage:integration` | Run integration coverage |
 | `bun run test:coverage` | Run unit + integration coverage |
 | `bun run test:all` | Run unit and integration coverage once each |
-| `bun run eval:turn-routing` | Run the live 36-fixture classifier evaluation; the gate requires at least 35 valid classifications and zero protected false-light cases (requires `OPENROUTER_API_KEY`; no database or PostHog writes) |
+| `bun run eval:turn-routing` | Run the live 60-fixture classifier evaluation; the gate allows at most one transient classifier failure, zero protected false-light cases, and at most two false-standard light cases (requires `OPENROUTER_API_KEY`; no database or PostHog writes) |
 | `bun run test:watch` | Run tests in watch mode |
 | `bun run test:ui` | Run tests with Vitest UI |
 
