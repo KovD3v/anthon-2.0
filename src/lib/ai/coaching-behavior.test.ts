@@ -32,10 +32,22 @@ describe("Anthon coaching behavior", () => {
       "often 2 to 6 short spoken lines",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
-      "A question is a coaching move, not a closing ritual",
+      "Questions are coaching moves, not a closing ritual",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
       "Do not imitate separate message bursts",
+    );
+  });
+
+  it("groups related discovery questions instead of drip-feeding them", () => {
+    expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
+      "ask them together in one compact question block",
+    );
+    expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
+      "Do not drip-feed one question per turn",
+    );
+    expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
+      "If only one missing fact matters, ask one question",
     );
   });
 

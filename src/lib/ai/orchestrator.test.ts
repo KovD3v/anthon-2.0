@@ -1686,13 +1686,19 @@ describe("ai/orchestrator", () => {
       "First decide whether you have enough context",
     );
     expect(prepared.systemPrompt).toContain(
-      "Do not suppress a useful clarifying question merely to be concise",
+      "Do not suppress useful clarifying questions merely to be concise",
     );
     expect(prepared.systemPrompt).toContain(
       "Treat the user's latest identity or factual correction as authoritative",
     );
     expect(prepared.systemPrompt).toContain(
-      "give a small useful observation or principle, then ask one high-value clarifying question",
+      "ask them together in one compact question block",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "Do not drip-feed one question per turn",
+    );
+    expect(prepared.systemPrompt).not.toContain(
+      "Prefer one question at a time",
     );
     expect(prepared.systemPrompt).toContain("ANTHON COACHING BEHAVIOR");
     expect(prepared.systemPrompt).toContain(
@@ -1710,7 +1716,7 @@ describe("ai/orchestrator", () => {
     );
     expect(prepared.systemPrompt).toContain("without guaranteeing results");
     expect(prepared.systemPrompt).toContain(
-      "A question is a coaching move, not a closing ritual",
+      "Questions are coaching moves, not a closing ritual",
     );
     expect(prepared.systemPrompt).toContain("Do not recycle the same routine");
     expect(prepared.systemPrompt).not.toContain("SAFETY & LIMITS");

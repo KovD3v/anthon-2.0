@@ -89,8 +89,9 @@ Version numbers describe the application's user-facing behavior and its document
   and ask a question only when its answer changes the next coaching move.
 - Refined Anthon's written coaching registers with short-line micro-messaging,
   practical brevity, human-first hybrid replies, contextual post-performance
-  self-assessment, user autonomy in important choices, and more specific
-  celebration without artificial errors or invented channel behavior.
+  self-assessment, compact grouped discovery questions instead of turn-by-turn
+  questioning, user autonomy in important choices, and more specific celebration
+  without artificial errors or invented channel behavior.
 - Increased Anthon's contextual emoji expression with emotionally matched
   clusters for encouragement, connection, achievement, intensity, focus, and
   genuine playfulness, replacing the previous one-emoji hard cap while keeping
