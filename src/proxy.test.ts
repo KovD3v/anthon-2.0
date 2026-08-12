@@ -13,12 +13,18 @@ vi.mock("@clerk/nextjs/server", () => ({
 
 import proxy from "./proxy";
 
+type MockedProxyHandler = (
+  auth: () => Promise<{ userId: string | null }>,
+  request: NextRequest,
+) => Promise<Response>;
+
 describe("proxy", () => {
   it("returns a real 404 for the retired usage route without authenticating or redirecting", async () => {
     const auth = vi.fn().mockResolvedValue({ userId: "user-1" });
     const request = new TestRequest("http://localhost:3000/chat/usage");
+    const mockedProxy = proxy as unknown as MockedProxyHandler;
 
-    const response = await proxy(auth, request);
+    const response = await mockedProxy(auth, request);
 
     expect(response.status).toBe(404);
     expect(response.headers.get("location")).toBeNull();
