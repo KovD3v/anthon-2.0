@@ -38,7 +38,7 @@ export function UsageSection() {
   const [data, setData] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const [countdown, setCountdown] = useState(timeUntilMidnight);
+  const [countdown, setCountdown] = useState("—");
 
   useEffect(() => {
     let active = true;
@@ -68,10 +68,10 @@ export function UsageSection() {
   }, []);
 
   useEffect(() => {
-    const interval = window.setInterval(
-      () => setCountdown(timeUntilMidnight()),
-      60_000,
-    );
+    const updateCountdown = () => setCountdown(timeUntilMidnight());
+    updateCountdown();
+
+    const interval = window.setInterval(updateCountdown, 60_000);
 
     return () => window.clearInterval(interval);
   }, []);
