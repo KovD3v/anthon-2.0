@@ -84,4 +84,20 @@ describe("SidebarBottom", () => {
       screen.queryByRole("menu", { name: "Navigazione account" }),
     ).toBeNull();
   });
+
+  it("keeps only account-level destinations in the menu", async () => {
+    const user = userEvent.setup();
+    render(<SidebarBottom />);
+
+    await user.click(screen.getByRole("button", { name: "Apri menu account" }));
+
+    expect(screen.queryByRole("menuitem", { name: "Chat" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Utilizzo" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Prezzi" })).toBeNull();
+    expect(
+      screen.getByRole("menuitem", { name: "Profilo e impostazioni" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Canali" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Assistenza" })).toBeTruthy();
+  });
 });

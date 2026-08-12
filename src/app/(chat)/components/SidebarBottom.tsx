@@ -3,14 +3,11 @@
 import { useClerk, useUser } from "@clerk/nextjs";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import {
-  BarChart3,
   Building2,
   ChevronUp,
-  CreditCard,
   HelpCircle,
   Home,
   LogOut,
-  MessageSquare,
   Moon,
   Radio,
   Settings,
@@ -63,11 +60,6 @@ export function SidebarBottom() {
 
   const menuItems = [
     {
-      icon: MessageSquare,
-      label: "Chat",
-      onClick: () => router.push("/chat"),
-    },
-    {
       icon: Settings,
       label: "Profilo e impostazioni",
       onClick: () => router.push("/profile"),
@@ -76,16 +68,6 @@ export function SidebarBottom() {
       icon: Radio,
       label: "Canali",
       onClick: () => router.push("/channels"),
-    },
-    {
-      icon: BarChart3,
-      label: "Utilizzo",
-      onClick: () => router.push("/chat/usage"),
-    },
-    {
-      icon: CreditCard,
-      label: "Prezzi",
-      onClick: () => router.push("/pricing"),
     },
     ...(isOrgMember
       ? [
