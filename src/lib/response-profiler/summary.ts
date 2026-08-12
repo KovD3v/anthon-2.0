@@ -3,6 +3,8 @@ import type { ServerSpanName } from "./contracts";
 
 export interface ResponseProfilerSummary {
   quality: "complete" | "partial" | "legacy";
+  serverTotalMs?: number;
+  browserTotalMs?: number;
   serverTtftMs?: number;
   firstDeltaMs?: number;
   firstVisibleMs?: number;
@@ -14,6 +16,8 @@ export interface ResponseProfilerSummary {
   serverRows: Array<{
     id: number;
     label: string;
+    startOffsetMs: number;
+    endOffsetMs: number;
     startPercent: number;
     widthPercent: number;
     durationPercent: number;
@@ -95,6 +99,8 @@ export function deriveResponseProfilerSummary(
     serverTrace?.spans.map((span) => ({
       id: span.id,
       label: SERVER_LABELS[span.name],
+      startOffsetMs: span.startOffsetMs,
+      endOffsetMs: span.startOffsetMs + span.durationMs,
       startPercent: presentationPercent(
         span.startOffsetMs,
         serverTrace.totalMs,
@@ -157,6 +163,8 @@ export function deriveResponseProfilerSummary(
 
   return {
     quality: deriveQuality(usage),
+    ...(serverTrace ? { serverTotalMs: serverTrace.totalMs } : {}),
+    ...(clientTrace ? { browserTotalMs } : {}),
     ...(serverTtftMs !== undefined ? { serverTtftMs } : {}),
     ...(milestones?.firstTextDeltaReceivedMs !== undefined
       ? { firstDeltaMs: milestones.firstTextDeltaReceivedMs }

@@ -65,13 +65,13 @@ export function ProfilerSummary({
       : null,
     summary.perceivedCompletionMs !== undefined
       ? {
-          label: "Completamento percepito",
+          label: "Risposta completa",
           value: formatDuration(summary.perceivedCompletionMs),
         }
       : null,
     summary.persistedResolutionMs !== undefined
       ? {
-          label: "Persistenza risolta",
+          label: "Fine persistenza",
           value: formatDuration(summary.persistedResolutionMs),
         }
       : null,

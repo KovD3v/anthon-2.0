@@ -140,15 +140,19 @@ describe("TechnicalMetricsDetails", () => {
     expect(screen.getByText("TTFT server")).toBeTruthy();
     expect(screen.getByText("Primo delta")).toBeTruthy();
     expect(screen.getByText("Primo testo visibile")).toBeTruthy();
-    expect(screen.getByText("Completamento percepito")).toBeTruthy();
+    expect(screen.getAllByText("Risposta completa").length).toBeGreaterThan(0);
+    expect(screen.getByText("Fine persistenza")).toBeTruthy();
     expect(screen.getByText("320 token/s")).toBeTruthy();
     expect(screen.getByText("Timeline backend")).toBeTruthy();
+    expect(screen.getByText("Totale backend")).toBeTruthy();
+    expect(screen.getByText("20 ms → 200 ms")).toBeTruthy();
     expect(screen.getByText("Timeline browser")).toBeTruthy();
     expect(screen.getByText("Fuori dal backend misurato")).toBeTruthy();
     expect(screen.queryByText("Latenza di rete")).toBeNull();
     expect(screen.getByText(/non sono additive/i)).toBeTruthy();
     expect(screen.getByText("Più lungo misurato")).toBeTruthy();
     expect(screen.getAllByText(/Completato/).length).toBeGreaterThanOrEqual(4);
+    expect(root?.querySelectorAll(".inset-y-0").length).toBeGreaterThan(0);
     expect(root?.innerHTML).not.toContain("min-w-[");
   });
 
@@ -172,8 +176,55 @@ describe("TechnicalMetricsDetails", () => {
     expect(screen.getByText("Traccia parziale")).toBeTruthy();
     expect(screen.queryByText("Primo delta")).toBeNull();
     expect(screen.queryByText("Primo testo visibile")).toBeNull();
-    expect(screen.queryByText("Completamento percepito")).toBeNull();
+    expect(screen.queryByText("Risposta completa")).toBeNull();
     expect(screen.queryByText("0 ms")).toBeNull();
+  });
+
+  it("reconstructs legacy phases on one clock without presenting a false total", () => {
+    const { container } = render(
+      <TechnicalMetricsDetails
+        usage={{
+          inputTokens: 120,
+          outputTokens: 80,
+          cost: 0.001,
+          generationTimeMs: 1_190,
+          executionRoute: {
+            routingMode: "active",
+            eligibleProfile: "light",
+            plannedProfile: "light",
+            executedProfile: "light",
+            taskKind: "coaching",
+            decisionSource: "classifier",
+            confidenceBucket: "high",
+            reasonCodes: ["simple_turn"],
+            classificationLatencyMs: 1_356,
+            routingOverheadMs: 52,
+            totalRequestTimeToFirstTokenMs: 1_991,
+            attempts: [
+              {
+                sequence: 1,
+                profile: "light",
+                outcome: "completed",
+                timeToFirstTokenMs: 582,
+                generationTimeMs: 1_190,
+              },
+            ],
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Timeline ricostruita")).toBeTruthy();
+    expect(screen.getByText("Tempo totale risposta")).toBeTruthy();
+    expect(screen.getByText("Non registrato")).toBeTruthy();
+    expect(screen.getByText("Fine generazione stimata")).toBeTruthy();
+    expect(screen.getByText("2,6 s")).toBeTruthy();
+    expect(screen.getByText("0 ms → 1,36 s")).toBeTruthy();
+    expect(screen.getByText("1,36 s → 1,41 s")).toBeTruthy();
+    expect(screen.getByText("1,41 s → 2,6 s")).toBeTruthy();
+    expect(screen.getByText("Primo token a 1,99 s")).toBeTruthy();
+    expect(screen.queryByText("Profiler latenza")).toBeNull();
+    expect(container.querySelectorAll(".inset-y-0").length).toBeGreaterThan(0);
   });
 
   it("opens rich localhost diagnostics and exposes routing, profiler, and context", () => {
@@ -246,8 +297,8 @@ describe("TechnicalMetricsDetails", () => {
     expect(container.querySelector("details")?.open).toBe(true);
     expect(screen.getByText("deepseek/deepseek-v4-flash-0731")).toBeTruthy();
     expect(screen.getAllByText("Standard").length).toBeGreaterThan(0);
-    expect(screen.getByText("Profiler latenza")).toBeTruthy();
-    expect(screen.getByText("TTFT totale")).toBeTruthy();
+    expect(screen.getByText("Timeline ricostruita")).toBeTruthy();
+    expect(screen.getByText("Tempo totale risposta")).toBeTruthy();
     expect(screen.getByText("Classificazione")).toBeTruthy();
     expect(
       screen.getByText("Escalation Light → Standard: errore provider"),

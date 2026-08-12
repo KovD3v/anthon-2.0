@@ -5,12 +5,12 @@ import {
   Clock3,
   Cpu,
   Database,
-  Gauge,
   Route,
 } from "lucide-react";
 import { deriveResponseProfilerSummary } from "@/lib/response-profiler/summary";
 import type { Usage } from "@/types/chat";
 import { BrowserTimeline } from "./technical-metrics/BrowserTimeline";
+import { LegacyLatencyTimeline } from "./technical-metrics/LegacyLatencyTimeline";
 import { ProfilerSummary } from "./technical-metrics/ProfilerSummary";
 import { ServerTimeline } from "./technical-metrics/ServerTimeline";
 
@@ -160,22 +160,9 @@ export function TechnicalMetricsDetails({
     );
   }
 
-  const latencyRows = [
-    routeTrace?.totalRequestTimeToFirstTokenMs !== undefined
-      ? {
-          label: "TTFT totale",
-          value: routeTrace.totalRequestTimeToFirstTokenMs,
-          emphasis: true,
-        }
-      : null,
-    usage.generationTimeMs !== undefined
+  const recordedDurationRows = [
+    !routeTrace && usage.generationTimeMs !== undefined
       ? { label: "Generazione", value: usage.generationTimeMs }
-      : null,
-    routeTrace
-      ? { label: "Classificazione", value: routeTrace.classificationLatencyMs }
-      : null,
-    routeTrace
-      ? { label: "Routing", value: routeTrace.routingOverheadMs }
       : null,
     usage.reasoningTimeMs !== undefined
       ? { label: "Reasoning", value: usage.reasoningTimeMs }
@@ -195,11 +182,16 @@ export function TechnicalMetricsDetails({
           value: usage.toolTiming.finalModelStepMs,
         }
       : null,
-  ].filter(
-    (row): row is { label: string; value: number; emphasis?: boolean } =>
-      row !== null,
-  );
-  const maxLatency = Math.max(...latencyRows.map((row) => row.value), 1);
+  ].filter((row): row is { label: string; value: number } => row !== null);
+  const headerDuration =
+    profilerSummary.perceivedCompletionMs !== undefined
+      ? {
+          label: "Risposta",
+          value: formatDuration(profilerSummary.perceivedCompletionMs),
+        }
+      : generationDuration
+        ? { label: "Generazione", value: generationDuration }
+        : null;
 
   return (
     <details
@@ -221,13 +213,16 @@ export function TechnicalMetricsDetails({
             {PROFILE_LABELS[profile]}
           </span>
         )}
-        {generationDuration && (
-          <span className="ml-auto font-medium tabular-nums text-foreground/80">
-            {generationDuration}
+        {headerDuration && (
+          <span className="ml-auto flex items-baseline gap-1 font-medium tabular-nums text-foreground/80">
+            <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+              {headerDuration.label}
+            </span>
+            {headerDuration.value}
           </span>
         )}
         <ChevronDown
-          className={`${generationDuration ? "" : "ml-auto"} h-3.5 w-3.5 shrink-0 transition-transform duration-200 group-open/metrics:rotate-180`}
+          className={`${headerDuration ? "" : "ml-auto"} h-3.5 w-3.5 shrink-0 transition-transform duration-200 group-open/metrics:rotate-180`}
           aria-hidden="true"
         />
       </summary>
@@ -309,32 +304,25 @@ export function TechnicalMetricsDetails({
           <BrowserTimeline summary={profilerSummary} />
         ) : null}
 
-        {latencyRows.length > 0 && (
+        {!usage.serverTrace && routeTrace ? (
+          <LegacyLatencyTimeline usage={usage} />
+        ) : null}
+
+        {recordedDurationRows.length > 0 && (
           <section className="border-border/60 border-t px-3 py-3">
-            <SectionTitle icon={Gauge}>Profiler latenza</SectionTitle>
-            <ul className="space-y-2" aria-label="Profiler latenza">
-              {latencyRows.map((row) => (
-                <li
-                  key={row.label}
-                  className="grid grid-cols-[minmax(6.5rem,8rem)_minmax(3rem,1fr)_auto] items-center gap-2"
-                >
-                  <span className="truncate" title={row.label}>
+            <SectionTitle icon={Clock3}>Durate registrate</SectionTitle>
+            <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
+              {recordedDurationRows.map((row) => (
+                <div key={row.label} className="min-w-0">
+                  <dt className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
                     {row.label}
-                  </span>
-                  <span className="h-1.5 overflow-hidden rounded-full bg-border/70">
-                    <span
-                      className={`block h-full rounded-full ${row.emphasis ? "bg-primary" : "bg-foreground/45"}`}
-                      style={{
-                        width: `${Math.max(3, (row.value / maxLatency) * 100)}%`,
-                      }}
-                    />
-                  </span>
-                  <span className="min-w-14 text-right font-medium tabular-nums text-foreground">
+                  </dt>
+                  <dd className="mt-0.5 font-medium tabular-nums text-foreground">
                     {formatDuration(row.value)}
-                  </span>
-                </li>
+                  </dd>
+                </div>
               ))}
-            </ul>
+            </dl>
           </section>
         )}
 

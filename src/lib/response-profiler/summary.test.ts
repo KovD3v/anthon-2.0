@@ -65,6 +65,8 @@ describe("deriveResponseProfilerSummary", () => {
 
     expect(summary).toMatchObject({
       quality: "complete",
+      serverTotalMs: 120,
+      browserTotalMs: 180,
       serverTtftMs: 35,
       firstDeltaMs: 45,
       firstVisibleMs: 70,
@@ -82,8 +84,18 @@ describe("deriveResponseProfilerSummary", () => {
 
     expect(summary.serverRows).toHaveLength(3);
     expect(summary.serverRows.slice(0, 2)).toEqual([
-      expect.objectContaining({ id: 1, durationMs: 100 }),
-      expect.objectContaining({ id: 2, durationMs: 100 }),
+      expect.objectContaining({
+        id: 1,
+        startOffsetMs: 0,
+        endOffsetMs: 100,
+        durationMs: 100,
+      }),
+      expect.objectContaining({
+        id: 2,
+        startOffsetMs: 10,
+        endOffsetMs: 110,
+        durationMs: 100,
+      }),
     ]);
     expect(summary.serverRows[0]?.durationPercent).toBeCloseTo(83.33, 1);
     expect(summary.serverRows[1]?.startPercent).toBeCloseTo(8.33, 1);

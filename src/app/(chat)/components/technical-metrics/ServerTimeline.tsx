@@ -49,10 +49,6 @@ function formatDuration(value: number) {
   return `${new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(value / 1_000)} s`;
 }
 
-function formatPercent(value: number) {
-  return `${new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 }).format(value)}%`;
-}
-
 export function ServerTimeline({
   trace,
   summary,
@@ -70,10 +66,22 @@ export function ServerTimeline({
 
   return (
     <section className="border-border/60 border-t px-3 py-3">
-      <h4 className="mb-1 flex items-center gap-1.5 font-semibold text-foreground">
-        <Server className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-        Timeline backend
-      </h4>
+      <div className="mb-1 flex min-w-0 flex-wrap items-baseline justify-between gap-2">
+        <h4 className="flex items-center gap-1.5 font-semibold text-foreground">
+          <Server className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+          Timeline backend
+        </h4>
+        {summary.serverTotalMs !== undefined ? (
+          <span className="flex items-baseline gap-1.5 tabular-nums">
+            <span className="text-[10px] font-medium uppercase tracking-[0.08em]">
+              Totale backend
+            </span>
+            <strong className="font-semibold text-foreground">
+              {formatDuration(summary.serverTotalMs)}
+            </strong>
+          </span>
+        ) : null}
+      </div>
       <p className="mb-3 max-w-[70ch] text-[11px] leading-relaxed">
         Gli span paralleli condividono il tempo reale: le percentuali non sono
         additive.
@@ -106,7 +114,7 @@ export function ServerTimeline({
                       aria-hidden="true"
                     >
                       <span
-                        className={`absolute inset-block-0 rounded-sm ${
+                        className={`absolute inset-y-0 rounded-sm ${
                           row.status === "completed"
                             ? "bg-primary/75"
                             : row.status === "failed"
@@ -119,10 +127,12 @@ export function ServerTimeline({
                         }}
                       />
                     </div>
-                    <p className="mt-1 break-words text-[10px] tabular-nums text-muted-foreground">
-                      Inizio {formatPercent(row.startPercent)} · Durata{" "}
-                      {formatDuration(row.durationMs)} ·{" "}
-                      {formatPercent(row.durationPercent)} del backend ·{" "}
+                    <p className="mt-1 flex flex-wrap gap-x-1.5 gap-y-0.5 text-[10px] tabular-nums text-muted-foreground">
+                      <span>
+                        {formatDuration(row.startOffsetMs)} →{" "}
+                        {formatDuration(row.endOffsetMs)}
+                      </span>
+                      <span>Durata {formatDuration(row.durationMs)}</span>
                       <span className="font-medium text-foreground">
                         {STATUS[row.status]}
                       </span>

@@ -20,10 +20,22 @@ export function BrowserTimeline({
 }) {
   return (
     <section className="border-border/60 border-t px-3 py-3">
-      <h4 className="mb-1 flex items-center gap-1.5 font-semibold text-foreground">
-        <Monitor className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-        Timeline browser
-      </h4>
+      <div className="mb-1 flex min-w-0 flex-wrap items-baseline justify-between gap-2">
+        <h4 className="flex items-center gap-1.5 font-semibold text-foreground">
+          <Monitor className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+          Timeline browser
+        </h4>
+        {summary.browserTotalMs !== undefined ? (
+          <span className="flex items-baseline gap-1.5 tabular-nums">
+            <span className="text-[10px] font-medium uppercase tracking-[0.08em]">
+              Fine traccia
+            </span>
+            <strong className="font-semibold text-foreground">
+              {formatDuration(summary.browserTotalMs)}
+            </strong>
+          </span>
+        ) : null}
+      </div>
       <p className="mb-3 max-w-[70ch] text-[11px] leading-relaxed">
         Tutti gli offset partono dall’invio della richiesta nel browser.
       </p>
@@ -41,7 +53,7 @@ export function BrowserTimeline({
                 {lane.milestones.map((milestone) => (
                   <span
                     key={milestone.key}
-                    className="absolute inset-block-[-2px] w-0.5 rounded-sm bg-primary"
+                    className="absolute -bottom-0.5 -top-0.5 w-0.5 rounded-sm bg-primary"
                     style={{ insetInlineStart: `${milestone.offsetPercent}%` }}
                   />
                 ))}
