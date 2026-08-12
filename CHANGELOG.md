@@ -57,6 +57,10 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Refined motion across chat, routines, search, shared popups, navigation, and
+  progress indicators with interruptible transitions, compositor-friendly
+  transforms, consistent easing, reduced-motion behavior, and steadier focus
+  handling when the desktop sidebar collapses.
 - Routed active light-profile turns through DeepSeek V4 Flash 0731 using a
   latency-sorted OpenRouter pool limited to Together, CoreWeave, and Ambient,
   while retaining the plan-resolved standard model for standard turns and
