@@ -573,10 +573,10 @@ export function MessageList({
   }
 
   return (
-    <>
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <div
         ref={parentRef}
-        className="flex-1 min-w-0 overflow-y-auto px-4 py-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent relative"
+        className="min-w-0 flex-1 overflow-y-auto px-4 pt-6 pb-20 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
       >
         <div className="mx-auto w-full min-w-0 max-w-3xl">
           {/* Loading indicator for older messages */}
@@ -1323,21 +1323,22 @@ export function MessageList({
                 : "translateX(-50%) scale(0.95)",
             }}
             transition={defaultTransition}
-            className="absolute bottom-28 left-1/2 z-10"
+            className="absolute bottom-4 left-1/2 z-10"
           >
             <Button
-              size="sm"
+              size="icon"
               variant="secondary"
-              className="rounded-full shadow-lg gap-1.5"
+              className="rounded-full shadow-lg"
               onClick={scrollToBottom}
+              aria-label={CHAT_REACTIVITY_COPY.scrollToBottom}
+              title={CHAT_REACTIVITY_COPY.scrollToBottom}
             >
-              <ArrowDown className="h-3 w-3" />
-              {CHAT_REACTIVITY_COPY.scrollToBottom}
+              <ArrowDown className="h-4 w-4" />
             </Button>
           </m.div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }
 
