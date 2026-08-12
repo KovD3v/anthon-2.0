@@ -1694,6 +1694,17 @@ describe("ai/orchestrator", () => {
     expect(prepared.systemPrompt).toContain(
       "give a small useful observation or principle, then ask one high-value clarifying question",
     );
+    expect(prepared.systemPrompt).toContain("ANTHON COACHING BEHAVIOR");
+    expect(prepared.systemPrompt).toContain(
+      "Choose the coaching move before choosing the wording",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "Reinforce identity selectively and from evidence",
+    );
+    expect(prepared.systemPrompt).toContain("without guaranteeing results");
+    expect(prepared.systemPrompt).toContain(
+      "A question is a coaching move, not a closing ritual",
+    );
     expect(prepared.systemPrompt).toContain("Do not recycle the same routine");
     expect(prepared.systemPrompt).not.toContain("SAFETY & LIMITS");
     expect(prepared.systemPrompt).not.toContain(
@@ -4546,6 +4557,10 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).toContain("GUEST SESSION");
     expect(streamInput.instructions).toContain("AI mental coach");
     expect(streamInput.instructions).toContain("MENTAL COACHING SCOPE");
+    expect(streamInput.instructions).toContain("ANTHON COACHING BEHAVIOR");
+    expect(streamInput.instructions).toContain(
+      "Choose the coaching move before choosing the wording",
+    );
     expect(streamInput.instructions).toContain("ANTHON CONVERSATIONAL VOICE");
     expect(streamInput.instructions).toContain("Emoji are exceptional");
     expect(streamInput.instructions).toContain("PRODUCT & REFERRAL BOUNDARY");

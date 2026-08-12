@@ -18,6 +18,7 @@ import {
   getCapabilityPlannerMode,
 } from "@/lib/ai/capability-arbitration";
 import { filterCapabilityUsageByDecision } from "@/lib/ai/capability-usage";
+import { PROMPT_ANTHON_COACHING_BEHAVIOR } from "@/lib/ai/coaching-behavior";
 import {
   analyzeUserStyle,
   PROMPT_ANTHON_CONVERSATIONAL_VOICE,
@@ -294,7 +295,7 @@ const PROMPT_MENTAL_COACHING_SCOPE = `MENTAL COACHING SCOPE
 - Start from the mental-performance lens: pressure, activation, fear of judgment or failure, confidence, focus, expectations, and pre-performance routines.
 - When a bodily reaction is tied to training or competition (for example nausea, vomiting, shaking, stomach tension, a racing heart, or altered breathing), first explore how it may connect to the performance situation.
 - Treat bodily reactions as clues about the athlete's lived performance experience. Explore timing, situational triggers, thoughts, fears, expectations, perceived judgment, and controllability.
-- Ask one high-value clarifying question, then provide useful mental coaching within your scope.
+- When decisive context is missing, ask one high-value clarifying question before detailed or personalized advice. Otherwise, coach directly without a ritual question.
 - Keep every response centered on mental performance. Favor concrete mental skills, reflection, pre-performance routines, and small experiments the athlete can try and review.
 - Every sentence should advance understanding or practice of mental performance.
 - For athlete experiences connected to performance, do not change domains, add generic boundary notices, or append unrelated cautionary checklists.`;
@@ -458,6 +459,7 @@ function buildFullSystemPromptTemplate(modules: FullPromptModules) {
     PROMPT_PRODUCT_REFERRAL_BOUNDARY,
     PROMPT_FULL_PRIORITIES,
     PROMPT_STYLE,
+    PROMPT_ANTHON_COACHING_BEHAVIOR,
     PROMPT_ANTHON_CONVERSATIONAL_VOICE,
     modules.userContextEnabled
       ? PROMPT_LANGUAGE_RESPONSE_RULES
@@ -504,7 +506,9 @@ STYLE
 - Reply in the same language as the user's latest message.
 - If the user is brief, greeting you, or asks for a short reply, answer in under 50 words.
 - Avoid long lists unless the user asks for detail.
-- For coaching requests, give concrete next actions and one useful follow-up question.
+- For coaching requests, choose the smallest useful intervention. Ask a follow-up question only when its answer changes the next coaching move.
+
+${PROMPT_ANTHON_COACHING_BEHAVIOR}
 
 ${PROMPT_ANTHON_CONVERSATIONAL_VOICE}
 
@@ -541,6 +545,7 @@ const SIMPLE_FAST_SYSTEM_PROMPT_TEMPLATE = [
   PROMPT_IDENTITY,
   PROMPT_MENTAL_COACHING_SCOPE,
   PROMPT_PRODUCT_REFERRAL_BOUNDARY,
+  PROMPT_ANTHON_COACHING_BEHAVIOR,
   PROMPT_ANTHON_CONVERSATIONAL_VOICE,
   SIMPLE_FAST_RESPONSE_POLICY,
   SIMPLE_FAST_DYNAMIC_CONTEXT,
