@@ -128,6 +128,34 @@ describe("execution routing", () => {
     ).toBe("light");
   });
 
+  it("uses structured dimensions for self-contained transformation eligibility", () => {
+    expect(
+      route({
+        workload: {
+          ...lightWorkload,
+          contextDependency: "none",
+          suggestedProfile: "standard",
+        },
+      }),
+    ).toMatchObject({
+      eligibleProfile: "light",
+      reasonCodes: expect.arrayContaining(["classifier_standard"]),
+    });
+  });
+
+  it("keeps the classifier profile suggestion binding for social turns", () => {
+    expect(
+      route({
+        workload: {
+          ...lightWorkload,
+          taskKind: "social",
+          contextDependency: "none",
+          suggestedProfile: "standard",
+        },
+      }).eligibleProfile,
+    ).toBe("standard");
+  });
+
   it.each([
     ["coaching", { workload: { ...lightWorkload, taskKind: "coaching" } }],
     ["low confidence", { workload: { ...lightWorkload, confidence: 0.899 } }],

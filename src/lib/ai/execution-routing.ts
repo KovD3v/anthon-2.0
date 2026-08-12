@@ -31,6 +31,14 @@ const LIGHT_TASK_KINDS = [
   "summarize_supplied",
 ] as const;
 
+const SELF_CONTAINED_TRANSFORM_TASK_KINDS = [
+  "rewrite",
+  "translate",
+  "format",
+  "extract",
+  "summarize_supplied",
+] as const;
+
 type LightTaskKind = (typeof LIGHT_TASK_KINDS)[number];
 
 export type ExecutionProfile = "light" | "standard";
@@ -147,6 +155,12 @@ function addReason(
 
 function isLightTaskKind(taskKind: TaskKind): taskKind is LightTaskKind {
   return LIGHT_TASK_KINDS.includes(taskKind as LightTaskKind);
+}
+
+function isSelfContainedTransformTaskKind(taskKind: TaskKind): boolean {
+  return SELF_CONTAINED_TRANSFORM_TASK_KINDS.includes(
+    taskKind as (typeof SELF_CONTAINED_TRANSFORM_TASK_KINDS)[number],
+  );
 }
 
 export function hasUntrustedSuppliedTextInstructions(
@@ -366,9 +380,13 @@ export function normalizeExecutionDecision(
     addReason(reasonCodes, "untrusted_supplied_text");
   }
 
+  const acceptsProfileSuggestion =
+    workload?.suggestedProfile === "light" ||
+    (workload !== null && isSelfContainedTransformTaskKind(taskKind));
+
   const lightEligible =
     !hasFallbackFailure &&
-    workload?.suggestedProfile === "light" &&
+    acceptsProfileSuggestion &&
     workload.confidence >= LIGHT_MIN_CONFIDENCE &&
     input.capabilityConfidence >= CAPABILITY_CLASSIFIER_MIN_CONFIDENCE &&
     isLightTaskKind(taskKind) &&
