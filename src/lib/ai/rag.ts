@@ -9,7 +9,8 @@ import { z } from "zod";
 import { RAG, RAG_KEYWORDS, RAG_NEGATIVE_KEYWORDS } from "@/lib/ai/constants";
 import { generateEmbedding, generateEmbeddings } from "@/lib/ai/embeddings";
 import { openrouter } from "@/lib/ai/providers/openrouter";
-import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
+import { getOpenRouterProviderOptionsForClassifier } from "@/lib/ai/providers/openrouter-routing";
+import { DEFAULT_TURN_CLASSIFIER_MODEL_ID } from "@/lib/ai/turn-classification";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
@@ -491,9 +492,10 @@ async function hasRagDocuments(): Promise<boolean> {
 
 /**
  * Fast classifier model for RAG detection
- * Uses Gemini 2.5 Flash for reliable, fast classification (~100-200ms)
+ * Reuses the bounded structured-output classifier route.
  */
-const RAG_CLASSIFIER_MODEL_ID = "google/gemini-2.5-flash";
+const RAG_CLASSIFIER_MODEL_ID = DEFAULT_TURN_CLASSIFIER_MODEL_ID;
+const RAG_CLASSIFIER_TIMEOUT_MS = 3_000;
 const ragClassifierModel = openrouter(RAG_CLASSIFIER_MODEL_ID);
 
 /**
@@ -522,7 +524,7 @@ function normalizeClassificationKey(userMessage: string): string {
  * 2. Positive keyword matching (instant) - FIRST to catch technical queries with greetings
  * 3. Negative keyword matching (instant) - only for short messages < 30 chars
  * 4. Non-technical pattern matching (instant)
- * 5. Fast LLM classification (only as last resort, ~100-200ms)
+ * 5. Bounded LLM classification (only as last resort)
  */
 export async function shouldUseRag(
   userMessage: string,
@@ -571,7 +573,7 @@ export async function shouldUseRag(
     return true;
   }
 
-  // OPTIMIZATION 4: Fast LLM classification (only for uncertain cases)
+  // OPTIMIZATION 4: Bounded LLM classification (only for uncertain cases)
   try {
     const cacheKey = normalizeClassificationKey(userMessage);
     const cached = ragClassificationCache.get(cacheKey);
@@ -583,11 +585,12 @@ export async function shouldUseRag(
       "RAG: Classify query (LLM)",
       () =>
         generateText({
-          model: ragClassifierModel, // ⚡ Faster model!
+          model: ragClassifierModel,
           temperature: 0,
           maxOutputTokens: 120,
+          timeout: { totalMs: RAG_CLASSIFIER_TIMEOUT_MS },
           providerOptions: {
-            openrouter: getOpenRouterProviderOptionsForModel(
+            openrouter: getOpenRouterProviderOptionsForClassifier(
               RAG_CLASSIFIER_MODEL_ID,
             ),
           },

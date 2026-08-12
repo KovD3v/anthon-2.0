@@ -251,9 +251,10 @@ the legacy prefetch path:
    advice, reject immediately.
 3. Check whether RAG documents exist (cached); if none exist, return false.
 4. If a positive keyword is present, return true.
-5. Otherwise consult the five-minute classification cache, then the LLM
-   classifier (`google/gemini-2.5-flash`) as the final fallback. Classifier
-   failures return false.
+5. Otherwise consult the five-minute classification cache, then the shared
+   Nemotron classifier (`nvidia/nemotron-3.5-lightning`) on the bounded
+   DeepInfra structured-output route as the final fallback. Classifier failures
+   return false.
 
 ### Core functions
 

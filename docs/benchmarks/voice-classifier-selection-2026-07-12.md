@@ -53,3 +53,20 @@ text decision across successful runs. Gemini also had the better success rate
 under the production timeout.
 
 The reusable harness is `scripts/benchmark-voice-classifier.ts`.
+
+## Nemotron follow-up — 2026-08-12
+
+After adopting `nvidia/nemotron-3.5-lightning` for unified turn and legacy RAG
+classification, the same production voice schema, prompt, eight scenarios, and
+1,500 ms timeout were smoke-tested against the existing Gemini default. Model
+order still alternated between scenarios. Nemotron used DeepInfra as the first
+provider choice; Gemini retained its compatible OpenRouter fallback routing.
+
+| Model | Successful | Exact-category accuracy | p50 | Failure mix |
+| --- | ---: | ---: | ---: | --- |
+| `google/gemini-2.5-flash-lite` | 8/8 | 87.5% | 490 ms | none |
+| `nvidia/nemotron-3.5-lightning` | 0/8 | n/a | n/a | 7 empty outputs, 1 timeout |
+
+The smoke gate failed before the planned 100-request-per-model confirmation, so
+the larger run was intentionally skipped. Gemini remains the voice-suitability
+classifier; Nemotron is not a runtime voice fallback.

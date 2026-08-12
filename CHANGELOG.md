@@ -57,6 +57,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Replaced the legacy RAG fallback classifier with the shared bounded Nemotron
+  route, while retaining Gemini Flash Lite for voice suitability after Nemotron
+  failed the production-timeout voice smoke gate.
 - Switched the unified turn classifier default to Nemotron 3.5 Lightning on a
   bounded DeepInfra route, with deterministic task normalization, embedded-text
   safeguards, fail-closed timeout behavior, and a stricter live routing gate.

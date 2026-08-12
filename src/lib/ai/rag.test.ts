@@ -221,9 +221,29 @@ describe("ai/rag", () => {
     expect(first).toBe(true);
     expect(second).toBe(true);
     expect(mocks.generateText).toHaveBeenCalledTimes(1);
+    expect(mocks.openrouter).toHaveBeenCalledWith(
+      "nvidia/nemotron-3.5-lightning",
+    );
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timeout: { totalMs: 3000 },
+        providerOptions: {
+          openrouter: {
+            provider: {
+              sort: "latency",
+              only: ["DeepInfra"],
+              allow_fallbacks: false,
+              require_parameters: true,
+              max_price: { prompt: 0.05, completion: 0.2 },
+            },
+            reasoning: { enabled: false, max_tokens: 1 },
+          },
+        },
+      }),
+    );
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
       userId: "user-1",
-      modelId: "google/gemini-2.5-flash",
+      modelId: "nvidia/nemotron-3.5-lightning",
       usage: { inputTokens: 80, outputTokens: 12 },
       providerMetadata: undefined,
     });
