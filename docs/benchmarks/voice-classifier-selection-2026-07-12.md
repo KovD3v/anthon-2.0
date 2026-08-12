@@ -70,3 +70,38 @@ provider choice; Gemini retained its compatible OpenRouter fallback routing.
 The smoke gate failed before the planned 100-request-per-model confirmation, so
 the larger run was intentionally skipped. Gemini remains the voice-suitability
 classifier; Nemotron is not a runtime voice fallback.
+
+### Bounded prompt-refinement trial
+
+Nemotron was then retested through the production classifier route with
+DeepInfra only, reasoning disabled, zero retries, an 80-token output budget,
+and the same 1,500 ms timeout. The harness always called the raw model but also
+measured the effective voice-versus-text decision after deterministic server
+vetoes. Direct time/date/score questions were added to that deterministic
+layer; link-only requests were already handled by explicit-text detection.
+
+At most two candidate prompts were allowed:
+
+- Variant A used a conservative decision hierarchy plus time and link-only
+  counterexamples.
+- Variant B put the text-preferred default first and removed the examples.
+
+Each smoke covered all eight synthetic scenarios once, with alternating model
+order. The protected set contained the four expected-text scenarios.
+
+| Nemotron variant | Valid output | Raw exact | Effective voice/text | Protected false voice | p50 | p95 | p99 | Errors |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| A | 7/8 | 5/8 | 8/8 | 0 | 461.5 ms | 708.5 ms | 708.5 ms | 1 empty output |
+| B | 4/8 | 3/8 | 6/8 | 0 | 477.8 ms | 1127.2 ms | 1127.2 ms | 4 empty outputs |
+
+The Gemini controls remained valid on 8/8 attempts in both alternating runs.
+Their effective voice-versus-text result was 8/8 with zero protected
+false-voice decisions; measured p95 was 1490.0 ms in the Variant A run and
+1074.4 ms in the Variant B run. These eight-request latency samples were noisy
+and do not replace the earlier 200-request Gemini baseline.
+
+Neither Nemotron prompt met the advancement gate of 8/8 valid output, 8/8
+effective correctness, zero protected false voice, and p95 at or below 600 ms.
+The 200-request confirmation was therefore intentionally not run. Gemini
+remains the runtime default, and Nemotron is still not a voice-classifier
+fallback.
