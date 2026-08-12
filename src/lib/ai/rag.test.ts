@@ -101,6 +101,7 @@ describe("ai/rag", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     process.env.OPENROUTER_API_KEY = originalOpenRouterKey;
     process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
   });
@@ -308,6 +309,7 @@ describe("ai/rag", () => {
   });
 
   it("getRagContext formats search results for prompt injection", async () => {
+    vi.stubEnv("NODE_ENV", "development");
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -318,7 +320,14 @@ describe("ai/rag", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     mocks.queryRawUnsafe.mockResolvedValue([
-      { content: "Chunk content", title: "Doc X", similarity: 0.88 },
+      {
+        chunkId: "chunk-x",
+        documentId: "document-x",
+        documentTitle: "Doc X",
+        content: "Chunk content",
+        title: "Doc X",
+        similarity: 0.88,
+      },
     ]);
 
     const { getRagContext } = await loadModule();
@@ -328,6 +337,48 @@ describe("ai/rag", () => {
     expect(context.text).toContain("**Doc X**");
     expect(context.text).toContain("Chunk content");
     expect(context.chunkCount).toBe(1);
+    expect(context.diagnostics).toEqual({
+      query: "topic",
+      chunks: [
+        {
+          chunkId: "chunk-x",
+          documentId: "document-x",
+          documentTitle: "Doc X",
+          content: "Chunk content",
+          title: "Doc X",
+          similarity: 0.88,
+        },
+      ],
+      failed: false,
+    });
+    expect(mocks.queryRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('rc.id AS "chunkId"'),
+      expect.any(String),
+      5,
+    );
+  });
+
+  it("does not construct raw RAG diagnostics outside development", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: [{ embedding: embeddingVector(0.5, 0.6) }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+    mocks.queryRawUnsafe.mockResolvedValue([
+      { content: "secret", title: "Doc", similarity: 0.88 },
+    ]);
+    const { getRagContext } = await loadModule();
+
+    const context = await getRagContext("secret query");
+
+    expect(context).not.toHaveProperty("diagnostics");
   });
 
   it("profiles embedding and vector retrieval without query or chunk content", async () => {
@@ -368,6 +419,7 @@ describe("ai/rag", () => {
   });
 
   it("getRagContext marks database failures without exposing diagnostics", async () => {
+    vi.stubEnv("NODE_ENV", "development");
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({ data: [{ embedding: embeddingVector(0.5, 0.6) }] }),
@@ -383,10 +435,16 @@ describe("ai/rag", () => {
 
     const context = await getRagContext("topic");
 
-    expect(context).toEqual({
+    expect(context).toMatchObject({
       text: "Nessun documento rilevante trovato.",
       chunkCount: 0,
       failed: true,
+      diagnostics: {
+        query: "topic",
+        chunks: [],
+        failed: true,
+        error: expect.any(Error),
+      },
     });
   });
 

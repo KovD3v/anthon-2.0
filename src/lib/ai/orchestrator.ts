@@ -103,6 +103,10 @@ import { createLogger } from "@/lib/logger";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
 import {
+  createDeveloperDiagnosticsCollector,
+  type DeveloperDiagnosticsCollector,
+} from "@/lib/response-profiler/developer-diagnostics";
+import {
   extractSelectedProvider,
   type ModelAttemptTrace,
   type ServerTraceCollector,
@@ -1019,6 +1023,7 @@ function instrumentToolExecutions(
   outcomes?: ToolOutcomeTracker,
   traceCollector?: ServerTraceCollector,
   abortSignal?: AbortSignal,
+  developerDiagnostics?: DeveloperDiagnosticsCollector,
 ) {
   const callCounts = new Map<string, number>();
   const completed = new Set<string>();
@@ -1041,6 +1046,10 @@ function instrumentToolExecutions(
           ...toolConfig,
           execute: async (...args: unknown[]) => {
             const toolTrace = startToolExecutionTrace(traceCollector, name);
+            const toolDiagnostic = developerDiagnostics?.startTool(
+              name,
+              args[0],
+            );
             const policy = policies?.get(name);
             const calls = callCounts.get(name) ?? 0;
             if (
@@ -1049,12 +1058,16 @@ function instrumentToolExecutions(
                 policy.requires.some((required) => !completed.has(required)))
             ) {
               toolTrace.notAllowed();
+              toolDiagnostic?.notAllowed();
               return { status: "not_allowed" };
             }
             callCounts.set(name, calls + 1);
             outcomes?.called(name);
             const startedAt = Date.now();
-            const cancelTrace = () => toolTrace.cancel();
+            const cancelTrace = () => {
+              toolTrace.cancel();
+              toolDiagnostic?.cancel();
+            };
             if (abortSignal?.aborted) cancelTrace();
             else
               abortSignal?.addEventListener("abort", cancelTrace, {
@@ -1065,10 +1078,16 @@ function instrumentToolExecutions(
               completed.add(name);
               outcomes?.completed(name, result);
               toolTrace.complete();
+              toolDiagnostic?.complete(result);
               return result;
             } catch (error) {
-              if (abortSignal?.aborted) toolTrace.cancel();
-              else toolTrace.fail();
+              if (abortSignal?.aborted) {
+                toolTrace.cancel();
+                toolDiagnostic?.cancel(error);
+              } else {
+                toolTrace.fail();
+                toolDiagnostic?.fail(error);
+              }
               throw error;
             } finally {
               abortSignal?.removeEventListener("abort", cancelTrace);
@@ -1887,6 +1906,7 @@ export async function streamChat({
 }: StreamChatOptions) {
   // Record start time for performance tracking
   const startTime = Date.now();
+  const developerDiagnostics = createDeveloperDiagnosticsCollector();
 
   const effectiveEntitlements =
     prefetchedEntitlements ??
@@ -2256,6 +2276,10 @@ export async function streamChat({
                     : shouldUseRag(userMessage, { userId }),
                 ),
             );
+            developerDiagnostics?.recordRagDecision({
+              needed: needsRag,
+              ...(needsRag ? { query: userMessage } : {}),
+            });
             if (needsRag) {
               ragAttempted = true;
               const ragResult = await LatencyLogger.measure(
@@ -2263,6 +2287,23 @@ export async function streamChat({
                 () => getRagContext(userMessage, traceCollector),
               );
               ragChunksCount = ragResult.chunkCount;
+              if (ragResult.diagnostics?.failed) {
+                developerDiagnostics?.recordRagFailure({
+                  query: ragResult.diagnostics.query,
+                  error: ragResult.diagnostics.error,
+                });
+              } else if (ragResult.diagnostics) {
+                developerDiagnostics?.recordRagResult({
+                  query: ragResult.diagnostics.query,
+                  chunks: ragResult.diagnostics.chunks.map((chunk) => ({
+                    chunkId: chunk.chunkId,
+                    documentId: chunk.documentId,
+                    documentTitle: chunk.documentTitle ?? chunk.title,
+                    score: chunk.similarity,
+                    text: chunk.content,
+                  })),
+                });
+              }
               if (ragResult.chunkCount > 0) {
                 ragContext = ragResult.text;
                 ragUsed = true;
@@ -2544,6 +2585,7 @@ export async function streamChat({
     : normalizedConversation;
   promptBuildSpan?.end("completed");
   const attachTurnTrace = (metrics: AIMetrics) => {
+    metrics.developerDiagnostics = developerDiagnostics?.snapshot();
     const { memoryDeleteTarget: _memoryDeleteTarget, ...traceDecision } =
       capabilityDecision;
     metrics.turnPlan = turnPlan as unknown as Record<string, unknown>;
@@ -2610,6 +2652,7 @@ export async function streamChat({
     toolOutcomes,
     traceCollector,
     abortSignal,
+    developerDiagnostics,
   );
 
   // Collect tool calls during execution

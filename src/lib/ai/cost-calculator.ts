@@ -5,6 +5,7 @@
  * Uses TokenLens for pricing data from OpenRouter API.
  */
 
+import type { DeveloperDiagnosticsV1 } from "../response-profiler/developer-diagnostics";
 import {
   type CapabilityUsage,
   normalizeCapabilityUsage,
@@ -168,6 +169,7 @@ export interface AIMetrics {
   routineProposal?: unknown;
   /** Bounded execution routing trace for a chat turn, if routing was evaluated. */
   executionRoute?: ExecutionRouteTrace;
+  developerDiagnostics?: DeveloperDiagnosticsV1;
 }
 
 interface FinishResultInput {
@@ -199,6 +201,7 @@ interface FinishResultInput {
   /** Advisory selection only. Actual voice usage is added after delivery. */
   voiceOutput?: boolean;
   executionRoute?: ExecutionRouteTrace;
+  developerDiagnostics?: DeveloperDiagnosticsV1;
 }
 
 /**
@@ -339,6 +342,7 @@ export function extractAIMetrics(
     generationTimeMs,
     reasoningTimeMs: null, // Not available from OpenRouter currently
     executionRoute: finishResult.executionRoute,
+    developerDiagnostics: finishResult.developerDiagnostics,
   };
 }
 

@@ -14,6 +14,7 @@ import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
+import { isDeveloperDiagnosticsEnabled } from "@/lib/response-profiler/developer-diagnostics";
 import type { ServerTraceCollector } from "@/lib/response-profiler/server-trace";
 
 const ragLogger = createLogger("ai");
@@ -23,6 +24,9 @@ const ragLogger = createLogger("ai");
  * Uses cosine similarity for semantic search with pgvector.
  */
 export interface RagSearchResult {
+  chunkId?: string;
+  documentId?: string;
+  documentTitle?: string;
   content: string;
   title: string;
   similarity: number;
@@ -31,6 +35,7 @@ export interface RagSearchResult {
 type RagSearchOutcome = {
   results: RagSearchResult[];
   failed: boolean;
+  error?: unknown;
 };
 
 async function searchDocumentsWithOutcome(
@@ -66,6 +71,9 @@ async function searchDocumentsWithOutcome(
         prisma.$queryRawUnsafe<RagSearchResult[]>(
           `
       SELECT 
+        rc.id AS "chunkId",
+        rc."documentId" AS "documentId",
+        rd.title AS "documentTitle",
         rc.content,
         rd.title,
         1 - (rc.embedding <=> $1::vector) as similarity
@@ -97,7 +105,7 @@ async function searchDocumentsWithOutcome(
     };
   } catch (error) {
     ragLogger.error("ai.rag.search.error", "Search error", { error });
-    return { results: [], failed: true };
+    return { results: [], failed: true, error };
   }
 }
 
@@ -114,6 +122,12 @@ export interface RagContext {
   text: string;
   chunkCount: number;
   failed?: boolean;
+  diagnostics?: {
+    query: string;
+    chunks: RagSearchResult[];
+    failed: boolean;
+    error?: unknown;
+  };
 }
 
 /**
@@ -154,6 +168,16 @@ export async function getRagContext(
   return {
     ...buildRagContext(outcome.results),
     failed: outcome.failed,
+    ...(isDeveloperDiagnosticsEnabled()
+      ? {
+          diagnostics: {
+            query,
+            chunks: outcome.results,
+            failed: outcome.failed,
+            ...(outcome.error !== undefined ? { error: outcome.error } : {}),
+          },
+        }
+      : {}),
   };
 }
 
