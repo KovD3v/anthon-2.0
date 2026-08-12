@@ -138,6 +138,54 @@ describe("voice/preflight", () => {
     expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["link-only Italian", "Dammi solo il link alla pagina ufficiale."],
+    ["link-only English", "Send me just the official link."],
+  ])(
+    "preserves deterministic explicit-text handling for %s requests",
+    async (_label, userMessage) => {
+      const result = await decideWebVoiceMode({
+        ...baseParams(),
+        userMessage,
+      });
+
+      expect(result).toMatchObject({
+        mode: "TEXT",
+        category: "TEXT_REQUESTED",
+        reasonCode: "EXPLICIT_TEXT",
+        source: "deterministic",
+      });
+      expect(mocks.generateText).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["short factual Italian", "Che ore sono a Roma?"],
+    ["short factual English", "What time is it in Rome?"],
+  ])("keeps %s requests in deterministic text", async (_label, userMessage) => {
+    const result = await decideWebVoiceMode({
+      ...baseParams(),
+      userMessage,
+    });
+
+    expect(result).toMatchObject({
+      mode: "TEXT",
+      category: "TEXT_PREFERRED",
+      reasonCode: "TEXT_PREFERRED",
+      source: "deterministic",
+    });
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
+  it("does not treat reflective uses of time words as short factual requests", async () => {
+    await decideWebVoiceMode({
+      ...baseParams(),
+      userMessage: "Cosa provi quando guardi l'ora prima della gara?",
+    });
+
+    expect(mocks.generateText).toHaveBeenCalledTimes(1);
+  });
+
   it("classifies ordinary conversation without requiring keywords", async () => {
     const abortController = new AbortController();
     const result = await decideWebVoiceMode({

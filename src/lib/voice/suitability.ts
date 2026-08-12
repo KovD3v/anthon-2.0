@@ -20,6 +20,8 @@ const EXACT_COMMAND_REGEX =
   /(?:^|\n)\s*(?:bun|npm|npx|pnpm|yarn|git|curl|docker|kubectl)\s+/im;
 const STRUCTURED_COACHING_REGEX =
   /\b(routine|piano|programma|scheda|esercizio|esercizi|passi|step|reset\s+mentale)\b/i;
+const SHORT_FACTUAL_REQUEST_REGEX =
+  /^\s*(?:che\s+or[ae]\s+(?:sono|[èe])(?:\s+(?:a|ad|in)\s+[^?!.]+)?|che\s+giorno\s+(?:[èe]|abbiamo)(?:\s+oggi)?|qual\s*[èe]\s+la\s+data(?:\s+di\s+oggi)?|qual\s*[èe]\s+il\s+punteggio(?:\s+[^?!.]+)?|what\s+time\s+is\s+it(?:\s+in\s+[^?!.]+)?|what(?:'s|\s+is)\s+(?:today'?s\s+)?date|what(?:'s|\s+is)\s+the\s+score(?:\s+[^?!.]+)?)\s*[?!.]?\s*$/i;
 const STRONG_MOMENT_REGEX =
   /\b(ansia|ansioso|panico|paura|stress|calma|calmarmi|respira|respiro|conforto|supporto|motivazione|incoraggia|overwhelm(?:ed|ing)?|anxious|panic|afraid|scared|breathe|breathing|comfort|support|encourag(?:e|ement)|grief|grieving)\b/i;
 
@@ -244,6 +246,13 @@ export function getDeterministicVoiceSuitability(
   }
   if (!params.userMessage.trim()) {
     return { category: "TEXT_PREFERRED", confidence: 1, reason: "empty" };
+  }
+  if (SHORT_FACTUAL_REQUEST_REGEX.test(params.userMessage)) {
+    return {
+      category: "TEXT_PREFERRED",
+      confidence: 1,
+      reason: "short_factual",
+    };
   }
 
   // Structured coaching responses need the visual routine proposal card. Do
