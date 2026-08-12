@@ -15,6 +15,11 @@ export default async function ChatConversationPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  if (id === "usage") {
+    notFound();
+  }
+
   let authUser = null;
   try {
     const result = await getAuthUser();

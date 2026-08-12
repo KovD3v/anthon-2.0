@@ -3,6 +3,13 @@ import { NextResponse } from "next/server";
 import { isProtectedRoute } from "@/lib/protected-routes";
 
 export default clerkMiddleware(async (auth, req) => {
+  if (req.nextUrl.pathname === "/chat/usage") {
+    return new NextResponse("Not Found", {
+      status: 404,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+
   // This is an early UX redirect, not the authorization boundary. Protected
   // server resources must continue to check authentication themselves.
   if (isProtectedRoute(req.nextUrl.pathname)) {

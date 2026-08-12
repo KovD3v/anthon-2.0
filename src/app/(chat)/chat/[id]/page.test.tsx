@@ -8,9 +8,10 @@ const mocks = vi.hoisted(() => ({
   getGuestTokenFromCookies: vi.fn(),
   hashGuestToken: vi.fn(),
   guestUserFindFirst: vi.fn(),
+  notFound: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
+vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 vi.mock("@/components/ui/page-wrapper", () => ({
   PageWrapper: ({ children }: { children: ReactNode }) => children,
 }));
@@ -37,6 +38,9 @@ import ChatConversationPage from "./page";
 describe("ChatConversationPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.notFound.mockImplementation(() => {
+      throw new Error("NEXT_NOT_FOUND");
+    });
     mocks.getAuthUser.mockResolvedValue({
       user: { id: "user-1" },
       error: null,
@@ -54,6 +58,18 @@ describe("ChatConversationPage", () => {
       voiceEnabled: true,
       voicePlanEnabled: true,
     });
+  });
+
+  it("returns not found for the retired usage slug before loading chat data", async () => {
+    await expect(
+      ChatConversationPage({
+        params: Promise.resolve({ id: "usage" }),
+      }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(mocks.notFound).toHaveBeenCalledOnce();
+    expect(mocks.getAuthUser).not.toHaveBeenCalled();
+    expect(mocks.getSharedChatWithRetry).not.toHaveBeenCalled();
   });
 
   it("converts a guest before checking the authenticated chat", async () => {
