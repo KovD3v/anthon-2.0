@@ -5,7 +5,7 @@ import { createLogger } from "@/lib/logger";
 import { CLASSIFIER_CAPABILITIES } from "./capability-arbitration";
 
 const MAX_CLASSIFIER_CONTEXT_CHARS = 2_000;
-const TURN_CLASSIFIER_TIMEOUT_MS = 900;
+const TURN_CLASSIFIER_TIMEOUT_MS = 2_000;
 const LIGHT_MIN_CONFIDENCE = 0.9;
 const classifierLogger = createLogger("ai");
 
@@ -178,7 +178,10 @@ export async function classifyTurn({
           abortSignal,
           timeout: { totalMs: TURN_CLASSIFIER_TIMEOUT_MS },
           providerOptions: {
-            openrouter: getOpenRouterProviderOptionsForModel(modelId),
+            openrouter: {
+              ...getOpenRouterProviderOptionsForModel(modelId),
+              reasoning: { enabled: false, max_tokens: 1 },
+            },
           },
           prompt: buildTurnClassifierPrompt(userMessage, context),
         }),

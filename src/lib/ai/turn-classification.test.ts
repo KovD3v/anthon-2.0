@@ -172,12 +172,34 @@ describe("turn classification contract", () => {
       usage: { inputTokens: 40, outputTokens: 20 },
       providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
     });
+  });
+
+  it("runs the classifier without reasoning and with its measured latency budget", async () => {
+    mocks.getOpenRouterProviderOptionsForModel.mockReturnValueOnce({
+      provider: { sort: "latency" },
+      service_tier: "priority",
+      reasoning: { enabled: true, effort: "max" },
+    });
+
+    await classifyTurn({
+      userMessage: "ciao",
+      context: "",
+      modelId: "nvidia/nemotron-3.5-lightning",
+    });
+
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
         model: "classifier-model",
         temperature: 0,
         maxOutputTokens: 220,
-        timeout: { totalMs: 900 },
+        timeout: { totalMs: 2_000 },
+        providerOptions: {
+          openrouter: {
+            provider: { sort: "latency" },
+            service_tier: "priority",
+            reasoning: { enabled: false, max_tokens: 1 },
+          },
+        },
       }),
     );
   });
