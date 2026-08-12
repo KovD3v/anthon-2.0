@@ -355,6 +355,69 @@ describe("ai/rag", () => {
     ]);
   });
 
+  it("keeps a close match just above 0.38 and rejects one just below it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ embedding: embeddingVector(0.1, 0.2) }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.queryRawUnsafe.mockResolvedValue([
+      { content: "Just above", title: "Doc A", similarity: 0.3801 },
+      { content: "Just below", title: "Doc B", similarity: 0.3799 },
+    ]);
+
+    const { searchDocuments } = await loadModule();
+    const result = await searchDocuments("query text", 5);
+
+    expect(result).toEqual([
+      { content: "Just above", title: "Doc A", similarity: 0.3801 },
+    ]);
+  });
+
+  it("reports an empty but successful retrieval when every match is at the threshold", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ embedding: embeddingVector(0.3, 0.4) }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.queryRawUnsafe.mockResolvedValue([
+      { content: "Boundary chunk", title: "Doc A", similarity: 0.38 },
+    ]);
+
+    const { getRagContext } = await loadModule();
+    const result = await getRagContext("query text");
+
+    expect(result).toEqual({
+      text: "Nessun documento rilevante trovato.",
+      chunkCount: 0,
+      failed: false,
+    });
+  });
+
+  it("does not query the vector store when the embedding service returns no embedding", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { searchDocuments } = await loadModule();
+    const result = await searchDocuments("query text", 5);
+
+    expect(result).toEqual([]);
+    expect(mocks.queryRawUnsafe).not.toHaveBeenCalled();
+  });
+
   it("getRagContext formats search results for prompt injection", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
