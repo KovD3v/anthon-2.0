@@ -70,8 +70,9 @@ Version numbers describe the application's user-facing behavior and its document
 - Migrated the shared interface primitives from Radix-based shadcn components
   to Base UI while preserving the existing Anthon component contracts and
   interaction behavior.
-- Broadened semantic RAG retrieval by lowering the calibrated similarity
-  threshold for relevant knowledge matches.
+- Calibrated semantic RAG retrieval at a 0.38 similarity threshold and routed
+  explicit sports mental-performance needs deterministically, while leaving
+  ambiguous mental terms and generic sports requests to the bounded classifier.
 - Replaced the legacy RAG fallback classifier with the shared bounded Nemotron
   route, while retaining Gemini Flash Lite for voice suitability after two
   bounded Nemotron prompt variants failed the production-timeout smoke gate;

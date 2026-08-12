@@ -515,17 +515,37 @@ function normalizeClassificationKey(userMessage: string): string {
   return userMessage.toLowerCase().trim().replaceAll(/\s+/g, " ");
 }
 
+const AMBIGUOUS_MENTAL_RAG_KEYWORDS = new Set([
+  "ansia",
+  "concentrazione",
+  "motivazione",
+  "mentalità",
+  "pressione",
+  "performance",
+]);
 const SPORTS_CONTEXT_PATTERN =
-  /\b(?:partit|gara|campo|mister|coach|allen|gol|palla|ricezion|sport)\w*/u;
-const SPORTS_COACHING_NEED_PATTERN =
-  /\b(?:vomit|ansia|tension|paur|pression|concentra|lucid|motiv|sbagli|error|richiam|aiut|come|strateg|bloc|perd)\w*/u;
+  /\b(?:partita|partite|gara|gare|campo|campionato|mister|coach|allen\w*|gol|palla|pallone|rigore|squadra|calcio|calciatore|sport|prestazione|titolare)\b/iu;
+const SPORTS_MENTAL_NEED_PATTERN =
+  /\b(?:ansia|ansios|nervos|pression|tension|paur|vomit|lucid|concentr|sbagli|error|giudiz|insicur|fiduc|blocc|agit)/iu;
 
-function matchesConcreteSportsCoachingNeed(message: string): boolean {
-  const normalized = message.toLowerCase();
+function matchesSportsContext(message: string): boolean {
+  return SPORTS_CONTEXT_PATTERN.test(message);
+}
+
+function matchesSpecificSportsMentalNeed(message: string): boolean {
   return (
-    SPORTS_CONTEXT_PATTERN.test(normalized) &&
-    SPORTS_COACHING_NEED_PATTERN.test(normalized)
+    matchesSportsContext(message) && SPORTS_MENTAL_NEED_PATTERN.test(message)
   );
+}
+
+function hasDirectRagKeyword(message: string): boolean {
+  const lower = message.toLowerCase();
+  const hasSportsContext = matchesSportsContext(message);
+
+  return RAG_KEYWORDS.some((keyword) => {
+    if (!lower.includes(keyword)) return false;
+    return !AMBIGUOUS_MENTAL_RAG_KEYWORDS.has(keyword) || hasSportsContext;
+  });
 }
 
 /**
@@ -534,7 +554,9 @@ function matchesConcreteSportsCoachingNeed(message: string): boolean {
  *
  * Optimization layers (in order):
  * 1. Document existence check (cached)
- * 2. Positive keyword matching (instant) - FIRST to catch technical queries with greetings
+ * 2. Direct and context-gated keyword matching (instant) - FIRST to catch
+ *    technical queries with greetings without treating ambiguous mental terms
+ *    as sports requests
  * 3. Negative keyword matching (instant) - only for short messages < 30 chars
  * 4. Non-technical pattern matching (instant)
  * 5. Bounded LLM classification (only as last resort)
@@ -546,8 +568,8 @@ export async function shouldUseRag(
   const lower = userMessage.toLowerCase();
   const messageLength = userMessage.trim().length;
   const hasPositiveKeyword =
-    RAG_KEYWORDS.some((kw) => lower.includes(kw)) ||
-    matchesConcreteSportsCoachingNeed(userMessage);
+    hasDirectRagKeyword(userMessage) ||
+    matchesSpecificSportsMentalNeed(userMessage);
 
   // OPTIMIZATION 1: Fast local rejects before any database work, unless a
   // positive RAG keyword is present.

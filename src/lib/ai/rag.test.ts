@@ -195,10 +195,12 @@ describe("ai/rag", () => {
 
   it.each([
     "Vomito spesso prima della partita",
-    "Ora aiutami a fare gol",
     "Dopo il richiamo del mister perdo lucidità in campo",
+    "Ho paura di sbagliare il rigore decisivo",
+    "Sono nervoso prima della gara",
+    "Ho paura mentre mi alleno",
   ])(
-    "shouldUseRag routes concrete sports coaching needs without the classifier: %s",
+    "shouldUseRag routes explicit sports mental-performance needs without the classifier: %s",
     async (query) => {
       mocks.ragDocumentCount.mockResolvedValue(1);
       const { shouldUseRag } = await loadModule();
@@ -207,6 +209,41 @@ describe("ai/rag", () => {
 
       expect(result).toBe(true);
       expect(mocks.generateText).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    "Ho ansia per l'esame di matematica",
+    "Sono sotto pressione al lavoro",
+  ])(
+    "shouldUseRag does not treat ambiguous mental terms as sports context: %s",
+    async (query) => {
+      mocks.ragDocumentCount.mockResolvedValue(1);
+      mocks.generateText.mockResolvedValue({
+        output: { needsRag: false, reason: "non-sports context" },
+      });
+      const { shouldUseRag } = await loadModule();
+
+      const result = await shouldUseRag(query);
+
+      expect(result).toBe(false);
+      expect(mocks.generateText).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["Ora aiutami a fare gol", "Come mi alleno domani?"])(
+    "shouldUseRag leaves generic technical sports requests to the classifier: %s",
+    async (query) => {
+      mocks.ragDocumentCount.mockResolvedValue(1);
+      mocks.generateText.mockResolvedValue({
+        output: { needsRag: false, reason: "generic technical request" },
+      });
+      const { shouldUseRag } = await loadModule();
+
+      const result = await shouldUseRag(query);
+
+      expect(result).toBe(false);
+      expect(mocks.generateText).toHaveBeenCalledTimes(1);
     },
   );
 
