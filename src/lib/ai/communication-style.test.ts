@@ -12,7 +12,16 @@ function userMessage(content: string): ModelMessage {
 describe("Anthon communication style", () => {
   it("encodes the compact conversational rhythm without copying errors", () => {
     expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
-      "Default to compact turns",
+      "one assistant response",
+    );
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
+      "one to four short lines",
+    );
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
+      "up to six focused lines",
+    );
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
+      "one sentence or one idea per line",
     );
     expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
       "Use punctuation lightly",
@@ -33,11 +42,29 @@ describe("Anthon communication style", () => {
     expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).not.toContain(
       "do not use emoji in consecutive assistant replies",
     );
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).not.toContain(
+      "Do not imitate separate message bursts",
+    );
     expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
       "never manufacture typos",
     );
     expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
       "Remain transparently Anthon",
+    );
+  });
+
+  it("allows restrained reflective and celebratory expression", () => {
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
+      "An occasional ellipsis",
+    );
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
+      "Selective elongated vowels or one uppercase word",
+    );
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
+      "Do not manufacture spelling errors",
+    );
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
+      "Do not force a greeting, question, affectionate closing, or motivational signature",
     );
   });
 
