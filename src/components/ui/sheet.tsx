@@ -1,42 +1,100 @@
 "use client";
 
-import * as SheetPrimitive from "@radix-ui/react-dialog";
+import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "lucide-react";
-import type * as React from "react";
+import * as React from "react";
 
+import {
+  type AutoFocusEvent,
+  BaseUIRootFocusContext,
+  runAutoFocusHandler,
+  trapTabKey,
+  useBaseUIRootFocus,
+} from "@/components/ui/base-ui-compat";
 import { cn } from "@/lib/utils";
 
-function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />;
+type ComposableProps<T> = T & { asChild?: boolean };
+
+function Sheet({
+  defaultOpen = false,
+  open: controlledOpen,
+  onOpenChange,
+  ...props
+}: SheetPrimitive.Root.Props) {
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const { captureReturnFocus, contextValue } = useBaseUIRootFocus(open);
+
+  return (
+    <BaseUIRootFocusContext.Provider value={contextValue}>
+      <SheetPrimitive.Root
+        data-slot="sheet"
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            captureReturnFocus();
+          }
+          if (controlledOpen === undefined) {
+            setUncontrolledOpen(nextOpen);
+          }
+          (onOpenChange as ((value: boolean) => void) | undefined)?.(nextOpen);
+        }}
+        {...props}
+      />
+    </BaseUIRootFocusContext.Provider>
+  );
 }
 
 function SheetTrigger({
+  asChild = false,
+  children,
+  render,
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Trigger>) {
-  return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />;
+}: ComposableProps<SheetPrimitive.Trigger.Props>) {
+  const composedRender =
+    asChild && React.isValidElement(children) ? children : render;
+
+  return (
+    <SheetPrimitive.Trigger
+      data-slot="sheet-trigger"
+      render={composedRender}
+      {...props}
+    >
+      {asChild ? undefined : children}
+    </SheetPrimitive.Trigger>
+  );
 }
 
 function SheetClose({
+  asChild = false,
+  children,
+  render,
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Close>) {
-  return <SheetPrimitive.Close data-slot="sheet-close" {...props} />;
+}: ComposableProps<SheetPrimitive.Close.Props>) {
+  const composedRender =
+    asChild && React.isValidElement(children) ? children : render;
+
+  return (
+    <SheetPrimitive.Close
+      data-slot="sheet-close"
+      render={composedRender}
+      {...props}
+    >
+      {asChild ? undefined : children}
+    </SheetPrimitive.Close>
+  );
 }
 
-function SheetPortal({
-  ...props
-}: React.ComponentProps<typeof SheetPrimitive.Portal>) {
+function SheetPortal(props: SheetPrimitive.Portal.Props) {
   return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
 }
 
-function SheetOverlay({
-  className,
-  ...props
-}: React.ComponentProps<typeof SheetPrimitive.Overlay>) {
+function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
   return (
-    <SheetPrimitive.Overlay
+    <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/50 opacity-0 transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] data-[state=open]:opacity-100 data-[state=open]:duration-250 motion-reduce:duration-150 motion-reduce:data-[state=open]:duration-150",
+        "fixed inset-0 z-50 bg-black/50 opacity-0 transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] data-open:opacity-100 data-open:duration-250 motion-reduce:duration-150 motion-reduce:data-open:duration-150",
         className,
       )}
       {...props}
@@ -50,38 +108,63 @@ function SheetContent({
   side = "right",
   closeLabel = "Close",
   showCloseButton = true,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
+  initialFocus,
+  finalFocus,
+  onKeyDown,
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Content> & {
+}: SheetPrimitive.Popup.Props & {
   side?: "top" | "right" | "bottom" | "left";
   closeLabel?: string;
   showCloseButton?: boolean;
+  onOpenAutoFocus?: (event: AutoFocusEvent) => void;
+  onCloseAutoFocus?: (event: AutoFocusEvent) => void;
 }) {
+  const rootFocus = React.useContext(BaseUIRootFocusContext);
+  if (rootFocus) {
+    rootFocus.closeHandlerRef.current = onCloseAutoFocus;
+  }
+
   return (
     <SheetPortal>
       <SheetOverlay />
-      <SheetPrimitive.Content
+      <SheetPrimitive.Popup
         data-slot="sheet-content"
         className={cn(
-          "bg-background fixed z-50 flex flex-col gap-4 shadow-lg transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] data-[state=open]:translate-x-0 data-[state=open]:translate-y-0 data-[state=open]:duration-250 motion-reduce:transform-none motion-reduce:transition-opacity motion-reduce:opacity-0 motion-reduce:data-[state=open]:opacity-100 motion-reduce:duration-150 motion-reduce:data-[state=open]:duration-150",
+          "fixed z-50 flex flex-col gap-4 bg-background shadow-lg transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] data-open:translate-x-0 data-open:translate-y-0 data-open:duration-250 motion-reduce:transform-none motion-reduce:opacity-0 motion-reduce:transition-opacity motion-reduce:data-open:opacity-100 motion-reduce:duration-150 motion-reduce:data-open:duration-150",
           side === "right" &&
-            "translate-x-full inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm",
+            "inset-y-0 right-0 h-full w-3/4 translate-x-full border-l sm:max-w-sm",
           side === "left" &&
-            "-translate-x-full inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm",
-          side === "top" && "-translate-y-full inset-x-0 top-0 h-auto border-b",
+            "inset-y-0 left-0 h-full w-3/4 -translate-x-full border-r sm:max-w-sm",
+          side === "top" && "inset-x-0 top-0 h-auto -translate-y-full border-b",
           side === "bottom" &&
-            "translate-y-full inset-x-0 bottom-0 h-auto border-t",
+            "inset-x-0 bottom-0 h-auto translate-y-full border-t",
           className,
         )}
+        initialFocus={
+          initialFocus ??
+          (onOpenAutoFocus
+            ? () => runAutoFocusHandler(onOpenAutoFocus)
+            : undefined)
+        }
+        finalFocus={finalFocus ?? (onCloseAutoFocus ? false : undefined)}
+        onKeyDown={(event) => {
+          onKeyDown?.(event);
+          if (!event.defaultPrevented) {
+            trapTabKey(event);
+          }
+        }}
         {...props}
       >
         {children}
         {showCloseButton && (
-          <SheetPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
+          <SheetPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
             <XIcon className="size-4" />
             <span className="sr-only">{closeLabel}</span>
           </SheetPrimitive.Close>
         )}
-      </SheetPrimitive.Content>
+      </SheetPrimitive.Popup>
     </SheetPortal>
   );
 }
@@ -106,14 +189,11 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function SheetTitle({
-  className,
-  ...props
-}: React.ComponentProps<typeof SheetPrimitive.Title>) {
+function SheetTitle({ className, ...props }: SheetPrimitive.Title.Props) {
   return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
-      className={cn("text-foreground font-semibold", className)}
+      className={cn("font-semibold text-foreground", className)}
       {...props}
     />
   );
@@ -122,11 +202,11 @@ function SheetTitle({
 function SheetDescription({
   className,
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Description>) {
+}: SheetPrimitive.Description.Props) {
   return (
     <SheetPrimitive.Description
       data-slot="sheet-description"
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn("text-sm text-muted-foreground", className)}
       {...props}
     />
   );
@@ -134,11 +214,11 @@ function SheetDescription({
 
 export {
   Sheet,
-  SheetTrigger,
   SheetClose,
   SheetContent,
-  SheetHeader,
-  SheetFooter,
-  SheetTitle,
   SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
 };

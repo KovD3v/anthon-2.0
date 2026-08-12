@@ -17,13 +17,7 @@
     "type": true
   },
   "ignore": ["src/components/ui/**/*"],
-  "ignoreDependencies": [
-    "@prisma/client",
-    "@radix-ui/react-scroll-area",
-    "@radix-ui/react-select",
-    "@radix-ui/react-slider",
-    "radix-ui"
-  ],
+  "ignoreDependencies": ["@prisma/client"],
   "tags": ["-lintignore"],
   "ignoreMembers": ["^runtime$", "^maxDuration$"]
 }

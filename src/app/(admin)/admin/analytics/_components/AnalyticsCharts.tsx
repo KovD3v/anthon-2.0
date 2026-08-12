@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -11,10 +12,22 @@ import {
   PieChart,
   ResponsiveContainer,
   Tooltip,
+  type TooltipValueType,
   XAxis,
   YAxis,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+function formatDateLabel(value: ReactNode) {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return value;
+  }
+  return new Date(value).toLocaleDateString("it-IT");
+}
+
+function tooltipNumber(value: TooltipValueType | undefined) {
+  return Number(Array.isArray(value) ? value[0] : (value ?? 0));
+}
 
 const COLORS = [
   "#0088FE",
@@ -99,11 +112,7 @@ export default function AnalyticsCharts({
                     }
                   />
                   <YAxis />
-                  <Tooltip
-                    labelFormatter={(v) =>
-                      new Date(v).toLocaleDateString("it-IT")
-                    }
-                  />
+                  <Tooltip labelFormatter={formatDateLabel} />
                   <Line
                     type="monotone"
                     dataKey="count"
@@ -139,11 +148,7 @@ export default function AnalyticsCharts({
                     }
                   />
                   <YAxis />
-                  <Tooltip
-                    labelFormatter={(v) =>
-                      new Date(v).toLocaleDateString("it-IT")
-                    }
-                  />
+                  <Tooltip labelFormatter={formatDateLabel} />
                   <Bar dataKey="count" fill="#00C49F" />
                 </BarChart>
               </ResponsiveContainer>
@@ -189,8 +194,8 @@ export default function AnalyticsCharts({
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: number | string | undefined) =>
-                      `$${Number(value || 0).toFixed(4)}`
+                    formatter={(value: TooltipValueType | undefined) =>
+                      `$${tooltipNumber(value).toFixed(4)}`
                     }
                   />
                 </PieChart>
@@ -223,11 +228,9 @@ export default function AnalyticsCharts({
                   />
                   <YAxis tickFormatter={(v) => `$${v.toFixed(2)}`} />
                   <Tooltip
-                    labelFormatter={(v) =>
-                      new Date(v).toLocaleDateString("it-IT")
-                    }
-                    formatter={(value: number | string | undefined) => [
-                      `$${Number(value || 0).toFixed(4)}`,
+                    labelFormatter={formatDateLabel}
+                    formatter={(value: TooltipValueType | undefined) => [
+                      `$${tooltipNumber(value).toFixed(4)}`,
                       "Costo",
                     ]}
                   />
