@@ -1699,6 +1699,13 @@ describe("ai/orchestrator", () => {
       "Choose the coaching move before choosing the wording",
     );
     expect(prepared.systemPrompt).toContain(
+      "Choose one unannounced writing register",
+    );
+    expect(prepared.systemPrompt).toContain("one assistant response");
+    expect(prepared.systemPrompt).toContain(
+      "Offer a perspective; do not choose for the user",
+    );
+    expect(prepared.systemPrompt).toContain(
       "Reinforce identity selectively and from evidence",
     );
     expect(prepared.systemPrompt).toContain("without guaranteeing results");
@@ -4605,7 +4612,11 @@ describe("ai/orchestrator", () => {
     expect(streamInput.instructions).toContain(
       "Choose the coaching move before choosing the wording",
     );
+    expect(streamInput.instructions).toContain(
+      "Choose one unannounced writing register",
+    );
     expect(streamInput.instructions).toContain("ANTHON CONVERSATIONAL VOICE");
+    expect(streamInput.instructions).toContain("one assistant response");
     expect(streamInput.instructions).toContain(
       "Emoji are selective but perceptible",
     );
@@ -4649,8 +4660,12 @@ describe("ai/orchestrator", () => {
       "Do NOT make medical/clinical diagnoses",
     );
     expect(prepared.systemPrompt).toContain("MENTAL COACHING SCOPE");
+    expect(prepared.systemPrompt).toContain("ANTHON COACHING BEHAVIOR");
+    expect(prepared.systemPrompt).toContain(
+      "Choose one unannounced writing register",
+    );
     expect(prepared.systemPrompt).toContain("ANTHON CONVERSATIONAL VOICE");
-    expect(prepared.systemPrompt).toContain("Default to compact turns");
+    expect(prepared.systemPrompt).toContain("one assistant response");
     expect(prepared.systemPrompt).toContain("PRODUCT & REFERRAL BOUNDARY");
     expect(prepared.systemPrompt).toContain(
       "continue supporting the user inside Anthon",
