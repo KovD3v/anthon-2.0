@@ -5,7 +5,7 @@ import { Check, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { duration } from "@/lib/motion";
+import { duration, ease } from "@/lib/motion";
 import { getCreateChatButtonState } from "../chat/create-chat-ui";
 import { ChatIcon } from "./ChatIcon";
 import { groupChatsByPeriod, type SidebarChat } from "./chat-periods";
@@ -214,10 +214,10 @@ function ChatItem({
         opacity: 0,
         transition: {
           duration: duration.fast,
-          ease: [0.23, 1, 0.32, 1],
+          ease: ease.out,
         },
       }}
-      transition={{ duration: duration.fast, ease: [0.23, 1, 0.32, 1] }}
+      transition={{ duration: duration.fast, ease: ease.out }}
       className="group relative list-none"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setShowActions(false)}
@@ -273,7 +273,7 @@ function ChatItem({
             exit={{ opacity: 0 }}
             transition={{
               duration: duration.fast,
-              ease: [0.23, 1, 0.32, 1],
+              ease: ease.out,
             }}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10 bg-background/90 dark:bg-muted/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-border/50 dark:border-white/10"
           >
@@ -330,7 +330,7 @@ function ChatItem({
             }}
             transition={{
               duration: duration.fast,
-              ease: [0.23, 1, 0.32, 1],
+              ease: ease.out,
             }}
             className="absolute right-1.5 top-1/2 flex items-center gap-0.5 z-10 bg-background/95 dark:bg-muted/95 backdrop-blur-sm rounded-lg p-0.5 shadow-md border border-border/50 dark:border-white/10"
           >

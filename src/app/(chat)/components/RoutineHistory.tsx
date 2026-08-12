@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import {
   type RoutineAttempt,
   RoutineClientError,
 } from "@/lib/coaching/routine-client";
+import { duration, ease } from "@/lib/motion";
 
 const outcomeLabel: Record<NonNullable<RoutineAttempt["outcome"]>, string> = {
   HELPFUL: "Mi ha aiutato",
@@ -33,6 +35,7 @@ function frequencyLabel(attempts: RoutineAttempt[]) {
 }
 
 export function RoutineHistory({ routine }: { routine: RoutineCardData }) {
+  const shouldReduceMotion = useReducedMotion();
   const [isOpen, setIsOpen] = useState(false);
   const [attempts, setAttempts] = useState<RoutineAttempt[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -123,84 +126,98 @@ export function RoutineHistory({ routine }: { routine: RoutineCardData }) {
       >
         Storico tentativi
       </Button>
-      {isOpen && (
-        <div className="mt-2 space-y-3 text-sm">
-          {isLoading && attempts.length === 0 && (
-            <output
-              className="block text-xs text-muted-foreground"
-              aria-live="polite"
-            >
-              Carico lo storico…
-            </output>
-          )}
-          {attempts.length > 0 && (
-            <>
-              <p className="text-xs text-muted-foreground">
-                Frequenza recente: {frequencyLabel(attempts)}
-              </p>
-              <ul className="space-y-2" aria-label="Tentativi precedenti">
-                {attempts.map((attempt) => (
-                  <li key={attempt.id} className="rounded-lg bg-muted/50 p-3">
-                    <p className="font-medium">
-                      Ultimo esito:{" "}
-                      {attempt.outcome
-                        ? outcomeLabel[attempt.outcome]
-                        : "Da registrare"}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Tentativo · {formatDateTime(attempt.attemptedAt)}
-                    </p>
-                    {attempt.outcomeRecordedAt && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Esito registrato ·{" "}
-                        {formatDateTime(attempt.outcomeRecordedAt)}
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <m.div
+            key="routine-history"
+            initial={{
+              opacity: 0,
+              transform: shouldReduceMotion
+                ? "translateY(0)"
+                : "translateY(-6px)",
+            }}
+            animate={{ opacity: 1, transform: "translateY(0)" }}
+            exit={{ opacity: 0, transform: "translateY(0)" }}
+            transition={{ duration: duration.fast, ease: ease.out }}
+            className="mt-2 space-y-3 text-sm"
+          >
+            {isLoading && attempts.length === 0 && (
+              <output
+                className="block text-xs text-muted-foreground"
+                aria-live="polite"
+              >
+                Carico lo storico…
+              </output>
+            )}
+            {attempts.length > 0 && (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Frequenza recente: {frequencyLabel(attempts)}
+                </p>
+                <ul className="space-y-2" aria-label="Tentativi precedenti">
+                  {attempts.map((attempt) => (
+                    <li key={attempt.id} className="rounded-lg bg-muted/50 p-3">
+                      <p className="font-medium">
+                        Ultimo esito:{" "}
+                        {attempt.outcome
+                          ? outcomeLabel[attempt.outcome]
+                          : "Da registrare"}
                       </p>
-                    )}
-                    {attempt.outcomeNote && (
-                      <div className="mt-2">
-                        <p className="text-xs font-medium text-muted-foreground">
-                          Feedback
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Tentativo · {formatDateTime(attempt.attemptedAt)}
+                      </p>
+                      {attempt.outcomeRecordedAt && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Esito registrato ·{" "}
+                          {formatDateTime(attempt.outcomeRecordedAt)}
                         </p>
-                        <p className="mt-1 leading-relaxed">
-                          {attempt.outcomeNote}
-                        </p>
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          {error && (
-            <p className="text-xs font-medium text-destructive" role="alert">
-              {error}
-            </p>
-          )}
-          {nextCursor && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="min-h-11 rounded-full px-4"
-              disabled={isLoading}
-              onClick={() => void load(nextCursor)}
-            >
-              {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Carica altri tentativi
-            </Button>
-          )}
-          {error && attempts.length === 0 && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => void load()}
-            >
-              Riprova
-            </Button>
-          )}
-        </div>
-      )}
+                      )}
+                      {attempt.outcomeNote && (
+                        <div className="mt-2">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Feedback
+                          </p>
+                          <p className="mt-1 leading-relaxed">
+                            {attempt.outcomeNote}
+                          </p>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {error && (
+              <p className="text-xs font-medium text-destructive" role="alert">
+                {error}
+              </p>
+            )}
+            {nextCursor && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="min-h-11 rounded-full px-4"
+                disabled={isLoading}
+                onClick={() => void load(nextCursor)}
+              >
+                {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Carica altri tentativi
+              </Button>
+            )}
+            {error && attempts.length === 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void load()}
+              >
+                Riprova
+              </Button>
+            )}
+          </m.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -158,9 +158,9 @@ export default function ElevenLabsAdminPage() {
             </p>
             <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
               <div
-                className="h-full bg-violet-500 transition-all duration-500"
+                className="h-full w-full origin-left bg-violet-500 transition-transform duration-250 ease-[cubic-bezier(0.77,0,0.175,1)] motion-reduce:transition-none"
                 style={{
-                  width: `${Math.min(usedPercent, 100)}%`,
+                  transform: `scaleX(${Math.min(usedPercent, 100) / 100})`,
                 }}
               />
             </div>

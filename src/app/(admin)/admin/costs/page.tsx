@@ -115,7 +115,7 @@ export default function AdminCostsPage() {
               onClick={() => setRange(r)}
               type="button"
               className={cn(
-                "px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200",
+                "px-3 py-1.5 text-xs font-medium rounded-md transition-[color,background-color,box-shadow] duration-200",
                 range === r
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
@@ -246,7 +246,7 @@ function KPICard({
   bgColor: string;
 }) {
   return (
-    <Card className="overflow-hidden border-white/5 bg-background/40 backdrop-blur-md shadow-lg group hover:bg-muted/30 transition-all duration-300">
+    <Card className="group overflow-hidden border-white/5 bg-background/40 shadow-lg backdrop-blur-md transition-[background-color] duration-300 hover:bg-muted/30">
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <div
@@ -303,10 +303,10 @@ function InfraCard({
   color: string;
 }) {
   return (
-    <Card className="border-white/5 bg-background/40 backdrop-blur-md hover:bg-muted/20 transition-all duration-300 group">
+    <Card className="group border-white/5 bg-background/40 backdrop-blur-md transition-[background-color] duration-300 hover:bg-muted/20">
       <CardContent className="p-4">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-white/5 ring-1 ring-white/10 group-hover:ring-white/20 transition-all">
+          <div className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 transition-[box-shadow] group-hover:ring-white/20">
             <Icon className={cn("h-5 w-5", color)} />
           </div>
           <div className="flex-1 min-w-0">

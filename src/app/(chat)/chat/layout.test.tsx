@@ -279,7 +279,7 @@ describe("chat mobile viewport layout", () => {
     expect(layoutClient).not.toContain("debugViewport");
     expect(layoutClient).not.toContain("ViewportDebugOverlay");
     expect(layoutClient).toContain(
-      'className="flex min-w-0 chat-mobile-viewport overflow-hidden"',
+      'className="flex min-w-0 chat-mobile-viewport overflow-hidden md:grid',
     );
     expect(layout).toContain(
       'className="flex chat-mobile-viewport overflow-hidden"',
@@ -356,7 +356,7 @@ describe("chat mobile viewport layout", () => {
       'className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]"',
     );
     expect(conversationPage).toContain(
-      '<PageWrapper className="flex min-h-0 flex-1 flex-col">',
+      '<PageWrapper motion={false} className="flex min-h-0 flex-1 flex-col">',
     );
     expect(conversationClient).toContain("const isEmptyIdle =");
     expect(conversationClient).toContain(

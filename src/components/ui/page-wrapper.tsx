@@ -7,16 +7,18 @@ import { cn } from "@/lib/utils";
 export function PageWrapper({
   children,
   className,
+  motion = true,
 }: {
   children: React.ReactNode;
   className?: string;
+  motion?: boolean;
 }) {
   return (
     <m.div
-      variants={fadeIn}
-      initial="hidden"
+      variants={motion ? fadeIn : undefined}
+      initial={motion ? "hidden" : false}
       animate="show"
-      transition={defaultTransition}
+      transition={motion ? defaultTransition : undefined}
       className={cn(className)}
     >
       {children}

@@ -298,7 +298,7 @@ export function ChannelsPageClient({
             return (
               <Card
                 key={channelType}
-                className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg ${
+                className={`relative overflow-hidden transition-[border-color,box-shadow] duration-300 hover:shadow-lg ${
                   isConnected ? config.borderColor : "border-border"
                 }`}
               >

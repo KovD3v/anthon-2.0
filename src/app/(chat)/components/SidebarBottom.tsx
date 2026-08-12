@@ -21,7 +21,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useRef, useState } from "react";
-import { duration } from "@/lib/motion";
+import { duration, ease } from "@/lib/motion";
 
 export function SidebarBottom() {
   const { user } = useUser();
@@ -133,7 +133,7 @@ export function SidebarBottom() {
             }}
             transition={{
               duration: duration.fast,
-              ease: [0.23, 1, 0.32, 1],
+              ease: ease.out,
             }}
             id="account-navigation-menu"
             role="menu"

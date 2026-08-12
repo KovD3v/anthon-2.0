@@ -245,7 +245,7 @@ export function AudioRecorder({
         type="button"
         size="icon"
         variant={isRecording ? "destructive" : "ghost"}
-        className={`h-10 w-10 rounded-full transition-all ${
+        className={`h-10 w-10 rounded-full transition-[background-color,color,box-shadow,opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-[background-color,color,box-shadow,opacity] ${
           isRecording
             ? "bg-red-500 hover:bg-red-600 animate-pulse"
             : "hover:bg-muted"

@@ -206,29 +206,16 @@ export function Navbar() {
               aria-expanded={isMenuOpen}
               aria-controls="menu-mobile"
             >
-              <AnimatePresence mode="wait">
+              <m.div
+                animate={{ rotate: isMenuOpen ? 90 : 0 }}
+                transition={{ duration: duration.fast, ease: ease.inOut }}
+              >
                 {isMenuOpen ? (
-                  <m.div
-                    key="close"
-                    initial={{ opacity: 0, rotate: -90 }}
-                    animate={{ opacity: 1, rotate: 0 }}
-                    exit={{ opacity: 0, rotate: 90 }}
-                    transition={{ duration: duration.fast, ease: ease.inOut }}
-                  >
-                    <X className="h-6 w-6" />
-                  </m.div>
+                  <X className="h-6 w-6" />
                 ) : (
-                  <m.div
-                    key="menu"
-                    initial={{ opacity: 0, rotate: 90 }}
-                    animate={{ opacity: 1, rotate: 0 }}
-                    exit={{ opacity: 0, rotate: -90 }}
-                    transition={{ duration: duration.fast, ease: ease.inOut }}
-                  >
-                    <Menu className="h-6 w-6" />
-                  </m.div>
+                  <Menu className="h-6 w-6" />
                 )}
-              </AnimatePresence>
+              </m.div>
             </button>
           </div>
         </div>

@@ -238,7 +238,10 @@ export default function ChatPage() {
     mostRecentChat !== null || returningActiveRoutine !== null;
 
   return (
-    <PageWrapper className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <PageWrapper
+      motion={false}
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
       <div className="min-h-0 flex-1 overflow-y-auto min-w-0">
         <div className="flex min-h-full flex-col items-center justify-center px-4 py-8 sm:p-8">
           <div className="w-full min-w-0 max-w-4xl text-center">
@@ -361,7 +364,7 @@ export default function ChatPage() {
                       title: starter.title,
                     })
                   }
-                  className="group flex min-h-28 flex-col rounded-2xl border border-border bg-card p-3 text-left shadow-sm transition-all hover:-translate-y-1 hover:border-primary/60 hover:shadow-lg focus-visible:border-primary sm:min-h-40 sm:p-5"
+                  className="group flex min-h-28 flex-col rounded-2xl border border-border bg-card p-3 text-left shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] [@media(hover:hover)_and_(pointer:fine)_and_(prefers-reduced-motion:no-preference)]:hover:-translate-y-1 hover:border-primary/60 hover:shadow-lg focus-visible:border-primary motion-reduce:transition-[background-color,border-color,box-shadow] sm:min-h-40 sm:p-5"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground sm:h-10 sm:w-10">
                     <starter.icon className="h-4 w-4 sm:h-5 sm:w-5" />

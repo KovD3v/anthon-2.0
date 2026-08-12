@@ -402,8 +402,8 @@ function FunnelRow({
       </div>
       <div className="h-3 bg-muted rounded-full overflow-hidden">
         <div
-          className="h-full bg-blue-500 rounded-full transition-all"
-          style={{ width: `${Math.min(percentage, 100)}%` }}
+          className="h-full w-full origin-left rounded-full bg-blue-500 transition-transform duration-250 ease-linear motion-reduce:transition-none"
+          style={{ transform: `scaleX(${Math.min(percentage, 100) / 100})` }}
         />
       </div>
     </div>

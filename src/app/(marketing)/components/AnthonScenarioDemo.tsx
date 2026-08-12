@@ -243,7 +243,7 @@ export function AnthonScenarioDemo() {
             </div>
 
             <div
-              className={`mt-7 grid grid-cols-[auto_1fr] items-center gap-4 rounded-2xl bg-card p-4 text-card-foreground shadow-sm transition-all duration-300 sm:grid-cols-[auto_1fr_auto] sm:p-5 ${
+              className={`mt-7 grid grid-cols-[auto_1fr] items-center gap-4 rounded-2xl bg-card p-4 text-card-foreground shadow-sm transition-[opacity,transform] duration-300 motion-reduce:transition-none sm:grid-cols-[auto_1fr_auto] sm:p-5 ${
                 phase === "complete"
                   ? "translate-y-0 opacity-100"
                   : "translate-y-2 opacity-0"

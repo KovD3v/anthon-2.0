@@ -178,6 +178,19 @@ describe("getAssistantPendingLabel", () => {
       }),
     ).toBe(false);
   });
+
+  it("mounts user messages without replaying an entrance animation", () => {
+    expect(
+      shouldAnimateAssistantMessageMount({
+        message: {
+          id: "user-1",
+          role: "user",
+          parts: [{ type: "text", text: "Ci sono" }],
+        },
+        displayState: "content",
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("getAssistantToolFeedback", () => {

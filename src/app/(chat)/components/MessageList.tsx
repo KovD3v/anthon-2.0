@@ -49,7 +49,13 @@ import type {
   ModelComparisonData,
   ModelComparisonSlot,
 } from "@/lib/model-experiments/types";
-import { defaultTransition, fadeUp, scaleIn } from "@/lib/motion";
+import {
+  defaultTransition,
+  duration,
+  ease,
+  fadeUp,
+  scaleIn,
+} from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { MessageFeedbackReason } from "@/types/chat";
 import {
@@ -1020,7 +1026,10 @@ export function MessageList({
                           animate={{
                             opacity: areMessageActionsVisible ? 1 : 0,
                           }}
-                          transition={{ duration: 0.18, ease: "easeOut" }}
+                          transition={{
+                            duration: duration.fast,
+                            ease: ease.out,
+                          }}
                           aria-hidden={
                             areMessageActionsVisible ? undefined : true
                           }

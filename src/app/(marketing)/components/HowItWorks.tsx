@@ -72,8 +72,8 @@ export function HowItWorks() {
               whileHover={{ y: -4 }}
             >
               <Card className="group grid h-full rounded-2xl bg-card p-6 text-left shadow-none transition-[border-color,box-shadow] duration-300 hover:border-brand-yellow/60 hover:shadow-[0_20px_50px_-36px_rgba(0,0,0,0.7)] sm:grid-cols-[auto_1fr] sm:gap-8 sm:p-8">
-                <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-xl bg-brand-yellow text-[#171714] transition-transform duration-300 group-hover:rotate-3 sm:mb-0">
-                  <step.icon className="h-7 w-7 transition-transform duration-300 group-hover:scale-110" />
+                <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-xl bg-brand-yellow text-[#171714] transition-transform duration-300 [@media(hover:hover)_and_(pointer:fine)_and_(prefers-reduced-motion:no-preference)]:group-hover:rotate-3 motion-reduce:transition-none sm:mb-0">
+                  <step.icon className="h-7 w-7 transition-transform duration-300 [@media(hover:hover)_and_(pointer:fine)_and_(prefers-reduced-motion:no-preference)]:group-hover:scale-110 motion-reduce:transition-none" />
                 </div>
                 <div>
                   <h3 className="font-display mb-3 text-2xl font-bold uppercase leading-none sm:text-3xl">

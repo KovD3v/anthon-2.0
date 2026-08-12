@@ -96,6 +96,13 @@ function isRenderedVisible(
     currentElement;
     currentElement = currentElement.parentElement
   ) {
+    if (
+      currentElement.hidden ||
+      currentElement.inert ||
+      currentElement.getAttribute("aria-hidden") === "true"
+    ) {
+      return false;
+    }
     const styles = window.getComputedStyle(currentElement);
     if (styles.display === "none" || styles.visibility === "hidden") {
       return false;
@@ -1200,8 +1207,14 @@ export function LayoutClient({
     >
       <div
         ref={chatViewportRef}
-        className="flex min-w-0 chat-mobile-viewport overflow-hidden"
+        className="flex min-w-0 chat-mobile-viewport overflow-hidden md:grid md:transition-[grid-template-columns] md:duration-250 md:ease-[cubic-bezier(0.77,0,0.175,1)] motion-reduce:md:transition-none"
         data-testid="chat-layout-shell"
+        data-desktop-sidebar-open={isDesktopSidebarOpen}
+        style={{
+          gridTemplateColumns: isDesktopSidebarOpen
+            ? "18rem minmax(0, 1fr)"
+            : "0 minmax(0, 1fr)",
+        }}
       >
         {isMobileSidebarViewport && (
           <Sheet
@@ -1267,10 +1280,16 @@ export function LayoutClient({
           </Sheet>
         )}
 
-        {!isMobileSidebarViewport && isDesktopSidebarOpen && (
+        {!isMobileSidebarViewport && (
           <aside
             ref={desktopSidebarRef}
-            className="hidden h-full w-72 shrink-0 flex-col border-r border-border/50 bg-background/80 backdrop-blur-xl dark:border-white/10 dark:bg-muted/40 md:flex"
+            aria-hidden={isDesktopSidebarOpen ? undefined : true}
+            inert={isDesktopSidebarOpen ? undefined : true}
+            className={`hidden h-full w-72 shrink-0 flex-col overflow-hidden border-r border-border/50 bg-background/80 backdrop-blur-xl transition-[transform,opacity] duration-250 ease-[cubic-bezier(0.77,0,0.175,1)] motion-reduce:transition-none dark:border-white/10 dark:bg-muted/40 md:flex ${
+              isDesktopSidebarOpen
+                ? "translate-x-0 opacity-100"
+                : "pointer-events-none -translate-x-full opacity-0"
+            }`}
           >
             <SidebarContents
               chats={chats}

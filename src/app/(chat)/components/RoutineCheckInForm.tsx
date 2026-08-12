@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import {
   type RoutineCompletionForm,
 } from "@/lib/coaching/routine";
 import { RoutineClientError } from "@/lib/coaching/routine-client";
+import { duration, ease } from "@/lib/motion";
 
 export type RoutineAttemptOutcome =
   | "HELPFUL"
@@ -60,6 +62,7 @@ export function RoutineCheckInForm({
   onSuccess,
   onFocused,
 }: RoutineCheckInFormProps) {
+  const shouldReduceMotion = useReducedMotion();
   const [note, setNote] = useState("");
   const [pendingOutcome, setPendingOutcome] =
     useState<RoutineAttemptOutcome | null>(null);
@@ -155,31 +158,45 @@ export function RoutineCheckInForm({
             />
             {isDetailsOpen ? "Nascondi dettagli" : "Aggiungi dettagli"}
           </Button>
-          {isDetailsOpen && (
-            <div className="mt-2">
-              <label
-                htmlFor={`routine-note-${routine.id}`}
-                className="block text-xs font-medium text-muted-foreground"
+          <AnimatePresence initial={false}>
+            {isDetailsOpen && (
+              <m.div
+                key="routine-note"
+                initial={{
+                  opacity: 0,
+                  transform: shouldReduceMotion
+                    ? "translateY(0)"
+                    : "translateY(-6px)",
+                }}
+                animate={{ opacity: 1, transform: "translateY(0)" }}
+                exit={{ opacity: 0, transform: "translateY(0)" }}
+                transition={{ duration: duration.fast, ease: ease.out }}
+                className="mt-2"
               >
-                Racconta com&apos;è andata
-              </label>
-              <textarea
-                ref={noteRef}
-                data-routine-check-in-id={routine.id}
-                id={`routine-note-${routine.id}`}
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                rows={3}
-                maxLength={1000}
-                disabled={pendingOutcome !== null}
-                className="mt-1.5 w-full resize-y rounded-xl border border-border/80 bg-background px-3 py-2 text-sm text-foreground outline-none transition-[border-color,box-shadow] focus:border-primary/60 focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
-                placeholder="Cosa hai notato? Cosa ha funzionato? Cosa cambieresti?"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Facoltativo: l&apos;esito rapido resta disponibile qui sotto.
-              </p>
-            </div>
-          )}
+                <label
+                  htmlFor={`routine-note-${routine.id}`}
+                  className="block text-xs font-medium text-muted-foreground"
+                >
+                  Racconta com&apos;è andata
+                </label>
+                <textarea
+                  ref={noteRef}
+                  data-routine-check-in-id={routine.id}
+                  id={`routine-note-${routine.id}`}
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  rows={3}
+                  maxLength={1000}
+                  disabled={pendingOutcome !== null}
+                  className="mt-1.5 w-full resize-y rounded-xl border border-border/80 bg-background px-3 py-2 text-sm text-foreground outline-none transition-[border-color,box-shadow] focus:border-primary/60 focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
+                  placeholder="Cosa hai notato? Cosa ha funzionato? Cosa cambieresti?"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Facoltativo: l&apos;esito rapido resta disponibile qui sotto.
+                </p>
+              </m.div>
+            )}
+          </AnimatePresence>
         </>
       )}
       <div className="mt-3 flex flex-wrap gap-2">

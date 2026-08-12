@@ -11,15 +11,15 @@ export const duration = {
 
 /** Cubic bezier easing curves */
 export const ease = {
-  out: [0.0, 0.0, 0.2, 1], // elements entering the screen
-  in: [0.4, 0.0, 1, 1], // elements leaving the screen
-  inOut: [0.4, 0.0, 0.2, 1], // bidirectional transitions
+  out: [0.23, 1, 0.32, 1], // elements entering the screen
+  inOut: [0.77, 0, 0.175, 1], // bidirectional transitions
+  drawer: [0.32, 0.72, 0, 1], // sheets and drawers
 } as const;
 
 /** Fade up: element enters from slightly below */
 export const fadeUp = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0 },
+  hidden: { opacity: 0, transform: "translateY(12px)" },
+  show: { opacity: 1, transform: "translateY(0)" },
 } as const;
 
 /** Fade in: opacity only */
@@ -30,8 +30,8 @@ export const fadeIn = {
 
 /** Scale in: slight scale + opacity */
 export const scaleIn = {
-  hidden: { opacity: 0, scale: 0.95 },
-  show: { opacity: 1, scale: 1 },
+  hidden: { opacity: 0, transform: "scale(0.95)" },
+  show: { opacity: 1, transform: "scale(1)" },
 } as const;
 
 /** Returns a stagger container variant */

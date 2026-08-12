@@ -95,8 +95,8 @@ export function Features() {
               whileHover={{ y: -4 }}
             >
               <article className="group flex h-full min-h-72 flex-col justify-between rounded-2xl border border-border bg-background p-6 transition-[background-color,border-color] duration-300 hover:border-brand-yellow/70 hover:bg-brand-yellow/5 sm:p-8">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-card transition-[background-color,border-color,transform] duration-300 group-hover:rotate-[-3deg] group-hover:border-brand-yellow group-hover:bg-brand-yellow">
-                  <feature.icon className="h-5 w-5 text-foreground transition-transform duration-300 group-hover:scale-110" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-card transition-[background-color,border-color,transform] duration-300 [@media(hover:hover)_and_(pointer:fine)_and_(prefers-reduced-motion:no-preference)]:group-hover:rotate-[-3deg] group-hover:border-brand-yellow group-hover:bg-brand-yellow motion-reduce:transition-[background-color,border-color]">
+                  <feature.icon className="h-5 w-5 text-foreground transition-transform duration-300 [@media(hover:hover)_and_(pointer:fine)_and_(prefers-reduced-motion:no-preference)]:group-hover:scale-110 motion-reduce:transition-none" />
                 </div>
                 <div className="mt-10 max-w-xl">
                   <h3 className="font-display text-2xl font-semibold uppercase leading-none">

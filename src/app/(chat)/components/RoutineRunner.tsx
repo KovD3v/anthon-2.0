@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type {
@@ -18,6 +19,7 @@ import {
   resetRunner,
   startRunner,
 } from "@/lib/coaching/routine-runner";
+import { duration, ease } from "@/lib/motion";
 
 interface WakeLockSentinelLike {
   release: () => Promise<void>;
@@ -48,6 +50,7 @@ export function RoutineRunner({
   onComplete,
   onCloseRequest,
 }: RoutineRunnerProps) {
+  const shouldReduceMotion = useReducedMotion();
   const practiceSteps = getRoutinePracticeSteps(routine);
   const [state, setState] = useState(createInitialRunnerState);
   const [now, setNow] = useState(() => Date.now());
@@ -75,6 +78,8 @@ export function RoutineRunner({
   const isBreathingComplete =
     currentStep?.kind === "breathing" && breathingPhase === null;
   const isTimedStepComplete = isTimerComplete || isBreathingComplete;
+  const runnerContentKey =
+    state.status === "completed" ? "completed" : `step-${state.stepIndex}`;
 
   const releaseWakeLock = useCallback(async () => {
     const wakeLock = wakeLockRef.current;
@@ -257,211 +262,226 @@ export function RoutineRunner({
       >
         <div
           aria-hidden="true"
-          className="h-full rounded-full bg-primary transition-[width] duration-200 motion-reduce:transition-none"
-          style={{ width: `${progress.routinePercent}%` }}
+          className="h-full w-full origin-left rounded-full bg-primary transition-transform duration-200 ease-linear motion-reduce:transition-none"
+          style={{ transform: `scaleX(${progress.routinePercent / 100})` }}
         />
       </div>
 
-      {state.status === "completed" ? (
-        <div className="mt-5 border-border/70 border-t pt-4">
-          <h4 className="font-display text-lg font-bold uppercase tracking-tight text-foreground">
-            Ho completato la routine
-          </h4>
-          <p className="mt-2 text-sm leading-relaxed text-foreground/90">
-            {routine.completionCue}
-          </p>
-          <Button
-            type="button"
-            size="sm"
-            className="mt-4 min-h-11 rounded-full px-4"
-            disabled={completionSubmittedRef.current}
-            onClick={confirmCompletion}
-          >
-            Ho completato la routine
-          </Button>
-        </div>
-      ) : currentStep ? (
-        <div className="mt-5 border-border/70 border-t pt-4">
-          <p className="font-mono text-xs font-semibold text-muted-foreground">
-            Passo {progress.stepNumber} di {progress.totalSteps}
-          </p>
-
-          {progress.stepPercent !== null && (
-            <div
-              aria-hidden="true"
-              className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted"
-            >
-              <div
-                className="h-full rounded-full bg-primary/70 transition-[width] duration-200 motion-reduce:transition-none"
-                style={{ width: `${progress.stepPercent}%` }}
-              />
-            </div>
-          )}
-
-          {currentStep.kind === "instruction" && (
-            <>
-              <p className="mt-3 text-sm leading-relaxed text-foreground">
-                {currentStep.text}
+      <AnimatePresence initial={false} mode="popLayout">
+        <m.div
+          key={runnerContentKey}
+          initial={{
+            opacity: 0,
+            transform: shouldReduceMotion ? "translateY(0)" : "translateY(8px)",
+          }}
+          animate={{ opacity: 1, transform: "translateY(0)" }}
+          exit={{ opacity: 0, transform: "translateY(0)" }}
+          transition={{ duration: duration.fast, ease: ease.out }}
+        >
+          {state.status === "completed" ? (
+            <div className="mt-5 border-border/70 border-t pt-4">
+              <h4 className="font-display text-lg font-bold uppercase tracking-tight text-foreground">
+                Ho completato la routine
+              </h4>
+              <p className="mt-2 text-sm leading-relaxed text-foreground/90">
+                {routine.completionCue}
               </p>
               <Button
                 type="button"
                 size="sm"
                 className="mt-4 min-h-11 rounded-full px-4"
-                onClick={advance}
+                disabled={completionSubmittedRef.current}
+                onClick={confirmCompletion}
               >
-                Fatto
+                Ho completato la routine
               </Button>
-            </>
-          )}
+            </div>
+          ) : currentStep ? (
+            <div className="mt-5 border-border/70 border-t pt-4">
+              <p className="font-mono text-xs font-semibold text-muted-foreground">
+                Passo {progress.stepNumber} di {progress.totalSteps}
+              </p>
 
-          {currentStep.kind === "timer" && (
-            <>
-              <h4 className="mt-3 font-display text-lg font-bold uppercase tracking-tight text-foreground">
-                {currentStep.label}
-              </h4>
-              <p className="mt-1 text-sm leading-relaxed text-foreground/90">
-                {currentStep.instruction}
-              </p>
-              <p className="mt-5 font-mono text-4xl font-semibold tabular-nums text-foreground">
-                {formatRemainingMs(remainingMs ?? 0)}
-              </p>
-              {remainingMs === 0 ? (
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-medium text-foreground">
-                    Tempo terminato
-                  </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="min-h-11 rounded-full px-4"
-                    onClick={advance}
-                  >
-                    Continua
-                  </Button>
-                </div>
-              ) : (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {state.status === "running" ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="min-h-11 rounded-full px-4"
-                      onClick={pause}
-                    >
-                      Pausa
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="min-h-11 rounded-full px-4"
-                      onClick={start}
-                    >
-                      Avvia
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="min-h-11 rounded-full px-4"
-                    onClick={reset}
-                  >
-                    Ripristina
-                  </Button>
+              {progress.stepPercent !== null && (
+                <div
+                  aria-hidden="true"
+                  className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted"
+                >
+                  <div
+                    className="h-full w-full origin-left rounded-full bg-primary/70 transition-transform duration-200 ease-linear motion-reduce:transition-none"
+                    style={{
+                      transform: `scaleX(${progress.stepPercent / 100})`,
+                    }}
+                  />
                 </div>
               )}
-            </>
-          )}
 
-          {currentStep.kind === "breathing" && (
-            <div className="mt-3 text-sm leading-relaxed text-foreground/90">
-              <p className="font-medium text-foreground">
-                Respirazione guidata
-              </p>
-              <p className="mt-1 font-medium text-foreground">
-                {currentStep.label}
-              </p>
-              <p className="mt-1">{currentStep.instruction}</p>
-              {breathingPhase ? (
+              {currentStep.kind === "instruction" && (
                 <>
-                  <div className="mt-5 flex items-center gap-3">
-                    <div
-                      aria-hidden="true"
-                      className={`size-12 shrink-0 rounded-full border-4 border-primary/50 bg-primary/15 motion-reduce:hidden ${
-                        state.status === "running" ? "animate-pulse" : ""
-                      } ${
-                        breathingPhase.phase === "inhale"
-                          ? "scale-110"
-                          : breathingPhase.phase === "exhale"
-                            ? "scale-75"
-                            : "scale-90"
-                      }`}
-                      data-testid="breathing-indicator"
-                    />
-                    <div>
-                      <p
-                        className="font-display text-2xl font-bold uppercase tracking-tight text-foreground"
-                        data-testid="breathing-phase"
-                      >
-                        {breathingPhase.label} ·{" "}
-                        {formatRemainingMs(breathingPhase.remainingMs)}
-                      </p>
-                      <p className="mt-1 text-xs font-medium text-muted-foreground">
-                        Ciclo {breathingPhase.cycle} di {currentStep.cycles}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {state.status === "running" ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="min-h-11 rounded-full px-4"
-                        onClick={pause}
-                      >
-                        Pausa
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="min-h-11 rounded-full px-4"
-                        onClick={start}
-                      >
-                        Avvia
-                      </Button>
-                    )}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="min-h-11 rounded-full px-4"
-                      onClick={reset}
-                    >
-                      Ripristina
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-medium text-foreground">
-                    Respirazione completata
+                  <p className="mt-3 text-sm leading-relaxed text-foreground">
+                    {currentStep.text}
                   </p>
                   <Button
                     type="button"
                     size="sm"
-                    className="min-h-11 rounded-full px-4"
+                    className="mt-4 min-h-11 rounded-full px-4"
                     onClick={advance}
                   >
-                    Continua
+                    Fatto
                   </Button>
+                </>
+              )}
+
+              {currentStep.kind === "timer" && (
+                <>
+                  <h4 className="mt-3 font-display text-lg font-bold uppercase tracking-tight text-foreground">
+                    {currentStep.label}
+                  </h4>
+                  <p className="mt-1 text-sm leading-relaxed text-foreground/90">
+                    {currentStep.instruction}
+                  </p>
+                  <p className="mt-5 font-mono text-4xl font-semibold tabular-nums text-foreground">
+                    {formatRemainingMs(remainingMs ?? 0)}
+                  </p>
+                  {remainingMs === 0 ? (
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-foreground">
+                        Tempo terminato
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="min-h-11 rounded-full px-4"
+                        onClick={advance}
+                      >
+                        Continua
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {state.status === "running" ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="min-h-11 rounded-full px-4"
+                          onClick={pause}
+                        >
+                          Pausa
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="min-h-11 rounded-full px-4"
+                          onClick={start}
+                        >
+                          Avvia
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="min-h-11 rounded-full px-4"
+                        onClick={reset}
+                      >
+                        Ripristina
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {currentStep.kind === "breathing" && (
+                <div className="mt-3 text-sm leading-relaxed text-foreground/90">
+                  <p className="font-medium text-foreground">
+                    Respirazione guidata
+                  </p>
+                  <p className="mt-1 font-medium text-foreground">
+                    {currentStep.label}
+                  </p>
+                  <p className="mt-1">{currentStep.instruction}</p>
+                  {breathingPhase ? (
+                    <>
+                      <div className="mt-5 flex items-center gap-3">
+                        <div
+                          aria-hidden="true"
+                          className={`size-12 shrink-0 rounded-full border-4 border-primary/50 bg-primary/15 motion-reduce:hidden ${
+                            state.status === "running" ? "animate-pulse" : ""
+                          } ${
+                            breathingPhase.phase === "inhale"
+                              ? "scale-110"
+                              : breathingPhase.phase === "exhale"
+                                ? "scale-75"
+                                : "scale-90"
+                          }`}
+                          data-testid="breathing-indicator"
+                        />
+                        <div>
+                          <p
+                            className="font-display text-2xl font-bold uppercase tracking-tight text-foreground"
+                            data-testid="breathing-phase"
+                          >
+                            {breathingPhase.label} ·{" "}
+                            {formatRemainingMs(breathingPhase.remainingMs)}
+                          </p>
+                          <p className="mt-1 text-xs font-medium text-muted-foreground">
+                            Ciclo {breathingPhase.cycle} di {currentStep.cycles}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {state.status === "running" ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="min-h-11 rounded-full px-4"
+                            onClick={pause}
+                          >
+                            Pausa
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="min-h-11 rounded-full px-4"
+                            onClick={start}
+                          >
+                            Avvia
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="min-h-11 rounded-full px-4"
+                          onClick={reset}
+                        >
+                          Ripristina
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-foreground">
+                        Respirazione completata
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="min-h-11 rounded-full px-4"
+                        onClick={advance}
+                      >
+                        Continua
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
-        </div>
-      ) : null}
+          ) : null}
+        </m.div>
+      </AnimatePresence>
 
       <output className="sr-only" aria-live="polite">
         {announcement}

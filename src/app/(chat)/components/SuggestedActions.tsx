@@ -1,6 +1,6 @@
 "use client";
 
-import { m } from "framer-motion";
+import { m, useReducedMotion } from "framer-motion";
 import {
   ChevronDown,
   ChevronUp,
@@ -16,7 +16,12 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { defaultTransition, fadeUp, staggerContainer } from "@/lib/motion";
+import {
+  defaultTransition,
+  fadeIn,
+  fadeUp,
+  staggerContainer,
+} from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 interface SuggestedAction {
@@ -137,6 +142,9 @@ export function SuggestedActions({
   className,
 }: SuggestedActionsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
+  const itemVariants = shouldReduceMotion ? fadeIn : fadeUp;
+  const containerVariants = staggerContainer(shouldReduceMotion ? 0 : 0.05);
 
   // Determine which suggestions to show
   const activeSuggestions = suggestions ?? getContextualSuggestions(context);
@@ -152,7 +160,7 @@ export function SuggestedActions({
   if (variant === "cards") {
     return (
       <m.div
-        variants={staggerContainer(0.05)}
+        variants={containerVariants}
         initial="hidden"
         animate="show"
         className={cn("grid min-w-0 w-full gap-2 sm:grid-cols-2", className)}
@@ -160,7 +168,7 @@ export function SuggestedActions({
         {displayedSuggestions.map((suggestion) => (
           <m.div
             key={suggestion.id}
-            variants={fadeUp}
+            variants={itemVariants}
             transition={defaultTransition}
           >
             <SuggestionCard
@@ -175,7 +183,7 @@ export function SuggestedActions({
 
   return (
     <m.div
-      variants={staggerContainer(0.05)}
+      variants={containerVariants}
       initial="hidden"
       animate="show"
       className={cn("flex flex-wrap items-center gap-2", className)}
@@ -183,7 +191,7 @@ export function SuggestedActions({
       {displayedSuggestions.map((suggestion) => (
         <m.div
           key={suggestion.id}
-          variants={fadeUp}
+          variants={itemVariants}
           transition={defaultTransition}
         >
           <SuggestionPill
@@ -252,7 +260,7 @@ function SuggestionCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-w-0 w-full items-start gap-3 rounded-xl border border-border/70 bg-background/50 p-3 text-left backdrop-blur-sm transition-all duration-200 hover:border-primary/30 hover:bg-muted/50 active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 sm:p-4"
+      className="group flex min-w-0 w-full items-start gap-3 rounded-xl border border-border/70 bg-background/50 p-3 text-left backdrop-blur-sm transition-[background-color,border-color,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-primary/30 hover:bg-muted/50 active:scale-[0.98] motion-reduce:transition-[background-color,border-color] motion-reduce:active:scale-100 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 sm:p-4"
     >
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
         {getIcon(suggestion.icon, "h-4 w-4")}

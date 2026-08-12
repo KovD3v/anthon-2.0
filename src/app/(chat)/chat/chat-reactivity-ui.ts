@@ -194,19 +194,12 @@ export function getAssistantMessageDisplayState({
   return getMessageText(message).trim().length > 0 ? "streaming" : lifecycle;
 }
 
-export function shouldAnimateAssistantMessageMount({
-  message,
-}: {
+export function shouldAnimateAssistantMessageMount(_options: {
   message: UIMessage;
   displayState: AssistantMessageDisplayState;
 }) {
-  if (message.role !== "assistant") {
-    return true;
-  }
-
-  // Assistant messages can be reconciled from a temporary streaming id to a
-  // persisted id after completion. Never replay their entrance on that remount:
-  // the bubble should feel like one continuous response from pending to ready.
+  // Messages can remount while navigating or while assistant ids reconcile.
+  // Never replay their entrance: every bubble should remain visually stable.
   return false;
 }
 

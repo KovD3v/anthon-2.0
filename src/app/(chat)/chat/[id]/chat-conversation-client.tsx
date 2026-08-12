@@ -3,6 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { useClerk } from "@clerk/nextjs";
 import { DefaultChatTransport, safeValidateUIMessages } from "ai";
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -36,6 +37,7 @@ import type {
   AnthonUIMessage,
   ModelComparisonSlot,
 } from "@/lib/model-experiments/types";
+import { duration, ease } from "@/lib/motion";
 import { initializePosthog } from "@/lib/posthog-client";
 import {
   getPaywallCardContent,
@@ -120,6 +122,7 @@ export function ChatConversationClient({
   chatId: string;
   initialChatData: ChatData;
 }) {
+  const shouldReduceMotion = useReducedMotion();
   const clerk = useClerk();
   const router = useRouter();
   const routerRef = useRef(router);
@@ -1431,64 +1434,85 @@ export function ChatConversationClient({
         }}
       />
 
-      {isEmptyIdle && !showRoutineInvocation ? (
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:py-6">
-          <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-start gap-5 py-2 sm:justify-center sm:gap-6 sm:py-4">
-            <EmptyChatWelcome />
-            <SuggestedActions
-              onSelect={(prompt) => setInput(prompt)}
-              variant="cards"
-              className="w-full max-w-2xl self-center"
+      <AnimatePresence initial={false} mode="popLayout">
+        {isEmptyIdle && !showRoutineInvocation ? (
+          <m.div
+            key="empty-chat"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: duration.fast, ease: ease.out }}
+            className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:py-6"
+          >
+            <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-start gap-5 py-2 sm:justify-center sm:gap-6 sm:py-4">
+              <EmptyChatWelcome />
+              <SuggestedActions
+                onSelect={(prompt) => setInput(prompt)}
+                variant="cards"
+                className="w-full max-w-2xl self-center"
+              />
+            </div>
+          </m.div>
+        ) : (
+          <m.div
+            key="message-list"
+            initial={{
+              opacity: 0,
+              filter: shouldReduceMotion ? "none" : "blur(2px)",
+            }}
+            animate={{ opacity: 1, filter: "none" }}
+            exit={{ opacity: 0, filter: "none" }}
+            transition={{ duration: duration.fast, ease: ease.out }}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <MessageList
+              messages={streamingMessages}
+              status={status}
+              isLoading={isLoading}
+              isRegenerating={isRegenerating}
+              editingMessageId={editingMessageId}
+              deletingMessageId={deletingMessageId}
+              editContent={editContent}
+              onEditStart={(id, text) => {
+                setEditingMessageId(id);
+                setEditContent(text);
+              }}
+              onEditCancel={() => {
+                setEditingMessageId(null);
+                setEditContent("");
+              }}
+              onEditSave={handleSaveEdit}
+              onEditContentChange={setEditContent}
+              onDelete={handleDeleteMessage}
+              onRegenerate={handleRegenerate}
+              feedbackEndpoint={
+                isGuest ? "/api/guest/chat/feedback" : "/api/chat/feedback"
+              }
+              canSubmitFeedback={chatData.isOwner}
+              feedbackMessageIds={persistedMessageIds}
+              comparisonDeltas={comparisonDeltas}
+              onModelComparisonResolved={handleModelComparisonResolved}
+              routines={chatData.routines}
+              reusedRoutine={reusedRoutine}
+              isGuest={isGuest}
+              canRenderRoutineCards={
+                chatData.visibility === "PRIVATE" && chatData.isOwner
+              }
+              registrationHref={`/sign-up?redirect_url=${encodeURIComponent(`/chat/${chatId}`)}`}
+              onSaveRoutine={handleSaveRoutine}
+              onCreateRoutineAttempt={handleCreateRoutineAttempt}
+              onSaveRoutineOutcome={handleSaveRoutineOutcome}
+              onArchiveRoutine={handleArchiveRoutine}
+              onTryRoutineNow={handleTryRoutineNow}
+              onAdaptRoutine={handleAdaptRoutine}
+              openCheckInRoutineId={openCheckInRoutineId}
+              hasMoreMessages={chatData.pagination?.hasMore ?? false}
+              isLoadingMore={isLoadingMore}
+              onLoadMore={loadMoreMessages}
             />
-          </div>
-        </div>
-      ) : (
-        <MessageList
-          messages={streamingMessages}
-          status={status}
-          isLoading={isLoading}
-          isRegenerating={isRegenerating}
-          editingMessageId={editingMessageId}
-          deletingMessageId={deletingMessageId}
-          editContent={editContent}
-          onEditStart={(id, text) => {
-            setEditingMessageId(id);
-            setEditContent(text);
-          }}
-          onEditCancel={() => {
-            setEditingMessageId(null);
-            setEditContent("");
-          }}
-          onEditSave={handleSaveEdit}
-          onEditContentChange={setEditContent}
-          onDelete={handleDeleteMessage}
-          onRegenerate={handleRegenerate}
-          feedbackEndpoint={
-            isGuest ? "/api/guest/chat/feedback" : "/api/chat/feedback"
-          }
-          canSubmitFeedback={chatData.isOwner}
-          feedbackMessageIds={persistedMessageIds}
-          comparisonDeltas={comparisonDeltas}
-          onModelComparisonResolved={handleModelComparisonResolved}
-          routines={chatData.routines}
-          reusedRoutine={reusedRoutine}
-          isGuest={isGuest}
-          canRenderRoutineCards={
-            chatData.visibility === "PRIVATE" && chatData.isOwner
-          }
-          registrationHref={`/sign-up?redirect_url=${encodeURIComponent(`/chat/${chatId}`)}`}
-          onSaveRoutine={handleSaveRoutine}
-          onCreateRoutineAttempt={handleCreateRoutineAttempt}
-          onSaveRoutineOutcome={handleSaveRoutineOutcome}
-          onArchiveRoutine={handleArchiveRoutine}
-          onTryRoutineNow={handleTryRoutineNow}
-          onAdaptRoutine={handleAdaptRoutine}
-          openCheckInRoutineId={openCheckInRoutineId}
-          hasMoreMessages={chatData.pagination?.hasMore ?? false}
-          isLoadingMore={isLoadingMore}
-          onLoadMore={loadMoreMessages}
-        />
-      )}
+          </m.div>
+        )}
+      </AnimatePresence>
 
       {formattedError && (
         <div

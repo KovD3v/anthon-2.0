@@ -5,6 +5,7 @@ import { Send, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { duration, ease } from "@/lib/motion";
 import {
   CHAT_ATTACHMENT_ACCEPT,
   isSupportedChatAttachment,
@@ -327,7 +328,7 @@ export function ChatInput({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
+                transition={{ duration: duration.fast, ease: ease.out }}
               >
                 {isLoading ? (
                   <Button
@@ -346,7 +347,7 @@ export function ChatInput({
                     size="icon"
                     className={`h-11 w-11 rounded-full transition-[background-color,color,box-shadow,transform] duration-200 ${
                       input.trim() || attachments.length > 0
-                        ? "bg-primary text-primary-foreground shadow-md hover:shadow-lg [@media(hover:hover)_and_(pointer:fine)]:hover:scale-105"
+                        ? "bg-primary text-primary-foreground shadow-md hover:shadow-lg [@media(hover:hover)_and_(pointer:fine)_and_(prefers-reduced-motion:no-preference)]:hover:scale-105"
                         : "bg-muted text-muted-foreground hover:bg-muted/80"
                     }`}
                     disabled={cannotSubmit}

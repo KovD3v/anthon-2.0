@@ -2,7 +2,7 @@ import { PageWrapper } from "@/components/ui/page-wrapper";
 
 export default function ChatConversationLoading() {
   return (
-    <PageWrapper className="flex min-h-0 flex-1 flex-col">
+    <PageWrapper motion={false} className="flex min-h-0 flex-1 flex-col">
       <div
         className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-linear-to-b from-background to-muted/20"
         data-testid="chat-conversation-shell"

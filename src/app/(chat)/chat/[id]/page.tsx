@@ -64,7 +64,7 @@ export default async function ChatConversationPage({
   }
 
   return (
-    <PageWrapper className="flex min-h-0 flex-1 flex-col">
+    <PageWrapper motion={false} className="flex min-h-0 flex-1 flex-col">
       <div className="contents" data-testid="chat-conversation-shell">
         <div className="contents" data-testid="chat-conversation-content">
           <ChatConversationClient chatId={id} initialChatData={chatData} />

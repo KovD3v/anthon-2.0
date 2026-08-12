@@ -116,14 +116,14 @@ export default function UsagePage() {
               <div className="h-3 w-full overflow-hidden rounded-full bg-muted/50 mb-2">
                 <div
                   className={cn(
-                    "h-full rounded-full transition-all duration-500 ease-out",
+                    "h-full w-full origin-left rounded-full transition-transform duration-250 ease-[cubic-bezier(0.77,0,0.175,1)] motion-reduce:transition-none",
                     percent >= 90
                       ? "bg-red-500"
                       : percent >= 70
                         ? "bg-amber-500"
                         : "bg-primary",
                   )}
-                  style={{ width: `${percent}%` }}
+                  style={{ transform: `scaleX(${percent / 100})` }}
                 />
               </div>
 

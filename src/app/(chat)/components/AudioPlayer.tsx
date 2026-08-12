@@ -254,7 +254,7 @@ export function AudioPlayer({
             {/* Active Progress */}
             <div
               className={cn(
-                "h-full origin-left rounded-full transition-transform duration-100 ease-out",
+                "h-full origin-left rounded-full transition-transform duration-100 ease-linear",
                 isComposer ? "bg-primary" : "bg-white",
               )}
               style={{ transform: `scaleX(${progress / 100})` }}

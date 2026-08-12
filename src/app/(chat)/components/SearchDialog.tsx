@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { Loader2, MessageSquare, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -11,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useDebounce } from "@/hooks/useDebounce";
+import { duration, ease } from "@/lib/motion";
 
 interface SearchResult {
   id: string;
@@ -33,6 +35,7 @@ export function SearchDialog({
   onClose,
   onResultNavigation,
 }: SearchDialogProps) {
+  const shouldReduceMotion = useReducedMotion();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -41,6 +44,14 @@ export function SearchDialog({
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
   const debouncedQuery = useDebounce(query, 300);
+  const searchState =
+    query.length < 2
+      ? "instruction"
+      : isLoading
+        ? "loading"
+        : results.length === 0
+          ? "empty"
+          : "results";
 
   // Search when query changes
   useEffect(() => {
@@ -131,40 +142,59 @@ export function SearchDialog({
         </div>
 
         {/* Results */}
-        <div className="max-h-96 overflow-y-auto">
-          {results.length === 0 && query.length >= 2 && !isLoading && (
-            <div className="px-4 py-8 text-center text-muted-foreground text-sm">
-              Nessun risultato per “{query}”
-            </div>
-          )}
-
-          {results.length === 0 && query.length < 2 && (
-            <div className="px-4 py-8 text-center text-muted-foreground text-sm">
-              Digita almeno 2 caratteri per cercare
-            </div>
-          )}
-
-          {results.map((result) => (
-            <button
-              type="button"
-              key={result.id}
-              onClick={() => handleResultClick(result)}
-              className="w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors border-b border-border/40 last:border-0 dark:border-white/5"
+        <div className="max-h-96 min-h-24 overflow-y-auto">
+          <AnimatePresence initial={false} mode="popLayout">
+            <m.div
+              key={searchState}
+              initial={{
+                opacity: 0,
+                transform: shouldReduceMotion
+                  ? "translateY(0)"
+                  : "translateY(6px)",
+              }}
+              animate={{ opacity: 1, transform: "translateY(0)" }}
+              exit={{ opacity: 0, transform: "translateY(0)" }}
+              transition={{ duration: duration.fast, ease: ease.out }}
             >
-              <div className="flex items-center gap-2 mb-1">
-                <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">
-                  {result.chatTitle}
-                </span>
-                <span className="text-xs text-muted-foreground/50">
-                  {result.role === "USER" ? "Tu" : "Anthon"}
-                </span>
-              </div>
-              <p className="text-sm text-foreground/80 line-clamp-2">
-                {result.snippet}
-              </p>
-            </button>
-          ))}
+              {searchState === "instruction" && (
+                <div className="px-4 py-8 text-center text-muted-foreground text-sm">
+                  Digita almeno 2 caratteri per cercare
+                </div>
+              )}
+              {searchState === "loading" && (
+                <div className="px-4 py-8 text-center text-muted-foreground text-sm">
+                  Cerco nelle conversazioni…
+                </div>
+              )}
+              {searchState === "empty" && (
+                <div className="px-4 py-8 text-center text-muted-foreground text-sm">
+                  Nessun risultato per “{query}”
+                </div>
+              )}
+              {searchState === "results" &&
+                results.map((result) => (
+                  <button
+                    type="button"
+                    key={result.id}
+                    onClick={() => handleResultClick(result)}
+                    className="w-full border-border/40 border-b px-4 py-3 text-left transition-[background-color,transform] duration-150 last:border-0 hover:bg-muted/50 active:scale-[0.98] motion-reduce:transition-colors motion-reduce:active:scale-100 dark:border-white/5"
+                  >
+                    <div className="mb-1 flex items-center gap-2">
+                      <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {result.chatTitle}
+                      </span>
+                      <span className="text-xs text-muted-foreground/50">
+                        {result.role === "USER" ? "Tu" : "Anthon"}
+                      </span>
+                    </div>
+                    <p className="line-clamp-2 text-sm text-foreground/80">
+                      {result.snippet}
+                    </p>
+                  </button>
+                ))}
+            </m.div>
+          </AnimatePresence>
         </div>
       </DialogContent>
     </Dialog>
