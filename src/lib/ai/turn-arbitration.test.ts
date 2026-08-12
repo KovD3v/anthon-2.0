@@ -104,6 +104,39 @@ describe("turn arbitration", () => {
     expect(result.decision.execution.eligibleProfile).toBe("light");
   });
 
+  it.each([
+    "rewrite",
+    "translate",
+    "format",
+    "extract",
+    "summarize_supplied",
+  ] as const)(
+    "routes a safe %s through light when the classifier suggests standard",
+    async (taskKind) => {
+      mocks.classifyTurn.mockResolvedValueOnce({
+        proposal: {
+          ...classifierProposal,
+          workload: {
+            ...classifierProposal.workload,
+            taskKind,
+            contextDependency: "none",
+            suggestedProfile: "standard",
+          },
+        },
+        outcome: "accepted",
+        latencyMs: 25,
+      });
+
+      const result = await arbitrateTurn(agenticInput());
+
+      expect(result.decision.execution).toMatchObject({
+        eligibleProfile: "light",
+        taskKind,
+        reasonCodes: expect.arrayContaining(["classifier_standard"]),
+      });
+    },
+  );
+
   it("preserves classifier capabilities when a transformation needs context", async () => {
     mocks.classifyTurn.mockResolvedValueOnce({
       proposal: {

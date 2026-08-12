@@ -114,6 +114,10 @@ function route(
   });
 }
 
+type RoutingOverrides = Partial<
+  Parameters<typeof normalizeExecutionDecision>[0]
+>;
+
 describe("execution routing", () => {
   it.each([
     "social",
@@ -142,6 +146,87 @@ describe("execution routing", () => {
       reasonCodes: expect.arrayContaining(["classifier_standard"]),
     });
   });
+
+  it.each([
+    "rewrite",
+    "translate",
+    "format",
+    "extract",
+    "summarize_supplied",
+  ] as const)(
+    "allows %s when structured dimensions are safe despite a standard suggestion",
+    (taskKind) => {
+      expect(
+        route({
+          workload: {
+            ...lightWorkload,
+            taskKind,
+            contextDependency: "none",
+            suggestedProfile: "standard",
+          },
+        }),
+      ).toMatchObject({
+        eligibleProfile: "light",
+        taskKind,
+        reasonCodes: expect.arrayContaining([
+          "classifier_standard",
+          "task_allowlisted",
+        ]),
+      });
+    },
+  );
+
+  const standardSuggestionVetoCases: ReadonlyArray<
+    readonly [string, RoutingOverrides]
+  > = [
+    [
+      "deep context",
+      { workload: { ...lightWorkload, contextDependency: "deep" } },
+    ],
+    [
+      "missing recent context",
+      {
+        workload: { ...lightWorkload, contextDependency: "recent" },
+        hasRecentContext: false,
+      },
+    ],
+    [
+      "substantive reasoning",
+      { workload: { ...lightWorkload, reasoningDepth: "substantive" } },
+    ],
+    [
+      "coaching sensitivity",
+      { workload: { ...lightWorkload, sensitivity: "coaching" } },
+    ],
+    [
+      "external knowledge",
+      { workload: { ...lightWorkload, knowledgeNeed: "external" } },
+    ],
+    [
+      "required capability",
+      { capabilities: capabilityDecision({ webSearch: true }) },
+    ],
+    [
+      "uncertain capability",
+      { capabilityProposal: capabilityProposal({ rag: "uncertain" }) },
+    ],
+  ];
+
+  it.each(standardSuggestionVetoCases)(
+    "keeps the %s veto authoritative despite a standard suggestion",
+    (_, overrides) => {
+      expect(
+        route({
+          ...overrides,
+          workload: {
+            ...lightWorkload,
+            suggestedProfile: "standard",
+            ...overrides.workload,
+          },
+        }).eligibleProfile,
+      ).toBe("standard");
+    },
+  );
 
   it("keeps the classifier profile suggestion binding for social turns", () => {
     expect(
@@ -200,6 +285,14 @@ describe("execution routing", () => {
     expect(route({ plannerMode: "legacy" })).toMatchObject({
       eligibleProfile: "standard",
       source: "fallback",
+    });
+  });
+
+  it("fails closed when the workload proposal is missing", () => {
+    expect(route({ workload: null })).toMatchObject({
+      eligibleProfile: "standard",
+      source: "fallback",
+      reasonCodes: expect.arrayContaining(["low_confidence"]),
     });
   });
 

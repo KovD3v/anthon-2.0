@@ -88,6 +88,22 @@ describe("turn routing benchmark", () => {
     });
   });
 
+  it("tolerates at most two false-standard light fixtures", () => {
+    const results = expectedResults();
+    const lightResults = results.filter(
+      ({ fixture }) => fixture.expectedProfile === "light",
+    );
+    for (const result of lightResults.slice(0, 2)) {
+      result.actualProfile = "standard";
+    }
+
+    expect(scoreTurnRouting(results)).toMatchObject({
+      falseStandard: 2,
+      passed: true,
+    });
+    expect(shouldFailTurnRoutingEvaluation(results)).toBe(false);
+  });
+
   it("scores a complete expected run with no route or task-kind errors", () => {
     expect(scoreTurnRouting(expectedResults())).toMatchObject({
       total: 36,
