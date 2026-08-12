@@ -373,6 +373,7 @@ describe("lib/chat", () => {
             executionRoute: true,
             serverTrace: true,
             clientTrace: true,
+            developerDiagnostics: true,
           },
         },
         feedback: true,

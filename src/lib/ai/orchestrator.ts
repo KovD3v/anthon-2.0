@@ -889,6 +889,7 @@ function createToolsWithContext(
     allowCrossChannelRecall?: boolean;
     recallToolsEnabled?: boolean;
     traceCollector?: ServerTraceCollector;
+    developerDiagnostics?: DeveloperDiagnosticsCollector;
   },
 ) {
   const toolPlan = options.toolPlan;
@@ -923,7 +924,10 @@ function createToolsWithContext(
 
   const tools: Record<string, unknown> = {
     ...(toolPlan.agentic && toolPlan.rag
-      ? createRagTools({ traceCollector: options.traceCollector })
+      ? createRagTools({
+          traceCollector: options.traceCollector,
+          developerDiagnostics: options.developerDiagnostics,
+        })
       : {}),
     ...webTools,
   };
@@ -2626,6 +2630,7 @@ export async function streamChat({
         recallToolsEnabled:
           recallPlan.facts.enabled || recallPlan.conversations.enabled,
         traceCollector,
+        developerDiagnostics,
       });
   const toolOutcomes = new ToolOutcomeTracker(Object.keys(rawTools));
   const toolPolicies = new Map<string, ToolPolicy>();
