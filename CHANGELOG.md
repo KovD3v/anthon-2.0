@@ -62,6 +62,11 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Restyled the sidebar account card and menu with the app's native surfaces,
+  opaque layering, clearer focus states, and consistent touch targets, and
+  removed the redundant Chat, Usage, and Pricing menu entries.
+- Consolidated daily plan usage into Profile and settings with the current
+  allowance, progress, reset time, and upgrade path.
 - Migrated the shared interface primitives from Radix-based shadcn components
   to Base UI while preserving the existing Anthon component contracts and
   interaction behavior.
@@ -161,6 +166,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Retired the dedicated `/chat/usage` page, moved internal usage links to
+  `/profile#utilizzo`, and made the old URL return a real HTTP 404 without a
+  redirect.
 - Stabilized turn-classifier latency by disabling provider-side reasoning and
   allowing the bounded request enough time to complete before failing closed.
 - Hardened light/standard execution routing by failing closed for empty task
