@@ -18,6 +18,8 @@ const SPAN_GROUP: Record<ServerSpanName, Group> = {
   user_lookup: "setup",
   chat_lookup: "setup",
   billing_sync: "setup",
+  rate_limit_check: "setup",
+  usage_reservation: "setup",
   rate_limit: "setup",
   inbound_claim: "setup",
   attachment_resolution: "setup",

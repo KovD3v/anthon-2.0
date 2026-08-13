@@ -12,6 +12,9 @@ export const SERVER_SPAN_NAMES = [
   "user_lookup",
   "chat_lookup",
   "billing_sync",
+  "rate_limit_check",
+  "usage_reservation",
+  // Retained so persisted v1 traces created before the split remain readable.
   "rate_limit",
   "inbound_claim",
   "attachment_resolution",

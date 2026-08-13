@@ -64,6 +64,43 @@ describe("response profiler contracts", () => {
     expect(parseClientTrace(validClientTrace)).toEqual(validClientTrace);
   });
 
+  it("accepts distinct limit phases while preserving legacy traces", () => {
+    const trace = {
+      ...validServerTrace,
+      totalMs: 30,
+      timeToFirstTokenMs: undefined,
+      spans: [
+        {
+          id: 1,
+          name: "rate_limit",
+          startOffsetMs: 0,
+          durationMs: 5,
+          status: "completed",
+        },
+        {
+          id: 2,
+          name: "rate_limit_check",
+          startOffsetMs: 5,
+          durationMs: 5,
+          status: "completed",
+        },
+        {
+          id: 3,
+          name: "usage_reservation",
+          startOffsetMs: 10,
+          durationMs: 20,
+          status: "completed",
+        },
+      ],
+    } as const;
+
+    expect(parseServerTrace(trace)?.spans.map((span) => span.name)).toEqual([
+      "rate_limit",
+      "rate_limit_check",
+      "usage_reservation",
+    ]);
+  });
+
   it("rejects unknown versions and unknown content-like keys", () => {
     expect(parseServerTrace({ ...validServerTrace, version: 2 })).toBeNull();
     expect(

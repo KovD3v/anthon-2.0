@@ -326,19 +326,21 @@ export async function handleWebChatPost(request: Request) {
 
         // Check rate limit after ownership verification so missing or
         // inaccessible chats do not consume quota.
-        const rateLimitResult = await traceCollector.measure("rate_limit", () =>
-          LatencyLogger.measure(
-            "Rate Limit: Check limits",
-            () =>
-              checkRateLimit(
-                user.id,
-                subscriptionStatus,
-                user.role,
-                planId,
-                user.isGuest,
-              ),
-            "🌐 Chat API Request",
-          ),
+        const rateLimitResult = await traceCollector.measure(
+          "rate_limit_check",
+          () =>
+            LatencyLogger.measure(
+              "Rate Limit: Check limits",
+              () =>
+                checkRateLimit(
+                  user.id,
+                  subscriptionStatus,
+                  user.role,
+                  planId,
+                  user.isGuest,
+                ),
+              "🌐 Chat API Request",
+            ),
         );
 
         if (!rateLimitResult.allowed) {

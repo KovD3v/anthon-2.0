@@ -249,6 +249,52 @@ describe("channel-flow/run", () => {
     );
   });
 
+  it("records the atomic usage reservation separately from the limit check", async () => {
+    const traceCollector = createServerTraceCollector();
+    mocks.reserveAiUsage.mockResolvedValue({
+      allowed: false,
+      reason: "Generation already in progress",
+      retryable: true,
+    });
+
+    await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      userMessageId: "inbound-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: {
+        allowed: true,
+        effectiveEntitlements: {
+          modelTier: "BASIC",
+          uploadLimits: {
+            maxUploadsPerDay: 25,
+            maxUploadBytesPerDay: 250 * 1024 * 1024,
+          },
+          limits: {
+            maxRequestsPerDay: 10,
+            maxInputTokensPerDay: 1_000,
+            maxOutputTokensPerDay: 1_000,
+            maxCostPerDay: 1,
+            maxContextMessages: 20,
+          },
+          sources: [],
+        },
+      },
+      options: {
+        allowAttachments: false,
+        allowMemoryExtraction: false,
+        allowVoiceOutput: false,
+      },
+      execution: { mode: "text", traceCollector },
+      persistence: { channel: "WEB", saveAssistantMessage: false },
+    });
+
+    expect(
+      traceCollector.snapshot("completed").spans.map((span) => span.name),
+    ).toContain("usage_reservation");
+  });
+
   it("forwards a disabled routine flag to the orchestrator", async () => {
     mocks.streamChat.mockResolvedValue({
       textStream: (async function* () {

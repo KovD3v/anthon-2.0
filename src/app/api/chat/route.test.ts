@@ -581,7 +581,7 @@ describe("POST /api/chat", () => {
       "database_connect",
       "user_lookup",
       "chat_lookup",
-      "rate_limit",
+      "rate_limit_check",
       "attachment_resolution",
       "inbound_claim",
     ]) {

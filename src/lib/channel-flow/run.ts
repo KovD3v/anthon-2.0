@@ -578,7 +578,7 @@ export async function runChannelFlow(
         limits: reservationEntitlements.limits,
       });
     usageReservation = ctx.execution?.traceCollector
-      ? await ctx.execution.traceCollector.measure("rate_limit", reserve)
+      ? await ctx.execution.traceCollector.measure("usage_reservation", reserve)
       : await reserve();
   }
   if (usageReservation && !usageReservation.allowed) {

@@ -36,6 +36,8 @@ const SERVER_LABELS: Record<ServerSpanName, string> = {
   user_lookup: "Lettura utente",
   chat_lookup: "Lettura chat",
   billing_sync: "Sincronizzazione piano",
+  rate_limit_check: "Controllo limiti",
+  usage_reservation: "Prenotazione utilizzo",
   rate_limit: "Controllo limiti",
   inbound_claim: "Registrazione richiesta",
   attachment_resolution: "Preparazione allegati",

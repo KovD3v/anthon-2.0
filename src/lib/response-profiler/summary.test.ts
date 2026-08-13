@@ -178,4 +178,38 @@ describe("deriveResponseProfilerSummary", () => {
       expect.objectContaining({ lane: "persistence" }),
     ]);
   });
+
+  it("labels limit checks and atomic reservations as separate rows", () => {
+    const summary = deriveResponseProfilerSummary({
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0,
+      serverTrace: {
+        version: 1,
+        status: "completed",
+        totalMs: 30,
+        spans: [
+          {
+            id: 1,
+            name: "rate_limit_check",
+            startOffsetMs: 0,
+            durationMs: 5,
+            status: "completed",
+          },
+          {
+            id: 2,
+            name: "usage_reservation",
+            startOffsetMs: 5,
+            durationMs: 25,
+            status: "completed",
+          },
+        ],
+      },
+    } as Usage);
+
+    expect(summary.serverRows.map((row) => row.label)).toEqual([
+      "Controllo limiti",
+      "Prenotazione utilizzo",
+    ]);
+  });
 });
