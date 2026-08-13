@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
@@ -50,6 +50,10 @@ describe("/api/chat/messages route", () => {
     });
     mocks.messageDeleteMany.mockResolvedValue({ count: 2 });
     mocks.deletePrivateVoiceBlobsForMessages.mockResolvedValue(0);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("GET returns 401 when Clerk auth has no userId", async () => {
@@ -219,6 +223,72 @@ describe("/api/chat/messages route", () => {
     expect(body.messages[0]).not.toHaveProperty("ragUsed");
     expect(body.messages[0]).not.toHaveProperty("toolCalls");
     expect(body.messages[0]).not.toHaveProperty("metadata");
+  });
+
+  it("GET exposes expanded diagnostics to an enabled SUPER_ADMIN in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "SUPER_ADMIN",
+      isGuest: false,
+      preferences: { showTechnicalMetrics: true },
+    });
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "m1",
+        role: "ASSISTANT",
+        parts: [{ type: "text", text: "Risposta" }],
+        createdAt: new Date("2026-02-16T10:00:00.000Z"),
+        model: "fallback-model",
+        inputTokens: 10,
+        outputTokens: 20,
+        costUsd: 0.03,
+        generationTimeMs: 180,
+        reasoningTimeMs: 22,
+        ragUsed: true,
+        ragChunksCount: 2,
+        toolCalls: [{ name: "search" }],
+        metadata: null,
+        metrics: {
+          model: "executed-model",
+          provider: "OpenRouter",
+          reasoningTokens: 4,
+          toolCallCount: 1,
+          toolResultChars: 120,
+          toolTiming: {
+            firstModelStepMs: 40,
+            toolExecutionMs: 80,
+            finalModelStepMs: 60,
+          },
+          ragUsed: true,
+          ragChunksCount: 2,
+          executionRoute: null,
+        },
+        chat: { visibility: "PRIVATE", userId: "user-1" },
+      },
+    ]);
+
+    const response = await GET(
+      new Request("http://localhost/api/chat/messages?chatId=chat-1"),
+    );
+    const body = (await response.json()) as {
+      messages: Array<{ usage?: Record<string, unknown> }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.messages[0]?.usage).toMatchObject({
+      model: "executed-model",
+      provider: "OpenRouter",
+      executedProfile: "standard",
+      reasoningTokens: 4,
+      toolCallCount: 1,
+      toolResultChars: 120,
+      toolTiming: {
+        firstModelStepMs: 40,
+        toolExecutionMs: 80,
+        finalModelStepMs: 60,
+      },
+    });
   });
 
   it.each([

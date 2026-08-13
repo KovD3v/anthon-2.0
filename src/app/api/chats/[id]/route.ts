@@ -21,6 +21,7 @@ import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import {
   buildTechnicalUsage,
+  resolveTechnicalDiagnosticsVisibility,
   resolveTechnicalMetricsVisibility,
 } from "@/lib/technical-metrics";
 import { getTextFromParts } from "@/lib/utils/message-parts";
@@ -123,12 +124,17 @@ export async function GET(request: Request, { params }: RouteParams) {
         preferences: { select: { showTechnicalMetrics: true } },
       },
     });
-    const canReceiveTechnicalMetrics = resolveTechnicalMetricsVisibility({
+    const technicalMetricsAccess = {
       role: viewer?.role ?? "USER",
       preference: viewer?.preferences?.showTechnicalMetrics,
       isGuest: viewer?.isGuest ?? true,
       isPrivateOwner: chat.userId === user.id && chat.visibility === "PRIVATE",
-    });
+    };
+    const canReceiveTechnicalMetrics = resolveTechnicalMetricsVisibility(
+      technicalMetricsAccess,
+    );
+    const canReceiveTechnicalDiagnostics =
+      resolveTechnicalDiagnosticsVisibility(technicalMetricsAccess);
     if (
       sourceAssistantMessageId &&
       (viewer?.isGuest !== false ||
@@ -330,7 +336,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       messages: messagesToReturn.map((m) => {
         const usage = canReceiveTechnicalMetrics
           ? buildTechnicalUsage(m, {
-              includeDiagnostics: process.env.NODE_ENV === "development",
+              includeDiagnostics: canReceiveTechnicalDiagnostics,
             })
           : undefined;
 

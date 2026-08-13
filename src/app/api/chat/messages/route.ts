@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import {
   buildTechnicalUsage,
+  resolveTechnicalDiagnosticsVisibility,
   resolveTechnicalMetricsVisibility,
 } from "@/lib/technical-metrics";
 import { getTextFromParts } from "@/lib/utils/message-parts";
@@ -120,16 +121,22 @@ export async function GET(request: Request) {
 
     // Convert to UI message format
     const uiMessages = chronologicalMessages.map((msg) => {
-      const includeTechnicalMetrics = resolveTechnicalMetricsVisibility({
+      const technicalMetricsAccess = {
         role: user.role,
         preference: user.preferences?.showTechnicalMetrics,
         isGuest: user.isGuest,
         isPrivateOwner:
           msg.chat?.visibility === "PRIVATE" && msg.chat.userId === user.id,
-      });
+      };
+      const includeTechnicalMetrics = resolveTechnicalMetricsVisibility(
+        technicalMetricsAccess,
+      );
+      const includeTechnicalDiagnostics = resolveTechnicalDiagnosticsVisibility(
+        technicalMetricsAccess,
+      );
       const usage = includeTechnicalMetrics
         ? buildTechnicalUsage(msg, {
-            includeDiagnostics: process.env.NODE_ENV === "development",
+            includeDiagnostics: includeTechnicalDiagnostics,
           })
         : undefined;
 

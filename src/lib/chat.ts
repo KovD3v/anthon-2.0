@@ -8,6 +8,7 @@ import type { ModelComparisonData } from "@/lib/model-experiments/types";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import {
   buildTechnicalUsage,
+  resolveTechnicalDiagnosticsVisibility,
   resolveTechnicalMetricsVisibility,
 } from "@/lib/technical-metrics";
 import { getTextFromParts } from "@/lib/utils/message-parts";
@@ -238,12 +239,18 @@ async function getSharedChatUncached(
 
   const canReceiveRoutineProposal =
     chat.userId === userId && chat.visibility === "PRIVATE";
-  const canReceiveTechnicalMetrics = resolveTechnicalMetricsVisibility({
+  const technicalMetricsAccess = {
     role: userData?.role ?? "USER",
     preference: userData?.preferences?.showTechnicalMetrics,
     isGuest: userData?.isGuest ?? true,
     isPrivateOwner: canReceiveRoutineProposal,
-  });
+  };
+  const canReceiveTechnicalMetrics = resolveTechnicalMetricsVisibility(
+    technicalMetricsAccess,
+  );
+  const canReceiveTechnicalDiagnostics = resolveTechnicalDiagnosticsVisibility(
+    technicalMetricsAccess,
+  );
   const canReceivePrivateCoachingData =
     canReceiveRoutineProposal && userData?.isGuest === false;
   const returnedAssistantMessageIds = messagesToReturn
@@ -298,7 +305,7 @@ async function getSharedChatUncached(
     const usage = canReceiveTechnicalMetrics
       ? buildTechnicalUsage(m, {
           includeDiagnostics:
-            process.env.NODE_ENV === "development" && !modelComparisonCanonical,
+            canReceiveTechnicalDiagnostics && !modelComparisonCanonical,
         })
       : undefined;
 

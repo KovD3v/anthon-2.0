@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildTechnicalUsage,
+  resolveTechnicalDiagnosticsVisibility,
   resolveTechnicalMetricsVisibility,
 } from "./technical-metrics";
 
@@ -63,17 +64,25 @@ describe("resolveTechnicalMetricsVisibility", () => {
     expect(resolveTechnicalMetricsVisibility(input)).toBe(expected);
   });
 
-  it("enables localhost diagnostics for an authenticated private owner", () => {
+  it("enables localhost diagnostics unless an explicit override disables them", () => {
     vi.stubEnv("NODE_ENV", "development");
 
     expect(
       resolveTechnicalMetricsVisibility({
         role: "USER",
-        preference: false,
+        preference: null,
         isGuest: false,
         isPrivateOwner: true,
       }),
     ).toBe(true);
+    expect(
+      resolveTechnicalMetricsVisibility({
+        role: "SUPER_ADMIN",
+        preference: false,
+        isGuest: false,
+        isPrivateOwner: true,
+      }),
+    ).toBe(false);
     expect(
       resolveTechnicalMetricsVisibility({
         role: "SUPER_ADMIN",
@@ -91,6 +100,27 @@ describe("resolveTechnicalMetricsVisibility", () => {
       }),
     ).toBe(false);
   });
+
+  it.each([
+    ["SUPER_ADMIN", true, true],
+    ["SUPER_ADMIN", false, false],
+    ["ADMIN", true, false],
+    ["USER", true, false],
+  ] as const)(
+    "allows production profiler diagnostics only for an enabled SUPER_ADMIN: %s/%s",
+    (role, preference, expected) => {
+      vi.stubEnv("NODE_ENV", "production");
+
+      expect(
+        resolveTechnicalDiagnosticsVisibility({
+          role,
+          preference,
+          isGuest: false,
+          isPrivateOwner: true,
+        }),
+      ).toBe(expected);
+    },
+  );
 });
 
 describe("buildTechnicalUsage", () => {

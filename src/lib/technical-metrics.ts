@@ -191,23 +191,48 @@ export function buildTechnicalUsage(
   };
 }
 
-export function getDefaultTechnicalMetricsPreference(role: UserRole): boolean {
-  return role === "ADMIN" || role === "SUPER_ADMIN";
-}
-
-export function resolveTechnicalMetricsVisibility(input: {
+export type TechnicalMetricsVisibilityInput = {
   role: UserRole;
   preference: boolean | null | undefined;
   isGuest: boolean;
   isPrivateOwner: boolean;
-}): boolean {
+};
+
+export function getDefaultTechnicalMetricsPreference(role: UserRole): boolean {
+  return role === "ADMIN" || role === "SUPER_ADMIN";
+}
+
+export function resolveTechnicalMetricsVisibility(
+  input: TechnicalMetricsVisibilityInput,
+): boolean {
   if (input.isGuest || !input.isPrivateOwner) {
     return false;
   }
 
-  if (process.env.NODE_ENV === "development") {
+  // Local development keeps the diagnostics discoverable by default, while an
+  // explicit profile override must still be able to turn them off.
+  if (process.env.NODE_ENV === "development" && input.preference == null) {
     return true;
   }
 
   return input.preference ?? getDefaultTechnicalMetricsPreference(input.role);
+}
+
+/**
+ * Resolve access to the expanded profiler payload.
+ *
+ * Compact technical metrics keep their existing role/default behavior. The
+ * expanded payload is intentionally limited to local development and an
+ * explicitly authorized SUPER_ADMIN in production so internal diagnostics do
+ * not become generally available just because a user opts into the compact
+ * metrics preference.
+ */
+export function resolveTechnicalDiagnosticsVisibility(
+  input: TechnicalMetricsVisibilityInput,
+): boolean {
+  if (!resolveTechnicalMetricsVisibility(input)) {
+    return false;
+  }
+
+  return process.env.NODE_ENV === "development" || input.role === "SUPER_ADMIN";
 }
