@@ -69,7 +69,7 @@ async function ChatLayoutWithIdentity({
 function ChatLayoutSkeleton() {
   return (
     <div
-      className="flex chat-mobile-viewport overflow-hidden"
+      className="flex chat-mobile-viewport overflow-hidden overscroll-none"
       data-testid="chat-layout-shell"
     >
       <aside className="hidden w-72 shrink-0 overflow-hidden border-r border-border/50 bg-background/80 backdrop-blur-xl dark:border-white/10 dark:bg-muted/40 md:block">
@@ -88,7 +88,7 @@ function ChatLayoutSkeleton() {
         <div className="relative flex min-h-0 flex-1 flex-col bg-linear-to-b from-background to-muted/20">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-primary/5 via-background/0 to-background/0" />
 
-          <div className="flex-1 overflow-y-auto px-4 py-6">
+          <div className="flex-1 overflow-y-auto overscroll-y-none px-4 py-6">
             <div className="mx-auto max-w-3xl space-y-6">
               <div className="flex items-start gap-2">
                 <div className="size-8 animate-pulse rounded-full bg-muted/45" />

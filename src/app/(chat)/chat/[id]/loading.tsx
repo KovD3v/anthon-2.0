@@ -14,7 +14,7 @@ export default function ChatConversationLoading() {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-none px-4 py-6">
           <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-center gap-6 py-4">
             <div className="mx-auto size-12 animate-pulse rounded-full bg-primary/20" />
             <div className="space-y-3 text-center">

@@ -419,7 +419,7 @@ export function RoutineCollectionPage() {
   return (
     <>
       <section
-        className="mx-auto flex w-full max-w-4xl flex-1 flex-col overflow-y-auto px-4 py-6 sm:px-6 md:py-10"
+        className="mx-auto flex w-full max-w-4xl flex-1 flex-col overflow-y-auto overscroll-y-none px-4 py-6 sm:px-6 md:py-10"
         aria-labelledby="routine-collection-title"
       >
         <header className="flex flex-wrap items-start justify-between gap-4">

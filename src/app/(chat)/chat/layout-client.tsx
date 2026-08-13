@@ -37,6 +37,7 @@ import {
   fetchRoutineCollection,
   type RoutineCollectionStatus,
 } from "@/lib/coaching/routine-client";
+import { installDocumentScrollLock } from "@/lib/document-scroll-lock";
 import { installChatViewportSizing } from "@/lib/visual-viewport";
 import type { AttachmentData, Chat, ChatData, UsageData } from "@/types/chat";
 import { ChatList } from "../../(chat)/components/ChatList";
@@ -850,6 +851,11 @@ export function LayoutClient({
     return installChatViewportSizing(chatViewportRef.current);
   }, []);
 
+  useEffect(
+    () => installDocumentScrollLock(document.body, isMobileSidebarViewport),
+    [isMobileSidebarViewport],
+  );
+
   // Fetch chats (for refresh)
   async function refreshChats() {
     try {
@@ -1204,7 +1210,7 @@ export function LayoutClient({
     >
       <div
         ref={chatViewportRef}
-        className="flex min-w-0 chat-mobile-viewport overflow-hidden md:grid md:transition-[grid-template-columns] md:duration-250 md:ease-[cubic-bezier(0.77,0,0.175,1)] motion-reduce:md:transition-none"
+        className="flex min-w-0 chat-mobile-viewport overflow-hidden overscroll-none md:grid md:transition-[grid-template-columns] md:duration-250 md:ease-[cubic-bezier(0.77,0,0.175,1)] motion-reduce:md:transition-none"
         data-testid="chat-layout-shell"
         data-desktop-sidebar-open={isDesktopSidebarOpen}
         style={{

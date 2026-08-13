@@ -1704,7 +1704,7 @@ export function ChatConversationClient({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: duration.fast, ease: ease.out }}
-            className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:py-6"
+            className="min-h-0 flex-1 overflow-y-auto overscroll-y-none px-4 py-5 sm:py-6"
           >
             <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-start gap-5 py-2 sm:justify-center sm:gap-6 sm:py-4">
               <EmptyChatWelcome />

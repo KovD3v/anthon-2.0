@@ -14,7 +14,7 @@ export default function ChatLoading() {
         <div className="h-8 w-20 animate-pulse rounded-md bg-muted/35" />
       </header>
 
-      <div className="relative flex-1 overflow-y-auto px-4 py-6">
+      <div className="relative flex-1 overflow-y-auto overscroll-y-none px-4 py-6">
         <div className="mx-auto max-w-3xl space-y-8">
           {placeholders.map((placeholder) => {
             const isUser = placeholder.role === "user";

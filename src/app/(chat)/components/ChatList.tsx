@@ -62,7 +62,7 @@ export function ChatList({
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-2 pt-0">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-none p-2 pt-0">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />

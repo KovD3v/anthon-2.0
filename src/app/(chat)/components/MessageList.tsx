@@ -528,7 +528,7 @@ export function MessageList({
   if (messages.length === 0) {
     if (reusedRoutine && canRenderRoutineCards) {
       return (
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-none px-4 py-8">
           <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-center gap-5">
             <div className="px-1">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
@@ -576,7 +576,7 @@ export function MessageList({
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div
         ref={parentRef}
-        className="min-w-0 flex-1 overflow-y-auto px-4 pt-6 pb-20 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
+        className="min-w-0 flex-1 overflow-y-auto overscroll-y-none px-4 pt-6 pb-20 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
       >
         <div className="mx-auto w-full min-w-0 max-w-3xl">
           {/* Loading indicator for older messages */}

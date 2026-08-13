@@ -142,7 +142,7 @@ export function SearchDialog({
         </div>
 
         {/* Results */}
-        <div className="max-h-96 min-h-24 overflow-y-auto">
+        <div className="max-h-96 min-h-24 overflow-y-auto overscroll-y-none">
           <AnimatePresence initial={false} mode="popLayout">
             <m.div
               key={searchState}
