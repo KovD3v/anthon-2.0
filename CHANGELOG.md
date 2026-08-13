@@ -62,6 +62,10 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Changed expanded response-profiler diagnostics from development-only access to
+  allow authenticated `SUPER_ADMIN` users to control them in production through
+  the technical-metrics preference, while guests, non-owners, and other roles
+  retain compact metrics only.
 - Restyled the sidebar account card and menu with the app's native surfaces,
   opaque layering, clearer focus states, and consistent touch targets, and
   removed the redundant Chat, Usage, and Pricing menu entries.
