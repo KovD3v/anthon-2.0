@@ -267,6 +267,8 @@ describe("TechnicalMetricsDetails", () => {
             confidenceBucket: "high",
             reasonCodes: ["simple_turn"],
             classificationLatencyMs: 18,
+            classifierModel: "nvidia/nemotron-3.5-lightning",
+            classifierProvider: "DeepInfra",
             routingOverheadMs: 24,
             totalRequestTimeToFirstTokenMs: 390,
             attempts: [
@@ -296,6 +298,10 @@ describe("TechnicalMetricsDetails", () => {
 
     expect(container.querySelector("details")?.open).toBe(true);
     expect(screen.getByText("deepseek/deepseek-v4-flash-0731")).toBeTruthy();
+    expect(screen.getByText("Modello classificatore")).toBeTruthy();
+    expect(screen.getByText("nvidia/nemotron-3.5-lightning")).toBeTruthy();
+    expect(screen.getByText("Provider classificatore")).toBeTruthy();
+    expect(screen.getByText("DeepInfra")).toBeTruthy();
     expect(screen.getAllByText("Standard").length).toBeGreaterThan(0);
     expect(screen.getByText("Timeline ricostruita")).toBeTruthy();
     expect(screen.getByText("Tempo totale risposta")).toBeTruthy();

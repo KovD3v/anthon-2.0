@@ -2,6 +2,7 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
+import { extractSelectedProvider } from "@/lib/response-profiler/server-trace";
 import { CLASSIFIER_CAPABILITIES } from "./capability-arbitration";
 
 const MAX_CLASSIFIER_CONTEXT_CHARS = 2_000;
@@ -63,6 +64,8 @@ export type TurnClassificationResult = {
   proposal: TurnClassifierProposal | null;
   outcome: "accepted" | "invalid" | "low_confidence" | "failed";
   latencyMs: number;
+  classifierModel?: string;
+  classifierProvider?: string;
 };
 
 export type TurnClassificationInput = {
@@ -215,12 +218,17 @@ export async function classifyTurn({
     }
 
     const proposal = parseTurnClassifierOutput(result.output);
+    const classifierProvider = extractSelectedProvider(
+      result.providerMetadata as Record<string, unknown> | undefined,
+    );
     abortSignal?.throwIfAborted();
     if (!proposal) {
       return {
         proposal: null,
         outcome: "invalid",
         latencyMs: Date.now() - startedAt,
+        classifierModel: modelId,
+        ...(classifierProvider ? { classifierProvider } : {}),
       };
     }
 
@@ -231,6 +239,8 @@ export async function classifyTurn({
           ? "low_confidence"
           : "accepted",
       latencyMs: Date.now() - startedAt,
+      classifierModel: modelId,
+      ...(classifierProvider ? { classifierProvider } : {}),
     };
   } catch (error) {
     abortSignal?.throwIfAborted();
@@ -243,6 +253,7 @@ export async function classifyTurn({
       proposal: null,
       outcome: "failed",
       latencyMs: Date.now() - startedAt,
+      classifierModel: modelId,
     };
   }
 }

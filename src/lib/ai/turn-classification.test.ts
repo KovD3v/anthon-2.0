@@ -89,7 +89,9 @@ describe("turn classification contract", () => {
     mocks.generateText.mockResolvedValue({
       output: validOutput,
       usage: { inputTokens: 40, outputTokens: 20 },
-      providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
+      providerMetadata: {
+        openrouter: { provider: "DeepInfra", usage: { cost: 0.001 } },
+      },
     });
   });
 
@@ -183,13 +185,17 @@ describe("turn classification contract", () => {
       }),
       outcome: "accepted",
       latencyMs: expect.any(Number),
+      classifierModel: "qwen/qwen3.6-27b",
+      classifierProvider: "DeepInfra",
     });
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledTimes(1);
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
       userId: "user-1",
       modelId: "qwen/qwen3.6-27b",
       usage: { inputTokens: 40, outputTokens: 20 },
-      providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
+      providerMetadata: {
+        openrouter: { provider: "DeepInfra", usage: { cost: 0.001 } },
+      },
     });
   });
 

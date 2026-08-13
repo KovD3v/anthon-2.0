@@ -293,6 +293,8 @@ describe("buildTechnicalUsage", () => {
             confidenceBucket: "high",
             reasonCodes: ["classifier_light", "task_allowlisted"],
             classificationLatencyMs: 14,
+            classifierModel: "nvidia/nemotron-3.5-lightning",
+            classifierProvider: "DeepInfra",
             routingOverheadMs: 18,
             totalRequestTimeToFirstTokenMs: 220,
             attempts: [
@@ -352,6 +354,8 @@ describe("buildTechnicalUsage", () => {
         confidenceBucket: "high",
         reasonCodes: ["classifier_light", "task_allowlisted"],
         classificationLatencyMs: 14,
+        classifierModel: "nvidia/nemotron-3.5-lightning",
+        classifierProvider: "DeepInfra",
         routingOverheadMs: 18,
         totalRequestTimeToFirstTokenMs: 220,
         attempts: [
@@ -383,6 +387,12 @@ describe("buildTechnicalUsage", () => {
           reasoningTimeMs: null,
           ragUsed: true,
           toolCalls: [{ name: "search" }],
+          metrics: {
+            executionRoute: {
+              classifierModel: "private-classifier-model",
+              classifierProvider: "private-provider",
+            },
+          },
         },
         { includeDiagnostics: false },
       ),

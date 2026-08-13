@@ -569,6 +569,8 @@ export type PreparedTurnContext = {
   turnDecision: TurnDecision;
   capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
   classificationLatencyMs: number;
+  classifierModel?: string;
+  classifierProvider?: string;
 };
 
 interface StreamChatOptions {
@@ -2006,6 +2008,12 @@ export async function streamChat({
     ? {
         decision: preparedTurnContext.turnDecision,
         classificationLatencyMs: preparedTurnContext.classificationLatencyMs,
+        ...(preparedTurnContext.classifierModel
+          ? { classifierModel: preparedTurnContext.classifierModel }
+          : {}),
+        ...(preparedTurnContext.classifierProvider
+          ? { classifierProvider: preparedTurnContext.classifierProvider }
+          : {}),
       }
     : await measureTrace(traceCollector, "classification", () =>
         arbitrateChatTurn({
@@ -2026,6 +2034,8 @@ export async function streamChat({
       );
   const turnDecision = arbitration.decision;
   const classificationLatencyMs = arbitration.classificationLatencyMs;
+  const classifierModel = arbitration.classifierModel;
+  const classifierProvider = arbitration.classifierProvider;
   const capabilityDecision = turnDecision.capabilities;
   const routingSpan = traceCollector?.startSpan("routing");
   const routingConfig = parseExecutionRoutingConfig(process.env);
@@ -2725,6 +2735,8 @@ export async function streamChat({
       confidenceBucket: turnDecision.execution.confidenceBucket,
       reasonCodes: executionReasonCodes,
       classificationLatencyMs,
+      ...(classifierModel ? { classifierModel } : {}),
+      ...(classifierProvider ? { classifierProvider } : {}),
       routingOverheadMs,
       ...(totalRequestTimeToFirstTokenMs !== undefined
         ? { totalRequestTimeToFirstTokenMs }
@@ -3511,6 +3523,8 @@ export interface PreparedChatTurn {
   turnPlan: TurnPlan;
   turnDecision: TurnDecision;
   classificationLatencyMs: number;
+  classifierModel?: string;
+  classifierProvider?: string;
   plannedExecution: TurnPlan["execution"];
   capabilityDecision: CapabilityDecision;
   capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
@@ -3593,6 +3607,8 @@ export async function prepareChatTurn({
   });
   const turnDecision = arbitration.decision;
   const classificationLatencyMs = arbitration.classificationLatencyMs;
+  const classifierModel = arbitration.classifierModel;
+  const classifierProvider = arbitration.classifierProvider;
   const capabilityDecision = turnDecision.capabilities;
   const allocatedExecution = buildPlannedExecution({
     decision: turnDecision.execution,
@@ -3789,6 +3805,8 @@ export async function prepareChatTurn({
     turnPlan: structuredClone(turnPlan),
     turnDecision,
     classificationLatencyMs,
+    ...(classifierModel ? { classifierModel } : {}),
+    ...(classifierProvider ? { classifierProvider } : {}),
     plannedExecution: structuredClone(turnPlan.execution),
     capabilityDecision,
     capabilityPlannerMode,

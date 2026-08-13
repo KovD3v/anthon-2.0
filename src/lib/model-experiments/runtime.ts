@@ -454,6 +454,12 @@ export async function tryCreateModelComparisonResponse(
       turnDecision: prepared.turnDecision,
       capabilityPlannerMode: prepared.capabilityPlannerMode,
       classificationLatencyMs: prepared.classificationLatencyMs,
+      ...(prepared.classifierModel
+        ? { classifierModel: prepared.classifierModel }
+        : {}),
+      ...(prepared.classifierProvider
+        ? { classifierProvider: prepared.classifierProvider }
+        : {}),
     });
   if (!isSafeModelComparisonTurn(prepared.turnPlan, input.userMessage)) {
     await releaseReservation();

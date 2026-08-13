@@ -251,6 +251,21 @@ export function TechnicalMetricsDetails({
                   </dd>
                 </div>
               )}
+              {routeTrace?.classifierModel && (
+                <div className="col-span-2 min-w-0 sm:col-span-4">
+                  <dt className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
+                    Modello classificatore
+                  </dt>
+                  <dd className="mt-1 min-w-0">
+                    <code
+                      className="block truncate rounded-md bg-background/75 px-2 py-1.5 font-mono text-[11px] text-foreground ring-1 ring-border/60"
+                      title={routeTrace.classifierModel}
+                    >
+                      {routeTrace.classifierModel}
+                    </code>
+                  </dd>
+                </div>
+              )}
               {profile && (
                 <MetricValue
                   label="Profilo eseguito"
@@ -272,6 +287,12 @@ export function TechnicalMetricsDetails({
               )}
               {usage.provider && (
                 <MetricValue label="Provider" value={usage.provider} />
+              )}
+              {routeTrace?.classifierProvider && (
+                <MetricValue
+                  label="Provider classificatore"
+                  value={routeTrace.classifierProvider}
+                />
               )}
               {routeTrace && (
                 <MetricValue

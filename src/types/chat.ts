@@ -136,6 +136,8 @@ export interface Usage {
     confidenceBucket: "low" | "medium" | "high";
     reasonCodes: string[];
     classificationLatencyMs: number;
+    classifierModel?: string;
+    classifierProvider?: string;
     routingOverheadMs: number;
     totalRequestTimeToFirstTokenMs?: number;
     attempts: Array<{
