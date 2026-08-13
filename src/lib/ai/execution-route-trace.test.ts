@@ -38,6 +38,22 @@ describe("parseExecutionRouteTrace", () => {
     );
   });
 
+  it("accepts bounded classifier attribution while preserving legacy traces", () => {
+    expect(
+      parseExecutionRouteTrace({
+        ...completedStandardTrace,
+        classifierModel: "nvidia/nemotron-3.5-lightning",
+        classifierProvider: "DeepInfra",
+      }),
+    ).toMatchObject({
+      classifierModel: "nvidia/nemotron-3.5-lightning",
+      classifierProvider: "DeepInfra",
+    });
+    expect(parseExecutionRouteTrace(completedStandardTrace)).toEqual(
+      completedStandardTrace,
+    );
+  });
+
   it("accepts a shadow light-eligible turn executed on standard", () => {
     expect(
       parseExecutionRouteTrace({
@@ -305,6 +321,11 @@ describe("parseExecutionRouteTrace", () => {
     ],
     ["a negative routing latency", { routingOverheadMs: -1 }],
     ["a non-finite classification latency", { classificationLatencyMs: NaN }],
+    ["an oversized classifier model", { classifierModel: "m".repeat(129) }],
+    [
+      "an oversized classifier provider",
+      { classifierProvider: "p".repeat(129) },
+    ],
   ])("rejects %s", (_label, invalidValue) => {
     expect(
       parseExecutionRouteTrace({ ...completedStandardTrace, ...invalidValue }),

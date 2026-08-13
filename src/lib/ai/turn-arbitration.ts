@@ -48,6 +48,8 @@ export type TurnArbitrationInput = Omit<
 export type TurnArbitrationResult = {
   decision: TurnDecision;
   classificationLatencyMs: number;
+  classifierModel?: string;
+  classifierProvider?: string;
 };
 
 function toCapabilityClassifierAdapter(
@@ -177,5 +179,11 @@ export async function arbitrateTurn(
       execution,
     }),
     classificationLatencyMs: classification.latencyMs,
+    ...(classification.classifierModel
+      ? { classifierModel: classification.classifierModel }
+      : {}),
+    ...(classification.classifierProvider
+      ? { classifierProvider: classification.classifierProvider }
+      : {}),
   };
 }

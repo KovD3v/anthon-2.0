@@ -24,6 +24,7 @@ const executionProfileSchema = z.enum(["light", "standard"]);
 const routingModeSchema = z.enum(["off", "shadow", "active"]);
 const nonNegativeIntegerSchema = z.number().int().nonnegative().finite();
 const nonNegativeNumberSchema = z.number().nonnegative().finite();
+const boundedLabelSchema = z.string().trim().min(1).max(128);
 
 const executionAttemptTraceSchema = z
   .object({
@@ -58,6 +59,8 @@ const executionRouteTraceSchema = z
     confidenceBucket: z.enum(["low", "medium", "high"]),
     reasonCodes: z.array(z.enum(EXECUTION_REASON_CODES)).max(32),
     classificationLatencyMs: nonNegativeIntegerSchema,
+    classifierModel: boundedLabelSchema.optional(),
+    classifierProvider: boundedLabelSchema.optional(),
     routingOverheadMs: nonNegativeIntegerSchema,
     totalRequestTimeToFirstTokenMs: nonNegativeIntegerSchema.optional(),
     attempts: z.array(executionAttemptTraceSchema).min(1).max(2),
@@ -192,6 +195,8 @@ export type ExecutionRouteTrace = {
   confidenceBucket: "low" | "medium" | "high";
   reasonCodes: readonly ExecutionReasonCode[];
   classificationLatencyMs: number;
+  classifierModel?: string;
+  classifierProvider?: string;
   routingOverheadMs: number;
   totalRequestTimeToFirstTokenMs?: number;
   attempts: readonly ExecutionAttemptTrace[];

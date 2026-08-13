@@ -66,6 +66,8 @@ describe("turn arbitration", () => {
       proposal: classifierProposal,
       outcome: "accepted",
       latencyMs: 25,
+      classifierModel: "qwen/qwen3.6-27b",
+      classifierProvider: "DeepInfra",
     });
   });
 
@@ -77,6 +79,10 @@ describe("turn arbitration", () => {
     expect(Object.isFrozen(result.decision)).toBe(true);
     expect(Object.isFrozen(result.decision.execution.reasonCodes)).toBe(true);
     expect(result.classificationLatencyMs).toBe(25);
+    expect(result).toMatchObject({
+      classifierModel: "qwen/qwen3.6-27b",
+      classifierProvider: "DeepInfra",
+    });
   });
 
   it("discards spurious RAG and memory writes for self-contained transformations", async () => {
@@ -174,6 +180,8 @@ describe("turn arbitration", () => {
       reasonCodes: expect.arrayContaining(["legacy_mode"]),
     });
     expect(result.classificationLatencyMs).toBe(0);
+    expect(result).not.toHaveProperty("classifierModel");
+    expect(result).not.toHaveProperty("classifierProvider");
   });
 
   it("classifies each agentic turn exactly once", async () => {

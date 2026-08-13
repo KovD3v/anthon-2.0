@@ -1210,9 +1210,11 @@ describe("ai/orchestrator", () => {
     vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
     vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
     vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
-    mocks.classifyCapabilities.mockResolvedValueOnce(
-      lightClassification({ contextDependency: "none" }),
-    );
+    mocks.classifyCapabilities.mockResolvedValueOnce({
+      ...lightClassification({ contextDependency: "none" }),
+      classifierModel: "nvidia/nemotron-3.5-lightning",
+      classifierProvider: "DeepInfra",
+    });
     mocks.streamText.mockReturnValueOnce(
       noToolTextStream(["", "Prima", " seconda"], {
         beforeFirstTextMs: 35,
@@ -1232,6 +1234,8 @@ describe("ai/orchestrator", () => {
     const route =
       mocks.captureAiExecutionRouting.mock.calls[0]?.[0]?.executionRoute;
     expect(route).toMatchObject({
+      classifierModel: "nvidia/nemotron-3.5-lightning",
+      classifierProvider: "DeepInfra",
       totalRequestTimeToFirstTokenMs: 35,
       attempts: [
         expect.objectContaining({

@@ -17,7 +17,9 @@ Version numbers describe the application's user-facing behavior and its document
   model selection, token usage, cost, persistence, tools, memory, and RAG
   diagnostics. Local development keeps it enabled by default; in production it
   is available for new private-chat responses only to `SUPER_ADMIN` accounts
-  with “Mostra dettagli tecnici delle risposte” enabled in Profile settings.
+  with “Mostra dettagli tecnici delle risposte” enabled in Profile settings. Its
+  expanded execution details now also identify the turn-classifier model and
+  the provider actually selected by OpenRouter for that classification call.
 - Added a fail-closed light/standard execution-routing rollout with a unified
   classifier proposal, immutable route traces, shared Web/Telegram/WhatsApp
   kill switch, and a 36-fixture bilingual live evaluation command.
