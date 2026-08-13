@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   tool: vi.fn(),
   clerkClient: vi.fn(),
   userFindUnique: vi.fn(),
+  queryRaw: vi.fn(),
   profileFindUnique: vi.fn(),
   profileUpsert: vi.fn(),
   preferencesUpsert: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("@/lib/db", () => ({
     user: {
       findUnique: mocks.userFindUnique,
     },
+    $queryRaw: mocks.queryRaw,
     profile: {
       findUnique: mocks.profileFindUnique,
       upsert: mocks.profileUpsert,
@@ -44,6 +46,7 @@ describe("ai/tools/user-context", () => {
     mocks.tool.mockImplementation((definition) => definition);
     mocks.clerkClient.mockReset();
     mocks.userFindUnique.mockReset();
+    mocks.queryRaw.mockReset();
     mocks.profileFindUnique.mockReset();
     mocks.profileUpsert.mockReset();
     mocks.preferencesUpsert.mockReset();
@@ -138,24 +141,19 @@ describe("ai/tools/user-context", () => {
 
   it("formatUserContextForPrompt caches output and updatePreferences invalidates it", async () => {
     const userId = "user-ctx-cache";
-    mocks.userFindUnique.mockResolvedValue({
-      id: userId,
-      createdAt: new Date("2026-01-01T00:00:00.000Z"),
-      profile: {
-        name: "Cache User",
-        sport: "Cycling",
-        goal: "FTP +20W",
-        experience: "Intermediate",
-        birthday: null,
-        notes: "Prefers short sessions.",
+    mocks.queryRaw.mockResolvedValue([
+      {
+        profileName: "Cache User",
+        profileSport: "Cycling",
+        profileGoal: "FTP +20W",
+        profileExperience: "Intermediate",
+        profileBirthday: null,
+        profileNotes: "Prefers short sessions.",
+        preferenceTone: "technical",
+        preferenceMode: "concise",
+        preferenceLanguage: "EN",
       },
-      preferences: {
-        tone: "technical",
-        mode: "concise",
-        language: "EN",
-        push: true,
-      },
-    });
+    ]);
     mocks.preferencesUpsert.mockResolvedValue({ id: "pref-1" });
 
     const first = await formatUserContextForPrompt(userId);
@@ -163,7 +161,7 @@ describe("ai/tools/user-context", () => {
 
     expect(first).toContain("Cache User");
     expect(second).toContain("Cache User");
-    expect(mocks.userFindUnique).toHaveBeenCalledTimes(1);
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
 
     const tools = createUserContextTools(userId);
     const prefExec2 = tools.updatePreferences.execute as unknown as (
@@ -172,29 +170,54 @@ describe("ai/tools/user-context", () => {
     await prefExec2({ tone: "direct" });
     await formatUserContextForPrompt(userId);
 
-    expect(mocks.userFindUnique).toHaveBeenCalledTimes(2);
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it("loads the full prompt context through one projected query", async () => {
+    const userId = "user-ctx-projected";
+    mocks.queryRaw.mockResolvedValue([
+      {
+        profileName: "Projected User",
+        profileSport: "Tennis",
+        profileGoal: "Servizio più stabile",
+        profileExperience: "Intermediate",
+        profileBirthday: null,
+        profileNotes: "Nota breve",
+        preferenceTone: "direct",
+        preferenceMode: "concise",
+        preferenceLanguage: "it",
+      },
+    ]);
+
+    const context = await formatUserContextForPrompt(userId);
+
+    expect(context).toContain("Projected User");
+    expect(context).toContain("Tennis");
+    expect(context).toContain("Servizio più stabile");
+    expect(context).toContain("Nota breve");
+    expect(context).toContain("Lingua**: it");
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
   });
 
   it("formatTinyUserSnapshotForPrompt returns compact coaching fields and caches them", async () => {
     const userId = "user-snapshot-cache";
-    mocks.userFindUnique.mockResolvedValue({
-      id: userId,
-      createdAt: new Date("2026-01-01T00:00:00.000Z"),
-      profile: {
-        name: "Snapshot User",
-        sport: "Tennis",
-        goal: "Serve più stabile",
-        experience: "Intermediate",
-        birthday: null,
-        notes: "Long private note that should not enter the tiny snapshot.",
+    mocks.queryRaw.mockResolvedValue([
+      {
+        profileName: "Snapshot User",
+        profileSport: "Tennis",
+        profileGoal: "Serve più stabile",
+        profileExperience: "Intermediate",
+        profileBirthday: null,
+        profileNotes:
+          "Long private note that should not enter the tiny snapshot.",
+        preferenceTone: "direct",
+        preferenceMode: "concise",
+        preferenceLanguage: "it",
+        memoryKey: null,
+        memoryValue: null,
       },
-      preferences: {
-        tone: "direct",
-        mode: "concise",
-        language: "it",
-        push: true,
-      },
-    });
+    ]);
 
     const first = await formatTinyUserSnapshotForPrompt(userId);
     const second = await formatTinyUserSnapshotForPrompt(userId);
@@ -205,63 +228,49 @@ describe("ai/tools/user-context", () => {
     expect(second).toBe(first);
     expect(first).not.toContain("Snapshot User");
     expect(first).not.toContain("Long private note");
-    expect(mocks.userFindUnique).toHaveBeenCalledTimes(1);
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it("formatTinyUserSnapshotForPrompt includes compact saved memories for first-turn personalization", async () => {
     const userId = "user-snapshot-memories";
-    mocks.userFindUnique.mockResolvedValue({
-      id: userId,
-      createdAt: new Date("2026-01-01T00:00:00.000Z"),
-      profile: null,
-      preferences: {
-        tone: null,
-        mode: null,
-        language: "it",
-        push: true,
+    mocks.queryRaw.mockResolvedValue([
+      {
+        profileName: null,
+        profileSport: null,
+        profileGoal: null,
+        profileExperience: null,
+        profileBirthday: null,
+        profileNotes: null,
+        preferenceTone: null,
+        preferenceMode: null,
+        preferenceLanguage: "it",
+        memoryKey: null,
+        memoryValue: null,
       },
-      memories: [
-        {
-          key: "role",
+      {
+        profileName: null,
+        profileSport: null,
+        profileGoal: null,
+        profileExperience: null,
+        profileBirthday: null,
+        profileNotes: null,
+        preferenceTone: null,
+        preferenceMode: null,
+        preferenceLanguage: "it",
+        memoryKey: "role",
+        memoryValue: {
+          content: "giocatore",
           category: "identity",
-          value: {
-            content: "giocatore",
-            category: "identity",
-            confidence: 1,
-          },
+          confidence: 1,
         },
-        {
-          key: "favorite_quote",
-          category: "other",
-          value: {
-            content: "testo troppo generico da non inserire",
-            category: "other",
-            confidence: 1,
-          },
-        },
-      ],
-    });
+      },
+    ]);
 
     const snapshot = await formatTinyUserSnapshotForPrompt(userId);
 
     expect(snapshot).toContain("Lingua: it");
     expect(snapshot).toContain("Memoria role: giocatore");
     expect(snapshot).not.toContain("favorite_quote");
-    expect(mocks.userFindUnique).toHaveBeenCalledWith({
-      where: { id: userId },
-      include: {
-        profile: true,
-        preferences: true,
-        memories: {
-          where: {
-            category: {
-              in: ["identity", "sport", "goal", "preference", "schedule"],
-            },
-          },
-          orderBy: { updatedAt: "desc" },
-          take: 4,
-        },
-      },
-    });
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
   });
 });

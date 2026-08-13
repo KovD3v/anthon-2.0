@@ -1,5 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { Prisma } from "@/generated/prisma/client";
 import {
   updateCanonicalPreferences,
   updateCanonicalProfile,
@@ -18,18 +19,81 @@ type CompactMemoryValue = {
   content?: unknown;
 };
 
+type PromptUserRow = {
+  profileName: string | null;
+  profileSport: string | null;
+  profileGoal: string | null;
+  profileExperience: string | null;
+  profileBirthday: Date | null;
+  profileNotes: string | null;
+  preferenceTone: string | null;
+  preferenceMode: string | null;
+  preferenceLanguage: string | null;
+  memoryKey?: string | null;
+  memoryValue?: Prisma.JsonValue | null;
+};
+
 const USER_CONTEXT_PROMPT_CACHE_TTL_MS = 30 * 1000; // 30s
 const TINY_USER_SNAPSHOT_CACHE_TTL_MS = 2 * 60 * 1000; // 2m
-const TINY_USER_SNAPSHOT_MEMORY_CATEGORIES = new Set([
-  "identity",
-  "sport",
-  "goal",
-  "preference",
-  "schedule",
-]);
 const userContextLogger = createLogger("ai");
 
 export { invalidateUserContextPromptCache } from "./user-context-cache";
+
+async function loadPromptUserContext(
+  userId: string,
+  includeTinyMemories: boolean,
+): Promise<PromptUserRow[]> {
+  if (!includeTinyMemories) {
+    return prisma.$queryRaw<PromptUserRow[]>(Prisma.sql`
+      SELECT
+        p."name" AS "profileName",
+        p."sport" AS "profileSport",
+        p."goal" AS "profileGoal",
+        p."experience" AS "profileExperience",
+        p."birthday" AS "profileBirthday",
+        p."notes" AS "profileNotes",
+        pref."tone" AS "preferenceTone",
+        pref."mode" AS "preferenceMode",
+        pref."language" AS "preferenceLanguage"
+      FROM "User" u
+      LEFT JOIN "Profile" p ON p."userId" = u."id"
+      LEFT JOIN "Preferences" pref ON pref."userId" = u."id"
+      WHERE u."id" = ${userId}
+        AND u."deletedAt" IS NULL
+      LIMIT 1
+    `);
+  }
+
+  return prisma.$queryRaw<PromptUserRow[]>(Prisma.sql`
+    SELECT
+      p."name" AS "profileName",
+      p."sport" AS "profileSport",
+      p."goal" AS "profileGoal",
+      p."experience" AS "profileExperience",
+      p."birthday" AS "profileBirthday",
+      p."notes" AS "profileNotes",
+      pref."tone" AS "preferenceTone",
+      pref."mode" AS "preferenceMode",
+      pref."language" AS "preferenceLanguage",
+      memory."key" AS "memoryKey",
+      memory."value" AS "memoryValue"
+    FROM "User" u
+    LEFT JOIN "Profile" p ON p."userId" = u."id"
+    LEFT JOIN "Preferences" pref ON pref."userId" = u."id"
+    LEFT JOIN LATERAL (
+      SELECT m."key", m."value"
+      FROM "Memory" m
+      WHERE m."userId" = u."id"
+        AND m."category" IN (
+          'identity', 'sport', 'goal', 'preference', 'schedule'
+        )
+      ORDER BY m."updatedAt" DESC
+      LIMIT 4
+    ) memory ON TRUE
+    WHERE u."id" = ${userId}
+      AND u."deletedAt" IS NULL
+  `);
+}
 
 /**
  * Creates user context tools with userId context injected via closure.
@@ -277,47 +341,45 @@ export async function formatUserContextForPrompt(
     return cached.value;
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: {
-      profile: true,
-      preferences: true,
-    },
-  });
-
-  if (!user) {
+  const [row] = await loadPromptUserContext(userId, false);
+  if (!row) {
     return "";
   }
 
   const lines: string[] = [];
 
   // Profile section
-  if (user.profile) {
+  if (
+    row.profileName ||
+    row.profileSport ||
+    row.profileGoal ||
+    row.profileExperience ||
+    row.profileBirthday ||
+    row.profileNotes
+  ) {
     lines.push("## Profilo Utente:");
-    if (user.profile.name) lines.push(`- **Nome**: ${user.profile.name}`);
-    if (user.profile.sport) lines.push(`- **Sport**: ${user.profile.sport}`);
-    if (user.profile.goal) lines.push(`- **Obiettivo**: ${user.profile.goal}`);
-    if (user.profile.experience)
-      lines.push(`- **Esperienza**: ${user.profile.experience}`);
-    if (user.profile.birthday) {
+    if (row.profileName) lines.push(`- **Nome**: ${row.profileName}`);
+    if (row.profileSport) lines.push(`- **Sport**: ${row.profileSport}`);
+    if (row.profileGoal) lines.push(`- **Obiettivo**: ${row.profileGoal}`);
+    if (row.profileExperience)
+      lines.push(`- **Esperienza**: ${row.profileExperience}`);
+    if (row.profileBirthday) {
       const age = Math.floor(
-        (Date.now() - user.profile.birthday.getTime()) /
+        (Date.now() - row.profileBirthday.getTime()) /
           (365.25 * 24 * 60 * 60 * 1000),
       );
       lines.push(`- **Età**: ${age} anni`);
     }
-    if (user.profile.notes) lines.push(`- **Note**: ${user.profile.notes}`);
+    if (row.profileNotes) lines.push(`- **Note**: ${row.profileNotes}`);
   }
 
   // Preferences section
-  if (user.preferences) {
+  if (row.preferenceTone || row.preferenceMode || row.preferenceLanguage) {
     lines.push("\n## Preferenze di Comunicazione:");
-    if (user.preferences.tone)
-      lines.push(`- **Tono**: ${user.preferences.tone}`);
-    if (user.preferences.mode)
-      lines.push(`- **Modalità**: ${user.preferences.mode}`);
-    if (user.preferences.language)
-      lines.push(`- **Lingua**: ${user.preferences.language}`);
+    if (row.preferenceTone) lines.push(`- **Tono**: ${row.preferenceTone}`);
+    if (row.preferenceMode) lines.push(`- **Modalità**: ${row.preferenceMode}`);
+    if (row.preferenceLanguage)
+      lines.push(`- **Lingua**: ${row.preferenceLanguage}`);
   }
 
   const value = lines.join("\n");
@@ -341,48 +403,34 @@ export async function formatTinyUserSnapshotForPrompt(
     return cached.value;
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: {
-      profile: true,
-      preferences: true,
-      memories: {
-        where: {
-          category: {
-            in: Array.from(TINY_USER_SNAPSHOT_MEMORY_CATEGORIES),
-          },
-        },
-        orderBy: { updatedAt: "desc" },
-        take: 4,
-      },
-    },
-  });
-
-  if (!user) {
+  const rows = await loadPromptUserContext(userId, true);
+  const [firstRow] = rows;
+  if (!firstRow) {
     return "";
   }
 
   const lines: string[] = [];
-  if (user.preferences?.language) {
-    lines.push(`Lingua: ${user.preferences.language}`);
+  if (firstRow.preferenceLanguage) {
+    lines.push(`Lingua: ${firstRow.preferenceLanguage}`);
   }
-  if (user.profile?.sport) {
-    lines.push(`Sport: ${user.profile.sport}`);
+  if (firstRow.profileSport) {
+    lines.push(`Sport: ${firstRow.profileSport}`);
   }
-  if (user.profile?.goal) {
-    lines.push(`Obiettivo: ${user.profile.goal}`);
+  if (firstRow.profileGoal) {
+    lines.push(`Obiettivo: ${firstRow.profileGoal}`);
   }
-  if (user.preferences?.tone) {
-    lines.push(`Tono: ${user.preferences.tone}`);
+  if (firstRow.preferenceTone) {
+    lines.push(`Tono: ${firstRow.preferenceTone}`);
   }
-  if (user.preferences?.mode) {
-    lines.push(`Modalità: ${user.preferences.mode}`);
+  if (firstRow.preferenceMode) {
+    lines.push(`Modalità: ${firstRow.preferenceMode}`);
   }
-  for (const memory of user.memories ?? []) {
-    const value = memory.value as CompactMemoryValue;
-    if (typeof value.content === "string" && value.content.trim()) {
+  for (const row of rows) {
+    if (!row.memoryKey) continue;
+    const value = row.memoryValue as CompactMemoryValue | null | undefined;
+    if (typeof value?.content === "string" && value.content.trim()) {
       lines.push(
-        `Memoria ${memory.key.replace(/_/g, " ")}: ${value.content.trim()}`,
+        `Memoria ${row.memoryKey.replace(/_/g, " ")}: ${value.content.trim()}`,
       );
     }
   }
