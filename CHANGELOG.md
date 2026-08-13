@@ -12,10 +12,12 @@ Version numbers describe the application's user-facing behavior and its document
 
 - Added installable PWA support with an offline fallback page and automatic
   service-worker registration.
-- Added response diagnostics covering end-to-end latency, routing, provider and
-  model selection, token usage, cost, tools, memory, and RAG activity. Local
-  development keeps them enabled by default; production access is restricted
-  to `SUPER_ADMIN` accounts and can be controlled from Profile settings.
+- Added the complete end-to-end response profiler with server and browser
+  timelines, TTFT and visible-render milestones, routing attempts, provider and
+  model selection, token usage, cost, persistence, tools, memory, and RAG
+  diagnostics. Local development keeps it enabled by default; in production it
+  is available for new private-chat responses only to `SUPER_ADMIN` accounts
+  with “Mostra dettagli tecnici delle risposte” enabled in Profile settings.
 - Added a fail-closed light/standard execution-routing rollout with a unified
   classifier proposal, immutable route traces, shared Web/Telegram/WhatsApp
   kill switch, and a 36-fixture bilingual live evaluation command.
@@ -63,10 +65,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
-- Changed expanded response-profiler diagnostics from development-only access to
-  allow authenticated `SUPER_ADMIN` users to control them in production through
-  the technical-metrics preference, while guests, non-owners, and other roles
-  retain compact metrics only.
+- Restricted expanded response-profiler payloads in production to authenticated
+  `SUPER_ADMIN` owners of private chats with the Profile preference enabled;
+  guests, shared chats, non-owners, and other roles retain compact metrics only.
 - Restyled the sidebar account card and menu with the app's native surfaces,
   opaque layering, clearer focus states, and consistent touch targets, and
   removed the redundant Chat, Usage, and Pricing menu entries.
