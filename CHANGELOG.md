@@ -70,6 +70,15 @@ Version numbers describe the application's user-facing behavior and its document
 - Restricted expanded response-profiler payloads in production to authenticated
   `SUPER_ADMIN` owners of private chats with the Profile preference enabled;
   guests, shared chats, non-owners, and other roles retain compact metrics only.
+- Split response-profiler server timelines into distinct limit-check and
+  usage-reservation phases while keeping legacy traces readable.
+- Improved chat request startup by reusing a pooled database connection and
+  warming it before a message is sent; production Functions now run in
+  Frankfurt for closer European execution.
+- Optimized AI usage reservations by combining quota decisions and reservation
+  upserts into one database statement, and moved expiry, recovery, and retention
+  cleanup out of the request path into the existing maintenance cron while
+  preserving concurrency, idempotent retries, and usage accounting.
 - Restyled the sidebar account card and menu with the app's native surfaces,
   opaque layering, clearer focus states, and consistent touch targets, and
   removed the redundant Chat, Usage, and Pricing menu entries.
@@ -259,6 +268,8 @@ Version numbers describe the application's user-facing behavior and its document
   and allowing the chat launcher to scroll independently on compact viewports.
 - Ensured queued voice-processing callbacks use the public Vercel URL when a
   local `APP_URL` is present, so production jobs can reach their queue route.
+- Repaired migration drift for archived sessions and removed obsolete artifact
+  and legacy message storage from the database schema.
 
 ## [0.5.1] - 2026-08-01
 
