@@ -68,6 +68,15 @@ describe("Anthon communication style", () => {
     );
   });
 
+  it("allows session-depth coaching to exceed the normal compact rhythm", () => {
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
+      "A focused coaching-session turn may go longer",
+    );
+    expect(PROMPT_ANTHON_CONVERSATIONAL_VOICE).toContain(
+      "never compress meaningful exploration into a superficial answer",
+    );
+  });
+
   it("does not turn one user emoji into a general emoji instruction", () => {
     const instruction = analyzeUserStyle([
       userMessage("Ciao 💪🏻"),

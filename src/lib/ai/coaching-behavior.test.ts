@@ -51,6 +51,36 @@ describe("Anthon coaching behavior", () => {
     );
   });
 
+  it("opens a focused coaching-session phase when the issue needs depth", () => {
+    expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
+      "enter a focused coaching-session phase",
+    );
+    expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
+      "recurring, emotionally charged, important, or still poorly understood",
+    );
+    expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
+      "two to four connected questions",
+    );
+    expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
+      "Do not rush to advice, reframing, or a technique",
+    );
+  });
+
+  it("deepens from the user's answers before choosing an intervention", () => {
+    expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
+      "synthesize what the user has revealed",
+    );
+    expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
+      "identify the central interference",
+    );
+    expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
+      "one additional focused question block",
+    );
+    expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
+      "Depth takes priority over the usual brevity target",
+    );
+  });
+
   it("selects operational, coaching, celebration, and hybrid registers", () => {
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain("Operational:");
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain("Coaching:");

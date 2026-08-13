@@ -1697,6 +1697,12 @@ describe("ai/orchestrator", () => {
     expect(prepared.systemPrompt).toContain(
       "Do not drip-feed one question per turn",
     );
+    expect(prepared.systemPrompt).toContain(
+      "enter a focused coaching-session phase",
+    );
+    expect(prepared.systemPrompt).toContain(
+      "synthesize what the user has revealed",
+    );
     expect(prepared.systemPrompt).not.toContain(
       "Prefer one question at a time",
     );
