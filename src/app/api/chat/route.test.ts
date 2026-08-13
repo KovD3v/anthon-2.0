@@ -46,6 +46,8 @@ const mocks = vi.hoisted(() => ({
   ensureConversationThread: vi.fn(),
   tryCreateModelComparisonResponse: vi.fn(),
   createServerTraceCollector: vi.fn(),
+  connectDatabase: vi.fn(),
+  warmDatabaseConnection: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -68,6 +70,8 @@ vi.mock("@/lib/latency-logger", () => ({
 }));
 
 vi.mock("@/lib/db", () => ({
+  connectDatabase: mocks.connectDatabase,
+  warmDatabaseConnection: mocks.warmDatabaseConnection,
   prisma: {
     $transaction: mocks.transaction,
     user: {
@@ -170,7 +174,7 @@ vi.mock("@/lib/voice/generation-jobs", () => ({
 import type { CapabilityDecision } from "@/lib/ai/capability-arbitration";
 import { freezeTurnDecision } from "@/lib/ai/execution-routing";
 import { getWebClientPayloadHash } from "@/lib/channel-flow/web-inbound";
-import { POST } from "./route";
+import { POST, PUT } from "./route";
 
 const TRUSTED_BLOB_ORIGIN = "https://store.public.blob.vercel-storage.com";
 const VALID_WAV_BYTES = Buffer.from([
@@ -302,6 +306,47 @@ const rateLimitAllowed = {
   },
 };
 
+describe("PUT /api/chat", () => {
+  beforeEach(() => {
+    mocks.waitUntil.mockReset();
+    mocks.warmDatabaseConnection.mockReset();
+    mocks.warmDatabaseConnection.mockResolvedValue(undefined);
+  });
+
+  it("warms the database used by the chat route for a non-empty chat id", async () => {
+    const response = await PUT(
+      new Request("http://localhost/api/chat", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId: "chat-1" }),
+      }),
+    );
+
+    expect(response.status).toBe(204);
+    expect(mocks.warmDatabaseConnection).toHaveBeenCalledWith(
+      "chat_input_started",
+    );
+    expect(mocks.waitUntil).toHaveBeenCalledWith(expect.any(Promise));
+  });
+
+  it("rejects an empty chat id without opening a database connection", async () => {
+    const response = await PUT(
+      new Request("http://localhost/api/chat", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId: "   " }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "chatId must be a non-empty string",
+    });
+    expect(mocks.warmDatabaseConnection).not.toHaveBeenCalled();
+    expect(mocks.waitUntil).not.toHaveBeenCalled();
+  });
+});
+
 describe("POST /api/chat", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -353,6 +398,10 @@ describe("POST /api/chat", () => {
     mocks.ensureConversationThread.mockReset();
     mocks.tryCreateModelComparisonResponse.mockReset();
     mocks.createServerTraceCollector.mockReset();
+    mocks.connectDatabase.mockReset();
+    mocks.warmDatabaseConnection.mockReset();
+    mocks.connectDatabase.mockResolvedValue(undefined);
+    mocks.warmDatabaseConnection.mockResolvedValue(undefined);
 
     mocks.start.mockReturnValue({
       end: vi.fn(),
@@ -529,6 +578,7 @@ describe("POST /api/chat", () => {
     );
     for (const phase of [
       "auth",
+      "database_connect",
       "user_lookup",
       "chat_lookup",
       "rate_limit",

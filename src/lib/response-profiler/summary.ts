@@ -32,6 +32,7 @@ export interface ResponseProfilerSummary {
 
 const SERVER_LABELS: Record<ServerSpanName, string> = {
   auth: "Autenticazione",
+  database_connect: "Connessione database",
   user_lookup: "Lettura utente",
   chat_lookup: "Lettura chat",
   billing_sync: "Sincronizzazione piano",

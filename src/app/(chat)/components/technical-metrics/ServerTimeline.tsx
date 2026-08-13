@@ -14,6 +14,7 @@ type Group = keyof typeof GROUPS;
 
 const SPAN_GROUP: Record<ServerSpanName, Group> = {
   auth: "setup",
+  database_connect: "setup",
   user_lookup: "setup",
   chat_lookup: "setup",
   billing_sync: "setup",

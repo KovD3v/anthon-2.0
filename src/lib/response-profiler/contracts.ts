@@ -8,6 +8,7 @@ export const MAX_TRACE_LABEL_LENGTH = 128;
 
 export const SERVER_SPAN_NAMES = [
   "auth",
+  "database_connect",
   "user_lookup",
   "chat_lookup",
   "billing_sync",

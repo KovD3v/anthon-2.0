@@ -51,11 +51,11 @@ describe("chat input warmup", () => {
 
     vi.advanceTimersByTime(1);
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(fetcher).toHaveBeenCalledWith("/api/chat/warmup", {
+    expect(fetcher).toHaveBeenCalledWith("/api/chat", {
       body: JSON.stringify({ chatId: "chat-1" }),
       headers: { "Content-Type": "application/json" },
       keepalive: true,
-      method: "POST",
+      method: "PUT",
     });
 
     warmup.schedule("ancora");

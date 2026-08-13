@@ -27,7 +27,7 @@ import {
 } from "@/lib/channels/web/attachment-input";
 import { isRoutineFeatureEnabled } from "@/lib/coaching/routine-feature";
 import { ensureConversationThread } from "@/lib/conversations/threads";
-import { prisma } from "@/lib/db";
+import { connectDatabase, prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { tryCreateModelComparisonResponse } from "@/lib/model-experiments/runtime";
@@ -150,6 +150,8 @@ export async function handleWebChatPost(request: Request) {
         if (!normalizedUserMessageText && !hasSubmittedAttachments) {
           return new Response("Empty message", { status: 400 });
         }
+
+        await traceCollector.measure("database_connect", connectDatabase);
 
         // Get or create internal user with subscription info
         const user = await traceCollector.measure("user_lookup", () =>

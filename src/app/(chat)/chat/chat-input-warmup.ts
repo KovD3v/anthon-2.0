@@ -6,7 +6,7 @@ type WarmupFetcher = (
     body: string;
     headers: { "Content-Type": "application/json" };
     keepalive: true;
-    method: "POST";
+    method: "PUT";
   },
 ) => Promise<unknown>;
 
@@ -34,7 +34,7 @@ export function shouldScheduleChatInputWarmup({
 export function createChatInputWarmup({
   chatId,
   delayMs = CHAT_INPUT_WARMUP_DEBOUNCE_MS,
-  endpoint = "/api/chat/warmup",
+  endpoint = "/api/chat",
   fetcher = fetch,
 }: CreateChatInputWarmupInput) {
   let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -68,7 +68,7 @@ export function createChatInputWarmup({
           body: JSON.stringify({ chatId }),
           headers: { "Content-Type": "application/json" },
           keepalive: true,
-          method: "POST",
+          method: "PUT",
         }).catch(() => {
           // Warmup is opportunistic and must never interrupt typing.
         });
