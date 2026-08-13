@@ -5,7 +5,7 @@ The maintenance subsystem runs background jobs to keep user data compact, useful
 It uses **Upstash QStash** for signed asynchronous execution.
 
 Vercel Cron also invokes bounded global maintenance routes for attachments, AI
-turn traces, and model-comparison retention.
+turn traces, usage reservations, and model-comparison retention.
 
 ## Architecture
 
@@ -84,11 +84,13 @@ Attachment cleanup is a separate cron flow:
 | Schedule (UTC) | Route | Purpose |
 | -------------- | ----- | ------- |
 | `0 3 * * *` | `GET /api/cron/cleanup-attachments` | Delete expired attachment records and Blob objects. |
-| `15 3 * * *` | `GET /api/cron/cleanup-ai-traces` | Delete expired encrypted AI turn traces. |
+| `15 3 * * *` | `GET /api/cron/cleanup-ai-traces` | Delete expired encrypted AI turn traces and retain usage reservations. |
 | `17 3 * * *` | `GET /api/cron/model-comparisons` | Expire unresolved comparison pairs and purge retained response content. |
 
 All three routes require `Authorization: Bearer $CRON_SECRET`. Attachment and
-AI-trace cleanup also accept `POST` for an equivalent manual invocation.
+AI-trace/usage-reservation cleanup also accept `POST` for an equivalent manual
+invocation. AI usage cleanup expires stale `RESERVED` leases, clears expired
+recovery payloads, and removes terminal rows after the retention window.
 
 The model-comparison maintenance path is database-local; it is separate from
 the per-user QStash jobs above and does not generate new model responses.

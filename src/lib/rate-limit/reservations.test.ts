@@ -238,6 +238,19 @@ describe("AI usage reservations", () => {
     expect(mocks.reservationCreate).toHaveBeenCalledTimes(1);
   });
 
+  it("does not run global reservation retention on the request path", async () => {
+    await expect(
+      reserveAiUsage({
+        userId: "user-1",
+        requestKey: "message-retention-off-path",
+        limits: finiteLimits,
+      }),
+    ).resolves.toMatchObject({ allowed: true });
+
+    expect(mocks.reservationUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.reservationDeleteMany).not.toHaveBeenCalled();
+  });
+
   it("strips legacy raw metadata from recovery without invoking a second reservation", async () => {
     mocks.reservationFindUnique.mockResolvedValue(
       reservation({

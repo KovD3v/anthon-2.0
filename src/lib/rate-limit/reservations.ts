@@ -15,7 +15,6 @@ import { prisma } from "@/lib/db";
 import type { RateLimits } from "./types";
 
 const AI_RESERVATION_LEASE_MS = 10 * 60 * 1000;
-const TERMINAL_RESERVATION_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const RECOVERY_RETENTION_MS = 24 * 60 * 60 * 1000;
 const MAX_RECOVERY_METRICS_BYTES = 512 * 1024;
 const MAX_RECOVERY_TEXT_CHARS = 128 * 1024;
@@ -77,48 +76,6 @@ async function lockUser(tx: TransactionClient, userId: string) {
   if (rows.length !== 1) {
     throw new Error("Cannot reserve usage for an unknown user");
   }
-}
-
-async function cleanupAiReservations(
-  tx: TransactionClient,
-  userId: string,
-  now: Date,
-) {
-  await tx.aiUsageReservation.updateMany({
-    where: {
-      userId,
-      status: "RESERVED",
-      expiresAt: { lte: now },
-    },
-    data: {
-      status: "EXPIRED",
-      releasedAt: now,
-    },
-  });
-
-  await tx.aiUsageReservation.updateMany({
-    where: {
-      userId,
-      status: "RECONCILED",
-      recoveryExpiresAt: { lte: now },
-    },
-    data: {
-      recoveryText: null,
-      recoveryMetrics: Prisma.DbNull,
-      recoveryExpiresAt: null,
-    },
-  });
-
-  await tx.aiUsageReservation.deleteMany({
-    where: {
-      userId,
-      status: { in: ["RECONCILED", "RELEASED", "EXPIRED"] },
-      recoveryText: null,
-      updatedAt: {
-        lt: new Date(now.getTime() - TERMINAL_RESERVATION_RETENTION_MS),
-      },
-    },
-  });
 }
 
 function finiteRemaining(limit: number, used: number): number {
@@ -371,7 +328,6 @@ export async function reserveAiUsage({
 
   return prisma.$transaction(async (tx) => {
     await lockUser(tx, userId);
-    await cleanupAiReservations(tx, userId, now);
 
     const existing = await tx.aiUsageReservation.findUnique({
       where: { userId_requestKey: { userId, requestKey } },
@@ -381,7 +337,7 @@ export async function reserveAiUsage({
         },
       },
     });
-    if (existing?.status === "RESERVED") {
+    if (existing?.status === "RESERVED" && existing.expiresAt > now) {
       return {
         allowed: false,
         reason: "Generation already in progress",
@@ -460,7 +416,12 @@ export async function reserveAiUsage({
       totalCostUsd: 0,
     };
     const activeReservations = await tx.aiUsageReservation.aggregate({
-      where: { userId, date: today, status: "RESERVED" },
+      where: {
+        userId,
+        date: today,
+        status: "RESERVED",
+        expiresAt: { gt: now },
+      },
       _sum: {
         reservedRequests: true,
         reservedInputTokens: true,
