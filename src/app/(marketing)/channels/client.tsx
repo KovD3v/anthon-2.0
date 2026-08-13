@@ -23,6 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useConfirm } from "@/hooks/use-confirm";
+import { reportClientError } from "@/lib/client-error-reporting";
 
 // Channel icons and labels
 const channelConfig = {
@@ -197,7 +198,7 @@ export function ChannelsPageClient({
         toast.error(error.error || "Impossibile scollegare il canale");
       }
     } catch (error) {
-      console.error("Failed to disconnect:", error);
+      reportClientError(error, { source: "channels.disconnect" });
       toast.error("Impossibile scollegare il canale");
     } finally {
       setDisconnecting(null);

@@ -5,6 +5,7 @@ import {
   updateCanonicalProfile,
 } from "@/lib/ai/user-knowledge";
 import { prisma } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
 import {
   getTinyUserSnapshotCache,
   getUserContextPromptCache,
@@ -26,6 +27,7 @@ const TINY_USER_SNAPSHOT_MEMORY_CATEGORIES = new Set([
   "preference",
   "schedule",
 ]);
+const userContextLogger = createLogger("ai");
 
 export { invalidateUserContextPromptCache } from "./user-context-cache";
 
@@ -89,7 +91,11 @@ Usa questo tool per personalizzare le risposte in base al contesto dell'utente.`
             message: "Contesto utente recuperato con successo.",
           };
         } catch (error) {
-          console.error("[getUserContext] Error:", error);
+          userContextLogger.error(
+            "ai.user_context.fetch_failed",
+            "Failed to fetch user context",
+            { error },
+          );
           return {
             success: false,
             data: null,
@@ -128,7 +134,11 @@ sport, obiettivi, livello di esperienza o altri dettagli del profilo.`,
             message: "Profilo aggiornato con successo.",
           };
         } catch (error) {
-          console.error("[updateProfile] Error:", error);
+          userContextLogger.error(
+            "ai.user_context.profile_update_failed",
+            "Failed to update user profile",
+            { error },
+          );
           return {
             success: false,
             message: "Errore nell'aggiornare il profilo.",
@@ -181,7 +191,11 @@ CRITICAL: You MUST provide at least one parameter. Do not call with empty argume
             message: "Preferenze aggiornate con successo.",
           };
         } catch (error) {
-          console.error("[updatePreferences] Error:", error);
+          userContextLogger.error(
+            "ai.user_context.preferences_update_failed",
+            "Failed to update user preferences",
+            { error },
+          );
           return {
             success: false,
             message: "Errore nell'aggiornare le preferenze.",
@@ -237,7 +251,11 @@ Esempi: "Tende ad essere più motivato il lunedì", "Preferisce esempi pratici",
             message: "Appunto aggiunto con successo.",
           };
         } catch (error) {
-          console.error("[addNotes] Error:", error);
+          userContextLogger.error(
+            "ai.user_context.notes_update_failed",
+            "Failed to add user note",
+            { error },
+          );
           return {
             success: false,
             message: "Errore nell'aggiungere l'appunto.",

@@ -26,6 +26,7 @@ import {
 import { useConfirm } from "@/hooks/use-confirm";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 import { normalizeChatIcon } from "@/lib/chat-icons";
+import { reportClientError } from "@/lib/client-error-reporting";
 import type { RoutineCardData } from "@/lib/coaching/routine";
 import {
   buildRoutineChatPrompt,
@@ -768,7 +769,7 @@ export function LayoutClient({
           setUsageData(data);
         }
       } catch (error) {
-        console.error("Failed to refresh usage data:", error);
+        reportClientError(error, { source: "chat.refresh_usage" });
       }
     };
 
@@ -871,7 +872,7 @@ export function LayoutClient({
         );
       }
     } catch (error) {
-      console.error("Failed to fetch chats:", error);
+      reportClientError(error, { source: "chat.fetch_chats" });
     }
   }
 
@@ -1055,7 +1056,7 @@ export function LayoutClient({
     try {
       return await createChatPromise;
     } catch (error) {
-      console.error("Failed to create chat:", error);
+      reportClientError(error, { source: "chat.create_chat" });
       toast.error("Creazione conversazione fallita");
       return null;
     } finally {
@@ -1108,7 +1109,7 @@ export function LayoutClient({
         return false;
       }
     } catch (error) {
-      console.error("Failed to rename chat:", error);
+      reportClientError(error, { source: "chat.rename_chat" });
       await refreshChats();
       toast.error("Impossibile rinominare la conversazione");
       return false;
@@ -1162,7 +1163,7 @@ export function LayoutClient({
         toast.error("Eliminazione conversazione fallita");
       }
     } catch (error) {
-      console.error("Failed to delete chat:", error);
+      reportClientError(error, { source: "chat.delete_chat" });
       toast.error("Eliminazione conversazione fallita");
     } finally {
       setDeletingChatId(null);

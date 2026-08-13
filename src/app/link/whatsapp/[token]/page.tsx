@@ -6,10 +6,13 @@ import { connection } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { migrateGuestToUser } from "@/lib/guest-migration";
+import { createLogger } from "@/lib/logger";
 
 // TODO: Cache Components adoption. Refactor this route so this opt-out can be removed.
 // See: https://nextjs.org/docs/app/guides/migrating-to-cache-components
 export const instant = false;
+
+const whatsappLinkLogger = createLogger("webhook");
 
 // Error state icons
 function ErrorIcon() {
@@ -102,7 +105,11 @@ async function sendWhatsAppMessage(to: string, text: string) {
       }),
     });
   } catch (e) {
-    console.error("[WhatsApp Link] Send failed", e);
+    whatsappLinkLogger.error(
+      "webhook.whatsapp_link.send_failed",
+      "WhatsApp message send failed",
+      { error: e },
+    );
   }
 }
 

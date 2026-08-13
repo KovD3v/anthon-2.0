@@ -7,6 +7,7 @@ import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { UserRole } from "@/generated/prisma";
+import { reportClientError } from "@/lib/client-error-reporting";
 
 interface User {
   id: string;
@@ -88,7 +89,7 @@ export default function UsersPage() {
         setPagination(data.pagination);
       }
     } catch (error) {
-      console.error("Failed to fetch users:", error);
+      reportClientError(error, { source: "admin.users.fetch_users" });
     } finally {
       setLoading(false);
     }
@@ -124,7 +125,7 @@ export default function UsersPage() {
         setSelectedUser(data);
       }
     } catch (error) {
-      console.error("Failed to fetch user detail:", error);
+      reportClientError(error, { source: "admin.users.fetch_user_detail" });
     } finally {
       setDetailLoading(false);
     }
@@ -154,7 +155,7 @@ export default function UsersPage() {
         toast.error(error.error || "Impossibile aggiornare il ruolo");
       }
     } catch (error) {
-      console.error("Failed to update role:", error);
+      reportClientError(error, { source: "admin.users.update_role" });
       toast.error("Impossibile aggiornare il ruolo");
     } finally {
       setUpdatingRole(null);

@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { reportClientError } from "@/lib/client-error-reporting";
 
 interface Preferences {
   voiceEnabled: boolean | null;
@@ -44,7 +45,7 @@ export function PreferencesSection() {
           setPreferencesLoadError(true);
         }
       } catch (error) {
-        console.error("Error fetching preferences:", error);
+        reportClientError(error, { source: "profile.fetch_preferences" });
         setPreferencesLoadError(true);
         toast.error("Errore nel caricamento delle preferenze");
       } finally {
@@ -73,7 +74,7 @@ export function PreferencesSection() {
         toast.error("Errore nell'aggiornamento");
       }
     } catch (error) {
-      console.error("Error updating preference:", error);
+      reportClientError(error, { source: "profile.update_preference" });
       toast.error("Errore nell'aggiornamento");
     } finally {
       setUpdating(false);

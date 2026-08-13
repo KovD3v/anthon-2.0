@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
+import { reportClientError } from "@/lib/client-error-reporting";
 
 interface RagDocument {
   id: string;
@@ -56,7 +57,7 @@ export default function RagPage() {
         setDocuments(data.documents);
       }
     } catch (error) {
-      console.error("Failed to fetch documents:", error);
+      reportClientError(error, { source: "admin.rag.fetch_documents" });
     } finally {
       setLoading(false);
     }
@@ -166,7 +167,7 @@ export default function RagPage() {
         setTimeout(() => setUploadProgress([]), 5000);
       }
     } catch (error) {
-      console.error("Upload failed:", error);
+      reportClientError(error, { source: "admin.rag.upload" });
       setUploadProgress(
         fileArray.map((file) => ({
           fileName: file.name,
@@ -210,7 +211,7 @@ export default function RagPage() {
         toast.error(error.error || "Eliminazione non riuscita");
       }
     } catch (error) {
-      console.error("Delete failed:", error);
+      reportClientError(error, { source: "admin.rag.delete" });
       toast.error("Eliminazione non riuscita");
     } finally {
       setDeleting(null);

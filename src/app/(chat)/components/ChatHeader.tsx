@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { ChatIcon as ChatIconKey } from "@/lib/chat-icons";
+import { reportClientError } from "@/lib/client-error-reporting";
 import { ChatIcon } from "./ChatIcon";
 
 interface ChatHeaderProps {
@@ -58,7 +59,7 @@ export function ChatHeader({
 
       toast.success("Conversazione esportata");
     } catch (error) {
-      console.error("Export error:", error);
+      reportClientError(error, { source: "chat.export" });
       toast.error("Esportazione non riuscita");
     } finally {
       setIsExporting(false);

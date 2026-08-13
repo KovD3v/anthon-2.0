@@ -20,6 +20,7 @@ import {
   hasPendingVoiceGeneration,
   hasPersistedAssistantResponseForClientMessage,
 } from "@/lib/chat-client";
+import { reportClientError } from "@/lib/client-error-reporting";
 import {
   parseRoutineSourceHydrationPayload,
   type RoutineCardData,
@@ -312,7 +313,7 @@ export function ChatConversationClient({
         return convertToUIMessages(data.messages);
       }
     } catch (err) {
-      console.error("Failed to refresh chat data:", err);
+      reportClientError(err, { source: "chat.refresh_data" });
     }
     return null;
   }, [apiBase, chatId]);
@@ -363,7 +364,7 @@ export function ChatConversationClient({
         });
       }
     } catch (err) {
-      console.error("Failed to load more messages:", err);
+      reportClientError(err, { source: "chat.load_more_messages" });
       toast.error("Impossibile caricare i messaggi precedenti");
     } finally {
       setIsLoadingMore(false);
@@ -1124,7 +1125,7 @@ export function ChatConversationClient({
       pendingInitialMessageSubmittedRef.current = false;
       submittedRoutineAdaptationRef.current = null;
       setInput(pendingInitialMessage ?? "");
-      console.error("Failed to send initial chat message:", error);
+      reportClientError(error, { source: "chat.send_initial_message" });
       toast.error("Invio messaggio fallito");
     });
   }, [
@@ -1361,7 +1362,7 @@ export function ChatConversationClient({
         toast.success("Prova gratuita attivata");
       }
     } catch (error) {
-      console.error("Failed to auto-activate Clerk trial:", error);
+      reportClientError(error, { source: "chat.activate_trial" });
     } finally {
       trialActivationInFlightRef.current = false;
     }
@@ -1445,7 +1446,7 @@ export function ChatConversationClient({
       if (error instanceof Error && isExpectedChatRejection(error, isGuest)) {
         return;
       }
-      console.error("Failed to send chat message:", error);
+      reportClientError(error, { source: "chat.send_message" });
       toast.error("Invio messaggio fallito");
     } finally {
       submitInFlightRef.current = false;
@@ -1519,7 +1520,7 @@ export function ChatConversationClient({
             toast.error("Eliminazione fallita");
           }
         } catch (err) {
-          console.error("Delete error:", err);
+          reportClientError(err, { source: "chat.delete_message" });
           if (deleteStateRef.current) {
             setMessages(deleteStateRef.current.previousMessages);
             setChatData(deleteStateRef.current.previousChatData);
@@ -1562,7 +1563,7 @@ export function ChatConversationClient({
             messageId: editedMessageId,
           }).catch((error) => {
             releaseClientTrace(editedMessageId, { abandon: true });
-            console.error("Failed to resend edited chat message:", error);
+            reportClientError(error, { source: "chat.resend_edited_message" });
             toast.error("Invio messaggio fallito");
           });
         }
@@ -1570,7 +1571,7 @@ export function ChatConversationClient({
         toast.error("Impossibile modificare il messaggio");
       }
     } catch (err) {
-      console.error("Edit error:", err);
+      reportClientError(err, { source: "chat.edit_message" });
       toast.error("Impossibile modificare il messaggio");
     }
   };
@@ -1653,7 +1654,7 @@ export function ChatConversationClient({
       if (err instanceof Error && isExpectedChatRejection(err, isGuest)) {
         return;
       }
-      console.error("Regenerate error:", err);
+      reportClientError(err, { source: "chat.regenerate" });
       toast.error("Impossibile rigenerare la risposta");
     } finally {
       submitInFlightRef.current = false;

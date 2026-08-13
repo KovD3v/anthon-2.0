@@ -6,10 +6,13 @@ import { connection } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { migrateGuestToUser } from "@/lib/guest-migration";
+import { createLogger } from "@/lib/logger";
 
 // TODO: Cache Components adoption. Refactor this route so this opt-out can be removed.
 // See: https://nextjs.org/docs/app/guides/migrating-to-cache-components
 export const instant = false;
+
+const telegramLinkLogger = createLogger("webhook");
 
 // Error state icons
 function ErrorIcon() {
@@ -86,7 +89,10 @@ function hashLinkToken(token: string) {
 async function sendTelegramMessage(chatId: string, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
-    console.error("[Telegram Link] TELEGRAM_BOT_TOKEN not configured");
+    telegramLinkLogger.error(
+      "webhook.telegram_link.bot_token_missing",
+      "Telegram bot token is not configured",
+    );
     return;
   }
 
@@ -105,10 +111,18 @@ async function sendTelegramMessage(chatId: string, text: string) {
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.error("[Telegram Link] sendMessage failed:", res.status, body);
+      telegramLinkLogger.error(
+        "webhook.telegram_link.send_failed",
+        "Telegram message send failed",
+        { status: res.status, responseBodyLength: body.length },
+      );
     }
   } catch (error) {
-    console.error("[Telegram Link] Error sending message:", error);
+    telegramLinkLogger.error(
+      "webhook.telegram_link.send_error",
+      "Telegram message send raised an error",
+      { error },
+    );
   }
 }
 
@@ -252,17 +266,21 @@ export default async function TelegramLinkTokenPage({
         const migrationResult = await migrateGuestToUser(guestId, dbUser.id);
 
         if (!migrationResult.success) {
-          console.error(
-            "[Telegram Link] Guest migration failed:",
-            migrationResult.error,
+          telegramLinkLogger.error(
+            "webhook.telegram_link.guest_migration_failed",
+            "Telegram guest migration failed",
+            { error: migrationResult.error },
           );
           return { status: "conflict" as const };
         }
 
-        console.log(
-          "[Telegram Link] Guest migration successful:",
-          migrationResult.migratedCounts,
-          `(${migrationResult.conflicts.length} conflicts resolved)`,
+        telegramLinkLogger.debug(
+          "webhook.telegram_link.guest_migration_succeeded",
+          "Telegram guest migration succeeded",
+          {
+            migratedCounts: migrationResult.migratedCounts,
+            conflictsResolved: migrationResult.conflicts.length,
+          },
         );
       } else {
         return { status: "conflict" as const };

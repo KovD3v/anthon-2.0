@@ -5,6 +5,7 @@ import { Send, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { reportClientError } from "@/lib/client-error-reporting";
 import { duration, ease } from "@/lib/motion";
 import {
   CHAT_ATTACHMENT_ACCEPT,
@@ -154,7 +155,7 @@ export function ChatInput({
         body: formData,
       });
     } catch (error) {
-      console.error("Upload error:", error);
+      reportClientError(error, { source: "chat.upload_attachment" });
       toast.error(CHAT_REACTIVITY_COPY.uploadFailed);
       resetFileUploadState();
       return;
@@ -170,7 +171,7 @@ export function ChatInput({
     try {
       data = (await response.json()) as AttachmentData;
     } catch (error) {
-      console.error("Upload error:", error);
+      reportClientError(error, { source: "chat.parse_attachment_response" });
       toast.error(CHAT_REACTIVITY_COPY.uploadFailed);
       resetFileUploadState();
       return;

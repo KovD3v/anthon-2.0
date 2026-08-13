@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useDebounce } from "@/hooks/useDebounce";
+import { reportClientError } from "@/lib/client-error-reporting";
 import { duration, ease } from "@/lib/motion";
 
 interface SearchResult {
@@ -71,7 +72,7 @@ export function SearchDialog({
           setResults(data.results || []);
         }
       } catch (error) {
-        console.error("Search error:", error);
+        reportClientError(error, { source: "chat.search" });
       } finally {
         setIsLoading(false);
       }

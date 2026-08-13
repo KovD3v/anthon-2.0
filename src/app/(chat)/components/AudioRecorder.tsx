@@ -4,6 +4,7 @@ import { Loader2, Mic, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { reportClientError } from "@/lib/client-error-reporting";
 import type { AttachmentData } from "@/types/chat";
 import { CHAT_REACTIVITY_COPY } from "../chat/chat-reactivity-ui";
 
@@ -135,7 +136,7 @@ export function AudioRecorder({
           setRecordingState("ready");
           toast.success(CHAT_REACTIVITY_COPY.audioReady);
         } catch (error) {
-          console.error("Error processing recording:", error);
+          reportClientError(error, { source: "chat.audio.process_recording" });
           setRecordingState("error");
           toast.error(CHAT_REACTIVITY_COPY.audioFailed);
         } finally {
@@ -145,7 +146,7 @@ export function AudioRecorder({
       };
 
       mediaRecorder.onerror = (event) => {
-        console.error("MediaRecorder error:", event);
+        reportClientError(event, { source: "chat.audio.media_recorder" });
         toast.error("Errore durante la registrazione");
         cleanup();
         setRecordingState("error");
@@ -169,7 +170,7 @@ export function AudioRecorder({
         }
       }, 120000);
     } catch (error) {
-      console.error("Error starting recording:", error);
+      reportClientError(error, { source: "chat.audio.start_recording" });
       if ((error as Error).name === "NotAllowedError") {
         toast.error(
           "Accesso al microfono negato. Controlla i permessi del browser.",
