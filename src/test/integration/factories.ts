@@ -22,8 +22,6 @@ export async function resetIntegrationDb() {
   await prisma.modelExperimentAudit.deleteMany();
   await prisma.modelExperiment.deleteMany();
   await prisma.attachment.deleteMany();
-  await prisma.artifactVersion.deleteMany();
-  await prisma.artifact.deleteMany();
   await prisma.voiceUsage.deleteMany();
   await prisma.voiceGenerationJob.deleteMany();
   await prisma.dailyUsage.deleteMany();

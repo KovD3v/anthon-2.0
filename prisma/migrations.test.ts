@@ -37,4 +37,28 @@ describe("database migrations", () => {
       /CREATE INDEX IF NOT EXISTS "Memory_userId_category_idx"/i,
     );
   });
+
+  it("creates ArchivedSession idempotently for drifted databases", () => {
+    const sql = allMigrationSql();
+
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS "ArchivedSession"/i);
+    expect(sql).toMatch(
+      /CREATE INDEX IF NOT EXISTS "ArchivedSession_userId_startDate_idx"/i,
+    );
+    expect(sql).toMatch(/ArchivedSession_userId_fkey/i);
+  });
+
+  it("removes retired artifact and message activity storage", () => {
+    const sql = allMigrationSql();
+
+    expect(sql).toMatch(/DROP TABLE IF EXISTS "ArtifactVersion"/i);
+    expect(sql).toMatch(/DROP TABLE IF EXISTS "Artifact"/i);
+    expect(sql).toMatch(/DROP TYPE IF EXISTS "ArtifactKind"/i);
+    expect(sql).toMatch(
+      /ALTER TABLE "User" DROP COLUMN IF EXISTS "lastActivityAt"/i,
+    );
+    expect(sql).toMatch(
+      /ALTER TABLE "Message" DROP COLUMN IF EXISTS "reasoningContent"/i,
+    );
+  });
 });

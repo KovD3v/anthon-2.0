@@ -448,7 +448,7 @@ Key fields:
 
 ---
 
-## Attachments & Artifacts
+## Attachments
 
 ### Attachment
 
@@ -469,13 +469,6 @@ web assistant message. Status, claim token, lease, attempt count, private Blob
 object, attachment, timing, and error code make at-least-once delivery safe.
 `VoiceUsage` records the associated character count, estimated cost, channel,
 and generation timestamp for plan enforcement and analytics.
-
-### Artifact / ArtifactVersion
-
-Artifacts are generated outputs associated with a chat (and optionally a message).
-
-- `Artifact` is the logical container.
-- `ArtifactVersion` stores versioned content (optionally in Blob for large payloads).
 
 ## Useful Queries
 

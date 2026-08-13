@@ -599,7 +599,7 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
     // failure so this destructive operation can be retried safely.
     await deletePrivateVoiceBlobsForMessages({ chatId: id });
 
-    // Delete chat (cascade will delete messages, artifacts, etc.)
+    // Delete chat (related messages are removed by cascading foreign keys)
     await prisma.chat.delete({
       where: { id },
     });

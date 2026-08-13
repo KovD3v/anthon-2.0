@@ -103,7 +103,6 @@ model User {
   createdModelExperiments     ModelExperiment[]            @relation("ModelExperimentCreator")
 
   billingSyncedAt DateTime?
-  lastActivityAt  DateTime  @default(now())
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime? // Soft delete
@@ -112,7 +111,6 @@ model User {
   @@index([isGuest])
   @@index([guestAbuseIdHash])
   @@index([deletedAt])
-  @@index([lastActivityAt])
   @@index([billingSyncedAt])
 }
 
@@ -433,7 +431,6 @@ model Chat {
   routineContextMode      RoutineChatMode?
 
   messages             Message[]
-  artifacts            Artifact[]
   conversationThread   ConversationThread?
   modelExperimentPairs ModelExperimentPair[]
   sourceRoutines       Routine[]            @relation("RoutineSourceChat")
@@ -504,7 +501,6 @@ model Message {
   inputTokens      Int? // Input tokens (prompt)
   outputTokens     Int? // Output tokens generated
   reasoningTokens  Int? // Reasoning tokens (for models that support it)
-  reasoningContent String? // Reasoning process content
   toolCalls        Json? // Array of tool calls made [{name, args, result}]
   ragUsed          Boolean? @default(false) // Whether RAG was used for this response
   ragChunksCount   Int? // Number of RAG chunks used
@@ -519,7 +515,6 @@ model Message {
 
   // Relationships
   attachments                  Attachment[]
-  artifacts                    Artifact[]            @relation("MessageArtifacts")
   metrics                      MessageMetrics?
   voiceGenerationJob           VoiceGenerationJob?
   sourceModelExperimentPairs   ModelExperimentPair[] @relation("ModelExperimentSourceMessage")
@@ -1228,51 +1223,6 @@ model RagChunk {
 // MODEL PRICING (prezzi per calcolo costi AI)
 // NOTE: Removed - replaced by TokenLens which fetches pricing from OpenRouter API
 // -----------------------------------------------------
-
-// -----------------------------------------------------
-// ARTIFACT (generated code, text, etc.)
-// -----------------------------------------------------
-
-enum ArtifactKind {
-  CODE
-  TEXT
-  SHEET
-  IMAGE
-}
-
-model Artifact {
-  id        String   @id @default(cuid())
-  chatId    String
-  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  messageId String?
-  message   Message? @relation("MessageArtifacts", fields: [messageId], references: [id], onDelete: Cascade)
-
-  title    String
-  kind     ArtifactKind
-  language String? // Programming language if kind=CODE
-
-  versions ArtifactVersion[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([chatId])
-  @@index([messageId])
-}
-
-model ArtifactVersion {
-  id         String   @id @default(cuid())
-  artifactId String
-  artifact   Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
-
-  content       String // Actual artifact content
-  blobUrl       String? // Vercel Blob URL for large content
-  versionNumber Int     @default(1)
-
-  createdAt DateTime @default(now())
-
-  @@index([artifactId, versionNumber(sort: Desc)])
-}
 
 // -----------------------------------------------------
 // ATTACHMENT (file uploads)
