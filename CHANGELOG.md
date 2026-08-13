@@ -12,9 +12,10 @@ Version numbers describe the application's user-facing behavior and its document
 
 - Added installable PWA support with an offline fallback page and automatic
   service-worker registration.
-- Added localhost-only response diagnostics covering end-to-end latency,
-  routing, provider and model selection, token usage, cost, tools, memory, and
-  RAG activity.
+- Added response diagnostics covering end-to-end latency, routing, provider and
+  model selection, token usage, cost, tools, memory, and RAG activity. Local
+  development keeps them enabled by default; production access is restricted
+  to `SUPER_ADMIN` accounts and can be controlled from Profile settings.
 - Added a fail-closed light/standard execution-routing rollout with a unified
   classifier proposal, immutable route traces, shared Web/Telegram/WhatsApp
   kill switch, and a 36-fixture bilingual live evaluation command.
