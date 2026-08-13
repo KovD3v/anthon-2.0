@@ -142,11 +142,52 @@ function reservation(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function decisionRow(overrides: Record<string, unknown> = {}) {
+  return {
+    outcome: "reserved",
+    reservationId: "reservation-created",
+    claimToken: "claim-created",
+    recoveryText: null,
+    recoveryMetrics: null,
+    assistantMessageId: null,
+    ...overrides,
+  };
+}
+
+function mockReservationDecision(row = decisionRow()) {
+  mocks.queryRaw.mockReset();
+  mocks.queryRaw
+    .mockResolvedValueOnce([{ id: "user-1" }])
+    .mockResolvedValue([row]);
+}
+
+function mockReconciledDecision(
+  overrides: Record<string, unknown>,
+  outcome: "recovered" | "reconciled" = "recovered",
+) {
+  const existing = reservation({ status: "RECONCILED", ...overrides });
+  const assistantMessage = existing.assistantMessage as
+    | { id: string }
+    | null
+    | undefined;
+  mockReservationDecision(
+    decisionRow({
+      outcome,
+      reservationId: existing.id,
+      claimToken: existing.claimToken,
+      recoveryText: existing.recoveryText,
+      recoveryMetrics: existing.recoveryMetrics,
+      assistantMessageId: assistantMessage?.id ?? null,
+    }),
+  );
+  mocks.reservationFindUnique.mockResolvedValue(existing);
+}
+
 describe("AI usage reservations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.transaction.mockImplementation((callback) => callback(tx));
-    mocks.queryRaw.mockResolvedValue([{ id: "user-1" }]);
+    mockReservationDecision();
     mocks.reservationFindUnique.mockResolvedValue(null);
     mocks.reservationUpdateMany.mockResolvedValue({ count: 0 });
     mocks.reservationDeleteMany.mockResolvedValue({ count: 0 });
@@ -169,7 +210,6 @@ describe("AI usage reservations", () => {
   });
 
   it("serializes concurrent finite-plan requests behind the user lock", async () => {
-    const reservations = new Map<string, ReturnType<typeof reservation>>();
     let transactionTail: Promise<unknown> = Promise.resolve();
 
     mocks.transaction.mockImplementation((callback) => {
@@ -180,41 +220,18 @@ describe("AI usage reservations", () => {
       );
       return result;
     });
-    mocks.reservationFindUnique.mockImplementation(({ where }) => {
-      const key = where.userId_requestKey?.requestKey;
-      return key ? (reservations.get(key) ?? null) : null;
-    });
-    mocks.reservationAggregate.mockImplementation(() => {
-      const active = [...reservations.values()].filter(
-        (entry) => entry.status === "RESERVED",
-      );
-      return {
-        _sum: {
-          reservedRequests: active.length,
-          reservedInputTokens: active.reduce(
-            (sum, entry) => sum + Number(entry.reservedInputTokens ?? 0),
-            0,
-          ),
-          reservedOutputTokens: active.reduce(
-            (sum, entry) => sum + Number(entry.reservedOutputTokens ?? 0),
-            0,
-          ),
-          reservedCostUsd: active.reduce(
-            (sum, entry) => sum + Number(entry.reservedCostUsd ?? 0),
-            0,
-          ),
-        },
-        _count: { _all: active.length },
-      };
-    });
-    mocks.reservationCreate.mockImplementation(({ data }) => {
-      const created = reservation({
-        ...data,
-        id: `reservation-${reservations.size + 1}`,
-      });
-      reservations.set(String(data.requestKey), created);
-      return created;
-    });
+    mocks.queryRaw
+      .mockReset()
+      .mockResolvedValueOnce([{ id: "user-1" }])
+      .mockResolvedValueOnce([decisionRow()])
+      .mockResolvedValueOnce([{ id: "user-1" }])
+      .mockResolvedValueOnce([
+        decisionRow({
+          outcome: "in_progress",
+          reservationId: null,
+          claimToken: null,
+        }),
+      ]);
 
     const results = await Promise.all([
       reserveAiUsage({
@@ -235,17 +252,146 @@ describe("AI usage reservations", () => {
       reason: "Generation already in progress",
       retryable: true,
     });
-    expect(mocks.reservationCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(4);
+  });
+
+  it("uses one decision query after the user lock for a fresh reservation", async () => {
+    mockReservationDecision(
+      decisionRow({
+        reservationId: "reservation-sql",
+        claimToken: "claim-sql",
+      }),
+    );
+
+    await expect(
+      reserveAiUsage({
+        userId: "user-1",
+        requestKey: "message-sql",
+        limits: finiteLimits,
+      }),
+    ).resolves.toEqual({
+      allowed: true,
+      reservationId: "reservation-sql",
+      claimToken: "claim-sql",
+    });
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(2);
+    expect(mocks.reservationFindUnique).not.toHaveBeenCalled();
+    expect(mocks.dailyUsageFindUnique).not.toHaveBeenCalled();
+    expect(mocks.reservationAggregate).not.toHaveBeenCalled();
+    expect(mocks.reservationCreate).not.toHaveBeenCalled();
+    expect(mocks.reservationUpdate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "in progress",
+      "in_progress",
+      {
+        allowed: false,
+        reason: "Generation already in progress",
+        retryable: true,
+      },
+    ],
+    [
+      "request limit",
+      "request_limit",
+      {
+        allowed: false,
+        reason: "Daily request limit reached",
+        retryable: false,
+      },
+    ],
+    [
+      "input limit",
+      "input_limit",
+      {
+        allowed: false,
+        reason: "Daily input token limit reached",
+        retryable: false,
+      },
+    ],
+    [
+      "output limit",
+      "output_limit",
+      {
+        allowed: false,
+        reason: "Daily output token limit reached",
+        retryable: false,
+      },
+    ],
+    [
+      "cost limit",
+      "cost_limit",
+      {
+        allowed: false,
+        reason: "Daily spending limit reached",
+        retryable: false,
+      },
+    ],
+    [
+      "accounted reservation",
+      "accounted",
+      {
+        allowed: false,
+        reason: "Generation already accounted for",
+        retryable: false,
+      },
+    ],
+  ] as const)("maps the SQL %s outcome", async (_label, outcome, expected) => {
+    mockReservationDecision(
+      decisionRow({ outcome, reservationId: null, claimToken: null }),
+    );
+
+    await expect(
+      reserveAiUsage({
+        userId: "user-1",
+        requestKey: "message-decision",
+        limits: finiteLimits,
+      }),
+    ).resolves.toEqual(expected);
+  });
+
+  it("maps a malformed recovered payload without an assistant to accounted", async () => {
+    mockReservationDecision(
+      decisionRow({
+        outcome: "recovered",
+        reservationId: "reservation-1",
+        claimToken: "claim-current",
+        recoveryText: "not enough recovery metadata",
+      }),
+    );
+
+    await expect(
+      reserveAiUsage({
+        userId: "user-1",
+        requestKey: "message-malformed-recovery",
+        limits: finiteLimits,
+      }),
+    ).resolves.toEqual({
+      allowed: false,
+      reason: "Generation already accounted for",
+      retryable: false,
+    });
+  });
+
+  it("does not run global reservation retention on the request path", async () => {
+    await expect(
+      reserveAiUsage({
+        userId: "user-1",
+        requestKey: "message-retention-off-path",
+        limits: finiteLimits,
+      }),
+    ).resolves.toMatchObject({ allowed: true });
+
+    expect(mocks.reservationUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.reservationDeleteMany).not.toHaveBeenCalled();
   });
 
   it("strips legacy raw metadata from recovery without invoking a second reservation", async () => {
-    mocks.reservationFindUnique.mockResolvedValue(
-      reservation({
-        status: "RECONCILED",
-        recoveryText: "saved provider output",
-        recoveryMetrics: metrics,
-      }),
-    );
+    mockReconciledDecision({
+      recoveryText: "saved provider output",
+      recoveryMetrics: metrics,
+    });
 
     const result = await reserveAiUsage({
       userId: "user-1",
@@ -277,33 +423,30 @@ describe("AI usage reservations", () => {
   });
 
   it("restores only closed capability metadata from agentic recovery", async () => {
-    mocks.reservationFindUnique.mockResolvedValue(
-      reservation({
-        status: "RECONCILED",
-        recoveryText: "saved provider output",
-        recoveryMetrics: {
-          ...metrics,
-          capabilityPlanner: {
-            mode: "agentic",
-            decision: {
-              rag: true,
-              webSearch: false,
-              webFetch: false,
-              memoryRead: true,
-              memoryWrite: false,
-              memoryDelete: true,
-              memoryDeleteTarget: "private_memory_key",
-              routineProposal: false,
-              userContext: true,
-              voiceOutput: false,
-              source: "mixed",
-              reasonCodes: [],
-              rawPayload: "must not survive",
-            },
+    mockReconciledDecision({
+      recoveryText: "saved provider output",
+      recoveryMetrics: {
+        ...metrics,
+        capabilityPlanner: {
+          mode: "agentic",
+          decision: {
+            rag: true,
+            webSearch: false,
+            webFetch: false,
+            memoryRead: true,
+            memoryWrite: false,
+            memoryDelete: true,
+            memoryDeleteTarget: "private_memory_key",
+            routineProposal: false,
+            userContext: true,
+            voiceOutput: false,
+            source: "mixed",
+            reasonCodes: [],
+            rawPayload: "must not survive",
           },
         },
-      }),
-    );
+      },
+    });
 
     const result = await reserveAiUsage({
       userId: "user-1",
@@ -329,16 +472,13 @@ describe("AI usage reservations", () => {
   });
 
   it("restores a valid legacy recovery marker without a decision", async () => {
-    mocks.reservationFindUnique.mockResolvedValue(
-      reservation({
-        status: "RECONCILED",
-        recoveryText: "saved provider output",
-        recoveryMetrics: {
-          ...metrics,
-          capabilityPlanner: { mode: "legacy" },
-        },
-      }),
-    );
+    mockReconciledDecision({
+      recoveryText: "saved provider output",
+      recoveryMetrics: {
+        ...metrics,
+        capabilityPlanner: { mode: "legacy" },
+      },
+    });
 
     const result = await reserveAiUsage({
       userId: "user-1",
@@ -361,16 +501,13 @@ describe("AI usage reservations", () => {
 
   it("restores a valid route as independently validated frozen metadata", async () => {
     const executionRoute = escalatedExecutionRoute();
-    mocks.reservationFindUnique.mockResolvedValue(
-      reservation({
-        status: "RECONCILED",
-        recoveryText: "saved provider output",
-        recoveryMetrics: {
-          ...metrics,
-          executionRoute,
-        },
-      }),
-    );
+    mockReconciledDecision({
+      recoveryText: "saved provider output",
+      recoveryMetrics: {
+        ...metrics,
+        executionRoute,
+      },
+    });
 
     const result = await reserveAiUsage({
       userId: "user-1",
@@ -407,20 +544,17 @@ describe("AI usage reservations", () => {
     ["attempt", { attempts: [] }],
     ["reason code", { reasonCodes: ["raw_classifier_prose"] }],
   ])("rejects malformed execution %s metadata", async (_label, override) => {
-    mocks.reservationFindUnique.mockResolvedValue(
-      reservation({
-        status: "RECONCILED",
-        recoveryText: "saved provider output",
-        recoveryMetrics: {
-          ...metrics,
-          capabilityPlanner: { mode: "legacy" },
-          executionRoute: {
-            ...escalatedExecutionRoute(),
-            ...override,
-          },
+    mockReconciledDecision({
+      recoveryText: "saved provider output",
+      recoveryMetrics: {
+        ...metrics,
+        capabilityPlanner: { mode: "legacy" },
+        executionRoute: {
+          ...escalatedExecutionRoute(),
+          ...override,
         },
-      }),
-    );
+      },
+    });
 
     const result = await reserveAiUsage({
       userId: "user-1",
@@ -509,16 +643,13 @@ describe("AI usage reservations", () => {
   ])(
     "fails closed on $label recovery metadata",
     async ({ capabilityPlanner }) => {
-      mocks.reservationFindUnique.mockResolvedValue(
-        reservation({
-          status: "RECONCILED",
-          recoveryText: "saved provider output",
-          recoveryMetrics: {
-            ...metrics,
-            capabilityPlanner,
-          },
-        }),
-      );
+      mockReconciledDecision({
+        recoveryText: "saved provider output",
+        recoveryMetrics: {
+          ...metrics,
+          capabilityPlanner,
+        },
+      });
 
       const result = await reserveAiUsage({
         userId: "user-1",
@@ -536,16 +667,13 @@ describe("AI usage reservations", () => {
   );
 
   it("marks missing or invalid recovery planner metadata as unsafe", async () => {
-    mocks.reservationFindUnique.mockResolvedValue(
-      reservation({
-        status: "RECONCILED",
-        recoveryText: "saved provider output",
-        recoveryMetrics: {
-          ...metrics,
-          capabilityPlanner: { mode: "unexpected" },
-        },
-      }),
-    );
+    mockReconciledDecision({
+      recoveryText: "saved provider output",
+      recoveryMetrics: {
+        ...metrics,
+        capabilityPlanner: { mode: "unexpected" },
+      },
+    });
 
     const result = await reserveAiUsage({
       userId: "user-1",
@@ -562,9 +690,8 @@ describe("AI usage reservations", () => {
   });
 
   it("replays a persisted assistant when recovery payload is no longer present", async () => {
-    mocks.reservationFindUnique.mockResolvedValue(
-      reservation({
-        status: "RECONCILED",
+    mockReconciledDecision(
+      {
         assistantMessage: {
           id: "assistant-1",
           parts: [
@@ -583,7 +710,8 @@ describe("AI usage reservations", () => {
           reasoningTimeMs: null,
           metrics: null,
         },
-      }),
+      },
+      "reconciled",
     );
 
     const result = await reserveAiUsage({
@@ -757,6 +885,15 @@ describe("AI usage reservations", () => {
       executionRoute,
     });
 
+    mockReservationDecision(
+      decisionRow({
+        outcome: "recovered",
+        reservationId: "reservation-1",
+        claimToken: "claim-current",
+        recoveryText: current.recoveryText,
+        recoveryMetrics: current.recoveryMetrics,
+      }),
+    );
     const recovered = await reserveAiUsage({
       userId: "user-1",
       requestKey: "message-1",

@@ -226,8 +226,8 @@ uses `/api/admin/rag` for document management.
 | `GET` | `/api/cron/trigger?job=all|consolidate|archive|analyze` | Publish maintenance jobs to QStash (`CRON_SECRET` required). |
 | `GET` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |
 | `POST` | `/api/cron/cleanup-attachments` | Run attachment cleanup (`CRON_SECRET` required). |
-| `GET` | `/api/cron/cleanup-ai-traces` | Delete expired encrypted AI traces (`CRON_SECRET` required). |
-| `POST` | `/api/cron/cleanup-ai-traces` | Delete expired encrypted AI traces (`CRON_SECRET` required). |
+| `GET` | `/api/cron/cleanup-ai-traces` | Delete expired encrypted AI traces and usage reservations (`CRON_SECRET` required). |
+| `POST` | `/api/cron/cleanup-ai-traces` | Delete expired encrypted AI traces and usage reservations (`CRON_SECRET` required). |
 | `GET` | `/api/cron/model-comparisons` | Expire and purge model-comparison pairs (`CRON_SECRET` required). |
 | `POST` | `/api/queues/consolidate` | Internal QStash consumer for memory consolidation. |
 | `POST` | `/api/queues/archive` | Internal QStash consumer for session archive. |

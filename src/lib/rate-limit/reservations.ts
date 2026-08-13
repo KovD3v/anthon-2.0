@@ -15,7 +15,6 @@ import { prisma } from "@/lib/db";
 import type { RateLimits } from "./types";
 
 const AI_RESERVATION_LEASE_MS = 10 * 60 * 1000;
-const TERMINAL_RESERVATION_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const RECOVERY_RETENTION_MS = 24 * 60 * 60 * 1000;
 const MAX_RECOVERY_METRICS_BYTES = 512 * 1024;
 const MAX_RECOVERY_TEXT_CHARS = 128 * 1024;
@@ -77,96 +76,6 @@ async function lockUser(tx: TransactionClient, userId: string) {
   if (rows.length !== 1) {
     throw new Error("Cannot reserve usage for an unknown user");
   }
-}
-
-async function cleanupAiReservations(
-  tx: TransactionClient,
-  userId: string,
-  now: Date,
-) {
-  await tx.aiUsageReservation.updateMany({
-    where: {
-      userId,
-      status: "RESERVED",
-      expiresAt: { lte: now },
-    },
-    data: {
-      status: "EXPIRED",
-      releasedAt: now,
-    },
-  });
-
-  await tx.aiUsageReservation.updateMany({
-    where: {
-      userId,
-      status: "RECONCILED",
-      recoveryExpiresAt: { lte: now },
-    },
-    data: {
-      recoveryText: null,
-      recoveryMetrics: Prisma.DbNull,
-      recoveryExpiresAt: null,
-    },
-  });
-
-  await tx.aiUsageReservation.deleteMany({
-    where: {
-      userId,
-      status: { in: ["RECONCILED", "RELEASED", "EXPIRED"] },
-      recoveryText: null,
-      updatedAt: {
-        lt: new Date(now.getTime() - TERMINAL_RESERVATION_RETENTION_MS),
-      },
-    },
-  });
-}
-
-function finiteRemaining(limit: number, used: number): number {
-  return Number.isFinite(limit) ? Math.max(0, Math.floor(limit - used)) : 0;
-}
-
-function finiteRemainingCost(limit: number, used: number): number {
-  return Number.isFinite(limit) ? Math.max(0, limit - used) : 0;
-}
-
-function getLimitReason(
-  usage: {
-    requestCount: number;
-    inputTokens: number;
-    outputTokens: number;
-    totalCostUsd: number;
-  },
-  limits: RateLimits,
-): (AiUsageReservationResult & { allowed: false }) | null {
-  if (usage.requestCount >= limits.maxRequestsPerDay) {
-    return {
-      allowed: false,
-      reason: "Daily request limit reached",
-      retryable: false,
-    };
-  }
-  if (usage.inputTokens >= limits.maxInputTokensPerDay) {
-    return {
-      allowed: false,
-      reason: "Daily input token limit reached",
-      retryable: false,
-    };
-  }
-  if (usage.outputTokens >= limits.maxOutputTokensPerDay) {
-    return {
-      allowed: false,
-      reason: "Daily output token limit reached",
-      retryable: false,
-    };
-  }
-  if (usage.totalCostUsd >= limits.maxCostPerDay) {
-    return {
-      allowed: false,
-      reason: "Daily spending limit reached",
-      retryable: false,
-    };
-  }
-  return null;
 }
 
 function parseRecovery(
@@ -352,6 +261,338 @@ function textFromMessageParts(parts: Prisma.JsonValue | null): string {
     .join("");
 }
 
+type ReservationDecisionOutcome =
+  | "reserved"
+  | "in_progress"
+  | "request_limit"
+  | "input_limit"
+  | "output_limit"
+  | "cost_limit"
+  | "recovered"
+  | "reconciled"
+  | "accounted";
+
+interface ReservationDecisionRow {
+  outcome: ReservationDecisionOutcome;
+  reservationId: string | null;
+  claimToken: string | null;
+  recoveryText: string | null;
+  recoveryMetrics: Prisma.JsonValue | null;
+  assistantMessageId: string | null;
+}
+
+function nullableLimit(value: number): number | null {
+  return Number.isFinite(value) ? value : null;
+}
+
+async function decideAndReserveAiUsage(
+  tx: TransactionClient,
+  {
+    userId,
+    requestKey,
+    today,
+    now,
+    expiresAt,
+    limits,
+    reservationId,
+    claimToken,
+  }: {
+    userId: string;
+    requestKey: string;
+    today: Date;
+    now: Date;
+    expiresAt: Date;
+    limits: RateLimits;
+    reservationId: string;
+    claimToken: string;
+  },
+): Promise<ReservationDecisionRow> {
+  const rows = await tx.$queryRaw<ReservationDecisionRow[]>(Prisma.sql`
+    WITH existing AS (
+      SELECT
+        "id",
+        "claimToken",
+        "status",
+        "recoveryText",
+        "recoveryMetrics",
+        "recoveryExpiresAt",
+        "assistantMessageId",
+        "expiresAt"
+      FROM "AiUsageReservation"
+      WHERE "userId" = ${userId}
+        AND "requestKey" = ${requestKey}
+    ),
+    usage_totals AS (
+      SELECT
+        COALESCE(MAX("requestCount"), 0)::integer AS request_count,
+        COALESCE(MAX("inputTokens"), 0)::integer AS input_tokens,
+        COALESCE(MAX("outputTokens"), 0)::integer AS output_tokens,
+        COALESCE(MAX("totalCostUsd"), 0)::double precision AS total_cost_usd
+      FROM "DailyUsage"
+      WHERE "userId" = ${userId}
+        AND "date" = ${today}::date
+    ),
+    active_totals AS (
+      SELECT
+        COALESCE(SUM("reservedRequests"), 0)::integer AS reserved_requests,
+        COALESCE(SUM("reservedInputTokens"), 0)::integer AS reserved_input_tokens,
+        COALESCE(SUM("reservedOutputTokens"), 0)::integer AS reserved_output_tokens,
+        COALESCE(SUM("reservedCostUsd"), 0)::double precision AS reserved_cost_usd,
+        COUNT(*)::integer AS active_count
+      FROM "AiUsageReservation"
+      WHERE "userId" = ${userId}
+        AND "date" = ${today}::date
+        AND "status" = 'RESERVED'::"AiUsageReservationStatus"
+        AND "expiresAt" > ${now}
+        AND "requestKey" <> ${requestKey}
+    ),
+    limits AS (
+      SELECT
+        CAST(${nullableLimit(limits.maxRequestsPerDay)} AS double precision) AS max_requests,
+        CAST(${nullableLimit(limits.maxInputTokensPerDay)} AS double precision) AS max_input_tokens,
+        CAST(${nullableLimit(limits.maxOutputTokensPerDay)} AS double precision) AS max_output_tokens,
+        CAST(${nullableLimit(limits.maxCostPerDay)} AS double precision) AS max_cost_usd,
+        CAST(${Number.isFinite(limits.maxRequestsPerDay) || Number.isFinite(limits.maxInputTokensPerDay) || Number.isFinite(limits.maxOutputTokensPerDay) || Number.isFinite(limits.maxCostPerDay)} AS boolean) AS has_finite_budget
+    ),
+    totals AS (
+      SELECT
+        usage_totals.request_count + active_totals.reserved_requests AS effective_requests,
+        usage_totals.input_tokens + active_totals.reserved_input_tokens AS effective_input_tokens,
+        usage_totals.output_tokens + active_totals.reserved_output_tokens AS effective_output_tokens,
+        usage_totals.total_cost_usd + active_totals.reserved_cost_usd AS effective_cost_usd,
+        active_totals.active_count,
+        limits.max_requests,
+        limits.max_input_tokens,
+        limits.max_output_tokens,
+        limits.max_cost_usd,
+        limits.has_finite_budget
+      FROM usage_totals
+      CROSS JOIN active_totals
+      CROSS JOIN limits
+    ),
+    decision AS (
+      SELECT
+        CASE
+          WHEN existing."status" = 'RECONCILED'::"AiUsageReservationStatus"
+            AND existing."recoveryText" IS NOT NULL
+            AND existing."recoveryMetrics" IS NOT NULL
+            AND (
+              existing."recoveryExpiresAt" IS NULL
+              OR existing."recoveryExpiresAt" > ${now}
+            )
+            THEN 'recovered'
+          WHEN existing."status" = 'RECONCILED'::"AiUsageReservationStatus"
+            AND existing."assistantMessageId" IS NOT NULL
+            THEN 'reconciled'
+          WHEN existing."status" = 'RECONCILED'::"AiUsageReservationStatus"
+            THEN 'accounted'
+          WHEN existing."status" = 'RESERVED'::"AiUsageReservationStatus"
+            AND existing."expiresAt" > ${now}
+            THEN 'in_progress'
+          WHEN totals.active_count > 0 AND totals.has_finite_budget
+            THEN 'in_progress'
+          WHEN totals.max_requests IS NOT NULL
+            AND totals.effective_requests >= totals.max_requests
+            THEN 'request_limit'
+          WHEN totals.max_input_tokens IS NOT NULL
+            AND totals.effective_input_tokens >= totals.max_input_tokens
+            THEN 'input_limit'
+          WHEN totals.max_output_tokens IS NOT NULL
+            AND totals.effective_output_tokens >= totals.max_output_tokens
+            THEN 'output_limit'
+          WHEN totals.max_cost_usd IS NOT NULL
+            AND totals.effective_cost_usd >= totals.max_cost_usd
+            THEN 'cost_limit'
+          ELSE 'reserved'
+        END::text AS "outcome",
+        existing."id" AS existing_id,
+        existing."claimToken" AS existing_claim_token,
+        existing."recoveryText" AS existing_recovery_text,
+        existing."recoveryMetrics" AS existing_recovery_metrics,
+        existing."assistantMessageId" AS existing_assistant_message_id
+      FROM totals
+      LEFT JOIN existing ON TRUE
+    ),
+    reservation_values AS (
+      SELECT
+        ${reservationId}::text AS reservation_id,
+        ${userId}::text AS user_id,
+        ${requestKey}::text AS request_key,
+        ${today}::date AS reservation_date,
+        ${claimToken}::text AS claim_token,
+        'RESERVED'::"AiUsageReservationStatus" AS reservation_status,
+        1::integer AS reserved_requests,
+        CASE
+          WHEN totals.max_input_tokens IS NULL THEN 0
+          ELSE GREATEST(0::double precision, FLOOR(totals.max_input_tokens - totals.effective_input_tokens))::integer
+        END AS reserved_input_tokens,
+        CASE
+          WHEN totals.max_output_tokens IS NULL THEN 0
+          ELSE GREATEST(0::double precision, FLOOR(totals.max_output_tokens - totals.effective_output_tokens))::integer
+        END AS reserved_output_tokens,
+        CASE
+          WHEN totals.max_cost_usd IS NULL THEN 0::double precision
+          ELSE GREATEST(0::double precision, totals.max_cost_usd - totals.effective_cost_usd)
+        END AS reserved_cost_usd,
+        ${expiresAt}::timestamp AS expires_at,
+        ${now}::timestamp AS written_at
+      FROM totals
+    ),
+    upserted AS (
+      INSERT INTO "AiUsageReservation" (
+        "id",
+        "userId",
+        "date",
+        "requestKey",
+        "claimToken",
+        "status",
+        "reservedRequests",
+        "reservedInputTokens",
+        "reservedOutputTokens",
+        "reservedCostUsd",
+        "actualInputTokens",
+        "actualOutputTokens",
+        "actualReasoningTokens",
+        "actualCostUsd",
+        "recoveryText",
+        "recoveryMetrics",
+        "recoveryExpiresAt",
+        "assistantMessageId",
+        "expiresAt",
+        "reconciledAt",
+        "releasedAt",
+        "createdAt",
+        "updatedAt"
+      )
+      SELECT
+        reservation_values.reservation_id,
+        reservation_values.user_id,
+        reservation_values.reservation_date,
+        reservation_values.request_key,
+        reservation_values.claim_token,
+        reservation_values.reservation_status,
+        reservation_values.reserved_requests,
+        reservation_values.reserved_input_tokens,
+        reservation_values.reserved_output_tokens,
+        reservation_values.reserved_cost_usd,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        reservation_values.expires_at,
+        NULL,
+        NULL,
+        reservation_values.written_at,
+        reservation_values.written_at
+      FROM reservation_values
+      INNER JOIN decision ON decision."outcome" = 'reserved'
+      ON CONFLICT ("userId", "requestKey") DO UPDATE SET
+        "date" = EXCLUDED."date",
+        "claimToken" = EXCLUDED."claimToken",
+        "status" = EXCLUDED."status",
+        "reservedRequests" = EXCLUDED."reservedRequests",
+        "reservedInputTokens" = EXCLUDED."reservedInputTokens",
+        "reservedOutputTokens" = EXCLUDED."reservedOutputTokens",
+        "reservedCostUsd" = EXCLUDED."reservedCostUsd",
+        "actualInputTokens" = EXCLUDED."actualInputTokens",
+        "actualOutputTokens" = EXCLUDED."actualOutputTokens",
+        "actualReasoningTokens" = EXCLUDED."actualReasoningTokens",
+        "actualCostUsd" = EXCLUDED."actualCostUsd",
+        "recoveryText" = EXCLUDED."recoveryText",
+        "recoveryMetrics" = EXCLUDED."recoveryMetrics",
+        "recoveryExpiresAt" = EXCLUDED."recoveryExpiresAt",
+        "assistantMessageId" = EXCLUDED."assistantMessageId",
+        "expiresAt" = EXCLUDED."expiresAt",
+        "reconciledAt" = EXCLUDED."reconciledAt",
+        "releasedAt" = EXCLUDED."releasedAt",
+        "updatedAt" = EXCLUDED."updatedAt"
+      RETURNING "id", "claimToken"
+    )
+    SELECT
+      decision."outcome" AS "outcome",
+      COALESCE(upserted."id", decision.existing_id) AS "reservationId",
+      COALESCE(upserted."claimToken", decision.existing_claim_token) AS "claimToken",
+      decision.existing_recovery_text AS "recoveryText",
+      decision.existing_recovery_metrics AS "recoveryMetrics",
+      decision.existing_assistant_message_id AS "assistantMessageId"
+    FROM decision
+    LEFT JOIN upserted ON TRUE
+  `);
+
+  if (rows.length !== 1 || !rows[0]) {
+    throw new Error("Usage reservation decision returned an invalid result");
+  }
+
+  const row = rows[0];
+  if (
+    ![
+      "reserved",
+      "in_progress",
+      "request_limit",
+      "input_limit",
+      "output_limit",
+      "cost_limit",
+      "recovered",
+      "reconciled",
+      "accounted",
+    ].includes(row.outcome)
+  ) {
+    throw new Error("Usage reservation decision returned an unknown outcome");
+  }
+  return row;
+}
+
+async function loadPersistedAssistant(
+  tx: TransactionClient,
+  reservationId: string,
+  assistantMessageId: string,
+): Promise<AiUsagePersistedAssistant | undefined> {
+  const existing = await tx.aiUsageReservation.findUnique({
+    where: { id: reservationId },
+    include: {
+      assistantMessage: {
+        include: { metrics: true },
+      },
+    },
+  });
+  if (!existing || existing.assistantMessage?.id !== assistantMessageId) {
+    return undefined;
+  }
+
+  const assistant = existing.assistantMessage;
+  const messageMetrics = assistant.metrics;
+  return {
+    messageId: assistant.id,
+    text: textFromMessageParts(assistant.parts),
+    metrics: {
+      model: assistant.model ?? messageMetrics?.model ?? "persisted",
+      provider: messageMetrics?.provider,
+      inputTokens: assistant.inputTokens ?? messageMetrics?.inputTokens ?? 0,
+      outputTokens: assistant.outputTokens ?? messageMetrics?.outputTokens ?? 0,
+      reasoningTokens:
+        assistant.reasoningTokens ?? messageMetrics?.reasoningTokens ?? null,
+      toolCalls: assistant.toolCalls as AIMetrics["toolCalls"] | null,
+      toolCallCount: messageMetrics?.toolCallCount ?? undefined,
+      toolResultChars: messageMetrics?.toolResultChars ?? undefined,
+      toolTiming: messageMetrics?.toolTiming as
+        | AIMetrics["toolTiming"]
+        | undefined,
+      ragUsed: assistant.ragUsed ?? messageMetrics?.ragUsed ?? false,
+      ragChunksCount:
+        assistant.ragChunksCount ?? messageMetrics?.ragChunksCount ?? 0,
+      costUsd: assistant.costUsd ?? messageMetrics?.costUsd ?? 0,
+      generationTimeMs:
+        assistant.generationTimeMs ?? messageMetrics?.generationTimeMs ?? 0,
+      reasoningTimeMs:
+        assistant.reasoningTimeMs ?? messageMetrics?.reasoningTimeMs ?? null,
+    },
+  };
+}
+
 /**
  * Reserve one user-facing generation. Token and cost capacity reserve the
  * entire remaining daily budget, intentionally serializing finite-plan turns
@@ -371,178 +612,126 @@ export async function reserveAiUsage({
 
   return prisma.$transaction(async (tx) => {
     await lockUser(tx, userId);
-    await cleanupAiReservations(tx, userId, now);
-
-    const existing = await tx.aiUsageReservation.findUnique({
-      where: { userId_requestKey: { userId, requestKey } },
-      include: {
-        assistantMessage: {
-          include: { metrics: true },
-        },
-      },
-    });
-    if (existing?.status === "RESERVED") {
-      return {
-        allowed: false,
-        reason: "Generation already in progress",
-        retryable: true,
-      };
-    }
-    if (existing?.status === "RECONCILED") {
-      const recovery = parseRecovery(
-        existing.recoveryText,
-        existing.recoveryMetrics,
-      );
-      if (recovery) {
-        return {
-          allowed: true,
-          reservationId: existing.id,
-          claimToken: existing.claimToken,
-          recovery,
-        };
-      }
-      if (existing.assistantMessage) {
-        const assistant = existing.assistantMessage;
-        const messageMetrics = assistant.metrics;
-        return {
-          allowed: true,
-          reservationId: existing.id,
-          claimToken: existing.claimToken,
-          persistedAssistant: {
-            messageId: assistant.id,
-            text: textFromMessageParts(assistant.parts),
-            metrics: {
-              model: assistant.model ?? messageMetrics?.model ?? "persisted",
-              provider: messageMetrics?.provider,
-              inputTokens:
-                assistant.inputTokens ?? messageMetrics?.inputTokens ?? 0,
-              outputTokens:
-                assistant.outputTokens ?? messageMetrics?.outputTokens ?? 0,
-              reasoningTokens:
-                assistant.reasoningTokens ??
-                messageMetrics?.reasoningTokens ??
-                null,
-              toolCalls: assistant.toolCalls as AIMetrics["toolCalls"] | null,
-              toolCallCount: messageMetrics?.toolCallCount ?? undefined,
-              toolResultChars: messageMetrics?.toolResultChars ?? undefined,
-              toolTiming: messageMetrics?.toolTiming as
-                | AIMetrics["toolTiming"]
-                | undefined,
-              ragUsed: assistant.ragUsed ?? messageMetrics?.ragUsed ?? false,
-              ragChunksCount:
-                assistant.ragChunksCount ?? messageMetrics?.ragChunksCount ?? 0,
-              costUsd: assistant.costUsd ?? messageMetrics?.costUsd ?? 0,
-              generationTimeMs:
-                assistant.generationTimeMs ??
-                messageMetrics?.generationTimeMs ??
-                0,
-              reasoningTimeMs:
-                assistant.reasoningTimeMs ??
-                messageMetrics?.reasoningTimeMs ??
-                null,
-            },
-          },
-        };
-      }
-      return {
-        allowed: false,
-        reason: "Generation already accounted for",
-        retryable: false,
-      };
-    }
-
-    const usage = (await tx.dailyUsage.findUnique({
-      where: { userId_date: { userId, date: today } },
-    })) ?? {
-      requestCount: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-      totalCostUsd: 0,
-    };
-    const activeReservations = await tx.aiUsageReservation.aggregate({
-      where: { userId, date: today, status: "RESERVED" },
-      _sum: {
-        reservedRequests: true,
-        reservedInputTokens: true,
-        reservedOutputTokens: true,
-        reservedCostUsd: true,
-      },
-      _count: { _all: true },
-    });
-    const effectiveUsage = {
-      requestCount:
-        usage.requestCount + (activeReservations._sum.reservedRequests ?? 0),
-      inputTokens:
-        usage.inputTokens + (activeReservations._sum.reservedInputTokens ?? 0),
-      outputTokens:
-        usage.outputTokens +
-        (activeReservations._sum.reservedOutputTokens ?? 0),
-      totalCostUsd:
-        usage.totalCostUsd + (activeReservations._sum.reservedCostUsd ?? 0),
-    };
-    const hasFiniteBudget =
-      Number.isFinite(limits.maxRequestsPerDay) ||
-      Number.isFinite(limits.maxInputTokensPerDay) ||
-      Number.isFinite(limits.maxOutputTokensPerDay) ||
-      Number.isFinite(limits.maxCostPerDay);
-    if ((activeReservations._count._all ?? 0) > 0 && hasFiniteBudget) {
-      return {
-        allowed: false,
-        reason: "Generation already in progress",
-        retryable: true,
-      };
-    }
-
-    const denied = getLimitReason(effectiveUsage, limits);
-    if (denied) return denied;
-
-    const reservationData = {
-      date: today,
-      claimToken: randomUUID(),
-      status: "RESERVED" as const,
-      reservedRequests: 1,
-      reservedInputTokens: finiteRemaining(
-        limits.maxInputTokensPerDay,
-        effectiveUsage.inputTokens,
-      ),
-      reservedOutputTokens: finiteRemaining(
-        limits.maxOutputTokensPerDay,
-        effectiveUsage.outputTokens,
-      ),
-      reservedCostUsd: finiteRemainingCost(
-        limits.maxCostPerDay,
-        effectiveUsage.totalCostUsd,
-      ),
+    const decision = await decideAndReserveAiUsage(tx, {
+      userId,
+      requestKey,
+      today,
+      now,
       expiresAt: new Date(now.getTime() + AI_RESERVATION_LEASE_MS),
-      actualInputTokens: null,
-      actualOutputTokens: null,
-      actualReasoningTokens: null,
-      actualCostUsd: null,
-      recoveryText: null,
-      recoveryMetrics: Prisma.DbNull,
-      recoveryExpiresAt: null,
-      assistantMessageId: null,
-      reconciledAt: null,
-      releasedAt: null,
-    };
-    const reservation = existing
-      ? await tx.aiUsageReservation.update({
-          where: { id: existing.id },
-          data: reservationData,
-        })
-      : await tx.aiUsageReservation.create({
-          data: {
-            userId,
-            requestKey,
-            ...reservationData,
-          },
-        });
+      limits,
+      reservationId: randomUUID(),
+      claimToken: randomUUID(),
+    });
 
-    return {
-      allowed: true,
-      reservationId: reservation.id,
-      claimToken: reservation.claimToken,
-    };
+    switch (decision.outcome) {
+      case "in_progress":
+        return {
+          allowed: false,
+          reason: "Generation already in progress",
+          retryable: true,
+        };
+      case "request_limit":
+        return {
+          allowed: false,
+          reason: "Daily request limit reached",
+          retryable: false,
+        };
+      case "input_limit":
+        return {
+          allowed: false,
+          reason: "Daily input token limit reached",
+          retryable: false,
+        };
+      case "output_limit":
+        return {
+          allowed: false,
+          reason: "Daily output token limit reached",
+          retryable: false,
+        };
+      case "cost_limit":
+        return {
+          allowed: false,
+          reason: "Daily spending limit reached",
+          retryable: false,
+        };
+      case "recovered": {
+        if (!decision.reservationId || !decision.claimToken) {
+          throw new Error("Recovered usage reservation is missing identity");
+        }
+        const recovery = parseRecovery(
+          decision.recoveryText,
+          decision.recoveryMetrics,
+        );
+        if (recovery) {
+          return {
+            allowed: true,
+            reservationId: decision.reservationId,
+            claimToken: decision.claimToken,
+            recovery,
+          };
+        }
+        if (decision.assistantMessageId) {
+          const persistedAssistant = await loadPersistedAssistant(
+            tx,
+            decision.reservationId,
+            decision.assistantMessageId,
+          );
+          if (persistedAssistant) {
+            return {
+              allowed: true,
+              reservationId: decision.reservationId,
+              claimToken: decision.claimToken,
+              persistedAssistant,
+            };
+          }
+        }
+        return {
+          allowed: false,
+          reason: "Generation already accounted for",
+          retryable: false,
+        };
+      }
+      case "reconciled": {
+        if (!decision.reservationId || !decision.claimToken) {
+          throw new Error("Reconciled usage reservation is missing identity");
+        }
+        if (decision.assistantMessageId) {
+          const persistedAssistant = await loadPersistedAssistant(
+            tx,
+            decision.reservationId,
+            decision.assistantMessageId,
+          );
+          if (persistedAssistant) {
+            return {
+              allowed: true,
+              reservationId: decision.reservationId,
+              claimToken: decision.claimToken,
+              persistedAssistant,
+            };
+          }
+        }
+        return {
+          allowed: false,
+          reason: "Generation already accounted for",
+          retryable: false,
+        };
+      }
+      case "accounted":
+        return {
+          allowed: false,
+          reason: "Generation already accounted for",
+          retryable: false,
+        };
+      case "reserved":
+        if (!decision.reservationId || !decision.claimToken) {
+          throw new Error("Reserved usage reservation is missing identity");
+        }
+        return {
+          allowed: true,
+          reservationId: decision.reservationId,
+          claimToken: decision.claimToken,
+        };
+    }
   });
 }
 
