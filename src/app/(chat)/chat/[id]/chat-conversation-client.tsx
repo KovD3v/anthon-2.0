@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
 import { CAPABILITY_USAGE_VALUES } from "@/lib/ai/capability-usage";
+import type { ChatUIMessage } from "@/lib/chat-client";
 import {
   convertToUIMessages,
   extractTextFromParts,
@@ -371,7 +372,7 @@ export function ChatConversationClient({
     setMessages,
     stop,
     clearError,
-  } = useChat<AnthonUIMessage>({
+  } = useChat<ChatUIMessage>({
     id: chatId,
     messages: initialMessages,
     // Rendering Markdown for every stream chunk can exhaust React's nested
