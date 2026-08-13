@@ -191,6 +191,41 @@ describe("integration AI usage reservations", () => {
     });
   });
 
+  it("does not replay an expired recovery payload", async () => {
+    const user = await createUser();
+    await prisma.aiUsageReservation.create({
+      data: {
+        userId: user.id,
+        date: utcToday(),
+        requestKey: "expired-recovery",
+        claimToken: "claim-expired-recovery",
+        status: "RECONCILED",
+        expiresAt: new Date(Date.now() - 60_000),
+        recoveryText: "Risposta non più riproducibile",
+        recoveryMetrics: {
+          model: "test/model",
+          inputTokens: 12,
+          outputTokens: 7,
+          costUsd: 0.02,
+        },
+        recoveryExpiresAt: new Date(Date.now() - 1_000),
+        reconciledAt: new Date(),
+      },
+    });
+
+    await expect(
+      reserveAiUsage({
+        userId: user.id,
+        requestKey: "expired-recovery",
+        limits: finiteLimits,
+      }),
+    ).resolves.toEqual({
+      allowed: false,
+      reason: "Generation already accounted for",
+      retryable: false,
+    });
+  });
+
   it.each([
     ["requestCount", "Daily request limit reached"],
     ["inputTokens", "Daily input token limit reached"],
