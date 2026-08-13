@@ -33,16 +33,16 @@ describe("chat metadata model routing", () => {
     });
   });
 
-  it("pins Nemotron metadata to its structured-output endpoint", () => {
+  it("routes Nemotron metadata across structured-output endpoints", () => {
     expect(
       getChatMetadataProviderOptions("nvidia/nemotron-3.5-lightning", {}),
     ).toEqual({
       provider: {
         sort: "latency",
-        only: ["DeepInfra"],
-        allow_fallbacks: false,
+        order: ["DeepInfra", "CoreWeave", "Venice"],
+        allow_fallbacks: true,
         require_parameters: true,
-        max_price: { prompt: 0.05, completion: 0.2 },
+        max_price: { prompt: 0.1, completion: 0.25 },
       },
       reasoning: { enabled: false, max_tokens: 1 },
     });

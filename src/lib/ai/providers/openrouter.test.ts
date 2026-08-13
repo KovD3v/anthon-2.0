@@ -146,7 +146,10 @@ describe("ai/providers/openrouter", () => {
     );
 
     expect(mocks.provider).toHaveBeenCalledWith("openai/gpt-5.6-luna", {
-      models: ["deepseek/deepseek-v4-flash-0731"],
+      models: [
+        "deepseek/deepseek-v4-flash-0731",
+        "google/gemini-3.5-flash-lite",
+      ],
     });
     expect(model).toEqual({ modelId: "openai/gpt-5.6-luna" });
   });
@@ -166,7 +169,10 @@ describe("ai/providers/openrouter", () => {
     );
 
     expect(mocks.provider).toHaveBeenCalledWith("openai/gpt-5.6-luna", {
-      models: ["deepseek/deepseek-v4-flash-0731"],
+      models: [
+        "deepseek/deepseek-v4-flash-0731",
+        "google/gemini-3.5-flash-lite",
+      ],
       parallelToolCalls: false,
     });
   });
@@ -243,7 +249,10 @@ describe("ai/providers/openrouter", () => {
     );
 
     expect(mocks.provider).toHaveBeenCalledWith("openai/gpt-5.6-luna", {
-      models: ["deepseek/deepseek-v4-flash-0731"],
+      models: [
+        "deepseek/deepseek-v4-flash-0731",
+        "google/gemini-3.5-flash-lite",
+      ],
     });
     expect(mocks.wrapLanguageModel).not.toHaveBeenCalled();
     expect(model).toEqual({

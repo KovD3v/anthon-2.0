@@ -417,6 +417,18 @@ describe("ai/cost-calculator", () => {
       },
     );
 
+    const flashLite35 = extractAIMetrics(
+      "google/gemini-3.5-flash-lite",
+      startTime,
+      {
+        text: "done",
+        usage: {
+          promptTokens: 1000,
+          completionTokens: 500,
+        },
+      },
+    );
+
     const flash3 = extractAIMetrics(
       "google/gemini-3-flash-preview",
       startTime,
@@ -442,6 +454,7 @@ describe("ai/cost-calculator", () => {
     );
 
     expect(flashLite31.costUsd).toBeCloseTo(0.001);
+    expect(flashLite35.costUsd).toBeCloseTo(0.00155);
     expect(flash3.costUsd).toBeCloseTo(0.002);
     expect(flashLite25.costUsd).toBeCloseTo(0.0003);
   });

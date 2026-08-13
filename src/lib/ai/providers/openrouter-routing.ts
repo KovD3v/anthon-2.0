@@ -78,8 +78,13 @@ const DEEPSEEK_LIGHT_PROVIDERS = ["Together", "CoreWeave", "Ambient"] as const;
 const DEEPSEEK_LIGHT_MAX_PROMPT_PRICE = 0.15;
 const DEEPSEEK_LIGHT_MAX_COMPLETION_PRICE = 0.3;
 const NEMOTRON_CLASSIFIER_MODEL_ID = "nvidia/nemotron-3.5-lightning";
-const NEMOTRON_CLASSIFIER_MAX_PROMPT_PRICE = 0.05;
-const NEMOTRON_CLASSIFIER_MAX_COMPLETION_PRICE = 0.2;
+const NEMOTRON_CLASSIFIER_PROVIDERS = [
+  "DeepInfra",
+  "CoreWeave",
+  "Venice",
+] as const;
+const NEMOTRON_CLASSIFIER_MAX_PROMPT_PRICE = 0.1;
+const NEMOTRON_CLASSIFIER_MAX_COMPLETION_PRICE = 0.25;
 const providerOptionsCache = new Map<string, JSONObject>();
 
 export function getOpenRouterProviderOptions(
@@ -143,8 +148,8 @@ export function getOpenRouterProviderOptionsForClassifier(
     provider: {
       ...compatibleProviderOptions,
       sort: "latency",
-      only: ["DeepInfra"],
-      allow_fallbacks: false,
+      order: [...NEMOTRON_CLASSIFIER_PROVIDERS],
+      allow_fallbacks: true,
       require_parameters: true,
       max_price: {
         ...configuredMaxPrice,

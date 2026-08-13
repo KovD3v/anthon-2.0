@@ -17,12 +17,13 @@ describe("plans/snapshot", () => {
     );
     expect(snapshot.policies.modelRouting.orchestratorFallbacks).toEqual([
       "deepseek/deepseek-v4-flash-0731",
+      "google/gemini-3.5-flash-lite",
     ]);
     expect(snapshot.policies.attachmentRetentionDays).toBe(60);
     expect(snapshot.policies.voice.maxPerWindow).toBe(20);
   });
 
-  it("uses GPT-5.6 Luna with DeepSeek v4 Flash fallback for every runtime plan", () => {
+  it("uses GPT-5.6 Luna with cross-provider fallbacks for every runtime plan", () => {
     const plans = [
       { isGuest: true },
       { subscriptionStatus: "TRIAL" },
@@ -40,6 +41,7 @@ describe("plans/snapshot", () => {
       );
       expect(snapshot.policies.modelRouting.orchestratorFallbacks).toEqual([
         "deepseek/deepseek-v4-flash-0731",
+        "google/gemini-3.5-flash-lite",
       ]);
     }
   });
@@ -71,6 +73,7 @@ describe("plans/snapshot", () => {
     );
     expect(snapshot.policies.modelRouting.orchestratorFallbacks).toEqual([
       "deepseek/deepseek-v4-flash-0731",
+      "google/gemini-3.5-flash-lite",
     ]);
     expect(snapshot.policies.voice.maxPerWindow).toBe(50);
   });

@@ -3223,17 +3223,17 @@ export async function streamChat({
     },
     onError: ({ error }: { error: unknown }) => {
       standardAttemptTrace.fail();
+      aiLogger.warn("ai.stream.execution_failed", "AI stream failed", {
+        error,
+        userId,
+        chatId,
+      });
       if (!routedStandard || routingTelemetryCaptured) return;
       const outcome =
         standardTimeToFirstTokenMs === undefined
           ? "failed_before_stream"
           : "failed_during_stream";
       captureTerminalRouting(terminalStandardRoute(outcome));
-      aiLogger.warn("ai.stream.execution_failed", "AI stream failed", {
-        error,
-        userId,
-        chatId,
-      });
     },
     onAbort: () => {
       standardAttemptTrace.cancel();

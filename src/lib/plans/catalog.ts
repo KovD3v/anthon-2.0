@@ -22,7 +22,10 @@ interface PlanCatalogEntry {
 
 const MAINTENANCE_MODEL_ID = "google/gemini-2.5-flash-lite";
 const ORCHESTRATOR_MODEL_ID = "openai/gpt-5.6-luna";
-const ORCHESTRATOR_FALLBACK_MODEL_IDS = ["deepseek/deepseek-v4-flash-0731"];
+const ORCHESTRATOR_FALLBACK_MODEL_IDS = [
+  "deepseek/deepseek-v4-flash-0731",
+  "google/gemini-3.5-flash-lite",
+];
 
 const DEFAULT_VOICE_CADENCE: VoicePlanConfig["cadence"] = {
   strongMinTurns: 2,

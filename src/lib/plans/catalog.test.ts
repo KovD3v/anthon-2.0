@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { PLAN_CATALOG } from "./catalog";
 
 describe("plan catalog progression", () => {
-  it("uses the light DeepSeek revision as Luna's fallback on every plan", () => {
+  it("uses cross-provider Luna fallbacks on every plan", () => {
     for (const plan of Object.values(PLAN_CATALOG)) {
       expect(plan.modelRouting.orchestrator).toBe("openai/gpt-5.6-luna");
       expect(plan.modelRouting.orchestratorFallbacks).toEqual([
         "deepseek/deepseek-v4-flash-0731",
+        "google/gemini-3.5-flash-lite",
       ]);
     }
   });

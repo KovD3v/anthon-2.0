@@ -299,10 +299,10 @@ describe("ai/rag", () => {
           openrouter: {
             provider: {
               sort: "latency",
-              only: ["DeepInfra"],
-              allow_fallbacks: false,
+              order: ["DeepInfra", "CoreWeave", "Venice"],
+              allow_fallbacks: true,
               require_parameters: true,
-              max_price: { prompt: 0.05, completion: 0.2 },
+              max_price: { prompt: 0.1, completion: 0.25 },
             },
             reasoning: { enabled: false, max_tokens: 1 },
           },
