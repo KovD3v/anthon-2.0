@@ -54,8 +54,8 @@ describe("logger/index", () => {
   });
 
   it("emits structured info logs in development", () => {
-    const logger = createLogger("ai");
-    logger.info("ai.stream.started", "AI streaming started", {
+    const logger = createLogger("organizations");
+    logger.info("organization.stream.started", "Organization stream started", {
       chatId: "chat-1",
     });
 
@@ -68,9 +68,9 @@ describe("logger/index", () => {
       data: { chatId: string };
     };
     expect(payload.level).toBe("info");
-    expect(payload.domain).toBe("ai");
-    expect(payload.event).toBe("ai.stream.started");
-    expect(payload.message).toBe("AI streaming started");
+    expect(payload.domain).toBe("organizations");
+    expect(payload.event).toBe("organization.stream.started");
+    expect(payload.message).toBe("Organization stream started");
     expect(payload.data.chatId).toBe("chat-1");
   });
 
@@ -85,7 +85,7 @@ describe("logger/index", () => {
   });
 
   it("adds request context and propagates it inside callback", async () => {
-    const logger = createLogger("auth");
+    const logger = createLogger("organizations");
     const request = new Request("http://localhost/api/usage", {
       method: "GET",
       headers: {
@@ -97,9 +97,9 @@ describe("logger/index", () => {
       request,
       { route: "/api/usage", channel: "WEB" },
       async () => {
-        logger.info("auth.authenticated", "User authenticated");
+        logger.info("organization.authenticated", "Organization authenticated");
         await Promise.resolve();
-        logger.warn("auth.warning", "Auth warning");
+        logger.warn("organization.warning", "Organization warning");
       },
     );
 
@@ -146,17 +146,17 @@ describe("logger/index", () => {
 
   it("prints pretty format in development by default", () => {
     delete process.env.APP_LOG_FORMAT;
-    const logger = createLogger("usage");
+    const logger = createLogger("organizations");
 
-    logger.info("usage.snapshot", "Fetched usage snapshot", {
+    logger.info("organization.snapshot", "Fetched organization snapshot", {
       inputTokens: 123,
     });
 
     expect(logSpy).toHaveBeenCalledTimes(1);
     const line = stripAnsi(String(logSpy.mock.calls[0][0]));
     expect(line).toContain("INFO");
-    expect(line).toContain("usage:usage.snapshot");
-    expect(line).toContain("Fetched usage snapshot");
+    expect(line).toContain("organizations:organization.snapshot");
+    expect(line).toContain("Fetched organization snapshot");
     expect(line).toContain("inputTokens=123");
   });
 });

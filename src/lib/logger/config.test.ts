@@ -26,6 +26,20 @@ describe("logger/config", () => {
     expect(shouldLog("debug")).toBe(false);
   });
 
+  it("keeps routine chat domains quiet in development while retaining errors", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    delete process.env.APP_LOG_LEVEL;
+    delete process.env.APP_LOG_DOMAIN_LEVELS;
+    delete process.env.ENABLE_LATENCY_LOGS;
+
+    for (const domain of ["ai", "voice", "usage", "latency", "auth"] as const) {
+      expect(getConfiguredLogLevel(domain)).toBe("error");
+      expect(shouldLog("info", domain)).toBe(false);
+      expect(shouldLog("warn", domain)).toBe(false);
+      expect(shouldLog("error", domain)).toBe(true);
+    }
+  });
+
   it("defaults to silent in test", () => {
     vi.stubEnv("NODE_ENV", "test");
     delete process.env.APP_LOG_LEVEL;
@@ -83,7 +97,7 @@ describe("logger/config", () => {
 
     expect(shouldLogEvent("info", "auth", "auth.authenticated")).toBe(false);
     expect(shouldLogEvent("info", "latency", "latency.measure")).toBe(false);
-    expect(shouldLogEvent("info", "usage", "usage.snapshot")).toBe(true);
+    expect(shouldLogEvent("info", "usage", "usage.snapshot")).toBe(false);
   });
 
   it("keeps latency compatibility when ENABLE_LATENCY_LOGS is true", () => {

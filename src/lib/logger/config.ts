@@ -28,6 +28,13 @@ const VALID_DOMAINS = new Set<LogDomain>([
   "qstash",
   "maintenance",
 ]);
+const QUIET_DEVELOPMENT_DOMAINS = new Set<LogDomain>([
+  "ai",
+  "voice",
+  "usage",
+  "latency",
+  "auth",
+]);
 
 let domainLevelsCache: {
   raw: string;
@@ -53,9 +60,10 @@ function parseOutputFormat(value?: string | null): LogOutputFormat | null {
   return normalized as LogOutputFormat;
 }
 
-export function getDefaultLogLevel(): LogLevel {
+export function getDefaultLogLevel(domain?: LogDomain): LogLevel {
   if (process.env.NODE_ENV === "test") return "silent";
   if (process.env.NODE_ENV === "production") return "error";
+  if (domain && QUIET_DEVELOPMENT_DOMAINS.has(domain)) return "error";
   return "info";
 }
 
@@ -140,7 +148,7 @@ function getLatencyCompatibleLevel(baseLevel: LogLevel): LogLevel {
 export function getConfiguredLogLevel(domain?: LogDomain): LogLevel {
   const override = parseLevel(process.env.APP_LOG_LEVEL);
   const base =
-    getDomainOverrideLevel(domain) ?? override ?? getDefaultLogLevel();
+    getDomainOverrideLevel(domain) ?? override ?? getDefaultLogLevel(domain);
 
   if (domain === "latency") {
     return getLatencyCompatibleLevel(base);

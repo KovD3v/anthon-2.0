@@ -29,10 +29,8 @@ class LatencyLoggerClass {
   private logger = createLogger("latency");
 
   constructor() {
-    // Enable by default in development, or when ENABLE_LATENCY_LOGS is true
-    this.enabled =
-      process.env.NODE_ENV === "development" ||
-      process.env.ENABLE_LATENCY_LOGS === "true";
+    // Latency measurements are opt-in so normal chat requests stay quiet.
+    this.enabled = process.env.ENABLE_LATENCY_LOGS === "true";
   }
 
   /**
