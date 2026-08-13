@@ -49,17 +49,34 @@ const mocks = vi.hoisted(() => ({
   consumePendingInitialMessage: vi.fn(),
   consumePendingInitialAttachments: vi.fn(),
   consumePendingRoutineChatContext: vi.fn(),
+  createClientTraceCollector: vi.fn(),
+  submitClientTrace: vi.fn(),
+  profilingTransportOptions: [] as Array<Record<string, unknown>>,
+  clientCollectors: [] as Array<{
+    clientMessageId: string;
+    markStreamCompleted: ReturnType<typeof vi.fn>;
+    markFirstDomText: ReturnType<typeof vi.fn>;
+    markFirstVisibleFrame: ReturnType<typeof vi.fn>;
+    markPersistedMessageResolved: ReturnType<typeof vi.fn>;
+    abandon: ReturnType<typeof vi.fn>;
+  }>,
+  streamedMessages: null as Array<{
+    id: string;
+    role: "user" | "assistant";
+    parts: Array<{ type: string; text?: string }>;
+  }> | null,
 }));
 
 vi.mock("@ai-sdk/react", () => ({
   useChat: (options: {
     messages: Array<{ id: string; role: string; parts: unknown[] }>;
+    onData?: (part: { type: string; data?: unknown }) => void;
     onError?: (error: Error) => void;
     onFinish?: () => void | Promise<void>;
   }) => {
     mocks.captureChatOptions(options);
     return {
-      messages: options.messages,
+      messages: mocks.streamedMessages ?? options.messages,
       sendMessage: mocks.sendMessage,
       status: mocks.chatState.status,
       error: mocks.chatState.error,
@@ -84,6 +101,19 @@ vi.mock("ai", async (importOriginal) => {
 
 vi.mock("next/link", () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+vi.mock("@/lib/response-profiler/client-trace", () => ({
+  createClientTraceCollector: mocks.createClientTraceCollector,
+  submitClientTrace: mocks.submitClientTrace,
+}));
+
+vi.mock("@/lib/response-profiler/profiling-chat-transport", () => ({
+  ProfilingChatTransport: class ProfilingChatTransport {
+    constructor(options: Record<string, unknown>) {
+      mocks.profilingTransportOptions.push(options);
+    }
+  },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -633,6 +663,33 @@ beforeEach(() => {
   mocks.consumePendingInitialMessage.mockReturnValue(null);
   mocks.consumePendingInitialAttachments.mockReturnValue(null);
   mocks.consumePendingRoutineChatContext.mockReturnValue(null);
+  mocks.profilingTransportOptions.length = 0;
+  mocks.clientCollectors.length = 0;
+  mocks.streamedMessages = null;
+  mocks.createClientTraceCollector.mockImplementation(
+    ({ clientMessageId }: { clientMessageId: string }) => {
+      const collector = {
+        clientMessageId,
+        markStreamOpened: vi.fn(),
+        markFirstChunkReceived: vi.fn(),
+        markFirstTextDeltaReceived: vi.fn(),
+        markFirstDomText: vi.fn(),
+        markFirstVisibleFrame: vi.fn(),
+        markStreamCompleted: vi.fn(),
+        markPersistedMessageResolved: vi.fn(),
+        abandon: vi.fn(),
+        waitForPresentation: vi.fn().mockResolvedValue(undefined),
+        snapshot: vi.fn().mockReturnValue({
+          version: 1,
+          status: "partial",
+          milestones: { requestStartedMs: 0 },
+        }),
+      };
+      mocks.clientCollectors.push(collector);
+      return collector;
+    },
+  );
+  mocks.submitClientTrace.mockResolvedValue("stored");
   mocks.confirm.mockResolvedValue(true);
   mocks.refreshActiveRoutine.mockResolvedValue(null);
   mocks.sendMessage.mockResolvedValue(undefined);
@@ -676,6 +733,220 @@ describe("ChatConversationClient pagination and recovery", () => {
     expect(mocks.captureChatOptions).toHaveBeenCalledWith(
       expect.objectContaining({ throttle: 50 }),
     );
+  });
+
+  it("creates an authenticated response trace immediately before a normal send and reuses its explicit id", async () => {
+    mocks.isGuest = false;
+    const user = userEvent.setup();
+    renderConversation();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Messaggio di test" }),
+      "Domanda profilata",
+    );
+    await user.click(screen.getByRole("button", { name: "Invia test" }));
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce());
+    const collector = mocks.clientCollectors[0];
+    expect(collector).toBeDefined();
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ id: collector?.clientMessageId }),
+    );
+    expect(
+      mocks.createClientTraceCollector.mock.invocationCallOrder[0],
+    ).toBeLessThan(mocks.sendMessage.mock.invocationCallOrder[0] ?? 0);
+    expect(mocks.profilingTransportOptions).toHaveLength(1);
+  });
+
+  it("profiles pending initial, edited, and regenerated authenticated sends with stable ids", async () => {
+    mocks.isGuest = false;
+    mocks.consumePendingInitialMessage.mockReturnValueOnce(
+      "Messaggio iniziale",
+    );
+    const refreshed = {
+      ...initialChatData,
+      messages: [initialChatData.messages[0]],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(refreshed), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const view = renderConversation();
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
+    expect(mocks.sendMessage.mock.calls[0]?.[0].id).toBe(
+      mocks.clientCollectors[0]?.clientMessageId,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Modifica" }));
+    await user.click(screen.getByRole("button", { name: "Salva modifica" }));
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(2));
+    expect(mocks.clientCollectors[1]?.clientMessageId).toBe("user-new");
+    expect(mocks.sendMessage.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({ id: "user-new", messageId: "user-new" }),
+    );
+
+    mocks.streamedMessages = [
+      {
+        id: "user-new",
+        role: "user",
+        parts: [{ type: "text", text: "Domanda nuova" }],
+      },
+      {
+        id: "assistant-new",
+        role: "assistant",
+        parts: [{ type: "text", text: "Risposta nuova" }],
+      },
+    ];
+    view.rerender(
+      <ChatConversationClient
+        chatId="chat-1"
+        initialChatData={initialChatData}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Rigenera" }));
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(3));
+    expect(mocks.clientCollectors[2]?.clientMessageId).toBe("user-new");
+    expect(mocks.sendMessage.mock.calls[2]?.[0]).toEqual(
+      expect.objectContaining({ id: "user-new", messageId: "user-new" }),
+    );
+  });
+
+  it("records committed and visible assistant text only for the active profiled turn", async () => {
+    mocks.isGuest = false;
+    let frameCallback: FrameRequestCallback | undefined;
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        frameCallback = callback;
+        return 7;
+      }),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const user = userEvent.setup();
+    const view = renderConversation();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Messaggio di test" }),
+      "Mostra il testo",
+    );
+    await user.click(screen.getByRole("button", { name: "Invia test" }));
+    const collector = mocks.clientCollectors[0];
+    const clientMessageId = collector?.clientMessageId ?? "missing";
+    mocks.streamedMessages = [
+      {
+        id: clientMessageId,
+        role: "user",
+        parts: [{ type: "text", text: "Mostra il testo" }],
+      },
+      {
+        id: "assistant-stream",
+        role: "assistant",
+        parts: [{ type: "text", text: "Risposta visibile" }],
+      },
+    ];
+    view.rerender(
+      <ChatConversationClient
+        chatId="chat-1"
+        initialChatData={initialChatData}
+      />,
+    );
+
+    expect(collector?.markFirstDomText).toHaveBeenCalledOnce();
+    expect(collector?.markFirstVisibleFrame).not.toHaveBeenCalled();
+    act(() => frameCallback?.(16));
+    expect(collector?.markFirstVisibleFrame).toHaveBeenCalledOnce();
+  });
+
+  it("settles before trace ingestion, correlates persistence, and refreshes once after storage", async () => {
+    mocks.isGuest = false;
+    const traceSubmission = deferredResponse();
+    mocks.submitClientTrace.mockReturnValueOnce(
+      traceSubmission.promise.then(() => "stored"),
+    );
+    const user = userEvent.setup();
+    renderConversation();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Messaggio di test" }),
+      "Persisti profiler",
+    );
+    await user.click(screen.getByRole("button", { name: "Invia test" }));
+    const collector = mocks.clientCollectors[0];
+    const persistedData = {
+      ...initialChatData,
+      messages: [
+        ...initialChatData.messages,
+        {
+          id: "assistant-profiled",
+          role: "assistant" as const,
+          content: "Profilata",
+          parts: [{ type: "text", text: "Profilata" }],
+          sourceClientMessageId: collector?.clientMessageId,
+          createdAt: "2026-08-12T12:00:00.000Z",
+        },
+      ],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify(persistedData), { status: 200 }),
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const chatOptions = mocks.captureChatOptions.mock.calls.at(-1)?.[0] as {
+      onFinish: () => void;
+    };
+    act(() => chatOptions.onFinish());
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Invia test" })
+        .disabled,
+    ).toBe(false);
+    await waitFor(() =>
+      expect(collector?.markPersistedMessageResolved).toHaveBeenCalledOnce(),
+    );
+    expect(collector?.markStreamCompleted).toHaveBeenCalledOnce();
+    expect(mocks.submitClientTrace).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledOnce();
+
+    traceSubmission.resolve(new Response(null, { status: 204 }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mocks.setMessages).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps guest and model-comparison responses outside canonical client tracing", async () => {
+    const user = userEvent.setup();
+    const guestView = renderConversation();
+    await user.type(
+      screen.getByRole("textbox", { name: "Messaggio di test" }),
+      "Guest",
+    );
+    await user.click(screen.getByRole("button", { name: "Invia test" }));
+    expect(mocks.createClientTraceCollector).not.toHaveBeenCalled();
+    expect(mocks.profilingTransportOptions).toHaveLength(0);
+
+    guestView.unmount();
+    mocks.isGuest = false;
+    renderConversation();
+    await user.type(
+      screen.getByRole("textbox", { name: "Messaggio di test" }),
+      "Confronta",
+    );
+    await user.click(screen.getByRole("button", { name: "Invia test" }));
+    const collector = mocks.clientCollectors[0];
+    const chatOptions = mocks.captureChatOptions.mock.calls.at(-1)?.[0] as {
+      onData: (part: { type: string; data: unknown }) => void;
+    };
+    act(() => chatOptions.onData({ type: "data-modelComparison", data: {} }));
+    expect(collector?.abandon).toHaveBeenCalledOnce();
+    expect(mocks.submitClientTrace).not.toHaveBeenCalled();
   });
 
   it("settles submission before persisted messages finish refreshing", async () => {
@@ -1189,7 +1460,9 @@ describe("ChatConversationClient pagination and recovery", () => {
         expect.objectContaining({ id: "user-new" }),
       ]);
       expect(mocks.sendMessage).toHaveBeenCalledWith({
-        text: "Domanda nuova",
+        id: "user-new",
+        role: "user",
+        parts: [{ type: "text", text: "Domanda nuova" }],
         messageId: "user-new",
       });
     });

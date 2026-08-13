@@ -32,7 +32,14 @@ import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import { tryCreateModelComparisonResponse } from "@/lib/model-experiments/runtime";
 import { checkRateLimit, reconcileAiUsageForRecovery } from "@/lib/rate-limit";
-import { resolveTechnicalMetricsVisibility } from "@/lib/technical-metrics";
+import {
+  createServerTraceCollector,
+  type ServerTraceCollector,
+} from "@/lib/response-profiler/server-trace";
+import {
+  resolveTechnicalDiagnosticsVisibility,
+  resolveTechnicalMetricsVisibility,
+} from "@/lib/technical-metrics";
 import { transcribeAudio } from "@/lib/transcription";
 import { decideWebVoiceMode, getVoiceUnavailability } from "@/lib/voice";
 import { getVoicePlanConfig } from "@/lib/voice/config";
@@ -50,13 +57,16 @@ export async function handleWebChatPost(request: Request) {
     { route: "/api/chat", channel: "WEB" },
     async () => {
       const requestTimer = LatencyLogger.start("🌐 Chat API Request");
+      const traceCollector = createServerTraceCollector();
 
       try {
         // Authenticate user with Clerk
-        const clerkId = await LatencyLogger.measure(
-          "Auth: Clerk authentication",
-          () => resolveAuthenticatedClerkId(request),
-          "🌐 Chat API Request",
+        const clerkId = await traceCollector.measure("auth", () =>
+          LatencyLogger.measure(
+            "Auth: Clerk authentication",
+            () => resolveAuthenticatedClerkId(request),
+            "🌐 Chat API Request",
+          ),
         );
 
         if (!clerkId) {
@@ -142,59 +152,61 @@ export async function handleWebChatPost(request: Request) {
         }
 
         // Get or create internal user with subscription info
-        const user = await LatencyLogger.measure(
-          "DB: Find user",
-          async () => {
-            const existing = await prisma.user.findUnique({
-              where: { clerkId },
-              select: {
-                id: true,
-                role: true,
-                isGuest: true,
-                billingSyncedAt: true,
-                subscription: {
-                  select: {
-                    status: true,
-                    planId: true,
+        const user = await traceCollector.measure("user_lookup", () =>
+          LatencyLogger.measure(
+            "DB: Find user",
+            async () => {
+              const existing = await prisma.user.findUnique({
+                where: { clerkId },
+                select: {
+                  id: true,
+                  role: true,
+                  isGuest: true,
+                  billingSyncedAt: true,
+                  subscription: {
+                    select: {
+                      status: true,
+                      planId: true,
+                    },
+                  },
+                  preferences: {
+                    select: {
+                      voiceEnabled: true,
+                      showTechnicalMetrics: true,
+                    },
                   },
                 },
-                preferences: {
-                  select: {
-                    voiceEnabled: true,
-                    showTechnicalMetrics: true,
-                  },
-                },
-              },
-            });
+              });
 
-            if (existing) return existing;
+              if (existing) return existing;
 
-            // Fallback to upsert only if not found (rare case after initial signup)
-            return prisma.user.upsert({
-              where: { clerkId },
-              update: {},
-              create: { clerkId },
-              select: {
-                id: true,
-                role: true,
-                isGuest: true,
-                billingSyncedAt: true,
-                subscription: {
-                  select: {
-                    status: true,
-                    planId: true,
+              // Fallback to upsert only if not found (rare case after initial signup)
+              return prisma.user.upsert({
+                where: { clerkId },
+                update: {},
+                create: { clerkId },
+                select: {
+                  id: true,
+                  role: true,
+                  isGuest: true,
+                  billingSyncedAt: true,
+                  subscription: {
+                    select: {
+                      status: true,
+                      planId: true,
+                    },
+                  },
+                  preferences: {
+                    select: {
+                      voiceEnabled: true,
+                      showTechnicalMetrics: true,
+                    },
                   },
                 },
-                preferences: {
-                  select: {
-                    voiceEnabled: true,
-                    showTechnicalMetrics: true,
-                  },
-                },
-              },
-            });
-          },
-          "🌐 Chat API Request",
+              });
+            },
+            "🌐 Chat API Request",
+          ),
         );
 
         const routineProposalAllowed = await isRoutineFeatureEnabled({
@@ -206,48 +218,58 @@ export async function handleWebChatPost(request: Request) {
         let subscriptionStatus = user.subscription?.status;
         let planId = user.subscription?.planId;
 
-        // Verify chat ownership
-        const chat = await LatencyLogger.measure(
-          "DB: Verify chat ownership",
-          () =>
-            prisma.chat.findFirst({
-              where: { id: chatId, userId: user.id },
-              select: {
-                id: true,
-                title: true,
-                customTitle: true,
-                visibility: true,
-                _count: { select: { messages: true } },
-              },
-            }),
-          "🌐 Chat API Request",
+        // Verify chat ownership and resolve the canonical conversation thread.
+        const chatContext = await traceCollector.measure(
+          "chat_lookup",
+          async () => {
+            const chat = await LatencyLogger.measure(
+              "DB: Verify chat ownership",
+              () =>
+                prisma.chat.findFirst({
+                  where: { id: chatId, userId: user.id },
+                  select: {
+                    id: true,
+                    title: true,
+                    customTitle: true,
+                    visibility: true,
+                    _count: { select: { messages: true } },
+                  },
+                }),
+              "🌐 Chat API Request",
+            );
+            if (!chat) return { chat: null, conversationThread: null };
+
+            const conversationThread = await ensureConversationThread({
+              userId: user.id,
+              channel: "WEB",
+              externalThreadId: chatId,
+              chatId,
+            });
+            return { chat, conversationThread };
+          },
         );
 
-        if (!chat) {
+        if (!chatContext.chat || !chatContext.conversationThread) {
           return Response.json(
             { error: "Chat not found or access denied" },
             { status: 404 },
           );
         }
-
-        const conversationThread = await ensureConversationThread({
-          userId: user.id,
-          channel: "WEB",
-          externalThreadId: chatId,
-          chatId,
-        });
+        const { chat, conversationThread } = chatContext;
 
         let existingInbound: Awaited<
           ReturnType<typeof findExistingWebInboundMessage>
         >;
         try {
-          existingInbound = await findExistingWebInboundMessage({
-            userId: user.id,
-            chatId,
-            conversationThreadId: conversationThread.id,
-            clientMessageId,
-            payloadHash: clientPayloadHash,
-          });
+          existingInbound = await traceCollector.measure("inbound_claim", () =>
+            findExistingWebInboundMessage({
+              userId: user.id,
+              chatId,
+              conversationThreadId: conversationThread.id,
+              clientMessageId,
+              payloadHash: clientPayloadHash,
+            }),
+          );
         } catch (error) {
           if (error instanceof WebInboundConflictError) {
             return Response.json(
@@ -278,18 +300,22 @@ export async function handleWebChatPost(request: Request) {
           (!subscriptionStatus || !planId || subscriptionStatus === "TRIAL");
 
         if (shouldSyncSubscription) {
-          const syncedSubscription = await LatencyLogger.measure(
-            "Billing: Sync personal subscription",
+          const syncedSubscription = await traceCollector.measure(
+            "billing_sync",
             () =>
-              syncPersonalSubscriptionFromClerk({
-                userId: user.id,
-                clerkUserId: clerkId,
-                current: {
-                  status: subscriptionStatus,
-                  planId,
-                },
-              }),
-            "🌐 Chat API Request",
+              LatencyLogger.measure(
+                "Billing: Sync personal subscription",
+                () =>
+                  syncPersonalSubscriptionFromClerk({
+                    userId: user.id,
+                    clerkUserId: clerkId,
+                    current: {
+                      status: subscriptionStatus,
+                      planId,
+                    },
+                  }),
+                "🌐 Chat API Request",
+              ),
           );
 
           subscriptionStatus = syncedSubscription?.status ?? subscriptionStatus;
@@ -298,17 +324,19 @@ export async function handleWebChatPost(request: Request) {
 
         // Check rate limit after ownership verification so missing or
         // inaccessible chats do not consume quota.
-        const rateLimitResult = await LatencyLogger.measure(
-          "Rate Limit: Check limits",
-          () =>
-            checkRateLimit(
-              user.id,
-              subscriptionStatus,
-              user.role,
-              planId,
-              user.isGuest,
-            ),
-          "🌐 Chat API Request",
+        const rateLimitResult = await traceCollector.measure("rate_limit", () =>
+          LatencyLogger.measure(
+            "Rate Limit: Check limits",
+            () =>
+              checkRateLimit(
+                user.id,
+                subscriptionStatus,
+                user.role,
+                planId,
+                user.isGuest,
+              ),
+            "🌐 Chat API Request",
+          ),
         );
 
         if (!rateLimitResult.allowed) {
@@ -332,12 +360,12 @@ export async function handleWebChatPost(request: Request) {
           ReturnType<typeof resolveOwnedWebMessageParts>
         >;
         try {
-          resolvedMessageParts = await resolveOwnedWebMessageParts(
-            lastUserMessage,
-            user.id,
-            {
-              allowedExistingInboundMessageId: existingInbound?.id,
-            },
+          resolvedMessageParts = await traceCollector.measure(
+            "attachment_resolution",
+            () =>
+              resolveOwnedWebMessageParts(lastUserMessage, user.id, {
+                allowedExistingInboundMessageId: existingInbound?.id,
+              }),
           );
         } catch (error) {
           if (error instanceof WebAttachmentInputError) {
@@ -363,20 +391,22 @@ export async function handleWebChatPost(request: Request) {
         try {
           inboundClaim = existingInbound
             ? { message: existingInbound, created: false }
-            : await LatencyLogger.measure(
-                "DB: Claim user message",
-                () =>
-                  claimWebInboundMessage({
-                    userId: user.id,
-                    chatId,
-                    conversationThreadId: conversationThread.id,
-                    clientMessageId,
-                    payloadHash: clientPayloadHash,
-                    parts:
-                      resolvedMessageParts.persistedParts as Prisma.InputJsonValue,
-                    attachmentIds: resolvedMessageParts.attachmentIds,
-                  }),
-                "🌐 Chat API Request",
+            : await traceCollector.measure("inbound_claim", () =>
+                LatencyLogger.measure(
+                  "DB: Claim user message",
+                  () =>
+                    claimWebInboundMessage({
+                      userId: user.id,
+                      chatId,
+                      conversationThreadId: conversationThread.id,
+                      clientMessageId,
+                      payloadHash: clientPayloadHash,
+                      parts:
+                        resolvedMessageParts.persistedParts as Prisma.InputJsonValue,
+                      attachmentIds: resolvedMessageParts.attachmentIds,
+                    }),
+                  "🌐 Chat API Request",
+                ),
               );
         } catch (error) {
           if (error instanceof WebInboundConflictError) {
@@ -410,6 +440,7 @@ export async function handleWebChatPost(request: Request) {
             messageParts,
             userId: user.id,
             normalizedUserMessageText,
+            traceCollector,
           });
           aiMessageParts = preparedInput.parts;
           aiUserMessageText = preparedInput.userMessageText;
@@ -534,6 +565,20 @@ export async function handleWebChatPost(request: Request) {
           },
         );
 
+        const includeTechnicalMetrics = resolveTechnicalMetricsVisibility({
+          role: user.role,
+          preference: user.preferences?.showTechnicalMetrics,
+          isGuest: user.isGuest,
+          isPrivateOwner: chat.visibility === "PRIVATE",
+        });
+        const includeTechnicalDiagnostics =
+          resolveTechnicalDiagnosticsVisibility({
+            role: user.role,
+            preference: user.preferences?.showTechnicalMetrics,
+            isGuest: user.isGuest,
+            isPrivateOwner: chat.visibility === "PRIVATE",
+          });
+
         if (voiceDecision.mode === "VOICE") {
           const voiceResponse = await handleVoiceFirstWebResponse({
             userId: user.id,
@@ -557,6 +602,9 @@ export async function handleWebChatPost(request: Request) {
             voiceDecision,
             routineProposalAllowed,
             abortSignal: request.signal,
+            includeTechnicalMetrics,
+            includeTechnicalDiagnostics,
+            traceCollector,
             waitUntil,
           });
 
@@ -641,12 +689,9 @@ export async function handleWebChatPost(request: Request) {
           execution: {
             mode: "stream",
             abortSignal: request.signal,
-            includeTechnicalMetrics: resolveTechnicalMetricsVisibility({
-              role: user.role,
-              preference: user.preferences?.showTechnicalMetrics,
-              isGuest: user.isGuest,
-              isPrivateOwner: chat.visibility === "PRIVATE",
-            }),
+            includeTechnicalMetrics,
+            includeTechnicalDiagnostics,
+            traceCollector,
           },
           persistence: {
             channel: "WEB",
@@ -698,10 +743,12 @@ async function prepareWebMessageForAi({
   messageParts,
   userId,
   normalizedUserMessageText,
+  traceCollector,
 }: {
   messageParts: ChannelMessagePart[];
   userId: string;
   normalizedUserMessageText: string;
+  traceCollector: ServerTraceCollector;
 }) {
   const aiMessageParts: ChannelMessagePart[] = [];
   const transcriptTexts: string[] = [];
@@ -715,20 +762,27 @@ async function prepareWebMessageForAi({
     if (!part.data?.trim()) {
       throw new Error("Web audio message has no canonical Blob URL");
     }
+    const mediaUrl = part.data;
+    const mediaType = part.mimeType;
 
-    const audioBytes = await loadTrustedRemoteMedia({
-      url: part.data,
-      mediaType: part.mimeType,
-      expectedSize: part.size,
-    });
+    const transcript = await traceCollector.measure(
+      "transcription",
+      async () => {
+        const audioBytes = await loadTrustedRemoteMedia({
+          url: mediaUrl,
+          mediaType,
+          expectedSize: part.size,
+        });
 
-    const transcript = await transcribeAudio({
-      base64: Buffer.from(audioBytes).toString("base64"),
-      mimeType: part.mimeType,
-      title: "Web Chat",
-      userId,
-      source: "WEB",
-    });
+        return transcribeAudio({
+          base64: Buffer.from(audioBytes).toString("base64"),
+          mimeType: mediaType,
+          title: "Web Chat",
+          userId,
+          source: "WEB",
+        });
+      },
+    );
 
     transcriptTexts.push(transcript.text);
   }
@@ -870,6 +924,9 @@ async function handleVoiceFirstWebResponse({
   voiceDecision,
   routineProposalAllowed,
   abortSignal,
+  includeTechnicalMetrics,
+  includeTechnicalDiagnostics,
+  traceCollector,
   waitUntil: schedule,
 }: {
   userId: string;
@@ -889,6 +946,9 @@ async function handleVoiceFirstWebResponse({
   voiceDecision: Awaited<ReturnType<typeof decideWebVoiceMode>>;
   routineProposalAllowed: boolean;
   abortSignal?: AbortSignal;
+  includeTechnicalMetrics: boolean;
+  includeTechnicalDiagnostics: boolean;
+  traceCollector: ServerTraceCollector;
   waitUntil?: (promise: Promise<unknown>) => void;
 }) {
   const flowResult = await runChannelFlow({
@@ -923,7 +983,13 @@ async function handleVoiceFirstWebResponse({
       voiceEnabled: true,
       routineProposalAllowed,
     },
-    execution: { mode: "text", abortSignal },
+    execution: {
+      mode: "text",
+      abortSignal,
+      includeTechnicalMetrics,
+      includeTechnicalDiagnostics,
+      traceCollector,
+    },
     persistence: {
       channel: "WEB",
       saveAssistantMessage: false,
@@ -983,6 +1049,7 @@ async function handleVoiceFirstWebResponse({
       usageReservationId: flowResult.usageReservationId,
       usageReservationClaimToken: flowResult.usageReservationClaimToken,
       usageAlreadyReconciled: flowResult.usageAlreadyReconciled,
+      traceCollector,
       voiceGeneration: { expiresAt: voiceGenerationExpiresAt },
     });
   } catch (error) {

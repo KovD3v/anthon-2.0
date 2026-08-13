@@ -567,14 +567,20 @@ export async function runChannelFlow(
     );
   }
 
-  const usageReservation =
-    ctx.userMessageId && ctx.rateLimit.effectiveEntitlements
-      ? await reserveAiUsage({
-          userId: ctx.userId,
-          requestKey: ctx.userMessageId,
-          limits: ctx.rateLimit.effectiveEntitlements.limits,
-        })
-      : undefined;
+  const reservationEntitlements = ctx.rateLimit.effectiveEntitlements;
+  let usageReservation: Awaited<ReturnType<typeof reserveAiUsage>> | undefined;
+  if (ctx.userMessageId && reservationEntitlements) {
+    const requestKey = ctx.userMessageId;
+    const reserve = () =>
+      reserveAiUsage({
+        userId: ctx.userId,
+        requestKey,
+        limits: reservationEntitlements.limits,
+      });
+    usageReservation = ctx.execution?.traceCollector
+      ? await ctx.execution.traceCollector.measure("rate_limit", reserve)
+      : await reserve();
+  }
   if (usageReservation && !usageReservation.allowed) {
     return {
       assistantText: "",
@@ -706,6 +712,7 @@ export async function runChannelFlow(
         usageReservationClaimToken,
         usageAlreadyReconciled,
         externalInboundClaimToken: ctx.persistence?.externalInboundClaimToken,
+        traceCollector: ctx.execution?.traceCollector,
       });
       persistence = { status: "saved", messageId: message.id };
       markUsageReservationSettled();
@@ -871,8 +878,10 @@ export async function runChannelFlow(
 
   const generationAbortController = new AbortController();
   const requestAbortSignal = ctx.execution?.abortSignal;
-  const forwardRequestAbort = () =>
+  const forwardRequestAbort = () => {
+    ctx.execution?.traceCollector?.markCancelled();
     generationAbortController.abort(requestAbortSignal?.reason);
+  };
   generationAbortController.signal.addEventListener(
     "abort",
     () => {
@@ -948,6 +957,8 @@ export async function runChannelFlow(
       skipConversationHistory: ctx.ai?.skipConversationHistory,
       preparedTurnContext,
       routineProposalAllowed: ctx.ai?.routineProposalAllowed !== false,
+      traceCollector: ctx.execution?.traceCollector,
+      includeTechnicalDiagnostics: ctx.execution?.includeTechnicalDiagnostics,
       abortSignal: generationAbortController.signal,
       onFinish: async ({
         text,
@@ -1082,6 +1093,9 @@ export async function runChannelFlow(
                     if (done) break;
                     if (value.type === "error" || value.type === "abort") {
                       sourceErrored = true;
+                      if (value.type === "abort") {
+                        ctx.execution?.traceCollector?.markCancelled();
+                      }
                       if (!generationAbortController.signal.aborted) {
                         generationAbortController.abort(value.type);
                       }
@@ -1129,6 +1143,7 @@ export async function runChannelFlow(
           const cancellationAwareBody = withCancellation(
             response.body,
             async (reason) => {
+              ctx.execution?.traceCollector?.markCancelled();
               if (!generationAbortController.signal.aborted) {
                 generationAbortController.abort(reason);
               }

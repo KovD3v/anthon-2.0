@@ -5,10 +5,15 @@ import {
   Clock3,
   Cpu,
   Database,
-  Gauge,
   Route,
 } from "lucide-react";
+import { deriveResponseProfilerSummary } from "@/lib/response-profiler/summary";
 import type { Usage } from "@/types/chat";
+import { BrowserTimeline } from "./technical-metrics/BrowserTimeline";
+import { LegacyLatencyTimeline } from "./technical-metrics/LegacyLatencyTimeline";
+import { ProfilerSummary } from "./technical-metrics/ProfilerSummary";
+import { RagToolDiagnostics } from "./technical-metrics/RagToolDiagnostics";
+import { ServerTimeline } from "./technical-metrics/ServerTimeline";
 
 interface TechnicalMetricsDetailsProps {
   usage: Usage | undefined;
@@ -74,6 +79,13 @@ function formatBytesFromChars(value: number | undefined) {
   }).format(value / 1000)}k caratteri`;
 }
 
+function toggleDetailsFromKeyboard(event: React.KeyboardEvent<HTMLElement>) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  const details = event.currentTarget.closest("details");
+  if (details) details.open = !details.open;
+}
+
 function MetricValue({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
@@ -111,6 +123,7 @@ export function TechnicalMetricsDetails({
   if (!usage) return null;
 
   const routeTrace = usage.executionRoute;
+  const profilerSummary = deriveResponseProfilerSummary(usage);
   const totalTokens = usage.inputTokens + usage.outputTokens;
   const generationDuration = formatDuration(usage.generationTimeMs);
   const cost = formatCost(usage.cost);
@@ -121,16 +134,25 @@ export function TechnicalMetricsDetails({
       routeTrace ||
       usage.toolTiming ||
       usage.memoryRecall ||
-      usage.ragAttempted !== undefined,
+      usage.ragAttempted !== undefined ||
+      usage.serverTrace ||
+      usage.clientTrace ||
+      usage.developerDiagnostics,
   );
 
   if (!hasRichDiagnostics) {
     return (
       <details className="mt-2 min-w-0 max-w-full border-border/50 border-t pt-2 text-xs text-muted-foreground">
-        <summary className="cursor-pointer font-medium text-foreground/80 marker:text-muted-foreground">
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: Native summary control gets a JSDOM-compatible keyboard fallback. */}
+        <summary
+          tabIndex={0}
+          onKeyDown={toggleDetailsFromKeyboard}
+          className="cursor-pointer font-medium text-foreground/80 marker:text-muted-foreground"
+        >
           Dettagli tecnici
         </summary>
         <div className="mt-2 flex min-w-0 max-w-full flex-wrap gap-x-3 gap-y-1 break-words">
+          <span className="font-medium text-foreground">Dati legacy</span>
           <span>{formatCount(totalTokens)} token totali</span>
           <span>{formatCount(usage.inputTokens)} in ingresso</span>
           <span>{formatCount(usage.outputTokens)} in uscita</span>
@@ -140,22 +162,9 @@ export function TechnicalMetricsDetails({
     );
   }
 
-  const latencyRows = [
-    routeTrace?.totalRequestTimeToFirstTokenMs !== undefined
-      ? {
-          label: "TTFT totale",
-          value: routeTrace.totalRequestTimeToFirstTokenMs,
-          emphasis: true,
-        }
-      : null,
-    usage.generationTimeMs !== undefined
+  const recordedDurationRows = [
+    !routeTrace && usage.generationTimeMs !== undefined
       ? { label: "Generazione", value: usage.generationTimeMs }
-      : null,
-    routeTrace
-      ? { label: "Classificazione", value: routeTrace.classificationLatencyMs }
-      : null,
-    routeTrace
-      ? { label: "Routing", value: routeTrace.routingOverheadMs }
       : null,
     usage.reasoningTimeMs !== undefined
       ? { label: "Reasoning", value: usage.reasoningTimeMs }
@@ -175,18 +184,28 @@ export function TechnicalMetricsDetails({
           value: usage.toolTiming.finalModelStepMs,
         }
       : null,
-  ].filter(
-    (row): row is { label: string; value: number; emphasis?: boolean } =>
-      row !== null,
-  );
-  const maxLatency = Math.max(...latencyRows.map((row) => row.value), 1);
+  ].filter((row): row is { label: string; value: number } => row !== null);
+  const headerDuration =
+    profilerSummary.perceivedCompletionMs !== undefined
+      ? {
+          label: "Risposta",
+          value: formatDuration(profilerSummary.perceivedCompletionMs),
+        }
+      : generationDuration
+        ? { label: "Generazione", value: generationDuration }
+        : null;
 
   return (
     <details
       open={hasRichDiagnostics || undefined}
       className="group/metrics mt-3 min-w-0 max-w-full overflow-hidden rounded-xl border border-border/70 bg-muted/25 text-xs text-muted-foreground open:bg-muted/40"
     >
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-inset [&::-webkit-details-marker]:hidden">
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: Native summary control gets a JSDOM-compatible keyboard fallback. */}
+      <summary
+        tabIndex={0}
+        onKeyDown={toggleDetailsFromKeyboard}
+        className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-inset [&::-webkit-details-marker]:hidden"
+      >
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
           <Activity className="h-3.5 w-3.5" aria-hidden="true" />
         </span>
@@ -196,20 +215,25 @@ export function TechnicalMetricsDetails({
             {PROFILE_LABELS[profile]}
           </span>
         )}
-        {generationDuration && (
-          <span className="ml-auto font-medium tabular-nums text-foreground/80">
-            {generationDuration}
+        {headerDuration && (
+          <span className="ml-auto flex items-baseline gap-1 font-medium tabular-nums text-foreground/80">
+            <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+              {headerDuration.label}
+            </span>
+            {headerDuration.value}
           </span>
         )}
         <ChevronDown
-          className={`${generationDuration ? "" : "ml-auto"} h-3.5 w-3.5 shrink-0 transition-transform duration-200 group-open/metrics:rotate-180`}
+          className={`${headerDuration ? "" : "ml-auto"} h-3.5 w-3.5 shrink-0 transition-transform duration-200 group-open/metrics:rotate-180`}
           aria-hidden="true"
         />
       </summary>
 
       <div className="border-border/60 border-t">
+        <ProfilerSummary usage={usage} summary={profilerSummary} />
+
         {(usage.model || profile || usage.provider || routeTrace) && (
-          <section className="px-3 py-3">
+          <section className="border-border/60 border-t px-3 py-3">
             <SectionTitle icon={Cpu}>Esecuzione</SectionTitle>
             <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
               {usage.model && (
@@ -274,32 +298,37 @@ export function TechnicalMetricsDetails({
           </section>
         )}
 
-        {latencyRows.length > 0 && (
+        {usage.serverTrace ? (
+          <ServerTimeline trace={usage.serverTrace} summary={profilerSummary} />
+        ) : null}
+
+        {usage.clientTrace ? (
+          <BrowserTimeline summary={profilerSummary} />
+        ) : null}
+
+        {!usage.serverTrace && routeTrace ? (
+          <LegacyLatencyTimeline usage={usage} />
+        ) : null}
+
+        {usage.developerDiagnostics && (
+          <RagToolDiagnostics diagnostics={usage.developerDiagnostics} />
+        )}
+
+        {recordedDurationRows.length > 0 && (
           <section className="border-border/60 border-t px-3 py-3">
-            <SectionTitle icon={Gauge}>Profiler latenza</SectionTitle>
-            <ul className="space-y-2" aria-label="Profiler latenza">
-              {latencyRows.map((row) => (
-                <li
-                  key={row.label}
-                  className="grid grid-cols-[minmax(6.5rem,8rem)_minmax(3rem,1fr)_auto] items-center gap-2"
-                >
-                  <span className="truncate" title={row.label}>
+            <SectionTitle icon={Clock3}>Durate registrate</SectionTitle>
+            <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
+              {recordedDurationRows.map((row) => (
+                <div key={row.label} className="min-w-0">
+                  <dt className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
                     {row.label}
-                  </span>
-                  <span className="h-1.5 overflow-hidden rounded-full bg-border/70">
-                    <span
-                      className={`block h-full rounded-full ${row.emphasis ? "bg-primary" : "bg-foreground/45"}`}
-                      style={{
-                        width: `${Math.max(3, (row.value / maxLatency) * 100)}%`,
-                      }}
-                    />
-                  </span>
-                  <span className="min-w-14 text-right font-medium tabular-nums text-foreground">
+                  </dt>
+                  <dd className="mt-0.5 font-medium tabular-nums text-foreground">
                     {formatDuration(row.value)}
-                  </span>
-                </li>
+                  </dd>
+                </div>
               ))}
-            </ul>
+            </dl>
           </section>
         )}
 

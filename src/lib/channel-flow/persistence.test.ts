@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   messageFindUnique: vi.fn(),
   messageUpdate: vi.fn(),
   messageMetricsCreate: vi.fn(),
+  messageMetricsUpdate: vi.fn(),
   voiceGenerationJobCreate: vi.fn(),
   chatUpdate: vi.fn(),
   incrementUsage: vi.fn(),
@@ -14,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   markMemoryApprovalPresented: vi.fn(),
   captureAiTurnTrace: vi.fn(),
   revalidateTag: vi.fn(),
+  loggerWarn: vi.fn(),
+  loggerError: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -26,11 +29,19 @@ vi.mock("@/lib/db", () => ({
     },
     messageMetrics: {
       create: mocks.messageMetricsCreate,
+      update: mocks.messageMetricsUpdate,
     },
     chat: {
       update: mocks.chatUpdate,
     },
   },
+}));
+
+vi.mock("@/lib/logger", () => ({
+  createLogger: () => ({
+    warn: mocks.loggerWarn,
+    error: mocks.loggerError,
+  }),
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -57,6 +68,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import type { ExecutionRouteTrace } from "@/lib/ai/execution-route-trace";
+import { createServerTraceCollector } from "@/lib/response-profiler/server-trace";
 import {
   markVoiceCapabilityDelivered,
   persistAssistantOutput,
@@ -115,6 +127,7 @@ describe("channel-flow/persistence", () => {
     mocks.messageFindUnique.mockReset();
     mocks.messageUpdate.mockReset();
     mocks.messageMetricsCreate.mockReset();
+    mocks.messageMetricsUpdate.mockReset();
     mocks.voiceGenerationJobCreate.mockReset();
     mocks.chatUpdate.mockReset();
     mocks.incrementUsage.mockReset();
@@ -123,6 +136,8 @@ describe("channel-flow/persistence", () => {
     mocks.markMemoryApprovalPresented.mockReset();
     mocks.captureAiTurnTrace.mockReset();
     mocks.revalidateTag.mockReset();
+    mocks.loggerWarn.mockReset();
+    mocks.loggerError.mockReset();
 
     mocks.transaction.mockImplementation(async (callback) =>
       callback({
@@ -138,6 +153,7 @@ describe("channel-flow/persistence", () => {
     mocks.messageCreate.mockResolvedValue({ id: "msg-1" });
     mocks.messageUpdate.mockResolvedValue({ id: "msg-1" });
     mocks.messageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
+    mocks.messageMetricsUpdate.mockResolvedValue({ id: "metrics-1" });
     mocks.voiceGenerationJobCreate.mockResolvedValue({ id: "voice-job-1" });
     mocks.chatUpdate.mockResolvedValue({});
     mocks.incrementUsage.mockResolvedValue({});
@@ -1015,6 +1031,7 @@ describe("channel-flow/persistence", () => {
   });
 
   it("persists normalized scalar metrics without raw provider or reasoning data", async () => {
+    vi.stubEnv("NODE_ENV", "production");
     const providerMetadata = {
       openrouter: {
         provider: "Fireworks",
@@ -1053,6 +1070,11 @@ describe("channel-flow/persistence", () => {
         costUsd: 0.003,
         generationTimeMs: 1000,
         reasoningTimeMs: 50,
+        developerDiagnostics: {
+          version: 1,
+          tools: [],
+          truncated: false,
+        },
       } as never,
       allowMemoryExtraction: false,
     });
@@ -1078,12 +1100,288 @@ describe("channel-flow/persistence", () => {
         },
         ragUsed: true,
         ragChunksCount: 4,
+        developerDiagnostics: {
+          version: 1,
+          tools: [],
+          truncated: false,
+        },
       },
     });
     const persistedMetrics = mocks.messageMetricsCreate.mock.calls[0]?.[0].data;
     expect(persistedMetrics).not.toHaveProperty("providerMetadata");
     expect(persistedMetrics).not.toHaveProperty("reasoningContent");
     expect(JSON.stringify(persistedMetrics)).not.toContain("private reasoning");
+  });
+
+  it("stores a partial trace atomically and finalizes persistence timing", async () => {
+    let clock = 0;
+    const traceCollector = createServerTraceCollector({ now: () => clock });
+    const auth = traceCollector.startSpan("auth");
+    clock = 10;
+    auth.end();
+    mocks.messageCreate.mockImplementation(async () => {
+      clock = 20;
+      return { id: "msg-profiled" };
+    });
+    mocks.transaction.mockImplementation(async (callback) => {
+      const result = await callback({
+        message: {
+          create: mocks.messageCreate,
+          findUnique: mocks.messageFindUnique,
+          update: mocks.messageUpdate,
+        },
+        messageMetrics: { create: mocks.messageMetricsCreate },
+        voiceGenerationJob: { create: mocks.voiceGenerationJobCreate },
+      });
+      clock = 40;
+      return result;
+    });
+
+    await persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        inputTokens: 1,
+        outputTokens: 2,
+        reasoningTokens: 0,
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.001,
+        generationTimeMs: 30,
+        reasoningTimeMs: 0,
+      },
+      allowMemoryExtraction: false,
+      traceCollector,
+    });
+
+    expect(mocks.messageMetricsCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        messageId: "msg-profiled",
+        serverTrace: {
+          version: 1,
+          status: "partial",
+          totalMs: 20,
+          spans: [
+            expect.objectContaining({
+              name: "auth",
+              durationMs: 10,
+            }),
+          ],
+        },
+      }),
+    });
+    expect(mocks.messageMetricsUpdate).toHaveBeenCalledWith({
+      where: { messageId: "msg-profiled" },
+      data: {
+        serverTrace: {
+          version: 1,
+          status: "completed",
+          totalMs: 40,
+          spans: [
+            expect.objectContaining({ name: "auth", durationMs: 10 }),
+            expect.objectContaining({
+              name: "assistant_persistence",
+              startOffsetMs: 10,
+              durationMs: 30,
+              status: "completed",
+            }),
+          ],
+        },
+      },
+    });
+  });
+
+  it("keeps a successful assistant response when trace finalization fails", async () => {
+    const traceCollector = createServerTraceCollector({ now: () => 10 });
+    mocks.messageCreate.mockResolvedValue({ id: "msg-created" });
+    mocks.messageMetricsUpdate.mockRejectedValue(
+      new Error("trace write failed"),
+    );
+
+    const result = await persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        inputTokens: 1,
+        outputTokens: 2,
+        reasoningTokens: 0,
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.001,
+        generationTimeMs: 10,
+        reasoningTimeMs: 0,
+      },
+      allowMemoryExtraction: false,
+      traceCollector,
+    });
+
+    expect(result).toEqual({ id: "msg-created" });
+    await vi.waitFor(() =>
+      expect(mocks.loggerWarn).toHaveBeenCalledWith(
+        "profiler.server_trace_finalize_failed",
+        "Failed finalizing server response trace",
+        { messageId: "msg-created", errorName: "Error" },
+      ),
+    );
+  });
+
+  it("does not delay the assistant result while server trace finalization is pending", async () => {
+    const traceCollector = createServerTraceCollector({ now: () => 10 });
+    let resolveFinalization: (() => void) | undefined;
+    mocks.messageMetricsUpdate.mockReturnValue(
+      new Promise((resolve) => {
+        resolveFinalization = () => resolve({ id: "metrics-1" });
+      }),
+    );
+
+    const resultPromise = persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        inputTokens: 1,
+        outputTokens: 2,
+        reasoningTokens: 0,
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.001,
+        generationTimeMs: 10,
+        reasoningTimeMs: 0,
+      },
+      allowMemoryExtraction: false,
+      traceCollector,
+    });
+
+    await vi.waitFor(() =>
+      expect(mocks.messageMetricsUpdate).toHaveBeenCalledOnce(),
+    );
+    const resolvedWithoutFinalization = await Promise.race([
+      resultPromise.then(() => true),
+      new Promise<false>((resolve) => setTimeout(() => resolve(false), 0)),
+    ]);
+
+    expect(resolvedWithoutFinalization).toBe(true);
+    resolveFinalization?.();
+    await resultPromise;
+  });
+
+  it("closes assistant persistence as failed when the primary transaction rejects", async () => {
+    let clock = 0;
+    const traceCollector = createServerTraceCollector({ now: () => clock });
+    const persistenceError = new Error("primary persistence failed");
+    mocks.transaction.mockImplementation(async () => {
+      clock = 25;
+      throw persistenceError;
+    });
+
+    await expect(
+      persistAssistantOutput({
+        userId: "user-1",
+        chatId: "chat-1",
+        channel: "WEB",
+        text: "assistant",
+        userMessageText: "hello",
+        metrics: {
+          model: "test-model",
+          inputTokens: 1,
+          outputTokens: 2,
+          reasoningTokens: 0,
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.001,
+          generationTimeMs: 10,
+          reasoningTimeMs: 0,
+        },
+        allowMemoryExtraction: false,
+        traceCollector,
+      }),
+    ).rejects.toBe(persistenceError);
+
+    expect(traceCollector.snapshot("partial").spans).toEqual([
+      expect.objectContaining({
+        name: "assistant_persistence",
+        durationMs: 25,
+        status: "failed",
+      }),
+    ]);
+  });
+
+  it("does not overwrite trace data when an inbound response is reused", async () => {
+    const traceCollector = createServerTraceCollector({ now: () => 10 });
+    mocks.messageFindUnique.mockResolvedValue({
+      id: "msg-existing",
+      userId: "user-1",
+    });
+
+    const result = await persistAssistantOutput({
+      userId: "user-1",
+      userMessageId: "inbound-existing",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        inputTokens: 1,
+        outputTokens: 2,
+        reasoningTokens: 0,
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.001,
+        generationTimeMs: 10,
+        reasoningTimeMs: 0,
+      },
+      allowMemoryExtraction: false,
+      traceCollector,
+    });
+
+    expect(result).toEqual({ id: "msg-existing", userId: "user-1" });
+    expect(mocks.messageMetricsCreate).not.toHaveBeenCalled();
+    expect(mocks.messageMetricsUpdate).not.toHaveBeenCalled();
+  });
+
+  it("preserves metrics persistence behavior when no collector is provided", async () => {
+    await persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        inputTokens: 1,
+        outputTokens: 2,
+        reasoningTokens: 0,
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.001,
+        generationTimeMs: 10,
+        reasoningTimeMs: 0,
+      },
+      allowMemoryExtraction: false,
+    });
+
+    expect(mocks.messageMetricsCreate).toHaveBeenCalledWith({
+      data: expect.not.objectContaining({ serverTrace: expect.anything() }),
+    });
+    expect(mocks.messageMetricsUpdate).not.toHaveBeenCalled();
   });
 
   it("persists provider selected from normalized OpenRouter selected_provider metadata", async () => {

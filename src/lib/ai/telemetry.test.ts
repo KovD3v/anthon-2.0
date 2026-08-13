@@ -17,6 +17,7 @@ vi.mock("@/lib/logger", () => ({
 import {
   captureAiExecutionRouting,
   captureAiGenerationMetadata,
+  captureClientTraceStored,
 } from "./telemetry";
 
 describe("captureAiGenerationMetadata", () => {
@@ -68,6 +69,17 @@ describe("captureAiGenerationMetadata", () => {
           systemPrompt: "SECRET_SYSTEM_PROMPT",
           output: "SECRET_OUTPUT",
         },
+        serverTrace: {
+          version: 1,
+          status: "completed",
+          totalMs: 123,
+          spans: [
+            {
+              name: "model_stream",
+              provider: "SECRET_TRACE_PROVIDER",
+            },
+          ],
+        },
       } as never,
     });
 
@@ -98,6 +110,7 @@ describe("captureAiGenerationMetadata", () => {
       "SECRET_SYSTEM_PROMPT",
       "SECRET_OUTPUT",
       "SECRET_PROVIDER_PAYLOAD",
+      "SECRET_TRACE_PROVIDER",
     ]) {
       expect(captured).not.toContain(secret);
     }
@@ -359,5 +372,88 @@ describe("captureAiGenerationMetadata", () => {
         total_cost_usd: 0.007,
       }),
     });
+  });
+});
+
+describe("captureClientTraceStored", () => {
+  beforeEach(() => {
+    mocks.capture.mockReset();
+    mocks.getPostHogClient.mockReset();
+    mocks.warn.mockReset();
+    mocks.getPostHogClient.mockReturnValue({ capture: mocks.capture });
+  });
+
+  it("captures only owned-row labels and scalar browser milestones", () => {
+    captureClientTraceStored({
+      distinctId: "user-1",
+      model: "standard-model",
+      provider: "Nebius",
+      trace: {
+        version: 1,
+        status: "completed",
+        milestones: {
+          requestStartedMs: 0,
+          streamOpenedMs: 10,
+          firstChunkReceivedMs: 20,
+          firstTextDeltaReceivedMs: 30,
+          firstDomTextMs: 40,
+          firstVisibleFrameMs: 50,
+          streamCompletedMs: 60,
+          persistedMessageResolvedMs: 70,
+        },
+      },
+      executionRoute: {
+        schemaVersion: 1,
+        routingMode: "active",
+        policyVersion: 1,
+        classifierVersion: 1,
+        eligibleProfile: "light",
+        plannedProfile: "light",
+        executedProfile: "standard",
+        taskKind: "rewrite",
+        decisionSource: "classifier",
+        confidenceBucket: "high",
+        reasonCodes: [],
+        classificationLatencyMs: 10,
+        routingOverheadMs: 2,
+        attempts: [
+          {
+            sequence: 1,
+            profile: "light",
+            outcome: "failed_before_stream",
+            generationTimeMs: 30,
+          },
+          {
+            sequence: 2,
+            profile: "standard",
+            outcome: "completed",
+            generationTimeMs: 100,
+          },
+        ],
+        escalation: {
+          from: "light",
+          to: "standard",
+          reason: "provider_error",
+        },
+      },
+    });
+
+    expect(mocks.capture).toHaveBeenCalledWith({
+      distinctId: "user-1",
+      event: "ai_client_response_trace",
+      properties: {
+        client_trace_status: "completed",
+        first_delta_ms: 30,
+        first_visible_ms: 50,
+        perceived_completion_ms: 60,
+        model: "standard-model",
+        provider: "Nebius",
+        executed_profile: "standard",
+      },
+    });
+    const captured = JSON.stringify(mocks.capture.mock.calls[0]);
+    expect(captured).not.toContain("milestones");
+    expect(captured).not.toContain("clientMessageId");
+    expect(captured).not.toContain("executionRoute");
   });
 });

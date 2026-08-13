@@ -104,6 +104,17 @@ import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
+import {
+  createDeveloperDiagnosticsCollector,
+  type DeveloperDiagnosticsCollector,
+} from "@/lib/response-profiler/developer-diagnostics";
+import {
+  extractSelectedProvider,
+  type ModelAttemptTrace,
+  type ServerTraceCollector,
+  startModelAttemptTrace,
+  startToolExecutionTrace,
+} from "@/lib/response-profiler/server-trace";
 
 const aiLogger = createLogger("ai");
 const MULTIMODAL_ORCHESTRATOR_MODEL_ID = "google/gemini-2.5-flash-lite";
@@ -607,6 +618,8 @@ interface StreamChatOptions {
   routineProposalAllowed?: boolean;
   preparedTurnContext?: PreparedTurnContext;
   benchmarkModelId?: string;
+  traceCollector?: ServerTraceCollector;
+  includeTechnicalDiagnostics?: boolean;
   abortSignal?: AbortSignal;
 }
 
@@ -884,6 +897,8 @@ function createToolsWithContext(
     allowedEvidenceIds?: Set<string>;
     allowCrossChannelRecall?: boolean;
     recallToolsEnabled?: boolean;
+    traceCollector?: ServerTraceCollector;
+    developerDiagnostics?: DeveloperDiagnosticsCollector;
   },
 ) {
   const toolPlan = options.toolPlan;
@@ -917,7 +932,12 @@ function createToolsWithContext(
   }
 
   const tools: Record<string, unknown> = {
-    ...(toolPlan.agentic && toolPlan.rag ? createRagTools() : {}),
+    ...(toolPlan.agentic && toolPlan.rag
+      ? createRagTools({
+          traceCollector: options.traceCollector,
+          developerDiagnostics: options.developerDiagnostics,
+        })
+      : {}),
     ...webTools,
   };
 
@@ -1014,6 +1034,9 @@ function instrumentToolExecutions(
   timing: { toolExecutionMs: number },
   policies?: Map<string, ToolPolicy>,
   outcomes?: ToolOutcomeTracker,
+  traceCollector?: ServerTraceCollector,
+  abortSignal?: AbortSignal,
+  developerDiagnostics?: DeveloperDiagnosticsCollector,
 ) {
   const callCounts = new Map<string, number>();
   const completed = new Set<string>();
@@ -1035,6 +1058,11 @@ function instrumentToolExecutions(
         {
           ...toolConfig,
           execute: async (...args: unknown[]) => {
+            const toolTrace = startToolExecutionTrace(traceCollector, name);
+            const toolDiagnostic = developerDiagnostics?.startTool(
+              name,
+              args[0],
+            );
             const policy = policies?.get(name);
             const calls = callCounts.get(name) ?? 0;
             if (
@@ -1042,17 +1070,40 @@ function instrumentToolExecutions(
               (calls >= policy.maxCalls ||
                 policy.requires.some((required) => !completed.has(required)))
             ) {
+              toolTrace.notAllowed();
+              toolDiagnostic?.notAllowed();
               return { status: "not_allowed" };
             }
             callCounts.set(name, calls + 1);
             outcomes?.called(name);
             const startedAt = Date.now();
+            const cancelTrace = () => {
+              toolTrace.cancel();
+              toolDiagnostic?.cancel();
+            };
+            if (abortSignal?.aborted) cancelTrace();
+            else
+              abortSignal?.addEventListener("abort", cancelTrace, {
+                once: true,
+              });
             try {
               const result = await toolConfig.execute?.(...args);
               completed.add(name);
               outcomes?.completed(name, result);
+              toolTrace.complete();
+              toolDiagnostic?.complete(result);
               return result;
+            } catch (error) {
+              if (abortSignal?.aborted) {
+                toolTrace.cancel();
+                toolDiagnostic?.cancel(error);
+              } else {
+                toolTrace.fail();
+                toolDiagnostic?.fail(error);
+              }
+              throw error;
             } finally {
+              abortSignal?.removeEventListener("abort", cancelTrace);
               timing.toolExecutionMs += Math.max(0, Date.now() - startedAt);
             }
           },
@@ -1420,6 +1471,7 @@ async function runOpenRouterMultimodalCompletion({
   prepareMetrics,
   onFinish,
   abortSignal,
+  traceCollector,
 }: {
   modelId: string;
   systemPrompt: string;
@@ -1433,6 +1485,7 @@ async function runOpenRouterMultimodalCompletion({
   prepareMetrics?: (metrics: AIMetrics, timing: DirectMultimodalTiming) => void;
   onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
   abortSignal?: AbortSignal;
+  traceCollector?: ServerTraceCollector;
 }): Promise<DirectMultimodalCompletion> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -1447,9 +1500,14 @@ async function runOpenRouterMultimodalCompletion({
   abortSignal?.throwIfAborted();
 
   const providerStartedAtMs = Date.now();
-  const response = await fetch(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
+  const attemptTrace = startModelAttemptTrace(traceCollector, {
+    attemptSequence: 1,
+    profile: "standard",
+    model: modelId,
+  });
+  let response: Response;
+  try {
+    response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -1466,11 +1524,16 @@ async function runOpenRouterMultimodalCompletion({
         ...getOpenRouterProviderOptionsForModel(modelId),
       }),
       signal: abortSignal,
-    },
-  );
+    });
+  } catch (error) {
+    if (abortSignal?.aborted) attemptTrace.cancel();
+    else attemptTrace.fail();
+    throw error;
+  }
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    attemptTrace.fail();
     throw new Error(
       `OpenRouter multimodal chat failed: ${response.status} ${JSON.stringify(payload)}`,
     );
@@ -1478,6 +1541,7 @@ async function runOpenRouterMultimodalCompletion({
 
   const text = extractOpenRouterResponseText(payload);
   if (!text.trim()) {
+    attemptTrace.empty();
     throw new Error("OpenRouter multimodal chat returned no text content");
   }
   const firstTokenAtMs = Date.now();
@@ -1497,9 +1561,14 @@ async function runOpenRouterMultimodalCompletion({
     openrouter: {
       id: (payload as { id?: unknown }).id,
       model: (payload as { model?: unknown }).model,
+      provider: (payload as { provider?: unknown }).provider,
       usage,
     },
   };
+  attemptTrace.observeTextDelta(text);
+  attemptTrace.complete(
+    extractSelectedProvider(providerMetadata as Record<string, unknown>),
+  );
   const metrics = extractAIMetrics(modelId, startTime, {
     text,
     usage: {
@@ -1728,6 +1797,7 @@ type NoToolAttemptState = {
     outputTokenDetails?: { reasoningTokens?: number };
   };
   providerMetadata?: Record<string, unknown>;
+  trace?: ModelAttemptTrace;
 };
 
 async function* observeNoToolAttempt(
@@ -1737,6 +1807,7 @@ async function* observeNoToolAttempt(
   for await (const part of stream) {
     if (part.type === "text-delta") {
       state.text += part.text;
+      state.trace?.observeTextDelta(part.text);
       if (part.text.length > 0) state.firstTokenAtMs ??= Date.now();
     }
     if (part.type === "finish-step") {
@@ -1803,6 +1874,14 @@ async function* readableStreamToAsyncIterable<T>(stream: ReadableStream<T>) {
   }
 }
 
+function measureTrace<T>(
+  collector: ServerTraceCollector | undefined,
+  name: Parameters<ServerTraceCollector["measure"]>[0],
+  operation: () => Promise<T>,
+) {
+  return collector ? collector.measure(name, operation) : operation();
+}
+
 /**
  * Main orchestrator function that streams a chat response.
  * Uses the plan-configured OpenRouter model (see src/lib/plans/catalog.ts)
@@ -1835,10 +1914,15 @@ export async function streamChat({
   routineProposalAllowed = true,
   preparedTurnContext,
   benchmarkModelId,
+  traceCollector,
+  includeTechnicalDiagnostics,
   abortSignal,
 }: StreamChatOptions) {
   // Record start time for performance tracking
   const startTime = Date.now();
+  const developerDiagnostics = createDeveloperDiagnosticsCollector({
+    enabled: includeTechnicalDiagnostics,
+  });
 
   const effectiveEntitlements =
     prefetchedEntitlements ??
@@ -1908,37 +1992,42 @@ export async function streamChat({
   const recentClassifierContext =
     preparedTurnContext || capabilityPlannerMode !== "agentic"
       ? EMPTY_BOUNDED_RECENT_CONTEXT
-      : await loadBoundedRecentContext({
-          userId,
-          chatId,
-          conversationThreadId,
-          userMessageId,
-          userMessage,
-          skipConversationHistory,
-        });
+      : await measureTrace(traceCollector, "history", () =>
+          loadBoundedRecentContext({
+            userId,
+            chatId,
+            conversationThreadId,
+            userMessageId,
+            userMessage,
+            skipConversationHistory,
+          }),
+        );
   const arbitration = preparedTurnContext
     ? {
         decision: preparedTurnContext.turnDecision,
         classificationLatencyMs: preparedTurnContext.classificationLatencyMs,
       }
-    : await arbitrateChatTurn({
-        userId,
-        userMessage,
-        isGuest,
-        memoryEnabled,
-        voiceAllowed: voiceEnabledResult,
-        responseMode,
-        webSearchRule,
-        resolvedMemoryTarget,
-        hasPendingMemoryApproval: Boolean(attributablePendingMemoryApproval),
-        capabilityPlannerMode,
-        inputOrigin,
-        recentContext: recentClassifierContext,
-        abortSignal,
-      });
+    : await measureTrace(traceCollector, "classification", () =>
+        arbitrateChatTurn({
+          userId,
+          userMessage,
+          isGuest,
+          memoryEnabled,
+          voiceAllowed: voiceEnabledResult,
+          responseMode,
+          webSearchRule,
+          resolvedMemoryTarget,
+          hasPendingMemoryApproval: Boolean(attributablePendingMemoryApproval),
+          capabilityPlannerMode,
+          inputOrigin,
+          recentContext: recentClassifierContext,
+          abortSignal,
+        }),
+      );
   const turnDecision = arbitration.decision;
   const classificationLatencyMs = arbitration.classificationLatencyMs;
   const capabilityDecision = turnDecision.capabilities;
+  const routingSpan = traceCollector?.startSpan("routing");
   const routingConfig = parseExecutionRoutingConfig(process.env);
   const allocatedExecution = buildPlannedExecution({
     decision: turnDecision.execution,
@@ -2009,6 +2098,7 @@ export async function streamChat({
       : turnPlan.promptProfile === "guest"
         ? "guest"
         : "full";
+  routingSpan?.end("completed");
   const recallContextPromise = conversationThreadId
     ? buildRecallContext({
         userId,
@@ -2016,6 +2106,7 @@ export async function streamChat({
         query: userMessage,
         plan: recallPlan,
         decision: memoryRecallDecision,
+        traceCollector,
       })
     : Promise.resolve({
         prompt: "",
@@ -2036,30 +2127,32 @@ export async function streamChat({
           turnDecision.execution.contextDependency === "recent" &&
           recentClassifierContext.available
         ? Promise.resolve(recentClassifierContext.messages)
-        : LatencyLogger.measure(
-            "📋 Orchestrator: Get conversation history",
-            async () => {
-              if (conversationThreadId) {
-                const { buildThreadContext } = await import(
-                  "@/lib/ai/thread-context"
+        : measureTrace(traceCollector, "history", () =>
+            LatencyLogger.measure(
+              "📋 Orchestrator: Get conversation history",
+              async () => {
+                if (conversationThreadId) {
+                  const { buildThreadContext } = await import(
+                    "@/lib/ai/thread-context"
+                  );
+                  const context = await buildThreadContext(
+                    conversationThreadId,
+                    {
+                      includeSummary: turnPlan.history.includeSummary,
+                      maxRawTurns: turnPlan.history.maxRawTurns,
+                      maxRawChars: turnPlan.history.maxRawChars,
+                    },
+                    userMessageId,
+                  );
+                  return context.messages;
+                }
+                return buildConversationContext(
+                  userId,
+                  turnPlan.history.maxRawTurns * 2,
+                  chatId,
                 );
-                const context = await buildThreadContext(
-                  conversationThreadId,
-                  {
-                    includeSummary: turnPlan.history.includeSummary,
-                    maxRawTurns: turnPlan.history.maxRawTurns,
-                    maxRawChars: turnPlan.history.maxRawChars,
-                  },
-                  userMessageId,
-                );
-                return context.messages;
-              }
-              return buildConversationContext(
-                userId,
-                turnPlan.history.maxRawTurns * 2,
-                chatId,
-              );
-            },
+              },
+            ),
           ).catch((error) => {
             aiLogger.error(
               "ai.conversation_history.error",
@@ -2075,7 +2168,9 @@ export async function streamChat({
           });
   const userContextPromise = !userContextEnabled
     ? Promise.resolve("")
-    : formatUserContextForPrompt(userId).catch((error) => {
+    : measureTrace(traceCollector, "user_context", () =>
+        formatUserContextForPrompt(userId),
+      ).catch((error) => {
         aiLogger.error(
           "ai.user_context.error",
           "User context enrichment failed",
@@ -2093,7 +2188,9 @@ export async function streamChat({
         ? Promise.resolve("")
         : !userContextEnabled
           ? Promise.resolve("")
-          : formatMemoriesForPrompt(userId).catch((error) => {
+          : measureTrace(traceCollector, "memory_facts", () =>
+              formatMemoriesForPrompt(userId),
+            ).catch((error) => {
               aiLogger.error("ai.memories.error", "Memory enrichment failed", {
                 error,
                 userId,
@@ -2102,7 +2199,9 @@ export async function streamChat({
             });
   const userSnapshotPromise =
     turnPlan.promptProfile === "compact"
-      ? formatTinyUserSnapshotForPrompt(userId).catch((error) => {
+      ? measureTrace(traceCollector, "user_context", () =>
+          formatTinyUserSnapshotForPrompt(userId),
+        ).catch((error) => {
           aiLogger.error(
             "ai.user_snapshot.error",
             "Tiny user snapshot enrichment failed",
@@ -2183,20 +2282,44 @@ export async function streamChat({
           let ragUsed = false;
           let ragChunksCount = 0;
           try {
-            const needsRag = await LatencyLogger.measure(
-              "📚 RAG: Check if needed",
+            const needsRag = await measureTrace(
+              traceCollector,
+              "rag_decision",
               () =>
-                classifierRagEnabled
-                  ? Promise.resolve(true)
-                  : shouldUseRag(userMessage, { userId }),
+                LatencyLogger.measure("📚 RAG: Check if needed", () =>
+                  classifierRagEnabled
+                    ? Promise.resolve(true)
+                    : shouldUseRag(userMessage, { userId }),
+                ),
             );
+            developerDiagnostics?.recordRagDecision({
+              needed: needsRag,
+              ...(needsRag ? { query: userMessage } : {}),
+            });
             if (needsRag) {
               ragAttempted = true;
               const ragResult = await LatencyLogger.measure(
                 "📚 RAG: Get context",
-                () => getRagContext(userMessage),
+                () => getRagContext(userMessage, traceCollector),
               );
               ragChunksCount = ragResult.chunkCount;
+              if (ragResult.diagnostics?.failed) {
+                developerDiagnostics?.recordRagFailure({
+                  query: ragResult.diagnostics.query,
+                  error: ragResult.diagnostics.error,
+                });
+              } else if (ragResult.diagnostics) {
+                developerDiagnostics?.recordRagResult({
+                  query: ragResult.diagnostics.query,
+                  chunks: ragResult.diagnostics.chunks.map((chunk) => ({
+                    chunkId: chunk.chunkId,
+                    documentId: chunk.documentId,
+                    documentTitle: chunk.documentTitle ?? chunk.title,
+                    score: chunk.similarity,
+                    text: chunk.content,
+                  })),
+                });
+              }
               if (ragResult.chunkCount > 0) {
                 ragContext = ragResult.text;
                 ragUsed = true;
@@ -2233,6 +2356,7 @@ export async function streamChat({
   const userStyleInstruction = analyzeUserStyle(conversationHistory);
 
   // Build system prompt with user context and optional RAG
+  const promptBuildSpan = traceCollector?.startSpan("prompt_build");
   const existingBaseSystemPrompt = await LatencyLogger.measure(
     "🛠️ Orchestrator: Build system prompt",
     async () => {
@@ -2475,7 +2599,9 @@ export async function streamChat({
   const standardConversation = lightSystemPrompt
     ? moveSystemMessagesToInstructions(existingSystemPrompt, messages)
     : normalizedConversation;
+  promptBuildSpan?.end("completed");
   const attachTurnTrace = (metrics: AIMetrics) => {
+    metrics.developerDiagnostics = developerDiagnostics?.snapshot();
     const { memoryDeleteTarget: _memoryDeleteTarget, ...traceDecision } =
       capabilityDecision;
     metrics.turnPlan = turnPlan as unknown as Record<string, unknown>;
@@ -2515,6 +2641,8 @@ export async function streamChat({
         allowCrossChannelRecall: recallPlan.conversations.allowCrossChannel,
         recallToolsEnabled:
           recallPlan.facts.enabled || recallPlan.conversations.enabled,
+        traceCollector,
+        developerDiagnostics,
       });
   const toolOutcomes = new ToolOutcomeTracker(Object.keys(rawTools));
   const toolPolicies = new Map<string, ToolPolicy>();
@@ -2539,6 +2667,9 @@ export async function streamChat({
     toolTimingState,
     toolPolicies,
     toolOutcomes,
+    traceCollector,
+    abortSignal,
+    developerDiagnostics,
   );
 
   // Collect tool calls during execution
@@ -2706,6 +2837,7 @@ export async function streamChat({
           }
         : undefined,
       abortSignal,
+      traceCollector,
     }).catch((error) => {
       if (routedExecution && !routingTelemetryCaptured) {
         captureTerminalRouting(
@@ -2771,6 +2903,11 @@ export async function streamChat({
         profile,
         modelId: attemptModelId,
         text: "",
+        trace: startModelAttemptTrace(traceCollector, {
+          attemptSequence: sequence,
+          profile,
+          model: attemptModelId,
+        }),
       };
       attemptStates.set(sequence, state);
       const profilePolicy =
@@ -2811,11 +2948,20 @@ export async function streamChat({
       isCancellation: (part) => part.type === "abort",
       onEscalation: (reason) => {
         escalationReason = reason;
+        const state = attemptStates.get(1);
+        const provider = extractSelectedProvider(state?.providerMetadata);
+        if (reason === "empty_response") state?.trace?.empty(provider);
+        else state?.trace?.fail(provider);
       },
       onAttempt: (attempt) => {
-        attempts.push(
-          withAttemptUsage(attempt, attemptStates.get(attempt.sequence)),
-        );
+        const state = attemptStates.get(attempt.sequence);
+        attempts.push(withAttemptUsage(attempt, state));
+        const provider = extractSelectedProvider(state?.providerMetadata);
+        if (attempt.outcome === "completed") state?.trace?.complete(provider);
+        if (attempt.outcome === "failed_during_stream") {
+          state?.trace?.fail(provider);
+        }
+        if (attempt.outcome === "cancelled") state?.trace?.cancel(provider);
       },
     });
     const terminalParts = (async function* () {
@@ -2898,8 +3044,23 @@ export async function streamChat({
           memoryRecallDecision,
         });
       } catch (error) {
+        const lastAttempt = attempts.at(-1);
+        const terminalState = attemptStates.get(lastAttempt?.sequence ?? 1);
+        const provider = extractSelectedProvider(
+          terminalState?.providerMetadata,
+        );
+        if (lastAttempt?.outcome === "failed_before_stream") {
+          if (
+            error instanceof Error &&
+            error.name === "ProfiledStreamEmptyResponseError"
+          ) {
+            terminalState?.trace?.empty(provider);
+          } else {
+            terminalState?.trace?.fail(provider);
+          }
+        }
         if (attempts.length > 0 && !routingTelemetryCaptured) {
-          const terminalState = attemptStates.get(
+          const terminalRoutingState = attemptStates.get(
             attempts.at(-1)?.sequence ?? 1,
           );
           const route = buildExecutionRoute({
@@ -2913,11 +3074,11 @@ export async function streamChat({
                   },
                 }
               : {}),
-            ...(terminalState?.firstTokenAtMs !== undefined
+            ...(terminalRoutingState?.firstTokenAtMs !== undefined
               ? {
                   totalRequestTimeToFirstTokenMs: Math.max(
                     0,
-                    terminalState.firstTokenAtMs - startTime,
+                    terminalRoutingState.firstTokenAtMs - startTime,
                   ),
                 }
               : {}),
@@ -2974,6 +3135,11 @@ export async function streamChat({
   // Stream the response
   const standardAttemptStartedAt = Date.now();
   let standardExecutedModelId = modelId;
+  const standardAttemptTrace = startModelAttemptTrace(traceCollector, {
+    attemptSequence: 1,
+    profile: "standard",
+    model: modelId,
+  });
   let standardTimeToFirstTokenMs: number | undefined;
   let standardTotalRequestTimeToFirstTokenMs: number | undefined;
   const routedStandard = routedExecution;
@@ -3037,6 +3203,9 @@ export async function streamChat({
       ? undefined
       : createToolLoopPrepareStep(toolPlan),
     onChunk: ({ chunk }: { chunk: TextStreamPart<ToolSet> }) => {
+      if (chunk.type === "text-delta") {
+        standardAttemptTrace.observeTextDelta(chunk.text);
+      }
       if (
         standardTimeToFirstTokenMs === undefined &&
         chunk.type === "text-delta" &&
@@ -3053,6 +3222,7 @@ export async function streamChat({
       }
     },
     onError: ({ error }: { error: unknown }) => {
+      standardAttemptTrace.fail();
       if (!routedStandard || routingTelemetryCaptured) return;
       const outcome =
         standardTimeToFirstTokenMs === undefined
@@ -3066,6 +3236,7 @@ export async function streamChat({
       });
     },
     onAbort: () => {
+      standardAttemptTrace.cancel();
       if (routedStandard && !routingTelemetryCaptured) {
         captureTerminalRouting(terminalStandardRoute("cancelled"));
       }
@@ -3083,6 +3254,11 @@ export async function streamChat({
       };
     }) => {
       const meteredUsage = totalUsage ?? usage;
+      const selectedProvider = extractSelectedProvider(
+        providerMetadata as Record<string, unknown>,
+      );
+      if (text.trim()) standardAttemptTrace.complete(selectedProvider);
+      else standardAttemptTrace.empty(selectedProvider);
       const standardRoute = routedStandard
         ? (executionRoute ??
           terminalStandardRoute(
@@ -3273,7 +3449,9 @@ export async function streamChat({
         onStepFinish({
           text: step.text,
           toolCalls: safeStepToolCalls,
-          toolResults: safeStepToolCalls?.map((toolCall) => ({ ...toolCall })),
+          toolResults: safeStepToolCalls?.map((toolCall) => ({
+            ...toolCall,
+          })),
         });
       }
     },

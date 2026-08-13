@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { DeveloperDiagnosticsV1 } from "@/lib/response-profiler/developer-diagnostics";
 
 const mocks = vi.hoisted(() => ({
   calculateCost: vi.fn(),
@@ -19,6 +20,22 @@ describe("ai/cost-calculator", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("preserves an already validated developer diagnostics snapshot", () => {
+    const developerDiagnostics: DeveloperDiagnosticsV1 = {
+      version: 1,
+      tools: [],
+      truncated: false,
+    };
+
+    const result = extractAIMetrics("model", Date.now(), {
+      text: "ok",
+      developerDiagnostics,
+      providerCostUsd: 0,
+    });
+
+    expect(result.developerDiagnostics).toBe(developerDiagnostics);
   });
 
   it("uses OpenRouter metadata ephemerally without returning its raw payload", () => {

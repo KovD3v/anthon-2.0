@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirm } from "@/hooks/use-confirm";
 import { CAPABILITY_USAGE_VALUES } from "@/lib/ai/capability-usage";
-import type { ChatUIMessage } from "@/lib/chat-client";
 import {
+  type ChatUIMessage,
   convertToUIMessages,
   extractTextFromParts,
   hasPendingVoiceGeneration,
@@ -45,6 +45,12 @@ import {
   getPaywallCardContent,
   type PaywallCardContent,
 } from "@/lib/rate-limit/paywall";
+import {
+  type ClientTraceCollector,
+  createClientTraceCollector,
+  submitClientTrace,
+} from "@/lib/response-profiler/client-trace";
+import { ProfilingChatTransport } from "@/lib/response-profiler/profiling-chat-transport";
 import type { AttachmentData, ChatData } from "@/types/chat";
 import { ChatHeader } from "../../../(chat)/components/ChatHeader";
 import { ChatInput } from "../../../(chat)/components/ChatInput";
@@ -65,6 +71,10 @@ interface DeleteSnapshot {
 const VOICE_GENERATION_POLL_INITIAL_DELAY_MS = 750;
 const VOICE_GENERATION_POLL_MAX_ATTEMPTS = 30;
 const routineListSchema = routineCardDataSchema.array();
+
+function createWebClientMessageId() {
+  return `web-${crypto.randomUUID()}`;
+}
 
 const messageMetadataSchema = z.object({
   inputTokens: z.number().optional(),
@@ -186,6 +196,11 @@ export function ChatConversationClient({
     assistantMessageIds: Set<string>;
   } | null>(null);
   const cleanedCheckInRoutineIdRef = useRef<string | null>(null);
+  const clientTraceCollectorsRef = useRef(
+    new Map<string, ClientTraceCollector>(),
+  );
+  const clientTraceFrameIdsRef = useRef(new Map<string, number>());
+  const activeClientTraceIdRef = useRef<string | null>(null);
   const sourceHydrationRequestRef = useRef<string | null>(null);
   const pendingHydrationMessageSyncRef = useRef(false);
   const [sourceHydration, setSourceHydration] = useState<{
@@ -355,10 +370,53 @@ export function ChatConversationClient({
     }
   }
 
-  const transport = new DefaultChatTransport({
-    api: isGuest ? "/api/guest/chat" : "/api/chat",
-    body: { chatId },
-  });
+  const releaseClientTrace = useCallback(
+    (clientMessageId: string, options?: { abandon?: boolean }) => {
+      const frameId = clientTraceFrameIdsRef.current.get(clientMessageId);
+      if (frameId !== undefined) {
+        cancelAnimationFrame(frameId);
+        clientTraceFrameIdsRef.current.delete(clientMessageId);
+      }
+      const collector = clientTraceCollectorsRef.current.get(clientMessageId);
+      if (options?.abandon) collector?.abandon();
+      clientTraceCollectorsRef.current.delete(clientMessageId);
+      if (activeClientTraceIdRef.current === clientMessageId) {
+        activeClientTraceIdRef.current = null;
+      }
+    },
+    [],
+  );
+  const beginClientTrace = useCallback(
+    (clientMessageId: string) => {
+      if (isGuest || !chatData.isOwner || chatData.visibility !== "PRIVATE") {
+        return;
+      }
+      if (clientTraceCollectorsRef.current.has(clientMessageId)) {
+        releaseClientTrace(clientMessageId, { abandon: true });
+      }
+      const collector = createClientTraceCollector({ clientMessageId });
+      clientTraceCollectorsRef.current.set(clientMessageId, collector);
+      activeClientTraceIdRef.current = clientMessageId;
+    },
+    [chatData.isOwner, chatData.visibility, isGuest, releaseClientTrace],
+  );
+  const transport = useMemo(
+    () =>
+      isGuest
+        ? new DefaultChatTransport<ChatUIMessage>({
+            api: "/api/guest/chat",
+            body: { chatId },
+          })
+        : new ProfilingChatTransport<ChatUIMessage>({
+            api: "/api/chat",
+            body: { chatId },
+            getCollector: (clientMessageId) =>
+              clientMessageId
+                ? clientTraceCollectorsRef.current.get(clientMessageId)
+                : undefined,
+          }),
+    [chatId, isGuest],
+  );
   const inputWarmup = useMemo(
     () => createChatInputWarmup({ chatId }),
     [chatId],
@@ -383,6 +441,13 @@ export function ChatConversationClient({
     dataPartSchemas: chatDataPartSchemas,
     transport,
     onData: (part) => {
+      if (part.type === "data-modelComparison") {
+        const clientMessageId = activeClientTraceIdRef.current;
+        if (clientMessageId) {
+          releaseClientTrace(clientMessageId, { abandon: true });
+        }
+        return;
+      }
       if (part.type !== "data-modelComparisonDelta") return;
       const { pairId, slot, delta } = part.data;
       setComparisonDeltas((current) => ({
@@ -394,6 +459,11 @@ export function ChatConversationClient({
       }));
     },
     onFinish: () => {
+      const completedClientMessageId = activeClientTraceIdRef.current;
+      const completedCollector = completedClientMessageId
+        ? clientTraceCollectorsRef.current.get(completedClientMessageId)
+        : undefined;
+      completedCollector?.markStreamCompleted();
       const submittedAdaptation = submittedRoutineAdaptationRef.current;
       submittedRoutineAdaptationRef.current = null;
       setIsResponseSettling(false);
@@ -402,9 +472,36 @@ export function ChatConversationClient({
       // data in the background so a slow refresh does not extend the loading
       // state or block the next interaction.
       void refreshChatData().then((newMessages) => {
-        if (!newMessages) return;
+        if (!newMessages) {
+          if (completedClientMessageId) {
+            releaseClientTrace(completedClientMessageId, { abandon: true });
+          }
+          return;
+        }
 
         setMessages(newMessages);
+        if (completedClientMessageId && completedCollector) {
+          const persistedAssistant = newMessages.find(
+            (message) =>
+              message.role === "assistant" &&
+              message.sourceClientMessageId === completedClientMessageId,
+          );
+          if (persistedAssistant) {
+            completedCollector.markPersistedMessageResolved();
+            void submitClientTrace({
+              chatId,
+              collector: completedCollector,
+            })
+              .then(async (result) => {
+                if (result !== "stored") return;
+                const reconciledMessages = await refreshChatData();
+                if (reconciledMessages) setMessages(reconciledMessages);
+              })
+              .finally(() => releaseClientTrace(completedClientMessageId));
+          } else {
+            releaseClientTrace(completedClientMessageId, { abandon: true });
+          }
+        }
         if (submittedAdaptation) {
           const sourceMessage = [...newMessages]
             .reverse()
@@ -426,11 +523,67 @@ export function ChatConversationClient({
       });
     },
     onError: () => {
+      const clientMessageId = activeClientTraceIdRef.current;
+      if (clientMessageId) {
+        releaseClientTrace(clientMessageId, { abandon: true });
+      }
       submittedRoutineAdaptationRef.current = null;
       pendingRoutineAdaptationRef.current = null;
       setIsResponseSettling(false);
     },
   });
+
+  useEffect(() => {
+    const clientMessageId = activeClientTraceIdRef.current;
+    if (!clientMessageId) return;
+    const collector = clientTraceCollectorsRef.current.get(clientMessageId);
+    if (!collector) return;
+    const userMessageIndex = streamingMessages.findIndex(
+      (message) =>
+        message.role === "user" &&
+        (message.id === clientMessageId ||
+          message.clientMessageId === clientMessageId),
+    );
+    if (userMessageIndex === -1) return;
+    const visibleAssistant = streamingMessages
+      .slice(userMessageIndex + 1)
+      .find(
+        (message) =>
+          message.role === "assistant" &&
+          extractTextFromParts(message.parts).trim().length > 0,
+      );
+    if (!visibleAssistant) return;
+
+    collector.markFirstDomText();
+    if (
+      document.visibilityState !== "visible" ||
+      clientTraceFrameIdsRef.current.has(clientMessageId)
+    ) {
+      return;
+    }
+    const frameId = requestAnimationFrame(() => {
+      clientTraceFrameIdsRef.current.delete(clientMessageId);
+      if (document.visibilityState === "visible") {
+        collector.markFirstVisibleFrame();
+      }
+    });
+    clientTraceFrameIdsRef.current.set(clientMessageId, frameId);
+  }, [streamingMessages]);
+
+  useEffect(() => {
+    if (!chatId) return;
+    return () => {
+      for (const frameId of clientTraceFrameIdsRef.current.values()) {
+        cancelAnimationFrame(frameId);
+      }
+      clientTraceFrameIdsRef.current.clear();
+      for (const collector of clientTraceCollectorsRef.current.values()) {
+        collector.abandon();
+      }
+      clientTraceCollectorsRef.current.clear();
+      activeClientTraceIdRef.current = null;
+    };
+  }, [chatId]);
 
   useEffect(() => {
     if (!pendingHydrationMessageSyncRef.current) return;
@@ -958,10 +1111,16 @@ export function ChatConversationClient({
         // biome-ignore lint/suspicious/noExplicitAny: Extra metadata
       } as any);
     });
+    const clientMessageId = isGuest ? undefined : createWebClientMessageId();
+    if (clientMessageId) beginClientTrace(clientMessageId);
     sendMessage({
+      ...(clientMessageId ? { id: clientMessageId } : {}),
       role: "user",
       parts,
     }).catch((error) => {
+      if (clientMessageId) {
+        releaseClientTrace(clientMessageId, { abandon: true });
+      }
       pendingInitialMessageSubmittedRef.current = false;
       submittedRoutineAdaptationRef.current = null;
       setInput(pendingInitialMessage ?? "");
@@ -971,9 +1130,12 @@ export function ChatConversationClient({
   }, [
     chatData.messages,
     chatId,
+    beginClientTrace,
     consumePendingInitialMessage,
     consumePendingInitialAttachments,
     consumePendingRoutineChatContext,
+    isGuest,
+    releaseClientTrace,
     sendMessage,
     status,
   ]);
@@ -1242,6 +1404,7 @@ export function ChatConversationClient({
         }
       : null;
 
+    let clientMessageId: string | undefined;
     try {
       await maybeActivateClerkTrial();
 
@@ -1264,8 +1427,17 @@ export function ChatConversationClient({
         });
       }
       setInput("");
-      await sendMessage({ role: "user", parts });
+      clientMessageId = isGuest ? undefined : createWebClientMessageId();
+      if (clientMessageId) beginClientTrace(clientMessageId);
+      await sendMessage({
+        ...(clientMessageId ? { id: clientMessageId } : {}),
+        role: "user",
+        parts,
+      });
     } catch (error) {
+      if (clientMessageId) {
+        releaseClientTrace(clientMessageId, { abandon: true });
+      }
       pendingRoutineAdaptationRef.current = null;
       submittedRoutineAdaptationRef.current = null;
       setIsResponseSettling(false);
@@ -1376,12 +1548,23 @@ export function ChatConversationClient({
       });
 
       if (response.ok) {
+        const editedMessageId = editingMessageId;
         setEditingMessageId(null);
         setEditContent("");
         const newMsgs = await refreshChatData();
         if (newMsgs) {
           setMessages(newMsgs);
-          sendMessage({ text: newContent });
+          beginClientTrace(editedMessageId);
+          sendMessage({
+            id: editedMessageId,
+            role: "user",
+            parts: [{ type: "text", text: newContent }],
+            messageId: editedMessageId,
+          }).catch((error) => {
+            releaseClientTrace(editedMessageId, { abandon: true });
+            console.error("Failed to resend edited chat message:", error);
+            toast.error("Invio messaggio fallito");
+          });
         }
       } else {
         toast.error("Impossibile modificare il messaggio");
@@ -1448,8 +1631,15 @@ export function ChatConversationClient({
         );
       }
       deleteSucceeded = true;
-      await sendMessage({ text: userText, messageId: userMessage.id });
+      beginClientTrace(userMessage.id);
+      await sendMessage({
+        id: userMessage.id,
+        role: "user",
+        parts: [{ type: "text", text: userText }],
+        messageId: userMessage.id,
+      });
     } catch (err) {
+      releaseClientTrace(userMessage.id, { abandon: true });
       if (!deleteSucceeded) {
         setMessages(previousMessages);
       } else {

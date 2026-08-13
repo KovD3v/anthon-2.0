@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   modelExperimentPairFindUnique: vi.fn(),
   messageCreate: vi.fn(),
   messageMetricsCreate: vi.fn(),
+  messageMetricsUpdate: vi.fn(),
   voiceGenerationJobCreate: vi.fn(),
   messageCount: vi.fn(),
   attachmentCreate: vi.fn(),
@@ -44,6 +45,7 @@ const mocks = vi.hoisted(() => ({
   withVoiceGenerationStatus: vi.fn(),
   ensureConversationThread: vi.fn(),
   tryCreateModelComparisonResponse: vi.fn(),
+  createServerTraceCollector: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -86,6 +88,7 @@ vi.mock("@/lib/db", () => ({
     },
     messageMetrics: {
       create: mocks.messageMetricsCreate,
+      update: mocks.messageMetricsUpdate,
     },
     attachment: {
       create: mocks.attachmentCreate,
@@ -114,6 +117,10 @@ vi.mock("@/lib/ai/orchestrator", () => ({
 
 vi.mock("@/lib/model-experiments/runtime", () => ({
   tryCreateModelComparisonResponse: mocks.tryCreateModelComparisonResponse,
+}));
+
+vi.mock("@/lib/response-profiler/server-trace", () => ({
+  createServerTraceCollector: mocks.createServerTraceCollector,
 }));
 
 vi.mock("@/lib/ai/chat-title", () => ({
@@ -227,6 +234,26 @@ function emptyUiStream() {
   });
 }
 
+function testTraceCollector() {
+  const trace = {
+    version: 1 as const,
+    status: "completed" as const,
+    totalMs: 1,
+    spans: [],
+  };
+  return {
+    startSpan: vi.fn(() => ({ id: 1, end: vi.fn() })),
+    measure: vi.fn(
+      async <T>(_name: string, operation: () => Promise<T>) =>
+        await operation(),
+    ),
+    markFirstToken: vi.fn(),
+    markPartial: vi.fn(),
+    markCancelled: vi.fn(),
+    snapshot: vi.fn(() => trace),
+  };
+}
+
 const rateLimitAllowed = {
   allowed: true,
   usage: {
@@ -295,6 +322,7 @@ describe("POST /api/chat", () => {
     mocks.modelExperimentPairFindUnique.mockReset();
     mocks.messageCreate.mockReset();
     mocks.messageMetricsCreate.mockReset();
+    mocks.messageMetricsUpdate.mockReset();
     mocks.voiceGenerationJobCreate.mockReset();
     mocks.messageCount.mockReset();
     mocks.attachmentCreate.mockReset();
@@ -324,6 +352,7 @@ describe("POST /api/chat", () => {
     mocks.withVoiceGenerationStatus.mockReset();
     mocks.ensureConversationThread.mockReset();
     mocks.tryCreateModelComparisonResponse.mockReset();
+    mocks.createServerTraceCollector.mockReset();
 
     mocks.start.mockReturnValue({
       end: vi.fn(),
@@ -399,6 +428,7 @@ describe("POST /api/chat", () => {
     mocks.ensureConversationThread.mockResolvedValue({ id: "thread-1" });
     mocks.messageCreate.mockResolvedValue({ id: "msg-user-1" });
     mocks.messageMetricsCreate.mockResolvedValue({ id: "metrics-1" });
+    mocks.messageMetricsUpdate.mockResolvedValue({ id: "metrics-1" });
     mocks.voiceGenerationJobCreate.mockResolvedValue({ id: "voice-job-1" });
     mocks.messageCount.mockResolvedValue(1);
     mocks.chatUpdate.mockResolvedValue({});
@@ -479,6 +509,74 @@ describe("POST /api/chat", () => {
         Response.json({ ok: true, stream: true }, { status: 200 }),
     });
     mocks.tryCreateModelComparisonResponse.mockResolvedValue(null);
+    mocks.createServerTraceCollector.mockImplementation(testTraceCollector);
+  });
+
+  it("creates one profiler collector and forwards it to Web generation", async () => {
+    const response = await POST(
+      buildRequest({
+        messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.createServerTraceCollector).toHaveBeenCalledTimes(1);
+    const traceCollector =
+      mocks.createServerTraceCollector.mock.results[0]?.value;
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({ traceCollector }),
+    );
+    for (const phase of [
+      "auth",
+      "user_lookup",
+      "chat_lookup",
+      "rate_limit",
+      "attachment_resolution",
+      "inbound_claim",
+    ]) {
+      expect(traceCollector.measure).toHaveBeenCalledWith(
+        phase,
+        expect.any(Function),
+      );
+    }
+  });
+
+  it("enables full production diagnostics for an opted-in SUPER_ADMIN private owner", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "SUPER_ADMIN",
+      isGuest: false,
+      billingSyncedAt: new Date("2026-02-18T10:00:00.000Z"),
+      subscription: {
+        status: "ACTIVE",
+        planId: "my-basic-plan",
+      },
+      preferences: {
+        voiceEnabled: true,
+        showTechnicalMetrics: true,
+      },
+    });
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Chat",
+      customTitle: true,
+      visibility: "PRIVATE",
+      _count: { messages: 0 },
+    });
+
+    const response = await POST(
+      buildRequest({
+        messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({ includeTechnicalDiagnostics: true }),
+    );
   });
 
   it("reuses the rejected comparison decision while routing off stays standard", async () => {
@@ -565,7 +663,10 @@ describe("POST /api/chat", () => {
     );
 
     expect(response.status).toBe(401);
-    await expect(response.text()).resolves.toBe("Unauthorized");
+    const responseText = await response.text();
+    expect(responseText).toBe("Unauthorized");
+    expect(responseText).not.toContain("serverTrace");
+    expect(responseText).not.toContain("clientTrace");
   });
 
   it("returns 429 when rate limit is denied", async () => {
@@ -842,6 +943,12 @@ describe("POST /api/chat", () => {
       "USER",
       "my-pro-plan",
       false,
+    );
+    const traceCollector =
+      mocks.createServerTraceCollector.mock.results[0]?.value;
+    expect(traceCollector.measure).toHaveBeenCalledWith(
+      "billing_sync",
+      expect.any(Function),
     );
   });
 
@@ -1467,6 +1574,7 @@ describe("POST /api/chat", () => {
       expect.objectContaining({
         responseMode: "voice",
         voiceEnabled: true,
+        traceCollector: mocks.createServerTraceCollector.mock.results[0]?.value,
       }),
     );
     expect(mocks.generateVoice).not.toHaveBeenCalled();
@@ -2075,6 +2183,12 @@ describe("POST /api/chat", () => {
       userId: "user-1",
       source: "WEB",
     });
+    const traceCollector =
+      mocks.createServerTraceCollector.mock.results[0]?.value;
+    expect(traceCollector.measure).toHaveBeenCalledWith(
+      "transcription",
+      expect.any(Function),
+    );
     expect(mocks.transcribeAudio).not.toHaveBeenCalledWith(
       expect.objectContaining({
         base64: CLIENT_AUDIO_BYTES.toString("base64"),
@@ -2497,8 +2611,8 @@ describe("POST /api/chat", () => {
       userText: "hello world",
       assistantText: "Assistant reply",
     });
-    // Thread summary, trace, conversation-recall index, and fact consolidation.
-    expect(mocks.waitUntil).toHaveBeenCalledTimes(4);
+    // Funnel, thread summary, trace, conversation-recall index, and facts.
+    expect(mocks.waitUntil).toHaveBeenCalledTimes(5);
   });
 
   it("returns 500 when downstream streaming fails", async () => {

@@ -15,6 +15,8 @@ import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
+import { isDeveloperDiagnosticsEnabled } from "@/lib/response-profiler/developer-diagnostics";
+import type { ServerTraceCollector } from "@/lib/response-profiler/server-trace";
 
 const ragLogger = createLogger("ai");
 
@@ -23,6 +25,9 @@ const ragLogger = createLogger("ai");
  * Uses cosine similarity for semantic search with pgvector.
  */
 export interface RagSearchResult {
+  chunkId?: string;
+  documentId?: string;
+  documentTitle?: string;
   content: string;
   title: string;
   similarity: number;
@@ -31,15 +36,21 @@ export interface RagSearchResult {
 type RagSearchOutcome = {
   results: RagSearchResult[];
   failed: boolean;
+  error?: unknown;
 };
 
 async function searchDocumentsWithOutcome(
   query: string,
   limit: number = 5,
+  traceCollector?: ServerTraceCollector,
 ): Promise<RagSearchOutcome> {
   try {
     // Generate embedding for the query
-    const queryEmbedding = await generateEmbedding(query);
+    const queryEmbedding = traceCollector
+      ? await traceCollector.measure("rag_embedding", () =>
+          generateEmbedding(query),
+        )
+      : await generateEmbedding(query);
 
     if (!queryEmbedding) {
       ragLogger.warn(
@@ -54,18 +65,16 @@ async function searchDocumentsWithOutcome(
 
     // Search using pgvector cosine similarity (<=> operator)
     // Lower distance = more similar, so we use 1 - distance for similarity score
-    const results = await LatencyLogger.measure(
-      "RAG: Vector search query",
-      () =>
-        prisma.$queryRawUnsafe<
-          Array<{
-            content: string;
-            title: string;
-            similarity: number;
-          }>
-        >(
+    const searchSpan = traceCollector?.startSpan("rag_search");
+    let results: RagSearchResult[];
+    try {
+      results = await LatencyLogger.measure("RAG: Vector search query", () =>
+        prisma.$queryRawUnsafe<RagSearchResult[]>(
           `
       SELECT 
+        rc.id AS "chunkId",
+        rc."documentId" AS "documentId",
+        rd.title AS "documentTitle",
         rc.content,
         rd.title,
         1 - (rc.embedding <=> $1::vector) as similarity
@@ -78,30 +87,48 @@ async function searchDocumentsWithOutcome(
           embeddingStr,
           limit,
         ),
-    );
+      );
+    } catch (error) {
+      searchSpan?.end("failed");
+      throw error;
+    }
 
     // Filter by similarity threshold
+    const filteredResults = results.filter(
+      (result) => result.similarity > RAG.SIMILARITY_THRESHOLD,
+    );
+    searchSpan?.end("completed", {
+      ragChunkCount: filteredResults.length,
+    });
     return {
-      results: results.filter((r) => r.similarity > RAG.SIMILARITY_THRESHOLD),
+      results: filteredResults,
       failed: false,
     };
   } catch (error) {
     ragLogger.error("ai.rag.search.error", "Search error", { error });
-    return { results: [], failed: true };
+    return { results: [], failed: true, error };
   }
 }
 
 export async function searchDocuments(
   query: string,
   limit: number = 5,
+  traceCollector?: ServerTraceCollector,
 ): Promise<RagSearchResult[]> {
-  return (await searchDocumentsWithOutcome(query, limit)).results;
+  return (await searchDocumentsWithOutcome(query, limit, traceCollector))
+    .results;
 }
 
 export interface RagContext {
   text: string;
   chunkCount: number;
   failed?: boolean;
+  diagnostics?: {
+    query: string;
+    chunks: RagSearchResult[];
+    failed: boolean;
+    error?: unknown;
+  };
 }
 
 /**
@@ -130,11 +157,28 @@ function formatRagContext(results: RagSearchResult[]): string {
  * Search and format RAG context for a user query.
  * This is the main function to use in the orchestrator.
  */
-export async function getRagContext(query: string): Promise<RagContext> {
-  const outcome = await searchDocumentsWithOutcome(query);
+export async function getRagContext(
+  query: string,
+  traceCollector?: ServerTraceCollector,
+): Promise<RagContext> {
+  const outcome = await searchDocumentsWithOutcome(
+    query,
+    undefined,
+    traceCollector,
+  );
   return {
     ...buildRagContext(outcome.results),
     failed: outcome.failed,
+    ...(isDeveloperDiagnosticsEnabled()
+      ? {
+          diagnostics: {
+            query,
+            chunks: outcome.results,
+            failed: outcome.failed,
+            ...(outcome.error !== undefined ? { error: outcome.error } : {}),
+          },
+        }
+      : {}),
   };
 }
 

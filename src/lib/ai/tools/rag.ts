@@ -2,6 +2,8 @@ import { type Tool, tool } from "ai";
 import { z } from "zod";
 import { getRagContext } from "@/lib/ai/rag";
 import { createLogger } from "@/lib/logger";
+import type { DeveloperDiagnosticsCollector } from "@/lib/response-profiler/developer-diagnostics";
+import type { ServerTraceCollector } from "@/lib/response-profiler/server-trace";
 
 const ragToolLogger = createLogger("ai");
 const DEFAULT_MAX_QUERY_CHARACTERS = 1_000;
@@ -12,7 +14,11 @@ export type RagToolResult = {
   context: string;
 };
 
-export function createRagTools(options?: { maxQueryCharacters?: number }): {
+export function createRagTools(options?: {
+  maxQueryCharacters?: number;
+  traceCollector?: ServerTraceCollector;
+  developerDiagnostics?: DeveloperDiagnosticsCollector;
+}): {
   searchRag: Tool;
 } {
   const maxQueryCharacters =
@@ -32,6 +38,10 @@ export function createRagTools(options?: { maxQueryCharacters?: number }): {
       }),
       execute: async ({ query }): Promise<RagToolResult> => {
         const boundedQuery = query.trim();
+        options?.developerDiagnostics?.recordRagDecision({
+          needed: true,
+          query: boundedQuery,
+        });
         if (
           searchCalls >= 1 ||
           boundedQuery.length === 0 ||
@@ -43,8 +53,15 @@ export function createRagTools(options?: { maxQueryCharacters?: number }): {
         searchCalls += 1;
 
         try {
-          const result = await getRagContext(boundedQuery);
+          const result = options?.traceCollector
+            ? await getRagContext(boundedQuery, options.traceCollector)
+            : await getRagContext(boundedQuery);
           if (result.failed) {
+            options?.developerDiagnostics?.recordRagFailure({
+              query: boundedQuery,
+              error:
+                result.diagnostics?.error ?? new Error("RAG retrieval failed"),
+            });
             ragToolLogger.error(
               "ai.rag.tool.failed",
               "RAG tool retrieval failed",
@@ -53,7 +70,24 @@ export function createRagTools(options?: { maxQueryCharacters?: number }): {
             return { success: false, chunkCount: 0, context: "" };
           }
           if (result.chunkCount === 0) {
+            options?.developerDiagnostics?.recordRagResult({
+              query: boundedQuery,
+              chunks: [],
+            });
             return { success: true, chunkCount: 0, context: "" };
+          }
+
+          if (result.diagnostics) {
+            options?.developerDiagnostics?.recordRagResult({
+              query: result.diagnostics.query,
+              chunks: result.diagnostics.chunks.map((chunk) => ({
+                chunkId: chunk.chunkId,
+                documentId: chunk.documentId,
+                documentTitle: chunk.documentTitle ?? chunk.title,
+                score: chunk.similarity,
+                text: chunk.content,
+              })),
+            });
           }
 
           return {
@@ -62,6 +96,10 @@ export function createRagTools(options?: { maxQueryCharacters?: number }): {
             context: result.text,
           };
         } catch (error) {
+          options?.developerDiagnostics?.recordRagFailure({
+            query: boundedQuery,
+            error,
+          });
           ragToolLogger.error(
             "ai.rag.tool.failed",
             "RAG tool retrieval failed",

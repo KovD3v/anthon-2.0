@@ -5,6 +5,37 @@ import {
   resolveTechnicalMetricsVisibility,
 } from "./technical-metrics";
 
+const validServerTrace = {
+  version: 1 as const,
+  status: "completed" as const,
+  totalMs: 120,
+  timeToFirstTokenMs: 40,
+  spans: [
+    {
+      id: 1,
+      name: "provider_wait" as const,
+      startOffsetMs: 20,
+      durationMs: 20,
+      status: "completed" as const,
+    },
+  ],
+};
+
+const validClientTrace = {
+  version: 1 as const,
+  status: "completed" as const,
+  milestones: {
+    requestStartedMs: 0 as const,
+    streamOpenedMs: 10,
+    firstChunkReceivedMs: 20,
+    firstTextDeltaReceivedMs: 30,
+    firstDomTextMs: 40,
+    firstVisibleFrameMs: 50,
+    streamCompletedMs: 100,
+    persistedMessageResolvedMs: 110,
+  },
+};
+
 afterEach(() => {
   vi.unstubAllEnvs();
 });
@@ -124,6 +155,88 @@ describe("resolveTechnicalMetricsVisibility", () => {
 });
 
 describe("buildTechnicalUsage", () => {
+  it("returns developer diagnostics whenever expanded diagnostics are authorized", () => {
+    const message = {
+      model: "model",
+      inputTokens: 10,
+      outputTokens: 5,
+      costUsd: 0.01,
+      generationTimeMs: 120,
+      reasoningTimeMs: null,
+      ragUsed: true,
+      toolCalls: null,
+      metrics: {
+        developerDiagnostics: {
+          version: 1,
+          tools: [],
+          truncated: false,
+        },
+      },
+    };
+
+    vi.stubEnv("NODE_ENV", "production");
+    expect(
+      buildTechnicalUsage(message, { includeDiagnostics: true }),
+    ).toHaveProperty("developerDiagnostics.version", 1);
+
+    expect(
+      buildTechnicalUsage(message, { includeDiagnostics: false }),
+    ).not.toHaveProperty("developerDiagnostics");
+  });
+
+  it("projects only valid response traces when diagnostics are authorized", () => {
+    const baseMessage = {
+      model: "model",
+      inputTokens: 10,
+      outputTokens: 5,
+      costUsd: 0.01,
+      generationTimeMs: 120,
+      reasoningTimeMs: null,
+      ragUsed: false,
+      toolCalls: null,
+    };
+
+    expect(
+      buildTechnicalUsage({
+        ...baseMessage,
+        metrics: {
+          serverTrace: validServerTrace,
+          clientTrace: validClientTrace,
+        },
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        serverTrace: validServerTrace,
+        clientTrace: validClientTrace,
+      }),
+    );
+    const malformedUsage = buildTechnicalUsage({
+      ...baseMessage,
+      metrics: {
+        serverTrace: { ...validServerTrace, totalMs: -1 },
+        clientTrace: {
+          ...validClientTrace,
+          milestones: { requestStartedMs: 0, firstVisibleFrameMs: 5 },
+        },
+      },
+    });
+    expect(malformedUsage).not.toHaveProperty("serverTrace");
+    expect(malformedUsage).not.toHaveProperty("clientTrace");
+
+    const compactUsage = buildTechnicalUsage(
+      {
+        ...baseMessage,
+        metrics: {
+          serverTrace: validServerTrace,
+          clientTrace: validClientTrace,
+        },
+      },
+      { includeDiagnostics: false },
+    );
+    expect(compactUsage).not.toHaveProperty("serverTrace");
+    expect(compactUsage).not.toHaveProperty("clientTrace");
+  });
+
   it("allowlists persisted response diagnostics for localhost rendering", () => {
     expect(
       buildTechnicalUsage({
