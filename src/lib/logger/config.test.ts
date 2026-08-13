@@ -26,17 +26,17 @@ describe("logger/config", () => {
     expect(shouldLog("debug")).toBe(false);
   });
 
-  it("keeps routine chat domains quiet in development while retaining errors", () => {
+  it("removes chat-domain logs from development", () => {
     vi.stubEnv("NODE_ENV", "development");
     delete process.env.APP_LOG_LEVEL;
     delete process.env.APP_LOG_DOMAIN_LEVELS;
     delete process.env.ENABLE_LATENCY_LOGS;
 
     for (const domain of ["ai", "voice", "usage", "latency", "auth"] as const) {
-      expect(getConfiguredLogLevel(domain)).toBe("error");
+      expect(getConfiguredLogLevel(domain)).toBe("silent");
       expect(shouldLog("info", domain)).toBe(false);
       expect(shouldLog("warn", domain)).toBe(false);
-      expect(shouldLog("error", domain)).toBe(true);
+      expect(shouldLog("error", domain)).toBe(false);
     }
   });
 

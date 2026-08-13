@@ -63,7 +63,7 @@ function parseOutputFormat(value?: string | null): LogOutputFormat | null {
 export function getDefaultLogLevel(domain?: LogDomain): LogLevel {
   if (process.env.NODE_ENV === "test") return "silent";
   if (process.env.NODE_ENV === "production") return "error";
-  if (domain && QUIET_DEVELOPMENT_DOMAINS.has(domain)) return "error";
+  if (domain && QUIET_DEVELOPMENT_DOMAINS.has(domain)) return "silent";
   return "info";
 }
 

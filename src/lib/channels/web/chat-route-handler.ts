@@ -29,7 +29,7 @@ import { isRoutineFeatureEnabled } from "@/lib/coaching/routine-feature";
 import { ensureConversationThread } from "@/lib/conversations/threads";
 import { connectDatabase, prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
-import { createLogger, withRequestLogContext } from "@/lib/logger";
+import { withRequestLogContext } from "@/lib/logger";
 import { tryCreateModelComparisonResponse } from "@/lib/model-experiments/runtime";
 import { checkRateLimit, reconcileAiUsageForRecovery } from "@/lib/rate-limit";
 import {
@@ -49,14 +49,11 @@ import {
   withVoiceGenerationStatus,
 } from "@/lib/voice/generation-jobs";
 
-const logger = createLogger("ai");
-
 export async function handleWebChatPost(request: Request) {
   return withRequestLogContext(
     request,
     { route: "/api/chat", channel: "WEB" },
     async () => {
-      const requestTimer = LatencyLogger.start("🌐 Chat API Request");
       const traceCollector = createServerTraceCollector();
 
       try {
@@ -70,16 +67,8 @@ export async function handleWebChatPost(request: Request) {
         );
 
         if (!clerkId) {
-          logger.warn(
-            "auth.unauthenticated",
-            "Request rejected: unauthenticated",
-          );
           return new Response("Unauthorized", { status: 401 });
         }
-
-        logger.debug("auth.authenticated", "Authenticated request", {
-          clerkId,
-        });
 
         // Parse request body before DB/rate-limit work so malformed requests
         // do not consume quota or trigger unrelated side effects.
@@ -289,7 +278,6 @@ export async function handleWebChatPost(request: Request) {
           if (!savedText.trim()) {
             throw new Error("Persisted assistant response has no text");
           }
-          requestTimer.split("Idempotent replay complete");
           return createWebTextStreamResponse(
             existingInbound.generatedResponse.id,
             savedText,
@@ -449,12 +437,7 @@ export async function handleWebChatPost(request: Request) {
           aiMessageParts = preparedInput.parts;
           aiUserMessageText = preparedInput.userMessageText;
           aiHasAudio = preparedInput.hasAudio;
-        } catch (error) {
-          logger.error(
-            "chat.transcription_failed",
-            "Failed transcribing web audio message",
-            { error, userId: user.id, chatId },
-          );
+        } catch {
           return Response.json(
             {
               error:
@@ -473,17 +456,7 @@ export async function handleWebChatPost(request: Request) {
               channel: "WEB",
               planId,
               subscriptionStatus,
-            }).catch((error) =>
-              logger.error(
-                "chat.funnel_tracking_failed",
-                "Failed tracking funnel progress",
-                {
-                  error,
-                  userId: user.id,
-                  messageId: message.id,
-                },
-              ),
-            ),
+            }).catch(() => undefined),
           );
         }
 
@@ -519,13 +492,7 @@ export async function handleWebChatPost(request: Request) {
                     where: { id: chatId },
                     data: { title, icon },
                   })
-                  .catch((error) =>
-                    logger.error(
-                      "chat.metadata.update_failed",
-                      "Failed updating generated chat metadata",
-                      { error, chatId },
-                    ),
-                  );
+                  .catch(() => undefined);
               }),
             );
           }
@@ -551,23 +518,6 @@ export async function handleWebChatPost(request: Request) {
           hasAttachments: Boolean(hasAttachments),
           abortSignal: request.signal,
         });
-
-        logger.info(
-          "voice.delivery.decision",
-          "Web voice delivery decision completed",
-          {
-            userId: user.id,
-            chatId,
-            conversationThreadId: conversationThread.id,
-            userMessageId: message.id,
-            mode: voiceDecision.mode,
-            source: voiceDecision.source,
-            category: voiceDecision.category,
-            capacityState: voiceDecision.capacityState,
-            reasonCode: voiceDecision.reasonCode,
-            classifierDiagnostics: voiceDecision.classifierDiagnostics,
-          },
-        );
 
         const includeTechnicalMetrics = resolveTechnicalMetricsVisibility({
           role: user.role,
@@ -612,7 +562,6 @@ export async function handleWebChatPost(request: Request) {
             waitUntil,
           });
 
-          requestTimer.split("Voice response complete");
           return voiceResponse;
         }
 
@@ -648,7 +597,6 @@ export async function handleWebChatPost(request: Request) {
           },
         });
         if (comparisonResponse) {
-          requestTimer.split("Model comparison setup complete");
           return comparisonResponse;
         }
 
@@ -725,12 +673,8 @@ export async function handleWebChatPost(request: Request) {
           throw new Error("Missing stream result");
         }
 
-        requestTimer.split("Setup complete");
         return flowResult.streamResult.toUIMessageStreamResponse();
-      } catch (error) {
-        logger.error("chat.request.failed", "Chat API request failed", {
-          errorName: error instanceof Error ? error.name : "unknown",
-        });
+      } catch {
         return new Response(
           JSON.stringify({ error: "Internal server error" }),
           {
@@ -1074,13 +1018,7 @@ async function handleVoiceFirstWebResponse({
         capabilityDecision: flowResult.capabilityMetadataValid
           ? flowResult.capabilityDecision
           : undefined,
-      }).catch((recoveryError) =>
-        logger.error(
-          "voice.persistence_recovery_failed",
-          "Failed recording voice-first persistence recovery",
-          { error: recoveryError, userId, chatId },
-        ),
-      );
+      }).catch(() => undefined);
     }
     throw error;
   }

@@ -9,14 +9,11 @@ import { getUserControlledCoachingGoal } from "@/lib/coaching-context";
 import { prisma } from "@/lib/db";
 import { getGuestTokenFromCookies, hashGuestToken } from "@/lib/guest-auth";
 import { convertGuestForAuthenticatedUser } from "@/lib/guest-conversion";
-import { createLogger } from "@/lib/logger";
 import { getSharedUsageData } from "@/lib/usage";
 import type { Chat, UsageData } from "@/types/chat";
 import { SidebarSkeleton } from "../../(chat)/components/Skeletons";
 import { type ChatSidebarHydrationData, LayoutClient } from "./layout-client";
 import { SidebarDataHydrator } from "./sidebar-data-hydrator";
-
-const chatLayoutLogger = createLogger("ai");
 
 type AuthUser = NonNullable<Awaited<ReturnType<typeof getAuthUser>>["user"]>;
 
@@ -202,12 +199,7 @@ export async function getChatSidebarData(
       authUser.isGuest === false
         ? getActiveRoutineForReturn(authUser.id)
         : Promise.resolve(null),
-      getUserControlledCoachingGoal(authUser.id).catch((error) => {
-        chatLayoutLogger.warn(
-          "coaching_goal.unavailable",
-          "Failed to load coaching goal",
-          { error },
-        );
+      getUserControlledCoachingGoal(authUser.id).catch(() => {
         return null;
       }),
     ]);
