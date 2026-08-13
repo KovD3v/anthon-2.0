@@ -203,6 +203,8 @@ Version numbers describe the application's user-facing behavior and its document
   compact two-column grid.
 - Fixed scrolling in the chat sidebar by allowing the conversation list to
   shrink within the available viewport height.
+- Contained mobile chat vertical gestures so only scrollable surfaces move,
+  preventing edge swipes from propagating to the whole app viewport.
 - Hardened routine lifecycle recovery across source chats, returning check-ins,
   concurrent mutations, and orphaned routines.
 - Fixed the initial routine action so “La provo ora” persists the proposal and
