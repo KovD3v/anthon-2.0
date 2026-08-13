@@ -17,7 +17,7 @@ describe("plans/snapshot", () => {
     );
     expect(snapshot.policies.modelRouting.orchestratorFallbacks).toEqual([
       "deepseek/deepseek-v4-flash-0731",
-      "google/gemini-3.5-flash-lite",
+      "google/gemini-2.5-flash-lite",
     ]);
     expect(snapshot.policies.attachmentRetentionDays).toBe(60);
     expect(snapshot.policies.voice.maxPerWindow).toBe(20);
@@ -41,7 +41,7 @@ describe("plans/snapshot", () => {
       );
       expect(snapshot.policies.modelRouting.orchestratorFallbacks).toEqual([
         "deepseek/deepseek-v4-flash-0731",
-        "google/gemini-3.5-flash-lite",
+        "google/gemini-2.5-flash-lite",
       ]);
     }
   });
@@ -73,7 +73,7 @@ describe("plans/snapshot", () => {
     );
     expect(snapshot.policies.modelRouting.orchestratorFallbacks).toEqual([
       "deepseek/deepseek-v4-flash-0731",
-      "google/gemini-3.5-flash-lite",
+      "google/gemini-2.5-flash-lite",
     ]);
     expect(snapshot.policies.voice.maxPerWindow).toBe(50);
   });

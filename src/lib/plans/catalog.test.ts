@@ -7,7 +7,7 @@ describe("plan catalog progression", () => {
       expect(plan.modelRouting.orchestrator).toBe("openai/gpt-5.6-luna");
       expect(plan.modelRouting.orchestratorFallbacks).toEqual([
         "deepseek/deepseek-v4-flash-0731",
-        "google/gemini-3.5-flash-lite",
+        "google/gemini-2.5-flash-lite",
       ]);
     }
   });
