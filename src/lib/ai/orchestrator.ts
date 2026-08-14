@@ -2198,8 +2198,9 @@ export async function streamChat({
         ? Promise.resolve("")
         : !userContextEnabled
           ? Promise.resolve("")
-          : measureTrace(traceCollector, "memory_facts", () =>
-              formatMemoriesForPrompt(userId),
+          : (traceCollector
+              ? formatMemoriesForPrompt(userId, { traceCollector })
+              : formatMemoriesForPrompt(userId)
             ).catch((error) => {
               aiLogger.error("ai.memories.error", "Memory enrichment failed", {
                 error,

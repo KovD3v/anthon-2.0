@@ -454,9 +454,78 @@ describe("ai/tools/memory", () => {
     expect(first).toContain("Back squat");
     expect(second).toContain("Back squat");
     expect(mocks.memoryFindMany).toHaveBeenCalledTimes(1);
+    expect(mocks.memoryFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: { updatedAt: "desc" },
+        take: 16,
+        select: {
+          key: true,
+          value: true,
+          category: true,
+        },
+      }),
+    );
 
     invalidateMemoriesForPromptCache(userId);
     await formatMemoriesForPrompt(userId);
     expect(mocks.memoryFindMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("coalesces concurrent prompt memory loads", async () => {
+    const userId = "user-in-flight";
+    const row = {
+      key: "training_goal",
+      category: "goal",
+      value: { content: "Migliorare il servizio" },
+    };
+    let resolveLoad: ((value: (typeof row)[]) => void) | undefined;
+    mocks.memoryFindMany.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveLoad = resolve;
+        }),
+    );
+
+    const first = formatMemoriesForPrompt(userId);
+    const second = formatMemoriesForPrompt(userId);
+
+    expect(mocks.memoryFindMany).toHaveBeenCalledTimes(1);
+    resolveLoad?.([row]);
+
+    const [firstValue, secondValue] = await Promise.all([first, second]);
+    expect(firstValue).toContain("Migliorare il servizio");
+    expect(secondValue).toBe(firstValue);
+  });
+
+  it("records memory query and formatting as separate profiler spans", async () => {
+    const userId = "user-traced";
+    mocks.memoryFindMany.mockResolvedValue([
+      {
+        key: "sport",
+        category: "sport",
+        value: { content: "Tennis" },
+      },
+    ]);
+    const traceCollector = {
+      measure: vi.fn(
+        async (_name: string, operation: () => unknown | Promise<unknown>) =>
+          await operation(),
+      ),
+    };
+
+    await formatMemoriesForPrompt(userId, {
+      traceCollector: traceCollector as never,
+    });
+
+    expect(traceCollector.measure).toHaveBeenNthCalledWith(
+      1,
+      "memory_query",
+      expect.any(Function),
+    );
+    expect(traceCollector.measure).toHaveBeenNthCalledWith(
+      2,
+      "memory_format",
+      expect.any(Function),
+    );
   });
 });

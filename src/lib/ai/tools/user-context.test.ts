@@ -173,6 +173,38 @@ describe("ai/tools/user-context", () => {
     expect(mocks.queryRaw).toHaveBeenCalledTimes(2);
   });
 
+  it("coalesces concurrent user context loads", async () => {
+    const userId = "user-ctx-in-flight";
+    const row = {
+      profileName: "Concurrent User",
+      profileSport: "Running",
+      profileGoal: null,
+      profileExperience: null,
+      profileBirthday: null,
+      profileNotes: null,
+      preferenceTone: null,
+      preferenceMode: null,
+      preferenceLanguage: "it",
+    };
+    let resolveLoad: ((value: (typeof row)[]) => void) | undefined;
+    mocks.queryRaw.mockImplementation(
+      () =>
+        new Promise<(typeof row)[]>((resolve) => {
+          resolveLoad = resolve;
+        }),
+    );
+
+    const first = formatUserContextForPrompt(userId);
+    const second = formatUserContextForPrompt(userId);
+
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
+    resolveLoad?.([row]);
+
+    const [firstValue, secondValue] = await Promise.all([first, second]);
+    expect(firstValue).toContain("Concurrent User");
+    expect(secondValue).toBe(firstValue);
+  });
+
   it("loads the full prompt context through one projected query", async () => {
     const userId = "user-ctx-projected";
     mocks.queryRaw.mockResolvedValue([

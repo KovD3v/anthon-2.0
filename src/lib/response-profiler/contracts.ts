@@ -24,6 +24,8 @@ export const SERVER_SPAN_NAMES = [
   "history",
   "user_context",
   "memory_facts",
+  "memory_query",
+  "memory_format",
   "conversation_recall",
   "rag_decision",
   "rag_embedding",

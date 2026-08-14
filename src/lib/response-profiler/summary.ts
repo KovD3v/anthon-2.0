@@ -47,6 +47,8 @@ const SERVER_LABELS: Record<ServerSpanName, string> = {
   history: "Cronologia conversazione",
   user_context: "Profilo utente",
   memory_facts: "Memorie persistenti",
+  memory_query: "Query memorie",
+  memory_format: "Formattazione memorie",
   conversation_recall: "Richiamo conversazioni",
   rag_decision: "Decisione RAG",
   rag_embedding: "Embedding RAG",

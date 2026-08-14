@@ -8,11 +8,19 @@ import {
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import {
+  clearTinyUserSnapshotInFlight,
+  clearUserContextPromptInFlight,
   getTinyUserSnapshotCache,
+  getTinyUserSnapshotGeneration,
+  getTinyUserSnapshotInFlight,
   getUserContextPromptCache,
+  getUserContextPromptGeneration,
+  getUserContextPromptInFlight,
   invalidateUserContextPromptCache,
   setTinyUserSnapshotCache,
+  setTinyUserSnapshotInFlight,
   setUserContextPromptCache,
+  setUserContextPromptInFlight,
 } from "./user-context-cache";
 
 type CompactMemoryValue = {
@@ -341,53 +349,67 @@ export async function formatUserContextForPrompt(
     return cached.value;
   }
 
-  const [row] = await loadPromptUserContext(userId, false);
-  if (!row) {
-    return "";
-  }
+  const existing = getUserContextPromptInFlight(userId);
+  if (existing) return existing;
 
-  const lines: string[] = [];
+  const generation = getUserContextPromptGeneration(userId);
+  const promise = loadPromptUserContext(userId, false)
+    .then(([row]) => {
+      if (!row) return "";
 
-  // Profile section
-  if (
-    row.profileName ||
-    row.profileSport ||
-    row.profileGoal ||
-    row.profileExperience ||
-    row.profileBirthday ||
-    row.profileNotes
-  ) {
-    lines.push("## Profilo Utente:");
-    if (row.profileName) lines.push(`- **Nome**: ${row.profileName}`);
-    if (row.profileSport) lines.push(`- **Sport**: ${row.profileSport}`);
-    if (row.profileGoal) lines.push(`- **Obiettivo**: ${row.profileGoal}`);
-    if (row.profileExperience)
-      lines.push(`- **Esperienza**: ${row.profileExperience}`);
-    if (row.profileBirthday) {
-      const age = Math.floor(
-        (Date.now() - row.profileBirthday.getTime()) /
-          (365.25 * 24 * 60 * 60 * 1000),
-      );
-      lines.push(`- **Età**: ${age} anni`);
-    }
-    if (row.profileNotes) lines.push(`- **Note**: ${row.profileNotes}`);
-  }
+      const lines: string[] = [];
 
-  // Preferences section
-  if (row.preferenceTone || row.preferenceMode || row.preferenceLanguage) {
-    lines.push("\n## Preferenze di Comunicazione:");
-    if (row.preferenceTone) lines.push(`- **Tono**: ${row.preferenceTone}`);
-    if (row.preferenceMode) lines.push(`- **Modalità**: ${row.preferenceMode}`);
-    if (row.preferenceLanguage)
-      lines.push(`- **Lingua**: ${row.preferenceLanguage}`);
-  }
+      // Profile section
+      if (
+        row.profileName ||
+        row.profileSport ||
+        row.profileGoal ||
+        row.profileExperience ||
+        row.profileBirthday ||
+        row.profileNotes
+      ) {
+        lines.push("## Profilo Utente:");
+        if (row.profileName) lines.push(`- **Nome**: ${row.profileName}`);
+        if (row.profileSport) lines.push(`- **Sport**: ${row.profileSport}`);
+        if (row.profileGoal) lines.push(`- **Obiettivo**: ${row.profileGoal}`);
+        if (row.profileExperience)
+          lines.push(`- **Esperienza**: ${row.profileExperience}`);
+        if (row.profileBirthday) {
+          const age = Math.floor(
+            (Date.now() - row.profileBirthday.getTime()) /
+              (365.25 * 24 * 60 * 60 * 1000),
+          );
+          lines.push(`- **Età**: ${age} anni`);
+        }
+        if (row.profileNotes) lines.push(`- **Note**: ${row.profileNotes}`);
+      }
 
-  const value = lines.join("\n");
-  setUserContextPromptCache(userId, {
-    value,
-    expiresAt: Date.now() + USER_CONTEXT_PROMPT_CACHE_TTL_MS,
+      // Preferences section
+      if (row.preferenceTone || row.preferenceMode || row.preferenceLanguage) {
+        lines.push("\n## Preferenze di Comunicazione:");
+        if (row.preferenceTone) lines.push(`- **Tono**: ${row.preferenceTone}`);
+        if (row.preferenceMode)
+          lines.push(`- **Modalità**: ${row.preferenceMode}`);
+        if (row.preferenceLanguage)
+          lines.push(`- **Lingua**: ${row.preferenceLanguage}`);
+      }
+
+      return lines.join("\n");
+    })
+    .then((value) => {
+      if (getUserContextPromptGeneration(userId) === generation) {
+        setUserContextPromptCache(userId, {
+          value,
+          expiresAt: Date.now() + USER_CONTEXT_PROMPT_CACHE_TTL_MS,
+        });
+      }
+      return value;
+    });
+  setUserContextPromptInFlight(userId, promise);
+
+  return promise.finally(() => {
+    clearUserContextPromptInFlight(userId, promise);
   });
-  return value;
 }
 
 /**
@@ -403,42 +425,55 @@ export async function formatTinyUserSnapshotForPrompt(
     return cached.value;
   }
 
-  const rows = await loadPromptUserContext(userId, true);
-  const [firstRow] = rows;
-  if (!firstRow) {
-    return "";
-  }
+  const existing = getTinyUserSnapshotInFlight(userId);
+  if (existing) return existing;
 
-  const lines: string[] = [];
-  if (firstRow.preferenceLanguage) {
-    lines.push(`Lingua: ${firstRow.preferenceLanguage}`);
-  }
-  if (firstRow.profileSport) {
-    lines.push(`Sport: ${firstRow.profileSport}`);
-  }
-  if (firstRow.profileGoal) {
-    lines.push(`Obiettivo: ${firstRow.profileGoal}`);
-  }
-  if (firstRow.preferenceTone) {
-    lines.push(`Tono: ${firstRow.preferenceTone}`);
-  }
-  if (firstRow.preferenceMode) {
-    lines.push(`Modalità: ${firstRow.preferenceMode}`);
-  }
-  for (const row of rows) {
-    if (!row.memoryKey) continue;
-    const value = row.memoryValue as CompactMemoryValue | null | undefined;
-    if (typeof value?.content === "string" && value.content.trim()) {
-      lines.push(
-        `Memoria ${row.memoryKey.replace(/_/g, " ")}: ${value.content.trim()}`,
-      );
-    }
-  }
+  const generation = getTinyUserSnapshotGeneration(userId);
+  const promise = loadPromptUserContext(userId, true)
+    .then((rows) => {
+      const [firstRow] = rows;
+      if (!firstRow) return "";
 
-  const value = lines.join("\n");
-  setTinyUserSnapshotCache(userId, {
-    value,
-    expiresAt: Date.now() + TINY_USER_SNAPSHOT_CACHE_TTL_MS,
+      const lines: string[] = [];
+      if (firstRow.preferenceLanguage) {
+        lines.push(`Lingua: ${firstRow.preferenceLanguage}`);
+      }
+      if (firstRow.profileSport) {
+        lines.push(`Sport: ${firstRow.profileSport}`);
+      }
+      if (firstRow.profileGoal) {
+        lines.push(`Obiettivo: ${firstRow.profileGoal}`);
+      }
+      if (firstRow.preferenceTone) {
+        lines.push(`Tono: ${firstRow.preferenceTone}`);
+      }
+      if (firstRow.preferenceMode) {
+        lines.push(`Modalità: ${firstRow.preferenceMode}`);
+      }
+      for (const row of rows) {
+        if (!row.memoryKey) continue;
+        const value = row.memoryValue as CompactMemoryValue | null | undefined;
+        if (typeof value?.content === "string" && value.content.trim()) {
+          lines.push(
+            `Memoria ${row.memoryKey.replace(/_/g, " ")}: ${value.content.trim()}`,
+          );
+        }
+      }
+
+      return lines.join("\n");
+    })
+    .then((value) => {
+      if (getTinyUserSnapshotGeneration(userId) === generation) {
+        setTinyUserSnapshotCache(userId, {
+          value,
+          expiresAt: Date.now() + TINY_USER_SNAPSHOT_CACHE_TTL_MS,
+        });
+      }
+      return value;
+    });
+  setTinyUserSnapshotInFlight(userId, promise);
+
+  return promise.finally(() => {
+    clearTinyUserSnapshotInFlight(userId, promise);
   });
-  return value;
 }

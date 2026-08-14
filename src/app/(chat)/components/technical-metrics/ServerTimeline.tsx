@@ -29,6 +29,8 @@ const SPAN_GROUP: Record<ServerSpanName, Group> = {
   history: "context",
   user_context: "context",
   memory_facts: "context",
+  memory_query: "context",
+  memory_format: "context",
   conversation_recall: "context",
   rag_decision: "context",
   rag_embedding: "context",

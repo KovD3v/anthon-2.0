@@ -107,6 +107,16 @@ describe("durable fact recall", () => {
       },
       orderBy: { updatedAt: "desc" },
       take: 64,
+      select: {
+        id: true,
+        key: true,
+        value: true,
+        category: true,
+        origin: true,
+        confidence: true,
+        observedAt: true,
+        updatedAt: true,
+      },
     });
   });
 

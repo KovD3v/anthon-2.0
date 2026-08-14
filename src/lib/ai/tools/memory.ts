@@ -19,6 +19,7 @@ import {
   isExactStableMemoryKey,
 } from "@/lib/ai/memory-target";
 import { prisma } from "@/lib/db";
+import type { ServerTraceCollector } from "@/lib/response-profiler/server-trace";
 
 type MemoriesPromptCacheEntry = {
   value: string;
@@ -26,10 +27,18 @@ type MemoriesPromptCacheEntry = {
 };
 
 const MEMORIES_PROMPT_CACHE_TTL_MS = 30 * 1000;
+const MAX_PROMPT_MEMORIES = 16;
 const memoriesPromptCache = new Map<string, MemoriesPromptCacheEntry>();
+const memoriesPromptInFlight = new Map<string, Promise<string>>();
+const memoriesPromptGenerations = new Map<string, number>();
 
 export function invalidateMemoriesForPromptCache(userId: string) {
   memoriesPromptCache.delete(userId);
+  memoriesPromptInFlight.delete(userId);
+  memoriesPromptGenerations.set(
+    userId,
+    (memoriesPromptGenerations.get(userId) ?? 0) + 1,
+  );
   invalidateFactCache(userId);
 }
 
@@ -348,6 +357,13 @@ async function getAllMemories(
       status: "ACTIVE",
       OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
     },
+    orderBy: { updatedAt: "desc" },
+    take: MAX_PROMPT_MEMORIES,
+    select: {
+      key: true,
+      value: true,
+      category: true,
+    },
   });
 
   const memoryMap = new Map<string, MemoryValue>();
@@ -358,11 +374,7 @@ async function getAllMemories(
   return memoryMap;
 }
 
-export async function formatMemoriesForPrompt(userId: string): Promise<string> {
-  const cached = memoriesPromptCache.get(userId);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-
-  const memories = await getAllMemories(userId);
+function formatMemoryMap(memories: Map<string, MemoryValue>): string {
   if (memories.size === 0) return "";
 
   const lines: string[] = ["## Informazioni salvate sull'utente:"];
@@ -397,10 +409,57 @@ export async function formatMemoriesForPrompt(userId: string): Promise<string> {
     }
   }
 
-  const value = lines.join("\n");
-  memoriesPromptCache.set(userId, {
-    value,
-    expiresAt: Date.now() + MEMORIES_PROMPT_CACHE_TTL_MS,
+  return lines.join("\n");
+}
+
+type FormatMemoriesForPromptOptions = {
+  traceCollector?: ServerTraceCollector;
+};
+
+async function loadAndFormatMemories(
+  userId: string,
+  traceCollector?: ServerTraceCollector,
+): Promise<string> {
+  const memories = traceCollector
+    ? await traceCollector.measure("memory_query", () => getAllMemories(userId))
+    : await getAllMemories(userId);
+
+  if (traceCollector) {
+    return traceCollector.measure("memory_format", async () =>
+      formatMemoryMap(memories),
+    );
+  }
+
+  return formatMemoryMap(memories);
+}
+
+export async function formatMemoriesForPrompt(
+  userId: string,
+  options?: FormatMemoriesForPromptOptions,
+): Promise<string> {
+  const cached = memoriesPromptCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  const existing = memoriesPromptInFlight.get(userId);
+  if (existing) return existing;
+
+  const generation = memoriesPromptGenerations.get(userId) ?? 0;
+  const promise = loadAndFormatMemories(userId, options?.traceCollector).then(
+    (value) => {
+      if ((memoriesPromptGenerations.get(userId) ?? 0) === generation) {
+        memoriesPromptCache.set(userId, {
+          value,
+          expiresAt: Date.now() + MEMORIES_PROMPT_CACHE_TTL_MS,
+        });
+      }
+      return value;
+    },
+  );
+  memoriesPromptInFlight.set(userId, promise);
+
+  return promise.finally(() => {
+    if (memoriesPromptInFlight.get(userId) === promise) {
+      memoriesPromptInFlight.delete(userId);
+    }
   });
-  return value;
 }

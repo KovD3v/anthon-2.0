@@ -108,6 +108,16 @@ async function loadFactSnapshot(userId: string, now: Date) {
     },
     orderBy: { updatedAt: "desc" },
     take: MAX_FACT_SNAPSHOT_SIZE,
+    select: {
+      id: true,
+      key: true,
+      value: true,
+      category: true,
+      origin: true,
+      confidence: true,
+      observedAt: true,
+      updatedAt: true,
+    },
   });
   const facts = memories.flatMap((memory) => {
     const fact = projectFact(memory);
