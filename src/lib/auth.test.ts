@@ -347,6 +347,7 @@ describe("lib/auth", () => {
       isGuest: false,
       role: "ADMIN",
       createdAt: new Date(),
+      onboardingCompletedAt: new Date(),
     });
 
     expect(result).toEqual({
@@ -364,6 +365,7 @@ describe("lib/auth", () => {
       isGuest: false,
       role: "SUPER_ADMIN",
       createdAt: new Date(),
+      onboardingCompletedAt: new Date(),
     });
 
     expect(result).toEqual({
@@ -381,6 +383,7 @@ describe("lib/auth", () => {
       isGuest: false,
       role: "SUPER_ADMIN",
       createdAt: new Date(),
+      onboardingCompletedAt: new Date(),
     });
 
     expect(result).toEqual({ success: true });
@@ -401,6 +404,7 @@ describe("lib/auth", () => {
       isGuest: false,
       role: "SUPER_ADMIN",
       createdAt: new Date(),
+      onboardingCompletedAt: new Date(),
     });
 
     expect(result).toEqual({ success: false, error: "Failed to update role" });

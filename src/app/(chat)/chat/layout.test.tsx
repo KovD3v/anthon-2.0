@@ -145,6 +145,7 @@ describe("chat layout sidebar data", () => {
         role: "USER",
         isGuest: false,
         createdAt: new Date("2026-08-08T08:00:00.000Z"),
+        onboardingCompletedAt: new Date("2026-08-08T08:01:00.000Z"),
       },
       guestUser: null,
       guestConversionPending: false,
