@@ -49,6 +49,14 @@ import {
   withVoiceGenerationStatus,
 } from "@/lib/voice/generation-jobs";
 
+function hasPersistedChatMessages(chat: {
+  messages?: Array<unknown>;
+  _count?: { messages?: number };
+}): boolean {
+  if (Array.isArray(chat.messages)) return chat.messages.length > 0;
+  return (chat._count?.messages ?? 0) > 0;
+}
+
 export async function handleWebChatPost(request: Request) {
   return withRequestLogContext(
     request,
@@ -200,7 +208,7 @@ export async function handleWebChatPost(request: Request) {
           ),
         );
 
-        const routineProposalAllowed = await isRoutineFeatureEnabled({
+        const routineProposalAllowedPromise = isRoutineFeatureEnabled({
           distinctId: clerkId,
           role: user.role,
           isGuest: user.isGuest,
@@ -210,9 +218,8 @@ export async function handleWebChatPost(request: Request) {
         let planId = user.subscription?.planId;
 
         // Verify chat ownership and resolve the canonical conversation thread.
-        const chatContext = await traceCollector.measure(
-          "chat_lookup",
-          async () => {
+        const [chatContext, routineProposalAllowed] = await Promise.all([
+          traceCollector.measure("chat_lookup", async () => {
             const chat = await LatencyLogger.measure(
               "DB: Verify chat ownership",
               () =>
@@ -223,7 +230,10 @@ export async function handleWebChatPost(request: Request) {
                     title: true,
                     customTitle: true,
                     visibility: true,
-                    _count: { select: { messages: true } },
+                    messages: {
+                      take: 1,
+                      select: { id: true },
+                    },
                   },
                 }),
               "🌐 Chat API Request",
@@ -237,8 +247,9 @@ export async function handleWebChatPost(request: Request) {
               chatId,
             });
             return { chat, conversationThread };
-          },
-        );
+          }),
+          routineProposalAllowedPromise,
+        ]);
 
         if (!chatContext.chat || !chatContext.conversationThread) {
           return Response.json(
@@ -517,6 +528,7 @@ export async function handleWebChatPost(request: Request) {
           planId,
           hasAttachments: Boolean(hasAttachments),
           abortSignal: request.signal,
+          waitUntil,
         });
 
         const includeTechnicalMetrics = resolveTechnicalMetricsVisibility({
@@ -591,7 +603,7 @@ export async function handleWebChatPost(request: Request) {
           subscriptionStatus,
           hasAttachments: Boolean(hasAttachments),
           effectiveEntitlements: rateLimitResult.effectiveEntitlements,
-          skipConversationHistory: chat._count.messages === 0,
+          skipConversationHistory: !hasPersistedChatMessages(chat),
           onPreparedTurnRejected(context) {
             preparedTurnContext = context;
           },
@@ -634,7 +646,7 @@ export async function handleWebChatPost(request: Request) {
             responseMode: "text",
             voiceEnabled: voiceUnavailableReason ? false : undefined,
             voiceUnavailableReason,
-            skipConversationHistory: chat._count.messages === 0,
+            skipConversationHistory: !hasPersistedChatMessages(chat),
             routineProposalAllowed,
             preparedTurnContext,
           },
@@ -937,6 +949,7 @@ async function handleVoiceFirstWebResponse({
       includeTechnicalMetrics,
       includeTechnicalDiagnostics,
       traceCollector,
+      waitUntil,
     },
     persistence: {
       channel: "WEB",

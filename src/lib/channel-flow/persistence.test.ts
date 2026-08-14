@@ -228,7 +228,10 @@ describe("channel-flow/persistence", () => {
   });
 
   it("persists assistant message and post-process steps", async () => {
-    const waitUntil = vi.fn();
+    const scheduled: Promise<unknown>[] = [];
+    const waitUntil = vi.fn((promise: Promise<unknown>) => {
+      scheduled.push(promise);
+    });
 
     await persistAssistantOutput({
       userId: "user-1",
@@ -262,14 +265,66 @@ describe("channel-flow/persistence", () => {
       data: { updatedAt: expect.any(Date) },
     });
     expect(mocks.incrementUsage).toHaveBeenCalledWith("user-1", 5, 8, 0.02, 1);
-    expect(mocks.revalidateTag).toHaveBeenCalledTimes(2);
     expect(mocks.consolidateTurnMemory).toHaveBeenCalledWith({
       userId: "user-1",
       inboundMessageId: "inbound-1",
       userText: "hello",
       assistantText: "assistant",
     });
-    expect(waitUntil).toHaveBeenCalledTimes(1);
+    expect(waitUntil).toHaveBeenCalledTimes(2);
+    await Promise.all(scheduled);
+    expect(mocks.revalidateTag).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not block assistant persistence on chat freshness and tag work", async () => {
+    const scheduled: Promise<unknown>[] = [];
+    const waitUntil = vi.fn((promise: Promise<unknown>) => {
+      scheduled.push(promise);
+    });
+    let resolveChatUpdate: (() => void) | undefined;
+    mocks.chatUpdate.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveChatUpdate = resolve;
+        }),
+    );
+
+    const persistence = persistAssistantOutput({
+      userId: "user-1",
+      chatId: "chat-1",
+      channel: "WEB",
+      text: "assistant",
+      userMessageText: "hello",
+      metrics: {
+        model: "test-model",
+        inputTokens: 5,
+        outputTokens: 8,
+        reasoningTokens: 0,
+        toolCalls: [],
+        ragUsed: false,
+        ragChunksCount: 0,
+        costUsd: 0.02,
+        generationTimeMs: 111,
+        reasoningTimeMs: 22,
+      },
+      updateChatTimestamp: true,
+      revalidateTags: ["chat-user-1", "chat-1"],
+      waitUntil,
+    });
+
+    await vi.waitFor(() => {
+      expect(waitUntil).toHaveBeenCalledTimes(1);
+    });
+    await expect(persistence).resolves.toMatchObject({ id: "msg-1" });
+
+    resolveChatUpdate?.();
+    await Promise.all(scheduled);
+
+    expect(mocks.chatUpdate).toHaveBeenCalledWith({
+      where: { id: "chat-1" },
+      data: { updatedAt: expect.any(Date) },
+    });
+    expect(mocks.revalidateTag).toHaveBeenCalledTimes(2);
   });
 
   it("schedules consolidation for an agentic turn with no memory tool call", async () => {
@@ -305,7 +360,7 @@ describe("channel-flow/persistence", () => {
       userText: "I train on Tuesday and Thursday.",
       assistantText: "assistant",
     });
-    expect(waitUntil).toHaveBeenCalledTimes(1);
+    expect(waitUntil).toHaveBeenCalledTimes(2);
   });
 
   it("schedules conversation indexing after a linked turn is persisted", async () => {
@@ -339,7 +394,7 @@ describe("channel-flow/persistence", () => {
       conversationThreadId: "thread-1",
       throughMessageId: "msg-1",
     });
-    expect(waitUntil).toHaveBeenCalledTimes(2);
+    expect(waitUntil).toHaveBeenCalledTimes(3);
   });
 
   it("links a forced sensitive-memory presentation to the persisted assistant", async () => {

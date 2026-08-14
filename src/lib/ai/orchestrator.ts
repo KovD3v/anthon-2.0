@@ -623,6 +623,7 @@ interface StreamChatOptions {
   traceCollector?: ServerTraceCollector;
   includeTechnicalDiagnostics?: boolean;
   abortSignal?: AbortSignal;
+  waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 type PromptMode = "full" | "guest" | "simple_fast";
@@ -1742,6 +1743,7 @@ async function arbitrateChatTurn({
   inputOrigin,
   recentContext,
   abortSignal,
+  waitUntil,
 }: {
   userId: string;
   userMessage: string;
@@ -1756,6 +1758,7 @@ async function arbitrateChatTurn({
   inputOrigin: "text" | "transcribed_voice" | "direct_media";
   recentContext: BoundedRecentContext;
   abortSignal?: AbortSignal;
+  waitUntil?: (promise: Promise<unknown>) => void;
 }) {
   return arbitrateTurn({
     userId,
@@ -1784,6 +1787,7 @@ async function arbitrateChatTurn({
     requestedOutputTokens: requestedOutputTokensForRouting(userMessage),
     hasRecentContext: recentContext.available,
     abortSignal,
+    waitUntil,
   });
 }
 
@@ -1919,6 +1923,7 @@ export async function streamChat({
   traceCollector,
   includeTechnicalDiagnostics,
   abortSignal,
+  waitUntil,
 }: StreamChatOptions) {
   // Record start time for performance tracking
   const startTime = Date.now();
@@ -2030,6 +2035,7 @@ export async function streamChat({
           inputOrigin,
           recentContext: recentClassifierContext,
           abortSignal,
+          waitUntil,
         }),
       );
   const turnDecision = arbitration.decision;
@@ -2300,7 +2306,7 @@ export async function streamChat({
                 LatencyLogger.measure("📚 RAG: Check if needed", () =>
                   classifierRagEnabled
                     ? Promise.resolve(true)
-                    : shouldUseRag(userMessage, { userId }),
+                    : shouldUseRag(userMessage, { userId, waitUntil }),
                 ),
             );
             developerDiagnostics?.recordRagDecision({

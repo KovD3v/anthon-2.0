@@ -114,6 +114,12 @@ describe("ai/session-manager", () => {
       expect.objectContaining({
         where: { chatId: "chat-1", userId: "user-1" },
         take: 10,
+        select: {
+          id: true,
+          role: true,
+          parts: true,
+          createdAt: true,
+        },
       }),
     );
     expect(result).toEqual([

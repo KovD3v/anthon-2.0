@@ -1008,6 +1008,13 @@ describe("lib/chat", () => {
     expect(mocks.resolveEffectiveEntitlements).not.toHaveBeenCalled();
     expect(mocks.getVoicePlanConfig).not.toHaveBeenCalled();
     expect(mocks.messageFindMany).not.toHaveBeenCalled();
+    expect(mocks.chatFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          messages: { take: 1, select: { id: true } },
+        }),
+      }),
+    );
     expect(result).toMatchObject({
       id: "guest-chat",
       title: "Nuova Chat",

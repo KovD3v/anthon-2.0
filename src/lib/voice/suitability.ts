@@ -1,7 +1,7 @@
 import { generateText, Output } from "ai";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForClassifier } from "@/lib/ai/providers/openrouter-routing";
-import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
+import { scheduleSupportAiUsage } from "@/lib/ai/usage-meter";
 import { createLogger } from "@/lib/logger";
 import type { VoiceSuitabilityHint } from "./decision";
 import type { VoiceRequestIntent } from "./policy";
@@ -41,6 +41,7 @@ export interface ClassifySuitabilityParams {
   conversationContext?: Array<{ role: string; content: string }>;
   timeoutMs?: number;
   abortSignal?: AbortSignal;
+  waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 export type VoiceClassifierFailureCode =
@@ -315,13 +316,15 @@ export async function classifyVoiceSuitability(
           : "baseline",
       ),
     });
-    await trackSupportAiUsage({
-      userId: params.userId,
-      modelId: DEFAULT_SUITABILITY_MODEL,
-      usage: result.usage,
-      providerMetadata: result.providerMetadata,
-    });
-    params.abortSignal?.throwIfAborted();
+    scheduleSupportAiUsage(
+      {
+        userId: params.userId,
+        modelId: DEFAULT_SUITABILITY_MODEL,
+        usage: result.usage,
+        providerMetadata: result.providerMetadata,
+      },
+      params.waitUntil,
+    );
     if (!result.output) {
       return {
         category: "TEXT_PREFERRED",

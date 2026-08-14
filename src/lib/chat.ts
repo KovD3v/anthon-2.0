@@ -21,6 +21,14 @@ function normalizeMessageFeedback(
   return feedback === -1 || feedback === 0 || feedback === 1 ? feedback : null;
 }
 
+function hasPersistedChatMessages(chat: {
+  messages?: Array<unknown>;
+  _count?: { messages?: number };
+}): boolean {
+  if (Array.isArray(chat.messages)) return chat.messages.length > 0;
+  return (chat._count?.messages ?? 0) > 0;
+}
+
 function toComparisonSlot(
   response:
     | {
@@ -122,8 +130,9 @@ async function getSharedChatUncached(
             },
           },
         },
-        _count: {
-          select: { messages: true },
+        messages: {
+          take: 1,
+          select: { id: true },
         },
       },
     }),
@@ -167,7 +176,7 @@ async function getSharedChatUncached(
       );
 
   const messages =
-    chat._count.messages === 0 && !cursor
+    !hasPersistedChatMessages(chat) && !cursor
       ? []
       : await prisma.message.findMany({
           where: { chatId },

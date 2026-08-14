@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   openrouter: vi.fn(),
   getOpenRouterProviderOptionsForClassifier: vi.fn(),
   trackSupportAiUsage: vi.fn(),
+  scheduleSupportAiUsage: vi.fn(),
   measure: vi.fn(),
   loggerWarn: vi.fn(),
 }));
@@ -26,6 +27,7 @@ vi.mock("@/lib/ai/providers/openrouter-routing", () => ({
 
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
+  scheduleSupportAiUsage: mocks.scheduleSupportAiUsage,
 }));
 
 vi.mock("@/lib/latency-logger", () => ({
@@ -74,6 +76,7 @@ describe("turn classification contract", () => {
     mocks.openrouter.mockReset();
     mocks.getOpenRouterProviderOptionsForClassifier.mockReset();
     mocks.trackSupportAiUsage.mockReset();
+    mocks.scheduleSupportAiUsage.mockReset();
     mocks.measure.mockReset();
     mocks.loggerWarn.mockReset();
 
@@ -82,6 +85,7 @@ describe("turn classification contract", () => {
       provider: "openrouter",
     });
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.scheduleSupportAiUsage.mockImplementation(() => undefined);
     mocks.measure.mockImplementation(
       async (_name: string, run: () => unknown | Promise<unknown>) =>
         await run(),
@@ -188,15 +192,35 @@ describe("turn classification contract", () => {
       classifierModel: "qwen/qwen3.6-27b",
       classifierProvider: "DeepInfra",
     });
-    expect(mocks.trackSupportAiUsage).toHaveBeenCalledTimes(1);
-    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
-      userId: "user-1",
-      modelId: "qwen/qwen3.6-27b",
-      usage: { inputTokens: 40, outputTokens: 20 },
-      providerMetadata: {
-        openrouter: { provider: "DeepInfra", usage: { cost: 0.001 } },
+    expect(mocks.scheduleSupportAiUsage).toHaveBeenCalledTimes(1);
+    expect(mocks.scheduleSupportAiUsage).toHaveBeenCalledWith(
+      {
+        userId: "user-1",
+        modelId: "qwen/qwen3.6-27b",
+        usage: { inputTokens: 40, outputTokens: 20 },
+        providerMetadata: {
+          openrouter: { provider: "DeepInfra", usage: { cost: 0.001 } },
+        },
       },
+      undefined,
+    );
+  });
+
+  it("schedules classifier accounting without waiting for the usage write", async () => {
+    const waitUntil = vi.fn();
+
+    await classifyTurn({
+      userId: "user-1",
+      userMessage: "Rendilo più breve",
+      context: "context",
+      modelId: "classifier-model",
+      waitUntil,
     });
+
+    expect(mocks.scheduleSupportAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-1" }),
+      waitUntil,
+    );
   });
 
   it("runs the classifier without reasoning and with its measured latency budget", async () => {
@@ -301,18 +325,9 @@ describe("turn classification contract", () => {
     ).rejects.toBe(abortError);
   });
 
-  it("propagates cancellation that occurs while metering usage", async () => {
+  it("does not make classifier completion wait for support usage accounting", async () => {
     const controller = new AbortController();
-    const abortError = new DOMException("request cancelled", "AbortError");
-    let resolveUsage: (() => void) | undefined;
-    mocks.trackSupportAiUsage.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveUsage = resolve;
-        }),
-    );
-
-    const classification = classifyTurn({
+    const classification = await classifyTurn({
       userId: "user-1",
       userMessage: "Rendilo più breve",
       context: "context",
@@ -320,12 +335,7 @@ describe("turn classification contract", () => {
       abortSignal: controller.signal,
     });
 
-    await vi.waitFor(() => {
-      expect(mocks.trackSupportAiUsage).toHaveBeenCalledTimes(1);
-    });
-    controller.abort(abortError);
-    resolveUsage?.();
-
-    await expect(classification).rejects.toBe(abortError);
+    expect(classification.outcome).toBe("accepted");
+    expect(mocks.scheduleSupportAiUsage).toHaveBeenCalledTimes(1);
   });
 });

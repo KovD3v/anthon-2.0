@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   dailyUsageUpsert: vi.fn(),
   measure: vi.fn(),
   trackSupportAiUsage: vi.fn(),
+  scheduleSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -21,6 +22,7 @@ vi.mock("@/lib/ai/providers/openrouter", () => ({
 }));
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
+  scheduleSupportAiUsage: mocks.scheduleSupportAiUsage,
 }));
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -94,6 +96,7 @@ describe("voice/funnel", () => {
     mocks.voiceCount.mockResolvedValue(0);
     mocks.messageFindMany.mockResolvedValue([]);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.scheduleSupportAiUsage.mockImplementation(() => undefined);
     mocks.generateText.mockResolvedValue({
       output: {
         category: "VOICE_NATURAL",

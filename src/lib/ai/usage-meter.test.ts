@@ -13,7 +13,7 @@ vi.mock("@/lib/rate-limit", () => ({
   incrementTokenUsage: mocks.incrementTokenUsage,
 }));
 
-import { trackSupportAiUsage } from "./usage-meter";
+import { scheduleSupportAiUsage, trackSupportAiUsage } from "./usage-meter";
 
 describe("ai/usage-meter", () => {
   beforeEach(() => {
@@ -111,5 +111,25 @@ describe("ai/usage-meter", () => {
     });
 
     expect(mocks.incrementTokenUsage).not.toHaveBeenCalled();
+  });
+
+  it("hands support usage accounting to the request scheduler without awaiting it", () => {
+    const waitUntil = vi.fn();
+    mocks.calculateCost.mockReturnValue({ totalCost: 0.004 });
+    mocks.incrementTokenUsage.mockImplementation(
+      () => new Promise(() => undefined),
+    );
+
+    scheduleSupportAiUsage(
+      {
+        userId: "user-1",
+        modelId: "model-a",
+        usage: { inputTokens: 100, outputTokens: 20 },
+      },
+      waitUntil,
+    );
+
+    expect(waitUntil).toHaveBeenCalledWith(expect.any(Promise));
+    expect(mocks.incrementTokenUsage).toHaveBeenCalledTimes(1);
   });
 });

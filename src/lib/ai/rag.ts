@@ -11,7 +11,7 @@ import { generateEmbedding, generateEmbeddings } from "@/lib/ai/embeddings";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForClassifier } from "@/lib/ai/providers/openrouter-routing";
 import { DEFAULT_TURN_CLASSIFIER_MODEL_ID } from "@/lib/ai/turn-classification";
-import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
+import { scheduleSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -607,7 +607,10 @@ function hasDirectRagKeyword(message: string): boolean {
  */
 export async function shouldUseRag(
   userMessage: string,
-  options?: { userId?: string },
+  options?: {
+    userId?: string;
+    waitUntil?: (promise: Promise<unknown>) => void;
+  },
 ): Promise<boolean> {
   const lower = userMessage.toLowerCase();
   const messageLength = userMessage.trim().length;
@@ -705,12 +708,15 @@ Answer needsRag: false if the question is:
     const { output } = result;
 
     if (options?.userId) {
-      await trackSupportAiUsage({
-        userId: options.userId,
-        modelId: RAG_CLASSIFIER_MODEL_ID,
-        usage: result.usage,
-        providerMetadata: result.providerMetadata,
-      });
+      scheduleSupportAiUsage(
+        {
+          userId: options.userId,
+          modelId: RAG_CLASSIFIER_MODEL_ID,
+          usage: result.usage,
+          providerMetadata: result.providerMetadata,
+        },
+        options.waitUntil,
+      );
     }
 
     if (ragClassificationCache.size >= RAG_CLASSIFICATION_CACHE_MAX_ENTRIES) {

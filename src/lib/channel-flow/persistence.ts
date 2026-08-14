@@ -463,41 +463,48 @@ export async function persistAssistantOutput({
     }
   }
 
+  const postPersistenceTasks: Promise<unknown>[] = [];
   if (updateChatTimestamp && chatId) {
-    try {
-      await prisma.chat.update({
-        where: { id: chatId },
-        data: { updatedAt: new Date() },
-      });
-    } catch (error) {
-      persistenceLogger.error(
-        "chat.timestamp_update_failed",
-        "Failed updating chat timestamp after assistant persistence",
-        { error, chatId },
-      );
-    }
+    postPersistenceTasks.push(
+      prisma.chat
+        .update({
+          where: { id: chatId },
+          data: { updatedAt: new Date() },
+        })
+        .catch((error) => {
+          persistenceLogger.error(
+            "chat.timestamp_update_failed",
+            "Failed updating chat timestamp after assistant persistence",
+            { error, chatId },
+          );
+        }),
+    );
   }
 
   if (!usageReservationId && persisted.created) {
-    try {
-      await incrementUsage(
+    postPersistenceTasks.push(
+      incrementUsage(
         userId,
         metrics.inputTokens,
         metrics.outputTokens,
         metrics.costUsd,
         metrics.reasoningTokens ?? 0,
-      );
-    } catch (error) {
-      persistenceLogger.error(
-        "usage.increment_failed",
-        "Failed incrementing usage after assistant persistence",
-        { error, userId, messageId: message.id },
-      );
-    }
+      ).catch((error) => {
+        persistenceLogger.error(
+          "usage.increment_failed",
+          "Failed incrementing usage after assistant persistence",
+          { error, userId, messageId: message.id },
+        );
+      }),
+    );
   }
 
   if (tags.length > 0) {
-    await revalidateTags(tags);
+    postPersistenceTasks.push(revalidateTags(tags));
+  }
+
+  if (postPersistenceTasks.length > 0) {
+    scheduleBackground(waitUntil, Promise.all(postPersistenceTasks));
   }
 
   if (conversationThreadId && persisted.created) {

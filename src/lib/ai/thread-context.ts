@@ -14,9 +14,11 @@ const contextLogger = createLogger("ai");
 const MAX_MESSAGE_CHARS = 2_000;
 const SUMMARY_WORD_LIMIT = 250;
 
+type ContextMessage = Pick<Message, "id" | "role" | "parts" | "createdAt">;
+
 type Turn = {
-  user: Message;
-  assistant: Message;
+  user: ContextMessage;
+  assistant: ContextMessage;
   chars: number;
 };
 
@@ -68,6 +70,12 @@ export async function buildThreadContext(
       },
       orderBy: { createdAt: "desc" },
       take: Math.max(policy.maxRawTurns * 8, 40),
+      select: {
+        id: true,
+        role: true,
+        parts: true,
+        createdAt: true,
+      },
     }),
   ]);
 
@@ -118,6 +126,12 @@ async function refreshConversationThreadSummary(
         : {}),
     },
     orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      role: true,
+      parts: true,
+      createdAt: true,
+    },
   });
   const turns = toCompleteTurns(messages);
   const chars = turns.reduce((total, turn) => total + turn.chars, 0);
@@ -163,9 +177,9 @@ async function refreshConversationThreadSummary(
   });
 }
 
-function toCompleteTurns(messages: Message[]): Turn[] {
+function toCompleteTurns(messages: ContextMessage[]): Turn[] {
   const turns: Turn[] = [];
-  let pendingUser: Message | undefined;
+  let pendingUser: ContextMessage | undefined;
   for (const message of messages) {
     if (message.role === "USER") {
       pendingUser = message;
@@ -196,14 +210,14 @@ function selectRecentTurns(turns: Turn[], policy: ThreadContextPolicy): Turn[] {
   return selected;
 }
 
-function contextText(message: Message): string {
+function contextText(message: ContextMessage): string {
   const text = getTextFromParts(message.parts);
   return text.length <= MAX_MESSAGE_CHARS
     ? text
     : `${text.slice(0, MAX_MESSAGE_CHARS - 14)}\n[truncated]`;
 }
 
-function toModelMessage(message: Message): ModelMessage {
+function toModelMessage(message: ContextMessage): ModelMessage {
   return {
     role: message.role === "USER" ? "user" : "assistant",
     content: contextText(message),

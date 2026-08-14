@@ -34,6 +34,14 @@ import { checkRateLimit } from "@/lib/rate-limit";
 /** @lintignore */
 export const maxDuration = 60; // Allow up to 60 seconds for streaming
 
+function hasPersistedChatMessages(chat: {
+  messages?: Array<unknown>;
+  _count?: { messages?: number };
+}): boolean {
+  if (Array.isArray(chat.messages)) return chat.messages.length > 0;
+  return (chat._count?.messages ?? 0) > 0;
+}
+
 export async function handleGuestChatPost(request: Request) {
   return (async () => {
     try {
@@ -105,22 +113,28 @@ export async function handleGuestChatPost(request: Request) {
       // Authenticate guest user via cookies after request-only validation.
       const { user } = await authenticateGuest(request);
 
-      const routineProposalAllowed = await isRoutineFeatureEnabled({
+      const routineProposalAllowedPromise = isRoutineFeatureEnabled({
         distinctId: user.id,
         role: user.role,
         isGuest: user.isGuest,
       });
 
       // Verify chat ownership (guest user owns this chat)
-      const chat = await prisma.chat.findFirst({
-        where: { id: chatId, userId: user.id },
-        select: {
-          id: true,
-          title: true,
-          customTitle: true,
-          _count: { select: { messages: true } },
-        },
-      });
+      const [chat, routineProposalAllowed] = await Promise.all([
+        prisma.chat.findFirst({
+          where: { id: chatId, userId: user.id },
+          select: {
+            id: true,
+            title: true,
+            customTitle: true,
+            messages: {
+              take: 1,
+              select: { id: true },
+            },
+          },
+        }),
+        routineProposalAllowedPromise,
+      ]);
 
       if (!chat) {
         return Response.json(
@@ -324,7 +338,7 @@ export async function handleGuestChatPost(request: Request) {
           isGuest: true,
           hasImages: false,
           hasAudio: false,
-          skipConversationHistory: chat._count.messages === 0,
+          skipConversationHistory: !hasPersistedChatMessages(chat),
           routineProposalAllowed,
         },
         execution: {

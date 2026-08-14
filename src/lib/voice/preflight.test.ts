@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   messageFindMany: vi.fn(),
   getSystemLoad: vi.fn(),
   trackSupportAiUsage: vi.fn(),
+  scheduleSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -27,6 +28,7 @@ vi.mock("@/lib/db", () => ({
 vi.mock("./elevenlabs", () => ({ getSystemLoad: mocks.getSystemLoad }));
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
+  scheduleSupportAiUsage: mocks.scheduleSupportAiUsage,
 }));
 
 import { decideWebVoiceMode } from "./preflight";
@@ -89,6 +91,7 @@ describe("voice/preflight", () => {
     mocks.messageFindMany.mockResolvedValue([]);
     mocks.getSystemLoad.mockResolvedValue(1);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.scheduleSupportAiUsage.mockImplementation(() => undefined);
     mocks.generateText.mockResolvedValue({
       output: {
         category: "VOICE_NATURAL",
@@ -232,6 +235,20 @@ describe("voice/preflight", () => {
           },
         },
       }),
+    );
+  });
+
+  it("schedules voice classifier accounting through the request scheduler", async () => {
+    const waitUntil = vi.fn();
+
+    await decideWebVoiceMode({
+      ...baseParams(),
+      waitUntil,
+    });
+
+    expect(mocks.scheduleSupportAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-1" }),
+      waitUntil,
     );
   });
 

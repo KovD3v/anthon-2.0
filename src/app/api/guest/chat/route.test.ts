@@ -701,6 +701,13 @@ describe("POST /api/guest/chat", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(mocks.chatFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          messages: { take: 1, select: { id: true } },
+        }),
+      }),
+    );
     expect(streamArgs).toMatchObject({
       chatId: "chat-1",
       userMessage: "continue",
@@ -847,7 +854,8 @@ describe("POST /api/guest/chat", () => {
       0.01,
       0,
     );
-    expect(mocks.waitUntil).toHaveBeenCalledTimes(1);
+    // Funnel and post-response work stay off the request critical path.
+    expect(mocks.waitUntil).toHaveBeenCalled();
   });
 
   it("returns 500 when guest authentication throws", async () => {

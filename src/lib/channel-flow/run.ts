@@ -707,7 +707,7 @@ export async function runChannelFlow(
         capabilityPlannerMode: capabilityMetadataValid
           ? capabilityPlannerMode
           : undefined,
-        waitUntil: ctx.persistence?.waitUntil,
+        waitUntil: ctx.persistence?.waitUntil ?? ctx.execution?.waitUntil,
         usageReservationId,
         usageReservationClaimToken,
         usageAlreadyReconciled,
@@ -959,6 +959,7 @@ export async function runChannelFlow(
       routineProposalAllowed: ctx.ai?.routineProposalAllowed !== false,
       traceCollector: ctx.execution?.traceCollector,
       includeTechnicalDiagnostics: ctx.execution?.includeTechnicalDiagnostics,
+      waitUntil: ctx.execution?.waitUntil ?? ctx.persistence?.waitUntil,
       abortSignal: generationAbortController.signal,
       onFinish: async ({
         text,

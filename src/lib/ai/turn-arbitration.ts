@@ -43,6 +43,7 @@ export type TurnArbitrationInput = Omit<
   requestedOutputTokens: number;
   hasRecentContext: boolean;
   abortSignal?: AbortSignal;
+  waitUntil?: (promise: Promise<unknown>) => void;
 };
 
 export type TurnArbitrationResult = {
@@ -122,6 +123,7 @@ export async function arbitrateTurn(
             context: input.classifierContext,
             modelId: input.classifierModelId,
             abortSignal: input.abortSignal,
+            waitUntil: input.waitUntil,
           })
         : legacyClassification();
     input.abortSignal?.throwIfAborted();

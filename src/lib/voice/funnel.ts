@@ -54,6 +54,7 @@ export interface FunnelParams {
   chatId?: string | null;
   excludeMessageId?: string;
   suitabilityHint?: VoiceSuitabilityHint;
+  waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 function getLegacyBlockedAt(
@@ -121,6 +122,7 @@ export async function shouldGenerateVoice(
           userMessage: params.userMessage,
           assistantText: params.assistantText,
           conversationContext: params.conversationContext,
+          waitUntil: params.waitUntil,
         }));
     const decision = await decideVoiceDelivery({
       userId: params.userId,

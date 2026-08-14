@@ -74,6 +74,7 @@ export type TurnClassificationInput = {
   modelId: string;
   userId?: string;
   abortSignal?: AbortSignal;
+  waitUntil?: (promise: Promise<unknown>) => void;
 };
 
 const classifierCapabilityValueSchema = z.enum(["yes", "no", "uncertain"]);
@@ -171,6 +172,7 @@ export async function classifyTurn({
   modelId,
   userId,
   abortSignal,
+  waitUntil,
 }: TurnClassificationInput): Promise<TurnClassificationResult> {
   abortSignal?.throwIfAborted();
   const startedAt = Date.now();
@@ -179,7 +181,7 @@ export async function classifyTurn({
     const [
       { openrouter },
       { getOpenRouterProviderOptionsForClassifier },
-      { trackSupportAiUsage },
+      { scheduleSupportAiUsage },
     ] = await Promise.all([
       import("@/lib/ai/providers/openrouter"),
       import("@/lib/ai/providers/openrouter-routing"),
@@ -208,13 +210,15 @@ export async function classifyTurn({
     abortSignal?.throwIfAborted();
 
     if (userId) {
-      await trackSupportAiUsage({
-        userId,
-        modelId,
-        usage: result.usage,
-        providerMetadata: result.providerMetadata,
-      });
-      abortSignal?.throwIfAborted();
+      scheduleSupportAiUsage(
+        {
+          userId,
+          modelId,
+          usage: result.usage,
+          providerMetadata: result.providerMetadata,
+        },
+        waitUntil,
+      );
     }
 
     const proposal = parseTurnClassifierOutput(result.output);

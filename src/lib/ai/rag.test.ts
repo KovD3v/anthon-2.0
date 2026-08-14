@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   executeRawUnsafe: vi.fn(),
   measure: vi.fn(),
   trackSupportAiUsage: vi.fn(),
+  scheduleSupportAiUsage: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -54,6 +55,7 @@ vi.mock("@/lib/latency-logger", () => ({
 
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
+  scheduleSupportAiUsage: mocks.scheduleSupportAiUsage,
 }));
 
 const originalOpenRouterKey = process.env.OPENROUTER_API_KEY;
@@ -86,6 +88,7 @@ describe("ai/rag", () => {
     mocks.executeRawUnsafe.mockReset();
     mocks.measure.mockReset();
     mocks.trackSupportAiUsage.mockReset();
+    mocks.scheduleSupportAiUsage.mockReset();
 
     mocks.openrouter.mockReturnValue("rag-classifier-model");
     mocks.outputObject.mockImplementation(
@@ -95,6 +98,7 @@ describe("ai/rag", () => {
       async (_name: string, fn: () => unknown | Promise<unknown>) => await fn(),
     );
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.scheduleSupportAiUsage.mockImplementation(() => undefined);
 
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
     process.env.NEXT_PUBLIC_APP_URL = "https://app.test";
@@ -282,8 +286,9 @@ describe("ai/rag", () => {
     });
     const { shouldUseRag } = await loadModule();
     const query = "Can you compare periodization frameworks for athletes?";
+    const waitUntil = vi.fn();
 
-    const first = await shouldUseRag(query, { userId: "user-1" });
+    const first = await shouldUseRag(query, { userId: "user-1", waitUntil });
     const second = await shouldUseRag(query, { userId: "user-1" });
 
     expect(first).toBe(true);
@@ -309,12 +314,15 @@ describe("ai/rag", () => {
         },
       }),
     );
-    expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
-      userId: "user-1",
-      modelId: "nvidia/nemotron-3.5-lightning",
-      usage: { inputTokens: 80, outputTokens: 12 },
-      providerMetadata: undefined,
-    });
+    expect(mocks.scheduleSupportAiUsage).toHaveBeenCalledWith(
+      {
+        userId: "user-1",
+        modelId: "nvidia/nemotron-3.5-lightning",
+        usage: { inputTokens: 80, outputTokens: 12 },
+        providerMetadata: undefined,
+      },
+      waitUntil,
+    );
   });
 
   it("shouldUseRag returns false when LLM classification throws", async () => {

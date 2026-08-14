@@ -308,6 +308,15 @@ describe("model comparison runtime", () => {
     );
   });
 
+  it("uses a minimal pair probe before preparing an ordinary turn", async () => {
+    await tryCreateModelComparisonResponse(runtimeInput());
+
+    expect(mocks.findPair).toHaveBeenCalledWith({
+      where: { sourceMessageId: "message-1" },
+      select: { id: true, userId: true, status: true },
+    });
+  });
+
   it("streams and persists two successful variants before marking the pair ready", async () => {
     const input = runtimeInput();
     const response = await tryCreateModelComparisonResponse(input);

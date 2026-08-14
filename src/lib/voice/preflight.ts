@@ -41,6 +41,7 @@ export interface WebVoiceModeParams {
   hasAttachments?: boolean;
   timeoutMs?: number;
   abortSignal?: AbortSignal;
+  waitUntil?: (promise: Promise<unknown>) => void;
   suitabilityHint?: VoiceSuitabilityHint;
 }
 
@@ -76,6 +77,7 @@ export async function decideWebVoiceMode(
         conversationContext: params.recentMessages,
         timeoutMs: params.timeoutMs,
         abortSignal: params.abortSignal,
+        waitUntil: params.waitUntil,
       });
       return classifiedSuitability;
     });

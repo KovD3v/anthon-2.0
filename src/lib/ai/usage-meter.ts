@@ -7,7 +7,7 @@ const usageMeterLogger = createLogger("usage");
 
 type ProviderMetadata = Record<string, unknown> | undefined;
 
-interface TrackSupportAiUsageInput {
+export interface SupportAiUsageInput {
   userId: string;
   modelId: string;
   usage?: Partial<LanguageModelUsage> & {
@@ -35,7 +35,7 @@ export async function trackSupportAiUsage({
   modelId,
   usage,
   providerMetadata,
-}: TrackSupportAiUsageInput): Promise<void> {
+}: SupportAiUsageInput): Promise<void> {
   const openrouterUsage = getOpenRouterUsage(providerMetadata);
   const inputTokens =
     asNumber(openrouterUsage?.promptTokens) ??
@@ -85,4 +85,21 @@ export async function trackSupportAiUsage({
       { error, userId, modelId },
     );
   }
+}
+
+export function scheduleSupportAiUsage(
+  input: SupportAiUsageInput,
+  waitUntil?: (promise: Promise<unknown>) => void,
+): void {
+  const task = trackSupportAiUsage(input);
+  if (waitUntil) {
+    try {
+      waitUntil(task);
+      return;
+    } catch {
+      // Fall through to detached best-effort execution when the host scheduler
+      // is unavailable or rejects the registration.
+    }
+  }
+  void task;
 }

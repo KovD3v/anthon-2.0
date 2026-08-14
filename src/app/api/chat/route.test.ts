@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   trackInboundUserMessageFunnelProgress: vi.fn(),
   isBillingSyncStale: vi.fn(),
   syncPersonalSubscriptionFromClerk: vi.fn(),
+  isRoutineFeatureEnabled: vi.fn(),
   decideWebVoiceMode: vi.fn(),
   getVoiceUnavailability: vi.fn(),
   loadTrustedRemoteMedia: vi.fn(),
@@ -143,6 +144,10 @@ vi.mock("@/lib/analytics/funnel", () => ({
 vi.mock("@/lib/billing/personal-subscription", () => ({
   isBillingSyncStale: mocks.isBillingSyncStale,
   syncPersonalSubscriptionFromClerk: mocks.syncPersonalSubscriptionFromClerk,
+}));
+
+vi.mock("@/lib/coaching/routine-feature", () => ({
+  isRoutineFeatureEnabled: mocks.isRoutineFeatureEnabled,
 }));
 
 vi.mock("@/lib/ai/multimodal-media", async (importOriginal) => ({
@@ -385,6 +390,7 @@ describe("POST /api/chat", () => {
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
     mocks.isBillingSyncStale.mockReset();
     mocks.syncPersonalSubscriptionFromClerk.mockReset();
+    mocks.isRoutineFeatureEnabled.mockReset();
     mocks.decideWebVoiceMode.mockReset();
     mocks.getVoiceUnavailability.mockReset();
     mocks.loadTrustedRemoteMedia.mockReset();
@@ -503,6 +509,7 @@ describe("POST /api/chat", () => {
     });
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
+    mocks.isRoutineFeatureEnabled.mockResolvedValue(false);
     mocks.isBillingSyncStale.mockImplementation(
       (billingSyncedAt?: Date | null) =>
         !billingSyncedAt ||
@@ -1272,6 +1279,85 @@ describe("POST /api/chat", () => {
       userMessage: "continue",
       skipConversationHistory: false,
     });
+  });
+
+  it("uses an existence projection instead of counting all chat messages", async () => {
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Chat",
+      customTitle: true,
+      messages: [{ id: "existing-message" }],
+    });
+    let streamArgs: Record<string, unknown> | undefined;
+    mocks.streamChat.mockImplementation(
+      async (args: Record<string, unknown>) => {
+        streamArgs = args;
+        return {
+          toUIMessageStream: emptyUiStream,
+          toUIMessageStreamResponse: () =>
+            Response.json({ ok: true, stream: true }, { status: 200 }),
+        };
+      },
+    );
+
+    const response = await POST(
+      buildRequest({
+        messages: [
+          { role: "user", parts: [{ type: "text", text: "continue" }] },
+        ],
+        chatId: "chat-1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.chatFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          messages: { take: 1, select: { id: true } },
+        }),
+      }),
+    );
+    expect(streamArgs).toMatchObject({ skipConversationHistory: false });
+  });
+
+  it("starts routine flag evaluation while chat lookup is pending", async () => {
+    let resolveRoutineFlag: ((value: boolean) => void) | undefined;
+    mocks.isRoutineFeatureEnabled.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRoutineFlag = resolve;
+        }),
+    );
+
+    let resolveChat: ((value: unknown) => void) | undefined;
+    mocks.chatFindFirst.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveChat = resolve;
+        }),
+    );
+
+    const responsePromise = POST(
+      buildRequest({
+        messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+        chatId: "chat-1",
+      }),
+    );
+
+    await vi.waitFor(() => {
+      expect(mocks.isRoutineFeatureEnabled).toHaveBeenCalledTimes(1);
+      expect(mocks.chatFindFirst).toHaveBeenCalledTimes(1);
+    });
+
+    resolveRoutineFlag?.(false);
+    resolveChat?.({
+      id: "chat-1",
+      title: "Chat",
+      customTitle: true,
+      messages: [],
+    });
+
+    await expect(responsePromise).resolves.toMatchObject({ status: 200 });
   });
 
   it("passes image blob urls to the AI flow as image file parts", async () => {
@@ -2661,8 +2747,9 @@ describe("POST /api/chat", () => {
       userText: "hello world",
       assistantText: "Assistant reply",
     });
-    // Funnel, thread summary, trace, conversation-recall index, and facts.
-    expect(mocks.waitUntil).toHaveBeenCalledTimes(5);
+    // Post-persistence work, funnel, thread summary, trace,
+    // conversation-recall index, and facts.
+    expect(mocks.waitUntil).toHaveBeenCalledTimes(6);
   });
 
   it("returns 500 when downstream streaming fails", async () => {

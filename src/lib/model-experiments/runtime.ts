@@ -154,6 +154,17 @@ async function getExistingComparisonPair(
   return pair?.userId === userId ? pair : null;
 }
 
+async function hasExistingComparisonPair(
+  sourceMessageId: string,
+  userId: string,
+) {
+  const pair = await prisma.modelExperimentPair.findUnique({
+    where: { sourceMessageId },
+    select: { id: true, userId: true, status: true },
+  });
+  return pair?.userId === userId ? pair : null;
+}
+
 function retryableComparisonResponse() {
   return Response.json(
     {
@@ -344,11 +355,16 @@ async function hasAttributablePendingMemoryApproval(input: RuntimeInput) {
 export async function tryCreateModelComparisonResponse(
   input: RuntimeInput,
 ): Promise<Response | null> {
-  const existingPair = await getExistingComparisonPair(
+  const existingPairProbe = await hasExistingComparisonPair(
     input.sourceMessageId,
     input.user.id,
   );
-  if (existingPair) {
+  if (existingPairProbe) {
+    const existingPair = await getExistingComparisonPair(
+      input.sourceMessageId,
+      input.user.id,
+    );
+    if (!existingPair) return null;
     const replay = replayStoredComparison(existingPair);
     if (replay) return replay;
     if (existingPair.status === "FAILED") return null;
