@@ -72,12 +72,31 @@
         { "repetition": 4, "provider": "CoreWeave", "servedModel": "deepseek/deepseek-v4-flash-0731", "status": 200, "headersMs": 827, "firstAnyMs": 1002, "firstContentMs": 3614, "totalMs": 3660, "contentChars": 72 },
         { "repetition": 5, "provider": "CoreWeave", "servedModel": "deepseek/deepseek-v4-flash-0731", "status": 200, "headersMs": 381, "firstAnyMs": 383, "firstContentMs": 2364, "totalMs": 2412, "contentChars": 51 }
       ]
+    },
+    {
+      "modelId": "openai/gpt-5.6-luna",
+      "pinnedProvider": "OpenAI",
+      "serviceTier": "priority",
+      "repetitions": 5,
+      "successful": 5,
+      "providersObserved": ["OpenAI"],
+      "firstAnyMs": { "avg": 876, "p50": 787, "p95": 1256, "min": 640, "max": 1256 },
+      "firstContentMs": { "avg": 876, "p50": 787, "p95": 1256, "min": 640, "max": 1256 },
+      "totalMs": { "avg": 1182, "p50": 974, "p95": 1838, "min": 898, "max": 1838 },
+      "repetitionsRaw": [
+        { "repetition": 1, "provider": "OpenAI", "servedModel": "openai/gpt-5.6-luna", "status": 200, "headersMs": 495, "firstAnyMs": 787, "firstContentMs": 787, "totalMs": 974, "contentChars": 104 },
+        { "repetition": 2, "provider": "OpenAI", "servedModel": "openai/gpt-5.6-luna", "status": 200, "headersMs": 393, "firstAnyMs": 665, "firstContentMs": 665, "totalMs": 913, "contentChars": 103 },
+        { "repetition": 3, "provider": "OpenAI", "servedModel": "openai/gpt-5.6-luna", "status": 200, "headersMs": 386, "firstAnyMs": 1033, "firstContentMs": 1033, "totalMs": 1285, "contentChars": 89 },
+        { "repetition": 4, "provider": "OpenAI", "servedModel": "openai/gpt-5.6-luna", "status": 200, "headersMs": 381, "firstAnyMs": 640, "firstContentMs": 640, "totalMs": 898, "contentChars": 107 },
+        { "repetition": 5, "provider": "OpenAI", "servedModel": "openai/gpt-5.6-luna", "status": 200, "headersMs": 561, "firstAnyMs": 1256, "firstContentMs": 1256, "totalMs": 1838, "contentChars": 104 }
+      ]
     }
   ],
   "notes": [
-    "All 15 requests returned HTTP 200.",
+    "All 20 requests returned HTTP 200.",
     "The provider was pinned per model and confirmed in the response metadata.",
     "No request was allowed to fall back to another provider.",
+    "Luna used service_tier=priority to match Anthon's current routing.",
     "The DeepSeek Flash result is not comparable to the previous Sail Research result as a provider measurement; the large latency difference is the reason for this pinned run."
   ]
 }
