@@ -23,6 +23,11 @@ enum UserRole {
   SUPER_ADMIN
 }
 
+enum OnboardingSessionStatus {
+  IN_PROGRESS
+  REVIEW
+}
+
 enum MemoryApprovalStatus {
   PENDING
   APPROVED
@@ -101,17 +106,36 @@ model User {
   modelExperimentPairs        ModelExperimentPair[]
   modelExperimentAudits       ModelExperimentAudit[]       @relation("ModelExperimentAuditActor")
   createdModelExperiments     ModelExperiment[]            @relation("ModelExperimentCreator")
+  onboardingSessions         OnboardingSession[]
 
-  billingSyncedAt DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime? // Soft delete
+  billingSyncedAt       DateTime?
+  onboardingCompletedAt DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime? // Soft delete
 
   @@index([role])
   @@index([isGuest])
   @@index([guestAbuseIdHash])
   @@index([deletedAt])
   @@index([billingSyncedAt])
+}
+
+model OnboardingSession {
+  id            String                  @id @default(cuid())
+  userId        String
+  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  version       Int                     @default(1)
+  status        OnboardingSessionStatus @default(IN_PROGRESS)
+  currentStep   Int                     @default(0)
+  draft         Json                    @default("{}")
+  skippedFields Json                    @default("[]")
+  transcript    Json                    @default("[]")
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  @@unique([userId, version])
+  @@index([userId, status])
 }
 
 // -----------------------------------------------------
@@ -1024,6 +1048,8 @@ model Profile {
   sport      String?
   goal       String?
   experience String?
+  age        Int?
+  occupation String?
   birthday   DateTime?
   notes      String?   @db.Text // Use TEXT for potentially long notes
 
