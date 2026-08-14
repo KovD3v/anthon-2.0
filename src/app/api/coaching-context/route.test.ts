@@ -41,7 +41,13 @@ describe("/api/coaching-context", () => {
       error: null,
     });
     mocks.userFindUnique.mockResolvedValue({
-      profile: { sport: "Tennis", goal: "Più fiducia", experience: null },
+      profile: {
+        age: 24,
+        occupation: "Studentessa di medicina",
+        sport: "Tennis",
+        goal: "Più fiducia",
+        experience: null,
+      },
     });
     mocks.listActiveFacts.mockResolvedValue({
       degraded: false,
@@ -74,7 +80,13 @@ describe("/api/coaching-context", () => {
     const response = await GET();
 
     await expect(response.json()).resolves.toEqual({
-      profile: { sport: "Tennis", goal: "Più fiducia", experience: null },
+      profile: {
+        age: 24,
+        occupation: "Studentessa di medicina",
+        sport: "Tennis",
+        goal: "Più fiducia",
+        experience: null,
+      },
       memories: [
         {
           id: "memory-1",
@@ -94,7 +106,13 @@ describe("/api/coaching-context", () => {
 
     const response = await GET();
     await expect(response.json()).resolves.toEqual({
-      profile: { sport: null, goal: null, experience: null },
+      profile: {
+        age: null,
+        occupation: null,
+        sport: null,
+        goal: null,
+        experience: null,
+      },
       memories: [],
     });
   });
@@ -111,6 +129,19 @@ describe("/api/coaching-context", () => {
       experience: null,
     });
     expect(mocks.invalidate).toHaveBeenCalledWith("user-1");
+  });
+
+  it("accepts age and work or study context", async () => {
+    mocks.userFindUnique.mockResolvedValue({ id: "user-1" });
+    const response = await PATCH(
+      patchRequest({ age: 24, occupation: "Studentessa di medicina" }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateCanonicalProfile).toHaveBeenCalledWith("user-1", {
+      age: 24,
+      occupation: "Studentessa di medicina",
+    });
   });
 
   it("rejects unknown or oversized profile fields", async () => {

@@ -7,6 +7,8 @@ const knowledgeLogger = createLogger("ai");
 
 export type CanonicalProfilePatch = {
   name?: string | null;
+  age?: number | null;
+  occupation?: string | null;
   sport?: string | null;
   goal?: string | null;
   experience?: string | null;

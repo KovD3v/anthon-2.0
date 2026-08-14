@@ -210,6 +210,8 @@ describe("ai/tools/user-context", () => {
     mocks.queryRaw.mockResolvedValue([
       {
         profileName: "Projected User",
+        profileAge: 24,
+        profileOccupation: "Studentessa di medicina",
         profileSport: "Tennis",
         profileGoal: "Servizio più stabile",
         profileExperience: "Intermediate",
@@ -224,6 +226,8 @@ describe("ai/tools/user-context", () => {
     const context = await formatUserContextForPrompt(userId);
 
     expect(context).toContain("Projected User");
+    expect(context).toContain("Età**: 24 anni");
+    expect(context).toContain("Lavoro o studio**: Studentessa di medicina");
     expect(context).toContain("Tennis");
     expect(context).toContain("Servizio più stabile");
     expect(context).toContain("Nota breve");

@@ -18,6 +18,8 @@ const optionalProfileField = z
 
 export const coachingProfilePatchSchema = z
   .object({
+    age: z.union([z.number().int().min(1).max(120), z.null()]).optional(),
+    occupation: optionalProfileField.optional(),
     sport: optionalProfileField.optional(),
     goal: optionalProfileField.optional(),
     experience: optionalProfileField.optional(),
