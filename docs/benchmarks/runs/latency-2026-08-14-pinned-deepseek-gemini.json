@@ -1,0 +1,83 @@
+{
+  "runLabel": "latency-2026-08-14-pinned-deepseek-gemini",
+  "date": "2026-08-14",
+  "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+  "authentication": "OPENROUTER_API_KEY from .env.benchmark",
+  "prompt": "Rispondi in italiano con una sola frase breve: qual è il primo passo per prepararsi mentalmente a una partita importante?",
+  "request": {
+    "stream": true,
+    "maxTokens": 1024,
+    "repetitionsPerModel": 5,
+    "concurrency": 1,
+    "providerPolicy": {
+      "only": "one pinned provider per model",
+      "allowFallbacks": false,
+      "requireParameters": true
+    }
+  },
+  "metrics": {
+    "headersMs": "time until HTTP headers",
+    "firstAnyMs": "time until first reasoning or visible-text delta",
+    "firstContentMs": "time until first visible-text delta",
+    "totalMs": "time until stream completion"
+  },
+  "models": [
+    {
+      "modelId": "google/gemini-3.7-flash",
+      "pinnedProvider": "Google AI Studio",
+      "repetitions": 5,
+      "successful": 5,
+      "providersObserved": ["Google AI Studio"],
+      "firstAnyMs": { "avg": 1788, "p50": 1474, "p95": 2996, "min": 1311, "max": 2996 },
+      "firstContentMs": { "avg": 2361, "p50": 2211, "p95": 3363, "min": 1905, "max": 3363 },
+      "totalMs": { "avg": 2392, "p50": 2211, "p95": 3454, "min": 1914, "max": 3454 },
+      "repetitionsRaw": [
+        { "repetition": 1, "provider": "Google AI Studio", "servedModel": "google/gemini-3.7-flash", "status": 200, "headersMs": 2989, "firstAnyMs": 2996, "firstContentMs": 3363, "totalMs": 3454, "contentChars": 117 },
+        { "repetition": 2, "provider": "Google AI Studio", "servedModel": "google/gemini-3.7-flash", "status": 200, "headersMs": 1712, "firstAnyMs": 1715, "firstContentMs": 2076, "totalMs": 2104, "contentChars": 118 },
+        { "repetition": 3, "provider": "Google AI Studio", "servedModel": "google/gemini-3.7-flash", "status": 200, "headersMs": 1474, "firstAnyMs": 1474, "firstContentMs": 2249, "totalMs": 2275, "contentChars": 118 },
+        { "repetition": 4, "provider": "Google AI Studio", "servedModel": "google/gemini-3.7-flash", "status": 200, "headersMs": 1311, "firstAnyMs": 1311, "firstContentMs": 1905, "totalMs": 1914, "contentChars": 134 },
+        { "repetition": 5, "provider": "Google AI Studio", "servedModel": "google/gemini-3.7-flash", "status": 200, "headersMs": 1444, "firstAnyMs": 1444, "firstContentMs": 2211, "totalMs": 2211, "contentChars": 86 }
+      ]
+    },
+    {
+      "modelId": "deepseek/deepseek-v4-pro-0813",
+      "pinnedProvider": "DeepSeek",
+      "repetitions": 5,
+      "successful": 5,
+      "providersObserved": ["DeepSeek"],
+      "firstAnyMs": { "avg": 1057, "p50": 1034, "p95": 1187, "min": 1007, "max": 1187 },
+      "firstContentMs": { "avg": 2658, "p50": 2681, "p95": 2964, "min": 2284, "max": 2964 },
+      "totalMs": { "avg": 2828, "p50": 2788, "p95": 3142, "min": 2441, "max": 3142 },
+      "repetitionsRaw": [
+        { "repetition": 1, "provider": "DeepSeek", "servedModel": "deepseek/deepseek-v4-pro-0813", "status": 200, "headersMs": 409, "firstAnyMs": 1034, "firstContentMs": 2519, "totalMs": 2647, "contentChars": 91 },
+        { "repetition": 2, "provider": "DeepSeek", "servedModel": "deepseek/deepseek-v4-pro-0813", "status": 200, "headersMs": 317, "firstAnyMs": 1187, "firstContentMs": 2842, "totalMs": 3142, "contentChars": 84 },
+        { "repetition": 3, "provider": "DeepSeek", "servedModel": "deepseek/deepseek-v4-pro-0813", "status": 200, "headersMs": 313, "firstAnyMs": 1018, "firstContentMs": 2964, "totalMs": 3121, "contentChars": 98 },
+        { "repetition": 4, "provider": "DeepSeek", "servedModel": "deepseek/deepseek-v4-pro-0813", "status": 200, "headersMs": 317, "firstAnyMs": 1038, "firstContentMs": 2681, "totalMs": 2788, "contentChars": 83 },
+        { "repetition": 5, "provider": "DeepSeek", "servedModel": "deepseek/deepseek-v4-pro-0813", "status": 200, "headersMs": 318, "firstAnyMs": 1007, "firstContentMs": 2284, "totalMs": 2441, "contentChars": 83 }
+      ]
+    },
+    {
+      "modelId": "deepseek/deepseek-v4-flash-0731",
+      "pinnedProvider": "CoreWeave",
+      "repetitions": 5,
+      "successful": 5,
+      "providersObserved": ["CoreWeave"],
+      "firstAnyMs": { "avg": 532, "p50": 419, "p95": 1002, "min": 383, "max": 1002 },
+      "firstContentMs": { "avg": 2756, "p50": 2541, "p95": 3614, "min": 1769, "max": 3614 },
+      "totalMs": { "avg": 2811, "p50": 2609, "p95": 3660, "min": 1820, "max": 3660 },
+      "repetitionsRaw": [
+        { "repetition": 1, "provider": "CoreWeave", "servedModel": "deepseek/deepseek-v4-flash-0731", "status": 200, "headersMs": 411, "firstAnyMs": 411, "firstContentMs": 3490, "totalMs": 3555, "contentChars": 81 },
+        { "repetition": 2, "provider": "CoreWeave", "servedModel": "deepseek/deepseek-v4-flash-0731", "status": 200, "headersMs": 418, "firstAnyMs": 419, "firstContentMs": 2541, "totalMs": 2609, "contentChars": 98 },
+        { "repetition": 3, "provider": "CoreWeave", "servedModel": "deepseek/deepseek-v4-flash-0731", "status": 200, "headersMs": 443, "firstAnyMs": 445, "firstContentMs": 1769, "totalMs": 1820, "contentChars": 61 },
+        { "repetition": 4, "provider": "CoreWeave", "servedModel": "deepseek/deepseek-v4-flash-0731", "status": 200, "headersMs": 827, "firstAnyMs": 1002, "firstContentMs": 3614, "totalMs": 3660, "contentChars": 72 },
+        { "repetition": 5, "provider": "CoreWeave", "servedModel": "deepseek/deepseek-v4-flash-0731", "status": 200, "headersMs": 381, "firstAnyMs": 383, "firstContentMs": 2364, "totalMs": 2412, "contentChars": 51 }
+      ]
+    }
+  ],
+  "notes": [
+    "All 15 requests returned HTTP 200.",
+    "The provider was pinned per model and confirmed in the response metadata.",
+    "No request was allowed to fall back to another provider.",
+    "The DeepSeek Flash result is not comparable to the previous Sail Research result as a provider measurement; the large latency difference is the reason for this pinned run."
+  ]
+}
