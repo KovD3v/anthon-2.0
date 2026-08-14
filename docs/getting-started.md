@@ -53,6 +53,8 @@ OPENROUTER_API_KEY="sk-or-..."
 Feature-specific variables:
 
 - Uploads: `BLOB_READ_WRITE_TOKEN`
+- Local testing with the Production RAG corpus: `RAG_PRODUCTION_DATABASE_URL`
+  (optional pooled Production connection; used only while `NODE_ENV=development`)
 - Private generated voice: `VOICE_BLOB_READ_WRITE_TOKEN`
 - Web search tools: `TINYFISH_API_KEY`
 - Agentic optional-capability rollout: `AI_CAPABILITY_PLANNER_MODE=agentic`
@@ -128,6 +130,13 @@ Neon branch mapping (required):
 - local `DATABASE_URL` -> `development` branch (pooled connection string)
 - Vercel `DATABASE_URL` -> the deployed environment's database (pooled connection string)
 - `DIRECT_DATABASE_URL` -> the matching direct connection string — configure it as a Production-only Vercel variable so `bun run vercel:build` can apply pending production migrations; do not configure it for Preview
+
+For local chat testing against the live knowledge base, keep `DATABASE_URL` on
+the Development branch and optionally set `RAG_PRODUCTION_DATABASE_URL` to the
+pooled Production connection. Only document counts and vector searches use
+that connection, and PostgreSQL sessions are forced read-only; chat data and
+RAG uploads/deletions remain on the local Development database. Do not set this
+variable in Vercel environments.
 
 Useful Neon CLI commands:
 

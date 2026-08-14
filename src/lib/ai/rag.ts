@@ -10,6 +10,7 @@ import { RAG, RAG_KEYWORDS, RAG_NEGATIVE_KEYWORDS } from "@/lib/ai/constants";
 import { generateEmbedding, generateEmbeddings } from "@/lib/ai/embeddings";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForClassifier } from "@/lib/ai/providers/openrouter-routing";
+import { withRagRead } from "@/lib/ai/rag-database";
 import { DEFAULT_TURN_CLASSIFIER_MODEL_ID } from "@/lib/ai/turn-classification";
 import { scheduleSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
@@ -69,8 +70,9 @@ async function searchDocumentsWithOutcome(
     let results: RagSearchResult[];
     try {
       results = await LatencyLogger.measure("RAG: Vector search query", () =>
-        prisma.$queryRawUnsafe<RagSearchResult[]>(
-          `
+        withRagRead((database) =>
+          database.$queryRawUnsafe<RagSearchResult[]>(
+            `
       SELECT 
         rc.id AS "chunkId",
         rc."documentId" AS "documentId",
@@ -84,8 +86,9 @@ async function searchDocumentsWithOutcome(
       ORDER BY rc.embedding <=> $1::vector
       LIMIT $2
       `,
-          embeddingStr,
-          limit,
+            embeddingStr,
+            limit,
+          ),
         ),
       );
     } catch (error) {
@@ -525,7 +528,7 @@ async function hasRagDocuments(): Promise<boolean> {
 
   // Query database
   const count = await LatencyLogger.measure("RAG: Count documents", () =>
-    prisma.ragDocument.count(),
+    withRagRead((database) => database.ragDocument.count()),
   );
 
   // Update cache

@@ -224,6 +224,12 @@ Web search is powered by TinyFish:
 - Embedding dimensions: `1536`
 - Storage: `RagChunk.embedding` (`vector(1536)`)
 
+By default, RAG reads use the primary `DATABASE_URL`. For local development,
+`RAG_PRODUCTION_DATABASE_URL` can point to the pooled Production database so
+the local chat can use the live corpus without moving local user/chat data or
+RAG management writes to Production. The override is ignored outside
+`NODE_ENV=development`, and its PostgreSQL sessions are read-only.
+
 ### Retrieval paths and query gating
 
 The orchestrator skips RAG for guest turns before invoking the retrieval

@@ -12,6 +12,11 @@ The project uses a single Neon project (`AnthonChat`) with two branches:
 | `development` | Long-lived development database | Local development and parent for ephemeral integration-test branches |
 | `integration-*` | Ephemeral child of `development` | One migration/test run; deleted automatically afterward |
 
+Local development may optionally set `RAG_PRODUCTION_DATABASE_URL` to the
+pooled Production connection. This is a read-only RAG corpus override used
+only when `NODE_ENV=development`; the primary `DATABASE_URL` still handles
+users, chats, and RAG management mutations.
+
 ## Deployment migrations
 
 `bun run build` is artifact-only: it generates the Prisma client and compiles
