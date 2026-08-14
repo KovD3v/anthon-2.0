@@ -43,6 +43,9 @@ export type TurnArbitrationInput = Omit<
   estimatedInputTokens: number;
   requestedOutputTokens: number;
   hasRecentContext: boolean;
+  measureClassifierCall?: (
+    operation: () => Promise<TurnClassificationResult>,
+  ) => Promise<TurnClassificationResult>;
   abortSignal?: AbortSignal;
   waitUntil?: (promise: Promise<unknown>) => void;
 };
@@ -116,6 +119,9 @@ export async function arbitrateTurn(
 ): Promise<TurnArbitrationResult> {
   let classification: TurnClassificationResult;
   try {
+    const measureClassifierCall =
+      input.measureClassifierCall ??
+      ((operation: () => Promise<TurnClassificationResult>) => operation());
     const deterministicClassification =
       input.plannerMode === "agentic"
         ? resolveDeterministicTurnClassification({
@@ -137,14 +143,16 @@ export async function arbitrateTurn(
     classification =
       deterministicClassification ??
       (input.plannerMode === "agentic"
-        ? await classifyTurn({
-            userId: input.userId,
-            userMessage: input.userMessage,
-            context: input.classifierContext,
-            modelId: input.classifierModelId,
-            abortSignal: input.abortSignal,
-            waitUntil: input.waitUntil,
-          })
+        ? await measureClassifierCall(() =>
+            classifyTurn({
+              userId: input.userId,
+              userMessage: input.userMessage,
+              context: input.classifierContext,
+              modelId: input.classifierModelId,
+              abortSignal: input.abortSignal,
+              waitUntil: input.waitUntil,
+            }),
+          )
         : legacyClassification());
     input.abortSignal?.throwIfAborted();
   } catch (error) {

@@ -48,11 +48,17 @@ export function deriveLegacyLatencyTimeline(
     });
   };
 
-  appendRow({
-    id: "classification",
-    label: "Classificazione",
-    durationMs: route.classificationLatencyMs,
-  });
+  if (
+    route.classificationLatencyMs > 0 ||
+    route.decisionSource === "classifier" ||
+    route.decisionSource === "mixed"
+  ) {
+    appendRow({
+      id: "classification",
+      label: "Classificazione",
+      durationMs: route.classificationLatencyMs,
+    });
+  }
   appendRow({
     id: "routing",
     label: "Routing",

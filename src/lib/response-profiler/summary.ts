@@ -125,6 +125,19 @@ function getPresentationSpans(spans: readonly ServerTraceSpanV1[]) {
   });
 }
 
+function shouldPresentSpan(span: ServerTraceSpanV1, usage: Usage): boolean {
+  if (span.name !== "classification") return true;
+
+  const route = usage.executionRoute;
+  if (!route) return true;
+
+  return (
+    route.classificationLatencyMs > 0 ||
+    route.decisionSource === "classifier" ||
+    route.decisionSource === "mixed"
+  );
+}
+
 export function deriveResponseProfilerSummary(
   usage: Usage,
 ): ResponseProfilerSummary {
@@ -138,7 +151,9 @@ export function deriveResponseProfilerSummary(
     : [];
   const browserTotalMs = Math.max(0, ...clientOffsets);
   const presentationSpans = serverTrace
-    ? getPresentationSpans(serverTrace.spans)
+    ? getPresentationSpans(
+        serverTrace.spans.filter((span) => shouldPresentSpan(span, usage)),
+      )
     : [];
   const serverRows = presentationSpans.map((span) => ({
     id: span.id,

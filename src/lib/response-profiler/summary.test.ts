@@ -213,6 +213,59 @@ describe("deriveResponseProfilerSummary", () => {
     ]);
   });
 
+  it("does not present a zero-latency deterministic classification span", () => {
+    const summary = deriveResponseProfilerSummary({
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0,
+      executionRoute: {
+        routingMode: "active",
+        eligibleProfile: "light",
+        plannedProfile: "light",
+        executedProfile: "light",
+        taskKind: "social",
+        decisionSource: "rule",
+        confidenceBucket: "high",
+        reasonCodes: ["task_allowlisted"],
+        classificationLatencyMs: 0,
+        routingOverheadMs: 2,
+        attempts: [
+          {
+            sequence: 1,
+            profile: "light",
+            outcome: "completed",
+            generationTimeMs: 10,
+          },
+        ],
+      },
+      serverTrace: {
+        version: 1,
+        status: "completed",
+        totalMs: 12,
+        spans: [
+          {
+            id: 1,
+            name: "classification",
+            startOffsetMs: 0,
+            durationMs: 0,
+            status: "completed",
+          },
+          {
+            id: 2,
+            name: "routing",
+            startOffsetMs: 0,
+            durationMs: 2,
+            status: "completed",
+          },
+        ],
+      },
+    });
+
+    expect(summary.serverRows.map((row) => row.label)).toEqual([
+      "Selezione profilo",
+    ]);
+  });
+
   it("labels reasoning spans in the model timeline", () => {
     const summary = deriveResponseProfilerSummary({
       inputTokens: 1,

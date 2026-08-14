@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { TurnClassifierProposal } from "./turn-classification";
+import type {
+  TurnClassificationResult,
+  TurnClassifierProposal,
+} from "./turn-classification";
 
 const mocks = vi.hoisted(() => ({ classifyTurn: vi.fn() }));
 
@@ -197,6 +200,25 @@ describe("turn arbitration", () => {
       modelId: "qwen/qwen3.6-27b",
       abortSignal: undefined,
     });
+  });
+
+  it("measures only live classifier work, not deterministic arbitration", async () => {
+    const measureClassifierCall = vi.fn(
+      (operation: () => Promise<TurnClassificationResult>) => operation(),
+    );
+
+    await arbitrateTurn(agenticInput({ measureClassifierCall }));
+    expect(measureClassifierCall).toHaveBeenCalledTimes(1);
+
+    await arbitrateTurn(
+      agenticInput({
+        userMessage: "come stai?",
+        hasRecentContext: true,
+        measureClassifierCall,
+      }),
+    );
+
+    expect(measureClassifierCall).toHaveBeenCalledTimes(1);
   });
 
   it("bypasses the remote classifier for a self-contained transformation", async () => {

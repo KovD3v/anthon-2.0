@@ -98,7 +98,10 @@ import {
   formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
 import { arbitrateTurn } from "@/lib/ai/turn-arbitration";
-import { resolveTurnClassifierModelId } from "@/lib/ai/turn-classification";
+import {
+  resolveTurnClassifierModelId,
+  type TurnClassificationResult,
+} from "@/lib/ai/turn-classification";
 import { planLegacyTurn, planTurn, type TurnPlan } from "@/lib/ai/turn-plan";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -1743,6 +1746,7 @@ async function arbitrateChatTurn({
   capabilityPlannerMode,
   inputOrigin,
   recentContext,
+  measureClassifierCall,
   abortSignal,
   waitUntil,
 }: {
@@ -1758,6 +1762,9 @@ async function arbitrateChatTurn({
   capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
   inputOrigin: "text" | "transcribed_voice" | "direct_media";
   recentContext: BoundedRecentContext;
+  measureClassifierCall?: (
+    operation: () => Promise<TurnClassificationResult>,
+  ) => Promise<TurnClassificationResult>;
   abortSignal?: AbortSignal;
   waitUntil?: (promise: Promise<unknown>) => void;
 }) {
@@ -1787,6 +1794,7 @@ async function arbitrateChatTurn({
     estimatedInputTokens: estimateInputTokens(userMessage),
     requestedOutputTokens: requestedOutputTokensForRouting(userMessage),
     hasRecentContext: recentContext.available,
+    measureClassifierCall,
     abortSignal,
     waitUntil,
   });
@@ -2031,24 +2039,24 @@ export async function streamChat({
           ? { classifierProvider: preparedTurnContext.classifierProvider }
           : {}),
       }
-    : await measureTrace(traceCollector, "classification", () =>
-        arbitrateChatTurn({
-          userId,
-          userMessage,
-          isGuest,
-          memoryEnabled,
-          voiceAllowed: voiceEnabledResult,
-          responseMode,
-          webSearchRule,
-          resolvedMemoryTarget,
-          hasPendingMemoryApproval: Boolean(attributablePendingMemoryApproval),
-          capabilityPlannerMode,
-          inputOrigin,
-          recentContext: recentClassifierContext,
-          abortSignal,
-          waitUntil,
-        }),
-      );
+    : await arbitrateChatTurn({
+        userId,
+        userMessage,
+        isGuest,
+        memoryEnabled,
+        voiceAllowed: voiceEnabledResult,
+        responseMode,
+        webSearchRule,
+        resolvedMemoryTarget,
+        hasPendingMemoryApproval: Boolean(attributablePendingMemoryApproval),
+        capabilityPlannerMode,
+        inputOrigin,
+        recentContext: recentClassifierContext,
+        measureClassifierCall: (operation) =>
+          measureTrace(traceCollector, "classification", operation),
+        abortSignal,
+        waitUntil,
+      });
   const turnDecision = arbitration.decision;
   const classificationLatencyMs = arbitration.classificationLatencyMs;
   const classifierModel = arbitration.classifierModel;

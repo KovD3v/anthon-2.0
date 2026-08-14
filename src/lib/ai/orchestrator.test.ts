@@ -170,6 +170,7 @@ vi.mock("./turn-classification", async (importOriginal) => ({
   },
 }));
 
+import { createServerTraceCollector } from "@/lib/response-profiler/server-trace";
 import type { CapabilityDecision } from "./capability-arbitration";
 import { freezeTurnDecision } from "./execution-routing";
 import {
@@ -792,6 +793,26 @@ describe("ai/orchestrator", () => {
       eligibleProfile: "standard",
       reasonCodes: expect.arrayContaining(["legacy_mode"]),
     });
+  });
+
+  it("does not create a profiler classification span for deterministic routing", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
+    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
+    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "social");
+    const traceCollector = createServerTraceCollector({ now: () => 0 });
+
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-deterministic-profiler",
+      userMessage: "come stai?",
+      effectiveEntitlements: baseEntitlements,
+      traceCollector,
+    });
+
+    expect(
+      traceCollector.snapshot("partial").spans.map((span) => span.name),
+    ).not.toContain("classification");
   });
 
   it("executes active light with bounded history, no tools, and minimal reasoning", async () => {
