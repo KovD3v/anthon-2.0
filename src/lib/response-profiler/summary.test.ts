@@ -213,6 +213,43 @@ describe("deriveResponseProfilerSummary", () => {
     ]);
   });
 
+  it("labels reasoning spans in the model timeline", () => {
+    const summary = deriveResponseProfilerSummary({
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0,
+      serverTrace: {
+        version: 1,
+        status: "completed",
+        totalMs: 40,
+        spans: [
+          {
+            id: 1,
+            name: "reasoning",
+            startOffsetMs: 5,
+            durationMs: 20,
+            status: "completed",
+            attributes: {
+              attemptSequence: 1,
+              profile: "standard",
+              model: "model",
+              outcome: "completed",
+            },
+          },
+        ],
+      },
+    } as Usage);
+
+    expect(summary.serverRows).toEqual([
+      expect.objectContaining({
+        id: 1,
+        label: "Reasoning",
+        startOffsetMs: 5,
+        durationMs: 20,
+      }),
+    ]);
+  });
+
   it("renders legacy model spans as sequential TTFT and streaming rows", () => {
     const summary = deriveResponseProfilerSummary({
       inputTokens: 1,

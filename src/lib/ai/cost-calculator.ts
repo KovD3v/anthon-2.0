@@ -208,6 +208,8 @@ interface FinishResultInput {
   routineUsed?: boolean;
   /** Advisory selection only. Actual voice usage is added after delivery. */
   voiceOutput?: boolean;
+  /** Measured provider reasoning duration, when stream chunks expose it. */
+  reasoningTimeMs?: number | null;
   executionRoute?: ExecutionRouteTrace;
   developerDiagnostics?: DeveloperDiagnosticsV1;
 }
@@ -348,7 +350,7 @@ export function extractAIMetrics(
     capabilitiesUsed,
     costUsd: attemptUsage?.costUsd ?? extractedCostUsd,
     generationTimeMs,
-    reasoningTimeMs: null, // Not available from OpenRouter currently
+    reasoningTimeMs: finishResult.reasoningTimeMs ?? null,
     executionRoute: finishResult.executionRoute,
     developerDiagnostics: finishResult.developerDiagnostics,
   };

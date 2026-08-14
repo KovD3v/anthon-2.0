@@ -55,6 +55,7 @@ const SERVER_LABELS: Record<ServerSpanName, string> = {
   rag_search: "Ricerca RAG",
   prompt_build: "Costruzione prompt",
   provider_wait: "TTFT · attesa primo token",
+  reasoning: "Reasoning",
   model_stream: "Streaming risposta",
   tool: "Esecuzione strumento",
   assistant_persistence: "Salvataggio risposta",

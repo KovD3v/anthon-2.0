@@ -100,6 +100,7 @@ export async function GET(request: Request) {
             model: true,
             provider: true,
             reasoningTokens: true,
+            reasoningTimeMs: true,
             toolCallCount: true,
             toolResultChars: true,
             toolTiming: true,

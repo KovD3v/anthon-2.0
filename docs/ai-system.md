@@ -286,6 +286,7 @@ Tracked metrics include:
 - `inputTokens`
 - `outputTokens`
 - `reasoningTokens`
+- `reasoningTimeMs` when the provider exposes reasoning stream boundaries
 - `costUsd`
 - `generationTimeMs`
 - `capabilitiesUsed` (`rag`, `web`, `memory`, `routine`, `voice`)

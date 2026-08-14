@@ -32,6 +32,7 @@ export const SERVER_SPAN_NAMES = [
   "rag_search",
   "prompt_build",
   "provider_wait",
+  "reasoning",
   "model_stream",
   "tool",
   "assistant_persistence",

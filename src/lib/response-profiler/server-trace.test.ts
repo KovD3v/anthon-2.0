@@ -134,6 +134,53 @@ describe("ServerTraceCollector", () => {
     expect(collector.snapshot("completed").timeToFirstTokenMs).toBe(45);
   });
 
+  it("records reasoning duration as a private model span before visible text", () => {
+    let clock = 0;
+    const collector = createServerTraceCollector({ now: () => clock });
+    const attempt = startModelAttemptTrace(collector, {
+      attemptSequence: 1,
+      profile: "standard",
+      model: "model",
+    });
+
+    clock = 25;
+    attempt.observeReasoningStart();
+    clock = 75;
+    attempt.observeReasoningStart();
+    clock = 90;
+    attempt.observeReasoningEnd();
+    clock = 110;
+    attempt.observeTextDelta("first token");
+    clock = 140;
+    attempt.complete("provider");
+
+    expect(collector.getReasoningTimeMs()).toBe(65);
+    expect(collector.snapshot("completed").spans).toEqual([
+      expect.objectContaining({
+        name: "provider_wait",
+        startOffsetMs: 0,
+        durationMs: 110,
+      }),
+      expect.objectContaining({
+        name: "reasoning",
+        startOffsetMs: 25,
+        durationMs: 65,
+        status: "completed",
+        attributes: {
+          attemptSequence: 1,
+          profile: "standard",
+          model: "model",
+          outcome: "completed",
+        },
+      }),
+      expect.objectContaining({
+        name: "model_stream",
+        startOffsetMs: 110,
+        durationMs: 30,
+      }),
+    ]);
+  });
+
   it("keeps failed Light and delivered Standard attempts distinct", () => {
     let clock = 0;
     const collector = createServerTraceCollector({ now: () => clock });

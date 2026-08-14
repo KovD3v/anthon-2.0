@@ -38,6 +38,16 @@ describe("ai/cost-calculator", () => {
     expect(result.developerDiagnostics).toBe(developerDiagnostics);
   });
 
+  it("preserves the measured reasoning duration in the metrics record", () => {
+    const result = extractAIMetrics("model", Date.now(), {
+      text: "ok",
+      providerCostUsd: 0,
+      reasoningTimeMs: 42,
+    });
+
+    expect(result.reasoningTimeMs).toBe(42);
+  });
+
   it("uses OpenRouter metadata ephemerally without returning its raw payload", () => {
     const startTime = new Date("2026-02-17T12:00:00.000Z").getTime();
 

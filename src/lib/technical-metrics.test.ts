@@ -155,6 +155,22 @@ describe("resolveTechnicalMetricsVisibility", () => {
 });
 
 describe("buildTechnicalUsage", () => {
+  it("reads reasoning duration from the normalized metrics row", () => {
+    const usage = buildTechnicalUsage({
+      model: "model",
+      inputTokens: 10,
+      outputTokens: 5,
+      costUsd: 0.01,
+      generationTimeMs: 120,
+      reasoningTimeMs: null,
+      ragUsed: false,
+      toolCalls: null,
+      metrics: { reasoningTimeMs: 42 },
+    });
+
+    expect(usage?.reasoningTimeMs).toBe(42);
+  });
+
   it("returns developer diagnostics whenever expanded diagnostics are authorized", () => {
     const message = {
       model: "model",

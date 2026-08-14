@@ -37,6 +37,7 @@ const SPAN_GROUP: Record<ServerSpanName, Group> = {
   rag_search: "context",
   prompt_build: "context",
   provider_wait: "model",
+  reasoning: "model",
   model_stream: "model",
   tool: "tool",
   assistant_persistence: "persistence",

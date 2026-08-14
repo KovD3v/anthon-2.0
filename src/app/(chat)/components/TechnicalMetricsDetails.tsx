@@ -135,6 +135,7 @@ export function TechnicalMetricsDetails({
       usage.toolTiming ||
       usage.memoryRecall ||
       usage.ragAttempted !== undefined ||
+      usage.reasoningTimeMs !== undefined ||
       usage.serverTrace ||
       usage.clientTrace ||
       usage.developerDiagnostics,

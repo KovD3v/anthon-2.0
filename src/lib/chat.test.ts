@@ -365,6 +365,7 @@ describe("lib/chat", () => {
             model: true,
             provider: true,
             reasoningTokens: true,
+            reasoningTimeMs: true,
             toolCallCount: true,
             toolResultChars: true,
             toolTiming: true,

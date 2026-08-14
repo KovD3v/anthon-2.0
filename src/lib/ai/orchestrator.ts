@@ -1580,6 +1580,7 @@ async function runOpenRouterMultimodalCompletion({
       totalTokens: usage?.total_tokens,
     },
     providerMetadata,
+    reasoningTimeMs: traceCollector?.getReasoningTimeMs(),
     ragAttempted,
     ragUsed,
     ragChunksCount,
@@ -1812,6 +1813,16 @@ async function* observeNoToolAttempt(
   state: NoToolAttemptState,
 ) {
   for await (const part of stream) {
+    if (
+      part.type === "reasoning-start" ||
+      part.type === "reasoning-delta" ||
+      part.type === "reasoning-file"
+    ) {
+      state.trace?.observeReasoningStart();
+    }
+    if (part.type === "reasoning-end") {
+      state.trace?.observeReasoningEnd();
+    }
     if (part.type === "text-delta") {
       state.text += part.text;
       state.trace?.observeTextDelta(part.text);
@@ -3027,6 +3038,7 @@ export async function streamChat({
               outputTokenDetails: usage?.outputTokenDetails,
             },
             providerMetadata: deliveredState.providerMetadata,
+            reasoningTimeMs: traceCollector?.getReasoningTimeMs(),
             executionRoute: route,
             ragUsed: ragUsage.used,
             ragChunksCount: ragUsage.chunkCount,
@@ -3223,6 +3235,16 @@ export async function streamChat({
       ? undefined
       : createToolLoopPrepareStep(toolPlan),
     onChunk: ({ chunk }: { chunk: TextStreamPart<ToolSet> }) => {
+      if (
+        chunk.type === "reasoning-start" ||
+        chunk.type === "reasoning-delta" ||
+        chunk.type === "reasoning-file"
+      ) {
+        standardAttemptTrace.observeReasoningStart();
+      }
+      if (chunk.type === "reasoning-end") {
+        standardAttemptTrace.observeReasoningEnd();
+      }
       if (chunk.type === "text-delta") {
         standardAttemptTrace.observeTextDelta(chunk.text);
       }
@@ -3300,6 +3322,7 @@ export async function streamChat({
             totalTokens: meteredUsage?.totalTokens,
           },
           providerMetadata: providerMetadata as Record<string, unknown>,
+          reasoningTimeMs: traceCollector?.getReasoningTimeMs(),
           preferProviderUsage: !totalUsage,
           providerCostUsd: sumCosts(collectedOpenRouterCosts),
           collectedToolCalls:

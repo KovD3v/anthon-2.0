@@ -154,6 +154,7 @@ export function buildTechnicalUsage(
     : undefined;
   const provider = metrics?.provider?.trim();
   const reasoningTokens = metrics?.reasoningTokens ?? message.reasoningTokens;
+  const reasoningTimeMs = metrics?.reasoningTimeMs ?? message.reasoningTimeMs;
   const toolCallCount =
     metrics?.toolCallCount ?? countToolCalls(message.toolCalls);
   const toolResultChars = metrics?.toolResultChars ?? undefined;
@@ -170,8 +171,8 @@ export function buildTechnicalUsage(
     ...(message.generationTimeMs !== null
       ? { generationTimeMs: message.generationTimeMs }
       : {}),
-    ...(message.reasoningTimeMs !== null
-      ? { reasoningTimeMs: message.reasoningTimeMs }
+    ...(reasoningTimeMs !== null && reasoningTimeMs !== undefined
+      ? { reasoningTimeMs }
       : {}),
     ...(includeDiagnostics && model ? { model } : {}),
     ...(includeDiagnostics && provider ? { provider } : {}),

@@ -186,6 +186,7 @@ export async function GET(request: Request, { params }: RouteParams) {
             model: true,
             provider: true,
             reasoningTokens: true,
+            reasoningTimeMs: true,
             toolCallCount: true,
             toolResultChars: true,
             toolTiming: true,

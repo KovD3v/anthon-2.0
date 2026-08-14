@@ -37,7 +37,8 @@ The main limitations are:
 - the provider TTFT is not the first visible text latency;
 - tool timing is aggregate rather than per invocation;
 - route setup and persistence timings are logs only;
-- `reasoningTimeMs` is normally unavailable;
+- `reasoningTimeMs` is captured from provider reasoning stream boundaries when
+  available and remains absent for providers that do not expose them;
 - the browser does not persist stream receipt, DOM insertion, visible-frame, or perceived completion milestones.
 
 ## Scope
@@ -211,6 +212,7 @@ type ServerSpanName =
   | "rag_search"
   | "prompt_build"
   | "provider_wait"
+  | "reasoning"
   | "model_stream"
   | "tool"
   | "assistant_persistence";

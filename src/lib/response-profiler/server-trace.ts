@@ -32,12 +32,15 @@ export interface ServerTraceCollector {
     parentId?: number,
   ): Promise<T>;
   markFirstToken(): void;
+  getReasoningTimeMs(): number | undefined;
   markPartial(): void;
   markCancelled(): void;
   snapshot(status: RequestedTraceStatus): ServerTraceV1;
 }
 
 export type ModelAttemptTrace = {
+  observeReasoningStart(): void;
+  observeReasoningEnd(): void;
   observeTextDelta(text: string): void;
   complete(provider?: string): void;
   empty(provider?: string): void;
@@ -225,6 +228,19 @@ export function createServerTraceCollector(
     markFirstToken() {
       if (firstTokenMs === undefined) firstTokenMs = elapsed();
     },
+    getReasoningTimeMs() {
+      const reasoningSpans = spans.filter((span) => span.name === "reasoning");
+      if (reasoningSpans.length === 0) return undefined;
+
+      const total = reasoningSpans.reduce(
+        (sum, span) =>
+          sum +
+          (span.durationMs ??
+            boundedMilliseconds(elapsed() - span.startOffsetMs)),
+        0,
+      );
+      return boundedMilliseconds(total);
+    },
     markPartial() {
       forcedPartial = true;
     },
@@ -315,6 +331,7 @@ export function startModelAttemptTrace(
 ): ModelAttemptTrace {
   const providerWait =
     collector?.startSpan("provider_wait", attributes) ?? NOOP_SPAN;
+  let reasoning: ServerSpanHandle | undefined;
   let modelStream: ServerSpanHandle | undefined;
   let sawText = false;
   let providerWaitEnded = false;
@@ -340,6 +357,11 @@ export function startModelAttemptTrace(
   ) => {
     if (ended) return;
     ended = true;
+    reasoning?.end(status, {
+      outcome,
+      ...(provider ? { provider } : {}),
+    });
+    reasoning = undefined;
     endProviderWait(status, outcome, provider);
     providerWait.annotate({
       outcome,
@@ -352,8 +374,21 @@ export function startModelAttemptTrace(
   };
 
   return {
+    observeReasoningStart() {
+      if (ended || reasoning) return;
+      reasoning = collector?.startSpan("reasoning", attributes);
+    },
+    observeReasoningEnd() {
+      if (!reasoning) return;
+      reasoning.end("completed", { outcome: "completed" });
+      reasoning = undefined;
+    },
     observeTextDelta(text) {
       if (ended || text.length === 0) return;
+      if (reasoning) {
+        reasoning.end("completed", { outcome: "completed" });
+        reasoning = undefined;
+      }
       if (!sawText) {
         sawText = true;
         collector?.markFirstToken();
