@@ -9,6 +9,7 @@ import { getUserControlledCoachingGoal } from "@/lib/coaching-context";
 import { prisma } from "@/lib/db";
 import { getGuestTokenFromCookies, hashGuestToken } from "@/lib/guest-auth";
 import { convertGuestForAuthenticatedUser } from "@/lib/guest-conversion";
+import { requireCompletedOnboardingPage } from "@/lib/onboarding/gate";
 import { getSharedUsageData } from "@/lib/usage";
 import type { Chat, UsageData } from "@/types/chat";
 import { SidebarSkeleton } from "../../(chat)/components/Skeletons";
@@ -131,6 +132,7 @@ export async function getChatSidebarIdentity(): Promise<ChatSidebarIdentity> {
   const { user: authUser } = await getAuthUser();
 
   if (authUser) {
+    requireCompletedOnboardingPage(authUser, "/chat");
     const conversionOutcome = await convertGuestForAuthenticatedUser(
       authUser.id,
       { canMutateCookies: false },

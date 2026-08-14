@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma";
 import { redactToolCalls } from "@/lib/ai/tool-privacy";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import { onboardingRequiredResponse } from "@/lib/onboarding/gate";
 import {
   buildTechnicalUsage,
   resolveTechnicalDiagnosticsVisibility,
@@ -53,6 +54,7 @@ export async function GET(request: Request) {
         id: true,
         role: true,
         isGuest: true,
+        onboardingCompletedAt: true,
         preferences: { select: { showTechnicalMetrics: true } },
       },
     });
@@ -60,6 +62,9 @@ export async function GET(request: Request) {
     if (!user) {
       // No user yet, return empty messages
       return NextResponse.json({ messages: [] });
+    }
+    if (!user.isGuest && user.onboardingCompletedAt === null) {
+      return onboardingRequiredResponse(chatId ? `/chat/${chatId}` : "/chat");
     }
 
     // Build query based on whether chatId is provided
@@ -207,6 +212,9 @@ export async function DELETE(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+    if (!user.isGuest && user.onboardingCompletedAt === null) {
+      return onboardingRequiredResponse("/chat");
+    }
 
     // Get the message to delete
     const message = await prisma.message.findUnique({
@@ -322,6 +330,9 @@ export async function PATCH(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+    if (!user.isGuest && user.onboardingCompletedAt === null) {
+      return onboardingRequiredResponse("/chat");
     }
 
     // Get the message to edit

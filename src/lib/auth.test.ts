@@ -152,6 +152,7 @@ describe("lib/auth", () => {
         isGuest: true,
         role: true,
         createdAt: true,
+        onboardingCompletedAt: true,
       },
     });
   });
@@ -201,6 +202,7 @@ describe("lib/auth", () => {
         isGuest: true,
         role: true,
         createdAt: true,
+        onboardingCompletedAt: true,
       },
     });
     expect(mocks.waitUntil).toHaveBeenCalledTimes(1);

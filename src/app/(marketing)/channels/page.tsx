@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { PageWrapper } from "@/components/ui/page-wrapper";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { requireCompletedOnboardingPage } from "@/lib/onboarding/gate";
 import { ChannelsPageClient } from "./client";
 
 // TODO: Cache Components adoption. Refactor this route so this opt-out can be removed.
@@ -21,6 +22,7 @@ export default async function ChannelsPage() {
   if (!dbUser) {
     redirect("/sign-in?redirect_url=/channels");
   }
+  requireCompletedOnboardingPage(dbUser, "/channels");
 
   // Fetch connected channel identities
   const connectedChannels = await prisma.channelIdentity.findMany({

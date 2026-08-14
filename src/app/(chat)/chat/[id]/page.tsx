@@ -5,6 +5,7 @@ import { getSharedChatWithRetry } from "@/lib/chat";
 import { prisma } from "@/lib/db";
 import { getGuestTokenFromCookies, hashGuestToken } from "@/lib/guest-auth";
 import { convertGuestForAuthenticatedUser } from "@/lib/guest-conversion";
+import { requireCompletedOnboardingPage } from "@/lib/onboarding/gate";
 import { ChatConversationClient } from "./chat-conversation-client";
 
 export const prefetch = "partial";
@@ -34,6 +35,7 @@ export default async function ChatConversationPage({
   // server-side handoff before checking ownership or it can render a false 404
   // on the first navigation after signup.
   if (authUser) {
+    requireCompletedOnboardingPage(authUser, `/chat/${id}`);
     await convertGuestForAuthenticatedUser(authUser.id, {
       canMutateCookies: false,
     });

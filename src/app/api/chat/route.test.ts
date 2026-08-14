@@ -49,7 +49,10 @@ const mocks = vi.hoisted(() => ({
   createServerTraceCollector: vi.fn(),
   connectDatabase: vi.fn(),
   warmDatabaseConnection: vi.fn(),
+  getAuthUser: vi.fn(),
 }));
+
+vi.mock("@/lib/auth", () => ({ getAuthUser: mocks.getAuthUser }));
 
 vi.mock("@clerk/nextjs/server", () => ({
   auth: mocks.auth,
@@ -313,6 +316,8 @@ const rateLimitAllowed = {
 
 describe("PUT /api/chat", () => {
   beforeEach(() => {
+    mocks.getAuthUser.mockReset();
+    mocks.getAuthUser.mockResolvedValue({ user: null, error: null });
     mocks.waitUntil.mockReset();
     mocks.warmDatabaseConnection.mockReset();
     mocks.warmDatabaseConnection.mockResolvedValue(undefined);

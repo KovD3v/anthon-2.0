@@ -7,6 +7,7 @@ const ALLOWED_PATHS = [
   /^\/admin$/,
   /^\/channels$/,
   /^\/organization$/,
+  /^\/onboarding$/,
   /^\/link\/(?:telegram|whatsapp)\/[^/?#]+$/,
 ];
 
