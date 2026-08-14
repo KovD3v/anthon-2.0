@@ -1,5 +1,6 @@
 import { Server } from "lucide-react";
 import type { ServerSpanName } from "@/lib/response-profiler/contracts";
+import { deriveModelBarSegments } from "@/lib/response-profiler/model-timeline";
 import type { ResponseProfilerSummary } from "@/lib/response-profiler/summary";
 import type { Usage } from "@/types/chat";
 
@@ -63,6 +64,7 @@ export function ServerTimeline({
   summary: ResponseProfilerSummary;
 }) {
   const namesById = new Map(trace.spans.map((span) => [span.id, span.name]));
+  const modelBarSegments = deriveModelBarSegments(trace.spans);
   const groupedRows = (Object.keys(GROUPS) as Group[]).map((group) => ({
     group,
     rows: summary.serverRows.filter(
@@ -90,7 +92,8 @@ export function ServerTimeline({
       </div>
       <p className="mb-3 max-w-[70ch] text-[11px] leading-relaxed">
         Gli span paralleli condividono il tempo reale: le percentuali non sono
-        additive.
+        additive. Nel modello, TTFT e reasoning sono mostrati come fasi separate
+        senza sovrapporre le barre.
       </p>
       <div className="space-y-3">
         {groupedRows.map(({ group, rows }) =>
@@ -119,19 +122,35 @@ export function ServerTimeline({
                       className="relative mt-1 h-2 overflow-hidden rounded-sm bg-border/60"
                       aria-hidden="true"
                     >
-                      <span
-                        className={`absolute inset-y-0 rounded-sm ${
-                          row.status === "completed"
-                            ? "bg-primary/75"
-                            : row.status === "failed"
-                              ? "bg-destructive/75"
-                              : "bg-muted-foreground/55"
-                        }`}
-                        style={{
-                          marginInlineStart: `${row.startPercent}%`,
-                          width: `${row.widthPercent}%`,
-                        }}
-                      />
+                      {(group === "model"
+                        ? (modelBarSegments.get(row.id) ?? [
+                            {
+                              startOffsetMs: row.startOffsetMs,
+                              durationMs: row.durationMs,
+                            },
+                          ])
+                        : [
+                            {
+                              startOffsetMs: row.startOffsetMs,
+                              durationMs: row.durationMs,
+                            },
+                          ]
+                      ).map((segment, index) => (
+                        <span
+                          key={`${row.id}-${segment.startOffsetMs}-${index}`}
+                          className={`absolute inset-y-0 rounded-sm ${
+                            row.status === "completed"
+                              ? "bg-primary/75"
+                              : row.status === "failed"
+                                ? "bg-destructive/75"
+                                : "bg-muted-foreground/55"
+                          }`}
+                          style={{
+                            marginInlineStart: `${trace.totalMs > 0 ? (segment.startOffsetMs / trace.totalMs) * 100 : 0}%`,
+                            width: `${trace.totalMs > 0 ? (segment.durationMs / trace.totalMs) * 100 : 0}%`,
+                          }}
+                        />
+                      ))}
                     </div>
                     <p className="mt-1 flex flex-wrap gap-x-1.5 gap-y-0.5 text-[10px] tabular-nums text-muted-foreground">
                       <span>
