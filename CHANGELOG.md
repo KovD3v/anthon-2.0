@@ -79,6 +79,9 @@ Version numbers describe the application's user-facing behavior and its document
 - Improved chat request startup by reusing a pooled database connection and
   warming it before a message is sent; production Functions now run in
   Frankfurt for closer European execution.
+- Reduced Luna's default reasoning effort from `max` to `medium` while keeping
+  OpenAI priority routing, so visible first-token latency is not dominated by
+  hidden reasoning.
 - Reduced database round trips when loading AI user context with projected
   queries, while keeping soft-deleted user data out of prompts.
 - Optimized AI usage reservations by combining quota decisions and reservation

@@ -313,7 +313,8 @@ Plan-level defaults:
 | `admin` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash-0731` | `google/gemini-2.5-flash-lite` |
 
 Luna requests opt into OpenRouter's OpenAI priority service tier and explicitly
-use `max` reasoning effort. OpenRouter
+use `medium` reasoning effort to keep visible first-token latency bounded while
+retaining reasoning. OpenRouter
 may fall back to DeepSeek V4 Flash 0731. Streaming metrics use the model ID
 reported by the executed OpenRouter step, so fallback traffic is not attributed
 to Luna.
