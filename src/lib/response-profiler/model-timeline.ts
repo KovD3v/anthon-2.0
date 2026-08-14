@@ -10,6 +10,7 @@ const MODEL_SPAN_NAMES = new Set([
   "reasoning",
   "model_stream",
 ]);
+const MIN_VISIBLE_MODEL_HANDOFF_MS = 16;
 
 function isSameModelAttempt(left: ServerTraceSpanV1, right: ServerTraceSpanV1) {
   if (right.name !== "provider_wait") return false;
@@ -30,6 +31,7 @@ function subtractIntervals(
 ): ModelBarSegment[] {
   const endOffsetMs = startOffsetMs + durationMs;
   let cursor = startOffsetMs;
+  let lastExcludedEndMs: number | undefined;
   const segments: ModelBarSegment[] = [];
 
   for (const excluded of excludedSpans) {
@@ -40,6 +42,8 @@ function subtractIntervals(
     );
     if (excludedEnd <= excludedStart) continue;
 
+    lastExcludedEndMs = Math.max(lastExcludedEndMs ?? excludedEnd, excludedEnd);
+
     if (excludedStart > cursor) {
       segments.push({
         startOffsetMs: cursor,
@@ -49,10 +53,16 @@ function subtractIntervals(
     cursor = Math.max(cursor, excludedEnd);
   }
 
-  if (cursor < endOffsetMs) {
+  const trailingDurationMs = endOffsetMs - cursor;
+  const isTinyProviderHandoff =
+    lastExcludedEndMs !== undefined &&
+    cursor >= lastExcludedEndMs &&
+    trailingDurationMs <= MIN_VISIBLE_MODEL_HANDOFF_MS;
+
+  if (cursor < endOffsetMs && !isTinyProviderHandoff) {
     segments.push({
       startOffsetMs: cursor,
-      durationMs: endOffsetMs - cursor,
+      durationMs: trailingDurationMs,
     });
   }
 
