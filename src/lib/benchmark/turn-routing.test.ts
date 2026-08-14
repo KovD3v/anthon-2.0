@@ -44,13 +44,13 @@ describe("turn routing benchmark", () => {
     ];
     const ids = fixtures.map(({ id }) => id);
 
-    expect(TURN_ROUTING_EXTENDED_FIXTURES).toHaveLength(41);
+    expect(TURN_ROUTING_EXTENDED_FIXTURES).toHaveLength(42);
     expect(new Set(ids).size).toBe(fixtures.length);
     expect(
       TURN_ROUTING_EXTENDED_FIXTURES.filter(
         ({ expectedProfile }) => expectedProfile === "light",
       ),
-    ).toHaveLength(20);
+    ).toHaveLength(21);
     expect(
       TURN_ROUTING_EXTENDED_FIXTURES.filter(
         ({ protectedStandard }) => protectedStandard,

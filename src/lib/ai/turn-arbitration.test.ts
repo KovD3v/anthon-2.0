@@ -240,6 +240,31 @@ describe("turn arbitration", () => {
     });
   });
 
+  it.each([false, true])(
+    "bypasses the remote classifier for the social follow-up 'come stai?' with recent context=%s",
+    async (hasRecentContext) => {
+      const result = await arbitrateTurn(
+        agenticInput({
+          userMessage: "come stai?",
+          hasRecentContext,
+        }),
+      );
+
+      expect(mocks.classifyTurn).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        classificationLatencyMs: 0,
+        decision: {
+          execution: {
+            eligibleProfile: "light",
+            source: "rule",
+            taskKind: "social",
+            contextDependency: "none",
+          },
+        },
+      });
+    },
+  );
+
   it("bypasses the remote classifier for deterministic external knowledge", async () => {
     const result = await arbitrateTurn(
       agenticInput({

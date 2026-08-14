@@ -656,6 +656,15 @@ export const TURN_ROUTING_EXTENDED_FIXTURES = [
     protectedStandard: LIGHT,
   },
   {
+    id: "it-fast-social-follow-up",
+    language: "it",
+    userMessage: "Come stai?",
+    context: "user: Ciao",
+    expectedProfile: "light",
+    expectedTaskKind: "social",
+    protectedStandard: LIGHT,
+  },
+  {
     id: "it-fast-rewrite-clear",
     language: "it",
     userMessage: "Riscrivi in modo più chiaro: Domani non riesco a venire.",

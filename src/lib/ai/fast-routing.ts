@@ -47,6 +47,8 @@ const ENGLISH_RAG_INTENT =
 const SOCIAL_MESSAGES = new Set([
   "ciao",
   "ciao come va",
+  "come stai",
+  "come va",
   "ehi",
   "hey",
   "buongiorno",
@@ -56,6 +58,7 @@ const SOCIAL_MESSAGES = new Set([
   "grazie mi sei stato utile",
   "hello",
   "hello how are you",
+  "how are you",
   "hi",
   "hi how are you",
   "thanks",
@@ -168,6 +171,7 @@ function buildDeterministicProposal(
     matchesRoutineProposalIntent(input.userMessage);
   const hasExternalKnowledge =
     input.requiresExternalKnowledge || input.explicitWebRule === "required";
+  const social = isSimpleSocialMessage(input.userMessage);
 
   const capabilities = noCapabilities();
   if (hasRagIntent) capabilities.rag = "yes";
@@ -178,17 +182,20 @@ function buildDeterministicProposal(
     capabilities.voiceOutput = "yes";
   }
 
-  const contextDependency =
-    hasRagIntent || hasExternalKnowledge || complexCoaching
+  const contextDependency = social
+    ? "none"
+    : hasRagIntent || hasExternalKnowledge || complexCoaching
       ? "deep"
       : input.hasRecentContext
         ? "recent"
         : "none";
-  const knowledgeNeed = hasExternalKnowledge
-    ? "external"
-    : hasRagIntent || input.hasRecentContext
-      ? "conversation"
-      : "supplied_only";
+  const knowledgeNeed = social
+    ? "supplied_only"
+    : hasExternalKnowledge
+      ? "external"
+      : hasRagIntent || input.hasRecentContext
+        ? "conversation"
+        : "supplied_only";
   const reasoningDepth =
     suggestedProfile === "standard" ? "substantive" : "minimal";
   const sensitivity =
@@ -236,7 +243,7 @@ function isSafeLightCandidate(input: DeterministicRoutingInput): boolean {
     input.inputOrigin === "text" &&
     input.responseMode === "text" &&
     !input.hasPendingMemoryApproval &&
-    (!input.hasRecentContext || usesRecentContext) &&
+    (!input.hasRecentContext || social || usesRecentContext) &&
     input.explicitWebRule !== "required" &&
     !input.requiresExternalKnowledge &&
     !input.hasDeterministicCoachingIntent &&
