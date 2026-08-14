@@ -241,16 +241,19 @@ describe("turn arbitration", () => {
   });
 
   it.each([false, true])(
-    "bypasses the remote classifier for the social follow-up 'come stai?' with recent context=%s",
+    "does not start the classifier for the social follow-up 'come stai?' with recent context=%s",
     async (hasRecentContext) => {
+      const waitUntil = vi.fn();
       const result = await arbitrateTurn(
         agenticInput({
           userMessage: "come stai?",
           hasRecentContext,
+          waitUntil,
         }),
       );
 
       expect(mocks.classifyTurn).not.toHaveBeenCalled();
+      expect(waitUntil).not.toHaveBeenCalled();
       expect(result).toMatchObject({
         classificationLatencyMs: 0,
         decision: {
@@ -288,11 +291,10 @@ describe("turn arbitration", () => {
     });
   });
 
-  it("returns a deterministic standard fallback without waiting for the shadow classifier", async () => {
+  it("does not invoke the classifier for a deterministic standard route", async () => {
     const waitUntil = vi.fn();
     const result = await arbitrateTurn(
       agenticInput({
-        classifierMode: "non_blocking",
         waitUntil,
         userMessage: "Che tempo farà domani a Roma?",
         explicitWebRule: "required",
@@ -300,8 +302,8 @@ describe("turn arbitration", () => {
       }),
     );
 
-    expect(mocks.classifyTurn).toHaveBeenCalledTimes(1);
-    expect(waitUntil).toHaveBeenCalledTimes(1);
+    expect(mocks.classifyTurn).not.toHaveBeenCalled();
+    expect(waitUntil).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       classificationLatencyMs: 0,
       decision: {

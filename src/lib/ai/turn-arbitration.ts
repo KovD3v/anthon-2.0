@@ -43,7 +43,6 @@ export type TurnArbitrationInput = Omit<
   estimatedInputTokens: number;
   requestedOutputTokens: number;
   hasRecentContext: boolean;
-  classifierMode?: "blocking" | "non_blocking";
   abortSignal?: AbortSignal;
   waitUntil?: (promise: Promise<unknown>) => void;
 };
@@ -117,9 +116,6 @@ export async function arbitrateTurn(
 ): Promise<TurnArbitrationResult> {
   let classification: TurnClassificationResult;
   try {
-    const nonBlockingClassifier =
-      input.classifierMode === "non_blocking" &&
-      input.plannerMode === "agentic";
     const deterministicClassification =
       input.plannerMode === "agentic"
         ? resolveDeterministicTurnClassification({
@@ -138,35 +134,18 @@ export async function arbitrateTurn(
             hasRecentContext: input.hasRecentContext,
           })
         : null;
-    if (nonBlockingClassifier && deterministicClassification) {
-      classification = deterministicClassification;
-      const shadowClassification = classifyTurn({
-        userId: input.userId,
-        userMessage: input.userMessage,
-        context: input.classifierContext,
-        modelId: input.classifierModelId,
-        abortSignal: input.abortSignal,
-        waitUntil: input.waitUntil,
-      }).catch(() => undefined);
-      if (input.waitUntil) {
-        input.waitUntil(shadowClassification);
-      } else {
-        void shadowClassification;
-      }
-    } else {
-      classification =
-        deterministicClassification ??
-        (input.plannerMode === "agentic"
-          ? await classifyTurn({
-              userId: input.userId,
-              userMessage: input.userMessage,
-              context: input.classifierContext,
-              modelId: input.classifierModelId,
-              abortSignal: input.abortSignal,
-              waitUntil: input.waitUntil,
-            })
-          : legacyClassification());
-    }
+    classification =
+      deterministicClassification ??
+      (input.plannerMode === "agentic"
+        ? await classifyTurn({
+            userId: input.userId,
+            userMessage: input.userMessage,
+            context: input.classifierContext,
+            modelId: input.classifierModelId,
+            abortSignal: input.abortSignal,
+            waitUntil: input.waitUntil,
+          })
+        : legacyClassification());
     input.abortSignal?.throwIfAborted();
   } catch (error) {
     input.abortSignal?.throwIfAborted();

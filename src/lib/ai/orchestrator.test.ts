@@ -813,7 +813,7 @@ describe("ai/orchestrator", () => {
       effectiveEntitlements: baseEntitlements,
     });
 
-    expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
     expect(mocks.getModelIdForPlan).toHaveBeenCalledWith(
       undefined,
       undefined,
@@ -936,13 +936,7 @@ describe("ai/orchestrator", () => {
     });
 
     expect(result.turnDecision.execution.eligibleProfile).toBe("light");
-    expect(mocks.classifyCapabilities).toHaveBeenCalledWith(
-      expect.objectContaining({
-        context: expect.stringContaining(
-          "Questa è la frase esatta da rendere più breve.",
-        ),
-      }),
-    );
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
     expect(mocks.buildThreadContext).toHaveBeenCalledTimes(1);
     expect(mocks.streamText.mock.calls[0]?.[0]?.messages).toEqual([
       { role: "user", content: "Scrivi una frase molto lunga" },
@@ -1616,7 +1610,7 @@ describe("ai/orchestrator", () => {
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     });
 
-    expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
     const finishResult = onFinish.mock.calls[0]?.[0] as {
       capabilityDecision: CapabilityDecision;
       capabilityPlannerMode: string;
@@ -3742,7 +3736,7 @@ describe("ai/orchestrator", () => {
         "Cerca online fonti affidabili e confrontale con i documenti caricati",
     });
 
-    expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
     expect(mocks.getRagContext).not.toHaveBeenCalled();
     expect(mocks.searchTinyfishDirect).not.toHaveBeenCalled();
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
@@ -4340,7 +4334,7 @@ describe("ai/orchestrator", () => {
         "Rispondi senza cercare online e confronta con i documenti caricati",
     });
 
-    expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
     expect(mocks.getRagContext).not.toHaveBeenCalled();
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       tools: Record<string, unknown>;
