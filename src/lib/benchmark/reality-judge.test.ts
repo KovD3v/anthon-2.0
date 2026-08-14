@@ -35,6 +35,7 @@ describe("benchmark/reality-judge", () => {
     expect(DEFAULT_REALITY_JUDGE_MODELS).toEqual([
       "anthropic/claude-opus-4.6",
       "openai/gpt-5.6-luna",
+      "google/gemini-3.7-flash",
     ]);
   });
 

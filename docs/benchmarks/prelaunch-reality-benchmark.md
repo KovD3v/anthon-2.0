@@ -57,11 +57,12 @@ Default judge models:
 
 - `anthropic/claude-opus-4.6`
 - `openai/gpt-5.6-luna` with maximum reasoning
+- `google/gemini-3.7-flash`
 
-The pair combines an Anthropic judge with Anthon's fixed Luna model. Luna uses
-the shared OpenRouter routing configuration, which enables priority service and
-`reasoning.effort: max` for this model. It remains a judge-only role in this
-benchmark invocation; it does not change Anthon's candidate routing.
+The default group combines Anthropic, OpenAI, and Google judges. Luna uses the
+shared OpenRouter routing configuration, which enables priority service and
+`reasoning.effort: max` for this model. All three remain judge-only roles in
+this benchmark invocation; they do not change Anthon's candidate routing.
 
 Dataset:
 
@@ -106,7 +107,7 @@ compatibility contract:
 bun run benchmark:conversation candidate --baseline docs/benchmarks/runs/conversation-2026-08-10-before-conversational-change-baseline.json --samples 3 --allow-db-mutation
 ```
 
-Run the blind two-judge comparison:
+Run the blind three-judge comparison:
 
 ```bash
 bun run benchmark:conversation compare --baseline docs/benchmarks/runs/conversation-2026-08-10-before-conversational-change-baseline.json --candidate docs/benchmarks/runs/conversation-2026-08-10-before-conversational-change-candidate.json --judge
@@ -116,8 +117,8 @@ Generation requires explicit database-mutation approval, cleans up its
 synthetic users, reports measured model cost, and must run only on development
 or an ephemeral Neon branch. The command rejects incompatible scenario/model/
 sample contracts and refuses to overwrite artifacts. Comparison reads saved
-JSON, calls two independent judges, and writes JSON plus Markdown under
-`docs/benchmarks/runs/`.
+JSON, calls the configured independent judges (three by default), and writes
+JSON plus Markdown under `docs/benchmarks/runs/`.
 
 ## Important Limitation
 
@@ -238,7 +239,7 @@ Useful flags:
 - `--model-concurrency 4`
 - `--judge`
 - `--judge-existing docs/benchmarks/runs/run.json`
-- `--judge-models anthropic/claude-opus-4.6,openai/gpt-5.6-luna`
+- `--judge-models anthropic/claude-opus-4.6,openai/gpt-5.6-luna,google/gemini-3.7-flash`
 - `--judge-concurrency 4`
 - `--rescore-heuristic`
 - `--openrouter-provider-sort e2e-latency`

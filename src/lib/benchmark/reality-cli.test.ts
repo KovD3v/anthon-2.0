@@ -148,13 +148,13 @@ describe("benchmark/reality-cli", () => {
     ).not.toThrow();
   });
 
-  it("requires exactly two judge models", () => {
+  it("requires at least two distinct judge models", () => {
     expect(() =>
       parseRealityBenchmarkArgs(["--judge-models", "judge-a"]),
-    ).toThrow(/exactly two/);
+    ).toThrow(/at least two/);
     expect(() =>
-      parseRealityBenchmarkArgs(["--judge-models", "judge-a,judge-b,judge-c"]),
-    ).toThrow(/exactly two/);
+      parseRealityBenchmarkArgs(["--judge-models", "judge-a,judge-a"]),
+    ).toThrow(/distinct/);
   });
 
   it("requires explicit DB mutation approval", () => {

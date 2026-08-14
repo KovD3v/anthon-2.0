@@ -148,7 +148,7 @@ export async function buildConversationComparison({
 }: {
   baseline: ConversationRunArtifact;
   candidate: ConversationRunArtifact;
-  judges: [PairJudge, PairJudge];
+  judges: PairJudge[];
   pairConcurrency?: number;
 }): Promise<ConversationComparisonArtifact> {
   if (!Number.isInteger(pairConcurrency) || pairConcurrency < 1) {

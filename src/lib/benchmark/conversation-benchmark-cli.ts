@@ -1,4 +1,7 @@
-import { DEFAULT_REALITY_JUDGE_MODELS } from "./reality-judge";
+import {
+  assertJudgeModels,
+  DEFAULT_REALITY_JUDGE_MODELS,
+} from "./reality-judge";
 
 export type ConversationBenchmarkCliConfig = {
   command: "baseline" | "candidate" | "compare" | "help";
@@ -58,8 +61,7 @@ export function parseConversationBenchmarkArgs(
     throw new Error("compare requires --baseline and --candidate");
   if (config.command === "compare" && !config.judge)
     throw new Error("compare requires --judge");
-  if (config.judgeModels.length !== 2 || new Set(config.judgeModels).size !== 2)
-    throw new Error("exactly two distinct judge models are required");
+  assertJudgeModels(config.judgeModels);
   return config;
 }
 

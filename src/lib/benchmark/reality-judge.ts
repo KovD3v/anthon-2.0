@@ -16,6 +16,7 @@ import type {
 export const DEFAULT_REALITY_JUDGE_MODELS = [
   "anthropic/claude-opus-4.6",
   "openai/gpt-5.6-luna",
+  "google/gemini-3.7-flash",
 ];
 
 const REALITY_JUDGE_DISAGREEMENT_THRESHOLD = 2;
@@ -115,7 +116,7 @@ export async function judgeRealityBenchmarkSummary({
     result: RealityBenchmarkTurnResult;
   }) => void;
 }) {
-  assertTwoJudgeModels(judgeModels);
+  assertJudgeModels(judgeModels);
 
   const scenarioById = new Map(
     scenarios.map((scenario) => [scenario.id, scenario]),
@@ -449,10 +450,13 @@ export function refreshExistingRealityJudgeScores(
   };
 }
 
-export function assertTwoJudgeModels(judgeModels: string[]) {
-  if (judgeModels.length !== 2) {
+export function assertJudgeModels(judgeModels: string[]) {
+  if (
+    judgeModels.length < 2 ||
+    new Set(judgeModels).size !== judgeModels.length
+  ) {
     throw new Error(
-      "Reality benchmark judge mode requires exactly two judge models.",
+      "Reality benchmark judge mode requires at least two distinct judge models.",
     );
   }
 }

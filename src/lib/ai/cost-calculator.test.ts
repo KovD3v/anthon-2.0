@@ -441,9 +441,18 @@ describe("ai/cost-calculator", () => {
       },
     );
 
+    const flash37 = extractAIMetrics("google/gemini-3.7-flash", startTime, {
+      text: "done",
+      usage: {
+        promptTokens: 1000,
+        completionTokens: 500,
+      },
+    });
+
     expect(flashLite31.costUsd).toBeCloseTo(0.001);
     expect(flash3.costUsd).toBeCloseTo(0.002);
     expect(flashLite25.costUsd).toBeCloseTo(0.0003);
+    expect(flash37.costUsd).toBeCloseTo(0.0013125, 8);
   });
 
   it("reads AI SDK v5 input and output usage fields", () => {

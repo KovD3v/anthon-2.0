@@ -1,7 +1,7 @@
 import { OPENROUTER_PROVIDER_ROUTING_ENV } from "@/lib/ai/providers/openrouter-routing";
 import type { RealityBenchmarkSummary, RealityScenario } from "./reality";
 import {
-  assertTwoJudgeModels,
+  assertJudgeModels,
   DEFAULT_REALITY_JUDGE_MODELS,
 } from "./reality-judge";
 
@@ -437,7 +437,7 @@ export function parseRealityBenchmarkArgs(
   }
 
   if (config.judge) {
-    assertTwoJudgeModels(config.judgeModels);
+    assertJudgeModels(config.judgeModels);
   }
 
   return config;
