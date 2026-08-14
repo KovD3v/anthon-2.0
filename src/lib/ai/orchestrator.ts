@@ -1786,6 +1786,7 @@ async function arbitrateChatTurn({
     estimatedInputTokens: estimateInputTokens(userMessage),
     requestedOutputTokens: requestedOutputTokensForRouting(userMessage),
     hasRecentContext: recentContext.available,
+    classifierMode: "non_blocking",
     abortSignal,
     waitUntil,
   });

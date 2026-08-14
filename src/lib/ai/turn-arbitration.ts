@@ -11,6 +11,7 @@ import {
   TURN_CLASSIFIER_VERSION,
   type TurnDecision,
 } from "./execution-routing";
+import { resolveDeterministicTurnClassification } from "./fast-routing";
 import {
   CAPABILITY_CLASSIFIER_MIN_CONFIDENCE,
   type CapabilityClassifierProposal,
@@ -42,6 +43,7 @@ export type TurnArbitrationInput = Omit<
   estimatedInputTokens: number;
   requestedOutputTokens: number;
   hasRecentContext: boolean;
+  classifierMode?: "blocking" | "non_blocking";
   abortSignal?: AbortSignal;
   waitUntil?: (promise: Promise<unknown>) => void;
 };
@@ -115,17 +117,56 @@ export async function arbitrateTurn(
 ): Promise<TurnArbitrationResult> {
   let classification: TurnClassificationResult;
   try {
-    classification =
+    const nonBlockingClassifier =
+      input.classifierMode === "non_blocking" &&
+      input.plannerMode === "agentic";
+    const deterministicClassification =
       input.plannerMode === "agentic"
-        ? await classifyTurn({
-            userId: input.userId,
+        ? resolveDeterministicTurnClassification({
             userMessage: input.userMessage,
-            context: input.classifierContext,
-            modelId: input.classifierModelId,
-            abortSignal: input.abortSignal,
-            waitUntil: input.waitUntil,
+            explicitWebRule: input.explicitWebRule,
+            requireClassifierRoutineProposal:
+              input.requireClassifierRoutineProposal ?? false,
+            hasPendingMemoryApproval: input.hasPendingApproval,
+            hasDeterministicCoachingIntent:
+              input.hasDeterministicCoachingIntent,
+            requiresExternalKnowledge: input.requiresExternalKnowledge,
+            inputOrigin: input.inputOrigin,
+            responseMode: input.responseMode,
+            estimatedInputTokens: input.estimatedInputTokens,
+            requestedOutputTokens: input.requestedOutputTokens,
+            hasRecentContext: input.hasRecentContext,
           })
-        : legacyClassification();
+        : null;
+    if (nonBlockingClassifier && deterministicClassification) {
+      classification = deterministicClassification;
+      const shadowClassification = classifyTurn({
+        userId: input.userId,
+        userMessage: input.userMessage,
+        context: input.classifierContext,
+        modelId: input.classifierModelId,
+        abortSignal: input.abortSignal,
+        waitUntil: input.waitUntil,
+      }).catch(() => undefined);
+      if (input.waitUntil) {
+        input.waitUntil(shadowClassification);
+      } else {
+        void shadowClassification;
+      }
+    } else {
+      classification =
+        deterministicClassification ??
+        (input.plannerMode === "agentic"
+          ? await classifyTurn({
+              userId: input.userId,
+              userMessage: input.userMessage,
+              context: input.classifierContext,
+              modelId: input.classifierModelId,
+              abortSignal: input.abortSignal,
+              waitUntil: input.waitUntil,
+            })
+          : legacyClassification());
+    }
     input.abortSignal?.throwIfAborted();
   } catch (error) {
     input.abortSignal?.throwIfAborted();
@@ -154,6 +195,7 @@ export async function arbitrateTurn(
   const execution = normalizeExecutionDecision({
     plannerMode: input.plannerMode,
     classifierOutcome: classification.outcome,
+    classificationSource: classification.classificationSource,
     classifierVersion: TURN_CLASSIFIER_VERSION,
     capabilityProposal: proposal?.capabilities ?? null,
     capabilityConfidence: proposal?.capabilityConfidence ?? 0,

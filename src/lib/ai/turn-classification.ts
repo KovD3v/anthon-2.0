@@ -64,6 +64,7 @@ export type TurnClassificationResult = {
   proposal: TurnClassifierProposal | null;
   outcome: "accepted" | "invalid" | "low_confidence" | "failed";
   latencyMs: number;
+  classificationSource?: "classifier" | "rule";
   classifierModel?: string;
   classifierProvider?: string;
 };
@@ -231,6 +232,7 @@ export async function classifyTurn({
         proposal: null,
         outcome: "invalid",
         latencyMs: Date.now() - startedAt,
+        classificationSource: "classifier",
         classifierModel: modelId,
         ...(classifierProvider ? { classifierProvider } : {}),
       };
@@ -243,6 +245,7 @@ export async function classifyTurn({
           ? "low_confidence"
           : "accepted",
       latencyMs: Date.now() - startedAt,
+      classificationSource: "classifier",
       classifierModel: modelId,
       ...(classifierProvider ? { classifierProvider } : {}),
     };
@@ -257,6 +260,7 @@ export async function classifyTurn({
       proposal: null,
       outcome: "failed",
       latencyMs: Date.now() - startedAt,
+      classificationSource: "classifier",
       classifierModel: modelId,
     };
   }

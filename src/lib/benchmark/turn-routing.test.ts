@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   scoreTurnRouting,
   shouldFailTurnRoutingEvaluation,
+  TURN_ROUTING_EXTENDED_FIXTURES,
   TURN_ROUTING_FIXTURES,
   type TurnRoutingResult,
 } from "./turn-routing";
@@ -34,6 +35,27 @@ describe("turn routing benchmark", () => {
         ({ expectedProfile }) => expectedProfile === "light",
       ),
     ).toHaveLength(24);
+  });
+
+  it("provides an extended bilingual suite for fast-path allowlist evaluation", () => {
+    const fixtures = [
+      ...TURN_ROUTING_FIXTURES,
+      ...TURN_ROUTING_EXTENDED_FIXTURES,
+    ];
+    const ids = fixtures.map(({ id }) => id);
+
+    expect(TURN_ROUTING_EXTENDED_FIXTURES).toHaveLength(41);
+    expect(new Set(ids).size).toBe(fixtures.length);
+    expect(
+      TURN_ROUTING_EXTENDED_FIXTURES.filter(
+        ({ expectedProfile }) => expectedProfile === "light",
+      ),
+    ).toHaveLength(20);
+    expect(
+      TURN_ROUTING_EXTENDED_FIXTURES.filter(
+        ({ protectedStandard }) => protectedStandard,
+      ),
+    ).toHaveLength(21);
   });
 
   it("includes independent protected fixtures for both token-limit vetoes", () => {

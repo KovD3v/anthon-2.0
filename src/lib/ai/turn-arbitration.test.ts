@@ -54,7 +54,7 @@ function agenticInput(
     hasPendingApproval: false,
     estimatedInputTokens: 120,
     requestedOutputTokens: 120,
-    hasRecentContext: true,
+    hasRecentContext: false,
     ...overrides,
   };
 }
@@ -72,7 +72,9 @@ describe("turn arbitration", () => {
   });
 
   it("returns one immutable agentic turn decision", async () => {
-    const result = await arbitrateTurn(agenticInput());
+    const result = await arbitrateTurn(
+      agenticInput({ hasRecentContext: false }),
+    );
 
     expect(result.decision.capabilities.webSearch).toBe(false);
     expect(result.decision.execution.eligibleProfile).toBe("light");
@@ -197,7 +199,96 @@ describe("turn arbitration", () => {
     });
   });
 
-  it("preserves deterministic capability rules while uncertainty forces standard", async () => {
+  it("bypasses the remote classifier for a self-contained transformation", async () => {
+    const result = await arbitrateTurn(
+      agenticInput({
+        userMessage: "Traduci in inglese: Ci sentiamo domani.",
+        hasRecentContext: false,
+      }),
+    );
+
+    expect(mocks.classifyTurn).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      classificationLatencyMs: 0,
+      decision: {
+        execution: {
+          eligibleProfile: "light",
+          source: "rule",
+        },
+      },
+    });
+  });
+
+  it("bypasses the remote classifier for a recent-context transformation", async () => {
+    const result = await arbitrateTurn(
+      agenticInput({
+        userMessage: "Rendilo più breve",
+        hasRecentContext: true,
+      }),
+    );
+
+    expect(mocks.classifyTurn).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      classificationLatencyMs: 0,
+      decision: {
+        execution: {
+          eligibleProfile: "light",
+          source: "rule",
+          contextDependency: "recent",
+        },
+      },
+    });
+  });
+
+  it("bypasses the remote classifier for deterministic external knowledge", async () => {
+    const result = await arbitrateTurn(
+      agenticInput({
+        userMessage: "Qual è il risultato della partita di oggi del Milan?",
+        explicitWebRule: "required",
+        requiresExternalKnowledge: true,
+        hasRecentContext: false,
+      }),
+    );
+
+    expect(mocks.classifyTurn).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      classificationLatencyMs: 0,
+      decision: {
+        capabilities: { webSearch: true },
+        execution: {
+          eligibleProfile: "standard",
+          source: "rule",
+        },
+      },
+    });
+  });
+
+  it("returns a deterministic standard fallback without waiting for the shadow classifier", async () => {
+    const waitUntil = vi.fn();
+    const result = await arbitrateTurn(
+      agenticInput({
+        classifierMode: "non_blocking",
+        waitUntil,
+        userMessage: "Che tempo farà domani a Roma?",
+        explicitWebRule: "required",
+        requiresExternalKnowledge: true,
+      }),
+    );
+
+    expect(mocks.classifyTurn).toHaveBeenCalledTimes(1);
+    expect(waitUntil).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      classificationLatencyMs: 0,
+      decision: {
+        execution: {
+          eligibleProfile: "standard",
+          source: "rule",
+        },
+      },
+    });
+  });
+
+  it("preserves capability uncertainty when the turn is not deterministically routable", async () => {
     mocks.classifyTurn.mockResolvedValueOnce({
       proposal: {
         ...classifierProposal,
@@ -210,17 +301,12 @@ describe("turn arbitration", () => {
       latencyMs: 25,
     });
 
-    const result = await arbitrateTurn(
-      agenticInput({ explicitWebRule: "required" }),
-    );
+    const result = await arbitrateTurn(agenticInput());
 
-    expect(result.decision.capabilities.webSearch).toBe(true);
+    expect(result.decision.capabilities.webSearch).toBe(false);
     expect(result.decision.execution).toMatchObject({
       eligibleProfile: "standard",
-      reasonCodes: expect.arrayContaining([
-        "capability_uncertain",
-        "capability_required",
-      ]),
+      reasonCodes: expect.arrayContaining(["capability_uncertain"]),
     });
   });
 

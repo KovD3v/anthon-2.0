@@ -1080,11 +1080,10 @@ describe("ai/orchestrator", () => {
       effectiveEntitlements: baseEntitlements,
     });
 
-    expect(result.turnDecision.execution.eligibleProfile).toBe("light");
+    expect(result.turnDecision.execution.eligibleProfile).toBe("standard");
     expect(result.turnPlan.execution).toMatchObject({
-      eligibleProfile: "light",
+      eligibleProfile: "standard",
       plannedProfile: "standard",
-      reasonCodes: expect.arrayContaining(["runtime_invariant"]),
     });
     expect(mocks.streamText).toHaveBeenCalledTimes(1);
     const input = mocks.streamText.mock.calls[0]?.[0] as {
@@ -1453,7 +1452,7 @@ describe("ai/orchestrator", () => {
     const result = await streamChat({
       userId: "user-1",
       chatId: "chat-classifier-failure-standard",
-      userMessage: "Rendilo più breve",
+      userMessage: "Cosa ne pensi?",
       effectiveEntitlements: baseEntitlements,
     });
 

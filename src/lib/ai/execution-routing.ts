@@ -121,6 +121,7 @@ export type BuildPlannedExecutionInput = {
 type NormalizeExecutionDecisionInput = {
   plannerMode: "legacy" | "agentic";
   classifierOutcome: "accepted" | "invalid" | "low_confidence" | "failed";
+  classificationSource?: "classifier" | "rule";
   classifierVersion: number;
   capabilityProposal: CapabilityClassifierProposal | null;
   capabilityConfidence: number;
@@ -278,6 +279,7 @@ export function normalizeExecutionDecision(
           : proposedTaskKind;
   const contextDependency = workload?.contextDependency ?? "deep";
   const confidenceBucket = toConfidenceBucket(workload?.confidence ?? null);
+  const classificationSource = input.classificationSource ?? "classifier";
   const uncertainCapability =
     input.capabilityConfidence < CAPABILITY_CLASSIFIER_MIN_CONFIDENCE ||
     hasUncertainCapability(input.capabilityProposal);
@@ -414,6 +416,8 @@ export function normalizeExecutionDecision(
   let source: ExecutionDecision["source"] = "rule";
   if (hasFallbackFailure) {
     source = "fallback";
+  } else if (classificationSource === "rule") {
+    source = "rule";
   } else if (eligibleProfile === "light") {
     source = "classifier";
   } else if (workload?.suggestedProfile === "light") {

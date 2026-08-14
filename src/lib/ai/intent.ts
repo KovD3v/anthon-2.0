@@ -98,7 +98,7 @@ export function matchesPreferenceWriteIntent(message: string) {
 }
 
 export function matchesMemoryWriteIntent(message: string) {
-  return /\b(ricordati|ricorda\s+che|salva|memorizza|tieni\s+a\s+mente)\b/i.test(
+  return /\b(ricordati|ricorda\s+che|salva|memorizza|tieni\s+a\s+mente|remember\s+that|save\s+that|keep\s+in\s+mind)\b/i.test(
     message,
   );
 }
