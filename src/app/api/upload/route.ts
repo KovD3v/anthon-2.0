@@ -13,6 +13,10 @@ import { del, put } from "@vercel/blob";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import {
+  isOnboardingRequired,
+  onboardingRequiredResponse,
+} from "@/lib/onboarding/gate";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import {
   commitUploadReservationInTransaction,
@@ -107,6 +111,7 @@ export async function POST(request: Request) {
   if (error || !user) {
     return Response.json({ error: error || "Unauthorized" }, { status: 401 });
   }
+  if (isOnboardingRequired(user)) return onboardingRequiredResponse();
 
   let uploadReservationId: string | undefined;
   let uploadedBlobUrl: string | undefined;
@@ -286,6 +291,7 @@ export async function DELETE(request: Request) {
   if (error || !user) {
     return Response.json({ error: error || "Unauthorized" }, { status: 401 });
   }
+  if (isOnboardingRequired(user)) return onboardingRequiredResponse();
 
   // 2. Get blob URL from query params
   const { searchParams } = new URL(request.url);

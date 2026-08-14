@@ -1,6 +1,10 @@
 import { getAuthUser } from "@/lib/auth";
 import { resolveModelComparisonPair } from "@/lib/model-experiments/service";
 import { voteSchema } from "@/lib/model-experiments/validation";
+import {
+  isOnboardingRequired,
+  onboardingRequiredResponse,
+} from "@/lib/onboarding/gate";
 
 type Context = { params: Promise<{ pairId: string }> };
 
@@ -9,6 +13,7 @@ export async function POST(request: Request, { params }: Context) {
   if (!user) {
     return Response.json({ error: error ?? "Unauthorized" }, { status: 401 });
   }
+  if (isOnboardingRequired(user)) return onboardingRequiredResponse();
   const parsed = voteSchema.safeParse(await request.json());
   if (!parsed.success) {
     return Response.json({ error: "Invalid choice" }, { status: 400 });

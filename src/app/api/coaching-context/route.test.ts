@@ -76,6 +76,25 @@ describe("/api/coaching-context", () => {
     expect((await GET()).status).toBe(401);
   });
 
+  it("blocks direct product API access before onboarding", async () => {
+    mocks.getAuthUser.mockResolvedValue({
+      user: {
+        id: "user-1",
+        isGuest: false,
+        onboardingCompletedAt: null,
+      },
+      error: null,
+    });
+
+    const response = await GET();
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "ONBOARDING_REQUIRED",
+    });
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+  });
+
   it("returns only user-facing profile and memory fields", async () => {
     const response = await GET();
 

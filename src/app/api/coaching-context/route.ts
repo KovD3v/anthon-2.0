@@ -15,6 +15,10 @@ import {
 } from "@/lib/coaching-context";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import {
+  isOnboardingRequired,
+  onboardingRequiredResponse,
+} from "@/lib/onboarding/gate";
 
 const contextLogger = createLogger("ai");
 
@@ -22,6 +26,8 @@ export async function GET() {
   try {
     const { user, error } = await getAuthUser();
     if (error || !user) return unauthorized(error || "Non autorizzato");
+    if (isOnboardingRequired(user))
+      return onboardingRequiredResponse("/profile");
 
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
@@ -71,6 +77,8 @@ export async function PATCH(request: Request) {
   try {
     const { user, error } = await getAuthUser();
     if (error || !user) return unauthorized(error || "Non autorizzato");
+    if (isOnboardingRequired(user))
+      return onboardingRequiredResponse("/profile");
 
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },

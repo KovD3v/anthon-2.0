@@ -17,6 +17,10 @@ import {
 import { getActiveRoutineForReturn } from "@/lib/coaching/routine-return.server";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import {
+  isOnboardingRequired,
+  onboardingRequiredResponse,
+} from "@/lib/onboarding/gate";
 
 const routineLogger = createLogger("ai");
 const createRoutineBodySchema = z
@@ -95,6 +99,7 @@ export async function GET(request?: Request) {
 
       const { user, error } = await getAuthUser();
       if (error || !user) return unauthorized(error || "Unauthorized");
+      if (isOnboardingRequired(user)) return onboardingRequiredResponse();
       if (user.isGuest) return forbidden();
 
       const baseWhere = {
@@ -152,6 +157,7 @@ export async function GET(request?: Request) {
 
     const { user, error } = await getAuthUser();
     if (error || !user) return unauthorized(error || "Unauthorized");
+    if (isOnboardingRequired(user)) return onboardingRequiredResponse();
     if (user.isGuest) return forbidden();
 
     const routine = await getActiveRoutineForReturn(user.id);
@@ -170,6 +176,7 @@ export async function POST(request: Request) {
   try {
     const { user, error } = await getAuthUser();
     if (error || !user) return unauthorized(error || "Unauthorized");
+    if (isOnboardingRequired(user)) return onboardingRequiredResponse();
     if (user.isGuest) return forbidden();
 
     let body: unknown;

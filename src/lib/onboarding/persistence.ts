@@ -2,6 +2,7 @@ import { revalidateTag } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { invalidateCoachingContextPromptCaches } from "@/lib/ai/coaching-context-cache";
 import { prisma } from "@/lib/db";
+import { trackOnboardingEvent } from "./analytics";
 import {
   ONBOARDING_FIELDS,
   ONBOARDING_QUESTIONS,
@@ -200,6 +201,13 @@ export async function applyOnboardingAnswer(input: {
       transcript: jsonValue(nextMessages),
     },
   });
+  trackOnboardingEvent(input.userId, "onboarding_step_completed", {
+    version: ONBOARDING_VERSION,
+    step: state.currentStep,
+    skipped: modelResult.currentFieldStatus === "skipped",
+    clarified: modelResult.currentFieldStatus === "clarify",
+    reached_review: next.status === "REVIEW",
+  });
   return toDto(toState(updated), parseMessages(updated.transcript));
 }
 
@@ -268,5 +276,9 @@ export async function confirmOnboarding(userId: string) {
 
   revalidateTag("user-auth", "max");
   invalidateCoachingContextPromptCaches(userId);
+  trackOnboardingEvent(userId, "onboarding_completed", {
+    version: ONBOARDING_VERSION,
+    skipped_fields: state.skippedFields.length,
+  });
   return toDto(state, parseMessages(session.transcript));
 }

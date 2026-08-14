@@ -8,6 +8,10 @@ import {
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import {
+  isOnboardingRequired,
+  onboardingRequiredResponse,
+} from "@/lib/onboarding/gate";
 import { getDefaultTechnicalMetricsPreference } from "@/lib/technical-metrics";
 
 const preferencesLogger = createLogger("ai");
@@ -58,6 +62,8 @@ export async function GET() {
     if (error || !user) {
       return unauthorized(error || "Non autorizzato");
     }
+    if (isOnboardingRequired(user))
+      return onboardingRequiredResponse("/profile");
 
     // Find the user by id
     const dbUser = await prisma.user.findUnique({
@@ -106,6 +112,8 @@ export async function PATCH(request: Request) {
     if (error || !user) {
       return unauthorized(error || "Non autorizzato");
     }
+    if (isOnboardingRequired(user))
+      return onboardingRequiredResponse("/profile");
 
     let body: PreferencesPatchBody;
     try {
