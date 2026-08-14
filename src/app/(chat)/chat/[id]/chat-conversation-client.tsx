@@ -112,6 +112,9 @@ const chatDataPartSchemas = {
     slot: z.enum(["A", "B"]),
     delta: z.string(),
   }),
+  aiPhase: z.object({
+    phase: z.enum(["preparing", "reasoning"]),
+  }),
 };
 
 function isExpectedChatRejection(error: Error, isGuest: boolean) {
@@ -168,6 +171,7 @@ export function ChatConversationClient({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSubmitInFlight, setIsSubmitInFlight] = useState(false);
   const [isResponseSettling, setIsResponseSettling] = useState(false);
+  const [isAssistantReasoning, setIsAssistantReasoning] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isRecoveringChatError, setIsRecoveringChatError] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -442,6 +446,10 @@ export function ChatConversationClient({
     dataPartSchemas: chatDataPartSchemas,
     transport,
     onData: (part) => {
+      if (part.type === "data-aiPhase") {
+        setIsAssistantReasoning(part.data.phase === "reasoning");
+        return;
+      }
       if (part.type === "data-modelComparison") {
         const clientMessageId = activeClientTraceIdRef.current;
         if (clientMessageId) {
@@ -460,6 +468,7 @@ export function ChatConversationClient({
       }));
     },
     onFinish: () => {
+      setIsAssistantReasoning(false);
       const completedClientMessageId = activeClientTraceIdRef.current;
       const completedCollector = completedClientMessageId
         ? clientTraceCollectorsRef.current.get(completedClientMessageId)
@@ -524,6 +533,7 @@ export function ChatConversationClient({
       });
     },
     onError: () => {
+      setIsAssistantReasoning(false);
       const clientMessageId = activeClientTraceIdRef.current;
       if (clientMessageId) {
         releaseClientTrace(clientMessageId, { abandon: true });
@@ -1093,6 +1103,7 @@ export function ChatConversationClient({
     }
 
     pendingInitialMessageSubmittedRef.current = true;
+    setIsAssistantReasoning(false);
     const parts: AnthonUIMessage["parts"] = [];
     if (pendingInitialMessage) {
       parts.push({ type: "text", text: pendingInitialMessage });
@@ -1387,6 +1398,7 @@ export function ChatConversationClient({
     }
     setIsSubmitInFlight(true);
     setIsResponseSettling(true);
+    setIsAssistantReasoning(false);
     const submittedInput = input;
     const adaptationRoutineId =
       routineAdaptationDraftRef.current?.prompt === submittedInput
@@ -1732,6 +1744,7 @@ export function ChatConversationClient({
               messages={streamingMessages}
               status={status}
               isLoading={isLoading}
+              isAssistantReasoning={isAssistantReasoning}
               isRegenerating={isRegenerating}
               editingMessageId={editingMessageId}
               deletingMessageId={deletingMessageId}

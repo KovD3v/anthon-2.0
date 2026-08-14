@@ -1345,6 +1345,11 @@ describe("channel-flow/run", () => {
               providerMetadata: { openrouter: { id: "provider-request-1" } },
             });
             controller.enqueue({
+              type: "reasoning-file",
+              url: "https://provider.example/private-reasoning-file",
+              mediaType: "text/plain",
+            });
+            controller.enqueue({
               type: "text-start",
               id: "provider-text-id",
               providerMetadata: { openrouter: { id: "provider-request-1" } },
@@ -1410,8 +1415,10 @@ describe("channel-flow/run", () => {
 
     expect(toUIMessageStream).toHaveBeenCalledWith({
       sendFinish: false,
-      sendReasoning: false,
+      sendReasoning: true,
     });
+    expect(body).toContain('"type":"data-aiPhase"');
+    expect(body).toContain('"phase":"reasoning"');
     expect(body).toContain("Risposta legittima");
     expect(body).toContain("safe-text-1");
     expect(body).not.toContain("private chain of thought");
@@ -1419,6 +1426,7 @@ describe("channel-flow/run", () => {
     expect(body).not.toContain("provider-message-id");
     expect(body).not.toContain("provider-text-id");
     expect(body).not.toContain("provider-reasoning-id");
+    expect(body).not.toContain("private-reasoning-file");
   });
 
   it.each([
@@ -3367,7 +3375,7 @@ describe("channel-flow/run", () => {
       }) => {
         expect(options).toEqual({
           sendFinish: false,
-          sendReasoning: false,
+          sendReasoning: true,
         });
         return new ReadableStream({
           async start(controller) {

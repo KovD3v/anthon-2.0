@@ -1083,15 +1083,56 @@ export async function runChannelFlow(
               try {
                 const source = streamable.toUIMessageStream?.({
                   sendFinish: false,
-                  sendReasoning: false,
+                  // Keep chain-of-thought private while forwarding a transient
+                  // phase marker so the web client can explain the wait.
+                  sendReasoning: true,
                 });
                 if (!source) throw new Error("Missing UI stream");
                 const reader = source.getReader();
                 sourceReader = reader;
+                let reasoningActive = false;
+                const writeAssistantPhase = (
+                  phase: "preparing" | "reasoning",
+                ) => {
+                  const write = writer.write as (part: unknown) => void;
+                  write({
+                    type: "data-aiPhase",
+                    data: { phase },
+                    transient: true,
+                  });
+                };
                 try {
                   while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
+                    if (value.type === "reasoning-start") {
+                      if (!reasoningActive) {
+                        reasoningActive = true;
+                        writeAssistantPhase("reasoning");
+                      }
+                      continue;
+                    }
+                    if (
+                      value.type === "reasoning-delta" ||
+                      value.type === "reasoning-file"
+                    ) {
+                      continue;
+                    }
+                    if (value.type === "reasoning-end") {
+                      if (reasoningActive) {
+                        reasoningActive = false;
+                        writeAssistantPhase("preparing");
+                      }
+                      continue;
+                    }
+                    if (
+                      reasoningActive &&
+                      (value.type === "text-start" ||
+                        value.type === "text-delta")
+                    ) {
+                      reasoningActive = false;
+                      writeAssistantPhase("preparing");
+                    }
                     if (value.type === "error" || value.type === "abort") {
                       sourceErrored = true;
                       if (value.type === "abort") {

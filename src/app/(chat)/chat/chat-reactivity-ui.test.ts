@@ -50,10 +50,25 @@ describe("getAssistantPendingLabel", () => {
     ).toBe(CHAT_REACTIVITY_COPY.assistantPreparing);
   });
 
+  it("shows reasoning feedback after the server marks the reasoning phase", () => {
+    expect(
+      getAssistantPendingLabel({
+        status: "streaming",
+        isReasoning: true,
+        latestMessage: {
+          id: "assistant-1",
+          role: "assistant",
+          parts: [{ type: "text", text: "" }],
+        },
+      }),
+    ).toBe(CHAT_REACTIVITY_COPY.assistantReasoning);
+  });
+
   it("hides pending feedback once assistant text is visible", () => {
     expect(
       getAssistantPendingLabel({
         status: "streaming",
+        isReasoning: true,
         latestMessage: {
           id: "assistant-1",
           role: "assistant",

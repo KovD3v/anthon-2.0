@@ -26,9 +26,14 @@ export interface ModelComparisonDeltaData {
   delta: string;
 }
 
+export interface AssistantPhaseData {
+  phase: "preparing" | "reasoning";
+}
+
 export type AnthonUIMessage = UIMessage<
   unknown,
   {
+    aiPhase: AssistantPhaseData;
     aiCapabilities: CapabilityUsageData;
     coachingRoutine: StoredRoutineProposal;
     modelComparison: ModelComparisonData;

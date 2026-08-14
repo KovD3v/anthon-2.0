@@ -5,6 +5,7 @@ export type ChatRequestStatus = "ready" | "submitted" | "streaming" | "error";
 
 export const CHAT_REACTIVITY_COPY = {
   assistantPreparing: "Sto preparando la risposta",
+  assistantReasoning: "Sto ragionando sulla risposta",
   assistantRegenerating: "Rigenero la risposta",
   assistantRegeneratingDetail: "Sostituisco la risposta precedente.",
   assistantWorkingDetail: "La risposta sta arrivando.",
@@ -111,9 +112,11 @@ function getToolName(part: ToolFeedbackPart) {
 export function getAssistantPendingLabel({
   status,
   latestMessage,
+  isReasoning = false,
 }: {
   status: ChatRequestStatus;
   latestMessage: UIMessage | undefined;
+  isReasoning?: boolean;
   submittedElapsedMs?: number;
 }) {
   if (status === "ready" || status === "error") {
@@ -125,6 +128,10 @@ export function getAssistantPendingLabel({
     getMessageText(latestMessage).trim().length > 0
   ) {
     return null;
+  }
+
+  if (isReasoning) {
+    return CHAT_REACTIVITY_COPY.assistantReasoning;
   }
 
   return CHAT_REACTIVITY_COPY.assistantPreparing;

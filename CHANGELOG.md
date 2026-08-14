@@ -10,6 +10,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Added
 
+- Added transient chat feedback, “Sto ragionando sulla risposta”, while the
+  model is reasoning before visible assistant text arrives.
 - Added installable PWA support with an offline fallback page and automatic
   service-worker registration.
 - Added the complete end-to-end response profiler with server and browser

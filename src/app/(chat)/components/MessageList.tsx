@@ -152,6 +152,7 @@ interface MessageListProps {
   messages: ExtendedMessage[];
   status: ChatRequestStatus;
   isLoading: boolean;
+  isAssistantReasoning?: boolean;
   isRegenerating?: boolean;
   editingMessageId: string | null;
   deletingMessageId: string | null;
@@ -247,6 +248,7 @@ export function MessageList({
   messages,
   status,
   isLoading,
+  isAssistantReasoning = false,
   isRegenerating = false,
   editingMessageId,
   deletingMessageId,
@@ -297,6 +299,7 @@ export function MessageList({
   const assistantPendingLabel = getAssistantPendingLabel({
     status,
     latestMessage,
+    isReasoning: isAssistantReasoning,
   });
   const pendingAssistantLabel = isRegenerating
     ? CHAT_REACTIVITY_COPY.assistantRegenerating
