@@ -1,0 +1,71 @@
+{
+  "runLabel": "latency-2026-08-14-openrouter-direct-benchmark-key",
+  "date": "2026-08-14",
+  "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+  "authentication": "OPENROUTER_API_KEY from .env.benchmark",
+  "prompt": "Rispondi in italiano con una sola frase breve: qual è il primo passo per prepararsi mentalmente a una partita importante?",
+  "request": {
+    "stream": true,
+    "maxTokens": 1024,
+    "repetitionsPerModel": 5,
+    "concurrency": 1
+  },
+  "metrics": {
+    "headersMs": "time until HTTP headers",
+    "firstAnyMs": "time until first reasoning or visible-text delta",
+    "firstContentMs": "time until first visible-text delta",
+    "totalMs": "time until stream completion"
+  },
+  "models": [
+    {
+      "modelId": "google/gemini-3.7-flash",
+      "repetitions": 5,
+      "errors": 0,
+      "headersMs": { "avg": 1555, "p50": 1534, "p95": 1680, "min": 1462, "max": 1680 },
+      "firstAnyMs": { "avg": 1556, "p50": 1535, "p95": 1683, "min": 1463, "max": 1683 },
+      "firstContentMs": { "avg": 3119, "p50": 3048, "p95": 3420, "min": 2732, "max": 3420 },
+      "totalMs": { "avg": 3299, "p50": 3299, "p95": 3588, "min": 2838, "max": 3588 },
+      "avgOutputChars": 115
+    },
+    {
+      "modelId": "x-ai/grok-4.6",
+      "repetitions": 5,
+      "errors": 0,
+      "headersMs": { "avg": 434, "p50": 422, "p95": 481, "min": 417, "max": 481 },
+      "firstAnyMs": { "avg": 1170, "p50": 938, "p95": 2107, "min": 822, "max": 2107 },
+      "firstContentMs": { "avg": 9059, "p50": 9832, "p95": 11638, "min": 6442, "max": 11638 },
+      "totalMs": { "avg": 9305, "p50": 10096, "p95": 11869, "min": 6620, "max": 11869 },
+      "avgOutputChars": 54
+    },
+    {
+      "modelId": "deepseek/deepseek-v4-pro-0813",
+      "repetitions": 5,
+      "errors": 0,
+      "headersMs": { "avg": 387, "p50": 311, "p95": 651, "min": 301, "max": 651 },
+      "firstAnyMs": { "avg": 804, "p50": 652, "p95": 1207, "min": 544, "max": 1207 },
+      "firstContentMs": { "avg": 2224, "p50": 2001, "p95": 2785, "min": 1951, "max": 2785 },
+      "totalMs": { "avg": 2414, "p50": 2218, "p95": 3051, "min": 2062, "max": 3051 },
+      "avgOutputChars": 83
+    },
+    {
+      "modelId": "deepseek/deepseek-v4-flash-0731",
+      "repetitions": 5,
+      "errors": 0,
+      "headersMs": { "avg": 1172, "p50": 1188, "p95": 1432, "min": 761, "max": 1432 },
+      "firstAnyMs": { "avg": 1438, "p50": 1433, "p95": 2110, "min": 987, "max": 2110 },
+      "firstContentMs": { "avg": 5382, "p50": 2709, "p95": 13666, "min": 1100, "max": 13666 },
+      "totalMs": { "avg": 7098, "p50": 5499, "p95": 16509, "min": 3006, "max": 16509 },
+      "avgOutputChars": 236
+    },
+    {
+      "modelId": "meta/muse-spark-1.2",
+      "repetitions": 5,
+      "errors": 0,
+      "headersMs": { "avg": 712, "p50": 751, "p95": 970, "min": 456, "max": 970 },
+      "firstAnyMs": { "avg": 4784, "p50": 4551, "p95": 6197, "min": 3323, "max": 6197 },
+      "firstContentMs": { "avg": 4784, "p50": 4551, "p95": 6197, "min": 3323, "max": 6197 },
+      "totalMs": { "avg": 4996, "p50": 4684, "p95": 6386, "min": 3504, "max": 6386 },
+      "avgOutputChars": 99
+    }
+  ]
+}
