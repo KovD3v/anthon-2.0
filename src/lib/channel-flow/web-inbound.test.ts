@@ -142,6 +142,7 @@ describe("web inbound idempotency", () => {
     ).resolves.toEqual({ message: inbound(), created: true });
 
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.txMessageFindUnique).not.toHaveBeenCalled();
     expect(mocks.txMessageCreate).toHaveBeenCalledWith({
       data: {
         userId: "user-1",

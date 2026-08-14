@@ -8,6 +8,13 @@ export type ConversationThreadInput = {
   chatId?: string;
 };
 
+function isUniqueConstraintError(error: unknown) {
+  return (
+    Boolean(error && typeof error === "object" && "code" in error) &&
+    (error as { code?: unknown }).code === "P2002"
+  );
+}
+
 async function repairLegacyWebThread({
   userId,
   channel,
@@ -104,29 +111,40 @@ export async function ensureConversationThread({
   externalThreadId,
   chatId,
 }: ConversationThreadInput) {
-  const repairedThread = await repairLegacyWebThread({
-    userId,
-    channel,
-    externalThreadId,
-    chatId,
-  });
-  if (repairedThread) return repairedThread;
-
-  return prisma.conversationThread.upsert({
-    where: {
-      userId_channel_externalThreadId: {
+  try {
+    return await prisma.conversationThread.upsert({
+      where: {
+        userId_channel_externalThreadId: {
+          userId,
+          channel,
+          externalThreadId,
+        },
+      },
+      update: { updatedAt: new Date() },
+      create: {
         userId,
         channel,
         externalThreadId,
+        ...(chatId ? { chatId } : {}),
       },
-    },
-    update: { updatedAt: new Date() },
-    create: {
+      select: { id: true, userId: true, channel: true, chatId: true },
+    });
+  } catch (error) {
+    // Guest conversion normally moves the thread owner atomically. The only
+    // remaining legacy case is detected by the chatId unique constraint; keep
+    // that recovery path off the hot path and invoke it only when needed.
+    if (!isUniqueConstraintError(error) || !chatId || channel !== "WEB") {
+      throw error;
+    }
+
+    const repairedThread = await repairLegacyWebThread({
       userId,
       channel,
       externalThreadId,
-      ...(chatId ? { chatId } : {}),
-    },
-    select: { id: true, userId: true, channel: true, chatId: true },
-  });
+      chatId,
+    });
+    if (repairedThread) return repairedThread;
+
+    throw error;
+  }
 }

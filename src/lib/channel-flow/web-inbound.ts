@@ -171,19 +171,10 @@ export async function claimWebInboundMessage({
   const uniqueAttachmentIds = [...new Set(attachmentIds)];
   const created = await prisma
     .$transaction(async (tx) => {
-      const existing = await tx.message.findUnique({
-        where,
-        select: webInboundSelect,
-      });
-      if (existing) {
-        assertSameInbound(existing, {
-          chatId,
-          conversationThreadId,
-          payloadHash,
-        });
-        return { message: existing, created: false };
-      }
-
+      // The route already performed the replay preflight. A direct create is
+      // safe here: a concurrent claimant loses on the unique key and is
+      // resolved by the winner read below, avoiding a second lookup on every
+      // new message.
       const message = await tx.message.create({
         data: {
           userId,

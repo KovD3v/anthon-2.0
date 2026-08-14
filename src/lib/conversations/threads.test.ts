@@ -50,6 +50,9 @@ describe("ensureConversationThread", () => {
   });
 
   it("repairs a web thread left under the converted guest owner", async () => {
+    mocks.threadUpsert.mockRejectedValue(
+      Object.assign(new Error("chatId already used"), { code: "P2002" }),
+    );
     mocks.threadFindUnique.mockResolvedValue({
       id: "thread-legacy",
       userId: "guest-1",
@@ -105,7 +108,7 @@ describe("ensureConversationThread", () => {
       where: { conversationThreadId: "thread-legacy" },
       data: { userId: "user-1" },
     });
-    expect(mocks.threadUpsert).not.toHaveBeenCalled();
+    expect(mocks.threadUpsert).toHaveBeenCalledTimes(1);
   });
 
   it("uses the normal upsert when no legacy web thread exists", async () => {
@@ -140,5 +143,6 @@ describe("ensureConversationThread", () => {
       },
       select: { id: true, userId: true, channel: true, chatId: true },
     });
+    expect(mocks.threadFindUnique).not.toHaveBeenCalled();
   });
 });
