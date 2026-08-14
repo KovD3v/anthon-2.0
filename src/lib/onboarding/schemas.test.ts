@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  onboardingAgeSchema,
-  onboardingAnswerSchema,
-} from "./schemas";
+import { onboardingAgeSchema, onboardingAnswerSchema } from "./schemas";
 
 describe("onboarding schemas", () => {
   it.each([1, 29, 120])("accepts integer age %s", (age) => {

@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  ONBOARDING_FIELDS,
-  ONBOARDING_QUESTIONS,
-} from "./constants";
+import { ONBOARDING_FIELDS, ONBOARDING_QUESTIONS } from "./constants";
 import {
   applyModelExtractionToState,
   createEmptyOnboardingState,

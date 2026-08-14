@@ -75,7 +75,8 @@ function fieldHasValue(field: OnboardingField, draft: OnboardingDraft) {
 function firstUnresolvedStep(state: OnboardingState): number | null {
   const index = ONBOARDING_FIELDS.findIndex(
     (field) =>
-      !state.skippedFields.includes(field) && !fieldHasValue(field, state.draft),
+      !state.skippedFields.includes(field) &&
+      !fieldHasValue(field, state.draft),
   );
   return index === -1 ? null : index;
 }

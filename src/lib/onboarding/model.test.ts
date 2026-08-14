@@ -21,10 +21,7 @@ vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
 }));
 
-import {
-  interpretOnboardingAnswer,
-  ONBOARDING_MODEL_ID,
-} from "./model";
+import { interpretOnboardingAnswer, ONBOARDING_MODEL_ID } from "./model";
 
 describe("onboarding model", () => {
   beforeEach(() => {

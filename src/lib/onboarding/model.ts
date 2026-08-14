@@ -6,8 +6,7 @@ import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { createLogger } from "@/lib/logger";
 import type { OnboardingDraft, OnboardingField } from "./types";
 
-export const ONBOARDING_MODEL_ID =
-  "deepseek/deepseek-v4-flash-0731" as const;
+export const ONBOARDING_MODEL_ID = "deepseek/deepseek-v4-flash-0731" as const;
 
 const onboardingLogger = createLogger("ai");
 
@@ -55,8 +54,7 @@ export async function interpretOnboardingAnswer(input: InterpretInput) {
       temperature: 0.1,
       maxOutputTokens: 500,
       providerOptions: {
-        openrouter:
-          getOpenRouterProviderOptionsForModel(ONBOARDING_MODEL_ID),
+        openrouter: getOpenRouterProviderOptionsForModel(ONBOARDING_MODEL_ID),
       },
       instructions: `Sei Anthon durante un onboarding breve in italiano.
 Interpreta soltanto informazioni esplicitamente presenti nella risposta utente.
