@@ -315,8 +315,7 @@ export function startModelAttemptTrace(
 ): ModelAttemptTrace {
   const providerWait =
     collector?.startSpan("provider_wait", attributes) ?? NOOP_SPAN;
-  const modelStream =
-    collector?.startSpan("model_stream", attributes) ?? NOOP_SPAN;
+  let modelStream: ServerSpanHandle | undefined;
   let sawText = false;
   let providerWaitEnded = false;
   let ended = false;
@@ -346,7 +345,7 @@ export function startModelAttemptTrace(
       outcome,
       ...(provider ? { provider } : {}),
     });
-    modelStream.end(status, {
+    modelStream?.end(status, {
       outcome,
       ...(provider ? { provider } : {}),
     });
@@ -359,6 +358,7 @@ export function startModelAttemptTrace(
         sawText = true;
         collector?.markFirstToken();
         endProviderWait("completed");
+        modelStream = collector?.startSpan("model_stream", attributes);
       }
     },
     complete(provider) {

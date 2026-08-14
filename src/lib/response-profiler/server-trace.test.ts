@@ -174,17 +174,6 @@ describe("ServerTraceCollector", () => {
         }),
       }),
       expect.objectContaining({
-        name: "model_stream",
-        status: "failed",
-        attributes: expect.objectContaining({
-          attemptSequence: 1,
-          profile: "light",
-          model: "light-model",
-          provider: "Fireworks",
-          outcome: "failed_before_stream",
-        }),
-      }),
-      expect.objectContaining({
         name: "provider_wait",
         durationMs: 25,
         status: "completed",
@@ -197,7 +186,8 @@ describe("ServerTraceCollector", () => {
       }),
       expect.objectContaining({
         name: "model_stream",
-        durationMs: 65,
+        startOffsetMs: 40,
+        durationMs: 40,
         status: "completed",
         attributes: expect.objectContaining({
           attemptSequence: 2,
@@ -210,7 +200,7 @@ describe("ServerTraceCollector", () => {
     ]);
   });
 
-  it("records each tool invocation outcome and closes cancelled work", () => {
+  it("records each tool invocation outcome and closes cancelled provider work", () => {
     let clock = 0;
     const collector = createServerTraceCollector({ now: () => clock });
 
@@ -258,7 +248,6 @@ describe("ServerTraceCollector", () => {
           attributes: { outcome: "cancelled", toolName: "webSearch" },
         },
         expect.objectContaining({ name: "provider_wait", status: "cancelled" }),
-        expect.objectContaining({ name: "model_stream", status: "cancelled" }),
       ],
     });
   });

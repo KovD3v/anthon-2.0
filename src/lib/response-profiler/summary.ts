@@ -1,5 +1,5 @@
 import type { Usage } from "@/types/chat";
-import type { ServerSpanName } from "./contracts";
+import type { ServerSpanName, ServerTraceSpanV1 } from "./contracts";
 
 export interface ResponseProfilerSummary {
   quality: "complete" | "partial" | "legacy";
@@ -52,8 +52,8 @@ const SERVER_LABELS: Record<ServerSpanName, string> = {
   rag_embedding: "Embedding RAG",
   rag_search: "Ricerca RAG",
   prompt_build: "Costruzione prompt",
-  provider_wait: "Attesa provider",
-  model_stream: "Generazione modello",
+  provider_wait: "TTFT · attesa primo token",
+  model_stream: "Streaming risposta",
   tool: "Esecuzione strumento",
   assistant_persistence: "Salvataggio risposta",
 };
@@ -86,6 +86,42 @@ function deriveQuality(usage: Usage): ResponseProfilerSummary["quality"] {
     : "partial";
 }
 
+function isSameModelAttempt(
+  modelSpan: ServerTraceSpanV1,
+  providerWait: ServerTraceSpanV1,
+) {
+  if (providerWait.name !== "provider_wait") return false;
+
+  const modelAttempt = modelSpan.attributes?.attemptSequence;
+  const providerAttempt = providerWait.attributes?.attemptSequence;
+  if (modelAttempt !== undefined || providerAttempt !== undefined) {
+    return modelAttempt !== undefined && modelAttempt === providerAttempt;
+  }
+
+  return modelSpan.startOffsetMs === providerWait.startOffsetMs;
+}
+
+function getPresentationSpans(spans: readonly ServerTraceSpanV1[]) {
+  return spans.flatMap((span) => {
+    if (span.name !== "model_stream") return [span];
+
+    const providerWait = spans.find((candidate) =>
+      isSameModelAttempt(span, candidate),
+    );
+    if (!providerWait) return [span];
+
+    const modelEnd = span.startOffsetMs + span.durationMs;
+    const providerEnd = providerWait.startOffsetMs + providerWait.durationMs;
+    const startOffsetMs = Math.min(
+      modelEnd,
+      Math.max(span.startOffsetMs, providerEnd),
+    );
+    const durationMs = Math.max(0, modelEnd - startOffsetMs);
+
+    return durationMs > 0 ? [{ ...span, startOffsetMs, durationMs }] : [];
+  });
+}
+
 export function deriveResponseProfilerSummary(
   usage: Usage,
 ): ResponseProfilerSummary {
@@ -98,32 +134,37 @@ export function deriveResponseProfilerSummary(
       )
     : [];
   const browserTotalMs = Math.max(0, ...clientOffsets);
-  const serverRows =
-    serverTrace?.spans.map((span) => ({
-      id: span.id,
-      label: SERVER_LABELS[span.name],
-      startOffsetMs: span.startOffsetMs,
-      endOffsetMs: span.startOffsetMs + span.durationMs,
-      startPercent: presentationPercent(
-        span.startOffsetMs,
-        serverTrace.totalMs,
-      ),
-      widthPercent: presentationPercent(span.durationMs, serverTrace.totalMs),
-      durationPercent: presentationPercent(
-        span.durationMs,
-        serverTrace.totalMs,
-      ),
-      durationMs: span.durationMs,
-      status: span.status,
-    })) ?? [];
-  const dominantServerSpan = serverTrace?.spans.reduce<
-    (typeof serverTrace.spans)[number] | undefined
+  const presentationSpans = serverTrace
+    ? getPresentationSpans(serverTrace.spans)
+    : [];
+  const serverRows = presentationSpans.map((span) => ({
+    id: span.id,
+    label: SERVER_LABELS[span.name],
+    startOffsetMs: span.startOffsetMs,
+    endOffsetMs: span.startOffsetMs + span.durationMs,
+    startPercent: presentationPercent(
+      span.startOffsetMs,
+      serverTrace?.totalMs ?? 0,
+    ),
+    widthPercent: presentationPercent(
+      span.durationMs,
+      serverTrace?.totalMs ?? 0,
+    ),
+    durationPercent: presentationPercent(
+      span.durationMs,
+      serverTrace?.totalMs ?? 0,
+    ),
+    durationMs: span.durationMs,
+    status: span.status,
+  }));
+  const dominantServerSpan = presentationSpans.reduce<
+    ServerTraceSpanV1 | undefined
   >(
     (dominant, span) =>
       !dominant || span.durationMs > dominant.durationMs ? span : dominant,
     undefined,
   );
-  const deliveredModelSpan = serverTrace?.spans
+  const deliveredModelSpan = presentationSpans
     .filter(
       (span) =>
         span.name === "model_stream" &&

@@ -153,7 +153,7 @@ describe("deriveResponseProfilerSummary", () => {
     expect(summary.serverRows.map((row) => row.label)).toEqual([
       "Cronologia conversazione",
       "Profilo utente",
-      "Generazione modello",
+      "Streaming risposta",
     ]);
     expect(summary.browserLanes).toEqual([
       expect.objectContaining({
@@ -211,5 +211,64 @@ describe("deriveResponseProfilerSummary", () => {
       "Controllo limiti",
       "Prenotazione utilizzo",
     ]);
+  });
+
+  it("renders legacy model spans as sequential TTFT and streaming rows", () => {
+    const summary = deriveResponseProfilerSummary({
+      inputTokens: 1,
+      outputTokens: 30,
+      cost: 0,
+      serverTrace: {
+        version: 1,
+        status: "completed",
+        totalMs: 100,
+        timeToFirstTokenMs: 70,
+        spans: [
+          {
+            id: 1,
+            name: "provider_wait",
+            startOffsetMs: 20,
+            durationMs: 50,
+            status: "completed",
+            attributes: {
+              attemptSequence: 1,
+              profile: "standard",
+              outcome: "completed",
+            },
+          },
+          {
+            id: 2,
+            name: "model_stream",
+            startOffsetMs: 20,
+            durationMs: 80,
+            status: "completed",
+            attributes: {
+              attemptSequence: 1,
+              profile: "standard",
+              outcome: "completed",
+            },
+          },
+        ],
+      },
+    });
+
+    expect(summary.serverRows).toEqual([
+      expect.objectContaining({
+        id: 1,
+        label: "TTFT · attesa primo token",
+        startOffsetMs: 20,
+        endOffsetMs: 70,
+        durationMs: 50,
+      }),
+      expect.objectContaining({
+        id: 2,
+        label: "Streaming risposta",
+        startOffsetMs: 70,
+        endOffsetMs: 100,
+        durationMs: 30,
+      }),
+    ]);
+    expect(summary.dominantServerSpanId).toBe(1);
+    expect(summary.outputTokensPerSecond).toBe(1_000);
   });
 });

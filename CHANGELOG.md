@@ -67,6 +67,10 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Corrected the response-profiler backend timeline to render TTFT/provider
+  waiting and post-first-token response streaming as sequential intervals, and
+  normalized older persisted traces at presentation time so their bars do not
+  overlap or inflate streaming throughput.
 - Restricted expanded response-profiler payloads in production to authenticated
   `SUPER_ADMIN` owners of private chats with the Profile preference enabled;
   guests, shared chats, non-owners, and other roles retain compact metrics only.
