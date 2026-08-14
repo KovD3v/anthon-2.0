@@ -31,10 +31,10 @@ const scenario: RealityScenario = {
 };
 
 describe("benchmark/reality-judge", () => {
-  it("uses Judgemark-selected default judge models", () => {
+  it("uses the configured default judge models", () => {
     expect(DEFAULT_REALITY_JUDGE_MODELS).toEqual([
       "anthropic/claude-opus-4.6",
-      "openai/gpt-5.5",
+      "openai/gpt-5.6-luna",
     ]);
   });
 

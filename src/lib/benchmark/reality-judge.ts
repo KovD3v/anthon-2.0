@@ -15,7 +15,7 @@ import type {
 
 export const DEFAULT_REALITY_JUDGE_MODELS = [
   "anthropic/claude-opus-4.6",
-  "openai/gpt-5.5",
+  "openai/gpt-5.6-luna",
 ];
 
 const REALITY_JUDGE_DISAGREEMENT_THRESHOLD = 2;

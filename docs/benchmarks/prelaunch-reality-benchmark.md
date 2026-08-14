@@ -56,11 +56,12 @@ Scoring:
 Default judge models:
 
 - `anthropic/claude-opus-4.6`
-- `openai/gpt-5.5`
+- `openai/gpt-5.6-luna` with maximum reasoning
 
-These defaults come from Judgemark v4 ranking plus OpenRouter availability.
-They are intentionally not candidate defaults, to reduce self/family bias when
-judging candidate model outputs.
+The pair combines an Anthropic judge with Anthon's fixed Luna model. Luna uses
+the shared OpenRouter routing configuration, which enables priority service and
+`reasoning.effort: max` for this model. It remains a judge-only role in this
+benchmark invocation; it does not change Anthon's candidate routing.
 
 Dataset:
 
@@ -237,7 +238,7 @@ Useful flags:
 - `--model-concurrency 4`
 - `--judge`
 - `--judge-existing docs/benchmarks/runs/run.json`
-- `--judge-models anthropic/claude-opus-4.6,openai/gpt-5.5`
+- `--judge-models anthropic/claude-opus-4.6,openai/gpt-5.6-luna`
 - `--judge-concurrency 4`
 - `--rescore-heuristic`
 - `--openrouter-provider-sort e2e-latency`
