@@ -1,0 +1,99 @@
+{
+  "runLabel": "latency-2026-08-14-provider-aware-deepseek-gemini",
+  "date": "2026-08-14",
+  "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+  "authentication": "OPENROUTER_API_KEY from .env.benchmark",
+  "prompt": "Rispondi in italiano con una sola frase breve: qual è il primo passo per prepararsi mentalmente a una partita importante?",
+  "request": {
+    "stream": true,
+    "maxTokens": 1024,
+    "repetitionsPerModel": 5,
+    "concurrency": 1,
+    "providerSelection": "OpenRouter default routing"
+  },
+  "providerCapture": "top-level provider field in the SSE chunks",
+  "metrics": {
+    "headersMs": "time until HTTP headers",
+    "firstAnyMs": "time until first reasoning or visible-text delta",
+    "firstContentMs": "time until first visible-text delta",
+    "totalMs": "time until stream completion"
+  },
+  "models": [
+    {
+      "modelId": "google/gemini-3.7-flash",
+      "repetitions": 5,
+      "errors": 0,
+      "providersObserved": ["Google"],
+      "repetitionsByProvider": {
+        "Google": 5
+      },
+      "repetitionsRaw": [
+        { "provider": "Google", "headersMs": 3308, "firstAnyMs": 3310, "firstContentMs": 4765, "totalMs": 4935 },
+        { "provider": "Google", "headersMs": 1773, "firstAnyMs": 1773, "firstContentMs": 2940, "totalMs": 3124 },
+        { "provider": "Google", "headersMs": 1861, "firstAnyMs": 1863, "firstContentMs": 3774, "totalMs": 3952 },
+        { "provider": "Google", "headersMs": 1618, "firstAnyMs": 1618, "firstContentMs": 3282, "totalMs": 3471 },
+        { "provider": "Google", "headersMs": 1492, "firstAnyMs": 1493, "firstContentMs": 3127, "totalMs": 3195 }
+      ],
+      "firstContentMs": { "avg": 3578, "p50": 3282, "p95": 4765, "min": 2940, "max": 4765 },
+      "totalMs": { "avg": 3735, "p50": 3471, "p95": 4935, "min": 3124, "max": 4935 }
+    },
+    {
+      "modelId": "deepseek/deepseek-v4-pro-0813",
+      "repetitions": 5,
+      "errors": 0,
+      "providersObserved": ["DeepSeek", "GMICloud"],
+      "repetitionsByProvider": {
+        "DeepSeek": 4,
+        "GMICloud": 1
+      },
+      "repetitionsRaw": [
+        { "provider": "DeepSeek", "headersMs": 310, "firstAnyMs": 915, "firstContentMs": 4035, "totalMs": 4165 },
+        { "provider": "GMICloud", "headersMs": 2121, "firstAnyMs": 2718, "firstContentMs": 4326, "totalMs": 4907 },
+        { "provider": "DeepSeek", "headersMs": 316, "firstAnyMs": 671, "firstContentMs": 2141, "totalMs": 2341 },
+        { "provider": "DeepSeek", "headersMs": 306, "firstAnyMs": 1042, "firstContentMs": 2268, "totalMs": 2619 },
+        { "provider": "DeepSeek", "headersMs": 309, "firstAnyMs": 799, "firstContentMs": 2654, "totalMs": 2893 }
+      ],
+      "allProviders": {
+        "firstContentMs": { "avg": 3085, "p50": 2654, "p95": 4326, "min": 2141, "max": 4326 },
+        "totalMs": { "avg": 3385, "p50": 2893, "p95": 4907, "min": 2341, "max": 4907 }
+      },
+      "byProvider": {
+        "DeepSeek": {
+          "repetitions": 4,
+          "firstContentMs": { "avg": 2775, "p50": 2268, "p95": 4035, "min": 2141, "max": 4035 },
+          "totalMs": { "avg": 3005, "p50": 2619, "p95": 4165, "min": 2341, "max": 4165 }
+        },
+        "GMICloud": {
+          "repetitions": 1,
+          "firstContentMs": { "avg": 4326, "p50": 4326, "p95": 4326, "min": 4326, "max": 4326 },
+          "totalMs": { "avg": 4907, "p50": 4907, "p95": 4907, "min": 4907, "max": 4907 }
+        }
+      }
+    },
+    {
+      "modelId": "deepseek/deepseek-v4-flash-0731",
+      "repetitions": 5,
+      "errors": 0,
+      "providersObserved": ["Sail Research"],
+      "repetitionsByProvider": {
+        "Sail Research": 5
+      },
+      "repetitionsRaw": [
+        { "provider": "Sail Research", "headersMs": 1606, "firstAnyMs": 2544, "firstContentMs": 40144, "totalMs": 40655 },
+        { "provider": "Sail Research", "headersMs": 420, "firstAnyMs": 561, "firstContentMs": 5005, "totalMs": 8725 },
+        { "provider": "Sail Research", "headersMs": 739, "firstAnyMs": 957, "firstContentMs": 10153, "totalMs": 10584 },
+        { "provider": "Sail Research", "headersMs": 2337, "firstAnyMs": 3321, "firstContentMs": 11036, "totalMs": 12268 },
+        { "provider": "Sail Research", "headersMs": 1224, "firstAnyMs": 1881, "firstContentMs": 16851, "totalMs": 18687 }
+      ],
+      "firstContentMs": { "avg": 16638, "p50": 11036, "p95": 40144, "min": 5005, "max": 40144 },
+      "totalMs": { "avg": 18184, "p50": 12268, "p95": 40655, "min": 8725, "max": 40655 }
+    }
+  ],
+  "notes": [
+    "All 15 requests returned HTTP 200 with no request errors.",
+    "This is a default-routing probe, not a provider-pinned comparison.",
+    "DeepSeek V4 Pro changed provider within the five repetitions, so its aggregate is not a single-provider measurement.",
+    "The stream reported Google for Gemini, but did not expose the more specific Google endpoint variant.",
+    "DeepSeek V4 Flash was served by Sail Research in all five repetitions; the first repetition was a 40655 ms completion outlier."
+  ]
+}
