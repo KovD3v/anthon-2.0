@@ -1689,10 +1689,10 @@ describe("ai/orchestrator", () => {
       "Treat the user's latest identity or factual correction as authoritative",
     );
     expect(prepared.systemPrompt).toContain(
-      "ask them together in one compact question block",
+      "Ask one focused question at a time",
     );
     expect(prepared.systemPrompt).toContain(
-      "Do not drip-feed one question per turn",
+      "Use the user's answer to decide whether another question is needed",
     );
     expect(prepared.systemPrompt).toContain(
       "enter a focused coaching-session phase",
@@ -1700,9 +1700,8 @@ describe("ai/orchestrator", () => {
     expect(prepared.systemPrompt).toContain(
       "synthesize what the user has revealed",
     );
-    expect(prepared.systemPrompt).not.toContain(
-      "Prefer one question at a time",
-    );
+    expect(prepared.systemPrompt).not.toContain("two to four connected");
+    expect(prepared.systemPrompt).not.toContain("compact question block");
     expect(prepared.systemPrompt).toContain("ANTHON COACHING BEHAVIOR");
     expect(prepared.systemPrompt).toContain(
       "Choose the coaching move before choosing the wording",

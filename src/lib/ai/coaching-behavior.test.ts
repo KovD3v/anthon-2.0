@@ -39,15 +39,18 @@ describe("Anthon coaching behavior", () => {
     );
   });
 
-  it("groups related discovery questions instead of drip-feeding them", () => {
+  it("asks one focused discovery question at a time", () => {
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
-      "ask them together in one compact question block",
+      "Ask one focused question at a time",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
-      "Do not drip-feed one question per turn",
+      "Use the user's answer to decide whether another question is needed",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
-      "If only one missing fact matters, ask one question",
+      "Do not stack several questions in the same response",
+    );
+    expect(PROMPT_ANTHON_COACHING_BEHAVIOR).not.toContain(
+      "compact question block",
     );
   });
 
@@ -59,7 +62,7 @@ describe("Anthon coaching behavior", () => {
       "recurring, emotionally charged, important, or still poorly understood",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
-      "two to four connected questions",
+      "one high-value question",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
       "Do not rush to advice, reframing, or a technique",
@@ -74,7 +77,7 @@ describe("Anthon coaching behavior", () => {
       "identify the central interference",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
-      "one additional focused question block",
+      "one additional focused question",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
       "Depth takes priority over the usual brevity target",
