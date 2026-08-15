@@ -105,4 +105,62 @@ describe("onboarding model", () => {
       unavailable: true,
     });
   });
+
+  it("passes recent clarification context to preserve previously stated details", async () => {
+    mocks.generateText.mockResolvedValue({
+      output: {
+        extracted: {
+          sport: "palestra",
+          experience: "secondo anno di università",
+        },
+        currentFieldStatus: "accepted",
+        clarification: null,
+        assistantMessage: "Perfetto.",
+      },
+      usage: { inputTokens: 10, outputTokens: 5 },
+      providerMetadata: { openrouter: { provider: "CoreWeave" } },
+    });
+
+    await interpretOnboardingAnswer({
+      userId: "user-1",
+      currentField: "sportOrSchool",
+      question:
+        "Se pratichi uno sport, quale pratichi e a che livello? Se studi, in che classe o anno sei?",
+      userText: "università perdonami",
+      draft: {
+        name: "Antonio",
+        age: 20,
+        occupation: "studente di ingegneria informatica",
+        sport: null,
+        experience: null,
+        goal: null,
+      },
+      context: [
+        {
+          role: "assistant",
+          content:
+            "Se pratichi uno sport, quale pratichi e a che livello? Se studi, in che classe o anno sei?",
+        },
+        {
+          role: "user",
+          content: "faccio palestra e sono al secondo anno",
+        },
+        {
+          role: "assistant",
+          content:
+            "Per 'secondo anno' intendi il secondo anno di università o il livello di esperienza in palestra?",
+        },
+      ],
+    });
+
+    const call = mocks.generateText.mock.calls.at(-1)?.[0] as {
+      instructions: string;
+      prompt: string;
+    };
+    expect(call.prompt).toContain("faccio palestra e sono al secondo anno");
+    expect(call.prompt).toContain("università perdonami");
+    expect(call.instructions).toContain("richiesta di chiarimento");
+    expect(call.instructions).toContain("ha già detto");
+    expect(call.instructions).toContain("secondo anno di università");
+  });
 });

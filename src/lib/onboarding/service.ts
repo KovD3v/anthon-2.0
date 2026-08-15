@@ -94,7 +94,10 @@ export function applyModelExtractionToState(
 
   if (!currentField || result.currentFieldStatus === "clarify") return next;
 
-  if (result.currentFieldStatus === "skipped") {
+  if (
+    result.currentFieldStatus === "skipped" &&
+    !fieldHasValue(currentField, next.draft)
+  ) {
     next.skippedFields = Array.from(
       new Set([...next.skippedFields, currentField]),
     );

@@ -164,6 +164,10 @@ export async function applyOnboardingAnswer(input: {
         question: question.question,
         userText: input.userText,
         draft: state.draft,
+        context: messages.slice(-8).map(({ role, content }) => ({
+          role,
+          content,
+        })),
       });
   if ("unavailable" in modelResult && modelResult.unavailable) {
     throw new OnboardingModelUnavailableError();

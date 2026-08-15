@@ -57,6 +57,32 @@ describe("onboarding state machine", () => {
     expect(result.draft.name).toBeNull();
   });
 
+  it("keeps extracted values when the model marks a non-empty answer as skipped", () => {
+    const state = createEmptyOnboardingState();
+    state.currentStep = 3;
+    state.draft = {
+      name: "Antonio",
+      age: 20,
+      occupation: "studente di ingegneria informatica",
+      sport: null,
+      experience: null,
+      goal: null,
+    };
+
+    const result = applyModelExtractionToState(state, {
+      currentFieldStatus: "skipped",
+      extracted: {
+        sport: "palestra",
+        experience: "secondo anno di università",
+      },
+      assistantMessage: "Perfetto.",
+      clarification: null,
+    });
+
+    expect(result.skippedFields).not.toContain("sportOrSchool");
+    expect(result.currentStep).toBe(4);
+  });
+
   it("moves to review only after every field is resolved or skipped", () => {
     const state = createEmptyOnboardingState();
     state.draft = {
