@@ -365,7 +365,7 @@ Run:
 ~~~bash
 bunx vitest run 'src/app/(marketing)/profile'
 bunx biome check 'src/app/(marketing)/profile' src/app/globals.css
-node .agents/skills/impeccable/scripts/detect.mjs --json 'src/app/(marketing)/profile' src/app/globals.css
+node /Users/kovd3v/.agents/skills/impeccable/scripts/detect.mjs --json 'src/app/(marketing)/profile' src/app/globals.css
 git diff --check
 ~~~
 
