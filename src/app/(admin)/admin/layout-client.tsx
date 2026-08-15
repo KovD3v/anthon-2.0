@@ -1,11 +1,9 @@
 "use client";
 
 import {
-  BarChart3,
   Brain,
   Building2,
   FileText,
-  FlaskConical,
   LayoutDashboard,
   Menu,
   MessageSquare,
@@ -30,7 +28,6 @@ import { SidebarBottom } from "../../(chat)/components/SidebarBottom";
 
 const navItems = [
   { href: "/admin", label: "Panoramica", icon: LayoutDashboard },
-  { href: "/admin/analytics", label: "Analisi", icon: BarChart3 },
   { href: "/admin/costs", label: "Costi", icon: Brain },
   { href: "/admin/users", label: "Utenti", icon: Users },
   {
@@ -46,11 +43,6 @@ const navItems = [
     icon: SlidersHorizontal,
   },
   { href: "/admin/ai-traces", label: "Trace AI", icon: ShieldCheck },
-  {
-    href: "/admin/model-experiments",
-    label: "Confronti modelli",
-    icon: FlaskConical,
-  },
 ];
 
 function isActiveRoute(pathname: string, href: string) {

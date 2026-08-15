@@ -1,5 +1,4 @@
 import {
-  BarChart3,
   FileText,
   MessageSquare,
   SlidersHorizontal,
@@ -52,13 +51,6 @@ export default function AdminDashboard() {
               >
                 <FileText className="h-8 w-8 text-primary" />
                 <span className="font-medium">Carica documenti</span>
-              </Link>
-              <Link
-                href="/admin/analytics"
-                className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4 text-card-foreground transition-colors hover:bg-muted/50"
-              >
-                <BarChart3 className="h-8 w-8 text-primary" />
-                <span className="font-medium">Vedi analisi</span>
               </Link>
               <Link
                 href="/admin/classifier"
