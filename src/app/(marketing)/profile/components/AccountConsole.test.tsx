@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AccountConsole } from "./AccountConsole";
 
@@ -67,5 +67,18 @@ describe("AccountConsole", () => {
     expect(screen.getByRole("region", { name: "Utilizzo" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Memorie" })).toBeTruthy();
     expect(screen.queryByLabelText("Profilo Clerk")).toBeNull();
+  });
+
+  it("switches the native console between profile and Anthon settings", () => {
+    render(<AccountConsole />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Anthon" }));
+
+    expect(
+      screen.getAllByRole("region", { name: "Impostazioni Anthon" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("region", { name: "Profilo account" }),
+    ).toBeNull();
   });
 });
