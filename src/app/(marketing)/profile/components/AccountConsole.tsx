@@ -78,11 +78,11 @@ export function AccountConsole() {
         <div>
           <h2 className="font-display text-[2.75rem] font-extrabold uppercase leading-[0.88] tracking-[-0.025em] sm:text-6xl">
             Il tuo{" "}
-            <span className="relative isolate inline-block px-[0.04em]">
+            <span className="relative isolate inline-block px-[0.04em] dark:px-[0.12em] dark:py-[0.04em] dark:text-[#171714]">
               <span className="relative z-10">profilo</span>
               <span
                 aria-hidden="true"
-                className="absolute -inset-x-[0.02em] bottom-[0.04em] -z-10 h-[0.28em] -rotate-[0.8deg] bg-brand-yellow"
+                className="absolute -inset-x-[0.02em] bottom-[0.04em] -z-10 h-[0.22em] -rotate-[0.8deg] bg-brand-yellow [clip-path:polygon(0_12%,100%_0,98.5%_100%,1%_88%)] dark:-inset-x-[0.08em] dark:bottom-[-0.04em] dark:top-[-0.04em] dark:h-auto"
               />
             </span>
           </h2>
