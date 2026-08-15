@@ -5,7 +5,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProfileClient } from "./profile-client";
 
 vi.mock("@clerk/nextjs", () => ({
-  UserProfile: () => <section aria-label="Profilo Clerk" />,
+  UserProfile: ({
+    appearance,
+  }: {
+    appearance?: { cssLayerName?: string; theme?: string };
+  }) => (
+    <section
+      aria-label="Profilo Clerk"
+      data-appearance-css-layer={appearance?.cssLayerName}
+      data-appearance-theme={appearance?.theme}
+    />
+  ),
   useUser: () => ({ isLoaded: true, user: { id: "user_test_123" } }),
 }));
 
@@ -50,5 +60,14 @@ describe("ProfileClient", () => {
     const userId = screen.getByRole("region", { name: "ID utente" });
 
     expect(userId.textContent).toContain("user_test_123");
+  });
+
+  it("uses Anthon's visual system for the Clerk profile", () => {
+    render(<ProfileClient />);
+
+    const profile = screen.getByRole("region", { name: "Profilo Clerk" });
+
+    expect(profile.getAttribute("data-appearance-theme")).toBe("simple");
+    expect(profile.getAttribute("data-appearance-css-layer")).toBe("clerk");
   });
 });

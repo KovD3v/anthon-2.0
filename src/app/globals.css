@@ -1,3 +1,5 @@
+@layer theme, base, clerk, components, utilities;
+
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
