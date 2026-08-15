@@ -13,6 +13,7 @@ import {
   type UIMessage,
   type UIMessageStreamOptions,
 } from "ai";
+import { getAiRoutingRuntimeConfig } from "@/lib/ai/ai-routing-config-store";
 import {
   type CapabilityDecision,
   getCapabilityPlannerMode,
@@ -32,7 +33,6 @@ import type {
 import {
   buildPlannedExecution,
   type PlannedExecution,
-  parseExecutionRoutingConfig,
   type TurnDecision,
 } from "@/lib/ai/execution-routing";
 import { needsRecentRoutingContext } from "@/lib/ai/fast-routing";
@@ -1792,6 +1792,7 @@ async function arbitrateChatTurn({
   capabilityPlannerMode,
   inputOrigin,
   recentContext,
+  liveClassifierEnabled,
   abortSignal,
   waitUntil,
 }: {
@@ -1807,6 +1808,7 @@ async function arbitrateChatTurn({
   capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
   inputOrigin: "text" | "transcribed_voice" | "direct_media";
   recentContext: BoundedRecentContext;
+  liveClassifierEnabled: boolean;
   abortSignal?: AbortSignal;
   waitUntil?: (promise: Promise<unknown>) => void;
 }) {
@@ -1816,7 +1818,7 @@ async function arbitrateChatTurn({
     classifierContext: `web_search_rule=${webSearchRule.reason}`,
     classifierModelId: "unused-in-live-chat",
     plannerMode: capabilityPlannerMode,
-    liveClassifierEnabled: false,
+    liveClassifierEnabled,
     isGuest,
     memoryEnabled,
     voiceAllowed,
@@ -1988,6 +1990,7 @@ export async function streamChat({
 }: StreamChatOptions) {
   // Record start time for performance tracking
   const startTime = Date.now();
+  const runtimeRoutingConfigPromise = getAiRoutingRuntimeConfig();
   const developerDiagnostics = createDeveloperDiagnosticsCollector({
     enabled: includeTechnicalDiagnostics,
   });
@@ -2072,6 +2075,7 @@ export async function streamChat({
             skipConversationHistory,
           }),
         );
+  const runtimeRoutingConfig = await runtimeRoutingConfigPromise;
   const arbitration = preparedTurnContext
     ? {
         decision: preparedTurnContext.turnDecision,
@@ -2096,6 +2100,7 @@ export async function streamChat({
         capabilityPlannerMode,
         inputOrigin,
         recentContext: recentRoutingContext,
+        liveClassifierEnabled: runtimeRoutingConfig.liveClassifierEnabled,
         abortSignal,
         waitUntil,
       });
@@ -2105,7 +2110,11 @@ export async function streamChat({
   const classifierProvider = arbitration.classifierProvider;
   const capabilityDecision = turnDecision.capabilities;
   const routingSpan = traceCollector?.startSpan("routing");
-  const routingConfig = parseExecutionRoutingConfig(process.env);
+  const routingConfig = {
+    mode: runtimeRoutingConfig.executionRoutingMode,
+    allocationPercent: runtimeRoutingConfig.executionRoutingAllocationPercent,
+    enabledTaskKinds: runtimeRoutingConfig.executionRoutingTasks,
+  };
   const allocatedExecution = buildPlannedExecution({
     decision: turnDecision.execution,
     config: routingConfig,
@@ -3678,6 +3687,7 @@ export async function prepareChatTurn({
   skipConversationHistory = false,
 }: PrepareChatTurnOptions): Promise<PreparedChatTurn> {
   abortSignal?.throwIfAborted();
+  const runtimeRoutingConfigPromise = getAiRoutingRuntimeConfig();
   const effectiveEntitlements =
     prefetchedEntitlements ??
     (await resolveEffectiveEntitlements({
@@ -3701,6 +3711,7 @@ export async function prepareChatTurn({
           skipConversationHistory,
         })
       : EMPTY_BOUNDED_RECENT_CONTEXT;
+  const runtimeRoutingConfig = await runtimeRoutingConfigPromise;
   const arbitration = await arbitrateChatTurn({
     userId,
     userMessage,
@@ -3714,6 +3725,7 @@ export async function prepareChatTurn({
     capabilityPlannerMode,
     inputOrigin: "text",
     recentContext: recentRoutingContext,
+    liveClassifierEnabled: runtimeRoutingConfig.liveClassifierEnabled,
     abortSignal,
   });
   const turnDecision = arbitration.decision;
@@ -3723,7 +3735,11 @@ export async function prepareChatTurn({
   const capabilityDecision = turnDecision.capabilities;
   const allocatedExecution = buildPlannedExecution({
     decision: turnDecision.execution,
-    config: parseExecutionRoutingConfig(process.env),
+    config: {
+      mode: runtimeRoutingConfig.executionRoutingMode,
+      allocationPercent: runtimeRoutingConfig.executionRoutingAllocationPercent,
+      enabledTaskKinds: runtimeRoutingConfig.executionRoutingTasks,
+    },
     stableKey: userMessageId ?? chatId ?? userId,
   });
   const memoryRecallDecision = await resolveMemoryRecallMode({

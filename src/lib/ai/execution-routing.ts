@@ -22,7 +22,7 @@ export const LIGHT_MIN_CONFIDENCE = 0.9;
 export const LIGHT_MAX_INPUT_TOKENS = 8_000;
 export const LIGHT_MAX_OUTPUT_TOKENS = 600;
 
-const LIGHT_TASK_KINDS = [
+export const LIGHT_TASK_KINDS = [
   "social",
   "rewrite",
   "translate",
@@ -39,7 +39,7 @@ const SELF_CONTAINED_TRANSFORM_TASK_KINDS = [
   "summarize_supplied",
 ] as const;
 
-type LightTaskKind = (typeof LIGHT_TASK_KINDS)[number];
+export type LightTaskKind = (typeof LIGHT_TASK_KINDS)[number];
 
 export type ExecutionProfile = "light" | "standard";
 export type RoutingMode = "off" | "shadow" | "active";

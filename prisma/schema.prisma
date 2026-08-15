@@ -101,6 +101,7 @@ model User {
   modelExperimentPairs        ModelExperimentPair[]
   modelExperimentAudits       ModelExperimentAudit[]       @relation("ModelExperimentAuditActor")
   createdModelExperiments     ModelExperiment[]            @relation("ModelExperimentCreator")
+  aiRoutingConfigUpdates      AiRoutingConfig[]            @relation("AiRoutingConfigUpdater")
 
   billingSyncedAt DateTime?
   createdAt       DateTime  @default(now())
@@ -112,6 +113,27 @@ model User {
   @@index([guestAbuseIdHash])
   @@index([deletedAt])
   @@index([billingSyncedAt])
+}
+
+// -----------------------------------------------------
+// GLOBAL AI ROUTING CONFIGURATION
+// -----------------------------------------------------
+
+model AiRoutingConfig {
+  id String @id @default("default")
+
+  liveClassifierEnabled             Boolean  @default(false)
+  executionRoutingMode              String   @default("off")
+  executionRoutingAllocationPercent Int      @default(0)
+  executionRoutingTasks             String[] @default([])
+
+  updatedByUserId String?
+  updatedBy       User?   @relation("AiRoutingConfigUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
 }
 
 // -----------------------------------------------------
