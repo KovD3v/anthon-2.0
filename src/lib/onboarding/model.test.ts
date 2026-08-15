@@ -4,10 +4,6 @@ const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
   getModelById: vi.fn(() => "onboarding-model"),
   getProviderOptions: vi.fn(() => ({ provider: { order: ["CoreWeave"] } })),
-  getExecutionProviderOptions: vi.fn(() => ({
-    provider: { order: ["CoreWeave"] },
-    reasoning: { enabled: false, max_tokens: 1 },
-  })),
   trackSupportAiUsage: vi.fn(),
 }));
 
@@ -20,7 +16,6 @@ vi.mock("@/lib/ai/providers/openrouter", () => ({
 }));
 vi.mock("@/lib/ai/providers/openrouter-routing", () => ({
   getOpenRouterProviderOptionsForModel: mocks.getProviderOptions,
-  getOpenRouterProviderOptionsForExecution: mocks.getExecutionProviderOptions,
 }));
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
@@ -63,10 +58,14 @@ describe("onboarding model", () => {
 
     expect(ONBOARDING_MODEL_ID).toBe("deepseek/deepseek-v4-flash-0731");
     expect(mocks.getModelById).toHaveBeenCalledWith(ONBOARDING_MODEL_ID);
-    expect(mocks.getExecutionProviderOptions).toHaveBeenCalledWith(
-      ONBOARDING_MODEL_ID,
-      "light",
-    );
+    expect(mocks.getProviderOptions).toHaveBeenCalledWith(ONBOARDING_MODEL_ID);
+    expect(mocks.generateText.mock.calls[0]?.[0]).toMatchObject({
+      providerOptions: {
+        openrouter: {
+          reasoning: { enabled: false, max_tokens: 1 },
+        },
+      },
+    });
     expect(result).toMatchObject({
       currentFieldStatus: "accepted",
       extracted: { name: "Giulia", age: 29 },

@@ -1,7 +1,7 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { getModelById } from "@/lib/ai/providers/openrouter";
-import { getOpenRouterProviderOptionsForExecution } from "@/lib/ai/providers/openrouter-routing";
+import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { createLogger } from "@/lib/logger";
 import type {
@@ -41,6 +41,13 @@ type InterpretInput = {
   context?: ReadonlyArray<Pick<OnboardingMessage, "role" | "content">>;
 };
 
+function getOnboardingProviderOptions() {
+  return {
+    ...getOpenRouterProviderOptionsForModel(ONBOARDING_MODEL_ID),
+    reasoning: { enabled: false, max_tokens: 1 },
+  };
+}
+
 function buildPrompt(input: InterpretInput) {
   const recentContext = (input.context ?? []).slice(-8);
   const contextBlock = recentContext.length
@@ -64,10 +71,7 @@ export async function interpretOnboardingAnswer(input: InterpretInput) {
       temperature: 0.1,
       maxOutputTokens: 500,
       providerOptions: {
-        openrouter: getOpenRouterProviderOptionsForExecution(
-          ONBOARDING_MODEL_ID,
-          "light",
-        ),
+        openrouter: getOnboardingProviderOptions(),
       },
       instructions: `Sei Anthon durante un onboarding breve in italiano.
 Interpreta soltanto informazioni esplicitamente presenti nella risposta utente.
