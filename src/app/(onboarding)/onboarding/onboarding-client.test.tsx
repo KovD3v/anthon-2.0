@@ -39,9 +39,11 @@ describe("OnboardingClient", () => {
   });
 
   it("renders the isolated first step and profile panel", () => {
-    render(<OnboardingClient initialState={initialState} nextPath="/chat" />);
+    const { container } = render(
+      <OnboardingClient initialState={initialState} nextPath="/chat" />,
+    );
 
-    expect(screen.getByText("1 di 5")).toBeTruthy();
+    expect(screen.getByText("Passaggio 1 di 5")).toBeTruthy();
     expect(screen.getByText("Come vuoi che ti chiami?")).toBeTruthy();
     expect(
       screen.getAllByText("Profilo in costruzione").length,
@@ -50,6 +52,14 @@ describe("OnboardingClient", () => {
       screen.getByRole("button", { name: "Preferisco non dirlo" }),
     ).toBeTruthy();
     expect(screen.queryByRole("navigation")).toBeNull();
+
+    const main = container.querySelector("main");
+    const conversation = container.querySelector(
+      '[data-testid="onboarding-conversation"]',
+    );
+    expect(main?.className).toContain("h-dvh");
+    expect(conversation?.className).toContain("min-h-0");
+    expect(conversation?.className).not.toContain("min-h-[70vh]");
   });
 
   it("shows the user answer immediately while Anthon is reading", async () => {

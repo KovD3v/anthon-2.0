@@ -3,6 +3,7 @@
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
+  Brain,
   Check,
   ChevronDown,
   LoaderCircle,
@@ -51,27 +52,33 @@ function ProfilePanel({
   state,
   pending,
   onEdit,
+  embedded = false,
 }: {
   state: OnboardingSessionDto;
   pending: boolean;
   onEdit: (field: OnboardingField) => void;
+  embedded?: boolean;
 }) {
   const reducedMotion = useReducedMotion();
   return (
-    <div className="rounded-[2rem] border border-foreground/10 bg-background/80 p-5 shadow-[0_30px_90px_-45px_rgba(18,24,10,0.65)] backdrop-blur-xl sm:p-6">
-      <div className="mb-5 flex items-center justify-between gap-3">
+    <div
+      className={cn(
+        embedded ? "px-4 py-3" : "rounded-xl border bg-card p-5 shadow-sm",
+      )}
+    >
+      <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+          <h2 className="font-display text-lg font-bold uppercase leading-none">
             Profilo in costruzione
-          </p>
-          <p className="mt-1 text-sm text-foreground/70">
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             Si compone mentre parliamo.
           </p>
         </div>
-        <Sparkles className="size-5 text-[#aab63b]" aria-hidden="true" />
+        <Sparkles className="size-5 text-primary" aria-hidden="true" />
       </div>
 
-      <div className="space-y-2.5">
+      <div className="divide-y divide-border/70 border-y border-border/70">
         {fieldRows.map(({ field, label, value }, index) => {
           const resolvedValue = value(state);
           const skipped = state.skippedFields.includes(field);
@@ -82,20 +89,15 @@ function ProfilePanel({
               initial={reducedMotion ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: reducedMotion ? 0 : index * 0.045 }}
-              className={cn(
-                "group rounded-2xl border px-4 py-3 transition-colors",
-                resolvedValue || skipped
-                  ? "border-[#aab63b]/30 bg-[#dce66d]/12"
-                  : "border-foreground/7 bg-foreground/[0.025]",
-              )}
+              className="group py-3"
             >
               <div className="flex items-start gap-3">
                 <span
                   className={cn(
                     "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border",
                     resolvedValue || skipped
-                      ? "border-[#aab63b] bg-[#cbd650] text-[#20250d]"
-                      : "border-foreground/15 text-transparent",
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border text-transparent",
                   )}
                 >
                   <Check className="size-3" />
@@ -244,47 +246,29 @@ export function OnboardingClient({
   }
 
   return (
-    <main className="relative isolate min-h-dvh overflow-hidden bg-[#f6f5ed] text-[#1c2112] dark:bg-[#12140d] dark:text-[#f3f2e8]">
-      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <m.div
-          animate={
-            reducedMotion
-              ? undefined
-              : { x: [0, 24, -10, 0], y: [0, -16, 10, 0] }
-          }
-          transition={{
-            duration: 13,
-            repeat: Number.POSITIVE_INFINITY,
-            ease: "easeInOut",
-          }}
-          className="absolute -left-24 -top-24 size-[28rem] rounded-full bg-[#dce66d]/35 blur-3xl dark:bg-[#9daa35]/15"
-        />
-        <div className="absolute -bottom-40 right-[-8rem] size-[34rem] rounded-full bg-[#d5b68a]/25 blur-3xl dark:bg-[#785f3d]/10" />
-        <div className="absolute inset-0 opacity-[0.025] [background-image:radial-gradient(currentColor_0.8px,transparent_0.8px)] [background-size:16px_16px]" />
-      </div>
-
-      <div className="mx-auto flex min-h-dvh w-full max-w-[92rem] flex-col px-3 sm:px-6 lg:px-10">
-        <header className="flex h-20 shrink-0 items-center justify-between border-b border-foreground/8 sm:h-24">
+    <main className="h-dvh overflow-hidden bg-background text-foreground">
+      <div className="mx-auto flex h-full w-full max-w-[90rem] flex-col px-3 sm:px-5 lg:px-6">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-border sm:h-18">
           <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-2xl bg-[#cbd650] text-[#20250d] shadow-[0_12px_30px_-14px_rgba(83,93,24,0.8)]">
-              <Sparkles className="size-5" />
+            <div className="grid size-9 place-items-center rounded-lg border border-primary/35 bg-primary/10 text-primary">
+              <Brain className="size-5" aria-hidden="true" />
             </div>
             <div>
-              <p className="font-serif text-xl font-semibold tracking-[-0.02em]">
+              <p className="font-display text-xl font-bold uppercase leading-none tracking-tight">
                 Anthon
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="hidden text-xs text-muted-foreground sm:block">
                 Prepariamo il tuo spazio
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold tabular-nums text-muted-foreground">
-              {Math.min(state.currentStep + 1, 5)} di 5
+            <span className="text-xs font-medium tabular-nums text-muted-foreground">
+              Passaggio {Math.min(state.currentStep + 1, 5)} di 5
             </span>
-            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-foreground/8 sm:w-36">
+            <div className="hidden h-1.5 w-28 overflow-hidden rounded-full bg-muted sm:block sm:w-36">
               <m.div
-                className="h-full rounded-full bg-[#aab63b]"
+                className="h-full rounded-full bg-primary"
                 animate={{
                   width: `${Math.min((state.currentStep + 1) * 20, 100)}%`,
                 }}
@@ -294,9 +278,27 @@ export function OnboardingClient({
           </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 gap-5 py-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-8 lg:py-8">
-          <section className="relative flex min-h-[70vh] flex-col overflow-hidden rounded-[2.25rem] border border-foreground/8 bg-background/55 shadow-[0_30px_100px_-60px_rgba(18,24,10,0.8)] backdrop-blur-md">
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-9">
+        <div className="grid min-h-0 flex-1 gap-4 py-3 lg:grid-cols-[minmax(0,1fr)_20rem] lg:py-5">
+          <section
+            data-testid="onboarding-conversation"
+            className="relative flex min-h-0 flex-col overflow-hidden rounded-xl border bg-muted/20 shadow-sm"
+          >
+            <details className="group shrink-0 border-b bg-card lg:hidden">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                Profilo in costruzione
+                <ChevronDown className="size-4 transition-transform group-open:rotate-180 motion-reduce:transition-none" />
+              </summary>
+              <div className="max-h-[38dvh] overflow-y-auto border-t">
+                <ProfilePanel
+                  state={state}
+                  pending={pending}
+                  onEdit={editField}
+                  embedded
+                />
+              </div>
+            </details>
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-5 sm:px-6 sm:py-7">
               <div className="mx-auto max-w-3xl space-y-4">
                 <AnimatePresence initial={false}>
                   {state.messages.map((message) => (
@@ -317,10 +319,10 @@ export function OnboardingClient({
                     >
                       <div
                         className={cn(
-                          "max-w-[86%] rounded-[1.4rem] px-4 py-3 text-[0.96rem] leading-relaxed sm:max-w-[72%] sm:px-5",
+                          "max-w-[90%] rounded-2xl border px-4 py-3 text-sm leading-relaxed shadow-sm sm:max-w-[75%] sm:px-5 sm:py-3.5",
                           message.role === "assistant"
-                            ? "rounded-tl-md bg-[#dce66d] text-[#20250d] shadow-[0_14px_40px_-24px_rgba(78,88,18,0.85)]"
-                            : "rounded-tr-md bg-[#22271a] text-[#f8f7ef] dark:bg-[#ecebdc] dark:text-[#1c2112]",
+                            ? "rounded-tl-sm border-border/60 bg-card text-foreground"
+                            : "rounded-tr-sm border-primary/15 bg-primary/10 text-foreground",
                         )}
                       >
                         {message.content}
@@ -334,7 +336,7 @@ export function OnboardingClient({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       className="flex justify-end"
                     >
-                      <div className="max-w-[86%] rounded-[1.4rem] rounded-tr-md bg-[#22271a] px-4 py-3 text-[0.96rem] text-[#f8f7ef] sm:max-w-[72%] sm:px-5 dark:bg-[#ecebdc] dark:text-[#1c2112]">
+                      <div className="max-w-[90%] rounded-2xl rounded-tr-sm border border-primary/15 bg-primary/10 px-4 py-3 text-sm text-foreground shadow-sm sm:max-w-[75%] sm:px-5">
                         {optimistic}
                       </div>
                     </m.div>
@@ -360,12 +362,12 @@ export function OnboardingClient({
                     }
                     animate={{ opacity: 1, y: 0 }}
                     transition={spring}
-                    className="mt-8 rounded-[1.8rem] border border-[#aab63b]/35 bg-[#dce66d]/12 p-5 sm:p-7"
+                    className="mt-8 rounded-xl border border-primary/30 bg-primary/5 p-5 sm:p-6"
                   >
-                    <p className="font-serif text-2xl font-semibold tracking-[-0.02em]">
+                    <h2 className="font-display text-2xl font-bold uppercase leading-none tracking-tight sm:text-3xl">
                       Il tuo punto di partenza è pronto.
-                    </p>
-                    <p className="mt-2 max-w-xl text-sm leading-relaxed text-foreground/65">
+                    </h2>
+                    <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
                       Puoi correggere qualsiasi dato. Anthon userà questo
                       contesto per non farti ripartire da zero.
                     </p>
@@ -373,7 +375,7 @@ export function OnboardingClient({
                       type="button"
                       onClick={confirm}
                       disabled={confirming}
-                      className="mt-6 h-12 rounded-full bg-[#22271a] px-6 text-[#f8f7ef] hover:bg-[#303723] dark:bg-[#dce66d] dark:text-[#20250d]"
+                      className="mt-5 h-11 px-5 font-semibold"
                     >
                       {confirming ? (
                         <LoaderCircle className="size-4 animate-spin" />
@@ -389,9 +391,9 @@ export function OnboardingClient({
             </div>
 
             {state.status === "IN_PROGRESS" && (
-              <div className="border-t border-foreground/8 bg-background/75 px-3 py-3 backdrop-blur-xl sm:px-6 sm:py-5">
+              <div className="shrink-0 border-t bg-card px-3 py-3 sm:px-6 sm:py-4">
                 <form onSubmit={submitAnswer} className="mx-auto max-w-3xl">
-                  <div className="flex items-end gap-2 rounded-[1.7rem] border border-foreground/10 bg-background p-2 shadow-[0_18px_50px_-32px_rgba(18,24,10,0.7)] focus-within:border-[#aab63b]/60">
+                  <div className="flex items-end gap-2 rounded-2xl border border-border/70 bg-background p-2 shadow-sm focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/15">
                     <Textarea
                       aria-label="La tua risposta"
                       value={input}
@@ -411,7 +413,7 @@ export function OnboardingClient({
                       size="icon"
                       disabled={pending || !input.trim()}
                       aria-label="Invia risposta"
-                      className="size-11 shrink-0 rounded-full bg-[#cbd650] text-[#20250d] hover:bg-[#b9c542]"
+                      className="size-11 shrink-0 rounded-xl"
                     >
                       <Send className="size-4" />
                     </Button>
@@ -423,7 +425,7 @@ export function OnboardingClient({
                       size="sm"
                       disabled={pending}
                       onClick={() => submitAnswer(undefined, true)}
-                      className="h-8 rounded-full px-3 text-xs text-muted-foreground"
+                      className="h-8 px-2 text-xs text-muted-foreground"
                     >
                       {state.skipLabel}
                     </Button>
@@ -436,8 +438,8 @@ export function OnboardingClient({
             )}
           </section>
 
-          <aside className="hidden lg:block">
-            <div className="sticky top-8">
+          <aside className="hidden min-h-0 lg:block">
+            <div className="max-h-full overflow-y-auto">
               <ProfilePanel
                 state={state}
                 pending={pending}
@@ -445,25 +447,11 @@ export function OnboardingClient({
               />
             </div>
           </aside>
-
-          <details className="group lg:hidden">
-            <summary className="flex cursor-pointer list-none items-center justify-between rounded-2xl border border-foreground/10 bg-background/70 px-4 py-3 text-sm font-medium backdrop-blur-xl">
-              Profilo in costruzione
-              <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
-            </summary>
-            <div className="mt-3">
-              <ProfilePanel
-                state={state}
-                pending={pending}
-                onEdit={editField}
-              />
-            </div>
-          </details>
         </div>
 
         {error && (
           <div
-            className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-destructive/20 bg-background px-4 py-2 text-sm shadow-xl"
+            className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 mx-auto flex max-w-md items-center gap-3 rounded-xl border border-destructive/30 bg-card px-4 py-3 text-sm shadow-lg sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2"
             role="alert"
           >
             <span>{error}</span>
@@ -471,7 +459,7 @@ export function OnboardingClient({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 rounded-full"
+              className="h-7"
               onClick={() => setError(null)}
             >
               Chiudi
