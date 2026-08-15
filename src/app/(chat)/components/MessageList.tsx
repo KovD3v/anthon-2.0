@@ -1,5 +1,6 @@
 "use client";
 
+import { useUser } from "@clerk/nextjs";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import {
   ArrowDown,
@@ -20,6 +21,7 @@ import {
   Volume2,
   X,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -281,6 +283,7 @@ export function MessageList({
   onLoadMore,
 }: MessageListProps) {
   const shouldReduceMotion = useReducedMotion();
+  const { user } = useUser();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const { copy, copied } = useCopyToClipboard();
@@ -745,13 +748,21 @@ export function MessageList({
                   >
                     {/* Avatar */}
                     <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-xs ring-1 ring-inset ${
+                      className={`relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full shadow-xs ring-1 ring-inset ${
                         isUser
                           ? "bg-primary text-primary-foreground ring-primary/20"
                           : "bg-background text-primary ring-border/70 dark:ring-white/10"
                       }`}
                     >
-                      {isUser ? (
+                      {isUser && user?.imageUrl ? (
+                        <Image
+                          src={user.imageUrl}
+                          alt={user.fullName || "Avatar utente"}
+                          fill
+                          sizes="32px"
+                          className="object-cover"
+                        />
+                      ) : isUser ? (
                         <div className="h-4 w-4 rounded-full bg-current" />
                       ) : (
                         <Brain className="h-5 w-5" />

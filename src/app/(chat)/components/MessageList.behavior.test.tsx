@@ -55,6 +55,21 @@ vi.mock("sonner", () => ({
   toast: { error: mocks.toastError },
 }));
 
+vi.mock("@clerk/nextjs", () => ({
+  useUser: () => ({
+    user: {
+      fullName: "Test User",
+      imageUrl: "https://images.example.com/test-user.jpg",
+    },
+  }),
+}));
+
+vi.mock("next/image", () => ({
+  default: ({ alt, src }: { alt: string; src: string }) => (
+    <span role="img" aria-label={alt} data-src={src} />
+  ),
+}));
+
 vi.mock("@/hooks/useCopyToClipboard", () => ({
   useCopyToClipboard: () => ({ copy: mocks.copy, copied: false }),
 }));
@@ -152,6 +167,18 @@ beforeEach(() => {
 });
 
 describe("MessageList rendered interactions", () => {
+  it("renders the signed-in user's profile picture in user message avatars", () => {
+    renderMessageList();
+
+    const userRow = document.querySelector('[data-message-role="user"]');
+    expect(userRow).not.toBeNull();
+    expect(
+      within(userRow as HTMLElement)
+        .getByRole("img", { name: "Test User" })
+        .getAttribute("data-src"),
+    ).toBe("https://images.example.com/test-user.jpg");
+  });
+
   it("links plan-ineligible voice fallbacks to pricing", () => {
     renderMessageList({
       messages: [
