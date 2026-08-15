@@ -3,7 +3,6 @@
 import { Gauge, Loader2, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { reportClientError } from "@/lib/client-error-reporting";
@@ -60,7 +59,7 @@ function PreferenceSelect({
   onChange: (value: string | null) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
       <div className="space-y-1">
         <Label htmlFor={id} className="cursor-pointer text-sm font-medium">
           {label}
@@ -157,11 +156,11 @@ export function PreferencesSection() {
 
   if (loading) {
     return (
-      <Card className="p-6">
+      <div className="px-6 py-8">
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      </Card>
+      </div>
     );
   }
 
@@ -174,18 +173,16 @@ export function PreferencesSection() {
   const language = preferences?.language?.toLowerCase() ?? null;
 
   return (
-    <Card className="overflow-hidden border-border/70 bg-card/70 shadow-none">
-      {/* Header */}
-      <div className="border-b border-border/70 bg-muted/25 px-6 py-5">
-        <h2 className="font-display text-2xl font-bold uppercase tracking-tight">
+    <section>
+      <div className="px-6 pb-5 pt-8 sm:px-8 sm:pt-10">
+        <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
           Come risponde Anthon
         </h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
           Personalizza tono, voce e dettagli delle risposte.
         </p>
       </div>
 
-      {/* Preferences List */}
       <div className="divide-y divide-border/70">
         <PreferenceSelect
           id="tone-preference"
@@ -216,14 +213,13 @@ export function PreferencesSection() {
             updatePreference("language", value ? value.toUpperCase() : null)
           }
         />
-        {/* Voice Preference */}
-        <div className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-muted/20">
+        <div className="flex items-center justify-between gap-4 px-6 py-5 transition-colors hover:bg-muted/20 sm:px-8">
           <div className="flex items-center gap-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/10">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
               {dontSendAudio ? (
-                <VolumeX className="h-5 w-5 text-orange-500" />
+                <VolumeX className="h-5 w-5" />
               ) : (
-                <Volume2 className="h-5 w-5 text-orange-500" />
+                <Volume2 className="h-5 w-5" />
               )}
             </div>
             <div className="space-y-0.5">
@@ -247,10 +243,10 @@ export function PreferencesSection() {
           />
         </div>
 
-        <div className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-muted/20">
+        <div className="flex items-center justify-between gap-4 px-6 py-5 transition-colors hover:bg-muted/20 sm:px-8">
           <div className="flex items-center gap-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
-              <Gauge className="h-5 w-5 text-blue-500" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
+              <Gauge className="h-5 w-5" />
             </div>
             <div className="space-y-0.5">
               <Label
@@ -275,6 +271,6 @@ export function PreferencesSection() {
           />
         </div>
       </div>
-    </Card>
+    </section>
   );
 }

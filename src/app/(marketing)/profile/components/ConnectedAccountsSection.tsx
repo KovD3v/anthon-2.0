@@ -1,11 +1,10 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { Link2, Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { reportClientError } from "@/lib/client-error-reporting";
 
@@ -33,24 +32,21 @@ export function ConnectedAccountsSection() {
 
   if (!isLoaded) {
     return (
-      <Card
+      <output
         aria-label="Caricamento account collegati"
-        className="flex min-h-48 items-center justify-center border-border/70 bg-card/70 shadow-none"
+        className="flex min-h-48 items-center justify-center"
       >
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
         <span className="sr-only">Caricamento account collegati</span>
-      </Card>
+      </output>
     );
   }
 
   if (!user) {
     return (
-      <Card
-        className="border-border/70 bg-card/70 p-6 shadow-none"
-        role="alert"
-      >
+      <div className="p-6" role="alert">
         Impossibile caricare gli account collegati.
-      </Card>
+      </div>
     );
   }
 
@@ -75,23 +71,18 @@ export function ConnectedAccountsSection() {
   };
 
   return (
-    <Card className="overflow-hidden border-border/70 bg-card/70 shadow-none">
-      <div className="border-b border-border/70 bg-muted/25 px-6 py-5">
-        <div className="flex items-start gap-3">
-          <Link2 className="mt-0.5 h-5 w-5 text-primary" />
-          <div>
-            <h2 className="font-display text-2xl font-bold uppercase tracking-tight">
-              Account collegati
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Gestisci i provider esterni associati al tuo accesso Anthon.
-            </p>
-          </div>
-        </div>
+    <section>
+      <div className="px-6 pb-5 pt-8 sm:px-8 sm:pt-10">
+        <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+          Account collegati
+        </h2>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+          I provider esterni associati al tuo accesso Anthon.
+        </p>
       </div>
 
       {accounts.length === 0 ? (
-        <div className="px-6 py-6">
+        <div className="px-6 pb-8 pt-3 sm:px-8">
           <p className="text-sm font-medium">Nessun account collegato</p>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             I provider esterni disponibili possono essere collegati durante il
@@ -108,7 +99,7 @@ export function ConnectedAccountsSection() {
             return (
               <div
                 key={account.id}
-                className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8"
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-display font-bold text-primary">
@@ -161,6 +152,6 @@ export function ConnectedAccountsSection() {
         cancelText="Annulla"
         variant="destructive"
       />
-    </Card>
+    </section>
   );
 }

@@ -1,17 +1,10 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import {
-  KeyRound,
-  Loader2,
-  LockKeyhole,
-  ShieldCheck,
-  Trash2,
-} from "lucide-react";
+import { KeyRound, Loader2, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -84,24 +77,21 @@ export function SecuritySection() {
 
   if (!isLoaded) {
     return (
-      <Card
+      <output
         aria-label="Caricamento sicurezza"
-        className="flex min-h-48 items-center justify-center border-border/70 bg-card/70 shadow-none"
+        className="flex min-h-48 items-center justify-center"
       >
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
         <span className="sr-only">Caricamento sicurezza</span>
-      </Card>
+      </output>
     );
   }
 
   if (!user) {
     return (
-      <Card
-        className="border-border/70 bg-card/70 p-6 shadow-none"
-        role="alert"
-      >
+      <div className="p-6" role="alert">
         Impossibile caricare le impostazioni di sicurezza.
-      </Card>
+      </div>
     );
   }
 
@@ -208,24 +198,22 @@ export function SecuritySection() {
   };
 
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden border-border/70 bg-card/70 shadow-none">
-        <div className="border-b border-border/70 bg-muted/25 px-6 py-5">
-          <div className="flex items-start gap-3">
-            <LockKeyhole className="mt-0.5 h-5 w-5 text-primary" />
-            <div>
-              <h2 className="font-display text-2xl font-bold uppercase tracking-tight">
-                Password
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Aggiorna la password senza lasciare l&apos;area personale.
-              </p>
-            </div>
-          </div>
+    <div className="divide-y divide-border/70">
+      <section>
+        <div className="px-6 pb-4 pt-8 sm:px-8 sm:pt-10">
+          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+            Password
+          </h2>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            Aggiorna la password del tuo account.
+          </p>
         </div>
 
         {user.passwordEnabled ? (
-          <form className="space-y-5 px-6 py-6" onSubmit={handlePasswordSubmit}>
+          <form
+            className="space-y-5 px-6 pb-8 pt-3 sm:px-8"
+            onSubmit={handlePasswordSubmit}
+          >
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="current-password">Password attuale</Label>
@@ -302,7 +290,7 @@ export function SecuritySection() {
             </div>
           </form>
         ) : (
-          <div className="px-6 py-6">
+          <div className="px-6 pb-8 pt-3 sm:px-8">
             <StatusPill active={false}>Password non configurata</StatusPill>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
               Il tuo account usa un provider di accesso esterno. Gestisci la
@@ -310,24 +298,19 @@ export function SecuritySection() {
             </p>
           </div>
         )}
-      </Card>
+      </section>
 
-      <Card className="overflow-hidden border-border/70 bg-card/70 shadow-none">
-        <div className="border-b border-border/70 bg-muted/25 px-6 py-5">
-          <div className="flex items-start gap-3">
-            <ShieldCheck className="mt-0.5 h-5 w-5 text-primary" />
-            <div>
-              <h2 className="font-display text-2xl font-bold uppercase tracking-tight">
-                Verifica a due fattori
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Aggiungi un secondo passaggio per proteggere l&apos;accesso.
-              </p>
-            </div>
-          </div>
+      <section>
+        <div className="px-6 pb-4 pt-8 sm:px-8">
+          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+            Verifica a due fattori
+          </h2>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            Aggiungi un secondo passaggio all&apos;accesso.
+          </p>
         </div>
 
-        <div className="space-y-5 px-6 py-6">
+        <div className="space-y-5 px-6 pb-8 pt-3 sm:px-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium">Authenticator app</p>
@@ -432,22 +415,17 @@ export function SecuritySection() {
             </div>
           ) : null}
         </div>
-      </Card>
+      </section>
 
-      <Card className="overflow-hidden border-border/70 bg-card/70 shadow-none">
-        <div className="border-b border-border/70 bg-muted/25 px-6 py-5">
-          <div className="flex items-start gap-3">
-            <KeyRound className="mt-0.5 h-5 w-5 text-primary" />
-            <div>
-              <h2 className="font-display text-2xl font-bold uppercase tracking-tight">
-                Passkey
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Accedi con il volto, l&apos;impronta o il sistema di sicurezza
-                del dispositivo.
-              </p>
-            </div>
-          </div>
+      <section>
+        <div className="px-6 pb-4 pt-8 sm:px-8">
+          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+            Passkey
+          </h2>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            Accedi con il volto, l&apos;impronta o il sistema di sicurezza del
+            dispositivo.
+          </p>
         </div>
 
         <div className="divide-y divide-border/70">
@@ -455,7 +433,7 @@ export function SecuritySection() {
             passkeys.map((passkey) => (
               <div
                 key={passkey.id}
-                className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8"
               >
                 <div>
                   <p className="text-sm font-medium">
@@ -479,11 +457,11 @@ export function SecuritySection() {
               </div>
             ))
           ) : (
-            <p className="px-6 py-5 text-sm text-muted-foreground">
+            <p className="px-6 py-5 text-sm text-muted-foreground sm:px-8">
               Non hai ancora passkey configurate.
             </p>
           )}
-          <div className="px-6 py-5">
+          <div className="px-6 py-5 sm:px-8">
             <Button
               type="button"
               variant="outline"
@@ -500,7 +478,7 @@ export function SecuritySection() {
             </Button>
           </div>
         </div>
-      </Card>
+      </section>
 
       <ConfirmDialog
         open={Boolean(deletingPasskey)}

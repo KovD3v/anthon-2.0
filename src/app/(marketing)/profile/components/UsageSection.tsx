@@ -4,7 +4,6 @@ import { Clock3, MessageSquareText } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import type { UsageData, UsageTier } from "@/types/chat";
 
@@ -84,26 +83,25 @@ export function UsageSection() {
   const canUpgrade = data?.tier !== "PRO" && data?.tier !== "ADMIN";
 
   return (
-    <Card
-      id="utilizzo"
-      className="scroll-mt-6 overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm"
-    >
-      <div className="border-b border-border/50 bg-muted/30 px-6 py-4">
-        <h2 className="text-lg font-semibold">Utilizzo</h2>
-        <p className="text-sm text-muted-foreground">
-          Il riepilogo del tuo piano e dei messaggi di oggi
+    <section id="utilizzo" className="scroll-mt-6 border-t border-border/70">
+      <div className="px-6 pb-4 pt-8 sm:px-8">
+        <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+          Utilizzo
+        </h2>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          Piano e messaggi disponibili oggi.
         </p>
       </div>
 
       {loading ? (
-        <div className="space-y-5 px-6 py-5">
+        <div className="space-y-5 px-6 pb-8 pt-3 sm:px-8">
           <span className="sr-only">Caricamento utilizzo</span>
           <div className="h-5 w-28 animate-pulse rounded bg-muted" />
           <div className="h-2 w-full animate-pulse rounded-full bg-muted" />
           <div className="h-4 w-44 animate-pulse rounded bg-muted" />
         </div>
       ) : failed || !data ? (
-        <div className="px-6 py-5" role="alert">
+        <div className="px-6 pb-8 pt-3 sm:px-8" role="alert">
           <p className="text-sm font-medium">
             Impossibile caricare l&apos;utilizzo.
           </p>
@@ -112,7 +110,7 @@ export function UsageSection() {
           </p>
         </div>
       ) : (
-        <div className="space-y-5 px-6 py-5">
+        <div className="space-y-6 px-6 pb-8 pt-3 sm:px-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -158,6 +156,6 @@ export function UsageSection() {
           </div>
         </div>
       )}
-    </Card>
+    </section>
   );
 }

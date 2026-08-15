@@ -5,17 +5,15 @@ import {
   Camera,
   Check,
   CheckCircle2,
+  ChevronDown,
   Loader2,
   Mail,
   Save,
-  ShieldCheck,
   Trash2,
-  UserRound,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { reportClientError } from "@/lib/client-error-reporting";
@@ -230,31 +228,20 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
   };
 
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden border-border/70 bg-card/70 shadow-none">
-        <div className="border-b border-border/70 bg-muted/25 px-6 py-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="font-mono text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primary">
-                Identità
-              </p>
-              <h2 className="mt-2 font-display text-2xl font-bold uppercase tracking-tight">
-                Il tuo profilo
-              </h2>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                Il nome e l&apos;immagine che Anthon userà per riconoscerti.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Account personale
-            </div>
-          </div>
+    <div className="divide-y divide-border/70">
+      <section className="rounded-none border-0 bg-transparent py-0 shadow-none">
+        <div className="px-6 pb-4 pt-8 sm:px-8 sm:pt-10">
+          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+            Identità
+          </h2>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            Il nome e l&apos;immagine che Anthon usa per riconoscerti.
+          </p>
         </div>
 
-        <div className="grid gap-6 px-6 py-6 lg:grid-cols-[auto_1fr]">
+        <div className="grid gap-8 px-6 pb-8 pt-2 sm:px-8 lg:grid-cols-[auto_1fr] lg:pb-10">
           <div className="flex flex-col items-center gap-3 lg:items-start">
-            <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-3xl border border-primary/20 bg-primary/10 font-display text-3xl font-bold text-primary ring-8 ring-primary/5">
+            <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl bg-brand-yellow font-display text-3xl font-bold text-[#171714] sm:h-28 sm:w-28">
               {hasImage ? (
                 <div
                   role="img"
@@ -278,7 +265,7 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
                 )}
                 Cambia foto
               </label>
-              <Input
+              <input
                 id="profile-avatar"
                 type="file"
                 accept="image/*"
@@ -354,22 +341,16 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
             </div>
           </form>
         </div>
-      </Card>
+      </section>
 
-      <Card className="overflow-hidden border-border/70 bg-card/70 shadow-none">
-        <div className="border-b border-border/70 bg-muted/25 px-6 py-5">
-          <div className="flex items-start gap-3">
-            <Mail className="mt-0.5 h-5 w-5 text-primary" />
-            <div>
-              <h2 className="font-display text-2xl font-bold uppercase tracking-tight">
-                Indirizzi email
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Usa un indirizzo verificato per proteggere e recuperare il tuo
-                account.
-              </p>
-            </div>
-          </div>
+      <section className="rounded-none border-0 bg-transparent py-0 shadow-none">
+        <div className="px-6 pb-4 pt-8 sm:px-8">
+          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+            Email
+          </h2>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            Gli indirizzi usati per accesso e recupero dell&apos;account.
+          </p>
         </div>
 
         <div className="divide-y divide-border/70">
@@ -378,7 +359,7 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
             const isPrimary = email.id === user.primaryEmailAddressId;
 
             return (
-              <div key={email.id} className="space-y-3 px-6 py-5">
+              <div key={email.id} className="space-y-3 px-6 py-5 sm:px-8">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
@@ -458,7 +439,10 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
             );
           })}
 
-          <form className="space-y-3 px-6 py-5" onSubmit={handleEmailAdd}>
+          <form
+            className="space-y-3 px-6 py-5 sm:px-8"
+            onSubmit={handleEmailAdd}
+          >
             <div className="space-y-2">
               <Label htmlFor="profile-new-email">Aggiungi un indirizzo</Label>
               <div className="flex flex-col gap-3 sm:flex-row">
@@ -487,24 +471,17 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
             </div>
           </form>
         </div>
-      </Card>
+      </section>
 
-      <Card className="border-border/70 bg-muted/20 p-6 shadow-none">
-        <div className="flex items-start gap-3">
-          <UserRound className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-          <div className="min-w-0">
-            <h2 className="font-display text-lg font-bold uppercase tracking-tight">
-              ID utente
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Identificativo tecnico del tuo account Anthon.
-            </p>
-            <code className="mt-3 block break-all rounded-lg border border-border/70 bg-background/70 px-3 py-2 font-mono text-xs text-muted-foreground">
-              {user.id}
-            </code>
-          </div>
-        </div>
-      </Card>
+      <details className="group px-6 py-5 sm:px-8">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+          ID tecnico account
+          <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+        </summary>
+        <code className="mt-3 block break-all rounded-lg bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
+          {user.id}
+        </code>
+      </details>
     </div>
   );
 }

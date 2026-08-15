@@ -1,10 +1,9 @@
 "use client";
 
-import { Brain, Loader2, Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Loader2, Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -152,15 +151,18 @@ export function CoachingContextSection() {
 
   if (loading) {
     return (
-      <Card className="p-6" aria-label="Caricamento contesto di coaching">
+      <output
+        className="flex min-h-40 items-center justify-center border-t border-border/70 px-6 py-8"
+        aria-label="Caricamento contesto di coaching"
+      >
         <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
-      </Card>
+      </output>
     );
   }
 
   if (failed || !context || !draft) {
     return (
-      <Card className="p-6 text-center">
+      <div className="border-t border-border/70 px-6 py-8 text-center">
         <p className="text-sm text-muted-foreground">
           Il contesto di coaching non è disponibile.
         </p>
@@ -168,26 +170,23 @@ export function CoachingContextSection() {
           <RotateCcw className="h-4 w-4" />
           Riprova
         </Button>
-      </Card>
+      </div>
     );
   }
 
   return (
     <>
-      <Card className="overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm">
-        <div className="border-b border-border/50 bg-muted/30 px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Brain className="h-5 w-5 text-primary" />
-            <div>
-              <h2 className="text-lg font-semibold">Cosa sa Anthon di te</h2>
-              <p className="text-sm text-muted-foreground">
-                Controlla le informazioni usate per personalizzare il coaching.
-              </p>
-            </div>
-          </div>
+      <section className="border-t border-border/70">
+        <div className="px-6 pb-4 pt-8 sm:px-8">
+          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+            Memoria
+          </h2>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            Controlla ciò che Anthon usa per personalizzare il coaching.
+          </p>
         </div>
 
-        <div className="space-y-5 px-6 py-5">
+        <div className="space-y-5 px-6 pb-8 pt-3 sm:px-8">
           <div className="grid gap-4 sm:grid-cols-2">
             <ProfileInput
               id="coaching-sport"
@@ -236,22 +235,21 @@ export function CoachingContextSection() {
           </div>
         </div>
 
-        <div className="border-t border-border/50 px-6 py-5">
-          <h3 className="font-medium">Memorie</h3>
+        <div className="border-t border-border/70 px-6 py-7 sm:px-8">
+          <h3 className="font-display text-xl font-bold uppercase tracking-tight">
+            Ricordi dalle conversazioni
+          </h3>
           <p className="mt-1 text-sm text-muted-foreground">
             Fatti ricordati dalle conversazioni. Puoi correggerli o eliminarli.
           </p>
           {context.memories.length === 0 ? (
-            <p className="mt-4 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+            <p className="mt-5 border-t border-dashed border-border py-5 text-sm text-muted-foreground">
               Nessuna memoria salvata.
             </p>
           ) : (
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-5 divide-y divide-border/70 border-y border-border/70">
               {context.memories.map((memory) => (
-                <li
-                  key={memory.id}
-                  className="rounded-xl border border-border/60 p-4"
-                >
+                <li key={memory.id} className="py-4">
                   {editing?.id === memory.id ? (
                     <MemoryEditor
                       memory={editing}
@@ -295,7 +293,7 @@ export function CoachingContextSection() {
             </ul>
           )}
         </div>
-      </Card>
+      </section>
       <ConfirmDialog
         open={Boolean(deleting)}
         onOpenChange={(open) => {

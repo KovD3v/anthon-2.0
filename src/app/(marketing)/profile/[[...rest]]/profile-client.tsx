@@ -27,7 +27,7 @@ export function ProfileClient() {
         aria-label="Navigazione del profilo"
         className="border-b bg-muted/30"
       >
-        <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3 sm:px-6">
           <Button
             variant="ghost"
             size="sm"
@@ -43,7 +43,7 @@ export function ProfileClient() {
         </div>
       </nav>
 
-      <main className="mx-auto max-w-4xl px-4 py-8 sm:py-12">
+      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
         <AccountConsole />
       </main>
     </div>

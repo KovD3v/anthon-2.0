@@ -6,7 +6,6 @@ import { Loader2, LogOut, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 function sessionLabel(session: SessionWithActivitiesResource) {
@@ -77,24 +76,21 @@ export function SessionsSection() {
 
   if (!userLoaded || loading) {
     return (
-      <Card
+      <output
         aria-label="Caricamento sessioni"
-        className="flex min-h-48 items-center justify-center border-border/70 bg-card/70 shadow-none"
+        className="flex min-h-48 items-center justify-center"
       >
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
         <span className="sr-only">Caricamento sessioni</span>
-      </Card>
+      </output>
     );
   }
 
   if (!user) {
     return (
-      <Card
-        className="border-border/70 bg-card/70 p-6 shadow-none"
-        role="alert"
-      >
+      <div className="p-6" role="alert">
         Impossibile caricare le sessioni dell&apos;account.
-      </Card>
+      </div>
     );
   }
 
@@ -115,35 +111,30 @@ export function SessionsSection() {
   };
 
   return (
-    <Card className="overflow-hidden border-border/70 bg-card/70 shadow-none">
-      <div className="border-b border-border/70 bg-muted/25 px-6 py-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <LogOut className="mt-0.5 h-5 w-5 text-primary" />
-            <div>
-              <h2 className="font-display text-2xl font-bold uppercase tracking-tight">
-                Sessioni attive
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Controlla dove è aperto il tuo account e revoca gli accessi che
-                non riconosci.
-              </p>
-            </div>
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            className="min-h-11 gap-2"
-            onClick={() => setReloadKey((value) => value + 1)}
-          >
-            <RefreshCw className="h-4 w-4" />
-            Aggiorna
-          </Button>
+    <section>
+      <div className="flex flex-wrap items-start justify-between gap-4 px-6 pb-5 pt-8 sm:px-8 sm:pt-10">
+        <div>
+          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+            Sessioni attive
+          </h2>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            Controlla dove è aperto il tuo account e revoca gli accessi che non
+            riconosci.
+          </p>
         </div>
+        <Button
+          type="button"
+          variant="ghost"
+          className="min-h-11 gap-2"
+          onClick={() => setReloadKey((value) => value + 1)}
+        >
+          <RefreshCw className="h-4 w-4" />
+          Aggiorna
+        </Button>
       </div>
 
       {failed ? (
-        <div className="px-6 py-6" role="alert">
+        <div className="px-6 pb-8 pt-3 sm:px-8" role="alert">
           <p className="text-sm font-medium">
             Le sessioni non sono disponibili.
           </p>
@@ -158,7 +149,7 @@ export function SessionsSection() {
           </Button>
         </div>
       ) : sessions.length === 0 ? (
-        <p className="px-6 py-6 text-sm text-muted-foreground">
+        <p className="px-6 pb-8 pt-3 text-sm text-muted-foreground sm:px-8">
           Non risultano sessioni attive oltre a quella corrente.
         </p>
       ) : (
@@ -170,7 +161,7 @@ export function SessionsSection() {
             return (
               <div
                 key={session.id}
-                className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -216,6 +207,6 @@ export function SessionsSection() {
         cancelText="Annulla"
         variant="destructive"
       />
-    </Card>
+    </section>
   );
 }
