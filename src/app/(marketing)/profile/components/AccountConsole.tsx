@@ -5,30 +5,13 @@ import { Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CoachingContextSection } from "./CoachingContextSection";
+import { ConnectedAccountsSection } from "./ConnectedAccountsSection";
 import { DangerZoneSection } from "./DangerZoneSection";
 import { PreferencesSection } from "./PreferencesSection";
 import { ProfileIdentitySection } from "./ProfileIdentitySection";
 import { SecuritySection } from "./SecuritySection";
+import { SessionsSection } from "./SessionsSection";
 import { UsageSection } from "./UsageSection";
-
-function PanelNotice({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <Card className="border-border/70 bg-card/70 p-6 shadow-none">
-      <h2 className="font-display text-xl font-bold uppercase tracking-tight">
-        {title}
-      </h2>
-      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-        {description}
-      </p>
-    </Card>
-  );
-}
 
 export function AccountConsole() {
   const { isLoaded, user } = useUser();
@@ -122,19 +105,13 @@ export function AccountConsole() {
 
         <TabsContent value="sessions" className="mt-6">
           <section aria-label="Sessioni attive">
-            <PanelNotice
-              title="Sessioni"
-              description="Qui potrai controllare i dispositivi che hanno accesso al tuo account."
-            />
+            <SessionsSection />
           </section>
         </TabsContent>
 
         <TabsContent value="connected" className="mt-6">
           <section aria-label="Account collegati">
-            <PanelNotice
-              title="Account collegati"
-              description="Qui potrai vedere e gestire gli account collegati al tuo accesso."
-            />
+            <ConnectedAccountsSection />
           </section>
         </TabsContent>
       </Tabs>
