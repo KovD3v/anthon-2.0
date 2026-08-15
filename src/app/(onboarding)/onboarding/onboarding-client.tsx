@@ -165,7 +165,7 @@ function MessageBubble({
   return (
     <div
       className={cn(
-        "flex min-w-0 items-start gap-2",
+        "flex w-full min-w-0 items-start gap-2",
         messageRole === "user" ? "justify-end" : "justify-start",
       )}
     >
@@ -395,6 +395,7 @@ export function OnboardingClient({
                     <m.div
                       layout
                       key={message.id}
+                      data-testid={`onboarding-message-${message.id}`}
                       initial={
                         reducedMotion
                           ? { opacity: 0 }
@@ -402,7 +403,7 @@ export function OnboardingClient({
                       }
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       transition={spring}
-                      className="flex"
+                      className="flex w-full"
                     >
                       <MessageBubble
                         messageRole={message.role}
@@ -415,7 +416,7 @@ export function OnboardingClient({
                       key="optimistic"
                       initial={{ opacity: 0, y: 10, scale: 0.98 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
-                      className="flex"
+                      className="flex w-full"
                     >
                       <MessageBubble messageRole="user" content={optimistic} />
                     </m.div>

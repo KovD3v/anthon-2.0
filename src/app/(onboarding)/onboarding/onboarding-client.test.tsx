@@ -58,10 +58,16 @@ describe("OnboardingClient", () => {
     expect(screen.queryByRole("navigation")).toBeNull();
 
     const main = container.querySelector("main");
+    const firstMessage = container.querySelector(
+      '[data-testid="onboarding-message-assistant-1"]',
+    );
+    const firstMessageRow = firstMessage?.firstElementChild;
     const conversation = container.querySelector(
       '[data-testid="onboarding-conversation"]',
     );
     expect(main?.className).toContain("h-dvh");
+    expect(firstMessage?.className).toContain("w-full");
+    expect(firstMessageRow?.className).toContain("w-full");
     expect(conversation?.className).toContain("min-h-0");
     expect(conversation?.className).not.toContain("min-h-[70vh]");
   });
