@@ -21,6 +21,9 @@ describe("ProfileClient", () => {
     expect(
       screen.getByRole("region", { name: "Account nativo Anthon" }),
     ).toBeTruthy();
+    expect(
+      screen.queryByRole("navigation", { name: "Navigazione del profilo" }),
+    ).toBeNull();
     expect(screen.queryByLabelText("Profilo Clerk")).toBeNull();
   });
 });
