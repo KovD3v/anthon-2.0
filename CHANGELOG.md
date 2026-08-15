@@ -10,6 +10,17 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Added
 
+- Added mandatory conversational onboarding for new accounts: a resumable
+  five-step Italian flow with explicit skips, inline edits, a final review,
+  and confirmation before product access.
+- Added a native Anthon account console that replaces the Clerk-hosted profile
+  surface with profile and avatar editing, Anthon preferences, usage and
+  coaching context, security, active sessions, connected accounts, and account
+  deletion controls.
+- Added authenticated user profile pictures to user message avatars, with a
+  fallback when no image is available.
+- Added durable message IDs to expanded technical response details for
+  administrator diagnostics.
 - Added transient chat feedback, “Sto ragionando sulla risposta”, while the
   model is reasoning before visible assistant text arrives.
 - Added installable PWA support with an offline fallback page and automatic
@@ -69,6 +80,16 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Connected confirmed onboarding data to coaching context and applied the
+  onboarding gate consistently across chat and authenticated product routes,
+  while preserving access to sign-out and account recovery.
+- Simplified live chat execution to deterministic capability and authorization
+  gates followed by a single standard agentic model path; removed request-time
+  classification and execution-profile allocation while retaining guarded tool
+  selection for web, RAG, memory, routines, and voice.
+- Refined response-profiler timelines for the current live path so reasoning,
+  provider wait, TTFT, and visible streaming remain distinct and
+  non-overlapping, with negligible handoffs hidden only visually.
 - Corrected the response-profiler backend timeline to render TTFT/provider
   waiting and post-first-token response streaming as sequential intervals, and
   normalized older persisted traces at presentation time so their bars do not
@@ -201,6 +222,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Fixed post-signup and OAuth continuation so new users remain on the onboarding
+  path until completion without losing the intended destination or saved draft.
 - Retired the dedicated `/chat/usage` page, moved internal usage links to
   `/profile#utilizzo`, and made the old URL return a real HTTP 404 without a
   redirect.
