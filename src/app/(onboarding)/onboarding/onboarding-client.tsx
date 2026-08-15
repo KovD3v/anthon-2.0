@@ -10,6 +10,7 @@ import {
   Pencil,
   Send,
   Sparkles,
+  UserRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useRef, useState } from "react";
@@ -133,6 +134,65 @@ function ProfilePanel({
   );
 }
 
+function MessageAvatar({ messageRole }: { messageRole: "assistant" | "user" }) {
+  return (
+    <div
+      data-testid={`onboarding-avatar-${messageRole}`}
+      className={cn(
+        "relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full shadow-xs ring-1 ring-inset",
+        messageRole === "user"
+          ? "bg-primary text-primary-foreground ring-primary/20"
+          : "bg-background text-primary ring-border/70 dark:ring-white/10",
+      )}
+      aria-hidden="true"
+    >
+      {messageRole === "assistant" ? (
+        <Brain className="size-5" />
+      ) : (
+        <UserRound className="size-4" />
+      )}
+    </div>
+  );
+}
+
+function MessageBubble({
+  messageRole,
+  content,
+}: {
+  messageRole: "assistant" | "user";
+  content: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 items-start gap-2",
+        messageRole === "user" ? "justify-end" : "justify-start",
+      )}
+    >
+      {messageRole === "assistant" && <MessageAvatar messageRole="assistant" />}
+      <div
+        className={cn(
+          "flex min-w-0 flex-1",
+          messageRole === "user" ? "justify-end" : "justify-start",
+          "sm:max-w-[75%] sm:flex-none",
+        )}
+      >
+        <div
+          className={cn(
+            "max-w-full rounded-2xl border px-4 py-3 text-sm leading-relaxed shadow-sm sm:px-5 sm:py-3.5",
+            messageRole === "assistant"
+              ? "rounded-tl-sm border-border/60 bg-card text-foreground"
+              : "rounded-tr-sm border-primary/15 bg-primary/10 text-foreground",
+          )}
+        >
+          {content}
+        </div>
+      </div>
+      {messageRole === "user" && <MessageAvatar messageRole="user" />}
+    </div>
+  );
+}
+
 export function OnboardingClient({
   initialState,
   nextPath,
@@ -149,6 +209,10 @@ export function OnboardingClient({
   const [optimistic, setOptimistic] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const lastHandledMessageIdRef = useRef(
+    initialState.messages.at(-1)?.id ?? null,
+  );
 
   useEffect(() => {
     const conversationChanged =
@@ -159,6 +223,32 @@ export function OnboardingClient({
       block: "end",
     });
   }, [optimistic, pending, reducedMotion, state.messages]);
+
+  useEffect(() => {
+    if (pending) return;
+    const latestMessage = state.messages.at(-1);
+    if (
+      !latestMessage ||
+      latestMessage.id === lastHandledMessageIdRef.current
+    ) {
+      return;
+    }
+    lastHandledMessageIdRef.current = latestMessage.id;
+    if (
+      latestMessage.role !== "assistant" ||
+      state.status !== "IN_PROGRESS" ||
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function" ||
+      !window.matchMedia("(min-width: 1024px)").matches
+    ) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [pending, state.messages, state.status]);
 
   const spring = reducedMotion
     ? { duration: 0.12 }
@@ -312,21 +402,12 @@ export function OnboardingClient({
                       }
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       transition={spring}
-                      className={cn(
-                        "flex",
-                        message.role === "user" && "justify-end",
-                      )}
+                      className="flex"
                     >
-                      <div
-                        className={cn(
-                          "max-w-[90%] rounded-2xl border px-4 py-3 text-sm leading-relaxed shadow-sm sm:max-w-[75%] sm:px-5 sm:py-3.5",
-                          message.role === "assistant"
-                            ? "rounded-tl-sm border-border/60 bg-card text-foreground"
-                            : "rounded-tr-sm border-primary/15 bg-primary/10 text-foreground",
-                        )}
-                      >
-                        {message.content}
-                      </div>
+                      <MessageBubble
+                        messageRole={message.role}
+                        content={message.content}
+                      />
                     </m.div>
                   ))}
                   {optimistic && (
@@ -334,11 +415,9 @@ export function OnboardingClient({
                       key="optimistic"
                       initial={{ opacity: 0, y: 10, scale: 0.98 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
-                      className="flex justify-end"
+                      className="flex"
                     >
-                      <div className="max-w-[90%] rounded-2xl rounded-tr-sm border border-primary/15 bg-primary/10 px-4 py-3 text-sm text-foreground shadow-sm sm:max-w-[75%] sm:px-5">
-                        {optimistic}
-                      </div>
+                      <MessageBubble messageRole="user" content={optimistic} />
                     </m.div>
                   )}
                   {pending && optimistic && (
@@ -349,6 +428,7 @@ export function OnboardingClient({
                       className="flex items-center gap-2 text-sm text-muted-foreground"
                       aria-live="polite"
                     >
+                      <MessageAvatar messageRole="assistant" />
                       <LoaderCircle className="size-4 animate-spin" />
                       Anthon sta leggendo…
                     </m.div>
@@ -393,8 +473,21 @@ export function OnboardingClient({
             {state.status === "IN_PROGRESS" && (
               <div className="shrink-0 border-t bg-card px-3 py-3 sm:px-6 sm:py-4">
                 <form onSubmit={submitAnswer} className="mx-auto max-w-3xl">
+                  <div className="mb-1 flex justify-end px-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={pending}
+                      onClick={() => submitAnswer(undefined, true)}
+                      className="h-8 px-2 text-xs text-muted-foreground"
+                    >
+                      {state.skipLabel}
+                    </Button>
+                  </div>
                   <div className="flex items-end gap-2 rounded-2xl border border-border/70 bg-background p-2 shadow-sm focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/15">
                     <Textarea
+                      ref={inputRef}
                       aria-label="La tua risposta"
                       value={input}
                       disabled={pending}
@@ -417,21 +510,6 @@ export function OnboardingClient({
                     >
                       <Send className="size-4" />
                     </Button>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-3 px-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={pending}
-                      onClick={() => submitAnswer(undefined, true)}
-                      className="h-8 px-2 text-xs text-muted-foreground"
-                    >
-                      {state.skipLabel}
-                    </Button>
-                    <span className="hidden text-[0.68rem] text-muted-foreground sm:inline">
-                      Invio per continuare · Maiuscolo + Invio per andare a capo
-                    </span>
                   </div>
                 </form>
               </div>

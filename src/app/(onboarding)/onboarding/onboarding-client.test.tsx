@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OnboardingClient } from "./onboarding-client";
 
 const mocks = vi.hoisted(() => ({ replace: vi.fn() }));
@@ -36,6 +36,10 @@ describe("OnboardingClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("renders the isolated first step and profile panel", () => {
@@ -84,5 +88,53 @@ describe("OnboardingClient", () => {
         headers: { "Content-Type": "application/json" },
       }),
     );
+  });
+
+  it("focuses the composer after a response on desktop", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    const responseState = {
+      ...initialState,
+      currentStep: 1,
+      currentField: "age" as const,
+      question: "Quanti anni hai?",
+      messages: [
+        ...initialState.messages,
+        { id: "user-1", role: "user" as const, content: "Giulia" },
+        {
+          id: "assistant-2",
+          role: "assistant" as const,
+          content: "Quanti anni hai?",
+        },
+      ],
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(responseState), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const user = userEvent.setup();
+    render(<OnboardingClient initialState={initialState} nextPath="/chat" />);
+    const textarea = screen.getByLabelText("La tua risposta");
+
+    await user.type(textarea, "Giulia");
+    await user.click(screen.getByRole("button", { name: "Invia risposta" }));
+
+    await waitFor(() => expect(document.activeElement).toBe(textarea));
+    expect(vi.mocked(matchMedia)).toHaveBeenCalledWith("(min-width: 1024px)");
   });
 });
