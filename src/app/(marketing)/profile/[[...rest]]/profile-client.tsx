@@ -1,15 +1,17 @@
 "use client";
 
-import { UserProfile } from "@clerk/nextjs";
+import { UserProfile, useUser } from "@clerk/nextjs";
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { CoachingContextSection } from "../components/CoachingContextSection";
 import { PreferencesSection } from "../components/PreferencesSection";
 import { UsageSection } from "../components/UsageSection";
 
 export function ProfileClient() {
   const router = useRouter();
+  const { isLoaded, user } = useUser();
 
   const handleBack = () => {
     const referrer = document.referrer ? new URL(document.referrer) : null;
@@ -60,6 +62,24 @@ export function ProfileClient() {
             }}
           />
         </div>
+
+        {isLoaded && user ? (
+          <section aria-label="ID utente">
+            <Card className="overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm">
+              <div className="border-b border-border/50 bg-muted/30 px-6 py-4">
+                <h2 className="text-lg font-semibold">ID utente</h2>
+                <p className="text-sm text-muted-foreground">
+                  L&apos;identificativo univoco del tuo account
+                </p>
+              </div>
+              <div className="px-6 py-5">
+                <code className="block break-all rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                  {user.id}
+                </code>
+              </div>
+            </Card>
+          </section>
+        ) : null}
 
         <UsageSection />
 

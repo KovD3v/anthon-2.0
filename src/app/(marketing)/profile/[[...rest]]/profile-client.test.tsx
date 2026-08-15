@@ -6,6 +6,7 @@ import { ProfileClient } from "./profile-client";
 
 vi.mock("@clerk/nextjs", () => ({
   UserProfile: () => <section aria-label="Profilo Clerk" />,
+  useUser: () => ({ isLoaded: true, user: { id: "user_test_123" } }),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -41,5 +42,13 @@ describe("ProfileClient", () => {
       usage.compareDocumentPosition(preferences) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("shows the authenticated user id", () => {
+    render(<ProfileClient />);
+
+    const userId = screen.getByRole("region", { name: "ID utente" });
+
+    expect(userId.textContent).toContain("user_test_123");
   });
 });
