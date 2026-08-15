@@ -742,11 +742,9 @@ describe("ai/orchestrator", () => {
     expect(prepared.messages[0]?.content).not.toBe("provider mutation");
   });
 
-  it("keeps shadow mode standard while skipping live classification", async () => {
+  it("keeps every turn on standard when the fast path is disabled", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "shadow");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
+    vi.stubEnv("AI_FAST_PATH_ENABLED", "false");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
 
     const result = await streamChat({
@@ -759,7 +757,7 @@ describe("ai/orchestrator", () => {
     expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
     expect(result.turnDecision.execution.eligibleProfile).toBe("light");
     expect(result.turnPlan.execution).toMatchObject({
-      routingMode: "shadow",
+      routingMode: "off",
       eligibleProfile: "light",
       plannedProfile: "standard",
     });
@@ -778,9 +776,6 @@ describe("ai/orchestrator", () => {
 
   it("does not classify legacy turns", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "legacy");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
 
     const result = await streamChat({
       userId: "user-1",
@@ -799,9 +794,6 @@ describe("ai/orchestrator", () => {
 
   it("does not create a profiler classification span for deterministic routing", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "social");
     const traceCollector = createServerTraceCollector({ now: () => 0 });
 
     await streamChat({
@@ -820,9 +812,6 @@ describe("ai/orchestrator", () => {
 
   it("routes ambiguous agentic turns directly to standard and exposes tools for model selection", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "social");
 
     const result = await streamChat({
       userId: "user-1",
@@ -859,9 +848,6 @@ describe("ai/orchestrator", () => {
 
   it("executes active light with bounded history, no tools, and minimal reasoning", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
     mocks.buildConversationContext.mockResolvedValueOnce([
       { role: "user", content: "Testo molto lungo" },
@@ -933,9 +919,6 @@ describe("ai/orchestrator", () => {
 
   it("preserves an explicit benchmark model on an active light turn", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
     mocks.streamText.mockReturnValueOnce(noToolTextStream(["Breve"]));
 
@@ -978,9 +961,6 @@ describe("ai/orchestrator", () => {
 
   it("grounds a recent-dependent light route in the same bounded thread turn", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
     mocks.buildThreadContext.mockResolvedValue({
       messages: [
@@ -1017,9 +997,6 @@ describe("ai/orchestrator", () => {
 
   it("fails recent-dependent light routing closed when no bounded referent exists", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
     mocks.buildThreadContext.mockResolvedValue({ messages: [] });
 
@@ -1049,9 +1026,6 @@ describe("ai/orchestrator", () => {
 
   it("vetoes a long translation whose policy-derived output exceeds 600 tokens", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "translate");
     mocks.classifyCapabilities.mockResolvedValueOnce(
       lightClassification({
         taskKind: "translate",
@@ -1078,9 +1052,6 @@ describe("ai/orchestrator", () => {
 
   it("treats literal brief text inside supplied translation data as data, not a brevity instruction", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "translate");
     mocks.classifyCapabilities.mockResolvedValueOnce(
       lightClassification({
         taskKind: "translate",
@@ -1107,9 +1078,6 @@ describe("ai/orchestrator", () => {
 
   it("keeps genuine brief translation instructions before supplied text eligible for light routing", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "translate");
     mocks.classifyCapabilities.mockResolvedValueOnce(
       lightClassification({
         taskKind: "translate",
@@ -1136,9 +1104,6 @@ describe("ai/orchestrator", () => {
 
   it("selects one standard attempt before execution when a light plan requires a tool", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
 
     const result = await streamChat({
@@ -1180,14 +1145,14 @@ describe("ai/orchestrator", () => {
         outcome: "completed",
       }),
     ]);
+    expect(route).not.toHaveProperty("classificationLatencyMs");
+    expect(route).not.toHaveProperty("classifierModel");
+    expect(route).not.toHaveProperty("classifierProvider");
     expect(route).not.toHaveProperty("escalation");
   });
 
   it("vetoes light before execution when active proactive recall is planned", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     vi.stubEnv("AI_MEMORY_RECALL_MODE", "active");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
     mocks.buildThreadContext.mockResolvedValue({
@@ -1232,9 +1197,6 @@ describe("ai/orchestrator", () => {
 
   it("vetoes light while preparing a turn with active proactive recall", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     vi.stubEnv("AI_MEMORY_RECALL_MODE", "active");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
     mocks.buildThreadContext.mockResolvedValue({
@@ -1274,9 +1236,6 @@ describe("ai/orchestrator", () => {
 
   it("records generation and total-request TTFT from the first non-empty light delta once", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     mocks.classifyCapabilities.mockResolvedValueOnce({
       ...lightClassification({ contextDependency: "none" }),
       classifierModel: "nvidia/nemotron-3.5-lightning",
@@ -1314,9 +1273,6 @@ describe("ai/orchestrator", () => {
 
   it("retries empty light output once and reports standard delivery with aggregate usage", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
     mocks.streamText
       .mockReturnValueOnce(
@@ -1371,9 +1327,6 @@ describe("ai/orchestrator", () => {
 
   it("does not retry or double-report after a visible light delta fails", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
     mocks.streamText.mockReturnValueOnce(
       noToolTextStream(["Parziale"], { error: new Error("provider failed") }),
@@ -1406,9 +1359,6 @@ describe("ai/orchestrator", () => {
 
   it("reports a cancelled active-light attempt exactly once without fallback", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
     const controller = new AbortController();
     const abortReason = new DOMException("request cancelled", "AbortError");
@@ -1443,9 +1393,6 @@ describe("ai/orchestrator", () => {
 
   it("reports a terminal two-attempt failure once using the last profile", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
     mocks.streamText
       .mockReturnValueOnce(
@@ -1490,9 +1437,6 @@ describe("ai/orchestrator", () => {
     ["web", { userMessage: "Cerca online il risultato di oggi" }],
   ])("forces active %s turns onto standard execution", async (_, overrides) => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     mocks.classifyCapabilities.mockResolvedValueOnce(lightClassification());
 
     const result = await streamChat({
@@ -1510,9 +1454,6 @@ describe("ai/orchestrator", () => {
 
   it("keeps ambiguous turns on standard and records one terminal route", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
 
     const result = await streamChat({
       userId: "user-1",
@@ -2611,9 +2552,6 @@ describe("ai/orchestrator", () => {
 
   it("separates direct-media provider TTFT from total-request TTFT", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
-    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
-    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
     const originalApiKey = process.env.OPENROUTER_API_KEY;
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
     const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
@@ -4391,6 +4329,7 @@ describe("ai/orchestrator", () => {
     },
   ])("records $name in capability metadata", async (voiceCase) => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_FAST_PATH_ENABLED", "false");
     mocks.classifyCapabilities.mockResolvedValueOnce({ voiceOutput: true });
     const onFinish = vi.fn();
 

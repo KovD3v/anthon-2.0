@@ -1,9 +1,4 @@
-import {
-  FileText,
-  MessageSquare,
-  SlidersHorizontal,
-  Users,
-} from "lucide-react";
+import { FileText, MessageSquare, Users } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
@@ -51,13 +46,6 @@ export default function AdminDashboard() {
               >
                 <FileText className="h-8 w-8 text-primary" />
                 <span className="font-medium">Carica documenti</span>
-              </Link>
-              <Link
-                href="/admin/classifier"
-                className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4 text-card-foreground transition-colors hover:bg-muted/50"
-              >
-                <SlidersHorizontal className="h-8 w-8 text-primary" />
-                <span className="font-medium">Configura routing</span>
               </Link>
               <Link
                 href="/chat"

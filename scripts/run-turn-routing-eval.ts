@@ -8,11 +8,13 @@ import {
 import { resolveDeterministicTurnClassification } from "@/lib/ai/fast-routing";
 import { normalizeClassifierProposalForArbitration } from "@/lib/ai/turn-arbitration";
 import {
-  CAPABILITY_CLASSIFIER_MIN_CONFIDENCE,
-  type CapabilityClassifierProposal,
   classifyTurn,
   resolveTurnClassifierModelId,
 } from "@/lib/ai/turn-classification";
+import {
+  CAPABILITY_CLASSIFIER_MIN_CONFIDENCE,
+  type CapabilityClassifierProposal,
+} from "@/lib/ai/turn-routing-types";
 import {
   scoreTurnRouting,
   shouldFailTurnRoutingEvaluation,

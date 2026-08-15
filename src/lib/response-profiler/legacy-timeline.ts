@@ -49,14 +49,14 @@ export function deriveLegacyLatencyTimeline(
   };
 
   if (
-    route.classificationLatencyMs > 0 ||
+    (route.classificationLatencyMs ?? 0) > 0 ||
     route.decisionSource === "classifier" ||
     route.decisionSource === "mixed"
   ) {
     appendRow({
       id: "classification",
       label: "Classificazione",
-      durationMs: route.classificationLatencyMs,
+      durationMs: route.classificationLatencyMs ?? 0,
     });
   }
   appendRow({

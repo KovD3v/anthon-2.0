@@ -29,8 +29,7 @@ function plan(overrides: Partial<Parameters<typeof planTurn>[0]> = {}) {
     executionDecision: standardExecutionDecision,
     plannedExecution: buildPlannedExecution({
       decision: standardExecutionDecision,
-      config: { mode: "off", allocationPercent: 0, enabledTaskKinds: [] },
-      stableKey: "turn-plan-test",
+      fastPathEnabled: false,
     }),
     ...overrides,
   });
@@ -55,19 +54,14 @@ describe("turn plan", () => {
       eligibleProfile: "light",
       taskKind: "rewrite",
       contextDependency: "none",
-      source: "classifier",
+      source: "rule",
     };
     const lightSelfContained = plan({
       userMessage: "Riscrivi questa frase in modo più chiaro.",
       executionDecision,
       plannedExecution: buildPlannedExecution({
         decision: executionDecision,
-        config: {
-          mode: "active",
-          allocationPercent: 100,
-          enabledTaskKinds: ["rewrite"],
-        },
-        stableKey: "light-self-contained",
+        fastPathEnabled: true,
       }),
     });
 
@@ -97,19 +91,14 @@ describe("turn plan", () => {
       eligibleProfile: "light",
       taskKind: "rewrite",
       contextDependency: "recent",
-      source: "classifier",
+      source: "rule",
     };
     const lightRecent = plan({
       userMessage: "Rendilo più breve.",
       executionDecision,
       plannedExecution: buildPlannedExecution({
         decision: executionDecision,
-        config: {
-          mode: "active",
-          allocationPercent: 100,
-          enabledTaskKinds: ["rewrite"],
-        },
-        stableKey: "light-recent",
+        fastPathEnabled: true,
       }),
     });
 
@@ -121,24 +110,19 @@ describe("turn plan", () => {
     });
   });
 
-  it("keeps a shadow-eligible light turn on the existing standard execution", () => {
+  it("keeps a disabled fast path on the existing standard execution", () => {
     const executionDecision: ExecutionDecision = {
       ...standardExecutionDecision,
       eligibleProfile: "light",
       taskKind: "rewrite",
       contextDependency: "none",
-      source: "classifier",
+      source: "rule",
     };
     const shadowLight = plan({
       executionDecision,
       plannedExecution: buildPlannedExecution({
         decision: executionDecision,
-        config: {
-          mode: "shadow",
-          allocationPercent: 100,
-          enabledTaskKinds: ["rewrite"],
-        },
-        stableKey: "shadow-light",
+        fastPathEnabled: false,
       }),
     });
 

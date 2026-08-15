@@ -1,8 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  TurnClassificationResult,
-  TurnClassifierProposal,
-} from "./turn-classification";
 
 const mocks = vi.hoisted(() => ({ classifyTurn: vi.fn() }));
 
@@ -13,38 +9,11 @@ vi.mock("./turn-classification", async (importOriginal) => ({
 
 import { arbitrateTurn } from "./turn-arbitration";
 
-const classifierProposal: TurnClassifierProposal = {
-  capabilities: {
-    rag: "no",
-    webSearch: "no",
-    webFetch: "no",
-    memoryRead: "no",
-    memoryWrite: "no",
-    memoryDelete: "no",
-    routineProposal: "no",
-    userContext: "no",
-    voiceOutput: "no",
-  },
-  capabilityConfidence: 0.95,
-  workload: {
-    taskKind: "rewrite",
-    contextDependency: "none",
-    knowledgeNeed: "supplied_only",
-    reasoningDepth: "minimal",
-    sensitivity: "ordinary",
-    suggestedProfile: "light",
-    confidence: 0.96,
-  },
-};
-
 function agenticInput(
   overrides: Partial<Parameters<typeof arbitrateTurn>[0]> = {},
 ) {
   return {
-    userId: "user-1",
     userMessage: "Rendilo più breve",
-    classifierContext: "web_search_rule=no_web_search_intent",
-    classifierModelId: "qwen/qwen3.6-27b",
     plannerMode: "agentic" as const,
     isGuest: false,
     memoryEnabled: true,
@@ -65,237 +34,72 @@ function agenticInput(
 describe("turn arbitration", () => {
   beforeEach(() => {
     mocks.classifyTurn.mockReset();
-    mocks.classifyTurn.mockResolvedValue({
-      proposal: classifierProposal,
-      outcome: "accepted",
-      latencyMs: 25,
-      classifierModel: "qwen/qwen3.6-27b",
-      classifierProvider: "DeepInfra",
-    });
   });
 
-  it("returns one immutable agentic turn decision", async () => {
-    const result = await arbitrateTurn(
-      agenticInput({ hasRecentContext: false }),
-    );
-
-    expect(result.decision.capabilities.webSearch).toBe(false);
-    expect(result.decision.execution.eligibleProfile).toBe("light");
-    expect(Object.isFrozen(result.decision)).toBe(true);
-    expect(Object.isFrozen(result.decision.execution.reasonCodes)).toBe(true);
-    expect(result.classificationLatencyMs).toBe(25);
-    expect(result).toMatchObject({
-      classifierModel: "qwen/qwen3.6-27b",
-      classifierProvider: "DeepInfra",
-    });
-  });
-
-  it("discards spurious RAG and memory writes for self-contained transformations", async () => {
-    mocks.classifyTurn.mockResolvedValueOnce({
-      proposal: {
-        ...classifierProposal,
-        capabilities: {
-          ...classifierProposal.capabilities,
-          rag: "yes",
-          memoryWrite: "yes",
-        },
-      },
-      outcome: "accepted",
-      latencyMs: 25,
-    });
-
-    const result = await arbitrateTurn(
-      agenticInput({ userMessage: "Traduci in inglese: Ci sentiamo domani." }),
-    );
-
-    expect(result.decision.capabilities).toMatchObject({
-      rag: false,
-      memoryWrite: false,
-    });
-    expect(result.decision.execution.eligibleProfile).toBe("light");
-  });
-
-  it.each([
-    "rewrite",
-    "translate",
-    "format",
-    "extract",
-    "summarize_supplied",
-  ] as const)(
-    "routes a safe %s through light when the classifier suggests standard",
-    async (taskKind) => {
-      mocks.classifyTurn.mockResolvedValueOnce({
-        proposal: {
-          ...classifierProposal,
-          workload: {
-            ...classifierProposal.workload,
-            taskKind,
-            contextDependency: "none",
-            suggestedProfile: "standard",
-          },
-        },
-        outcome: "accepted",
-        latencyMs: 25,
-      });
-
-      const result = await arbitrateTurn(agenticInput());
-
-      expect(result.decision.execution).toMatchObject({
-        eligibleProfile: "light",
-        taskKind,
-        reasonCodes: expect.arrayContaining(["classifier_standard"]),
-      });
-    },
-  );
-
-  it("preserves classifier capabilities when a transformation needs context", async () => {
-    mocks.classifyTurn.mockResolvedValueOnce({
-      proposal: {
-        ...classifierProposal,
-        capabilities: {
-          ...classifierProposal.capabilities,
-          rag: "yes",
-          memoryWrite: "yes",
-        },
-        workload: {
-          ...classifierProposal.workload,
-          contextDependency: "recent",
-          knowledgeNeed: "conversation",
-        },
-      },
-      outcome: "accepted",
-      latencyMs: 25,
-    });
-
+  it("returns one immutable deterministic standard decision when context is unresolved", async () => {
     const result = await arbitrateTurn(agenticInput());
 
-    expect(result.decision.capabilities).toMatchObject({
-      rag: true,
-      memoryWrite: true,
-    });
-    expect(result.decision.execution.eligibleProfile).toBe("standard");
-  });
-
-  it("does not classify legacy turns", async () => {
-    const result = await arbitrateTurn(agenticInput({ plannerMode: "legacy" }));
-
-    expect(mocks.classifyTurn).not.toHaveBeenCalled();
+    expect(result.decision.capabilities.webSearch).toBe(false);
     expect(result.decision.execution).toMatchObject({
       eligibleProfile: "standard",
-      reasonCodes: expect.arrayContaining(["legacy_mode"]),
+      source: "rule",
+      taskKind: "rewrite",
     });
     expect(result.classificationLatencyMs).toBe(0);
     expect(result).not.toHaveProperty("classifierModel");
     expect(result).not.toHaveProperty("classifierProvider");
+    expect(Object.isFrozen(result.decision)).toBe(true);
+    expect(Object.isFrozen(result.decision.execution.reasonCodes)).toBe(true);
   });
 
-  it("classifies each agentic turn exactly once", async () => {
-    await arbitrateTurn(agenticInput());
-
-    expect(mocks.classifyTurn).toHaveBeenCalledTimes(1);
-    expect(mocks.classifyTurn).toHaveBeenCalledWith({
-      userId: "user-1",
-      userMessage: "Rendilo più breve",
-      context: "web_search_rule=no_web_search_intent",
-      modelId: "qwen/qwen3.6-27b",
-      abortSignal: undefined,
-    });
-  });
-
-  it("measures only live classifier work, not deterministic arbitration", async () => {
-    const measureClassifierCall = vi.fn(
-      (operation: () => Promise<TurnClassificationResult>) => operation(),
-    );
-
-    await arbitrateTurn(agenticInput({ measureClassifierCall }));
-    expect(measureClassifierCall).toHaveBeenCalledTimes(1);
-
-    await arbitrateTurn(
-      agenticInput({
-        userMessage: "come stai?",
-        hasRecentContext: true,
-        measureClassifierCall,
-      }),
-    );
-
-    expect(measureClassifierCall).toHaveBeenCalledTimes(1);
-  });
-
-  it("bypasses the remote classifier for a self-contained transformation", async () => {
-    const result = await arbitrateTurn(
-      agenticInput({
-        userMessage: "Traduci in inglese: Ci sentiamo domani.",
-        hasRecentContext: false,
-      }),
-    );
-
-    expect(mocks.classifyTurn).not.toHaveBeenCalled();
-    expect(result).toMatchObject({
-      classificationLatencyMs: 0,
-      decision: {
-        execution: {
-          eligibleProfile: "light",
-          source: "rule",
-        },
-      },
-    });
-  });
-
-  it("bypasses the remote classifier for a recent-context transformation", async () => {
-    const result = await arbitrateTurn(
-      agenticInput({
-        userMessage: "Rendilo più breve",
-        hasRecentContext: true,
-      }),
-    );
-
-    expect(mocks.classifyTurn).not.toHaveBeenCalled();
-    expect(result).toMatchObject({
-      classificationLatencyMs: 0,
-      decision: {
-        execution: {
-          eligibleProfile: "light",
-          source: "rule",
-          contextDependency: "recent",
-        },
-      },
-    });
-  });
-
-  it.each([false, true])(
-    "does not start the classifier for the social follow-up 'come stai?' with recent context=%s",
-    async (hasRecentContext) => {
-      const waitUntil = vi.fn();
+  it.each([
+    ["Traduci in inglese: Ci sentiamo domani.", "translate"],
+    ["Riscrivi questa frase: Ci sentiamo domani.", "rewrite"],
+    ["Formatta questo testo: uno, due.", "format"],
+  ] as const)(
+    "routes self-contained %s through the deterministic light path",
+    async (userMessage, taskKind) => {
       const result = await arbitrateTurn(
-        agenticInput({
-          userMessage: "come stai?",
-          hasRecentContext,
-          waitUntil,
-        }),
+        agenticInput({ userMessage, hasRecentContext: false }),
       );
 
-      expect(mocks.classifyTurn).not.toHaveBeenCalled();
-      expect(waitUntil).not.toHaveBeenCalled();
       expect(result).toMatchObject({
         classificationLatencyMs: 0,
         decision: {
           execution: {
             eligibleProfile: "light",
             source: "rule",
-            taskKind: "social",
-            contextDependency: "none",
+            taskKind,
           },
         },
       });
+      expect(mocks.classifyTurn).not.toHaveBeenCalled();
     },
   );
 
-  it("bypasses the remote classifier for deterministic external knowledge", async () => {
+  it("routes simple social turns through the deterministic light path", async () => {
+    const result = await arbitrateTurn(
+      agenticInput({ userMessage: "come stai?", hasRecentContext: false }),
+    );
+
+    expect(result).toMatchObject({
+      classificationLatencyMs: 0,
+      decision: {
+        execution: {
+          eligibleProfile: "light",
+          source: "rule",
+          taskKind: "social",
+          contextDependency: "none",
+        },
+      },
+    });
+    expect(mocks.classifyTurn).not.toHaveBeenCalled();
+  });
+
+  it("never invokes the remote classifier for an ambiguous live turn", async () => {
     const result = await arbitrateTurn(
       agenticInput({
-        userMessage: "Qual è il risultato della partita di oggi del Milan?",
-        explicitWebRule: "required",
-        requiresExternalKnowledge: true,
+        userMessage: "Aiutami a capire cosa dovrei fare adesso",
         hasRecentContext: false,
       }),
     );
@@ -304,7 +108,6 @@ describe("turn arbitration", () => {
     expect(result).toMatchObject({
       classificationLatencyMs: 0,
       decision: {
-        capabilities: { webSearch: true },
         execution: {
           eligibleProfile: "standard",
           source: "rule",
@@ -313,90 +116,64 @@ describe("turn arbitration", () => {
     });
   });
 
-  it("does not invoke the classifier for a deterministic standard route", async () => {
-    const waitUntil = vi.fn();
+  it("keeps external knowledge on the standard agentic route", async () => {
     const result = await arbitrateTurn(
       agenticInput({
-        waitUntil,
-        userMessage: "Che tempo farà domani a Roma?",
+        userMessage: "Qual è il risultato della partita di oggi del Milan?",
         explicitWebRule: "required",
         requiresExternalKnowledge: true,
       }),
     );
 
-    expect(mocks.classifyTurn).not.toHaveBeenCalled();
-    expect(waitUntil).not.toHaveBeenCalled();
-    expect(result).toMatchObject({
-      classificationLatencyMs: 0,
-      decision: {
-        execution: {
-          eligibleProfile: "standard",
-          source: "rule",
-        },
-      },
+    expect(result.decision.capabilities).toMatchObject({ webSearch: true });
+    expect(result.decision.execution).toMatchObject({
+      eligibleProfile: "standard",
+      source: "rule",
+      taskKind: "knowledge",
     });
+    expect(mocks.classifyTurn).not.toHaveBeenCalled();
   });
 
-  it("keeps deterministic light routing when live classification is disabled", async () => {
+  it("keeps memory operations on the standard route", async () => {
     const result = await arbitrateTurn(
       agenticInput({
-        liveClassifierEnabled: false,
-        hasRecentContext: true,
-        userMessage: "Rendi questo testo più breve: prova lunga",
+        userMessage: "Ricordati che mi alleno a tennis il martedì",
       }),
     );
 
-    expect(result).toMatchObject({
-      classificationLatencyMs: 0,
-      decision: {
-        capabilities: { source: "rule" },
-        execution: {
-          eligibleProfile: "light",
-          source: "rule",
-        },
-      },
+    expect(result.decision.capabilities.memoryWrite).toBe(true);
+    expect(result.decision.execution.eligibleProfile).toBe("standard");
+    expect(mocks.classifyTurn).not.toHaveBeenCalled();
+  });
+
+  it("keeps coaching and planning on the standard route", async () => {
+    const result = await arbitrateTurn(
+      agenticInput({
+        userMessage: "Aiutami a preparare una routine per gestire l'ansia",
+        hasDeterministicCoachingIntent: true,
+      }),
+    );
+
+    expect(result.decision.execution).toMatchObject({
+      eligibleProfile: "standard",
+      taskKind: "planning",
     });
     expect(mocks.classifyTurn).not.toHaveBeenCalled();
   });
 
-  it("preserves capability uncertainty when the turn is not deterministically routable", async () => {
-    mocks.classifyTurn.mockResolvedValueOnce({
-      proposal: {
-        ...classifierProposal,
-        capabilities: {
-          ...classifierProposal.capabilities,
-          webSearch: "uncertain",
-        },
-      },
-      outcome: "accepted",
-      latencyMs: 25,
-    });
+  it("does not classify legacy turns and fails closed to standard", async () => {
+    const result = await arbitrateTurn(agenticInput({ plannerMode: "legacy" }));
 
-    const result = await arbitrateTurn(agenticInput());
-
-    expect(result.decision.capabilities.webSearch).toBe(false);
+    expect(mocks.classifyTurn).not.toHaveBeenCalled();
     expect(result.decision.execution).toMatchObject({
       eligibleProfile: "standard",
-      reasonCodes: expect.arrayContaining(["capability_uncertain"]),
+      source: "fallback",
+      reasonCodes: expect.arrayContaining(["legacy_mode"]),
     });
+    expect(result.classificationLatencyMs).toBe(0);
   });
 
-  it("fails closed when classification fails", async () => {
-    mocks.classifyTurn.mockResolvedValueOnce({
-      proposal: null,
-      outcome: "failed",
-      latencyMs: 25,
-    });
-
-    const result = await arbitrateTurn(agenticInput());
-
-    expect(result.decision.execution).toMatchObject({
-      eligibleProfile: "standard",
-      reasonCodes: expect.arrayContaining(["classifier_failure"]),
-    });
-  });
-
-  it("keeps transformation requests with embedded instructions on standard", async () => {
+  it("keeps transformations with embedded instructions on standard", async () => {
     const result = await arbitrateTurn(
       agenticInput({
         userMessage:
@@ -408,61 +185,37 @@ describe("turn arbitration", () => {
       eligibleProfile: "standard",
       reasonCodes: expect.arrayContaining(["untrusted_supplied_text"]),
     });
+    expect(mocks.classifyTurn).not.toHaveBeenCalled();
   });
 
-  it("accepts recent-dependent light work only when its bounded referent exists", async () => {
-    mocks.classifyTurn.mockResolvedValue({
-      proposal: {
-        ...classifierProposal,
-        workload: {
-          ...classifierProposal.workload,
-          contextDependency: "recent",
-          knowledgeNeed: "conversation",
-        },
-      },
-      outcome: "accepted",
-      latencyMs: 25,
-    });
-
+  it("uses recent context only for context-dependent transformations", async () => {
     await expect(
-      arbitrateTurn(agenticInput({ hasRecentContext: true })),
+      arbitrateTurn(
+        agenticInput({
+          userMessage: "Rendilo più breve",
+          hasRecentContext: true,
+        }),
+      ),
     ).resolves.toMatchObject({
       decision: { execution: { eligibleProfile: "light" } },
     });
+
     await expect(
-      arbitrateTurn(agenticInput({ hasRecentContext: false })),
+      arbitrateTurn(
+        agenticInput({
+          userMessage: "Rendilo più breve",
+          hasRecentContext: false,
+        }),
+      ),
     ).resolves.toMatchObject({
-      decision: {
-        execution: {
-          eligibleProfile: "standard",
-          reasonCodes: expect.arrayContaining(["deep_context"]),
-        },
-      },
+      decision: { execution: { eligibleProfile: "standard" } },
     });
   });
 
-  it("propagates classifier cancellation", async () => {
+  it("propagates cancellation before deterministic routing", async () => {
     const controller = new AbortController();
     const abortError = new DOMException("request cancelled", "AbortError");
     controller.abort(abortError);
-    mocks.classifyTurn.mockRejectedValueOnce(abortError);
-
-    await expect(
-      arbitrateTurn(agenticInput({ abortSignal: controller.signal })),
-    ).rejects.toBe(abortError);
-  });
-
-  it("propagates cancellation after classification resolves", async () => {
-    const controller = new AbortController();
-    const abortError = new DOMException("request cancelled", "AbortError");
-    mocks.classifyTurn.mockImplementationOnce(async () => {
-      controller.abort(abortError);
-      return {
-        proposal: classifierProposal,
-        outcome: "accepted",
-        latencyMs: 25,
-      };
-    });
 
     await expect(
       arbitrateTurn(agenticInput({ abortSignal: controller.signal })),

@@ -5,7 +5,7 @@ import type {
   RoutingMode,
 } from "./execution-routing";
 import { EXECUTION_REASON_CODES } from "./execution-routing";
-import type { TaskKind } from "./turn-classification";
+import type { TaskKind } from "./turn-routing-types";
 
 const TASK_KINDS = [
   "social",
@@ -58,7 +58,9 @@ const executionRouteTraceSchema = z
     decisionSource: z.enum(["classifier", "rule", "mixed", "fallback"]),
     confidenceBucket: z.enum(["low", "medium", "high"]),
     reasonCodes: z.array(z.enum(EXECUTION_REASON_CODES)).max(32),
-    classificationLatencyMs: nonNegativeIntegerSchema,
+    // Optional for compatibility with traces emitted before live classifier
+    // routing was removed.
+    classificationLatencyMs: nonNegativeIntegerSchema.optional(),
     classifierModel: boundedLabelSchema.optional(),
     classifierProvider: boundedLabelSchema.optional(),
     routingOverheadMs: nonNegativeIntegerSchema,
@@ -194,7 +196,8 @@ export type ExecutionRouteTrace = {
   decisionSource: "classifier" | "rule" | "mixed" | "fallback";
   confidenceBucket: "low" | "medium" | "high";
   reasonCodes: readonly ExecutionReasonCode[];
-  classificationLatencyMs: number;
+  /** Present only on historical traces that performed live classification. */
+  classificationLatencyMs?: number;
   classifierModel?: string;
   classifierProvider?: string;
   routingOverheadMs: number;

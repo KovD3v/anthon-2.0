@@ -13,7 +13,6 @@ import {
   type UIMessage,
   type UIMessageStreamOptions,
 } from "ai";
-import { getAiRoutingRuntimeConfig } from "@/lib/ai/ai-routing-config-store";
 import {
   type CapabilityDecision,
   getCapabilityPlannerMode,
@@ -35,6 +34,7 @@ import {
   type PlannedExecution,
   type TurnDecision,
 } from "@/lib/ai/execution-routing";
+import { isFastPathEnabled } from "@/lib/ai/fast-path-config";
 import { needsRecentRoutingContext } from "@/lib/ai/fast-routing";
 import {
   evaluateWebSearchRule,
@@ -143,13 +143,11 @@ function modelMessageContentToText(content: unknown): string {
 
 type BoundedRecentContext = {
   messages: ModelMessage[];
-  classifierContext: string;
   available: boolean;
 };
 
 const EMPTY_BOUNDED_RECENT_CONTEXT: BoundedRecentContext = {
   messages: [],
-  classifierContext: "recent_thread_context=unavailable",
   available: false,
 };
 
@@ -161,18 +159,17 @@ function toBoundedRecentContext(
     const content = modelMessageContentToText(message.content);
     return content ? [`${message.role}: ${JSON.stringify(content)}`] : [];
   });
-  const classifierContext = contentLines.join("\n");
+  const contextText = contentLines.join("\n");
 
   if (
     contentLines.length === 0 ||
-    classifierContext.length > ROUTING_RECENT_CONTEXT_MAX_CHARS
+    contextText.length > ROUTING_RECENT_CONTEXT_MAX_CHARS
   ) {
     return EMPTY_BOUNDED_RECENT_CONTEXT;
   }
 
   return {
     messages,
-    classifierContext: `recent_thread_context:\n${classifierContext}`,
     available: true,
   };
 }
@@ -224,7 +221,7 @@ async function loadBoundedRecentContext({
   } catch (error) {
     aiLogger.error(
       "ai.turn_routing.recent_context_failed",
-      "Recent classifier context could not be loaded; recent light routing is disabled",
+      "Recent routing context could not be loaded; recent light routing is disabled",
       { error, userId, chatId, conversationThreadId },
     );
   }
@@ -1780,7 +1777,6 @@ function hasProactiveRecall(
 }
 
 async function arbitrateChatTurn({
-  userId,
   userMessage,
   isGuest,
   memoryEnabled,
@@ -1792,11 +1788,8 @@ async function arbitrateChatTurn({
   capabilityPlannerMode,
   inputOrigin,
   recentContext,
-  liveClassifierEnabled,
   abortSignal,
-  waitUntil,
 }: {
-  userId: string;
   userMessage: string;
   isGuest: boolean;
   memoryEnabled: boolean;
@@ -1808,17 +1801,11 @@ async function arbitrateChatTurn({
   capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
   inputOrigin: "text" | "transcribed_voice" | "direct_media";
   recentContext: BoundedRecentContext;
-  liveClassifierEnabled: boolean;
   abortSignal?: AbortSignal;
-  waitUntil?: (promise: Promise<unknown>) => void;
 }) {
   return arbitrateTurn({
-    userId,
     userMessage,
-    classifierContext: `web_search_rule=${webSearchRule.reason}`,
-    classifierModelId: "unused-in-live-chat",
     plannerMode: capabilityPlannerMode,
-    liveClassifierEnabled,
     isGuest,
     memoryEnabled,
     voiceAllowed,
@@ -1840,7 +1827,6 @@ async function arbitrateChatTurn({
     requestedOutputTokens: requestedOutputTokensForRouting(userMessage),
     hasRecentContext: recentContext.available,
     abortSignal,
-    waitUntil,
   });
 }
 
@@ -1990,7 +1976,7 @@ export async function streamChat({
 }: StreamChatOptions) {
   // Record start time for performance tracking
   const startTime = Date.now();
-  const runtimeRoutingConfigPromise = getAiRoutingRuntimeConfig();
+  const fastPathEnabled = isFastPathEnabled();
   const developerDiagnostics = createDeveloperDiagnosticsCollector({
     enabled: includeTechnicalDiagnostics,
   });
@@ -2075,7 +2061,6 @@ export async function streamChat({
             skipConversationHistory,
           }),
         );
-  const runtimeRoutingConfig = await runtimeRoutingConfigPromise;
   const arbitration = preparedTurnContext
     ? {
         decision: preparedTurnContext.turnDecision,
@@ -2088,7 +2073,6 @@ export async function streamChat({
           : {}),
       }
     : await arbitrateChatTurn({
-        userId,
         userMessage,
         isGuest,
         memoryEnabled,
@@ -2100,25 +2084,15 @@ export async function streamChat({
         capabilityPlannerMode,
         inputOrigin,
         recentContext: recentRoutingContext,
-        liveClassifierEnabled: runtimeRoutingConfig.liveClassifierEnabled,
         abortSignal,
-        waitUntil,
       });
   const turnDecision = arbitration.decision;
   const classificationLatencyMs = arbitration.classificationLatencyMs;
-  const classifierModel = arbitration.classifierModel;
-  const classifierProvider = arbitration.classifierProvider;
   const capabilityDecision = turnDecision.capabilities;
   const routingSpan = traceCollector?.startSpan("routing");
-  const routingConfig = {
-    mode: runtimeRoutingConfig.executionRoutingMode,
-    allocationPercent: runtimeRoutingConfig.executionRoutingAllocationPercent,
-    enabledTaskKinds: runtimeRoutingConfig.executionRoutingTasks,
-  };
   const allocatedExecution = buildPlannedExecution({
     decision: turnDecision.execution,
-    config: routingConfig,
-    stableKey: userMessageId ?? chatId ?? userId,
+    fastPathEnabled,
   });
   const memoryRecallDecision = await resolveMemoryRecallMode({
     userId,
@@ -2229,7 +2203,7 @@ export async function streamChat({
         degraded: false,
         allowedEvidenceIds: new Set<string>(),
       });
-  const classifierRagEnabled =
+  const deterministicRagEnabled =
     capabilityDecision.source !== "fallback" && capabilityDecision.rag;
   const userContextEnabled = turnPlan.capabilities.userContext;
   const conversationHistoryPromise =
@@ -2400,7 +2374,7 @@ export async function streamChat({
               "rag_decision",
               () =>
                 LatencyLogger.measure("📚 RAG: Check if needed", () =>
-                  classifierRagEnabled
+                  deterministicRagEnabled
                     ? Promise.resolve(true)
                     : shouldUseRag(userMessage, { userId, waitUntil }),
                 ),
@@ -2815,7 +2789,7 @@ export async function streamChat({
   const providerPlanningCompletedAt = Date.now();
   const routingOverheadMs = Math.max(
     0,
-    providerPlanningCompletedAt - startTime - classificationLatencyMs,
+    providerPlanningCompletedAt - startTime,
   );
   const buildExecutionRoute = ({
     attempts,
@@ -2838,9 +2812,6 @@ export async function streamChat({
       decisionSource: turnDecision.execution.source,
       confidenceBucket: turnDecision.execution.confidenceBucket,
       reasonCodes: executionReasonCodes,
-      classificationLatencyMs,
-      ...(classifierModel ? { classifierModel } : {}),
-      ...(classifierProvider ? { classifierProvider } : {}),
       routingOverheadMs,
       ...(totalRequestTimeToFirstTokenMs !== undefined
         ? { totalRequestTimeToFirstTokenMs }
@@ -3687,7 +3658,7 @@ export async function prepareChatTurn({
   skipConversationHistory = false,
 }: PrepareChatTurnOptions): Promise<PreparedChatTurn> {
   abortSignal?.throwIfAborted();
-  const runtimeRoutingConfigPromise = getAiRoutingRuntimeConfig();
+  const fastPathEnabled = isFastPathEnabled();
   const effectiveEntitlements =
     prefetchedEntitlements ??
     (await resolveEffectiveEntitlements({
@@ -3711,9 +3682,7 @@ export async function prepareChatTurn({
           skipConversationHistory,
         })
       : EMPTY_BOUNDED_RECENT_CONTEXT;
-  const runtimeRoutingConfig = await runtimeRoutingConfigPromise;
   const arbitration = await arbitrateChatTurn({
-    userId,
     userMessage,
     isGuest: false,
     memoryEnabled,
@@ -3725,7 +3694,6 @@ export async function prepareChatTurn({
     capabilityPlannerMode,
     inputOrigin: "text",
     recentContext: recentRoutingContext,
-    liveClassifierEnabled: runtimeRoutingConfig.liveClassifierEnabled,
     abortSignal,
   });
   const turnDecision = arbitration.decision;
@@ -3735,12 +3703,7 @@ export async function prepareChatTurn({
   const capabilityDecision = turnDecision.capabilities;
   const allocatedExecution = buildPlannedExecution({
     decision: turnDecision.execution,
-    config: {
-      mode: runtimeRoutingConfig.executionRoutingMode,
-      allocationPercent: runtimeRoutingConfig.executionRoutingAllocationPercent,
-      enabledTaskKinds: runtimeRoutingConfig.executionRoutingTasks,
-    },
-    stableKey: userMessageId ?? chatId ?? userId,
+    fastPathEnabled,
   });
   const memoryRecallDecision = await resolveMemoryRecallMode({
     userId,
@@ -3813,13 +3776,13 @@ export async function prepareChatTurn({
               userMessageId,
             )
           ).messages;
-  const classifierRagEnabled =
+  const deterministicRagEnabled =
     capabilityDecision.source !== "fallback" && capabilityDecision.rag;
   const ragResult = turnPlan.capabilities.rag
     ? await (async () => {
         try {
           const needsRag =
-            classifierRagEnabled ||
+            deterministicRagEnabled ||
             (await shouldUseRag(userMessage, { userId }));
           if (!needsRag) {
             return { text: undefined, chunkCount: 0, attempted: false };

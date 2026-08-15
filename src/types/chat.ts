@@ -137,7 +137,8 @@ export interface Usage {
     decisionSource: "classifier" | "rule" | "mixed" | "fallback";
     confidenceBucket: "low" | "medium" | "high";
     reasonCodes: string[];
-    classificationLatencyMs: number;
+    /** Present only on historical traces that performed live classification. */
+    classificationLatencyMs?: number;
     classifierModel?: string;
     classifierProvider?: string;
     routingOverheadMs: number;

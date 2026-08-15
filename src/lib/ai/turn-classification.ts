@@ -4,14 +4,31 @@ import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 import { extractSelectedProvider } from "@/lib/response-profiler/server-trace";
 import { CLASSIFIER_CAPABILITIES } from "./capability-arbitration";
+import {
+  DEFAULT_TURN_CLASSIFIER_MODEL_ID,
+  TASK_KINDS,
+  type TurnClassificationResult,
+  type TurnClassifierProposal,
+} from "./turn-routing-types";
+
+export type {
+  CapabilityClassifierProposal,
+  ClassifierCapabilityValue,
+  TaskKind,
+  TurnClassificationResult,
+  TurnClassifierProposal,
+  WorkloadProposal,
+} from "./turn-routing-types";
+export {
+  CAPABILITY_CLASSIFIER_MIN_CONFIDENCE,
+  DEFAULT_TURN_CLASSIFIER_MODEL_ID,
+  TASK_KINDS,
+} from "./turn-routing-types";
 
 const MAX_CLASSIFIER_CONTEXT_CHARS = 2_000;
 const TURN_CLASSIFIER_TIMEOUT_MS = 3_000;
 const LIGHT_MIN_CONFIDENCE = 0.9;
 const classifierLogger = createLogger("ai");
-
-export const DEFAULT_TURN_CLASSIFIER_MODEL_ID =
-  "nvidia/nemotron-3.5-lightning" as const;
 
 export function resolveTurnClassifierModelId(
   env: Record<string, string | undefined> = process.env,
@@ -20,54 +37,6 @@ export function resolveTurnClassifierModelId(
     env.PROMPT_MODULE_CLASSIFIER_MODEL_ID || DEFAULT_TURN_CLASSIFIER_MODEL_ID
   );
 }
-
-export const TASK_KINDS = [
-  "social",
-  "rewrite",
-  "translate",
-  "format",
-  "extract",
-  "summarize_supplied",
-  "coaching",
-  "knowledge",
-  "planning",
-  "other",
-] as const;
-
-export const CAPABILITY_CLASSIFIER_MIN_CONFIDENCE = 0.7;
-
-export type TaskKind = (typeof TASK_KINDS)[number];
-export type ClassifierCapabilityValue = "yes" | "no" | "uncertain";
-
-export type CapabilityClassifierProposal = Record<
-  (typeof CLASSIFIER_CAPABILITIES)[number],
-  ClassifierCapabilityValue
->;
-
-export type WorkloadProposal = {
-  taskKind: TaskKind;
-  contextDependency: "none" | "recent" | "deep";
-  knowledgeNeed: "supplied_only" | "conversation" | "external";
-  reasoningDepth: "minimal" | "substantive";
-  sensitivity: "ordinary" | "coaching";
-  suggestedProfile: "light" | "standard";
-  confidence: number;
-};
-
-export type TurnClassifierProposal = {
-  capabilities: CapabilityClassifierProposal;
-  capabilityConfidence: number;
-  workload: WorkloadProposal;
-};
-
-export type TurnClassificationResult = {
-  proposal: TurnClassifierProposal | null;
-  outcome: "accepted" | "invalid" | "low_confidence" | "failed";
-  latencyMs: number;
-  classificationSource?: "classifier" | "rule";
-  classifierModel?: string;
-  classifierProvider?: string;
-};
 
 export type TurnClassificationInput = {
   userMessage: string;

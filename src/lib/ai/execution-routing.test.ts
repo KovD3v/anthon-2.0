@@ -8,8 +8,6 @@ import {
   LIGHT_MAX_INPUT_TOKENS,
   LIGHT_MAX_OUTPUT_TOKENS,
   normalizeExecutionDecision,
-  parseExecutionRoutingConfig,
-  resolvePlannedProfile,
   TURN_CLASSIFIER_VERSION,
 } from "./execution-routing";
 import type {
@@ -37,6 +35,7 @@ const ALL_REASON_CODES = [
   "output_limit",
   "classifier_failure",
   "legacy_mode",
+  "fast_path_disabled",
   "task_rollout_disabled",
   "rollout_off",
   "rollout_shadow",
@@ -359,169 +358,45 @@ describe("execution routing", () => {
     ).toBe(true);
   });
 
-  it("parses a valid rollout config", () => {
+  it("plans standard when the fast path is disabled", () => {
     expect(
-      parseExecutionRoutingConfig({
-        AI_EXECUTION_ROUTING_MODE: "active",
-        AI_EXECUTION_ROUTING_ALLOCATION_PERCENT: "25",
-        AI_EXECUTION_ROUTING_TASKS: "social,rewrite,translate",
-      }),
-    ).toEqual({
-      mode: "active",
-      allocationPercent: 25,
-      enabledTaskKinds: ["social", "rewrite", "translate"],
-    });
-  });
-
-  it("prefers the canonical percent setting over the legacy allocation alias", () => {
-    expect(
-      parseExecutionRoutingConfig({
-        AI_EXECUTION_ROUTING_MODE: "active",
-        AI_EXECUTION_ROUTING_PERCENT: "25",
-        AI_EXECUTION_ROUTING_ALLOCATION_PERCENT: "100",
-        AI_EXECUTION_ROUTING_TASKS: "social,rewrite,translate",
-      }),
-    ).toEqual({
-      mode: "active",
-      allocationPercent: 25,
-      enabledTaskKinds: ["social", "rewrite", "translate"],
-    });
-  });
-
-  it.each([undefined, ""])(
-    "fails closed when the active rollout task allowlist is %s",
-    (tasks) => {
-      expect(
-        parseExecutionRoutingConfig({
-          AI_EXECUTION_ROUTING_MODE: "active",
-          AI_EXECUTION_ROUTING_PERCENT: "25",
-          ...(tasks === undefined ? {} : { AI_EXECUTION_ROUTING_TASKS: tasks }),
-        }),
-      ).toEqual({
-        mode: "off",
-        allocationPercent: 0,
-        enabledTaskKinds: [],
-      });
-    },
-  );
-
-  it("defaults invalid rollout config to off", () => {
-    expect(parseExecutionRoutingConfig({})).toEqual({
-      mode: "off",
-      allocationPercent: 0,
-      enabledTaskKinds: [],
-    });
-    expect(
-      parseExecutionRoutingConfig({
-        AI_EXECUTION_ROUTING_MODE: "ACTIVE",
-        AI_EXECUTION_ROUTING_ALLOCATION_PERCENT: "10",
-        AI_EXECUTION_ROUTING_TASKS: "rewrite",
-      }),
-    ).toEqual({
-      mode: "off",
-      allocationPercent: 0,
-      enabledTaskKinds: [],
-    });
-    expect(
-      parseExecutionRoutingConfig({
-        AI_EXECUTION_ROUTING_MODE: "active",
-        AI_EXECUTION_ROUTING_ALLOCATION_PERCENT: "101",
-        AI_EXECUTION_ROUTING_TASKS: "rewrite",
-      }),
-    ).toEqual({
-      mode: "off",
-      allocationPercent: 0,
-      enabledTaskKinds: [],
-    });
-    expect(
-      parseExecutionRoutingConfig({
-        AI_EXECUTION_ROUTING_MODE: "active",
-        AI_EXECUTION_ROUTING_ALLOCATION_PERCENT: "50",
-        AI_EXECUTION_ROUTING_TASKS: "rewrite,knowledge",
-      }),
-    ).toEqual({
-      mode: "off",
-      allocationPercent: 0,
-      enabledTaskKinds: [],
-    });
-  });
-
-  it("plans standard with rollout reasons when rollout is off or shadow", () => {
-    const decision = route();
-
-    expect(
-      resolvePlannedProfile(
-        decision,
-        { mode: "off", allocationPercent: 100, enabledTaskKinds: ["rewrite"] },
-        "turn-1",
-      ),
+      buildPlannedExecution({ decision: route(), fastPathEnabled: false }),
     ).toMatchObject({
       routingMode: "off",
       eligibleProfile: "light",
       plannedProfile: "standard",
-      reasonCodes: ["rollout_off"],
-    });
-
-    expect(
-      resolvePlannedProfile(
-        decision,
-        {
-          mode: "shadow",
-          allocationPercent: 100,
-          enabledTaskKinds: ["rewrite"],
-        },
-        "turn-1",
-      ),
-    ).toMatchObject({
-      routingMode: "shadow",
-      eligibleProfile: "light",
-      plannedProfile: "standard",
-      reasonCodes: ["rollout_shadow"],
+      reasonCodes: ["fast_path_disabled"],
     });
   });
 
-  it("keeps active non-allowlisted light work on standard", () => {
+  it("plans deterministic light work directly when the fast path is enabled", () => {
     expect(
-      resolvePlannedProfile(
-        route(),
-        {
-          mode: "active",
-          allocationPercent: 100,
-          enabledTaskKinds: ["social"],
-        },
-        "turn-2",
-      ),
+      buildPlannedExecution({ decision: route(), fastPathEnabled: true }),
     ).toMatchObject({
       routingMode: "active",
       eligibleProfile: "light",
-      plannedProfile: "standard",
-      reasonCodes: ["task_rollout_disabled"],
+      plannedProfile: "light",
     });
   });
 
-  it("uses deterministic allocation for the same stable key", () => {
-    const decision = route();
-    const config = {
-      mode: "active" as const,
-      allocationPercent: 50,
-      enabledTaskKinds: ["rewrite"] as const,
-    };
+  it("keeps standard work on standard regardless of the fast-path switch", () => {
+    const decision = route({
+      workload: { ...lightWorkload, taskKind: "knowledge" },
+    });
 
-    const first = resolvePlannedProfile(decision, config, "same-key-123");
-    const second = resolvePlannedProfile(decision, config, "same-key-123");
-
-    expect(first).toEqual(second);
+    expect(
+      buildPlannedExecution({ decision, fastPathEnabled: true }).plannedProfile,
+    ).toBe("standard");
+    expect(
+      buildPlannedExecution({ decision, fastPathEnabled: false })
+        .plannedProfile,
+    ).toBe("standard");
   });
 
   it("builds a versioned light bundle with a prevalidated standard fallback", () => {
     const planned = buildPlannedExecution({
       decision: route(),
-      config: {
-        mode: "active",
-        allocationPercent: 100,
-        enabledTaskKinds: ["rewrite"],
-      },
-      stableKey: "light-policy",
+      fastPathEnabled: true,
     });
 
     expect(planned).toMatchObject({
@@ -551,8 +426,7 @@ describe("execution routing", () => {
   it("builds no fallback for planned standard execution", () => {
     const planned = buildPlannedExecution({
       decision: route(),
-      config: { mode: "off", allocationPercent: 0, enabledTaskKinds: [] },
-      stableKey: "standard-policy",
+      fastPathEnabled: false,
     });
 
     expect(planned.primary.profile).toBe("standard");

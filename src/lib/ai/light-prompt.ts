@@ -1,5 +1,5 @@
 import { PROMPT_ANTHON_LIGHT_SOCIAL_VOICE } from "./communication-style";
-import type { TaskKind } from "./turn-classification";
+import type { TaskKind } from "./turn-routing-types";
 
 export type LightSystemPromptInput = {
   taskKind: TaskKind;

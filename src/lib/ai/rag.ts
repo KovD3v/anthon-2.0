@@ -11,7 +11,7 @@ import { generateEmbedding, generateEmbeddings } from "@/lib/ai/embeddings";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForClassifier } from "@/lib/ai/providers/openrouter-routing";
 import { withRagRead } from "@/lib/ai/rag-database";
-import { DEFAULT_TURN_CLASSIFIER_MODEL_ID } from "@/lib/ai/turn-classification";
+import { DEFAULT_TURN_CLASSIFIER_MODEL_ID } from "@/lib/ai/turn-routing-types";
 import { scheduleSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";

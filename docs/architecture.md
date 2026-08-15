@@ -67,8 +67,8 @@ app/
 | Module                   | Purpose                            |
 | ------------------------ | ---------------------------------- |
 | `ai/orchestrator.ts`     | Main chat preparation, streaming, prompt composition, and tool exposure |
-| `ai/capability-arbitration.ts` | Per-message optional-capability classifier plus deterministic normalization |
-| `ai/turn-arbitration.ts` / `ai/execution-routing.ts` | Unified classifier proposal, immutable `TurnDecision`, and fail-closed light/standard execution policy |
+| `ai/capability-arbitration.ts` | Deterministic capability guards and permission normalization |
+| `ai/turn-arbitration.ts` / `ai/execution-routing.ts` | Immutable `TurnDecision`, deterministic fast-path policy, and standard fallback |
 | `ai/turn-plan.ts`        | Immutable response, context, prompt, and capability plan |
 | `ai/session-manager.ts`  | Builds channel-scoped conversation context and summaries |
 | `ai/rag.ts` / `ai/tools/rag.ts` | pgvector retrieval and bounded agentic RAG tool |
@@ -112,7 +112,7 @@ components/
           ▼
 3. Shared channel flow + orchestrator
    ├── Resolve model and OpenRouter provider options
-   ├── Reuse one unified classifier proposal for capabilities and execution routing
+   ├── Apply deterministic capability guards and fast-path routing rules
    ├── Normalize and freeze one immutable TurnDecision (eligible/planned/executed profiles)
    ├── Normalize and freeze one immutable TurnPlan
    ├── Build same-thread context when selected
@@ -141,23 +141,21 @@ components/
 
 ### Execution routing
 
-The agentic classifier is called once per turn; its workload proposal is reused
-by deterministic execution routing, so the light/standard decision introduces
-no extra provider round trip. The policy allowlists only `social`, `rewrite`,
-`translate`, `format`, `extract`, and `summarize_supplied`; tools, uncertain
-classification, current/web knowledge, deep context, coaching/sensitivity,
-media, approvals, voice, or token-bound violations force standard.
+Live chat does not call an agentic classifier. Deterministic execution routing
+recognizes only obviously self-contained `social`, `rewrite`, `translate`,
+`format`, `extract`, and `summarize_supplied` turns; ambiguous work and every
+tool-requiring, contextual, coaching, media, approval, voice, or token-bound
+case force standard.
 
 The deployed model mapping is unchanged. `light` changes only the execution
 bundle (minimal reasoning, no tools, bounded output), not a plan's selected
-model. A routing trace separates classifier latency, generation TTFT for the
-executed attempt, and total-request TTFT from request start; it never presents
-classifier time as generation time.
+model. A routing trace separates generation TTFT for the executed attempt and
+total-request TTFT from request start; deterministic routing contributes no
+classifier latency.
 
-The shared `AI_EXECUTION_ROUTING_MODE=off` kill switch spans Web, Telegram, and
-WhatsApp. In `shadow`, eligible/planned/executed telemetry is recorded while
-standard remains executed. `active` applies only a stable local percentage and
-configured task allowlist; invalid configuration fails closed to `off`.
+The shared `AI_FAST_PATH_ENABLED=false` kill switch spans Web, Telegram, and
+WhatsApp. There is no shadow mode, percentage allocation, or database-backed
+task allowlist.
 
 ## Key Design Decisions
 

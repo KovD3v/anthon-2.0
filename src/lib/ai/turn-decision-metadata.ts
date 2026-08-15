@@ -4,7 +4,7 @@ import {
   freezeTurnDecision,
   type TurnDecision,
 } from "./execution-routing";
-import { TASK_KINDS } from "./turn-classification";
+import { TASK_KINDS } from "./turn-routing-types";
 
 const CAPABILITY_REASON_CODES = [
   "classifier_unavailable",

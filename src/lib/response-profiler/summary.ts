@@ -132,7 +132,7 @@ function shouldPresentSpan(span: ServerTraceSpanV1, usage: Usage): boolean {
   if (!route) return true;
 
   return (
-    route.classificationLatencyMs > 0 ||
+    (route.classificationLatencyMs ?? 0) > 0 ||
     route.decisionSource === "classifier" ||
     route.decisionSource === "mixed"
   );

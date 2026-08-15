@@ -1476,10 +1476,10 @@ describe("/api/webhooks/whatsapp", () => {
     );
   });
 
-  it("sync text persists one standard execution when routing is off", async () => {
+  it("sync text persists one standard execution when the fast path is disabled", async () => {
     process.env.WHATSAPP_SYNC_WEBHOOK = "true";
     process.env.WHATSAPP_DISABLE_SEND = "true";
-    process.env.AI_EXECUTION_ROUTING_MODE = "off";
+    process.env.AI_FAST_PATH_ENABLED = "false";
     const { turnDecision, executionRoute } = offRoutingFixture();
 
     mocks.prismaMessageFindFirst.mockResolvedValue(null);

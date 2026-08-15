@@ -521,8 +521,8 @@ describe("POST /api/guest/chat", () => {
     expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
-  it("persists one standard execution when guest routing is off", async () => {
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "off");
+  it("persists one standard execution when the fast path is disabled", async () => {
+    vi.stubEnv("AI_FAST_PATH_ENABLED", "false");
     const { turnDecision, executionRoute } = offRoutingFixture();
     let streamArgs: Record<string, unknown> | undefined;
     mocks.streamChat.mockImplementation(async (args) => {

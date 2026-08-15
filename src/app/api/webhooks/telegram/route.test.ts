@@ -1218,11 +1218,11 @@ describe("/api/webhooks/telegram", () => {
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
-  it("sync text persists one standard execution when routing is off", async () => {
+  it("sync text persists one standard execution when the fast path is disabled", async () => {
     process.env.TELEGRAM_SYNC_WEBHOOK = "true";
     process.env.TELEGRAM_DISABLE_SEND = "true";
     process.env.OPENROUTER_API_KEY = "sk-test";
-    process.env.AI_EXECUTION_ROUTING_MODE = "off";
+    process.env.AI_FAST_PATH_ENABLED = "false";
     const { turnDecision, executionRoute } = offRoutingFixture();
 
     mocks.prismaMessageFindFirst.mockResolvedValue(null);

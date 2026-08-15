@@ -1,5 +1,5 @@
 import type { ExecutionProfile } from "@/lib/ai/execution-routing";
-import type { TaskKind } from "@/lib/ai/turn-classification";
+import type { TaskKind } from "@/lib/ai/turn-routing-types";
 
 export type TurnRoutingFixture = {
   id: string;

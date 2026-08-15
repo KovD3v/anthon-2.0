@@ -182,11 +182,12 @@ timing. Legacy scalar metrics remain on `Message` for compatibility.
 
 `MessageMetrics.executionRoute` stores the schema-validated, privacy-allowlisted
 routing trace: eligible, planned, and executed profile; task kind; policy and
-classifier versions; confidence bucket; reason codes; attempts; bounded timing;
-and an optional light-to-standard escalation. It excludes user text, classifier
-prose, prompts, tool arguments/results, source content, and raw provider
-metadata. Its timing fields remain separate: `classificationLatencyMs` covers
-the classifier, each attempt's `timeToFirstTokenMs` is generation TTFT, and
+compatibility versions; confidence bucket; reason codes; attempts; bounded
+timing; and an optional light-to-standard escalation. It excludes user text,
+classifier prose, prompts, tool arguments/results, source content, and raw
+provider metadata. Current live routes do not populate classifier latency,
+model, or provider fields; those optional fields remain readable only for
+historical traces. Each attempt's `timeToFirstTokenMs` is generation TTFT, and
 `totalRequestTimeToFirstTokenMs` measures request-start-to-first-token TTFT.
 
 ### ConversationThread and ConversationThreadSummary

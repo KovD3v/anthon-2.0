@@ -38,6 +38,21 @@ describe("parseExecutionRouteTrace", () => {
     );
   });
 
+  it("accepts a current deterministic trace without classifier fields", () => {
+    const { classificationLatencyMs: _legacyLatency, ...currentTrace } =
+      completedStandardTrace;
+
+    expect(
+      parseExecutionRouteTrace({
+        ...currentTrace,
+        reasonCodes: ["fast_path_disabled"],
+      }),
+    ).toEqual({
+      ...currentTrace,
+      reasonCodes: ["fast_path_disabled"],
+    });
+  });
+
   it("accepts bounded classifier attribution while preserving legacy traces", () => {
     expect(
       parseExecutionRouteTrace({

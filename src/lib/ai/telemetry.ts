@@ -43,7 +43,9 @@ function executionRouteTelemetryProperties(trace: ExecutionRouteTrace) {
     attempt_count: trace.attempts.length,
     escalated: trace.escalation !== undefined,
     ...(trace.escalation ? { escalation_reason: trace.escalation.reason } : {}),
-    classification_latency_ms: trace.classificationLatencyMs,
+    ...(trace.classificationLatencyMs !== undefined
+      ? { classification_latency_ms: trace.classificationLatencyMs }
+      : {}),
     routing_overhead_ms: trace.routingOverheadMs,
     ...(trace.totalRequestTimeToFirstTokenMs !== undefined
       ? { total_request_ttft_ms: trace.totalRequestTimeToFirstTokenMs }

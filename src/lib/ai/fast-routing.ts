@@ -21,7 +21,7 @@ import type {
   TaskKind,
   TurnClassificationResult,
   TurnClassifierProposal,
-} from "./turn-classification";
+} from "./turn-routing-types";
 
 export type DeterministicRoutingInput = {
   userMessage: string;

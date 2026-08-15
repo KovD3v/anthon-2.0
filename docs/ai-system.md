@@ -33,9 +33,8 @@ The AI subsystem powers chat generation, retrieval, personalization, and backgro
 
 1. Resolve effective entitlements (`resolveEffectiveEntitlements`).
 2. Select model by plan/role/tier.
-3. Resolve the fail-closed memory-recall release decision once, then arbitrate
-   capabilities independently so one uncertain vote cannot erase confident
-   decisions for other capabilities.
+3. Resolve the fail-closed memory-recall release decision once, then apply
+   deterministic capability guards without a blocking classifier round trip.
 4. Build an immutable `TurnPlan` that independently selects response length,
    thread history, capabilities, and prompt profile.
 5. In parallel with same-thread context, run the no-LLM recall planner and load
@@ -60,20 +59,18 @@ The AI subsystem powers chat generation, retrieval, personalization, and backgro
 10. For every eligible authenticated completed turn, schedule durable-memory
     consolidation in the background independently of planner mode or tool use.
 
-### Per-message capability arbitration
+### Capability arbitration
 
-`src/lib/ai/capability-arbitration.ts` classifies optional capabilities on
-each turn. The classifier may select any useful combination of RAG, web
-search/fetch, memory read/write/delete, user context, routine proposal, and
-voice output. The normalized decision is frozen and projected into the
-`TurnPlan`; it is not a user toggle and it does not grant permissions.
+`src/lib/ai/capability-arbitration.ts` normalizes deterministic capability
+guards on each turn. It enforces authentication and guest restrictions,
+effective plan entitlements, privacy and approval rules, rate limits and usage
+reservations, tool schemas and step limits, exact targets, and idempotent or
+at-most-once operations. The normalized decision is frozen and projected into
+the `TurnPlan`; it is not a user toggle and it does not grant permissions.
 
-Deterministic policy remains authoritative around the model choice and every
-side effect: authentication and guest restrictions, effective plan
-entitlements, privacy and approval rules, rate limits and usage reservations,
-tool schemas and step limits, exact targets, and idempotent or at-most-once
-operations. If classification is unavailable or uncertain, the server uses
-the deterministic fallback.
+For `agentic` planning, the standard model decides whether to use none, one,
+or several of the tools exposed for that turn. Deterministic policy remains
+authoritative over which tools may be exposed and over every side effect.
 
 ### Toolset
 
@@ -201,7 +198,9 @@ latency percentiles, and cost.
 Web search is powered by TinyFish:
 
 - `tinyfishSearch` is used for current, live, post-cutoff, or explicit external web requests.
-- `tinyfishFetch` is only exposed when the user asks for source/page/link reading or the classifier marks fetch as useful.
+- `tinyfishFetch` is exposed for explicit source/page/link requests and to the
+  standard agentic model when web tools are available; the model decides
+  whether fetching is useful after selecting web search.
 - Brief current-information requests should normally use one broad search query and answer from the compact result snippets.
 - Search history context is capped separately from normal chat context to keep these turns low latency.
 
@@ -257,10 +256,10 @@ the legacy prefetch path:
    advice, reject immediately.
 3. Check whether RAG documents exist (cached); if none exist, return false.
 4. If a positive keyword is present, return true.
-5. Otherwise consult the five-minute classification cache, then the shared
-   Nemotron classifier (`nvidia/nemotron-3.5-lightning`) on the bounded
-   DeepInfra structured-output route as the final fallback. Classifier failures
-   return false.
+5. Otherwise consult the five-minute RAG classification cache, then the
+   bounded RAG classifier on the structured-output route as the final fallback.
+   This is a RAG-specific legacy prefetch decision, not profile routing; agentic
+   turns do not enter this path. Failures return false.
 
 ### Core functions
 
@@ -350,7 +349,7 @@ providers that support cache/session affinity can reuse prompt context.
 | Mode | Behavior |
 | ---- | -------- |
 | `legacy` | Compatibility path that preserves legacy RAG/web separation; shared post-turn fact consolidation still runs. |
-| `agentic` | Runs per-message capability classification, composable RAG + web, and validated optional tools; shared consolidation still runs. |
+| `agentic` | Exposes the permitted optional tools to the standard model for composable RAG + web and model-selected memory/tool use; shared consolidation still runs. |
 
 The default remains `legacy` until the rollout is deliberately changed. The
 separate `AI_TURN_PLANNER_MODE` compatibility switch is not repurposed by this
@@ -362,71 +361,38 @@ context and reuses the same decision for both variants and any normal fallback.
 Model-comparison responses are excluded from durable-memory consolidation so
 an unselected experimental answer cannot become user knowledge.
 
-### Light execution routing rollout
+### Light execution routing
 
-In agentic mode, the unified classifier returns one capability-and-workload
-proposal. Server-side arbitration then freezes one `TurnDecision`: capability
-authorization remains deterministic, while execution normalization derives an
-eligible `light` or `standard` profile. Routing reuses that classifier proposal;
-it adds no model or network round trip. The default classifier is
-`nvidia/nemotron-3.5-lightning`, routed to DeepInfra with reasoning disabled,
-strict structured output, and a three-second fail-closed timeout. An explicit
-`PROMPT_MODULE_CLASSIFIER_MODEL_ID` still overrides that default. In active
-production routing, a light attempt uses `deepseek/deepseek-v4-flash-0731`;
-standard turns continue to use the plan-resolved orchestrator model, currently
-`openai/gpt-5.6-luna`. Explicit benchmark model IDs remain authoritative for
-controlled comparisons.
+Live chat does not call an LLM classifier. Deterministic server rules identify
+only obviously self-contained turns such as simple social messages and direct
+transformations. Every ambiguous, contextual, tool-requiring, coaching,
+memory, media, voice, or externally informed turn goes to the standard model.
 
-DeepSeek light requests use OpenRouter latency sorting over the closed provider
-pool `Together,CoreWeave,Ambient`, with provider fallback and parameter support
-required. Prompt and completion prices are capped at `$0.15/M` and `$0.30/M`.
-If every provider fails or returns an empty response before visible output, the
-single existing profile escalation retries with the standard model and prompt;
-it does not retry DeepSeek as a standard attempt.
+When the capability planner is `agentic`, the standard model chooses whether to
+use web, RAG, memory, or other exposed tools. The fast path never receives
+tools, uses the compact prompt, and has bounded output. The selected model IDs
+and the existing light-to-standard pre-stream fallback are unchanged.
 
-Only high-confidence `social`, `rewrite`, `translate`, `format`, `extract`, and
-`summarize_supplied` work can be light-eligible. Any required or uncertain
-capability, external knowledge, deep context, coaching/sensitive or substantive
-reasoning, direct media, pending approval, voice delivery, input above 8,000
-tokens, output above 600 tokens, invalid/failed classification, or runtime
-version mismatch vetoes light execution. Server-recognized memory, routine,
-voice, coaching, and direct-media intents also authoritatively normalize the
-task kind; transformation text containing embedded instructions is never
-light-eligible.
+The static safety boundary permits only `social`, `rewrite`, `translate`,
+`format`, `extract`, and `summarize_supplied` to be light-eligible. This is a
+code-level policy, not a remotely learned or admin-managed allowlist. Any
+required capability, external knowledge, deep context, coaching/sensitive or
+substantive reasoning, direct media, pending approval, voice delivery, token
+limit, embedded instruction, or unresolved context vetoes light execution.
 
-The profiles in telemetry are deliberately distinct:
+`AI_FAST_PATH_ENABLED` is the only live fast-path switch. It defaults to
+enabled; set it to `false` to force standard execution across Web, Telegram,
+and WhatsApp. There is no request-time classifier, shadow mode, percentage
+allocation, task rollout, or database-backed routing configuration.
 
-- **eligible** is the deterministic result of normalization;
-- **planned** is the rollout policy selection; and
-- **executed** is the terminal attempt, including a fail-closed standard retry
-  when a light attempt fails before streaming.
+Telemetry distinguishes deterministic eligibility, planned/executed profile,
+generation TTFT, total-request TTFT, and escalation. Live deterministic
+routing contributes no classifier latency or classifier model/provider fields.
 
-`AI_EXECUTION_ROUTING_MODE` is a closed `off | shadow | active` switch.
-`AI_EXECUTION_ROUTING_PERCENT` is the stable local allocation percentage, and
-`AI_EXECUTION_ROUTING_TASKS` is a comma-separated subset of
-`social,rewrite,translate,format,extract,summarize_supplied`. Missing or invalid
-mode, percent, or task names resolve to `off`; the legacy
-`AI_EXECUTION_ROUTING_ALLOCATION_PERCENT` is read only as a backward-compatible
-alias when the canonical percent is absent. Allocation is stable for the same
-turn key and requires no network lookup.
-
-| Mode | Eligible profile | Planned/executed profile |
-| ---- | ---------------- | ------------------------ |
-| `off` | Computed in agentic mode | Always standard |
-| `shadow` | Computed and recorded | Always standard |
-| `active` | Computed | Eligible light only for the configured task cohort and stable allocation; otherwise standard |
-
-Use `off` as the shared kill switch for Web, Telegram, and WhatsApp. Roll out
-by deploying `off`, validating every channel, moving to 100% `shadow`, and
-reviewing at least 500 eligible examples per task family with zero protected
-false-light cases. Start `active` with social only, retain concurrent standard
-controls, then expand one mechanical task family at a time only after the
-latency, feedback, escalation, invariant, persistence, and recovery gates hold.
-
-Routing telemetry is privacy allowlisted: it records profile names, task kind,
-policy/classifier versions, confidence bucket, reason codes, counts, bounded
-latencies, and escalation status. It excludes classifier prose, user text,
-prompts, tool arguments/results, source content, and provider metadata.
+Routing telemetry is privacy bounded: it records profile names, task kind,
+policy version, confidence bucket, reason codes, counts, bounded latencies, and
+escalation status. It excludes user text, prompts, tool arguments/results, and
+source content.
 
 ### Conversation recall
 

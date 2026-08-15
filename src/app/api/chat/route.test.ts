@@ -636,8 +636,8 @@ describe("POST /api/chat", () => {
     );
   });
 
-  it("reuses the rejected comparison decision while routing off stays standard", async () => {
-    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "off");
+  it("reuses the rejected comparison decision while the fast path is disabled", async () => {
+    vi.stubEnv("AI_FAST_PATH_ENABLED", "false");
     const capabilityDecision = Object.freeze({
       rag: false,
       webSearch: true,

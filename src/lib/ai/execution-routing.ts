@@ -14,7 +14,7 @@ import {
   type CapabilityClassifierProposal,
   type TaskKind,
   type WorkloadProposal,
-} from "./turn-classification";
+} from "./turn-routing-types";
 
 export const EXECUTION_POLICY_VERSION = 1;
 export const TURN_CLASSIFIER_VERSION = 1;
@@ -64,6 +64,8 @@ export const EXECUTION_REASON_CODES = [
   "output_limit",
   "classifier_failure",
   "legacy_mode",
+  "fast_path_disabled",
+  // Kept for parsing traces produced by the removed rollout controller.
   "task_rollout_disabled",
   "rollout_off",
   "rollout_shadow",
@@ -90,12 +92,6 @@ export type TurnDecision = {
   execution: ExecutionDecision;
 };
 
-export type ExecutionRoutingConfig = {
-  mode: RoutingMode;
-  allocationPercent: number;
-  enabledTaskKinds: readonly LightTaskKind[];
-};
-
 export type ExecutionPolicy = {
   version: 1;
   profile: ExecutionProfile;
@@ -116,8 +112,7 @@ export type PlannedExecution = {
 
 export type BuildPlannedExecutionInput = {
   decision: ExecutionDecision;
-  config: ExecutionRoutingConfig;
-  stableKey: string;
+  fastPathEnabled: boolean;
 };
 
 type NormalizeExecutionDecisionInput = {
@@ -139,12 +134,6 @@ type NormalizeExecutionDecisionInput = {
   hasRecentContext: boolean;
   hasUntrustedSuppliedText: boolean;
   deterministicTaskKind: TaskKind | null;
-};
-
-const EMPTY_ROUTING_CONFIG: ExecutionRoutingConfig = {
-  mode: "off",
-  allocationPercent: 0,
-  enabledTaskKinds: [],
 };
 
 function addReason(
@@ -465,86 +454,19 @@ export function freezeTurnDecision(decision: TurnDecision): TurnDecision {
   }) as unknown as TurnDecision;
 }
 
-export function parseExecutionRoutingConfig(
-  env: Record<string, string | undefined>,
-): ExecutionRoutingConfig {
-  const mode = env.AI_EXECUTION_ROUTING_MODE;
-  if (mode !== "off" && mode !== "shadow" && mode !== "active") {
-    return EMPTY_ROUTING_CONFIG;
-  }
-
-  const allocationPercentRaw =
-    env.AI_EXECUTION_ROUTING_PERCENT ??
-    env.AI_EXECUTION_ROUTING_ALLOCATION_PERCENT;
-  const allocationPercent = Number(allocationPercentRaw);
-  if (
-    !Number.isFinite(allocationPercent) ||
-    allocationPercent < 0 ||
-    allocationPercent > 100
-  ) {
-    return EMPTY_ROUTING_CONFIG;
-  }
-
-  const taskList = env.AI_EXECUTION_ROUTING_TASKS?.trim();
-  if (!taskList) return EMPTY_ROUTING_CONFIG;
-
-  const enabledTaskKinds = taskList
-    .split(",")
-    .map((taskKind) => taskKind.trim());
-
-  if (
-    !enabledTaskKinds.every((taskKind) => isLightTaskKind(taskKind as TaskKind))
-  ) {
-    return EMPTY_ROUTING_CONFIG;
-  }
-
-  return {
-    mode,
-    allocationPercent,
-    enabledTaskKinds: enabledTaskKinds as LightTaskKind[],
-  };
-}
-
-function hashStableKey(stableKey: string): number {
-  let hash = 2_166_136_261;
-  for (let index = 0; index < stableKey.length; index += 1) {
-    hash ^= stableKey.charCodeAt(index);
-    hash = Math.imul(hash, 16_777_619);
-  }
-  return hash >>> 0;
-}
-
-function isAllocated(stableKey: string, allocationPercent: number): boolean {
-  if (allocationPercent <= 0) return false;
-  if (allocationPercent >= 100) return true;
-  const bucket = hashStableKey(stableKey) % 10_000;
-  return bucket < allocationPercent * 100;
-}
-
 function resolvePlannedProfileSelection(
   decision: ExecutionDecision,
-  config: ExecutionRoutingConfig,
-  stableKey: string,
+  fastPathEnabled: boolean,
 ): Pick<
   PlannedExecution,
   "routingMode" | "eligibleProfile" | "plannedProfile" | "reasonCodes"
 > {
   const reasonCodes: ExecutionReasonCode[] = [];
 
-  if (config.mode === "off") {
-    addReason(reasonCodes, "rollout_off");
+  if (!fastPathEnabled) {
+    addReason(reasonCodes, "fast_path_disabled");
     return {
-      routingMode: config.mode,
-      eligibleProfile: decision.eligibleProfile,
-      plannedProfile: "standard",
-      reasonCodes,
-    };
-  }
-
-  if (config.mode === "shadow") {
-    addReason(reasonCodes, "rollout_shadow");
-    return {
-      routingMode: config.mode,
+      routingMode: "off",
       eligibleProfile: decision.eligibleProfile,
       plannedProfile: "standard",
       reasonCodes,
@@ -553,7 +475,7 @@ function resolvePlannedProfileSelection(
 
   if (decision.eligibleProfile !== "light") {
     return {
-      routingMode: config.mode,
+      routingMode: "active",
       eligibleProfile: decision.eligibleProfile,
       plannedProfile: "standard",
       reasonCodes,
@@ -563,26 +485,7 @@ function resolvePlannedProfileSelection(
   if (!isLightTaskKind(decision.taskKind)) {
     addReason(reasonCodes, "runtime_invariant");
     return {
-      routingMode: config.mode,
-      eligibleProfile: decision.eligibleProfile,
-      plannedProfile: "standard",
-      reasonCodes,
-    };
-  }
-
-  if (!config.enabledTaskKinds.includes(decision.taskKind)) {
-    addReason(reasonCodes, "task_rollout_disabled");
-    return {
-      routingMode: config.mode,
-      eligibleProfile: decision.eligibleProfile,
-      plannedProfile: "standard",
-      reasonCodes,
-    };
-  }
-
-  if (!isAllocated(stableKey, config.allocationPercent)) {
-    return {
-      routingMode: config.mode,
+      routingMode: "active",
       eligibleProfile: decision.eligibleProfile,
       plannedProfile: "standard",
       reasonCodes,
@@ -590,7 +493,7 @@ function resolvePlannedProfileSelection(
   }
 
   return {
-    routingMode: config.mode,
+    routingMode: "active",
     eligibleProfile: decision.eligibleProfile,
     plannedProfile: "light",
     reasonCodes,
@@ -620,10 +523,9 @@ function lightExecutionPolicy(): ExecutionPolicy {
 
 export function buildPlannedExecution({
   decision,
-  config,
-  stableKey,
+  fastPathEnabled,
 }: BuildPlannedExecutionInput): PlannedExecution {
-  const selection = resolvePlannedProfileSelection(decision, config, stableKey);
+  const selection = resolvePlannedProfileSelection(decision, fastPathEnabled);
   const light = selection.plannedProfile === "light";
 
   return freezePlannedExecution({
@@ -631,12 +533,4 @@ export function buildPlannedExecution({
     primary: light ? lightExecutionPolicy() : standardExecutionPolicy(),
     ...(light ? { standardFallback: standardExecutionPolicy() } : {}),
   });
-}
-
-export function resolvePlannedProfile(
-  decision: ExecutionDecision,
-  config: ExecutionRoutingConfig,
-  stableKey: string,
-): PlannedExecution {
-  return buildPlannedExecution({ decision, config, stableKey });
 }

@@ -15,10 +15,9 @@ import { resolveDeterministicTurnClassification } from "./fast-routing";
 import {
   CAPABILITY_CLASSIFIER_MIN_CONFIDENCE,
   type CapabilityClassifierProposal,
-  classifyTurn,
   type TurnClassificationResult,
   type TurnClassifierProposal,
-} from "./turn-classification";
+} from "./turn-routing-types";
 
 const SELF_CONTAINED_TRANSFORM_TASKS = new Set([
   "rewrite",
@@ -32,9 +31,6 @@ export type TurnArbitrationInput = Omit<
   CapabilityArbitrationInput,
   "classifier"
 > & {
-  userId?: string;
-  classifierContext: string;
-  classifierModelId: string;
   plannerMode: "legacy" | "agentic";
   hasDeterministicCoachingIntent: boolean;
   requiresExternalKnowledge: boolean;
@@ -43,17 +39,7 @@ export type TurnArbitrationInput = Omit<
   estimatedInputTokens: number;
   requestedOutputTokens: number;
   hasRecentContext: boolean;
-  /**
-   * Chat requests keep this disabled: profile routing is deterministic and
-   * the standard model chooses tools agentically. Cold evaluations may opt in
-   * to the remote classifier without changing the request-critical path.
-   */
-  liveClassifierEnabled?: boolean;
-  measureClassifierCall?: (
-    operation: () => Promise<TurnClassificationResult>,
-  ) => Promise<TurnClassificationResult>;
   abortSignal?: AbortSignal;
-  waitUntil?: (promise: Promise<unknown>) => void;
 };
 
 export type TurnArbitrationResult = {
@@ -125,10 +111,6 @@ export async function arbitrateTurn(
 ): Promise<TurnArbitrationResult> {
   let classification: TurnClassificationResult;
   try {
-    const liveClassifierEnabled = input.liveClassifierEnabled !== false;
-    const measureClassifierCall =
-      input.measureClassifierCall ??
-      ((operation: () => Promise<TurnClassificationResult>) => operation());
     const deterministicClassification =
       input.plannerMode === "agentic"
         ? resolveDeterministicTurnClassification(
@@ -147,23 +129,10 @@ export async function arbitrateTurn(
               requestedOutputTokens: input.requestedOutputTokens,
               hasRecentContext: input.hasRecentContext,
             },
-            { fallbackToStandard: !liveClassifierEnabled },
+            { fallbackToStandard: true },
           )
         : null;
-    classification =
-      deterministicClassification ??
-      (input.plannerMode === "agentic" && liveClassifierEnabled
-        ? await measureClassifierCall(() =>
-            classifyTurn({
-              userId: input.userId,
-              userMessage: input.userMessage,
-              context: input.classifierContext,
-              modelId: input.classifierModelId,
-              abortSignal: input.abortSignal,
-              waitUntil: input.waitUntil,
-            }),
-          )
-        : legacyClassification());
+    classification = deterministicClassification ?? legacyClassification();
     input.abortSignal?.throwIfAborted();
   } catch (error) {
     input.abortSignal?.throwIfAborted();
