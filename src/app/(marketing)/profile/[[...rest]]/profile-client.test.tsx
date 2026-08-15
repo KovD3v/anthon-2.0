@@ -4,70 +4,23 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProfileClient } from "./profile-client";
 
-vi.mock("@clerk/nextjs", () => ({
-  UserProfile: ({
-    appearance,
-  }: {
-    appearance?: { cssLayerName?: string; theme?: string };
-  }) => (
-    <section
-      aria-label="Profilo Clerk"
-      data-appearance-css-layer={appearance?.cssLayerName}
-      data-appearance-theme={appearance?.theme}
-    />
-  ),
-  useUser: () => ({ isLoaded: true, user: { id: "user_test_123" } }),
-}));
-
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ back: vi.fn(), push: vi.fn() }),
 }));
 
-vi.mock("../components/UsageSection", () => ({
-  UsageSection: () => <section aria-label="Utilizzo" />,
-}));
-
-vi.mock("../components/PreferencesSection", () => ({
-  PreferencesSection: () => <section aria-label="Impostazioni" />,
-}));
-
-vi.mock("../components/CoachingContextSection", () => ({
-  CoachingContextSection: () => <section aria-label="Contesto coaching" />,
+vi.mock("../components/AccountConsole", () => ({
+  AccountConsole: () => <section aria-label="Account nativo Anthon" />,
 }));
 
 afterEach(cleanup);
 
 describe("ProfileClient", () => {
-  it("places usage between the Clerk profile and settings", () => {
+  it("renders the native account console instead of Clerk's profile UI", () => {
     render(<ProfileClient />);
-
-    const profile = screen.getByRole("region", { name: "Profilo Clerk" });
-    const usage = screen.getByRole("region", { name: "Utilizzo" });
-    const preferences = screen.getByRole("region", { name: "Impostazioni" });
 
     expect(
-      profile.compareDocumentPosition(usage) & Node.DOCUMENT_POSITION_FOLLOWING,
+      screen.getByRole("region", { name: "Account nativo Anthon" }),
     ).toBeTruthy();
-    expect(
-      usage.compareDocumentPosition(preferences) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-
-  it("shows the authenticated user id", () => {
-    render(<ProfileClient />);
-
-    const userId = screen.getByRole("region", { name: "ID utente" });
-
-    expect(userId.textContent).toContain("user_test_123");
-  });
-
-  it("uses Anthon's visual system for the Clerk profile", () => {
-    render(<ProfileClient />);
-
-    const profile = screen.getByRole("region", { name: "Profilo Clerk" });
-
-    expect(profile.getAttribute("data-appearance-theme")).toBe("simple");
-    expect(profile.getAttribute("data-appearance-css-layer")).toBe("clerk");
+    expect(screen.queryByLabelText("Profilo Clerk")).toBeNull();
   });
 });

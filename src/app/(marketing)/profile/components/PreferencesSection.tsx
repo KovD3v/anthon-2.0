@@ -1,13 +1,9 @@
 "use client";
 
-import { useClerk } from "@clerk/nextjs";
-import { Gauge, Loader2, Trash2, Volume2, VolumeX } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Gauge, Loader2, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { reportClientError } from "@/lib/client-error-reporting";
@@ -23,14 +19,10 @@ interface Preferences {
 }
 
 export function PreferencesSection() {
-  const { signOut } = useClerk();
-  const router = useRouter();
   const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [preferencesLoadError, setPreferencesLoadError] = useState(false);
   const [updating, setUpdating] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   // Fetch preferences on mount
   useEffect(() => {
@@ -91,19 +83,6 @@ export function PreferencesSection() {
     updatePreference("showTechnicalMetrics", checked);
   };
 
-  const handleDeleteAccount = async () => {
-    setDeleting(true);
-    try {
-      const response = await fetch("/api/user/me", { method: "DELETE" });
-      if (!response.ok) throw new Error("Failed to delete account");
-      await signOut({ redirectUrl: "/" });
-      router.push("/");
-    } catch {
-      toast.error("Errore nell'eliminazione dell'account");
-      setDeleting(false);
-    }
-  };
-
   if (loading) {
     return (
       <Card className="p-6">
@@ -120,123 +99,78 @@ export function PreferencesSection() {
     preferences?.effectiveShowTechnicalMetrics ?? false;
 
   return (
-    <>
-      <Card className="overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm">
-        {/* Header */}
-        <div className="border-b border-border/50 bg-muted/30 px-6 py-4">
-          <h2 className="text-lg font-semibold">Impostazioni</h2>
-          <p className="text-sm text-muted-foreground">
-            Personalizza il comportamento di Anthon
-          </p>
-        </div>
+    <Card className="overflow-hidden border-border/70 bg-card/70 shadow-none">
+      {/* Header */}
+      <div className="border-b border-border/70 bg-muted/25 px-6 py-5">
+        <h2 className="font-display text-2xl font-bold uppercase tracking-tight">
+          Come risponde Anthon
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Personalizza tono, voce e dettagli delle risposte.
+        </p>
+      </div>
 
-        {/* Preferences List */}
-        <div className="divide-y divide-border/50">
-          {/* Voice Preference */}
-          <div className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-muted/20">
-            <div className="flex items-center gap-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/10">
-                {dontSendAudio ? (
-                  <VolumeX className="h-5 w-5 text-orange-500" />
-                ) : (
-                  <Volume2 className="h-5 w-5 text-orange-500" />
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <Label
-                  htmlFor="voice-toggle"
-                  className="text-sm font-medium cursor-pointer"
-                >
-                  Non mandare audio
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Anthon risponderà solo con messaggi di testo
-                </p>
-              </div>
+      {/* Preferences List */}
+      <div className="divide-y divide-border/70">
+        {/* Voice Preference */}
+        <div className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-muted/20">
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/10">
+              {dontSendAudio ? (
+                <VolumeX className="h-5 w-5 text-orange-500" />
+              ) : (
+                <Volume2 className="h-5 w-5 text-orange-500" />
+              )}
             </div>
-            <Switch
-              id="voice-toggle"
-              checked={dontSendAudio}
-              onCheckedChange={handleVoiceToggle}
-              disabled={updating}
-              aria-label="Disabilita messaggi audio"
-            />
-          </div>
-
-          <div className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-muted/20">
-            <div className="flex items-center gap-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
-                <Gauge className="h-5 w-5 text-blue-500" />
-              </div>
-              <div className="space-y-0.5">
-                <Label
-                  htmlFor="technical-metrics-toggle"
-                  className="text-sm font-medium cursor-pointer"
-                >
-                  Mostra dettagli tecnici delle risposte
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {preferencesLoadError
-                    ? "Impossibile caricare questa preferenza."
-                    : "Visualizza tempi e metriche nelle tue conversazioni private"}
-                </p>
-              </div>
+            <div className="space-y-0.5">
+              <Label
+                htmlFor="voice-toggle"
+                className="text-sm font-medium cursor-pointer"
+              >
+                Non mandare audio
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Anthon risponderà solo con messaggi di testo
+              </p>
             </div>
-            <Switch
-              id="technical-metrics-toggle"
-              checked={showTechnicalMetrics}
-              onCheckedChange={handleTechnicalMetricsToggle}
-              disabled={updating || preferences === null}
-              aria-label="Mostra dettagli tecnici delle risposte"
-            />
           </div>
+          <Switch
+            id="voice-toggle"
+            checked={dontSendAudio}
+            onCheckedChange={handleVoiceToggle}
+            disabled={updating}
+            aria-label="Disabilita messaggi audio"
+          />
         </div>
-      </Card>
 
-      {/* Danger Zone */}
-      <Card className="overflow-hidden border-destructive/30 bg-card/50 backdrop-blur-sm">
-        <div className="border-b border-destructive/20 bg-destructive/5 px-6 py-4">
-          <h2 className="text-lg font-semibold text-destructive">
-            Zona pericolosa
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Azioni irreversibili sull'account
-          </p>
-        </div>
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div className="space-y-0.5">
-            <p className="text-sm font-medium">Elimina account</p>
-            <p className="text-xs text-muted-foreground">
-              Elimina definitivamente il tuo account e tutti i dati associati
-            </p>
+        <div className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-muted/20">
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
+              <Gauge className="h-5 w-5 text-blue-500" />
+            </div>
+            <div className="space-y-0.5">
+              <Label
+                htmlFor="technical-metrics-toggle"
+                className="text-sm font-medium cursor-pointer"
+              >
+                Mostra dettagli tecnici delle risposte
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {preferencesLoadError
+                  ? "Impossibile caricare questa preferenza."
+                  : "Visualizza tempi e metriche nelle tue conversazioni private"}
+              </p>
+            </div>
           </div>
-          <Button
-            variant="destructive"
-            size="sm"
-            className="gap-2 shrink-0"
-            onClick={() => setShowDeleteConfirm(true)}
-            disabled={deleting}
-          >
-            {deleting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
-            Elimina account
-          </Button>
+          <Switch
+            id="technical-metrics-toggle"
+            checked={showTechnicalMetrics}
+            onCheckedChange={handleTechnicalMetricsToggle}
+            disabled={updating || preferences === null}
+            aria-label="Mostra dettagli tecnici delle risposte"
+          />
         </div>
-      </Card>
-
-      <ConfirmDialog
-        open={showDeleteConfirm}
-        onOpenChange={setShowDeleteConfirm}
-        onConfirm={handleDeleteAccount}
-        title="Eliminare l'account?"
-        description="Questa azione è irreversibile. Tutti i tuoi dati, conversazioni e impostazioni verranno eliminati definitivamente."
-        confirmText="Sì, elimina"
-        cancelText="Annulla"
-        variant="destructive"
-      />
-    </>
+      </div>
+    </Card>
   );
 }
