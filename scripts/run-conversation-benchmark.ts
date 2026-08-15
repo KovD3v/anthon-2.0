@@ -131,8 +131,7 @@ async function main() {
       JSON.stringify({
         scenarioVersion: "conversation-v1",
         model: "openai/gpt-5.6-luna",
-        turnPlanner: process.env.AI_TURN_PLANNER_MODE ?? "v2",
-        capabilityPlanner: process.env.AI_CAPABILITY_PLANNER_MODE ?? "default",
+        executionPath: "single-agentic",
       }),
     )
     .digest("hex");

@@ -177,7 +177,7 @@ vi.mock("@/lib/voice/generation-jobs", () => ({
 }));
 
 import type { CapabilityDecision } from "@/lib/ai/capability-arbitration";
-import { freezeTurnDecision } from "@/lib/ai/execution-routing";
+import { freezeTurnDecision } from "@/lib/ai/turn-decision";
 import { getWebClientPayloadHash } from "@/lib/channel-flow/web-inbound";
 import { POST, PUT } from "./route";
 
@@ -636,8 +636,7 @@ describe("POST /api/chat", () => {
     );
   });
 
-  it("reuses the rejected comparison decision while the fast path is disabled", async () => {
-    vi.stubEnv("AI_FAST_PATH_ENABLED", "false");
+  it("reuses the rejected comparison capability decision", async () => {
     const capabilityDecision = Object.freeze({
       rag: false,
       webSearch: true,
@@ -649,36 +648,24 @@ describe("POST /api/chat", () => {
       routineProposal: false,
       userContext: false,
       voiceOutput: false,
-      source: "classifier" as const,
+      source: "rule" as const,
       reasonCodes: Object.freeze([]),
     }) as unknown as CapabilityDecision;
     const turnDecision = freezeTurnDecision({
       version: 1,
       capabilities: capabilityDecision,
-      execution: {
-        eligibleProfile: "light",
-        taskKind: "rewrite",
-        contextDependency: "recent",
-        source: "classifier",
-        confidenceBucket: "high",
-        reasonCodes: ["classifier_light", "task_allowlisted"],
-        policyVersion: 1,
-        classifierVersion: 1,
-      },
     });
     mocks.tryCreateModelComparisonResponse.mockImplementation(
       async ({ onPreparedTurnRejected }) => {
         onPreparedTurnRejected?.({
           turnDecision,
           capabilityPlannerMode: "agentic",
-          classificationLatencyMs: 14,
         });
         return null;
       },
     );
     mocks.streamChat.mockResolvedValue({
       turnDecision,
-      classificationLatencyMs: 14,
       capabilityDecision,
       capabilityPlannerMode: "agentic",
       textStream: (async function* () {})(),
@@ -703,7 +690,6 @@ describe("POST /api/chat", () => {
         preparedTurnContext: {
           turnDecision,
           capabilityPlannerMode: "agentic",
-          classificationLatencyMs: 14,
         },
       }),
     );

@@ -6,10 +6,10 @@ import {
 } from "./chat-metadata-model";
 
 describe("chat metadata model routing", () => {
-  it("compares the two DeepSeek revisions with Nemotron without aliases", () => {
+  it("compares the incumbent with Gemini Flash Lite and Nemotron", () => {
     expect(CHAT_METADATA_MODEL_CANDIDATES).toEqual([
       "deepseek/deepseek-v4-flash",
-      "deepseek/deepseek-v4-flash-0731",
+      "google/gemini-2.5-flash-lite",
       "nvidia/nemotron-3.5-lightning",
     ]);
   });
@@ -18,17 +18,11 @@ describe("chat metadata model routing", () => {
     expect(CHAT_METADATA_MODEL_ID).toBe("deepseek/deepseek-v4-flash");
   });
 
-  it("uses the measured light provider pool for DeepSeek 0731 metadata", () => {
+  it("uses the generic classifier-safe provider options for the candidate", () => {
     expect(
-      getChatMetadataProviderOptions("deepseek/deepseek-v4-flash-0731", {}),
+      getChatMetadataProviderOptions("google/gemini-2.5-flash-lite", {}),
     ).toEqual({
-      provider: {
-        sort: "latency",
-        only: ["Together", "CoreWeave", "Ambient"],
-        allow_fallbacks: true,
-        require_parameters: true,
-        max_price: { prompt: 0.15, completion: 0.3 },
-      },
+      provider: { sort: "latency", require_parameters: true },
       reasoning: { enabled: false, max_tokens: 1 },
     });
   });

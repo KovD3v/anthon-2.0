@@ -1,5 +1,4 @@
 import type { Prisma } from "@/generated/prisma";
-import type { ExecutionRouteTrace } from "@/lib/ai/execution-route-trace";
 import {
   decryptAiTurnTracePayload,
   encryptAiTurnTracePayload,
@@ -9,48 +8,6 @@ import { createLogger } from "@/lib/logger";
 
 const traceLogger = createLogger("ai");
 const TRACE_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
-
-export type ExecutionRoutingSummary = {
-  eligibleProfile: ExecutionRouteTrace["eligibleProfile"];
-  plannedProfile: ExecutionRouteTrace["plannedProfile"];
-  executedProfile: ExecutionRouteTrace["executedProfile"];
-  taskKind: ExecutionRouteTrace["taskKind"];
-  policyVersion: ExecutionRouteTrace["policyVersion"];
-  attemptCount: number;
-  escalated: boolean;
-};
-
-export function buildExecutionRoutingSummary(
-  executionRoute: ExecutionRouteTrace,
-): ExecutionRoutingSummary {
-  return {
-    eligibleProfile: executionRoute.eligibleProfile,
-    plannedProfile: executionRoute.plannedProfile,
-    executedProfile: executionRoute.executedProfile,
-    taskKind: executionRoute.taskKind,
-    policyVersion: executionRoute.policyVersion,
-    attemptCount: executionRoute.attempts.length,
-    escalated: executionRoute.escalation !== undefined,
-  };
-}
-
-export function buildExecutionRoutingTraceMetadata(
-  executionRoute: ExecutionRouteTrace,
-) {
-  return {
-    ...buildExecutionRoutingSummary(executionRoute),
-    ...(executionRoute.totalRequestTimeToFirstTokenMs !== undefined
-      ? {
-          totalRequestTimeToFirstTokenMs:
-            executionRoute.totalRequestTimeToFirstTokenMs,
-        }
-      : {}),
-    routingOverheadMs: executionRoute.routingOverheadMs,
-    ...(executionRoute.escalation
-      ? { escalationReason: executionRoute.escalation.reason }
-      : {}),
-  };
-}
 
 export type AiTraceCapture = {
   userId: string;

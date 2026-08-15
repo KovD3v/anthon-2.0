@@ -125,17 +125,10 @@ function getPresentationSpans(spans: readonly ServerTraceSpanV1[]) {
   });
 }
 
-function shouldPresentSpan(span: ServerTraceSpanV1, usage: Usage): boolean {
-  if (span.name !== "classification") return true;
-
-  const route = usage.executionRoute;
-  if (!route) return true;
-
-  return (
-    (route.classificationLatencyMs ?? 0) > 0 ||
-    route.decisionSource === "classifier" ||
-    route.decisionSource === "mixed"
-  );
+function shouldPresentSpan(span: ServerTraceSpanV1): boolean {
+  // These names belong to the removed live profile router. Keep the parser
+  // compatible with old traces, but never present them as current latency.
+  return span.name !== "classification" && span.name !== "routing";
 }
 
 export function deriveResponseProfilerSummary(
@@ -152,7 +145,7 @@ export function deriveResponseProfilerSummary(
   const browserTotalMs = Math.max(0, ...clientOffsets);
   const presentationSpans = serverTrace
     ? getPresentationSpans(
-        serverTrace.spans.filter((span) => shouldPresentSpan(span, usage)),
+        serverTrace.spans.filter((span) => shouldPresentSpan(span)),
       )
     : [];
   const serverRows = presentationSpans.map((span) => ({

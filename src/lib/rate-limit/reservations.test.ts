@@ -492,14 +492,10 @@ describe("AI usage reservations", () => {
     expect(result.recovery.capabilityMetadataValid).toBe(true);
     expect(result.recovery.capabilityPlannerMode).toBe("legacy");
     expect(result.recovery.capabilityDecision).toBeUndefined();
-    expect(result.recovery.executionMetadataValid).toBe(false);
-    expect(result.recovery.executionRoute).toBeUndefined();
-    expect(result.recovery.executionRoute?.executedProfile ?? "standard").toBe(
-      "standard",
-    );
+    expect(result.recovery.executionMetadataValid).toBe(true);
   });
 
-  it("restores a valid route as independently validated frozen metadata", async () => {
+  it("discards historical route metadata during recovery", async () => {
     const executionRoute = escalatedExecutionRoute();
     mockReconciledDecision({
       recoveryText: "saved provider output",
@@ -519,21 +515,7 @@ describe("AI usage reservations", () => {
       throw new Error("Expected a recovered result");
     }
     expect(result.recovery.capabilityMetadataValid).toBe(false);
-    expect(result.recovery.executionMetadataValid).toBe(true);
-    expect(result.recovery.executionRoute).toEqual(executionRoute);
-    expect(Object.isFrozen(result.recovery.executionRoute)).toBe(true);
-    expect(Object.isFrozen(result.recovery.executionRoute?.reasonCodes)).toBe(
-      true,
-    );
-    expect(Object.isFrozen(result.recovery.executionRoute?.attempts)).toBe(
-      true,
-    );
-    expect(Object.isFrozen(result.recovery.executionRoute?.attempts[0])).toBe(
-      true,
-    );
-    expect(Object.isFrozen(result.recovery.executionRoute?.escalation)).toBe(
-      true,
-    );
+    expect(result.recovery.executionMetadataValid).toBe(false);
     expect(result.recovery.metrics).not.toHaveProperty("executionRoute");
     expect(mocks.arbitrateTurn).not.toHaveBeenCalled();
   });
@@ -566,8 +548,7 @@ describe("AI usage reservations", () => {
       throw new Error("Expected a recovered result");
     }
     expect(result.recovery.capabilityMetadataValid).toBe(true);
-    expect(result.recovery.executionMetadataValid).toBe(false);
-    expect(result.recovery.executionRoute).toBeUndefined();
+    expect(result.recovery.executionMetadataValid).toBe(true);
     expect(result.recovery.metrics).not.toHaveProperty("executionRoute");
     expect(mocks.arbitrateTurn).not.toHaveBeenCalled();
   });
@@ -869,6 +850,7 @@ describe("AI usage reservations", () => {
     });
     expect(persisted.recoveryMetrics).not.toHaveProperty("reasoningContent");
     expect(persisted.recoveryMetrics).not.toHaveProperty("providerMetadata");
+    expect(persisted.recoveryMetrics).not.toHaveProperty("executionRoute");
     expect(JSON.stringify(persisted.recoveryMetrics)).not.toContain(
       "private_memory_key",
     );
@@ -882,7 +864,6 @@ describe("AI usage reservations", () => {
       outputTokens: 20,
       reasoningTokens: 4,
       costUsd: 0.007,
-      executionRoute,
     });
 
     mockReservationDecision(
@@ -908,7 +889,6 @@ describe("AI usage reservations", () => {
       reasoningTokens: 4,
       costUsd: 0.007,
     });
-    expect(recovered.recovery.executionRoute?.attempts).toHaveLength(2);
     expect(recovered.recovery.executionMetadataValid).toBe(true);
     expect(mocks.arbitrateTurn).not.toHaveBeenCalled();
   });

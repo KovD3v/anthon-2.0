@@ -15,7 +15,6 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 import {
-  captureAiExecutionRouting,
   captureAiGenerationMetadata,
   captureClientTraceStored,
 } from "./telemetry";
@@ -172,207 +171,6 @@ describe("captureAiGenerationMetadata", () => {
     expect(captured.properties.$ai_model).toHaveLength(128);
     expect(captured.properties.conversationId).toHaveLength(128);
   });
-
-  it("flattens only safe execution-route scalars into generation telemetry", () => {
-    captureAiGenerationMetadata({
-      context: { distinctId: "user-1", traceId: "trace-1" },
-      metrics: {
-        model: "standard-model",
-        inputTokens: 60,
-        outputTokens: 20,
-        reasoningTokens: 4,
-        toolCalls: null,
-        ragUsed: false,
-        ragChunksCount: 0,
-        costUsd: 0.007,
-        generationTimeMs: 800,
-        reasoningTimeMs: null,
-        executionRoute: {
-          schemaVersion: 1,
-          routingMode: "active",
-          policyVersion: 1,
-          classifierVersion: 1,
-          eligibleProfile: "light",
-          plannedProfile: "light",
-          executedProfile: "standard",
-          taskKind: "rewrite",
-          decisionSource: "classifier",
-          confidenceBucket: "high",
-          reasonCodes: ["classifier_light"],
-          classificationLatencyMs: 25,
-          routingOverheadMs: 2,
-          totalRequestTimeToFirstTokenMs: 310,
-          attempts: [
-            {
-              sequence: 1,
-              profile: "light",
-              outcome: "failed_before_stream",
-              generationTimeMs: 50,
-            },
-            {
-              sequence: 2,
-              profile: "standard",
-              outcome: "completed",
-              generationTimeMs: 800,
-            },
-          ],
-          escalation: {
-            from: "light",
-            to: "standard",
-            reason: "empty_response",
-          },
-        },
-        userText: "SECRET_USER_TEXT",
-        prompt: "SECRET_PROMPT",
-        classifierProse: "SECRET_CLASSIFIER_PROSE",
-        reasoning: "SECRET_REASONING",
-        url: "https://secret.example/SECRET_URL",
-        memory: "SECRET_MEMORY",
-        toolPayload: { secret: "SECRET_TOOL_PAYLOAD" },
-      } as never,
-    });
-
-    expect(mocks.capture).toHaveBeenCalledWith({
-      distinctId: "user-1",
-      event: "$ai_generation",
-      properties: expect.objectContaining({
-        routing_mode: "active",
-        eligible_profile: "light",
-        planned_profile: "light",
-        executed_profile: "standard",
-        task_kind: "rewrite",
-        decision_source: "classifier",
-        confidence_bucket: "high",
-        policy_version: 1,
-        classifier_version: 1,
-        attempt_count: 2,
-        escalated: true,
-        escalation_reason: "empty_response",
-        classification_latency_ms: 25,
-        routing_overhead_ms: 2,
-        total_request_ttft_ms: 310,
-      }),
-    });
-
-    const captured = JSON.stringify(mocks.capture.mock.calls[0]);
-    for (const secret of [
-      "SECRET_USER_TEXT",
-      "SECRET_PROMPT",
-      "SECRET_CLASSIFIER_PROSE",
-      "SECRET_REASONING",
-      "SECRET_URL",
-      "SECRET_MEMORY",
-      "SECRET_TOOL_PAYLOAD",
-    ]) {
-      expect(captured).not.toContain(secret);
-    }
-  });
-
-  it("omits malformed execution-route scalars from generation telemetry", () => {
-    captureAiGenerationMetadata({
-      context: { distinctId: "user-1", traceId: "trace-1" },
-      metrics: {
-        model: "standard-model",
-        inputTokens: 60,
-        outputTokens: 20,
-        reasoningTokens: null,
-        toolCalls: null,
-        ragUsed: false,
-        ragChunksCount: 0,
-        costUsd: 0.007,
-        generationTimeMs: 800,
-        reasoningTimeMs: null,
-        executionRoute: {
-          schemaVersion: 1,
-          routingMode: "UNSAFE_ROUTE_MODE",
-          policyVersion: 1,
-          classifierVersion: 1,
-          eligibleProfile: "light",
-          plannedProfile: "light",
-          executedProfile: "standard",
-          taskKind: "UNSAFE_TASK_KIND",
-          decisionSource: "classifier",
-          confidenceBucket: "high",
-          reasonCodes: ["classifier_light"],
-          classificationLatencyMs: 25,
-          routingOverheadMs: 2,
-          attempts: [
-            {
-              sequence: 1,
-              profile: "standard",
-              outcome: "completed",
-              generationTimeMs: 800,
-            },
-          ],
-        },
-      } as never,
-    });
-
-    const properties = mocks.capture.mock.calls[0]?.[0].properties;
-    expect(properties).not.toHaveProperty("routing_mode");
-    expect(properties).not.toHaveProperty("task_kind");
-    expect(JSON.stringify(properties)).not.toContain("UNSAFE_ROUTE_MODE");
-    expect(JSON.stringify(properties)).not.toContain("UNSAFE_TASK_KIND");
-  });
-
-  it("captures a terminal route failure without assistant metrics", () => {
-    captureAiExecutionRouting({
-      context: { distinctId: "user-1", traceId: "trace-1" },
-      executionRoute: {
-        schemaVersion: 1,
-        routingMode: "active",
-        policyVersion: 1,
-        classifierVersion: 1,
-        eligibleProfile: "light",
-        plannedProfile: "light",
-        executedProfile: "standard",
-        taskKind: "rewrite",
-        decisionSource: "classifier",
-        confidenceBucket: "high",
-        reasonCodes: ["classifier_light"],
-        classificationLatencyMs: 25,
-        routingOverheadMs: 2,
-        totalRequestTimeToFirstTokenMs: 310,
-        attempts: [
-          {
-            sequence: 1,
-            profile: "light",
-            outcome: "failed_before_stream",
-            generationTimeMs: 50,
-          },
-          {
-            sequence: 2,
-            profile: "standard",
-            outcome: "failed_before_stream",
-            generationTimeMs: 100,
-          },
-        ],
-        escalation: {
-          from: "light",
-          to: "standard",
-          reason: "provider_error",
-        },
-      },
-      costUsd: 0.007,
-    });
-
-    expect(mocks.capture).toHaveBeenCalledTimes(1);
-    expect(mocks.capture).toHaveBeenCalledWith({
-      distinctId: "user-1",
-      event: "ai_execution_routing",
-      properties: expect.objectContaining({
-        routing_mode: "active",
-        eligible_profile: "light",
-        planned_profile: "light",
-        executed_profile: "standard",
-        attempt_count: 2,
-        escalated: true,
-        escalation_reason: "provider_error",
-        terminal_outcome: "failed_before_stream",
-        total_cost_usd: 0.007,
-      }),
-    });
-  });
 });
 
 describe("captureClientTraceStored", () => {
@@ -402,40 +200,6 @@ describe("captureClientTraceStored", () => {
           persistedMessageResolvedMs: 70,
         },
       },
-      executionRoute: {
-        schemaVersion: 1,
-        routingMode: "active",
-        policyVersion: 1,
-        classifierVersion: 1,
-        eligibleProfile: "light",
-        plannedProfile: "light",
-        executedProfile: "standard",
-        taskKind: "rewrite",
-        decisionSource: "classifier",
-        confidenceBucket: "high",
-        reasonCodes: [],
-        classificationLatencyMs: 10,
-        routingOverheadMs: 2,
-        attempts: [
-          {
-            sequence: 1,
-            profile: "light",
-            outcome: "failed_before_stream",
-            generationTimeMs: 30,
-          },
-          {
-            sequence: 2,
-            profile: "standard",
-            outcome: "completed",
-            generationTimeMs: 100,
-          },
-        ],
-        escalation: {
-          from: "light",
-          to: "standard",
-          reason: "provider_error",
-        },
-      },
     });
 
     expect(mocks.capture).toHaveBeenCalledWith({
@@ -448,7 +212,6 @@ describe("captureClientTraceStored", () => {
         perceived_completion_ms: 60,
         model: "standard-model",
         provider: "Nebius",
-        executed_profile: "standard",
       },
     });
     const captured = JSON.stringify(mocks.capture.mock.calls[0]);

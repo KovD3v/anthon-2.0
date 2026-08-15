@@ -12,9 +12,8 @@ const completeProfilerUsage = {
   cost: 0.00314,
   generationTimeMs: 1_420,
   messageId: "message-admin-1",
-  model: "deepseek/deepseek-v4-flash-0731",
+  model: "deepseek/deepseek-v4-flash",
   provider: "Together",
-  executedProfile: "standard" as const,
   serverTrace: {
     version: 1 as const,
     status: "completed" as const,
@@ -43,8 +42,7 @@ const completeProfilerUsage = {
         status: "completed" as const,
         attributes: {
           attemptSequence: 1 as const,
-          profile: "standard" as const,
-          model: "deepseek/deepseek-v4-flash-0731",
+          model: "deepseek/deepseek-v4-flash",
           provider: "Together",
           outcome: "completed" as const,
         },
@@ -183,54 +181,40 @@ describe("TechnicalMetricsDetails", () => {
     expect(screen.queryByText("0 ms")).toBeNull();
   });
 
-  it("reconstructs legacy phases on one clock without presenting a false total", () => {
-    const { container } = render(
+  it("ignores historical profile-router metadata instead of presenting it as current latency", () => {
+    render(
       <TechnicalMetricsDetails
-        usage={{
-          inputTokens: 120,
-          outputTokens: 80,
-          cost: 0.001,
-          generationTimeMs: 1_190,
-          executionRoute: {
-            routingMode: "active",
-            eligibleProfile: "light",
-            plannedProfile: "light",
-            executedProfile: "light",
-            taskKind: "coaching",
-            decisionSource: "classifier",
-            confidenceBucket: "high",
-            reasonCodes: ["simple_turn"],
-            classificationLatencyMs: 1_356,
-            routingOverheadMs: 52,
-            totalRequestTimeToFirstTokenMs: 1_991,
-            attempts: [
-              {
-                sequence: 1,
-                profile: "light",
-                outcome: "completed",
-                timeToFirstTokenMs: 582,
-                generationTimeMs: 1_190,
-              },
-            ],
-          },
-        }}
+        usage={
+          {
+            inputTokens: 120,
+            outputTokens: 80,
+            cost: 0.001,
+            generationTimeMs: 1_190,
+            executionRoute: {
+              routingMode: "active",
+              eligibleProfile: "light",
+              plannedProfile: "light",
+              executedProfile: "light",
+              taskKind: "coaching",
+              decisionSource: "classifier",
+              confidenceBucket: "high",
+              reasonCodes: ["simple_turn"],
+              classificationLatencyMs: 1_356,
+              routingOverheadMs: 52,
+              totalRequestTimeToFirstTokenMs: 1_991,
+              attempts: [],
+            },
+          } as never
+        }
       />,
     );
 
-    expect(screen.getByText("Timeline ricostruita")).toBeTruthy();
-    expect(screen.getByText("Tempo totale risposta")).toBeTruthy();
-    expect(screen.getByText("Non registrato")).toBeTruthy();
-    expect(screen.getByText("Fine generazione stimata")).toBeTruthy();
-    expect(screen.getByText("2,6 s")).toBeTruthy();
-    expect(screen.getByText("0 ms → 1,36 s")).toBeTruthy();
-    expect(screen.getByText("1,36 s → 1,41 s")).toBeTruthy();
-    expect(screen.getByText("1,41 s → 2,6 s")).toBeTruthy();
-    expect(screen.getByText("Primo token a 1,99 s")).toBeTruthy();
-    expect(screen.queryByText("Profiler latenza")).toBeNull();
-    expect(container.querySelectorAll(".inset-y-0").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Classificazione")).toBeNull();
+    expect(screen.queryByText("Timeline ricostruita")).toBeNull();
+    expect(screen.queryByText(/profilo/i)).toBeNull();
   });
 
-  it("opens rich localhost diagnostics and exposes routing, profiler, and context", () => {
+  it("shows current model, tools, RAG, and memory diagnostics without routing fields", () => {
     const { container } = render(
       <TechnicalMetricsDetails
         usage={{
@@ -239,7 +223,7 @@ describe("TechnicalMetricsDetails", () => {
           reasoningTokens: 48,
           cost: 0.00314,
           generationTimeMs: 1420,
-          model: "deepseek/deepseek-v4-flash-0731",
+          model: "deepseek/deepseek-v4-flash",
           provider: "Together",
           toolCallCount: 2,
           toolResultChars: 1840,
@@ -260,60 +244,19 @@ describe("TechnicalMetricsDetails", () => {
             conversationRecallMs: 34,
             degraded: false,
           },
-          executionRoute: {
-            routingMode: "active",
-            eligibleProfile: "light",
-            plannedProfile: "light",
-            executedProfile: "standard",
-            taskKind: "coaching",
-            decisionSource: "classifier",
-            confidenceBucket: "high",
-            reasonCodes: ["simple_turn"],
-            classificationLatencyMs: 18,
-            classifierModel: "nvidia/nemotron-3.5-lightning",
-            classifierProvider: "DeepInfra",
-            routingOverheadMs: 24,
-            totalRequestTimeToFirstTokenMs: 390,
-            attempts: [
-              {
-                sequence: 1,
-                profile: "light",
-                outcome: "failed_before_stream",
-                generationTimeMs: 150,
-              },
-              {
-                sequence: 2,
-                profile: "standard",
-                outcome: "completed",
-                timeToFirstTokenMs: 210,
-                generationTimeMs: 1270,
-              },
-            ],
-            escalation: {
-              from: "light",
-              to: "standard",
-              reason: "provider_error",
-            },
-          },
         }}
       />,
     );
 
     expect(container.querySelector("details")?.open).toBe(true);
-    expect(screen.getByText("deepseek/deepseek-v4-flash-0731")).toBeTruthy();
-    expect(screen.getByText("Modello classificatore")).toBeTruthy();
-    expect(screen.getByText("nvidia/nemotron-3.5-lightning")).toBeTruthy();
-    expect(screen.getByText("Provider classificatore")).toBeTruthy();
-    expect(screen.getByText("DeepInfra")).toBeTruthy();
-    expect(screen.getAllByText("Standard").length).toBeGreaterThan(0);
-    expect(screen.getByText("Timeline ricostruita")).toBeTruthy();
-    expect(screen.getByText("Tempo totale risposta")).toBeTruthy();
-    expect(screen.getByText("Classificazione")).toBeTruthy();
-    expect(
-      screen.getByText("Escalation Light → Standard: errore provider"),
-    ).toBeTruthy();
+    expect(screen.getByText("deepseek/deepseek-v4-flash")).toBeTruthy();
+    expect(screen.getByText("Together")).toBeTruthy();
     expect(screen.getByText("2 chiamate · 1,8k caratteri")).toBeTruthy();
     expect(screen.getByText("usato · 3 chunk")).toBeTruthy();
     expect(screen.getByText("active · 2 fatti · 1 evidenze")).toBeTruthy();
+    expect(screen.queryByText("Modello classificatore")).toBeNull();
+    expect(screen.queryByText("Provider classificatore")).toBeNull();
+    expect(screen.queryByText("Classificazione")).toBeNull();
+    expect(screen.queryByText(/Escalation/i)).toBeNull();
   });
 });

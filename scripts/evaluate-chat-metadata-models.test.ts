@@ -27,10 +27,10 @@ function attempt(
 }
 
 describe("chat metadata model evaluation", () => {
-  it("pins the exact requested candidates", () => {
+  it("pins the exact metadata candidates", () => {
     expect(EVAL_MODELS).toEqual([
       "deepseek/deepseek-v4-flash",
-      "deepseek/deepseek-v4-flash-0731",
+      "google/gemini-2.5-flash-lite",
       "nvidia/nemotron-3.5-lightning",
     ]);
   });

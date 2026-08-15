@@ -167,9 +167,7 @@ export function normalizeCapabilityDecision(
   if (input.responseMode === "voice" && !input.voiceAllowed) {
     addReason(reasonCodes, "voice_guard_denied");
   }
-  if (!classifier) {
-    addReason(reasonCodes, "classifier_unavailable");
-  }
+  if (!classifier) addReason(reasonCodes, "deterministic_policy");
 
   const deterministicSelection =
     input.explicitWebRule !== "allowed" ||
@@ -179,7 +177,7 @@ export function normalizeCapabilityDecision(
     explicitMemoryDelete ||
     input.responseMode === "voice";
   const source = !classifier
-    ? "fallback"
+    ? "rule"
     : input.classifierSource === "rule"
       ? "rule"
       : hasClassifierProposal && deterministicSelection
@@ -203,7 +201,8 @@ export function normalizeCapabilityDecision(
 }
 
 export function getCapabilityPlannerMode(): "legacy" | "agentic" {
-  return process.env.AI_CAPABILITY_PLANNER_MODE === "agentic"
-    ? "agentic"
-    : "legacy";
+  // There is one live execution path now. Keep the return type temporarily
+  // compatible with channel and experiment metadata, but never reintroduce a
+  // legacy tool-selection branch from configuration.
+  return "agentic";
 }

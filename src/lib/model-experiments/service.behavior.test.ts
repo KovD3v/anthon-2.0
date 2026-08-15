@@ -65,7 +65,7 @@ vi.mock("./analytics", () => ({
   },
 }));
 
-import type { TurnDecision } from "@/lib/ai/execution-routing";
+import type { TurnDecision } from "@/lib/ai/turn-decision";
 import {
   createModelComparisonPair,
   createModelExperiment,
@@ -109,16 +109,6 @@ const turnDecision = Object.freeze({
     source: "classifier",
     reasonCodes: Object.freeze(["delete_requires_exact_target"]),
   }),
-  execution: Object.freeze({
-    eligibleProfile: "light",
-    taskKind: "rewrite",
-    contextDependency: "recent",
-    source: "classifier",
-    confidenceBucket: "high",
-    reasonCodes: Object.freeze(["classifier_light", "task_allowlisted"]),
-    policyVersion: 1,
-    classifierVersion: 1,
-  }),
 }) as unknown as TurnDecision;
 
 const storedTurnDecision = {
@@ -135,20 +125,6 @@ const storedTurnDecision = {
     voiceOutput: false,
     source: "classifier",
     reasonCodes: ["delete_requires_exact_target"],
-  },
-  execution: {
-    eligibleProfile: "light",
-    taskKind: "rewrite",
-    contextDependency: "recent",
-    source: "classifier",
-    confidenceBucket: "high",
-    reasonCodes: ["classifier_light", "task_allowlisted"],
-    policyVersion: 1,
-    classifierVersion: 1,
-  },
-  routing: {
-    routingMode: "shadow",
-    plannedProfile: "standard",
   },
 };
 
@@ -456,8 +432,6 @@ describe("model experiment service", () => {
         countryCode: "it",
         capabilityPlannerMode: "agentic",
         turnDecision,
-        routingMode: "shadow",
-        plannedProfile: "standard",
         now,
         random: () => 0.9,
       }),
@@ -834,11 +808,7 @@ describe("model experiment service", () => {
       "clerk-1",
       expect.objectContaining({
         choice: "A",
-        routing_mode: "shadow",
-        eligible_profile: "light",
-        planned_profile: "standard",
-        task_kind: "rewrite",
-        policy_version: 1,
+        capability_source: "classifier",
       }),
     );
     expect(mocks.refreshSummary).toHaveBeenCalledWith("thread-1", "user-1");
@@ -919,11 +889,7 @@ describe("model experiment service", () => {
         "clerk-1",
         expect.objectContaining({
           choice,
-          routing_mode: "shadow",
-          eligible_profile: "light",
-          planned_profile: "standard",
-          task_kind: "rewrite",
-          policy_version: 1,
+          capability_source: "classifier",
         }),
       );
     },

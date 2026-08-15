@@ -324,10 +324,8 @@ export function createServerTraceCollector(
 
 export function startModelAttemptTrace(
   collector: ServerTraceCollector | undefined,
-  attributes: Pick<
-    ServerSpanAttributes,
-    "attemptSequence" | "profile" | "model"
-  >,
+  attributes: Pick<ServerSpanAttributes, "attemptSequence" | "model"> &
+    Partial<Pick<ServerSpanAttributes, "profile">>,
 ): ModelAttemptTrace {
   const providerWait =
     collector?.startSpan("provider_wait", attributes) ?? NOOP_SPAN;

@@ -73,11 +73,12 @@ export const RAG_KEYWORDS = [
   "resistenza",
   "potenza",
   // Intent should be specific enough to avoid sending generic questions to RAG.
-  // Broad question words are handled by the classifier instead.
+  // Generic questions remain available to the live agentic model, which may
+  // choose the bounded RAG tool when server policy exposes it.
 ] as const;
 
 /**
- * Keywords that bypass RAG lookup (checked before LLM classification).
+ * Keywords that bypass deterministic RAG prefetch checks.
  * If found in the user message, RAG is skipped immediately.
  */
 export const RAG_NEGATIVE_KEYWORDS = [

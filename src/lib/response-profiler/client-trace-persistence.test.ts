@@ -49,29 +49,6 @@ function target(overrides: Record<string, unknown> = {}) {
         clientTrace: null,
         model: "standard-model",
         provider: "Nebius",
-        executionRoute: {
-          schemaVersion: 1,
-          routingMode: "active",
-          policyVersion: 1,
-          classifierVersion: 1,
-          eligibleProfile: "light",
-          plannedProfile: "light",
-          executedProfile: "standard",
-          taskKind: "rewrite",
-          decisionSource: "classifier",
-          confidenceBucket: "high",
-          reasonCodes: [],
-          classificationLatencyMs: 10,
-          routingOverheadMs: 2,
-          attempts: [
-            {
-              sequence: 1,
-              profile: "standard",
-              outcome: "completed",
-              generationTimeMs: 100,
-            },
-          ],
-        },
       },
     },
     ...overrides,
@@ -120,7 +97,6 @@ describe("persistClientTrace", () => {
       trace,
       model: "standard-model",
       provider: "Nebius",
-      executionRoute: expect.any(Object),
     });
   });
 

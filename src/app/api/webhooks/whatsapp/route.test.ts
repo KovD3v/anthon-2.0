@@ -152,7 +152,7 @@ vi.mock("@/lib/conversations/threads", () => ({
   ensureConversationThread: mocks.ensureConversationThread,
 }));
 
-import { freezeTurnDecision } from "@/lib/ai/execution-routing";
+import { freezeTurnDecision } from "@/lib/ai/turn-decision";
 import * as openRouterTranscription from "@/lib/channels/transcription/openrouter";
 import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
 import {
@@ -182,50 +182,11 @@ function offRoutingFixture() {
       routineProposal: false,
       userContext: false,
       voiceOutput: false,
-      source: "classifier",
-      reasonCodes: [],
-    },
-    execution: {
-      eligibleProfile: "light",
-      taskKind: "rewrite",
-      contextDependency: "recent",
-      source: "classifier",
-      confidenceBucket: "high",
-      reasonCodes: ["classifier_light", "task_allowlisted"],
-      policyVersion: 1,
-      classifierVersion: 1,
+      source: "rule",
+      reasonCodes: ["deterministic_policy"],
     },
   });
-  return {
-    turnDecision,
-    executionRoute: Object.freeze({
-      schemaVersion: 1,
-      routingMode: "off",
-      policyVersion: 1,
-      classifierVersion: 1,
-      eligibleProfile: "light",
-      plannedProfile: "standard",
-      executedProfile: "standard",
-      taskKind: "rewrite",
-      decisionSource: "classifier",
-      confidenceBucket: "high",
-      reasonCodes: Object.freeze([
-        "classifier_light",
-        "task_allowlisted",
-        "rollout_off",
-      ]),
-      classificationLatencyMs: 9,
-      routingOverheadMs: 1,
-      attempts: Object.freeze([
-        Object.freeze({
-          sequence: 1,
-          profile: "standard",
-          outcome: "completed",
-          generationTimeMs: 35,
-        }),
-      ]),
-    }),
-  };
+  return { turnDecision };
 }
 
 type InboundLifecycleState = {
@@ -1476,11 +1437,10 @@ describe("/api/webhooks/whatsapp", () => {
     );
   });
 
-  it("sync text persists one standard execution when the fast path is disabled", async () => {
+  it("sync text persists one agentic execution path", async () => {
     process.env.WHATSAPP_SYNC_WEBHOOK = "true";
     process.env.WHATSAPP_DISABLE_SEND = "true";
-    process.env.AI_FAST_PATH_ENABLED = "false";
-    const { turnDecision, executionRoute } = offRoutingFixture();
+    const { turnDecision } = offRoutingFixture();
 
     mocks.prismaMessageFindFirst.mockResolvedValue(null);
     mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
@@ -1511,7 +1471,6 @@ describe("/api/webhooks/whatsapp", () => {
           outputTokens: 22,
           costUsd: 0.0011,
           generationTimeMs: 35,
-          executionRoute,
         },
         turnDecision,
         capabilityDecision: turnDecision.capabilities,
@@ -1519,7 +1478,6 @@ describe("/api/webhooks/whatsapp", () => {
       });
       return {
         turnDecision,
-        classificationLatencyMs: 9,
         capabilityDecision: turnDecision.capabilities,
         capabilityPlannerMode: "agentic",
         textStream: (async function* () {
@@ -1570,16 +1528,9 @@ describe("/api/webhooks/whatsapp", () => {
     );
     expect(mocks.incrementUsage).toHaveBeenCalledTimes(1);
     expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
-    expect(mocks.prismaMessageMetricsCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        executionRoute: expect.objectContaining({
-          routingMode: "off",
-          eligibleProfile: "light",
-          plannedProfile: "standard",
-          executedProfile: "standard",
-        }),
-      }),
-    });
+    const metricsData =
+      mocks.prismaMessageMetricsCreate.mock.calls.at(-1)?.[0]?.data;
+    expect(metricsData).not.toHaveProperty("executionRoute");
   });
 
   it("sync text message sends fallback when assistant response is empty", async () => {

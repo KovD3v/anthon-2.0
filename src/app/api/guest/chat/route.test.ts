@@ -81,7 +81,7 @@ vi.mock("@/lib/analytics/funnel", () => ({
     mocks.trackInboundUserMessageFunnelProgress,
 }));
 
-import { freezeTurnDecision } from "@/lib/ai/execution-routing";
+import { freezeTurnDecision } from "@/lib/ai/turn-decision";
 import { POST } from "./route";
 
 function buildRequest(body: unknown): Request {
@@ -195,48 +195,11 @@ function offRoutingFixture() {
       routineProposal: false,
       userContext: false,
       voiceOutput: false,
-      source: "classifier",
-      reasonCodes: [],
-    },
-    execution: {
-      eligibleProfile: "light",
-      taskKind: "rewrite",
-      contextDependency: "recent",
-      source: "classifier",
-      confidenceBucket: "high",
-      reasonCodes: ["classifier_light", "task_allowlisted"],
-      policyVersion: 1,
-      classifierVersion: 1,
+      source: "rule",
+      reasonCodes: ["deterministic_policy"],
     },
   });
-  const executionRoute = Object.freeze({
-    schemaVersion: 1,
-    routingMode: "off",
-    policyVersion: 1,
-    classifierVersion: 1,
-    eligibleProfile: "light",
-    plannedProfile: "standard",
-    executedProfile: "standard",
-    taskKind: "rewrite",
-    decisionSource: "classifier",
-    confidenceBucket: "high",
-    reasonCodes: Object.freeze([
-      "classifier_light",
-      "task_allowlisted",
-      "rollout_off",
-    ]),
-    classificationLatencyMs: 11,
-    routingOverheadMs: 1,
-    attempts: Object.freeze([
-      Object.freeze({
-        sequence: 1,
-        profile: "standard",
-        outcome: "completed",
-        generationTimeMs: 20,
-      }),
-    ]),
-  });
-  return { turnDecision, executionRoute };
+  return { turnDecision };
 }
 
 describe("POST /api/guest/chat", () => {
@@ -521,15 +484,13 @@ describe("POST /api/guest/chat", () => {
     expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
-  it("persists one standard execution when the fast path is disabled", async () => {
-    vi.stubEnv("AI_FAST_PATH_ENABLED", "false");
-    const { turnDecision, executionRoute } = offRoutingFixture();
+  it("persists one agentic execution path", async () => {
+    const { turnDecision } = offRoutingFixture();
     let streamArgs: Record<string, unknown> | undefined;
     mocks.streamChat.mockImplementation(async (args) => {
       streamArgs = args;
       return {
         turnDecision,
-        classificationLatencyMs: 11,
         capabilityDecision: turnDecision.capabilities,
         capabilityPlannerMode: "agentic",
         toUIMessageStream: () =>
@@ -551,7 +512,6 @@ describe("POST /api/guest/chat", () => {
                   costUsd: 0,
                   generationTimeMs: 20,
                   reasoningTimeMs: null,
-                  executionRoute,
                 },
               });
               controller.close();
@@ -603,16 +563,8 @@ describe("POST /api/guest/chat", () => {
         channel: "WEB_GUEST",
       }),
     );
-    expect(mocks.messageMetricsCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        executionRoute: expect.objectContaining({
-          routingMode: "off",
-          eligibleProfile: "light",
-          plannedProfile: "standard",
-          executedProfile: "standard",
-        }),
-      }),
-    });
+    const metricsData = mocks.messageMetricsCreate.mock.calls.at(-1)?.[0]?.data;
+    expect(metricsData).not.toHaveProperty("executionRoute");
   });
 
   it("uses the last user message when multiple messages are submitted", async () => {

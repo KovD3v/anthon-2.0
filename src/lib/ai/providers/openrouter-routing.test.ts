@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
   getOpenRouterProviderOptions,
   getOpenRouterProviderOptionsForClassifier,
-  getOpenRouterProviderOptionsForExecution,
   getOpenRouterProviderOptionsForModel,
   getOpenRouterProviderRouting,
 } from "./openrouter-routing";
@@ -37,62 +36,6 @@ describe("ai/providers/openrouter-routing", () => {
     });
   });
 
-  it("changes only reasoning options for light execution", () => {
-    expect(
-      getOpenRouterProviderOptionsForExecution(
-        "openai/gpt-5.6-luna",
-        "light",
-        {},
-      ),
-    ).toEqual({
-      provider: { sort: "latency" },
-      service_tier: "priority",
-      reasoning: { enabled: false, max_tokens: 1 },
-    });
-    expect(
-      getOpenRouterProviderOptionsForExecution(
-        "openai/gpt-5.6-luna",
-        "standard",
-        {},
-      ),
-    ).toEqual({
-      provider: { sort: "latency" },
-      service_tier: "priority",
-      reasoning: { enabled: true, effort: "medium" },
-    });
-  });
-
-  it("uses the closed latency-routed provider pool for DeepSeek light", () => {
-    expect(
-      getOpenRouterProviderOptionsForExecution(
-        "deepseek/deepseek-v4-flash-0731",
-        "light",
-        {
-          OPENROUTER_PROVIDER_SORT: "throughput",
-          OPENROUTER_PROVIDER_ORDER: "Baidu,DigitalOcean",
-          OPENROUTER_PROVIDER_ALLOW_FALLBACKS: "false",
-          OPENROUTER_PROVIDER_REQUIRE_PARAMETERS: "false",
-          OPENROUTER_PROVIDER_MAX_PROMPT_PRICE: "1",
-          OPENROUTER_PROVIDER_MAX_COMPLETION_PRICE: "2",
-          OPENROUTER_PROVIDER_DATA_COLLECTION: "deny",
-        },
-      ),
-    ).toEqual({
-      provider: {
-        sort: "latency",
-        only: ["Together", "CoreWeave", "Ambient"],
-        allow_fallbacks: true,
-        require_parameters: true,
-        data_collection: "deny",
-        max_price: {
-          prompt: 0.15,
-          completion: 0.3,
-        },
-      },
-      reasoning: { enabled: false, max_tokens: 1 },
-    });
-  });
-
   it("routes the Nemotron classifier across compatible structured-output endpoints", () => {
     expect(
       getOpenRouterProviderOptionsForClassifier(
@@ -118,42 +61,6 @@ describe("ai/providers/openrouter-routing", () => {
       },
       reasoning: { enabled: false, max_tokens: 1 },
     });
-  });
-
-  it("preserves stricter prices and a narrower safe DeepSeek light pool", () => {
-    expect(
-      getOpenRouterProviderOptionsForExecution(
-        "deepseek/deepseek-v4-flash-0731",
-        "light",
-        {
-          OPENROUTER_PROVIDER_ONLY: "Ambient,CoreWeave,Baidu",
-          OPENROUTER_PROVIDER_MAX_PROMPT_PRICE: "0.1",
-          OPENROUTER_PROVIDER_MAX_COMPLETION_PRICE: "0.2",
-        },
-      ),
-    ).toEqual({
-      provider: {
-        sort: "latency",
-        only: ["CoreWeave", "Ambient"],
-        allow_fallbacks: true,
-        require_parameters: true,
-        max_price: {
-          prompt: 0.1,
-          completion: 0.2,
-        },
-      },
-      reasoning: { enabled: false, max_tokens: 1 },
-    });
-  });
-
-  it("fails closed when DeepSeek light has no safe configured provider", () => {
-    expect(() =>
-      getOpenRouterProviderOptionsForExecution(
-        "deepseek/deepseek-v4-flash-0731",
-        "light",
-        { OPENROUTER_PROVIDER_ONLY: "Baidu,DigitalOcean" },
-      ),
-    ).toThrow("DeepSeek light routing has no safe configured provider");
   });
 
   it("sends the priority service tier at the OpenRouter wire level", async () => {

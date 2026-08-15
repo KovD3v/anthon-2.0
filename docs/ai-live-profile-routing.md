@@ -1,153 +1,86 @@
-# Live AI Profile Routing
+# Live AI execution
 
-This document describes the current profile-routing policy for Web, Telegram,
-and WhatsApp chat requests.
+Live chat uses one authenticated execution path. The old `light` and
+`standard` profiles, request-time classifier, fast path, allowlist, and
+profile escalation have been removed because the classification round trip
+often cost more than the work it was meant to optimize.
 
-## Decision
-
-Live chat does not run an LLM classifier before selecting the `light` or
-`standard` execution profile. The request-time classifier added measurable
-latency to every classified turn, including turns that eventually used the
-standard model, and its rollout/allowlist configuration added operational
-complexity without improving the safety boundary enough to justify it.
-
-The live path now has two outcomes:
-
-1. A small deterministic fast path may select `light` for an obviously
-   self-contained turn.
-2. Every other turn selects `standard`.
-
-The standard model is unchanged. When `AI_CAPABILITY_PLANNER_MODE=agentic`, it
-decides whether to use none, one, or several of the permitted web, RAG,
-memory, recall, user-context, and routine tools. Server-side capability guards
-remain authoritative: the model can choose only among tools exposed for that
-turn, and mutations still require their existing ownership, approval,
-idempotency, and exact-target checks.
-
-## Live decision flow
+## Decision flow
 
 ```text
 incoming turn
     |
     v
-deterministic capability and safety guards
+deterministic authentication, entitlement, safety, and capability guards
     |
-    +-- safe social/self-contained transform + fast path enabled --> light
+    v
+one normal agentic model generation
     |
-    +-- everything else -------------------------------------------> standard
-                                                                        |
-                                                                        v
-                                                   agentic tool selection,
-                                                   when enabled
+    +--> model chooses zero, one, or several authorized tools
+         (web, RAG, memory, user context, recall, routine)
 ```
 
-The fast path is implemented in `src/lib/ai/fast-routing.ts` and is applied
-by `src/lib/ai/turn-arbitration.ts`. It is a code-level safety policy, not a
-remotely learned or admin-managed allowlist.
+The server decides which capabilities may be exposed. The model decides at
+generation time whether an exposed tool is useful. Tool schemas, ownership,
+approval, exact-target, idempotency, rate-limit, and persistence checks remain
+authoritative and cannot be bypassed by the model.
 
-## Routing policy
+There is no live LLM classifier. `src/lib/ai/turn-arbitration.ts` creates only
+the immutable capability decision, and `src/lib/ai/turn-plan.ts` creates a
+`full` authenticated plan or a `guest` plan. A short answer is an output
+length instruction, not a different execution profile.
 
-| Input shape | Live result | Reason |
-| --- | --- | --- |
-| Exact lightweight social turn such as a greeting | `light` eligible | No external knowledge, context, or side effect is needed |
-| Self-contained rewrite, translation, formatting, extraction, or supplied-text summary | `light` eligible | The source text is in the request and the operation is bounded |
-| Ambiguous or context-dependent request | `standard` | The deterministic rules cannot safely prove that `light` is sufficient |
-| Coaching, planning, memory, profile, preference, or notes request | `standard` | The turn needs context, reasoning, or a guarded capability |
-| Web, RAG, current-information, media, voice, or approval request | `standard` | Tools or richer execution are required |
-| Long input, long output, embedded instructions, or unresolved context | `standard` | A safety or budget veto applies |
-| Any input with `AI_FAST_PATH_ENABLED=false` | `standard` | The kill switch disables the fast path |
+## Tool selection
 
-The static light-task boundary is limited to `social`, `rewrite`, `translate`,
-`format`, `extract`, and `summarize_supplied`. A light execution receives no
-tools, uses the compact prompt, and has bounded output. If the light provider
-fails before streaming or returns an empty response, the existing fallback
-escalates to `standard`.
+For an authenticated turn, the normal model receives the server-authorized
+inventory. It may use no tools, one tool, or multiple tools in one response:
+
+- web search/fetch for current external information;
+- RAG for the user's uploaded documents;
+- memory and user-context tools for authorized persistent information;
+- conversation recall when the recall release permits it;
+- routine proposal when the feature and request are eligible.
+
+Guest sessions retain the guest prompt and no persistent memory access. Direct
+media and voice are input/output modes, not execution profiles.
 
 ## Configuration
 
-```dotenv
-# Default: enabled. Set to false to force standard execution.
-AI_FAST_PATH_ENABLED="true"
+The profile configuration variables were removed. There is no fast-path
+kill switch, classifier switch, task allowlist, percentage rollout, or admin
+profile selector. The live capability planner is always `agentic`; this is a
+code invariant rather than an environment rollout.
 
-# Required for model-selected optional tools on standard turns.
-AI_CAPABILITY_PLANNER_MODE="agentic"
-```
+The existing provider/model environment variables still control OpenRouter
+provider routing and model availability. They do not select a light or
+standard execution bundle.
 
-`AI_FAST_PATH_ENABLED` is the only live profile-routing switch. Unset or
-`true` enables the deterministic fast path. `false` disables it; invalid
-values also fail closed to standard execution. The old percentage, task-list,
-shadow-mode, and database-backed classifier settings are no longer read.
+## Metrics and historical data
 
-`AI_CAPABILITY_PLANNER_MODE` controls tool selection, not profile selection:
+Current response-profiler traces report the actual model attempt, provider,
+generation TTFT, total request timing, tool timing, RAG usage, memory recall,
+and capability usage. They do not create `classification`, `light`, or
+`standard` spans and do not emit `classificationLatencyMs`.
 
-- `agentic`: the standard model selects among the permitted optional tools.
-- `legacy`: compatibility behavior remains in place; legacy RAG prefetch may
-  still use its separate bounded RAG classifier for uncertain retrieval cases.
-
-That RAG classifier is not the profile classifier and is not entered by the
-normal agentic live path. The profile-classifier implementation is retained
-only for explicit cold evaluation and compatibility code paths.
-
-## Observability
-
-Current live execution traces record:
-
-- eligible, planned, and executed profile;
-- deterministic reason codes and task kind;
-- routing overhead;
-- per-attempt generation TTFT, total request TTFT, and escalation;
-- model/provider and tool timing for the actual generation.
-
-Current traces do not populate classifier latency, classifier model, or
-classifier provider. The parser and profiler retain optional support for old
-persisted traces so historical metrics remain readable without presenting a
-classifier phase for deterministic routing.
-
-Use the explicit cold evaluation when classifier quality needs to be measured:
-
-```bash
-bun run eval:turn-routing
-```
-
-This evaluation is not part of a chat request and requires its own provider
-credentials. It must not be interpreted as evidence that live profile routing
-still calls the classifier.
-
-## Administration and migration
-
-There is no classifier page, editable allowlist, percentage rollout, or
-`AiRoutingConfig` runtime control plane. Changes to the fast-path boundary are
-code changes protected by tests and the single environment kill switch.
-
-The removal migration is:
-
-```text
-prisma/migrations/20260815130000_remove_ai_routing_config/migration.sql
-```
-
-It drops the retired `AiRoutingConfig` table. Before applying it to a shared
-database, resolve any Prisma migration-history drift and verify the intended
-environment. The application no longer reads or writes that table, so the
-code change and the database migration can be deployed as separate, verified
-steps.
+`MessageMetrics.executionRoute` and old route-shaped JSON are retained only as
+nullable historical compatibility data. New turns never write them, and the
+profiler does not render them as a live routing phase. Recovery and comparison
+code reads old records only to discard the obsolete execution-profile fields.
 
 ## Verification
 
-The routing contract is covered by tests for:
-
-- deterministic social and self-contained-transform light eligibility;
-- standard fallback for ambiguous, contextual, tool, coaching, and media
-  turns;
-- the fast-path kill switch;
-- the absence of a live remote-classifier call;
-- channel parity across Web, Telegram, and WhatsApp;
-- historical trace compatibility and omission of current classifier fields.
-
-Relevant commands:
+The current contract is covered by:
 
 ```bash
-bunx vitest run src/lib/ai/turn-arbitration.test.ts \
-  src/lib/ai/execution-routing.test.ts \
-  src/lib/ai/fast-path-config.test.ts
-bun run test
+bunx vitest run \
+  src/lib/ai/turn-arbitration.test.ts \
+  src/lib/ai/turn-plan.test.ts \
+  src/lib/ai/turn-decision-metadata.test.ts \
+  src/lib/ai/orchestrator.test.ts \
+  src/lib/channel-flow/run.test.ts
 ```
+
+The old turn-routing evaluation and profile-specific test modules were
+removed. Model comparisons remain available for explicit model evaluation,
+but both variants use the same capability-only prepared context and do not
+reintroduce live routing profiles.

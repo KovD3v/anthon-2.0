@@ -6,11 +6,6 @@ import {
   normalizePreDeliveryCapabilityUsage,
 } from "@/lib/ai/capability-usage";
 import { indexConversationWindow } from "@/lib/ai/conversation-index";
-import {
-  type ExecutionRouteTrace,
-  parseExecutionRouteTrace,
-} from "@/lib/ai/execution-route-trace";
-import type { TurnDecision } from "@/lib/ai/execution-routing";
 import { markMemoryApprovalPresented } from "@/lib/ai/memory-approval";
 import { consolidateTurnMemory } from "@/lib/ai/memory-consolidator";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
@@ -19,11 +14,8 @@ import {
   redactTraceMetadata,
   redactTracePayload,
 } from "@/lib/ai/tool-privacy";
-import {
-  buildExecutionRoutingSummary,
-  buildExecutionRoutingTraceMetadata,
-  captureAiTurnTrace,
-} from "@/lib/ai/trace";
+import { captureAiTurnTrace } from "@/lib/ai/trace";
+import type { TurnDecision } from "@/lib/ai/turn-decision";
 import { serializeSafeTurnDecision } from "@/lib/ai/turn-decision-metadata";
 import {
   getRoutineProposalFromToolCalls,
@@ -59,7 +51,6 @@ function scheduleBackground(
 function buildAssistantMetadata(
   metadata: Prisma.InputJsonValue | undefined,
   metrics: PersistAssistantOutputInput["metrics"],
-  executionRoute: ExecutionRouteTrace | null,
 ): Prisma.InputJsonValue | undefined {
   const aiMetrics = {
     ...(metrics.toolCallCount !== undefined
@@ -101,9 +92,6 @@ function buildAssistantMetadata(
           },
         }
       : {}),
-    ...(executionRoute
-      ? { executionRouting: buildExecutionRoutingSummary(executionRoute) }
-      : {}),
   };
 
   if (Object.keys(aiMetrics).length === 0) {
@@ -134,7 +122,6 @@ function buildAssistantMetadata(
 function buildMessageMetricsData(
   messageId: string,
   metrics: PersistAssistantOutputInput["metrics"],
-  executionRoute: ExecutionRouteTrace | null,
   serverTrace?: ServerTraceV1,
 ) {
   return {
@@ -153,9 +140,6 @@ function buildMessageMetricsData(
     toolTiming: metrics.toolTiming as Prisma.InputJsonValue | undefined,
     ragUsed: metrics.ragUsed,
     ragChunksCount: metrics.ragChunksCount,
-    ...(executionRoute
-      ? { executionRoute: executionRoute as Prisma.InputJsonValue }
-      : {}),
     ...(serverTrace
       ? { serverTrace: serverTrace as Prisma.InputJsonValue }
       : {}),
@@ -274,14 +258,7 @@ export async function persistAssistantOutput({
         ),
       }
     : metrics;
-  const executionRoute = metrics.executionRoute
-    ? parseExecutionRouteTrace(metrics.executionRoute)
-    : null;
-  const assistantMetadata = buildAssistantMetadata(
-    metadata,
-    persistedMetrics,
-    executionRoute,
-  );
+  const assistantMetadata = buildAssistantMetadata(metadata, persistedMetrics);
   const directRoutineProposal = storedRoutineProposalSchema.safeParse(
     metrics.routineProposal,
   );
@@ -374,7 +351,6 @@ export async function persistAssistantOutput({
         data: buildMessageMetricsData(
           createdMessage.id,
           metrics,
-          executionRoute,
           traceCollector?.snapshot("partial"),
         ),
       });
@@ -553,12 +529,6 @@ export async function persistAssistantOutput({
           outputTokens: metrics.outputTokens,
           costUsd: metrics.costUsd,
           generationTimeMs: metrics.generationTimeMs,
-          ...(executionRoute
-            ? {
-                executionRouting:
-                  buildExecutionRoutingTraceMetadata(executionRoute),
-              }
-            : {}),
         }) as Record<string, unknown>,
         payload: redactTracePayload({
           userMessageText,

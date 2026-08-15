@@ -41,7 +41,6 @@ export async function persistClientTrace(input: {
               clientTrace: true,
               model: true,
               provider: true,
-              executionRoute: true,
             },
           },
         },
@@ -86,7 +85,6 @@ export async function persistClientTrace(input: {
       trace: input.trace,
       model: metrics.model,
       provider: metrics.provider,
-      executionRoute: metrics.executionRoute,
     });
     return { status: "stored" };
   }

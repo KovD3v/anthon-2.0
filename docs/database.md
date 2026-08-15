@@ -180,15 +180,10 @@ assistant message. It stores provider/model identifiers, token and cost data,
 generation timing, RAG usage, redacted provider metadata, and bounded tool
 timing. Legacy scalar metrics remain on `Message` for compatibility.
 
-`MessageMetrics.executionRoute` stores the schema-validated, privacy-allowlisted
-routing trace: eligible, planned, and executed profile; task kind; policy and
-compatibility versions; confidence bucket; reason codes; attempts; bounded
-timing; and an optional light-to-standard escalation. It excludes user text,
-classifier prose, prompts, tool arguments/results, source content, and raw
-provider metadata. Current live routes do not populate classifier latency,
-model, or provider fields; those optional fields remain readable only for
-historical traces. Each attempt's `timeToFirstTokenMs` is generation TTFT, and
-`totalRequestTimeToFirstTokenMs` measures request-start-to-first-token TTFT.
+`MessageMetrics.executionRoute` is a nullable historical compatibility field.
+New turns do not write it. Old route-shaped JSON may still be read and
+discarded when recovering or inspecting legacy records; it is not part of the
+current capability-only decision or response-profiler timeline.
 
 ### ConversationThread and ConversationThreadSummary
 
@@ -317,11 +312,11 @@ so concurrent requests cannot spend the same remaining daily allowance.
 
 Successful assistant persistence and usage reconciliation share a database
 transaction. If generation succeeds but persistence fails, bounded recovery
-fields retain the assistant text plus content-free metrics and immutable routing
-trace needed to finish a retry without calling the model or charging again.
-Invalid or missing recovered route metadata fails closed to standard execution;
-it is never recomputed from a later environment rollout value. Expired and old
-terminal reservations are cleaned up during later reservations.
+fields retain the assistant text plus content-free metrics and the immutable
+capability decision needed to finish a retry without calling the model or
+charging again. Historical routing JSON is discarded during recovery and is
+never recomputed from a later environment value. Expired and old terminal
+reservations are cleaned up during later reservations.
 
 ### DailyUploadUsage and UploadReservation
 

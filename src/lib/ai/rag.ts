@@ -4,15 +4,9 @@
  * Uses OpenAI text-embedding-3-small via OpenRouter for embeddings.
  */
 
-import { generateText, Output } from "ai";
-import { z } from "zod";
 import { RAG, RAG_KEYWORDS, RAG_NEGATIVE_KEYWORDS } from "@/lib/ai/constants";
 import { generateEmbedding, generateEmbeddings } from "@/lib/ai/embeddings";
-import { openrouter } from "@/lib/ai/providers/openrouter";
-import { getOpenRouterProviderOptionsForClassifier } from "@/lib/ai/providers/openrouter-routing";
 import { withRagRead } from "@/lib/ai/rag-database";
-import { DEFAULT_TURN_CLASSIFIER_MODEL_ID } from "@/lib/ai/turn-routing-types";
-import { scheduleSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -537,31 +531,6 @@ async function hasRagDocuments(): Promise<boolean> {
   return count > 0;
 }
 
-/**
- * Fast classifier model for RAG detection
- * Reuses the bounded structured-output classifier route.
- */
-const RAG_CLASSIFIER_MODEL_ID = DEFAULT_TURN_CLASSIFIER_MODEL_ID;
-const RAG_CLASSIFIER_TIMEOUT_MS = 3_000;
-const ragClassifierModel = openrouter(RAG_CLASSIFIER_MODEL_ID);
-
-/**
- * Short-lived cache for LLM classification results.
- * Helps when users resend/iterate the same message or when the frontend retries.
- */
-type RagClassificationCacheEntry = {
-  needsRag: boolean;
-  expiresAt: number;
-};
-
-const RAG_CLASSIFICATION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const RAG_CLASSIFICATION_CACHE_MAX_ENTRIES = 500;
-const ragClassificationCache = new Map<string, RagClassificationCacheEntry>();
-
-function normalizeClassificationKey(userMessage: string): string {
-  return userMessage.toLowerCase().trim().replaceAll(/\s+/g, " ");
-}
-
 const AMBIGUOUS_MENTAL_RAG_KEYWORDS = new Set([
   "ansia",
   "concentrazione",
@@ -606,11 +575,12 @@ function hasDirectRagKeyword(message: string): boolean {
  *    as sports requests
  * 3. Negative keyword matching (instant) - only for short messages < 30 chars
  * 4. Non-technical pattern matching (instant)
- * 5. Bounded LLM classification (only as last resort)
+ * 5. Otherwise fail closed for prefetch callers; the live agentic model can
+ *    decide whether to call the separately exposed RAG tool.
  */
 export async function shouldUseRag(
   userMessage: string,
-  options?: {
+  _options?: {
     userId?: string;
     waitUntil?: (promise: Promise<unknown>) => void;
   },
@@ -648,7 +618,7 @@ export async function shouldUseRag(
     return false;
   }
 
-  // OPTIMIZATION 2: Skip if no documents exist (saves LLM classification)
+  // OPTIMIZATION 2: Skip if no documents exist.
   const hasDocuments = await hasRagDocuments();
   if (!hasDocuments) {
     return false;
@@ -660,82 +630,8 @@ export async function shouldUseRag(
     return true;
   }
 
-  // OPTIMIZATION 4: Bounded LLM classification (only for uncertain cases)
-  try {
-    const cacheKey = normalizeClassificationKey(userMessage);
-    const cached = ragClassificationCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.needsRag;
-    }
-
-    const result = await LatencyLogger.measure(
-      "RAG: Classify query (LLM)",
-      () =>
-        generateText({
-          model: ragClassifierModel,
-          temperature: 0,
-          maxOutputTokens: 120,
-          timeout: { totalMs: RAG_CLASSIFIER_TIMEOUT_MS },
-          providerOptions: {
-            openrouter: getOpenRouterProviderOptionsForClassifier(
-              RAG_CLASSIFIER_MODEL_ID,
-            ),
-          },
-          output: Output.object({
-            schema: z.object({
-              needsRag: z
-                .boolean()
-                .describe("Whether the query needs RAG context"),
-              reason: z.string().describe("Brief reason for the decision"),
-            }),
-          }),
-          instructions: `You are a query classifier. Determine if a user's question requires information from methodological documents about sports coaching.
-
-Answer needsRag: true if the question is about:
-- Specific training techniques
-- Coaching methodologies
-- Mental coaching principles
-- Training exercises or programs
-- Sports theory
-- "How to" questions about training/performance
-
-Answer needsRag: false if the question is:
-- Personal conversation
-- Questions about user profile/data
-- Greetings or small talk
-- Generic motivation requests
-- Information already in profile/memories`,
-          prompt: `User query: "${userMessage}"`,
-        }),
-    );
-    const { output } = result;
-
-    if (options?.userId) {
-      scheduleSupportAiUsage(
-        {
-          userId: options.userId,
-          modelId: RAG_CLASSIFIER_MODEL_ID,
-          usage: result.usage,
-          providerMetadata: result.providerMetadata,
-        },
-        options.waitUntil,
-      );
-    }
-
-    if (ragClassificationCache.size >= RAG_CLASSIFICATION_CACHE_MAX_ENTRIES) {
-      const firstKey = ragClassificationCache.keys().next().value;
-      if (firstKey !== undefined) ragClassificationCache.delete(firstKey);
-    }
-    ragClassificationCache.set(cacheKey, {
-      needsRag: output?.needsRag ?? false,
-      expiresAt: Date.now() + RAG_CLASSIFICATION_CACHE_TTL_MS,
-    });
-
-    return output?.needsRag ?? false;
-  } catch (error) {
-    ragLogger.error("ai.rag.classify.error", "Error classifying query", {
-      error,
-    });
-    return false;
-  }
+  // The model chooses whether to call searchRag in the live agentic path.
+  // This helper remains deterministic for callers that still use it as a
+  // conservative prefetch gate, but it never starts another LLM round trip.
+  return false;
 }

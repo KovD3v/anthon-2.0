@@ -2,9 +2,8 @@
 
 The AI subsystem powers chat generation, retrieval, personalization, and background adaptation.
 
-See [Live AI Profile Routing](ai-live-profile-routing.md) for the profile
-selection policy, the fast-path switch, agentic tool selection, and cold
-classifier evaluation boundary.
+See [Live AI execution](ai-live-profile-routing.md) for the single-path
+agentic execution policy and capability boundary.
 
 ## Components Overview
 
@@ -40,21 +39,16 @@ classifier evaluation boundary.
 3. Resolve the fail-closed memory-recall release decision once, then apply
    deterministic capability guards without a blocking classifier round trip.
 4. Build an immutable `TurnPlan` that independently selects response length,
-   thread history, capabilities, and prompt profile.
+   thread history, authorized capabilities, and prompt profile.
 5. In parallel with same-thread context, run the no-LLM recall planner and load
    at most eight relevant facts plus optional current-thread-first evidence.
-6. Route retrieval according to the planner mode:
-   - In legacy mode, use the `shouldUseRag`/`getRagContext` prefetch path when
-     the turn plan selects RAG. A non-fallback classifier decision may allow
-     the prefetch directly; otherwise `shouldUseRag` applies its local gates
-     and classifier fallback.
-   - In normal agentic turns, do not prefetch RAG. When RAG is selected,
-     expose `createRagTools().searchRag` as a native, once-per-turn retrieval
-     tool. It can run alongside TinyFish search/fetch and calls
-     `getRagContext` with the model's bounded query. Model-comparison setup is
-     an explicit exception: `prepareChatTurn` may prepare bounded RAG context
-     through `shouldUseRag`/`getRagContext` for a safe paired snapshot, without
-     exposing executable retrieval tools in that preparation path.
+6. Expose the server-authorized tool inventory. In the normal agentic path the
+   model chooses whether to call none, one, or several of the available web,
+   RAG, memory, user-context, recall, and routine tools. RAG is a native,
+   once-per-turn retrieval tool and can be composed with TinyFish tools.
+   Model-comparison setup is an explicit exception: `prepareChatTurn` may
+   materialize bounded RAG context for a safe paired snapshot, without
+   exposing executable retrieval tools in that preparation path.
 7. Build the system prompt with the selected modules and expose only the
    selected tools.
 8. Run `streamText` with the selected tools and callbacks.
@@ -101,10 +95,11 @@ The orchestrator composes tools from several factories:
   - `searchPastConversations` (current thread first)
   - `expandConversationEvidence` (same-turn opaque evidence IDs only)
 
-The orchestrator does not expose every tool on every turn. Profile and
-preference tools are enabled only when the selected plan allows persistent
-changes. Memory tools can silently save ordinary, low-risk facts stated or
-prudently inferred by the conversation. Every mutation is user-scoped,
+The orchestrator exposes only tools authorized by the deterministic server
+guards. Profile and preference tools are enabled only when the selected plan
+allows persistent changes. The model chooses which authorized tools to call.
+Memory tools can silently save ordinary, low-risk facts stated or prudently
+inferred by the conversation. Every mutation is user-scoped,
 idempotent, and revisioned. Sensitive or high-impact facts are not written
 directly: they create a pending server-side approval. A confirmation is valid
 only after one assistant response has been durably linked as the natural
@@ -193,9 +188,8 @@ latency percentiles, and cost.
 
 | Mode | Used for | Behavior |
 | ---- | -------- | -------- |
-| `full` | Authenticated turns that need normal context/tools | Uses same-thread history, optional profile/memory context, optional RAG, optional web tools, and full response budget. |
-| `guest` | Guest chat | Uses compact guest prompt and constrained output. |
-| `compact` | Atomic greetings or self-contained motivation with no external capability | Uses up to three complete same-thread turns plus a rolling summary and a tiny user snapshot. Response brevity alone never selects it. |
+| `full` | Authenticated turns | Uses same-thread history, optional profile/memory context, optional RAG, optional web tools, and the normal response budget. |
+| `guest` | Guest chat | Uses the guest prompt and constrained output. |
 
 ### Current-information flow
 
@@ -203,7 +197,7 @@ Web search is powered by TinyFish:
 
 - `tinyfishSearch` is used for current, live, post-cutoff, or explicit external web requests.
 - `tinyfishFetch` is exposed for explicit source/page/link requests and to the
-  standard agentic model when web tools are available; the model decides
+  agentic model when web tools are available; the model decides
   whether fetching is useful after selecting web search.
 - Brief current-information requests should normally use one broad search query and answer from the compact result snippets.
 - Search history context is capped separately from normal chat context to keep these turns low latency.
@@ -235,23 +229,15 @@ RAG management writes to Production. The override is ignored outside
 
 ### Retrieval paths and query gating
 
-The orchestrator skips RAG for guest turns before invoking the retrieval
-gates. Authenticated turns have two distinct paths:
+The live chat path is agentic. Guests are denied RAG by server policy;
+authenticated turns expose the bounded `searchRag` tool when the corpus is
+available, and the model decides whether to call it. The tool is independent
+of TinyFish search and fetch, so RAG and web research may be composed in one
+turn. Model-comparison preparation is an explicit exception and may materialize
+bounded context for its paired snapshot.
 
-- Legacy prefetch uses `shouldUseRag` and then `getRagContext` to inject
-  retrieved context before generation. Legacy web-search turns preserve the
-  compatibility rule that they do not also inject RAG.
-- Normal agentic retrieval exposes `createRagTools().searchRag` only when the
-  capability decision selects RAG. This is a native tool, not a prefetch: it
-  calls `getRagContext` once with a bounded model-selected query. It is
-  independent of the TinyFish `tinyfishSearch` and `tinyfishFetch` tools, so
-  RAG and web search/fetch may be composed in the same turn. Model-comparison
-  preparation is an explicit exception: it may use `shouldUseRag` and
-  `getRagContext` to materialize bounded context for the paired snapshot, but
-  does not expose executable retrieval tools during that setup.
-
-The following is the implementation order inside `shouldUseRag`; it applies to
-the legacy prefetch path:
+The deterministic `shouldUseRag` helper remains only for bounded prefetch
+callers such as comparison preparation. Its gates are local and fail closed:
 
 1. If no positive RAG keyword is present, reject immediately for live-web
    intent, brief generic coaching advice, short messages containing a
@@ -260,10 +246,8 @@ the legacy prefetch path:
    advice, reject immediately.
 3. Check whether RAG documents exist (cached); if none exist, return false.
 4. If a positive keyword is present, return true.
-5. Otherwise consult the five-minute RAG classification cache, then the
-   bounded RAG classifier on the structured-output route as the final fallback.
-   This is a RAG-specific legacy prefetch decision, not profile routing; agentic
-   turns do not enter this path. Failures return false.
+5. Otherwise return false; the live agentic model can still call `searchRag`
+   when the server has exposed it.
 
 ### Core functions
 
@@ -345,58 +329,22 @@ health and cost snapshots are supplied.
 `streamText` also passes `promptCaching: true` and `session_id` to OpenRouter so
 providers that support cache/session affinity can reuse prompt context.
 
-### Capability planner rollout
+### Single-path agentic execution
 
-`AI_CAPABILITY_PLANNER_MODE` is the rollout switch and accepts `agentic` or
-`legacy`; missing or invalid values resolve to `legacy`.
+Live chat does not call an LLM classifier and does not allocate an execution
+profile. Deterministic server rules authorize capabilities, then one normal
+agentic model generation decides whether to use the exposed web, RAG, memory,
+user-context, recall, or routine tools. Web, Telegram, and WhatsApp share this
+immutable capability-only decision through the common channel flow.
 
-| Mode | Behavior |
-| ---- | -------- |
-| `legacy` | Compatibility path that preserves legacy RAG/web separation; shared post-turn fact consolidation still runs. |
-| `agentic` | Exposes the permitted optional tools to the standard model for composable RAG + web and model-selected memory/tool use; shared consolidation still runs. |
+Authenticated turns use the full prompt; guest turns use the guest prompt.
+Briefness changes response length only. Model-comparison preparation freezes
+the same capability decision for both variants and excludes comparison output
+from durable-memory consolidation.
 
-The default remains `legacy` until the rollout is deliberately changed. The
-separate `AI_TURN_PLANNER_MODE` compatibility switch is not repurposed by this
-rollout.
-
-Capability decisions are shared immutably through the common channel flow for
-Web, Telegram, and WhatsApp. Web model-comparison preparation freezes the
-context and reuses the same decision for both variants and any normal fallback.
-Model-comparison responses are excluded from durable-memory consolidation so
-an unselected experimental answer cannot become user knowledge.
-
-### Light execution routing
-
-Live chat does not call an LLM classifier. Deterministic server rules identify
-only obviously self-contained turns such as simple social messages and direct
-transformations. Every ambiguous, contextual, tool-requiring, coaching,
-memory, media, voice, or externally informed turn goes to the standard model.
-
-When the capability planner is `agentic`, the standard model chooses whether to
-use web, RAG, memory, or other exposed tools. The fast path never receives
-tools, uses the compact prompt, and has bounded output. The selected model IDs
-and the existing light-to-standard pre-stream fallback are unchanged.
-
-The static safety boundary permits only `social`, `rewrite`, `translate`,
-`format`, `extract`, and `summarize_supplied` to be light-eligible. This is a
-code-level policy, not a remotely learned or admin-managed allowlist. Any
-required capability, external knowledge, deep context, coaching/sensitive or
-substantive reasoning, direct media, pending approval, voice delivery, token
-limit, embedded instruction, or unresolved context vetoes light execution.
-
-`AI_FAST_PATH_ENABLED` is the only live fast-path switch. It defaults to
-enabled; set it to `false` to force standard execution across Web, Telegram,
-and WhatsApp. There is no request-time classifier, shadow mode, percentage
-allocation, task rollout, or database-backed routing configuration.
-
-Telemetry distinguishes deterministic eligibility, planned/executed profile,
-generation TTFT, total-request TTFT, and escalation. Live deterministic
-routing contributes no classifier latency or classifier model/provider fields.
-
-Routing telemetry is privacy bounded: it records profile names, task kind,
-policy version, confidence bucket, reason codes, counts, bounded latencies, and
-escalation status. It excludes user text, prompts, tool arguments/results, and
-source content.
+Current telemetry reports the actual generation and tool timings. It does not
+create classifier/profile spans or write `executionRoute`. Nullable historical
+route data remains readable only so old records can be migrated or ignored.
 
 ### Conversation recall
 

@@ -1,9 +1,9 @@
 import type { Prisma } from "@/generated/prisma";
 import type { CapabilityDecision } from "@/lib/ai/capability-arbitration";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
-import type { TurnDecision } from "@/lib/ai/execution-routing";
 import type { MemoryRecallDecision } from "@/lib/ai/memory-recall-release";
 import type { PreparedTurnContext } from "@/lib/ai/orchestrator";
+import type { TurnDecision } from "@/lib/ai/turn-decision";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
 import type { ServerTraceCollector } from "@/lib/response-profiler/server-trace";
 

@@ -57,8 +57,6 @@ Feature-specific variables:
   (optional pooled Production connection; used only while `NODE_ENV=development`)
 - Private generated voice: `VOICE_BLOB_READ_WRITE_TOKEN`
 - Web search tools: `TINYFISH_API_KEY`
-- Agentic optional-capability rollout: `AI_CAPABILITY_PLANNER_MODE=agentic`
-- Deterministic fast path: `AI_FAST_PATH_ENABLED=true` (set to `false` to force standard execution)
 - Encrypted AI trace content: `AI_TRACE_ENCRYPTION_KEY`
 - Maintenance jobs: `QSTASH_URL`, `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `CRON_SECRET`, `APP_URL`
 - Telegram channel: `TELEGRAM_*`
@@ -66,18 +64,11 @@ Feature-specific variables:
 - Voice generation: `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`
 - Product analytics and feature flags: `POSTHOG_API_KEY`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`
 
-`AI_CAPABILITY_PLANNER_MODE` accepts `legacy` or `agentic`; missing and invalid
-values resolve to `legacy`. Configure it independently per Vercel environment.
-The current staged rollout enables `agentic` in Preview while Production stays
-on `legacy` until promotion is explicitly approved.
-
-Live fast-path routing is independent of model selection. It uses deterministic
-rules only; there is no request-time LLM classifier or rollout allowlist. Set
-`AI_FAST_PATH_ENABLED=false` to force every channel through standard execution.
-When enabled, only obviously self-contained turns can use light; the standard
-agentic model remains responsible for selecting web, RAG, memory, and other
-tools for the rest. See [Live AI Profile Routing](ai-live-profile-routing.md)
-for the full policy and verification commands.
+Live chat uses one agentic execution path. Deterministic server guards authorize
+capabilities, and the model chooses whether to use the exposed web, RAG,
+memory, user-context, recall, or routine tools. There is no live classifier,
+profile switch, fast path, or allowlist. See [Live AI execution](ai-live-profile-routing.md)
+for the policy and verification commands.
 
 `NEXT_PUBLIC_APP_URL` is used for link generation (channel linking, embedding headers, callbacks).
 
@@ -202,7 +193,6 @@ bun run start
 | `bun run test:coverage:integration` | Run integration coverage |
 | `bun run test:coverage` | Run unit + integration coverage |
 | `bun run test:all` | Run unit and integration coverage once each |
-| `bun run eval:turn-routing` | Run the explicit cold 60-fixture classifier evaluation; the gate allows at most one transient classifier failure, zero protected false-light cases, and at most two false-standard light cases (requires `OPENROUTER_API_KEY`; no database or PostHog writes) |
 | `bun run test:watch` | Run tests in watch mode |
 | `bun run test:ui` | Run tests with Vitest UI |
 

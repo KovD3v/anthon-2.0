@@ -4,10 +4,10 @@ import { matchesMemoryDeleteIntent as matchesMemoryDeleteIntentBoundary } from "
  * Heuristic intent detection for chat messages.
  *
  * These matchers gate which tools and prompt modules the orchestrator enables
- * for a turn (web search, memory reads/writes, RAG, fast path, ...).
+ * for a turn (web search, memory reads/writes, RAG, and other capabilities).
  * They are regex-based and currently cover Italian plus common English terms;
- * ambiguous cases fall back to the LLM prompt-module classifier in the
- * orchestrator.
+ * ambiguous cases remain available to the normal agentic model when the
+ * deterministic server policy exposes the corresponding tool.
  */
 
 export type RuleConfidence = "high" | "low";

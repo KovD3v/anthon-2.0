@@ -226,9 +226,9 @@ describe("capability arbitration", () => {
       routineProposal: false,
       userContext: false,
       voiceOutput: false,
-      source: "fallback",
+      source: "rule",
     });
-    expect(decision.reasonCodes).toContain("classifier_unavailable");
+    expect(decision.reasonCodes).toContain("deterministic_policy");
   });
 
   it("allows a classifier-selected conservative low-risk inferred memory write", () => {
@@ -246,14 +246,14 @@ describe("capability planner mode", () => {
     vi.unstubAllEnvs();
   });
 
-  it.each([undefined, "invalid"])("defaults %s to legacy", (mode) => {
+  it.each([undefined, "invalid"])("uses agentic mode for %s", (mode) => {
     if (mode === undefined) {
       vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "");
     } else {
       vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", mode);
     }
 
-    expect(getCapabilityPlannerMode()).toBe("legacy");
+    expect(getCapabilityPlannerMode()).toBe("agentic");
   });
 
   it("keeps the explicit agentic mode", () => {

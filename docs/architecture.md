@@ -68,7 +68,7 @@ app/
 | ------------------------ | ---------------------------------- |
 | `ai/orchestrator.ts`     | Main chat preparation, streaming, prompt composition, and tool exposure |
 | `ai/capability-arbitration.ts` | Deterministic capability guards and permission normalization |
-| `ai/turn-arbitration.ts` / `ai/execution-routing.ts` | Immutable `TurnDecision`, deterministic fast-path policy, and standard fallback |
+| `ai/turn-arbitration.ts` / `ai/turn-decision.ts` | Immutable capability-only `TurnDecision` and deterministic authorization |
 | `ai/turn-plan.ts`        | Immutable response, context, prompt, and capability plan |
 | `ai/session-manager.ts`  | Builds channel-scoped conversation context and summaries |
 | `ai/rag.ts` / `ai/tools/rag.ts` | pgvector retrieval and bounded agentic RAG tool |
@@ -112,9 +112,9 @@ components/
           ▼
 3. Shared channel flow + orchestrator
    ├── Resolve model and OpenRouter provider options
-   ├── Apply deterministic capability guards and fast-path routing rules
-   ├── Normalize and freeze one immutable TurnDecision (eligible/planned/executed profiles)
-   ├── Normalize and freeze one immutable TurnPlan
+   ├── Apply deterministic capability guards
+   ├── Normalize and freeze one capability-only TurnDecision
+   ├── Normalize and freeze one full/guest TurnPlan
    ├── Build same-thread context when selected
    └── Stream with only the selected, server-authorized tools
           │
@@ -131,34 +131,28 @@ components/
    ├── Save exactly one assistant message and normalized metrics
    ├── Reconcile the usage reservation atomically
    ├── Persist the completed capability decision
-   └── Retain bounded recovery data if final persistence fails; recovery preserves
-       the immutable route and fails closed to standard if it is invalid
+   └── Retain bounded recovery data if final persistence fails; recovery keeps
+       only the immutable capability decision
           │
           ▼
 6. Stream response to client
    └── Optionally enqueue durable voice generation after text persists
 ```
 
-### Execution routing
+### Live AI execution
 
-See [Live AI Profile Routing](ai-live-profile-routing.md) for the complete
+See [Live AI execution](ai-live-profile-routing.md) for the complete
 operational policy and configuration reference.
 
-Live chat does not call an agentic classifier. Deterministic execution routing
-recognizes only obviously self-contained `social`, `rewrite`, `translate`,
-`format`, `extract`, and `summarize_supplied` turns; ambiguous work and every
-tool-requiring, contextual, coaching, media, approval, voice, or token-bound
-case force standard.
+Live chat does not call an LLM classifier and does not allocate `light` or
+`standard` profiles. Deterministic capability guards authorize the available
+tools, and one normal agentic model generation chooses whether to use none,
+one, or several of them. Authenticated turns use the full prompt; guest turns
+use the guest prompt.
 
-The deployed model mapping is unchanged. `light` changes only the execution
-bundle (minimal reasoning, no tools, bounded output), not a plan's selected
-model. A routing trace separates generation TTFT for the executed attempt and
-total-request TTFT from request start; deterministic routing contributes no
-classifier latency.
-
-The shared `AI_FAST_PATH_ENABLED=false` kill switch spans Web, Telegram, and
-WhatsApp. There is no shadow mode, percentage allocation, or database-backed
-task allowlist.
+Current telemetry reports model generation, tool, RAG, and memory timings. Old
+`executionRoute` JSON remains nullable historical data but is not written or
+rendered for new turns.
 
 ## Key Design Decisions
 
@@ -192,13 +186,6 @@ The assistant can propose a validated routine inside a message, but the tool
 cannot save or run it. User acceptance persists a reusable `Routine`; execution
 and check-in happen inline through `RoutineAttempt`, with repeat/adapt chats
 referencing the original routine rather than copying it.
-
-### Fast Chat Path
-
-Atomic non-guest, text-only turns can use the compact `TurnPlan` profile. It is
-selected independently from response brevity and uses only same-thread raw
-turns plus a rolling summary; profile, RAG, voice, and tools remain enabled
-whenever the plan requires them.
 
 ### Current-Information Tools
 

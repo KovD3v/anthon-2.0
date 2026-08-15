@@ -3,198 +3,67 @@ import {
   type CapabilityDecision,
   normalizeCapabilityDecision,
 } from "./capability-arbitration";
-import {
-  freezeTurnDecision,
-  hasUntrustedSuppliedTextInstructions,
-  normalizeExecutionDecision,
-  resolveDeterministicTaskKind,
-  TURN_CLASSIFIER_VERSION,
-  type TurnDecision,
-} from "./execution-routing";
-import { resolveDeterministicTurnClassification } from "./fast-routing";
-import {
-  CAPABILITY_CLASSIFIER_MIN_CONFIDENCE,
-  type CapabilityClassifierProposal,
-  type TurnClassificationResult,
-  type TurnClassifierProposal,
-} from "./turn-routing-types";
-
-const SELF_CONTAINED_TRANSFORM_TASKS = new Set([
-  "rewrite",
-  "translate",
-  "format",
-  "extract",
-  "summarize_supplied",
-]);
+import { freezeTurnDecision, type TurnDecision } from "./turn-decision";
 
 export type TurnArbitrationInput = Omit<
   CapabilityArbitrationInput,
   "classifier"
 > & {
-  plannerMode: "legacy" | "agentic";
-  hasDeterministicCoachingIntent: boolean;
-  requiresExternalKnowledge: boolean;
-  inputOrigin: "text" | "direct_media";
-  hasPendingApproval: boolean;
-  estimatedInputTokens: number;
-  requestedOutputTokens: number;
-  hasRecentContext: boolean;
+  /** Retained as a source-compatible field for prepared channel callers. */
+  plannerMode?: "legacy" | "agentic";
+  hasDeterministicCoachingIntent?: boolean;
+  requiresExternalKnowledge?: boolean;
+  inputOrigin?: "text" | "direct_media";
+  hasPendingApproval?: boolean;
+  estimatedInputTokens?: number;
+  requestedOutputTokens?: number;
+  hasRecentContext?: boolean;
   abortSignal?: AbortSignal;
 };
 
 export type TurnArbitrationResult = {
   decision: TurnDecision;
-  classificationLatencyMs: number;
-  classifierModel?: string;
-  classifierProvider?: string;
 };
 
-function toCapabilityClassifierAdapter(
-  proposal: CapabilityClassifierProposal | null,
-  capabilityConfidence: number,
-): Partial<CapabilityDecision> | null {
-  if (
-    !proposal ||
-    capabilityConfidence < CAPABILITY_CLASSIFIER_MIN_CONFIDENCE
-  ) {
-    return null;
-  }
-
-  return Object.fromEntries(
-    Object.entries(proposal).flatMap(([capability, value]) =>
-      value === "yes" ? [[capability, true]] : [],
-    ),
-  ) as Partial<CapabilityDecision>;
-}
-
-export function normalizeClassifierProposalForArbitration(
-  proposal: TurnClassifierProposal | null,
-): TurnClassifierProposal | null {
-  if (
-    !proposal ||
-    !SELF_CONTAINED_TRANSFORM_TASKS.has(proposal.workload.taskKind) ||
-    proposal.workload.contextDependency !== "none" ||
-    proposal.workload.knowledgeNeed !== "supplied_only" ||
-    proposal.workload.reasoningDepth !== "minimal" ||
-    proposal.workload.sensitivity !== "ordinary"
-  ) {
-    return proposal;
-  }
-
-  if (
-    proposal.capabilities.rag === "no" &&
-    proposal.capabilities.memoryWrite === "no"
-  ) {
-    return proposal;
-  }
-
-  return {
-    ...proposal,
-    capabilities: {
-      ...proposal.capabilities,
-      rag: "no",
-      memoryWrite: "no",
-    },
-  };
-}
-
-function legacyClassification(): TurnClassificationResult {
-  return {
-    proposal: null,
-    outcome: "accepted",
-    latencyMs: 0,
-  };
-}
-
-export async function arbitrateTurn(
+function buildCapabilityDecision(
   input: TurnArbitrationInput,
-): Promise<TurnArbitrationResult> {
-  let classification: TurnClassificationResult;
-  try {
-    const deterministicClassification =
-      input.plannerMode === "agentic"
-        ? resolveDeterministicTurnClassification(
-            {
-              userMessage: input.userMessage,
-              explicitWebRule: input.explicitWebRule,
-              requireClassifierRoutineProposal:
-                input.requireClassifierRoutineProposal ?? false,
-              hasPendingMemoryApproval: input.hasPendingApproval,
-              hasDeterministicCoachingIntent:
-                input.hasDeterministicCoachingIntent,
-              requiresExternalKnowledge: input.requiresExternalKnowledge,
-              inputOrigin: input.inputOrigin,
-              responseMode: input.responseMode,
-              estimatedInputTokens: input.estimatedInputTokens,
-              requestedOutputTokens: input.requestedOutputTokens,
-              hasRecentContext: input.hasRecentContext,
-            },
-            { fallbackToStandard: true },
-          )
-        : null;
-    classification = deterministicClassification ?? legacyClassification();
-    input.abortSignal?.throwIfAborted();
-  } catch (error) {
-    input.abortSignal?.throwIfAborted();
-    throw error;
-  }
-
-  const proposal = normalizeClassifierProposalForArbitration(
-    classification.proposal,
-  );
-  const capabilities = normalizeCapabilityDecision({
+): CapabilityDecision {
+  return normalizeCapabilityDecision({
     userMessage: input.userMessage,
     isGuest: input.isGuest,
     memoryEnabled: input.memoryEnabled,
     voiceAllowed: input.voiceAllowed,
     responseMode: input.responseMode,
     explicitWebRule: input.explicitWebRule,
-    allowConcurrentRoutineAndWeb: input.allowConcurrentRoutineAndWeb,
-    requireClassifierRoutineProposal: input.requireClassifierRoutineProposal,
+    // A single agentic path exposes independently authorized tools. The
+    // model may choose a routine together with web/RAG when both are safe.
+    allowConcurrentRoutineAndWeb: true,
+    requireClassifierRoutineProposal: false,
     hasPendingMemoryApproval: input.hasPendingMemoryApproval,
     resolvedMemoryTarget: input.resolvedMemoryTarget,
-    classifierSource: classification.classificationSource,
-    classifier: toCapabilityClassifierAdapter(
-      proposal?.capabilities ?? null,
-      proposal?.capabilityConfidence ?? 0,
-    ),
+    classifierSource: "rule",
+    classifier: null,
   });
-  const execution = normalizeExecutionDecision({
-    plannerMode: input.plannerMode,
-    classifierOutcome: classification.outcome,
-    classificationSource: classification.classificationSource,
-    classifierVersion: TURN_CLASSIFIER_VERSION,
-    capabilityProposal: proposal?.capabilities ?? null,
-    capabilityConfidence: proposal?.capabilityConfidence ?? 0,
-    workload: proposal?.workload ?? null,
-    capabilities,
-    hasDeterministicCoachingIntent: input.hasDeterministicCoachingIntent,
-    requiresExternalKnowledge: input.requiresExternalKnowledge,
-    inputOrigin: input.inputOrigin,
-    hasPendingApproval: input.hasPendingApproval,
-    responseMode: input.responseMode,
-    estimatedInputTokens: input.estimatedInputTokens,
-    requestedOutputTokens: input.requestedOutputTokens,
-    hasRecentContext: input.hasRecentContext,
-    hasUntrustedSuppliedText: hasUntrustedSuppliedTextInstructions(
-      input.userMessage,
-    ),
-    deterministicTaskKind: resolveDeterministicTaskKind(input.userMessage),
-  });
+}
+
+/**
+ * Resolves only deterministic capability and authorization gates.
+ *
+ * There is deliberately no live classifier call and no execution-profile
+ * allocation here. The standard model receives the authorized tool inventory
+ * and chooses which tools to use in its normal agentic generation.
+ */
+export async function arbitrateTurn(
+  input: TurnArbitrationInput,
+): Promise<TurnArbitrationResult> {
+  input.abortSignal?.throwIfAborted();
+  const capabilities = buildCapabilityDecision(input);
   input.abortSignal?.throwIfAborted();
 
   return {
     decision: freezeTurnDecision({
       version: 1,
       capabilities,
-      execution,
     }),
-    classificationLatencyMs: classification.latencyMs,
-    ...(classification.classifierModel
-      ? { classifierModel: classification.classifierModel }
-      : {}),
-    ...(classification.classifierProvider
-      ? { classifierProvider: classification.classifierProvider }
-      : {}),
   };
 }

@@ -1,6 +1,4 @@
 import type { UserRole } from "@/generated/prisma";
-import { LIGHT_EXECUTION_MODEL_ID } from "@/lib/ai/execution-model";
-import { parseExecutionRouteTrace } from "@/lib/ai/execution-route-trace";
 import {
   parseClientTrace,
   parseServerTrace,
@@ -134,9 +132,6 @@ export function buildTechnicalUsage(
 
   const metrics = message.metrics;
   const includeDiagnostics = options.includeDiagnostics !== false;
-  const executionRoute = includeDiagnostics
-    ? parseExecutionRouteTrace(metrics?.executionRoute)
-    : null;
   const serverTrace = includeDiagnostics
     ? parseServerTrace(metrics?.serverTrace)
     : null;
@@ -147,11 +142,6 @@ export function buildTechnicalUsage(
     ? parseDeveloperDiagnostics(metrics?.developerDiagnostics)
     : undefined;
   const model = metrics?.model ?? message.model;
-  const executedProfile = model
-    ? model === LIGHT_EXECUTION_MODEL_ID
-      ? "light"
-      : "standard"
-    : undefined;
   const provider = metrics?.provider?.trim();
   const reasoningTokens = metrics?.reasoningTokens ?? message.reasoningTokens;
   const reasoningTimeMs = metrics?.reasoningTimeMs ?? message.reasoningTimeMs;
@@ -177,7 +167,6 @@ export function buildTechnicalUsage(
       : {}),
     ...(includeDiagnostics && model ? { model } : {}),
     ...(includeDiagnostics && provider ? { provider } : {}),
-    ...(includeDiagnostics && executedProfile ? { executedProfile } : {}),
     ...(includeDiagnostics && typeof reasoningTokens === "number"
       ? { reasoningTokens }
       : {}),
@@ -196,17 +185,6 @@ export function buildTechnicalUsage(
       ? { ragChunksCount }
       : {}),
     ...(includeDiagnostics && memoryRecall ? { memoryRecall } : {}),
-    ...(includeDiagnostics && executionRoute
-      ? {
-          executionRoute: {
-            ...executionRoute,
-            reasonCodes: [...executionRoute.reasonCodes],
-            attempts: executionRoute.attempts.map((attempt) => ({
-              ...attempt,
-            })),
-          },
-        }
-      : {}),
     ...(serverTrace ? { serverTrace } : {}),
     ...(clientTrace ? { clientTrace } : {}),
     ...(developerDiagnostics ? { developerDiagnostics } : {}),

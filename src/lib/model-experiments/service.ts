@@ -1,11 +1,7 @@
 import { Prisma } from "@/generated/prisma";
 import type { AIMetrics } from "@/lib/ai/cost-calculator";
-import type {
-  ExecutionProfile,
-  RoutingMode,
-  TurnDecision,
-} from "@/lib/ai/execution-routing";
 import { safelyRefreshConversationThreadSummary } from "@/lib/ai/thread-context";
+import type { TurnDecision } from "@/lib/ai/turn-decision";
 import {
   parseSafeTurnDecision,
   serializeSafeTurnDecision,
@@ -33,17 +29,8 @@ function asJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
 }
 
-function serializeComparisonTurnDecision(
-  decision: TurnDecision,
-  routingMode?: RoutingMode,
-  plannedProfile?: ExecutionProfile,
-) {
-  return {
-    ...serializeSafeTurnDecision(decision),
-    ...(routingMode && plannedProfile
-      ? { routing: { routingMode, plannedProfile } }
-      : {}),
-  };
+function serializeComparisonTurnDecision(decision: TurnDecision) {
+  return serializeSafeTurnDecision(decision);
 }
 
 function comparisonRoutingProperties(value: unknown) {
@@ -52,32 +39,10 @@ function comparisonRoutingProperties(value: unknown) {
   const decision = parseSafeTurnDecision({
     version: stored.version,
     capabilities: stored.capabilities,
-    execution: stored.execution,
   });
   if (!decision) return {};
-
-  const routing =
-    stored.routing &&
-    typeof stored.routing === "object" &&
-    !Array.isArray(stored.routing)
-      ? (stored.routing as Record<string, unknown>)
-      : undefined;
-  const routingMode = routing?.routingMode;
-  const plannedProfile = routing?.plannedProfile;
   return {
-    routing_mode:
-      routingMode === "off" ||
-      routingMode === "shadow" ||
-      routingMode === "active"
-        ? routingMode
-        : undefined,
-    eligible_profile: decision.execution.eligibleProfile,
-    planned_profile:
-      plannedProfile === "light" || plannedProfile === "standard"
-        ? plannedProfile
-        : undefined,
-    task_kind: decision.execution.taskKind,
-    policy_version: decision.execution.policyVersion,
+    capability_source: decision.capabilities.source,
   };
 }
 
@@ -298,8 +263,6 @@ export async function createModelComparisonPair({
   countryCode,
   capabilityPlannerMode,
   turnDecision,
-  routingMode,
-  plannedProfile,
   now = new Date(),
   random = Math.random,
 }: {
@@ -311,8 +274,6 @@ export async function createModelComparisonPair({
   countryCode: string;
   capabilityPlannerMode?: "legacy" | "agentic";
   turnDecision?: TurnDecision;
-  routingMode?: RoutingMode;
-  plannedProfile?: ExecutionProfile;
   now?: Date;
   random?: () => number;
 }) {
@@ -371,11 +332,7 @@ export async function createModelComparisonPair({
         ...(turnDecision
           ? {
               turnDecision: asJson(
-                serializeComparisonTurnDecision(
-                  turnDecision,
-                  routingMode,
-                  plannedProfile,
-                ),
+                serializeComparisonTurnDecision(turnDecision),
               ),
             }
           : {}),

@@ -10,14 +10,6 @@ import {
   normalizePreDeliveryCapabilityUsage,
 } from "@/lib/ai/capability-usage";
 import {
-  type ExecutionRouteTrace,
-  parseExecutionRouteTrace,
-} from "@/lib/ai/execution-route-trace";
-import {
-  freezeTurnDecision,
-  type TurnDecision,
-} from "@/lib/ai/execution-routing";
-import {
   getImmediatelyAttributableApproval,
   mightResolvePendingMemoryApproval,
 } from "@/lib/ai/memory-approval";
@@ -25,6 +17,7 @@ import type { MemoryRecallDecision } from "@/lib/ai/memory-recall-release";
 import { resolveExactMemoryDeleteTarget } from "@/lib/ai/memory-target";
 import { streamChat } from "@/lib/ai/orchestrator";
 import { createToolStreamRedactor } from "@/lib/ai/tool-privacy";
+import { freezeTurnDecision, type TurnDecision } from "@/lib/ai/turn-decision";
 import { serializeSafeTurnDecision } from "@/lib/ai/turn-decision-metadata";
 import { createLogger } from "@/lib/logger";
 import {
@@ -105,6 +98,12 @@ function finishMetadata(
   };
 }
 
+function stripHistoricalExecutionRoute<T extends object>(metrics: T) {
+  const { executionRoute: _historicalExecutionRoute, ...currentMetrics } =
+    metrics as T & { executionRoute?: unknown };
+  return currentMetrics;
+}
+
 function createPersistedResponse(
   text: string,
   metrics: NonNullable<RunChannelFlowResult["metrics"]>,
@@ -139,7 +138,7 @@ function isKnownCapabilityPlannerMode(
   return value === "legacy" || value === "agentic";
 }
 
-const TURN_DECISION_KEYS = ["version", "capabilities", "execution"] as const;
+const TURN_DECISION_KEYS = ["version", "capabilities"] as const;
 const CAPABILITY_DECISION_KEYS = [
   "rag",
   "webSearch",
@@ -153,16 +152,6 @@ const CAPABILITY_DECISION_KEYS = [
   "voiceOutput",
   "source",
   "reasonCodes",
-] as const;
-const EXECUTION_DECISION_KEYS = [
-  "eligibleProfile",
-  "taskKind",
-  "contextDependency",
-  "source",
-  "confidenceBucket",
-  "reasonCodes",
-  "policyVersion",
-  "classifierVersion",
 ] as const;
 
 function hasExactOwnKeys(
@@ -215,6 +204,7 @@ function isImmutableCapabilityDecision(
       (capability) => typeof decision[capability] === "boolean",
     ) &&
     (decision.source === "fallback" ||
+      decision.source === "rule" ||
       decision.source === "classifier" ||
       decision.source === "mixed") &&
     Object.hasOwn(decision, "memoryDeleteTarget") &&
@@ -261,8 +251,8 @@ const FALLBACK_CAPABILITY_DECISION = Object.freeze({
   routineProposal: false,
   userContext: false,
   voiceOutput: false,
-  source: "fallback" as const,
-  reasonCodes: Object.freeze(["classifier_unavailable"]),
+  source: "rule" as const,
+  reasonCodes: Object.freeze(["deterministic_policy"]),
 }) as unknown as CapabilityDecision;
 
 function isSafeCapabilityDecision(value: unknown): value is CapabilityDecision {
@@ -274,7 +264,7 @@ function isSafeCapabilityDecision(value: unknown): value is CapabilityDecision {
   }
   try {
     serializeSafeTurnDecision(
-      createStandardFallbackTurnDecision(value as CapabilityDecision),
+      createFallbackTurnDecision(value as CapabilityDecision),
     );
     return true;
   } catch {
@@ -289,11 +279,8 @@ function isDeepFrozenTurnDecision(value: unknown): value is TurnDecision {
   const decision = value as TurnDecision;
   if (
     !hasExactOwnKeys(decision.capabilities, CAPABILITY_DECISION_KEYS) ||
-    !hasExactOwnKeys(decision.execution, EXECUTION_DECISION_KEYS) ||
     !Object.isFrozen(decision.capabilities) ||
-    !Object.isFrozen(decision.capabilities?.reasonCodes) ||
-    !Object.isFrozen(decision.execution) ||
-    !Object.isFrozen(decision.execution?.reasonCodes)
+    !Object.isFrozen(decision.capabilities?.reasonCodes)
   ) {
     return false;
   }
@@ -305,93 +292,12 @@ function isDeepFrozenTurnDecision(value: unknown): value is TurnDecision {
   }
 }
 
-function createStandardFallbackTurnDecision(
+function createFallbackTurnDecision(
   capabilities: CapabilityDecision = FALLBACK_CAPABILITY_DECISION,
 ): TurnDecision {
   return freezeTurnDecision({
     version: 1,
     capabilities,
-    execution: {
-      eligibleProfile: "standard",
-      taskKind: "other",
-      contextDependency: "deep",
-      source: "fallback",
-      confidenceBucket: "low",
-      reasonCodes: ["runtime_invariant"],
-      policyVersion: 1,
-      classifierVersion: 1,
-    },
-  });
-}
-
-function isValidClassificationLatency(value: unknown): value is number {
-  return (
-    typeof value === "number" &&
-    Number.isInteger(value) &&
-    Number.isFinite(value) &&
-    value >= 0
-  );
-}
-
-function executionRouteMatchesDecision(
-  route: ExecutionRouteTrace,
-  decision: TurnDecision,
-) {
-  return (
-    route.policyVersion === decision.execution.policyVersion &&
-    route.classifierVersion === decision.execution.classifierVersion &&
-    route.eligibleProfile === decision.execution.eligibleProfile &&
-    route.taskKind === decision.execution.taskKind &&
-    route.decisionSource === decision.execution.source &&
-    route.confidenceBucket === decision.execution.confidenceBucket &&
-    decision.execution.reasonCodes.every((reasonCode) =>
-      route.reasonCodes.includes(reasonCode),
-    )
-  );
-}
-
-function validatedExecutionRoute(
-  value: unknown,
-  decision?: TurnDecision,
-): ExecutionRouteTrace | null {
-  const route = parseExecutionRouteTrace(value);
-  if (!route || (decision && !executionRouteMatchesDecision(route, decision))) {
-    return null;
-  }
-  return Object.freeze({
-    ...route,
-    reasonCodes: Object.freeze([...route.reasonCodes]),
-    attempts: Object.freeze(
-      route.attempts.map((attempt) => Object.freeze({ ...attempt })),
-    ),
-    ...(route.escalation
-      ? { escalation: Object.freeze({ ...route.escalation }) }
-      : {}),
-  }) as unknown as ExecutionRouteTrace;
-}
-
-function reconstructRecoveryTurnDecision(
-  capabilities: CapabilityDecision,
-  route: ExecutionRouteTrace,
-): TurnDecision {
-  const contextDependency = route.reasonCodes.includes("deep_context")
-    ? "deep"
-    : route.eligibleProfile === "light"
-      ? "recent"
-      : "deep";
-  return freezeTurnDecision({
-    version: 1,
-    capabilities,
-    execution: {
-      eligibleProfile: route.eligibleProfile,
-      taskKind: route.taskKind,
-      contextDependency,
-      source: route.decisionSource,
-      confidenceBucket: route.confidenceBucket,
-      reasonCodes: route.reasonCodes,
-      policyVersion: route.policyVersion,
-      classifierVersion: route.classifierVersion,
-    },
   });
 }
 
@@ -439,7 +345,7 @@ export async function runChannelFlow(
   let turnDecision: TurnDecision | undefined;
   let memoryRecallDecision: MemoryRecallDecision | undefined;
   const requestedPreparedTurnContext = ctx.ai?.preparedTurnContext;
-  let preparedExecutionMetadataValid: boolean | undefined;
+  let preparedDecisionMetadataValid: boolean | undefined;
   let preparedCapabilityMetadataInvalid = false;
   let preparedTurnContext = requestedPreparedTurnContext;
   if (requestedPreparedTurnContext) {
@@ -448,15 +354,12 @@ export async function runChannelFlow(
       requestedPreparedTurnContext.capabilityPlannerMode,
     );
     preparedCapabilityMetadataInvalid = !preparedCapabilityMetadataValid;
-    preparedExecutionMetadataValid =
+    preparedDecisionMetadataValid =
       preparedCapabilityMetadataValid &&
-      isDeepFrozenTurnDecision(requestedPreparedTurnContext.turnDecision) &&
-      isValidClassificationLatency(
-        requestedPreparedTurnContext.classificationLatencyMs,
-      );
-    if (!preparedExecutionMetadataValid) {
+      isDeepFrozenTurnDecision(requestedPreparedTurnContext.turnDecision);
+    if (!preparedDecisionMetadataValid) {
       preparedTurnContext = {
-        turnDecision: createStandardFallbackTurnDecision(
+        turnDecision: createFallbackTurnDecision(
           preparedCapabilityMetadataValid
             ? requestedPreparedTurnContext.turnDecision.capabilities
             : FALLBACK_CAPABILITY_DECISION,
@@ -465,24 +368,21 @@ export async function runChannelFlow(
           requestedPreparedTurnContext.capabilityPlannerMode,
         )
           ? requestedPreparedTurnContext.capabilityPlannerMode
-          : "legacy",
-        classificationLatencyMs: 0,
+          : "agentic",
       };
     }
   }
-  let executionMetadataInvalid = preparedExecutionMetadataValid === false;
+  let executionMetadataInvalid = preparedDecisionMetadataValid === false;
 
   const applyTurnMetadata = ({
     candidateTurnDecision,
     candidateCapabilityDecision,
     candidateCapabilityPlannerMode,
-    candidateClassificationLatencyMs,
-    metrics,
+    metrics: _metrics,
   }: {
     candidateTurnDecision?: unknown;
     candidateCapabilityDecision?: unknown;
     candidateCapabilityPlannerMode?: unknown;
-    candidateClassificationLatencyMs?: unknown;
     metrics?: RunChannelFlowResult["metrics"];
   }) => {
     const immutableTurnDecision = isDeepFrozenTurnDecision(
@@ -510,32 +410,18 @@ export async function runChannelFlow(
       capabilityPlannerMode = undefined;
     }
 
-    let currentExecutionMetadataValid = immutableTurnDecision !== undefined;
-    if (
-      candidateClassificationLatencyMs !== undefined &&
-      !isValidClassificationLatency(candidateClassificationLatencyMs)
-    ) {
-      currentExecutionMetadataValid = false;
-    }
-    if (metrics?.executionRoute !== undefined) {
-      currentExecutionMetadataValid = Boolean(
-        immutableTurnDecision &&
-          validatedExecutionRoute(
-            metrics.executionRoute,
-            immutableTurnDecision,
-          ),
-      );
-    }
-    if (!currentExecutionMetadataValid) {
+    const currentDecisionMetadataValid =
+      immutableTurnDecision !== undefined && capabilityMetadataValid;
+    if (!currentDecisionMetadataValid) {
       executionMetadataInvalid = true;
     }
     executionMetadataValid =
-      currentExecutionMetadataValid && !executionMetadataInvalid;
+      currentDecisionMetadataValid && !executionMetadataInvalid;
     turnDecision = executionMetadataValid
       ? immutableTurnDecision
-      : preparedExecutionMetadataValid === false && immutableTurnDecision
+      : preparedDecisionMetadataValid === false && immutableTurnDecision
         ? immutableTurnDecision
-        : createStandardFallbackTurnDecision(
+        : createFallbackTurnDecision(
             capabilityMetadataValid
               ? capabilityDecision
               : FALLBACK_CAPABILITY_DECISION,
@@ -774,29 +660,14 @@ export async function runChannelFlow(
       capabilityDecision = recovery.capabilityDecision;
       memoryRecallDecision = recovery.memoryRecallDecision;
     }
-    const recoveryExecutionRoute =
-      recovery.executionMetadataValid === true
-        ? validatedExecutionRoute(
-            recovery.executionRoute ?? recovery.metrics.executionRoute,
-          )
-        : null;
-    executionMetadataValid = recoveryExecutionRoute !== null;
+    executionMetadataValid = recoveryCapabilityMetadataValid;
     const recoveryCapabilities =
       recoveryCapabilityMetadataValid && recovery.capabilityDecision
         ? recovery.capabilityDecision
         : FALLBACK_CAPABILITY_DECISION;
-    turnDecision = recoveryExecutionRoute
-      ? reconstructRecoveryTurnDecision(
-          recoveryCapabilities,
-          recoveryExecutionRoute,
-        )
-      : createStandardFallbackTurnDecision(recoveryCapabilities);
-    const { executionRoute: _untrustedExecutionRoute, ...baseRecoveryMetrics } =
+    turnDecision = createFallbackTurnDecision(recoveryCapabilities);
+    const { executionRoute: _historicalExecutionRoute, ...recoveryMetrics } =
       recovery.metrics;
-    const recoveryMetrics: NonNullable<RunChannelFlowResult["metrics"]> =
-      recoveryExecutionRoute
-        ? { ...baseRecoveryMetrics, executionRoute: recoveryExecutionRoute }
-        : baseRecoveryMetrics;
     finalMetrics = recoveryMetrics;
     const message = await persistGeneratedOutput({
       text: recovery.text,
@@ -854,7 +725,7 @@ export async function runChannelFlow(
       metrics: saved.metrics,
       capabilityMetadataValid: false,
       executionMetadataValid: false,
-      turnDecision: createStandardFallbackTurnDecision(),
+      turnDecision: createFallbackTurnDecision(),
       persistence,
       usageReservationId,
       usageReservationClaimToken,
@@ -969,14 +840,15 @@ export async function runChannelFlow(
         capabilityPlannerMode: streamedCapabilityPlannerMode,
         memoryRecallDecision: streamedMemoryRecallDecision,
       }) => {
+        const currentMetrics = stripHistoricalExecutionRoute(metrics);
         applyTurnMetadata({
           candidateTurnDecision: streamedTurnDecision,
           candidateCapabilityDecision: streamedCapabilityDecision,
           candidateCapabilityPlannerMode: streamedCapabilityPlannerMode,
-          metrics,
+          metrics: currentMetrics,
         });
         memoryRecallDecision = streamedMemoryRecallDecision;
-        finalMetrics = metrics;
+        finalMetrics = currentMetrics;
         generationAbortController.signal.throwIfAborted();
         if (!text.trim()) {
           if (usageReservationId && usageReservationClaimToken) {
@@ -987,7 +859,7 @@ export async function runChannelFlow(
                 claimToken: usageReservationClaimToken,
                 userId: ctx.userId,
                 text,
-                metrics,
+                metrics: currentMetrics,
                 capabilityPlannerMode: capabilityMetadataValid
                   ? capabilityPlannerMode
                   : undefined,
@@ -1007,12 +879,12 @@ export async function runChannelFlow(
 
         await persistGeneratedOutput({
           text,
-          metrics,
+          metrics: currentMetrics,
           allowMemoryExtraction: memoryEnabled && capabilityMetadataValid,
         });
         if (ctx.hooks?.onFinish) {
           try {
-            await ctx.hooks.onFinish({ text, metrics });
+            await ctx.hooks.onFinish({ text, metrics: currentMetrics });
           } catch (error) {
             runLogger.error("hook.onfinish_failed", "onFinish hook error", {
               error,
@@ -1029,7 +901,6 @@ export async function runChannelFlow(
         candidateTurnDecision: streamResult.turnDecision,
         candidateCapabilityDecision: streamResult.capabilityDecision,
         candidateCapabilityPlannerMode: streamResult.capabilityPlannerMode,
-        candidateClassificationLatencyMs: streamResult.classificationLatencyMs,
       });
       memoryRecallDecision = streamResult.memoryRecallDecision;
     }

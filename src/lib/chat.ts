@@ -217,7 +217,6 @@ async function getSharedChatUncached(
                 toolTiming: true,
                 ragUsed: true,
                 ragChunksCount: true,
-                executionRoute: true,
                 serverTrace: true,
                 clientTrace: true,
                 developerDiagnostics: true,

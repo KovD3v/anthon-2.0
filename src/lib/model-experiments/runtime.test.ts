@@ -99,7 +99,7 @@ vi.mock("./service", () => ({
   resolveModelComparisonPair: mocks.resolvePair,
 }));
 
-import { freezeTurnDecision } from "@/lib/ai/execution-routing";
+import { freezeTurnDecision } from "@/lib/ai/turn-decision";
 import { tryCreateModelComparisonResponse } from "./runtime";
 
 const metrics = {
@@ -244,45 +244,20 @@ describe("model comparison runtime", () => {
       routineProposal: false,
       userContext: true,
       voiceOutput: false,
-      source: "classifier",
+      source: "rule",
       reasonCodes: Object.freeze([]),
     });
     mocks.preparedCapabilityDecision = capabilityDecision;
     const turnDecision = freezeTurnDecision({
       version: 1,
       capabilities: capabilityDecision as never,
-      execution: {
-        eligibleProfile: "light",
-        taskKind: "rewrite",
-        contextDependency: "recent",
-        source: "classifier",
-        confidenceBucket: "high",
-        reasonCodes: ["classifier_light", "task_allowlisted"],
-        policyVersion: 1,
-        classifierVersion: 1,
-      },
     });
     mocks.preparedTurnDecision = turnDecision;
-    const plannedExecution = Object.freeze({
-      routingMode: "shadow",
-      eligibleProfile: "light",
-      plannedProfile: "standard",
-      reasonCodes: Object.freeze(["classifier_light", "rollout_shadow"]),
-      primary: Object.freeze({
-        version: 1,
-        profile: "standard",
-        promptProfile: "existing",
-        toolPolicy: "planned",
-        reasoningBudget: "normal",
-      }),
-    });
     mocks.prepareChatTurn.mockResolvedValue({
       promptMode: "full",
       effectiveModelTier: "standard",
-      turnPlan: { execution: plannedExecution },
+      turnPlan: { promptProfile: "full" },
       turnDecision,
-      classificationLatencyMs: 12,
-      plannedExecution,
       capabilityDecision,
       capabilityPlannerMode: "agentic",
     });
@@ -386,11 +361,8 @@ describe("model comparison runtime", () => {
       "clerk-1",
       expect.objectContaining({
         pair_id: "pair-1",
-        routing_mode: "shadow",
-        eligible_profile: "light",
-        planned_profile: "standard",
-        task_kind: "rewrite",
-        policy_version: 1,
+        capability_source: "rule",
+        prompt_mode: "full",
       }),
     );
     expect(mocks.reserveUsage).toHaveBeenCalledWith({
@@ -411,8 +383,6 @@ describe("model comparison runtime", () => {
         countryCode: "IT",
         capabilityPlannerMode: "agentic",
         turnDecision: mocks.preparedTurnDecision,
-        routingMode: "shadow",
-        plannedProfile: "standard",
       }),
     );
     expect(mocks.finalizePair).toHaveBeenCalledWith({
@@ -974,7 +944,6 @@ describe("model comparison runtime", () => {
     expect(onPreparedTurnRejected).toHaveBeenCalledWith({
       turnDecision: mocks.preparedTurnDecision,
       capabilityPlannerMode: "agentic",
-      classificationLatencyMs: 12,
     });
     expect(mocks.createPair).not.toHaveBeenCalled();
     expect(mocks.releaseUsage).toHaveBeenCalledWith({
@@ -1003,7 +972,6 @@ describe("model comparison runtime", () => {
     expect(onPreparedTurnRejected).toHaveBeenCalledWith({
       turnDecision: mocks.preparedTurnDecision,
       capabilityPlannerMode: "agentic",
-      classificationLatencyMs: 12,
     });
     expect(mocks.executePreparedChatTurn).not.toHaveBeenCalled();
     expect(mocks.releaseUsage).toHaveBeenCalledWith({

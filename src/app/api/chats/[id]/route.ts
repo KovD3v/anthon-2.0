@@ -193,7 +193,6 @@ export async function GET(request: Request, { params }: RouteParams) {
             toolTiming: true,
             ragUsed: true,
             ragChunksCount: true,
-            executionRoute: true,
             serverTrace: true,
             clientTrace: true,
             developerDiagnostics: true,

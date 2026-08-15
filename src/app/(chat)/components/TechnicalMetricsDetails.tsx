@@ -5,12 +5,10 @@ import {
   Clock3,
   Cpu,
   Database,
-  Route,
 } from "lucide-react";
 import { deriveResponseProfilerSummary } from "@/lib/response-profiler/summary";
 import type { Usage } from "@/types/chat";
 import { BrowserTimeline } from "./technical-metrics/BrowserTimeline";
-import { LegacyLatencyTimeline } from "./technical-metrics/LegacyLatencyTimeline";
 import { ProfilerSummary } from "./technical-metrics/ProfilerSummary";
 import { RagToolDiagnostics } from "./technical-metrics/RagToolDiagnostics";
 import { ServerTimeline } from "./technical-metrics/ServerTimeline";
@@ -18,24 +16,6 @@ import { ServerTimeline } from "./technical-metrics/ServerTimeline";
 interface TechnicalMetricsDetailsProps {
   usage: Usage | undefined;
 }
-
-const PROFILE_LABELS = {
-  light: "Light",
-  standard: "Standard",
-} as const;
-
-const OUTCOME_LABELS = {
-  completed: "completato",
-  failed_before_stream: "fallito prima dello stream",
-  failed_during_stream: "fallito durante lo stream",
-  cancelled: "annullato",
-} as const;
-
-const ESCALATION_LABELS = {
-  provider_error: "errore provider",
-  empty_response: "risposta vuota",
-  runtime_invariant: "controllo runtime",
-} as const;
 
 function formatDuration(milliseconds: number | undefined) {
   if (
@@ -122,17 +102,14 @@ export function TechnicalMetricsDetails({
 }: TechnicalMetricsDetailsProps) {
   if (!usage) return null;
 
-  const routeTrace = usage.executionRoute;
   const profilerSummary = deriveResponseProfilerSummary(usage);
   const totalTokens = usage.inputTokens + usage.outputTokens;
   const generationDuration = formatDuration(usage.generationTimeMs);
   const cost = formatCost(usage.cost);
-  const profile = routeTrace?.executedProfile ?? usage.executedProfile;
   const hasRichDiagnostics = Boolean(
     usage.messageId ||
       usage.model ||
       usage.provider ||
-      routeTrace ||
       usage.toolTiming ||
       usage.memoryRecall ||
       usage.ragAttempted !== undefined ||
@@ -145,7 +122,7 @@ export function TechnicalMetricsDetails({
   if (!hasRichDiagnostics) {
     return (
       <details className="mt-2 min-w-0 max-w-full border-border/50 border-t pt-2 text-xs text-muted-foreground">
-        {/* biome-ignore lint/a11y/noStaticElementInteractions: Native summary control gets a JSDOM-compatible keyboard fallback. */}
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: Native summary control gets a keyboard fallback. */}
         <summary
           tabIndex={0}
           onKeyDown={toggleDetailsFromKeyboard}
@@ -165,7 +142,7 @@ export function TechnicalMetricsDetails({
   }
 
   const recordedDurationRows = [
-    !routeTrace && usage.generationTimeMs !== undefined
+    usage.generationTimeMs !== undefined
       ? { label: "Generazione", value: usage.generationTimeMs }
       : null,
     usage.reasoningTimeMs !== undefined
@@ -202,7 +179,7 @@ export function TechnicalMetricsDetails({
       open={hasRichDiagnostics || undefined}
       className="group/metrics mt-3 min-w-0 max-w-full overflow-hidden rounded-xl border border-border/70 bg-muted/25 text-xs text-muted-foreground open:bg-muted/40"
     >
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: Native summary control gets a JSDOM-compatible keyboard fallback. */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: Native summary control gets a keyboard fallback. */}
       <summary
         tabIndex={0}
         onKeyDown={toggleDetailsFromKeyboard}
@@ -212,11 +189,6 @@ export function TechnicalMetricsDetails({
           <Activity className="h-3.5 w-3.5" aria-hidden="true" />
         </span>
         <span className="font-semibold text-foreground">Dettagli tecnici</span>
-        {profile && (
-          <span className="rounded-md bg-foreground px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-background">
-            {PROFILE_LABELS[profile]}
-          </span>
-        )}
         {headerDuration && (
           <span className="ml-auto flex items-baseline gap-1 font-medium tabular-nums text-foreground/80">
             <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
@@ -234,7 +206,7 @@ export function TechnicalMetricsDetails({
       <div className="border-border/60 border-t">
         <ProfilerSummary usage={usage} summary={profilerSummary} />
 
-        {(usage.model || profile || usage.provider || routeTrace) && (
+        {(usage.model || usage.provider || usage.messageId) && (
           <section className="border-border/60 border-t px-3 py-3">
             <SectionTitle icon={Cpu}>Esecuzione</SectionTitle>
             <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
@@ -265,84 +237,18 @@ export function TechnicalMetricsDetails({
                   </dd>
                 </div>
               )}
-              {routeTrace?.classifierModel && (
-                <div className="col-span-2 min-w-0 sm:col-span-4">
-                  <dt className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
-                    Modello classificatore
-                  </dt>
-                  <dd className="mt-1 min-w-0">
-                    <code
-                      className="block truncate rounded-md bg-background/75 px-2 py-1.5 font-mono text-[11px] text-foreground ring-1 ring-border/60"
-                      title={routeTrace.classifierModel}
-                    >
-                      {routeTrace.classifierModel}
-                    </code>
-                  </dd>
-                </div>
-              )}
-              {profile && (
-                <MetricValue
-                  label="Profilo eseguito"
-                  value={PROFILE_LABELS[profile]}
-                />
-              )}
-              {routeTrace && (
-                <>
-                  <MetricValue
-                    label="Profilo pianificato"
-                    value={PROFILE_LABELS[routeTrace.plannedProfile]}
-                  />
-                  <MetricValue label="Task" value={routeTrace.taskKind} />
-                  <MetricValue
-                    label="Routing"
-                    value={`${routeTrace.routingMode} · ${routeTrace.decisionSource}`}
-                  />
-                </>
-              )}
               {usage.provider && (
                 <MetricValue label="Provider" value={usage.provider} />
               )}
-              {routeTrace?.classifierProvider && (
-                <MetricValue
-                  label="Provider classificatore"
-                  value={routeTrace.classifierProvider}
-                />
-              )}
-              {routeTrace && (
-                <MetricValue
-                  label="Confidenza"
-                  value={routeTrace.confidenceBucket}
-                />
-              )}
             </dl>
-            {routeTrace && routeTrace.reasonCodes.length > 0 && (
-              <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5 border-border/50 border-t pt-2.5">
-                <span className="mr-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
-                  Motivi
-                </span>
-                {routeTrace.reasonCodes.map((reason) => (
-                  <code
-                    key={reason}
-                    className="max-w-full break-all rounded bg-background/70 px-1.5 py-0.5 font-mono text-[10px] text-foreground/85"
-                  >
-                    {reason}
-                  </code>
-                ))}
-              </div>
-            )}
           </section>
         )}
 
         {usage.serverTrace ? (
           <ServerTimeline trace={usage.serverTrace} summary={profilerSummary} />
         ) : null}
-
         {usage.clientTrace ? (
           <BrowserTimeline summary={profilerSummary} />
-        ) : null}
-
-        {!usage.serverTrace && routeTrace ? (
-          <LegacyLatencyTimeline usage={usage} />
         ) : null}
 
         {usage.developerDiagnostics && (
@@ -354,55 +260,13 @@ export function TechnicalMetricsDetails({
             <SectionTitle icon={Clock3}>Durate registrate</SectionTitle>
             <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
               {recordedDurationRows.map((row) => (
-                <div key={row.label} className="min-w-0">
-                  <dt className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
-                    {row.label}
-                  </dt>
-                  <dd className="mt-0.5 font-medium tabular-nums text-foreground">
-                    {formatDuration(row.value)}
-                  </dd>
-                </div>
+                <MetricValue
+                  key={row.label}
+                  label={row.label}
+                  value={formatDuration(row.value) ?? "-"}
+                />
               ))}
             </dl>
-          </section>
-        )}
-
-        {routeTrace && (
-          <section className="border-border/60 border-t px-3 py-3">
-            <SectionTitle icon={Route}>Tentativi</SectionTitle>
-            <ol className="space-y-2">
-              {routeTrace.attempts.map((attempt) => (
-                <li
-                  key={attempt.sequence}
-                  className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2"
-                >
-                  <span className="flex h-5 w-5 items-center justify-center rounded bg-background/80 font-semibold tabular-nums text-foreground ring-1 ring-border/60">
-                    {attempt.sequence}
-                  </span>
-                  <span className="min-w-0 truncate">
-                    <strong className="font-semibold text-foreground">
-                      {PROFILE_LABELS[attempt.profile]}
-                    </strong>{" "}
-                    · {OUTCOME_LABELS[attempt.outcome]}
-                  </span>
-                  <span className="text-right font-medium tabular-nums text-foreground">
-                    {formatDuration(attempt.generationTimeMs)}
-                    {attempt.timeToFirstTokenMs !== undefined && (
-                      <span className="ml-1 text-muted-foreground">
-                        · TTFT {formatDuration(attempt.timeToFirstTokenMs)}
-                      </span>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ol>
-            {routeTrace.escalation && (
-              <p className="mt-2.5 rounded-md bg-background/70 px-2 py-1.5 text-foreground ring-1 ring-border/60">
-                Escalation {PROFILE_LABELS[routeTrace.escalation.from]} →{" "}
-                {PROFILE_LABELS[routeTrace.escalation.to]}:{" "}
-                {ESCALATION_LABELS[routeTrace.escalation.reason]}
-              </p>
-            )}
           </section>
         )}
 

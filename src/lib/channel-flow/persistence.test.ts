@@ -634,7 +634,7 @@ describe("channel-flow/persistence", () => {
     );
   });
 
-  it("stores the full validated route only in metrics and bounded summaries elsewhere", async () => {
+  it("discards historical route metadata from current persistence", async () => {
     const executionRoute = escalatedExecutionRoute();
     const waitUntil = vi.fn();
 
@@ -664,47 +664,17 @@ describe("channel-flow/persistence", () => {
       waitUntil,
     });
 
-    expect(mocks.messageMetricsCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ executionRoute }),
-    });
-    expect(mocks.messageCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        metadata: {
-          source: "test",
-          ai: {
-            executionRouting: {
-              eligibleProfile: "light",
-              plannedProfile: "light",
-              executedProfile: "standard",
-              taskKind: "rewrite",
-              policyVersion: 1,
-              attemptCount: 2,
-              escalated: true,
-            },
-          },
-        },
-      }),
-    });
-    const assistantMetadata =
-      mocks.messageCreate.mock.calls[0]?.[0].data.metadata.ai.executionRouting;
-    expect(assistantMetadata).not.toHaveProperty("attempts");
-    expect(assistantMetadata).not.toHaveProperty("reasonCodes");
-    expect(assistantMetadata).not.toHaveProperty("routingOverheadMs");
+    const metricsData = mocks.messageMetricsCreate.mock.calls[0]?.[0].data;
+    expect(metricsData).not.toHaveProperty("executionRoute");
+    const messageData = mocks.messageCreate.mock.calls[0]?.[0].data;
+    expect(JSON.stringify(messageData)).not.toContain("executionRouting");
     expect(mocks.captureAiTurnTrace).toHaveBeenCalledWith(
       expect.objectContaining({
-        metadata: expect.objectContaining({
-          executionRouting: {
-            eligibleProfile: "light",
-            plannedProfile: "light",
-            executedProfile: "standard",
-            taskKind: "rewrite",
-            policyVersion: 1,
-            attemptCount: 2,
-            escalated: true,
-            totalRequestTimeToFirstTokenMs: 210,
-            routingOverheadMs: 3,
-            escalationReason: "empty_response",
-          },
+        metadata: expect.not.objectContaining({
+          executionRouting: expect.anything(),
+        }),
+        payload: expect.not.objectContaining({
+          executionRoute: expect.anything(),
         }),
       }),
     );

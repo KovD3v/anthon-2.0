@@ -213,7 +213,7 @@ describe("deriveResponseProfilerSummary", () => {
     ]);
   });
 
-  it("does not present a zero-latency deterministic classification span", () => {
+  it("does not present historical classifier or profile-router spans", () => {
     const summary = deriveResponseProfilerSummary({
       inputTokens: 1,
       outputTokens: 1,
@@ -261,9 +261,7 @@ describe("deriveResponseProfilerSummary", () => {
       },
     });
 
-    expect(summary.serverRows.map((row) => row.label)).toEqual([
-      "Selezione profilo",
-    ]);
+    expect(summary.serverRows).toEqual([]);
   });
 
   it("labels reasoning spans in the model timeline", () => {

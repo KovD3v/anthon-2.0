@@ -1,13 +1,9 @@
 import { z } from "zod";
-import {
-  EXECUTION_REASON_CODES,
-  freezeTurnDecision,
-  type TurnDecision,
-} from "./execution-routing";
-import { TASK_KINDS } from "./turn-routing-types";
+import { freezeTurnDecision, type TurnDecision } from "./turn-decision";
 
 const CAPABILITY_REASON_CODES = [
   "classifier_unavailable",
+  "deterministic_policy",
   "delete_requires_exact_target",
   "delete_requires_explicit_intent",
   "guest_memory_denied",
@@ -33,24 +29,21 @@ const safeCapabilityDecisionSchema = z
   })
   .strict();
 
-const safeExecutionDecisionSchema = z
-  .object({
-    eligibleProfile: z.enum(["light", "standard"]),
-    taskKind: z.enum(TASK_KINDS),
-    contextDependency: z.enum(["none", "recent", "deep"]),
-    source: z.enum(["classifier", "rule", "mixed", "fallback"]),
-    confidenceBucket: z.enum(["low", "medium", "high"]),
-    reasonCodes: z.array(z.enum(EXECUTION_REASON_CODES)).max(32),
-    policyVersion: z.literal(1),
-    classifierVersion: z.literal(1),
-  })
-  .strict();
-
 const safeTurnDecisionSchema = z
   .object({
     version: z.literal(1),
     capabilities: safeCapabilityDecisionSchema,
-    execution: safeExecutionDecisionSchema,
+  })
+  .strict();
+
+// Old persisted turnDecision JSON is accepted only to recover the safe
+// capability subset. It is never emitted again and its execution profile is
+// intentionally discarded.
+const historicalTurnDecisionSchema = z
+  .object({
+    version: z.literal(1),
+    capabilities: safeCapabilityDecisionSchema,
+    execution: z.object({}).passthrough(),
   })
   .strict();
 
@@ -74,29 +67,29 @@ export function serializeSafeTurnDecision(
       source: decision.capabilities.source,
       reasonCodes: decision.capabilities.reasonCodes,
     },
-    execution: {
-      eligibleProfile: decision.execution.eligibleProfile,
-      taskKind: decision.execution.taskKind,
-      contextDependency: decision.execution.contextDependency,
-      source: decision.execution.source,
-      confidenceBucket: decision.execution.confidenceBucket,
-      reasonCodes: decision.execution.reasonCodes,
-      policyVersion: decision.execution.policyVersion,
-      classifierVersion: decision.execution.classifierVersion,
+  });
+}
+
+function toLiveTurnDecision(
+  parsed: z.infer<typeof safeTurnDecisionSchema>,
+): TurnDecision {
+  return freezeTurnDecision({
+    version: parsed.version,
+    capabilities: {
+      ...parsed.capabilities,
+      memoryDeleteTarget: null,
     },
   });
 }
 
 export function parseSafeTurnDecision(value: unknown): TurnDecision | null {
   const parsed = safeTurnDecisionSchema.safeParse(value);
-  if (!parsed.success) return null;
+  if (parsed.success) return toLiveTurnDecision(parsed.data);
 
-  return freezeTurnDecision({
-    version: parsed.data.version,
-    capabilities: {
-      ...parsed.data.capabilities,
-      memoryDeleteTarget: null,
-    },
-    execution: parsed.data.execution,
+  const historical = historicalTurnDecisionSchema.safeParse(value);
+  if (!historical.success) return null;
+  return toLiveTurnDecision({
+    version: historical.data.version,
+    capabilities: historical.data.capabilities,
   });
 }

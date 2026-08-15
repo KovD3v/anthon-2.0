@@ -155,7 +155,7 @@ vi.mock("@/lib/conversations/threads", () => ({
   ensureConversationThread: mocks.ensureConversationThread,
 }));
 
-import { freezeTurnDecision } from "@/lib/ai/execution-routing";
+import { freezeTurnDecision } from "@/lib/ai/turn-decision";
 import {
   downloadTelegramAudio,
   getPublicAppUrl,
@@ -184,50 +184,11 @@ function offRoutingFixture() {
       routineProposal: false,
       userContext: false,
       voiceOutput: false,
-      source: "classifier",
-      reasonCodes: [],
-    },
-    execution: {
-      eligibleProfile: "light",
-      taskKind: "rewrite",
-      contextDependency: "recent",
-      source: "classifier",
-      confidenceBucket: "high",
-      reasonCodes: ["classifier_light", "task_allowlisted"],
-      policyVersion: 1,
-      classifierVersion: 1,
+      source: "rule",
+      reasonCodes: ["deterministic_policy"],
     },
   });
-  return {
-    turnDecision,
-    executionRoute: Object.freeze({
-      schemaVersion: 1,
-      routingMode: "off",
-      policyVersion: 1,
-      classifierVersion: 1,
-      eligibleProfile: "light",
-      plannedProfile: "standard",
-      executedProfile: "standard",
-      taskKind: "rewrite",
-      decisionSource: "classifier",
-      confidenceBucket: "high",
-      reasonCodes: Object.freeze([
-        "classifier_light",
-        "task_allowlisted",
-        "rollout_off",
-      ]),
-      classificationLatencyMs: 10,
-      routingOverheadMs: 1,
-      attempts: Object.freeze([
-        Object.freeze({
-          sequence: 1,
-          profile: "standard",
-          outcome: "completed",
-          generationTimeMs: 42,
-        }),
-      ]),
-    }),
-  };
+  return { turnDecision };
 }
 
 type InboundLifecycleState = {
@@ -1218,12 +1179,11 @@ describe("/api/webhooks/telegram", () => {
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
-  it("sync text persists one standard execution when the fast path is disabled", async () => {
+  it("sync text persists one agentic execution path", async () => {
     process.env.TELEGRAM_SYNC_WEBHOOK = "true";
     process.env.TELEGRAM_DISABLE_SEND = "true";
     process.env.OPENROUTER_API_KEY = "sk-test";
-    process.env.AI_FAST_PATH_ENABLED = "false";
-    const { turnDecision, executionRoute } = offRoutingFixture();
+    const { turnDecision } = offRoutingFixture();
 
     mocks.prismaMessageFindFirst.mockResolvedValue(null);
     mocks.prismaChannelIdentityFindUnique.mockResolvedValue({
@@ -1261,7 +1221,6 @@ describe("/api/webhooks/telegram", () => {
           costUsd: 0.001,
           generationTimeMs: 42,
           reasoningTimeMs: 0,
-          executionRoute,
         },
         turnDecision,
         capabilityDecision: turnDecision.capabilities,
@@ -1269,7 +1228,6 @@ describe("/api/webhooks/telegram", () => {
       });
       return {
         turnDecision,
-        classificationLatencyMs: 10,
         capabilityDecision: turnDecision.capabilities,
         capabilityPlannerMode: "agentic",
         textStream: (async function* () {
@@ -1324,16 +1282,9 @@ describe("/api/webhooks/telegram", () => {
     );
     expect(mocks.incrementUsage).toHaveBeenCalledTimes(1);
     expect(mocks.extractAndSaveMemories).not.toHaveBeenCalled();
-    expect(mocks.prismaMessageMetricsCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        executionRoute: expect.objectContaining({
-          routingMode: "off",
-          eligibleProfile: "light",
-          plannedProfile: "standard",
-          executedProfile: "standard",
-        }),
-      }),
-    });
+    const metricsData =
+      mocks.prismaMessageMetricsCreate.mock.calls.at(-1)?.[0]?.data;
+    expect(metricsData).not.toHaveProperty("executionRoute");
   });
 
   it("sync photo without caption uses default media prompt and marks images for AI", async () => {

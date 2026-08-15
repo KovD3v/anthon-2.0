@@ -27,19 +27,6 @@ const safeTurn: TurnPlan = {
   responseLength: "normal",
   inputOrigin: "text",
   outputMode: "text",
-  execution: {
-    routingMode: "off",
-    eligibleProfile: "standard",
-    plannedProfile: "standard",
-    reasonCodes: ["rollout_off"],
-    primary: {
-      version: 1,
-      profile: "standard",
-      promptProfile: "existing",
-      toolPolicy: "planned",
-      reasoningBudget: "normal",
-    },
-  },
   history: {
     scope: "thread",
     includeSummary: true,

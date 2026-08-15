@@ -222,34 +222,28 @@ describe("ai/rag", () => {
     "Ho ansia per l'esame di matematica",
     "Sono sotto pressione al lavoro",
   ])(
-    "shouldUseRag does not treat ambiguous mental terms as sports context: %s",
+    "shouldUseRag does not treat ambiguous mental terms as sports context without an LLM call: %s",
     async (query) => {
       mocks.ragDocumentCount.mockResolvedValue(1);
-      mocks.generateText.mockResolvedValue({
-        output: { needsRag: false, reason: "non-sports context" },
-      });
       const { shouldUseRag } = await loadModule();
 
       const result = await shouldUseRag(query);
 
       expect(result).toBe(false);
-      expect(mocks.generateText).toHaveBeenCalledTimes(1);
+      expect(mocks.generateText).not.toHaveBeenCalled();
     },
   );
 
   it.each(["Ora aiutami a fare gol", "Come mi alleno domani?"])(
-    "shouldUseRag leaves generic technical sports requests to the classifier: %s",
+    "shouldUseRag leaves generic technical sports requests to the agentic tool: %s",
     async (query) => {
       mocks.ragDocumentCount.mockResolvedValue(1);
-      mocks.generateText.mockResolvedValue({
-        output: { needsRag: false, reason: "generic technical request" },
-      });
       const { shouldUseRag } = await loadModule();
 
       const result = await shouldUseRag(query);
 
       expect(result).toBe(false);
-      expect(mocks.generateText).toHaveBeenCalledTimes(1);
+      expect(mocks.generateText).not.toHaveBeenCalled();
     },
   );
 
@@ -267,88 +261,27 @@ describe("ai/rag", () => {
 
   it("shouldUseRag does not auto-enable RAG for generic question words", async () => {
     mocks.ragDocumentCount.mockResolvedValue(1);
-    mocks.generateText.mockResolvedValue({
-      output: { needsRag: false, reason: "generic personal question" },
-    });
     const { shouldUseRag } = await loadModule();
 
     const result = await shouldUseRag("Quale approccio mi consigli oggi?");
 
     expect(result).toBe(false);
-    expect(mocks.generateText).toHaveBeenCalledTimes(1);
+    expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
-  it("shouldUseRag uses LLM classification and caches decision", async () => {
+  it("shouldUseRag fails closed for generic queries without an LLM classifier", async () => {
     mocks.ragDocumentCount.mockResolvedValue(1);
-    mocks.generateText.mockResolvedValue({
-      output: { needsRag: true, reason: "technical methodology request" },
-      usage: { inputTokens: 80, outputTokens: 12 },
-    });
     const { shouldUseRag } = await loadModule();
     const query = "Can you compare periodization frameworks for athletes?";
-    const waitUntil = vi.fn();
 
-    const first = await shouldUseRag(query, { userId: "user-1", waitUntil });
+    const first = await shouldUseRag(query, { userId: "user-1" });
     const second = await shouldUseRag(query, { userId: "user-1" });
 
-    expect(first).toBe(true);
-    expect(second).toBe(true);
-    expect(mocks.generateText).toHaveBeenCalledTimes(1);
-    expect(mocks.openrouter).toHaveBeenCalledWith(
-      "nvidia/nemotron-3.5-lightning",
-    );
-    expect(mocks.generateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        timeout: { totalMs: 3000 },
-        providerOptions: {
-          openrouter: {
-            provider: {
-              sort: "latency",
-              order: ["DeepInfra", "CoreWeave", "Venice"],
-              allow_fallbacks: true,
-              require_parameters: true,
-              max_price: { prompt: 0.1, completion: 0.25 },
-            },
-            reasoning: { enabled: false, max_tokens: 1 },
-          },
-        },
-      }),
-    );
-    expect(mocks.scheduleSupportAiUsage).toHaveBeenCalledWith(
-      {
-        userId: "user-1",
-        modelId: "nvidia/nemotron-3.5-lightning",
-        usage: { inputTokens: 80, outputTokens: 12 },
-        providerMetadata: undefined,
-      },
-      waitUntil,
-    );
-  });
-
-  it("shouldUseRag returns false when LLM classification throws", async () => {
-    mocks.ragDocumentCount.mockResolvedValue(1);
-    mocks.generateText.mockRejectedValue(new Error("classifier failure"));
-    const { shouldUseRag } = await loadModule();
-
-    const result = await shouldUseRag(
-      "Please evaluate this training framework for youth athletes.",
-    );
-
-    expect(result).toBe(false);
-  });
-
-  it("shouldUseRag returns false when LLM classification output is malformed", async () => {
-    mocks.ragDocumentCount.mockResolvedValue(1);
-    mocks.generateText.mockResolvedValue({
-      output: { reason: "missing boolean" },
-    });
-    const { shouldUseRag } = await loadModule();
-
-    const result = await shouldUseRag(
-      "Please evaluate this training framework for youth athletes.",
-    );
-
-    expect(result).toBe(false);
+    expect(first).toBe(false);
+    expect(second).toBe(false);
+    expect(mocks.generateText).not.toHaveBeenCalled();
+    expect(mocks.openrouter).not.toHaveBeenCalled();
+    expect(mocks.scheduleSupportAiUsage).not.toHaveBeenCalled();
   });
 
   it("searchDocuments returns filtered semantic matches by similarity threshold", async () => {

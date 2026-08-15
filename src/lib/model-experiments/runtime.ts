@@ -61,7 +61,7 @@ type RuntimeInput = {
   onPreparedTurnRejected?: (
     context: Pick<
       Awaited<ReturnType<typeof prepareChatTurn>>,
-      "turnDecision" | "capabilityPlannerMode" | "classificationLatencyMs"
+      "turnDecision" | "capabilityPlannerMode"
     >,
   ) => void;
 };
@@ -469,13 +469,6 @@ export async function tryCreateModelComparisonResponse(
     input.onPreparedTurnRejected?.({
       turnDecision: prepared.turnDecision,
       capabilityPlannerMode: prepared.capabilityPlannerMode,
-      classificationLatencyMs: prepared.classificationLatencyMs,
-      ...(prepared.classifierModel
-        ? { classifierModel: prepared.classifierModel }
-        : {}),
-      ...(prepared.classifierProvider
-        ? { classifierProvider: prepared.classifierProvider }
-        : {}),
     });
   if (!isSafeModelComparisonTurn(prepared.turnPlan, input.userMessage)) {
     await releaseReservation();
@@ -496,8 +489,6 @@ export async function tryCreateModelComparisonResponse(
       countryCode: countryCode ?? experiment.targetCountry,
       capabilityPlannerMode: prepared.capabilityPlannerMode,
       turnDecision: prepared.turnDecision,
-      routingMode: prepared.plannedExecution.routingMode,
-      plannedProfile: prepared.plannedExecution.plannedProfile,
     });
     await prisma.modelExperimentPair.update({
       where: { id: pairResult.pair.id },
@@ -565,11 +556,7 @@ export async function tryCreateModelComparisonResponse(
           plan: input.planId ?? "free",
           tier: prepared.effectiveModelTier,
           prompt_mode: prepared.promptMode,
-          routing_mode: prepared.plannedExecution.routingMode,
-          eligible_profile: prepared.turnDecision.execution.eligibleProfile,
-          planned_profile: prepared.plannedExecution.plannedProfile,
-          task_kind: prepared.turnDecision.execution.taskKind,
-          policy_version: prepared.turnDecision.execution.policyVersion,
+          capability_source: prepared.capabilityDecision.source,
         });
 
         const runVariant = async (
@@ -719,11 +706,7 @@ export async function tryCreateModelComparisonResponse(
                 candidateResult?.metrics.generationTimeMs,
               candidate_time_to_first_token_ms:
                 candidateResult?.timeToFirstTokenMs,
-              routing_mode: prepared.plannedExecution.routingMode,
-              eligible_profile: prepared.turnDecision.execution.eligibleProfile,
-              planned_profile: prepared.plannedExecution.plannedProfile,
-              task_kind: prepared.turnDecision.execution.taskKind,
-              policy_version: prepared.turnDecision.execution.policyVersion,
+              capability_source: prepared.capabilityDecision.source,
             },
           );
           return;
@@ -755,11 +738,7 @@ export async function tryCreateModelComparisonResponse(
             pair_id: pair.id,
             country: countryCode,
             prompt_mode: prepared.promptMode,
-            routing_mode: prepared.plannedExecution.routingMode,
-            eligible_profile: prepared.turnDecision.execution.eligibleProfile,
-            planned_profile: prepared.plannedExecution.plannedProfile,
-            task_kind: prepared.turnDecision.execution.taskKind,
-            policy_version: prepared.turnDecision.execution.policyVersion,
+            capability_source: prepared.capabilityDecision.source,
           },
         );
         throw new Error("MODEL_COMPARISON_FAILED");

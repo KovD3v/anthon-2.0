@@ -1,11 +1,48 @@
 import { z } from "zod";
-import type {
-  ExecutionProfile,
-  ExecutionReasonCode,
-  RoutingMode,
-} from "./execution-routing";
-import { EXECUTION_REASON_CODES } from "./execution-routing";
-import type { TaskKind } from "./turn-routing-types";
+
+type ExecutionProfile = "light" | "standard";
+type RoutingMode = "off" | "shadow" | "active";
+type TaskKind =
+  | "social"
+  | "rewrite"
+  | "translate"
+  | "format"
+  | "extract"
+  | "summarize_supplied"
+  | "coaching"
+  | "knowledge"
+  | "planning"
+  | "other";
+type ExecutionReasonCode = (typeof EXECUTION_REASON_CODES)[number];
+
+// Historical-only values. New turns never create this trace.
+const EXECUTION_REASON_CODES = [
+  "classifier_light",
+  "classifier_standard",
+  "rule_light",
+  "rule_standard",
+  "task_allowlisted",
+  "task_not_allowlisted",
+  "low_confidence",
+  "capability_required",
+  "capability_uncertain",
+  "external_knowledge",
+  "deep_context",
+  "sensitive_content",
+  "direct_media",
+  "pending_approval",
+  "voice_output",
+  "input_limit",
+  "output_limit",
+  "classifier_failure",
+  "legacy_mode",
+  "fast_path_disabled",
+  "task_rollout_disabled",
+  "rollout_off",
+  "rollout_shadow",
+  "runtime_invariant",
+  "untrusted_supplied_text",
+] as const;
 
 const TASK_KINDS = [
   "social",
