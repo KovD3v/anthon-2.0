@@ -8,6 +8,7 @@ import { CoachingContextSection } from "./CoachingContextSection";
 import { DangerZoneSection } from "./DangerZoneSection";
 import { PreferencesSection } from "./PreferencesSection";
 import { ProfileIdentitySection } from "./ProfileIdentitySection";
+import { SecuritySection } from "./SecuritySection";
 import { UsageSection } from "./UsageSection";
 
 function PanelNotice({
@@ -115,10 +116,7 @@ export function AccountConsole() {
 
         <TabsContent value="security" className="mt-6">
           <section aria-label="Sicurezza account">
-            <PanelNotice
-              title="Sicurezza"
-              description="Le impostazioni di sicurezza native arriveranno qui, mantenendo il controllo direttamente nell'area personale Anthon."
-            />
+            <SecuritySection />
           </section>
         </TabsContent>
 
