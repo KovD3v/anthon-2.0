@@ -1,7 +1,7 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { getModelById } from "@/lib/ai/providers/openrouter";
-import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
+import { getOpenRouterProviderOptionsForExecution } from "@/lib/ai/providers/openrouter-routing";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { createLogger } from "@/lib/logger";
 import type { OnboardingDraft, OnboardingField } from "./types";
@@ -54,7 +54,10 @@ export async function interpretOnboardingAnswer(input: InterpretInput) {
       temperature: 0.1,
       maxOutputTokens: 500,
       providerOptions: {
-        openrouter: getOpenRouterProviderOptionsForModel(ONBOARDING_MODEL_ID),
+        openrouter: getOpenRouterProviderOptionsForExecution(
+          ONBOARDING_MODEL_ID,
+          "light",
+        ),
       },
       instructions: `Sei Anthon durante un onboarding breve in italiano.
 Interpreta soltanto informazioni esplicitamente presenti nella risposta utente.
