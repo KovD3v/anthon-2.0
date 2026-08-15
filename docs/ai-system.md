@@ -2,6 +2,10 @@
 
 The AI subsystem powers chat generation, retrieval, personalization, and background adaptation.
 
+See [Live AI Profile Routing](ai-live-profile-routing.md) for the profile
+selection policy, the fast-path switch, agentic tool selection, and cold
+classifier evaluation boundary.
+
 ## Components Overview
 
 ```

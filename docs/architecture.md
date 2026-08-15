@@ -141,6 +141,9 @@ components/
 
 ### Execution routing
 
+See [Live AI Profile Routing](ai-live-profile-routing.md) for the complete
+operational policy and configuration reference.
+
 Live chat does not call an agentic classifier. Deterministic execution routing
 recognizes only obviously self-contained `social`, `rewrite`, `translate`,
 `format`, `extract`, and `summarize_supplied` turns; ambiguous work and every

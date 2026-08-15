@@ -76,7 +76,8 @@ rules only; there is no request-time LLM classifier or rollout allowlist. Set
 `AI_FAST_PATH_ENABLED=false` to force every channel through standard execution.
 When enabled, only obviously self-contained turns can use light; the standard
 agentic model remains responsible for selecting web, RAG, memory, and other
-tools for the rest.
+tools for the rest. See [Live AI Profile Routing](ai-live-profile-routing.md)
+for the full policy and verification commands.
 
 `NEXT_PUBLIC_APP_URL` is used for link generation (channel linking, embedding headers, callbacks).
 
