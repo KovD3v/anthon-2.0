@@ -112,9 +112,9 @@ export function SessionsSection() {
 
   return (
     <section>
-      <div className="flex flex-wrap items-start justify-between gap-4 px-6 pb-5 pt-8 sm:px-8 sm:pt-10">
+      <div className="flex flex-col gap-4 px-5 pb-5 pt-7 sm:flex-row sm:items-start sm:justify-between sm:px-8 sm:pt-10">
         <div>
-          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+          <h2 className="font-display text-[1.75rem] font-bold uppercase leading-none tracking-tight sm:text-3xl">
             Sessioni attive
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
@@ -125,7 +125,7 @@ export function SessionsSection() {
         <Button
           type="button"
           variant="ghost"
-          className="min-h-11 gap-2"
+          className="min-h-11 w-full gap-2 sm:w-auto"
           onClick={() => setReloadKey((value) => value + 1)}
         >
           <RefreshCw className="h-4 w-4" />
@@ -134,14 +134,14 @@ export function SessionsSection() {
       </div>
 
       {failed ? (
-        <div className="px-6 pb-8 pt-3 sm:px-8" role="alert">
+        <div className="px-5 pb-7 pt-3 sm:px-8 sm:pb-8" role="alert">
           <p className="text-sm font-medium">
             Le sessioni non sono disponibili.
           </p>
           <Button
             type="button"
             variant="outline"
-            className="mt-4 min-h-11 gap-2"
+            className="mt-4 min-h-11 w-full gap-2 sm:w-auto"
             onClick={() => setReloadKey((value) => value + 1)}
           >
             <RefreshCw className="h-4 w-4" />
@@ -149,7 +149,7 @@ export function SessionsSection() {
           </Button>
         </div>
       ) : sessions.length === 0 ? (
-        <p className="px-6 pb-8 pt-3 text-sm text-muted-foreground sm:px-8">
+        <p className="px-5 pb-7 pt-3 text-sm text-muted-foreground sm:px-8 sm:pb-8">
           Non risultano sessioni attive oltre a quella corrente.
         </p>
       ) : (
@@ -161,18 +161,18 @@ export function SessionsSection() {
             return (
               <div
                 key={session.id}
-                className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8"
+                className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-medium">{label}</p>
+                    <p className="text-base font-medium">{label}</p>
                     {isCurrent ? (
                       <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
                         Questa sessione
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                     {sessionLocation(session)} · Ultima attività{" "}
                     {formatDate(session.lastActiveAt)}
                   </p>
@@ -181,7 +181,7 @@ export function SessionsSection() {
                   <Button
                     type="button"
                     variant="ghost"
-                    className="min-h-11 shrink-0 gap-2 self-start text-muted-foreground hover:text-destructive sm:self-auto"
+                    className="min-h-11 w-full shrink-0 gap-2 text-muted-foreground hover:text-destructive sm:w-auto"
                     aria-label={`Revoca sessione ${label}`}
                     onClick={() => setRevokingSession(session)}
                   >

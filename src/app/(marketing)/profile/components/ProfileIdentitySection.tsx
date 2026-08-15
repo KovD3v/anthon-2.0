@@ -230,8 +230,8 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
   return (
     <div className="divide-y divide-border/70">
       <section className="rounded-none border-0 bg-transparent py-0 shadow-none">
-        <div className="px-6 pb-4 pt-8 sm:px-8 sm:pt-10">
-          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+        <div className="px-5 pb-4 pt-7 sm:px-8 sm:pt-10">
+          <h2 className="font-display text-[1.75rem] font-bold uppercase leading-none tracking-tight sm:text-3xl">
             Identità
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
@@ -239,8 +239,8 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
           </p>
         </div>
 
-        <div className="grid gap-8 px-6 pb-8 pt-2 sm:px-8 lg:grid-cols-[auto_1fr] lg:pb-10">
-          <div className="flex flex-col items-center gap-3 lg:items-start">
+        <div className="grid gap-6 px-5 pb-7 pt-2 sm:px-8 md:grid-cols-[7rem_1fr] md:gap-8 md:pb-10">
+          <div className="flex flex-col items-center gap-3 md:items-start">
             <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl bg-brand-yellow font-display text-3xl font-bold text-[#171714] sm:h-28 sm:w-28">
               {hasImage ? (
                 <div
@@ -253,7 +253,7 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
                 <span>{getInitials(user)}</span>
               )}
             </div>
-            <div className="flex flex-wrap justify-center gap-2 lg:justify-start">
+            <div className="flex flex-wrap justify-center gap-2 md:justify-start">
               <label
                 htmlFor="profile-avatar"
                 className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md border bg-background px-3 text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground has-[:focus-visible]:border-ring has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50"
@@ -322,13 +322,13 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
               </div>
             ) : null}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-4">
-              <p className="text-xs leading-relaxed text-muted-foreground">
+            <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm leading-relaxed text-muted-foreground">
                 Le modifiche al profilo vengono salvate nel tuo account.
               </p>
               <Button
                 type="submit"
-                className="min-h-11 gap-2"
+                className="min-h-11 w-full gap-2 sm:w-auto"
                 disabled={savingProfile}
               >
                 {savingProfile ? (
@@ -344,8 +344,8 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
       </section>
 
       <section className="rounded-none border-0 bg-transparent py-0 shadow-none">
-        <div className="px-6 pb-4 pt-8 sm:px-8">
-          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+        <div className="px-5 pb-4 pt-7 sm:px-8 sm:pt-8">
+          <h2 className="font-display text-[1.75rem] font-bold uppercase leading-none tracking-tight sm:text-3xl">
             Email
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
@@ -359,7 +359,7 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
             const isPrimary = email.id === user.primaryEmailAddressId;
 
             return (
-              <div key={email.id} className="space-y-3 px-6 py-5 sm:px-8">
+              <div key={email.id} className="space-y-3 px-5 py-5 sm:px-8">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
@@ -388,7 +388,7 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
                     <Button
                       type="button"
                       variant="outline"
-                      className="min-h-11"
+                      className="min-h-11 w-full sm:w-auto"
                       disabled={preparingEmailId === email.id}
                       onClick={() => beginEmailVerification(email.id)}
                     >
@@ -423,7 +423,7 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
                     </div>
                     <Button
                       type="submit"
-                      className="min-h-11 gap-2"
+                      className="min-h-11 w-full gap-2 sm:w-auto"
                       disabled={verifyingEmail || !verificationCode.trim()}
                     >
                       {verifyingEmail ? (
@@ -440,7 +440,7 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
           })}
 
           <form
-            className="space-y-3 px-6 py-5 sm:px-8"
+            className="space-y-3 px-5 py-5 sm:px-8"
             onSubmit={handleEmailAdd}
           >
             <div className="space-y-2">
@@ -473,7 +473,7 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
         </div>
       </section>
 
-      <details className="group px-6 py-5 sm:px-8">
+      <details className="group px-5 py-4 sm:px-8 sm:py-5">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
           ID tecnico account
           <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />

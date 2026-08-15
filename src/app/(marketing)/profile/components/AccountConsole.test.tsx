@@ -81,4 +81,19 @@ describe("AccountConsole", () => {
       screen.queryByRole("region", { name: "Profilo account" }),
     ).toBeNull();
   });
+
+  it("switches sections from the mobile profile control", () => {
+    render(<AccountConsole />);
+
+    fireEvent.change(screen.getByLabelText("Sezione del profilo"), {
+      target: { value: "security" },
+    });
+
+    expect(
+      screen.getAllByRole("region", { name: "Sicurezza account" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("region", { name: "Profilo account" }),
+    ).toBeNull();
+  });
 });

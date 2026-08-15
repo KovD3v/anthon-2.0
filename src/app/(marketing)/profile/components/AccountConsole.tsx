@@ -1,7 +1,8 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CoachingContextSection } from "./CoachingContextSection";
@@ -13,8 +14,17 @@ import { SecuritySection } from "./SecuritySection";
 import { SessionsSection } from "./SessionsSection";
 import { UsageSection } from "./UsageSection";
 
+const accountTabs = [
+  ["profile", "Profilo"],
+  ["anthon", "Anthon"],
+  ["security", "Sicurezza"],
+  ["sessions", "Sessioni"],
+  ["connected", "Account collegati"],
+] as const;
+
 export function AccountConsole() {
   const { isLoaded, user } = useUser();
+  const [activeTab, setActiveTab] = useState("profile");
 
   if (!isLoaded) {
     return (
@@ -60,10 +70,13 @@ export function AccountConsole() {
     "A";
 
   return (
-    <section aria-label="Account e impostazioni Anthon">
-      <header className="flex flex-col gap-7 border-b border-border pb-8 sm:flex-row sm:items-end sm:justify-between">
+    <section
+      aria-label="Account e impostazioni Anthon"
+      className="profile-account-console"
+    >
+      <header className="flex flex-col gap-5 border-b border-border pb-6 sm:gap-7 sm:pb-8 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="font-display text-5xl font-extrabold uppercase leading-[0.88] tracking-[-0.025em] sm:text-6xl">
+          <h2 className="font-display text-[2.75rem] font-extrabold uppercase leading-[0.88] tracking-[-0.025em] sm:text-6xl">
             Il tuo{" "}
             <span className="relative isolate inline-block px-[0.04em]">
               <span className="relative z-10">profilo</span>
@@ -73,14 +86,14 @@ export function AccountConsole() {
               />
             </span>
           </h2>
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground">
+          <p className="mt-4 max-w-xl text-[0.95rem] leading-relaxed text-muted-foreground sm:mt-5 sm:text-base">
             Il tuo account, il modo in cui Anthon risponde e ciò che ricorda di
             te.
           </p>
         </div>
 
-        <div className="flex min-w-0 items-center gap-3 sm:max-w-64 sm:justify-end">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-yellow font-display text-lg font-bold text-[#171714]">
+        <div className="flex min-w-0 items-center gap-3 border-t border-border pt-4 sm:max-w-72 md:justify-end md:border-0 md:pt-0">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-yellow font-display text-lg font-bold text-[#171714] sm:h-12 sm:w-12">
             {user.hasImage ? (
               <div
                 role="img"
@@ -93,9 +106,9 @@ export function AccountConsole() {
             )}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{displayName}</p>
+            <p className="truncate text-base font-semibold">{displayName}</p>
             {primaryEmail ? (
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              <p className="mt-0.5 truncate text-sm text-muted-foreground">
                 {primaryEmail}
               </p>
             ) : null}
@@ -103,46 +116,48 @@ export function AccountConsole() {
         </div>
       </header>
 
-      <Tabs defaultValue="profile" className="mt-7 w-full flex-col">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(String(value))}
+        className="mt-5 w-full flex-col sm:mt-7"
+      >
+        <div className="relative md:hidden">
+          <label className="sr-only" htmlFor="profile-section-select">
+            Sezione del profilo
+          </label>
+          <select
+            id="profile-section-select"
+            value={activeTab}
+            onChange={(event) => setActiveTab(event.target.value)}
+            className="min-h-12 w-full appearance-none rounded-xl border border-white/10 bg-[#171714] px-4 pr-12 text-base font-semibold text-white outline-none focus-visible:border-brand-yellow focus-visible:ring-[3px] focus-visible:ring-brand-yellow/35"
+          >
+            {accountTabs.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/70" />
+        </div>
+
         <TabsList
           aria-label="Sezioni del profilo"
-          className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl bg-[#171714] p-1.5 text-white"
+          className="hidden h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl bg-[#171714] p-1.5 text-white md:flex"
         >
-          <TabsTrigger
-            value="profile"
-            className="min-h-11 flex-none rounded-xl px-4 text-white/65 hover:text-white data-active:bg-brand-yellow data-active:text-[#171714] dark:data-active:bg-brand-yellow dark:data-active:text-[#171714]"
-          >
-            Profilo
-          </TabsTrigger>
-          <TabsTrigger
-            value="anthon"
-            className="min-h-11 flex-none rounded-xl px-4 text-white/65 hover:text-white data-active:bg-brand-yellow data-active:text-[#171714] dark:data-active:bg-brand-yellow dark:data-active:text-[#171714]"
-          >
-            Anthon
-          </TabsTrigger>
-          <TabsTrigger
-            value="security"
-            className="min-h-11 flex-none rounded-xl px-4 text-white/65 hover:text-white data-active:bg-brand-yellow data-active:text-[#171714] dark:data-active:bg-brand-yellow dark:data-active:text-[#171714]"
-          >
-            Sicurezza
-          </TabsTrigger>
-          <TabsTrigger
-            value="sessions"
-            className="min-h-11 flex-none rounded-xl px-4 text-white/65 hover:text-white data-active:bg-brand-yellow data-active:text-[#171714] dark:data-active:bg-brand-yellow dark:data-active:text-[#171714]"
-          >
-            Sessioni
-          </TabsTrigger>
-          <TabsTrigger
-            value="connected"
-            className="min-h-11 flex-none rounded-xl px-4 text-white/65 hover:text-white data-active:bg-brand-yellow data-active:text-[#171714] dark:data-active:bg-brand-yellow dark:data-active:text-[#171714]"
-          >
-            Account collegati
-          </TabsTrigger>
+          {accountTabs.map(([value, label]) => (
+            <TabsTrigger
+              key={value}
+              value={value}
+              className="min-h-11 flex-none rounded-xl px-4 text-white/65 hover:text-white data-active:bg-brand-yellow data-active:text-[#171714] dark:data-active:bg-brand-yellow dark:data-active:text-[#171714]"
+            >
+              {label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <TabsContent
           value="profile"
-          className="mt-5 overflow-hidden rounded-2xl border border-border bg-card inert:hidden"
+          className="mt-4 overflow-hidden rounded-xl border border-border bg-card sm:mt-5 sm:rounded-2xl inert:hidden"
         >
           <section aria-label="Profilo account">
             <ProfileIdentitySection user={user} />
@@ -154,7 +169,7 @@ export function AccountConsole() {
 
         <TabsContent
           value="anthon"
-          className="mt-5 overflow-hidden rounded-2xl border border-border bg-card inert:hidden"
+          className="mt-4 overflow-hidden rounded-xl border border-border bg-card sm:mt-5 sm:rounded-2xl inert:hidden"
         >
           <section aria-label="Impostazioni Anthon">
             <PreferencesSection />
@@ -163,7 +178,7 @@ export function AccountConsole() {
 
         <TabsContent
           value="security"
-          className="mt-5 overflow-hidden rounded-2xl border border-border bg-card inert:hidden"
+          className="mt-4 overflow-hidden rounded-xl border border-border bg-card sm:mt-5 sm:rounded-2xl inert:hidden"
         >
           <section aria-label="Sicurezza account">
             <SecuritySection />
@@ -172,7 +187,7 @@ export function AccountConsole() {
 
         <TabsContent
           value="sessions"
-          className="mt-5 overflow-hidden rounded-2xl border border-border bg-card inert:hidden"
+          className="mt-4 overflow-hidden rounded-xl border border-border bg-card sm:mt-5 sm:rounded-2xl inert:hidden"
         >
           <section aria-label="Sessioni attive">
             <SessionsSection />
@@ -181,7 +196,7 @@ export function AccountConsole() {
 
         <TabsContent
           value="connected"
-          className="mt-5 overflow-hidden rounded-2xl border border-border bg-card inert:hidden"
+          className="mt-4 overflow-hidden rounded-xl border border-border bg-card sm:mt-5 sm:rounded-2xl inert:hidden"
         >
           <section aria-label="Account collegati">
             <ConnectedAccountsSection />

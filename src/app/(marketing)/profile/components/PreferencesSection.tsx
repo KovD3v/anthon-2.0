@@ -59,12 +59,12 @@ function PreferenceSelect({
   onChange: (value: string | null) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+    <div className="flex flex-col gap-3 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
       <div className="space-y-1">
-        <Label htmlFor={id} className="cursor-pointer text-sm font-medium">
+        <Label htmlFor={id} className="cursor-pointer text-base font-medium">
           {label}
         </Label>
-        <p className="text-xs leading-relaxed text-muted-foreground">
+        <p className="text-sm leading-relaxed text-muted-foreground">
           {description}
         </p>
       </div>
@@ -73,7 +73,7 @@ function PreferenceSelect({
         value={value ?? ""}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value || null)}
-        className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:max-w-52"
+        className="min-h-12 w-full rounded-md border border-input bg-background px-3 text-base text-foreground shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:min-h-11 sm:max-w-52 sm:text-sm"
       >
         <option value="">Automatico</option>
         {options.map(([optionValue, optionLabel]) => (
@@ -174,8 +174,8 @@ export function PreferencesSection() {
 
   return (
     <section>
-      <div className="px-6 pb-5 pt-8 sm:px-8 sm:pt-10">
-        <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+      <div className="px-5 pb-5 pt-7 sm:px-8 sm:pt-10">
+        <h2 className="font-display text-[1.75rem] font-bold uppercase leading-none tracking-tight sm:text-3xl">
           Come risponde Anthon
         </h2>
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
@@ -213,9 +213,9 @@ export function PreferencesSection() {
             updatePreference("language", value ? value.toUpperCase() : null)
           }
         />
-        <div className="flex items-center justify-between gap-4 px-6 py-5 transition-colors hover:bg-muted/20 sm:px-8">
-          <div className="flex items-center gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
+        <div className="flex items-center justify-between gap-3 px-5 py-5 transition-colors hover:bg-muted/20 sm:gap-4 sm:px-8">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground sm:flex">
               {dontSendAudio ? (
                 <VolumeX className="h-5 w-5" />
               ) : (
@@ -225,11 +225,11 @@ export function PreferencesSection() {
             <div className="space-y-0.5">
               <Label
                 htmlFor="voice-toggle"
-                className="text-sm font-medium cursor-pointer"
+                className="cursor-pointer text-base font-medium"
               >
                 Non mandare audio
               </Label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm leading-relaxed text-muted-foreground">
                 Anthon risponderà solo con messaggi di testo
               </p>
             </div>
@@ -240,22 +240,23 @@ export function PreferencesSection() {
             onCheckedChange={handleVoiceToggle}
             disabled={updating}
             aria-label="Disabilita messaggi audio"
+            className="shrink-0"
           />
         </div>
 
-        <div className="flex items-center justify-between gap-4 px-6 py-5 transition-colors hover:bg-muted/20 sm:px-8">
-          <div className="flex items-center gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
+        <div className="flex items-center justify-between gap-3 px-5 py-5 transition-colors hover:bg-muted/20 sm:gap-4 sm:px-8">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground sm:flex">
               <Gauge className="h-5 w-5" />
             </div>
             <div className="space-y-0.5">
               <Label
                 htmlFor="technical-metrics-toggle"
-                className="text-sm font-medium cursor-pointer"
+                className="cursor-pointer text-base font-medium"
               >
                 Mostra dettagli tecnici delle risposte
               </Label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm leading-relaxed text-muted-foreground">
                 {preferencesLoadError
                   ? "Impossibile caricare questa preferenza."
                   : "Visualizza tempi e metriche nelle tue conversazioni private"}
@@ -268,6 +269,7 @@ export function PreferencesSection() {
             onCheckedChange={handleTechnicalMetricsToggle}
             disabled={updating || preferences === null}
             aria-label="Mostra dettagli tecnici delle risposte"
+            className="shrink-0"
           />
         </div>
       </div>

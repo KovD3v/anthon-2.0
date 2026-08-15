@@ -27,23 +27,26 @@ export function ProfileClient() {
         aria-label="Navigazione del profilo"
         className="border-b bg-muted/30"
       >
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-5xl items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleBack}
-            className="min-h-11 gap-2 text-muted-foreground hover:text-foreground"
+            className="min-h-11 shrink-0 gap-2 px-2 text-muted-foreground hover:text-foreground sm:px-3"
             aria-label="Torna alla pagina precedente"
           >
             <ArrowLeft className="h-4 w-4" />
-            Torna indietro
+            <span className="sm:hidden">Indietro</span>
+            <span className="hidden sm:inline">Torna indietro</span>
           </Button>
           <span aria-hidden="true" className="h-4 w-px bg-border" />
-          <h1 className="text-sm font-medium">Profilo e impostazioni</h1>
+          <h1 className="min-w-0 truncate text-sm font-medium">
+            Profilo e impostazioni
+          </h1>
         </div>
       </nav>
 
-      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
+      <main className="mx-auto max-w-5xl px-3 py-7 sm:px-6 sm:py-14">
         <AccountConsole />
       </main>
     </div>

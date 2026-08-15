@@ -29,7 +29,7 @@ export function DangerZoneSection() {
 
   return (
     <>
-      <section className="border-t border-destructive/25 bg-destructive/[0.035] px-6 py-8 sm:px-8">
+      <section className="border-t border-destructive/25 bg-destructive/[0.035] px-5 py-7 sm:px-8 sm:py-8">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-display text-2xl font-bold uppercase tracking-tight text-destructive">
@@ -43,7 +43,7 @@ export function DangerZoneSection() {
           <Button
             type="button"
             variant="destructive"
-            className="min-h-11 shrink-0 gap-2 self-start sm:self-auto"
+            className="min-h-11 w-full shrink-0 gap-2 sm:w-auto"
             onClick={() => setShowDeleteConfirm(true)}
             disabled={deleting}
           >

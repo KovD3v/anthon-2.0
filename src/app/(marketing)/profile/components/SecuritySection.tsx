@@ -200,8 +200,8 @@ export function SecuritySection() {
   return (
     <div className="divide-y divide-border/70">
       <section>
-        <div className="px-6 pb-4 pt-8 sm:px-8 sm:pt-10">
-          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+        <div className="px-5 pb-4 pt-7 sm:px-8 sm:pt-10">
+          <h2 className="font-display text-[1.75rem] font-bold uppercase leading-none tracking-tight sm:text-3xl">
             Password
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
@@ -211,7 +211,7 @@ export function SecuritySection() {
 
         {user.passwordEnabled ? (
           <form
-            className="space-y-5 px-6 pb-8 pt-3 sm:px-8"
+            className="space-y-5 px-5 pb-7 pt-3 sm:px-8 sm:pb-8"
             onSubmit={handlePasswordSubmit}
           >
             <div className="grid gap-4 sm:grid-cols-2">
@@ -259,7 +259,7 @@ export function SecuritySection() {
               </p>
             ) : null}
 
-            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border/70 pt-4">
+            <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <Label
                 htmlFor="sign-out-other-sessions"
                 className="min-h-11 cursor-pointer gap-3 text-sm text-muted-foreground"
@@ -277,7 +277,7 @@ export function SecuritySection() {
               </Label>
               <Button
                 type="submit"
-                className="min-h-11 gap-2"
+                className="min-h-11 w-full gap-2 sm:w-auto"
                 disabled={savingPassword}
               >
                 {savingPassword ? (
@@ -290,7 +290,7 @@ export function SecuritySection() {
             </div>
           </form>
         ) : (
-          <div className="px-6 pb-8 pt-3 sm:px-8">
+          <div className="px-5 pb-7 pt-3 sm:px-8 sm:pb-8">
             <StatusPill active={false}>Password non configurata</StatusPill>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
               Il tuo account usa un provider di accesso esterno. Gestisci la
@@ -301,8 +301,8 @@ export function SecuritySection() {
       </section>
 
       <section>
-        <div className="px-6 pb-4 pt-8 sm:px-8">
-          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+        <div className="px-5 pb-4 pt-7 sm:px-8 sm:pt-8">
+          <h2 className="font-display text-[1.75rem] font-bold uppercase leading-none tracking-tight sm:text-3xl">
             Verifica a due fattori
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
@@ -310,11 +310,11 @@ export function SecuritySection() {
           </p>
         </div>
 
-        <div className="space-y-5 px-6 pb-8 pt-3 sm:px-8">
+        <div className="space-y-5 px-5 pb-7 pt-3 sm:px-8 sm:pb-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium">Authenticator app</p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="text-base font-medium">Authenticator app</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                 Codici temporanei generati dalla tua app di autenticazione.
               </p>
             </div>
@@ -325,8 +325,8 @@ export function SecuritySection() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-4">
             <div>
-              <p className="text-sm font-medium">Codici di recupero</p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="text-base font-medium">Codici di recupero</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                 Servono se perdi l&apos;accesso all&apos;app di autenticazione.
               </p>
             </div>
@@ -339,7 +339,7 @@ export function SecuritySection() {
             <Button
               type="button"
               variant="outline"
-              className="min-h-11 gap-2"
+              className="min-h-11 w-full gap-2 sm:w-auto"
               disabled={creatingTotp}
               onClick={handleCreateTotp}
             >
@@ -383,7 +383,7 @@ export function SecuritySection() {
                 </div>
                 <Button
                   type="submit"
-                  className="min-h-11 gap-2"
+                  className="min-h-11 w-full gap-2 sm:w-auto"
                   disabled={verifyingTotp}
                 >
                   {verifyingTotp ? (
@@ -418,8 +418,8 @@ export function SecuritySection() {
       </section>
 
       <section>
-        <div className="px-6 pb-4 pt-8 sm:px-8">
-          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+        <div className="px-5 pb-4 pt-7 sm:px-8 sm:pt-8">
+          <h2 className="font-display text-[1.75rem] font-bold uppercase leading-none tracking-tight sm:text-3xl">
             Passkey
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
@@ -433,13 +433,13 @@ export function SecuritySection() {
             passkeys.map((passkey) => (
               <div
                 key={passkey.id}
-                className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8"
+                className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8"
               >
                 <div>
-                  <p className="text-sm font-medium">
+                  <p className="text-base font-medium">
                     {passkey.name ?? "Passkey senza nome"}
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     {passkey.lastUsedAt
                       ? `Usata il ${new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" }).format(passkey.lastUsedAt)}`
                       : "Non ancora utilizzata"}
@@ -448,7 +448,7 @@ export function SecuritySection() {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="min-h-11 gap-2 self-start text-muted-foreground hover:text-destructive sm:self-auto"
+                  className="min-h-11 w-full gap-2 text-muted-foreground hover:text-destructive sm:w-auto"
                   onClick={() => setDeletingPasskey(passkey)}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -457,15 +457,15 @@ export function SecuritySection() {
               </div>
             ))
           ) : (
-            <p className="px-6 py-5 text-sm text-muted-foreground sm:px-8">
+            <p className="px-5 py-5 text-sm text-muted-foreground sm:px-8">
               Non hai ancora passkey configurate.
             </p>
           )}
-          <div className="px-6 py-5 sm:px-8">
+          <div className="px-5 py-5 sm:px-8">
             <Button
               type="button"
               variant="outline"
-              className="min-h-11 gap-2"
+              className="min-h-11 w-full gap-2 sm:w-auto"
               disabled={creatingPasskey}
               onClick={handleCreatePasskey}
             >

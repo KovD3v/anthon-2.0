@@ -177,8 +177,8 @@ export function CoachingContextSection() {
   return (
     <>
       <section className="border-t border-border/70">
-        <div className="px-6 pb-4 pt-8 sm:px-8">
-          <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+        <div className="px-5 pb-4 pt-7 sm:px-8 sm:pt-8">
+          <h2 className="font-display text-[1.75rem] font-bold uppercase leading-none tracking-tight sm:text-3xl">
             Memoria
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
@@ -186,7 +186,7 @@ export function CoachingContextSection() {
           </p>
         </div>
 
-        <div className="space-y-5 px-6 pb-8 pt-3 sm:px-8">
+        <div className="space-y-5 px-5 pb-7 pt-3 sm:px-8 sm:pb-8">
           <div className="grid gap-4 sm:grid-cols-2">
             <ProfileInput
               id="coaching-sport"
@@ -216,15 +216,20 @@ export function CoachingContextSection() {
               className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
             />
           </div>
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button
               variant="ghost"
+              className="min-h-11 w-full sm:w-auto"
               disabled={saving}
               onClick={() => setDraft(context.profile)}
             >
               Annulla modifiche
             </Button>
-            <Button className="gap-2" disabled={saving} onClick={saveProfile}>
+            <Button
+              className="min-h-11 w-full gap-2 sm:w-auto"
+              disabled={saving}
+              onClick={saveProfile}
+            >
               {saving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
@@ -235,7 +240,7 @@ export function CoachingContextSection() {
           </div>
         </div>
 
-        <div className="border-t border-border/70 px-6 py-7 sm:px-8">
+        <div className="border-t border-border/70 px-5 py-7 sm:px-8">
           <h3 className="font-display text-xl font-bold uppercase tracking-tight">
             Ricordi dalle conversazioni
           </h3>
@@ -272,6 +277,7 @@ export function CoachingContextSection() {
                         <Button
                           size="icon"
                           variant="ghost"
+                          className="min-h-11 min-w-11"
                           aria-label="Correggi memoria"
                           onClick={() => setEditing(memory)}
                         >
@@ -280,6 +286,7 @@ export function CoachingContextSection() {
                         <Button
                           size="icon"
                           variant="ghost"
+                          className="min-h-11 min-w-11"
                           aria-label="Elimina memoria"
                           onClick={() => setDeleting(memory)}
                         >
@@ -360,7 +367,7 @@ function MemoryEditor({
         onChange={(event) =>
           onChange({ ...memory, content: event.target.value })
         }
-        className="min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+        className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base sm:text-sm"
       />
       <select
         aria-label="Categoria memoria"
@@ -368,7 +375,7 @@ function MemoryEditor({
         onChange={(event) =>
           onChange({ ...memory, category: event.target.value })
         }
-        className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+        className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-base sm:w-auto sm:text-sm"
       >
         {Object.entries(categoryLabels).map(([value, label]) => (
           <option key={value} value={value}>
@@ -376,11 +383,20 @@ function MemoryEditor({
           </option>
         ))}
       </select>
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={onCancel} disabled={saving}>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button
+          variant="ghost"
+          className="min-h-11 w-full sm:w-auto"
+          onClick={onCancel}
+          disabled={saving}
+        >
           Annulla
         </Button>
-        <Button onClick={onSave} disabled={saving || !memory.content.trim()}>
+        <Button
+          className="min-h-11 w-full sm:w-auto"
+          onClick={onSave}
+          disabled={saving || !memory.content.trim()}
+        >
           Salva memoria
         </Button>
       </div>

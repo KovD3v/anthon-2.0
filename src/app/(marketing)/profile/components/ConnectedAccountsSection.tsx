@@ -72,8 +72,8 @@ export function ConnectedAccountsSection() {
 
   return (
     <section>
-      <div className="px-6 pb-5 pt-8 sm:px-8 sm:pt-10">
-        <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+      <div className="px-5 pb-5 pt-7 sm:px-8 sm:pt-10">
+        <h2 className="font-display text-[1.75rem] font-bold uppercase leading-none tracking-tight sm:text-3xl">
           Account collegati
         </h2>
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
@@ -82,8 +82,8 @@ export function ConnectedAccountsSection() {
       </div>
 
       {accounts.length === 0 ? (
-        <div className="px-6 pb-8 pt-3 sm:px-8">
-          <p className="text-sm font-medium">Nessun account collegato</p>
+        <div className="px-5 pb-7 pt-3 sm:px-8 sm:pb-8">
+          <p className="text-base font-medium">Nessun account collegato</p>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             I provider esterni disponibili possono essere collegati durante il
             prossimo accesso.
@@ -99,15 +99,15 @@ export function ConnectedAccountsSection() {
             return (
               <div
                 key={account.id}
-                className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8"
+                className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8"
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-display font-bold text-primary">
                     {providerName.slice(0, 1).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium">{providerName}</p>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                    <p className="text-base font-medium">{providerName}</p>
+                    <p className="mt-1 truncate text-sm text-muted-foreground">
                       {account.emailAddress}
                     </p>
                     <p
@@ -125,7 +125,7 @@ export function ConnectedAccountsSection() {
                   <Button
                     type="button"
                     variant="ghost"
-                    className="min-h-11 shrink-0 gap-2 self-start text-muted-foreground hover:text-destructive sm:self-auto"
+                    className="min-h-11 w-full shrink-0 gap-2 text-muted-foreground hover:text-destructive sm:w-auto"
                     aria-label={`Rimuovi ${providerName}`}
                     disabled={removing}
                     onClick={() => setRemovingAccount(account)}

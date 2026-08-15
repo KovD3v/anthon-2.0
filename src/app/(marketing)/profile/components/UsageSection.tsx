@@ -84,8 +84,8 @@ export function UsageSection() {
 
   return (
     <section id="utilizzo" className="scroll-mt-6 border-t border-border/70">
-      <div className="px-6 pb-4 pt-8 sm:px-8">
-        <h2 className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
+      <div className="px-5 pb-4 pt-7 sm:px-8 sm:pt-8">
+        <h2 className="font-display text-[1.75rem] font-bold uppercase leading-none tracking-tight sm:text-3xl">
           Utilizzo
         </h2>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
@@ -94,14 +94,14 @@ export function UsageSection() {
       </div>
 
       {loading ? (
-        <div className="space-y-5 px-6 pb-8 pt-3 sm:px-8">
+        <div className="space-y-5 px-5 pb-7 pt-3 sm:px-8 sm:pb-8">
           <span className="sr-only">Caricamento utilizzo</span>
           <div className="h-5 w-28 animate-pulse rounded bg-muted" />
           <div className="h-2 w-full animate-pulse rounded-full bg-muted" />
           <div className="h-4 w-44 animate-pulse rounded bg-muted" />
         </div>
       ) : failed || !data ? (
-        <div className="px-6 pb-8 pt-3 sm:px-8" role="alert">
+        <div className="px-5 pb-7 pt-3 sm:px-8 sm:pb-8" role="alert">
           <p className="text-sm font-medium">
             Impossibile caricare l&apos;utilizzo.
           </p>
@@ -110,7 +110,7 @@ export function UsageSection() {
           </p>
         </div>
       ) : (
-        <div className="space-y-6 px-6 pb-8 pt-3 sm:px-8">
+        <div className="space-y-6 px-5 pb-7 pt-3 sm:px-8 sm:pb-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -128,7 +128,7 @@ export function UsageSection() {
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-end justify-between gap-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <MessageSquareText className="h-4 w-4 text-primary" />
                 Messaggi di oggi
