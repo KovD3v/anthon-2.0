@@ -21,7 +21,7 @@ describe("OAuthButtons", () => {
     mocks.signUp.sso.mockReset().mockResolvedValue({ error: null });
   });
 
-  it("serializes the safe continuation into both OAuth routes", async () => {
+  it("sends completed OAuth to the continuation and incomplete OAuth to the callback", async () => {
     const user = userEvent.setup();
     render(
       <OAuthButtons
@@ -37,10 +37,9 @@ describe("OAuthButtons", () => {
 
     expect(mocks.signIn.sso).toHaveBeenCalledWith({
       strategy: "oauth_google",
-      redirectUrl:
-        "/sso-callback?redirect_url=%2Fchat%2Fthread_1%3Fsource%3Dguest",
+      redirectUrl: "/chat/thread_1?source=guest",
       redirectCallbackUrl:
-        "/auth-continue?redirect_url=%2Fchat%2Fthread_1%3Fsource%3Dguest",
+        "/sso-callback?redirect_url=%2Fchat%2Fthread_1%3Fsource%3Dguest",
     });
   });
 

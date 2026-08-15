@@ -37,8 +37,8 @@ export function OAuthButtons({
     const query = new URLSearchParams({ redirect_url: continuation });
     const params = {
       strategy,
-      redirectUrl: `/sso-callback?${query}`,
-      redirectCallbackUrl: `/auth-continue?${query}`,
+      redirectUrl: continuation,
+      redirectCallbackUrl: `/sso-callback?${query}`,
     };
     const { error } =
       mode === "sign-up"
