@@ -82,12 +82,10 @@ describe("AccountConsole", () => {
     ).toBeNull();
   });
 
-  it("switches sections from the mobile profile control", () => {
+  it("switches sections from the mobile tab grid", () => {
     render(<AccountConsole />);
 
-    fireEvent.change(screen.getByLabelText("Sezione del profilo"), {
-      target: { value: "security" },
-    });
+    fireEvent.click(screen.getByRole("tab", { name: "Sicurezza" }));
 
     expect(
       screen.getAllByRole("region", { name: "Sicurezza account" }).length,
@@ -95,5 +93,6 @@ describe("AccountConsole", () => {
     expect(
       screen.queryByRole("region", { name: "Profilo account" }),
     ).toBeNull();
+    expect(screen.queryByLabelText("Sezione del profilo")).toBeNull();
   });
 });

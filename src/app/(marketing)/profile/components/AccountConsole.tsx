@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -121,34 +121,15 @@ export function AccountConsole() {
         onValueChange={(value) => setActiveTab(String(value))}
         className="mt-5 w-full flex-col sm:mt-7"
       >
-        <div className="relative md:hidden">
-          <label className="sr-only" htmlFor="profile-section-select">
-            Sezione del profilo
-          </label>
-          <select
-            id="profile-section-select"
-            value={activeTab}
-            onChange={(event) => setActiveTab(event.target.value)}
-            className="min-h-12 w-full appearance-none rounded-xl border border-white/10 bg-[#171714] px-4 pr-12 text-base font-semibold text-white outline-none focus-visible:border-brand-yellow focus-visible:ring-[3px] focus-visible:ring-brand-yellow/35"
-          >
-            {accountTabs.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/70" />
-        </div>
-
         <TabsList
           aria-label="Sezioni del profilo"
-          className="hidden h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl bg-[#171714] p-1.5 text-white md:flex"
+          className="grid h-auto w-full grid-cols-6 gap-1 rounded-xl bg-[#171714] p-1.5 text-white md:flex md:justify-start md:overflow-x-auto md:rounded-2xl"
         >
-          {accountTabs.map(([value, label]) => (
+          {accountTabs.map(([value, label], index) => (
             <TabsTrigger
               key={value}
               value={value}
-              className="min-h-11 flex-none rounded-xl px-4 text-white/65 hover:text-white data-active:bg-brand-yellow data-active:text-[#171714] dark:data-active:bg-brand-yellow dark:data-active:text-[#171714]"
+              className={`${index < 3 ? "col-span-2" : "col-span-3"} min-h-11 w-full rounded-lg px-2 text-sm leading-tight text-white/65 hover:text-white data-active:bg-brand-yellow data-active:text-[#171714] md:col-span-1 md:w-auto md:flex-none md:rounded-xl md:px-4 dark:data-active:bg-brand-yellow dark:data-active:text-[#171714]`}
             >
               {label}
             </TabsTrigger>
