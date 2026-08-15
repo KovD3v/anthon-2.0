@@ -18,6 +18,10 @@ import {
   projectCoachingFact,
 } from "@/lib/coaching-context";
 import { createLogger } from "@/lib/logger";
+import {
+  isOnboardingRequired,
+  onboardingRequiredResponse,
+} from "@/lib/onboarding/gate";
 
 const memoryLogger = createLogger("ai");
 type RouteContext = { params: Promise<{ memoryId: string }> };
@@ -39,6 +43,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   try {
     const { user, error } = await getAuthUser();
     if (error || !user) return unauthorized(error || "Non autorizzato");
+    if (isOnboardingRequired(user))
+      return onboardingRequiredResponse("/profile");
     const { memoryId } = await params;
 
     const memory = await getActiveFactById({
@@ -94,6 +100,8 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   try {
     const { user, error } = await getAuthUser();
     if (error || !user) return unauthorized(error || "Non autorizzato");
+    if (isOnboardingRequired(user))
+      return onboardingRequiredResponse("/profile");
     const { memoryId } = await params;
 
     const result = await forgetFact({

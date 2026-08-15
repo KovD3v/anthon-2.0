@@ -1,6 +1,11 @@
 import { waitUntil } from "@vercel/functions";
+import { getAuthUser } from "@/lib/auth";
 import { handleWebChatPost } from "@/lib/channels/web/chat-route-handler";
 import { warmDatabaseConnection } from "@/lib/db";
+import {
+  isOnboardingRequired,
+  onboardingRequiredResponse,
+} from "@/lib/onboarding/gate";
 
 export const maxDuration = 60;
 
@@ -17,6 +22,8 @@ async function readWarmupBody(request: Request): Promise<{ chatId?: unknown }> {
 }
 
 export async function PUT(request: Request) {
+  const { user } = await getAuthUser();
+  if (isOnboardingRequired(user)) return onboardingRequiredResponse("/chat");
   const { chatId } = await readWarmupBody(request);
 
   if (typeof chatId !== "string" || chatId.trim().length === 0) {

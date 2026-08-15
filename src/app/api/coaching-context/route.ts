@@ -15,6 +15,10 @@ import {
 } from "@/lib/coaching-context";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import {
+  isOnboardingRequired,
+  onboardingRequiredResponse,
+} from "@/lib/onboarding/gate";
 
 const contextLogger = createLogger("ai");
 
@@ -22,12 +26,20 @@ export async function GET() {
   try {
     const { user, error } = await getAuthUser();
     if (error || !user) return unauthorized(error || "Non autorizzato");
+    if (isOnboardingRequired(user))
+      return onboardingRequiredResponse("/profile");
 
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
       select: {
         profile: {
-          select: { sport: true, goal: true, experience: true },
+          select: {
+            age: true,
+            occupation: true,
+            sport: true,
+            goal: true,
+            experience: true,
+          },
         },
       },
     });
@@ -41,6 +53,8 @@ export async function GET() {
 
     return jsonOk({
       profile: dbUser.profile ?? {
+        age: null,
+        occupation: null,
         sport: null,
         goal: null,
         experience: null,
@@ -63,6 +77,8 @@ export async function PATCH(request: Request) {
   try {
     const { user, error } = await getAuthUser();
     if (error || !user) return unauthorized(error || "Non autorizzato");
+    if (isOnboardingRequired(user))
+      return onboardingRequiredResponse("/profile");
 
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
@@ -82,6 +98,8 @@ export async function PATCH(request: Request) {
     const profile = await updateCanonicalProfile(user.id, parsed.data);
     invalidateCoachingContextPromptCaches(user.id);
     return jsonOk({
+      age: profile.age,
+      occupation: profile.occupation,
       sport: profile.sport,
       goal: profile.goal,
       experience: profile.experience,

@@ -39,6 +39,7 @@ export interface AuthUser {
   isGuest: boolean;
   role: UserRole;
   createdAt: Date;
+  onboardingCompletedAt: Date | null;
 }
 
 export interface AuthResult {
@@ -61,6 +62,7 @@ const getCachedUserByClerkId = unstable_cache(
         isGuest: true,
         role: true,
         createdAt: true,
+        onboardingCompletedAt: true,
       },
     });
   },
@@ -102,6 +104,7 @@ export async function getAuthUser(): Promise<AuthResult> {
           isGuest: true,
           role: true,
           createdAt: true,
+          onboardingCompletedAt: true,
         },
       });
 
@@ -116,6 +119,7 @@ export async function getAuthUser(): Promise<AuthResult> {
             isGuest: true,
             role: true,
             createdAt: true,
+            onboardingCompletedAt: true,
           },
         });
       }
@@ -151,6 +155,9 @@ export async function getAuthUser(): Promise<AuthResult> {
         role: user.role,
         // unstable_cache serializes Date objects to strings, so we need to convert back
         createdAt: new Date(user.createdAt),
+        onboardingCompletedAt: user.onboardingCompletedAt
+          ? new Date(user.onboardingCompletedAt)
+          : null,
       },
       error: null,
     };

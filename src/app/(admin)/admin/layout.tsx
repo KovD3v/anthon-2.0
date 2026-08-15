@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
+import { requireCompletedOnboardingPage } from "@/lib/onboarding/gate";
 import AdminLayoutClient from "./layout-client";
 
 // TODO: Cache Components adoption. Refactor this route so this opt-out can be removed.
@@ -12,12 +13,14 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   // Server-side admin check
-  const { errorResponse } = await requireAdmin();
+  const { user, errorResponse } = await requireAdmin();
 
   if (errorResponse) {
     // Not an admin, redirect to home
     redirect("/");
   }
+
+  requireCompletedOnboardingPage(user, "/admin");
 
   return <AdminLayoutClient>{children}</AdminLayoutClient>;
 }

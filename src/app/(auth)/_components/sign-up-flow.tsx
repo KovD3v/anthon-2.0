@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LEGAL_LINKS } from "@/lib/legal-links";
+import { buildOnboardingEntry } from "@/lib/onboarding/gate";
 import {
   AuthDivider,
   AuthErrorSummary,
@@ -39,10 +40,11 @@ export function SignUpFlow({ continuation }: { continuation: string }) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resendSeconds, setResendSeconds] = useState(0);
+  const onboardingDestination = buildOnboardingEntry(continuation);
 
   useEffect(() => {
-    if (isLoaded && isSignedIn) router.replace(continuation);
-  }, [continuation, isLoaded, isSignedIn, router]);
+    if (isLoaded && isSignedIn) router.replace(onboardingDestination);
+  }, [isLoaded, isSignedIn, onboardingDestination, router]);
 
   useEffect(() => {
     if (resendSeconds <= 0) return;
@@ -58,7 +60,7 @@ export function SignUpFlow({ continuation }: { continuation: string }) {
       signUp.finalize({
         navigate: ({ session, decorateUrl }) => {
           if (session?.currentTask) return;
-          navigateAfterAuth(router, continuation, decorateUrl);
+          navigateAfterAuth(router, onboardingDestination, decorateUrl);
         },
       }),
     );
@@ -241,7 +243,7 @@ export function SignUpFlow({ continuation }: { continuation: string }) {
             <div className="space-y-5">
               <OAuthButtons
                 mode="sign-up"
-                continuation={continuation}
+                continuation={onboardingDestination}
                 legalAccepted={legalAccepted}
                 onError={setError}
               />

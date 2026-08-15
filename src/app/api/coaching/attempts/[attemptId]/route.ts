@@ -12,6 +12,10 @@ import { getAuthUser } from "@/lib/auth";
 import { toRoutineCardData } from "@/lib/coaching/routine";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import {
+  isOnboardingRequired,
+  onboardingRequiredResponse,
+} from "@/lib/onboarding/gate";
 
 const attemptLogger = createLogger("ai");
 const outcomeBodySchema = z
@@ -34,6 +38,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   try {
     const { user, error } = await getAuthUser();
     if (error || !user) return unauthorized(error || "Unauthorized");
+    if (isOnboardingRequired(user)) return onboardingRequiredResponse();
     if (user.isGuest) return forbidden();
 
     let body: unknown;

@@ -20,6 +20,10 @@ import {
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import {
+  isOnboardingRequired,
+  onboardingRequiredResponse,
+} from "@/lib/onboarding/gate";
+import {
   buildTechnicalUsage,
   isAdminRole,
   resolveTechnicalDiagnosticsVisibility,
@@ -43,6 +47,9 @@ export async function GET(request: Request, { params }: RouteParams) {
 
   if (error || !user) {
     return Response.json({ error: error || "Unauthorized" }, { status: 401 });
+  }
+  if (isOnboardingRequired(user)) {
+    return onboardingRequiredResponse(`/chat/${(await params).id}`);
   }
 
   const { id } = await params;
@@ -450,6 +457,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   if (error || !user) {
     return Response.json({ error: error || "Unauthorized" }, { status: 401 });
   }
+  if (isOnboardingRequired(user)) {
+    return onboardingRequiredResponse(`/chat/${(await params).id}`);
+  }
 
   const { id } = await params;
 
@@ -579,6 +589,9 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
 
   if (error || !user) {
     return Response.json({ error: error || "Unauthorized" }, { status: 401 });
+  }
+  if (isOnboardingRequired(user)) {
+    return onboardingRequiredResponse(`/chat/${(await params).id}`);
   }
 
   const { id } = await params;

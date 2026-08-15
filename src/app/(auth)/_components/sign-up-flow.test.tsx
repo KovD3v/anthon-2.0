@@ -140,6 +140,8 @@ describe("SignUpFlow", () => {
     expect(mocks.signUp.verifications.verifyEmailCode).toHaveBeenCalledWith({
       code: "123456",
     });
-    expect(mocks.router.replace).toHaveBeenCalledWith("/chat/chat_123");
+    expect(mocks.router.replace).toHaveBeenCalledWith(
+      "/onboarding?next=%2Fchat%2Fchat_123",
+    );
   });
 });

@@ -29,6 +29,8 @@ type CompactMemoryValue = {
 
 type PromptUserRow = {
   profileName: string | null;
+  profileAge: number | null;
+  profileOccupation: string | null;
   profileSport: string | null;
   profileGoal: string | null;
   profileExperience: string | null;
@@ -55,6 +57,8 @@ async function loadPromptUserContext(
     return prisma.$queryRaw<PromptUserRow[]>(Prisma.sql`
       SELECT
         p."name" AS "profileName",
+        p."age" AS "profileAge",
+        p."occupation" AS "profileOccupation",
         p."sport" AS "profileSport",
         p."goal" AS "profileGoal",
         p."experience" AS "profileExperience",
@@ -75,6 +79,8 @@ async function loadPromptUserContext(
   return prisma.$queryRaw<PromptUserRow[]>(Prisma.sql`
     SELECT
       p."name" AS "profileName",
+      p."age" AS "profileAge",
+      p."occupation" AS "profileOccupation",
       p."sport" AS "profileSport",
       p."goal" AS "profileGoal",
       p."experience" AS "profileExperience",
@@ -139,6 +145,8 @@ Usa questo tool per personalizzare le risposte in base al contesto dell'utente.`
             profile: user.profile
               ? {
                   name: user.profile.name,
+                  age: user.profile.age,
+                  occupation: user.profile.occupation,
                   sport: user.profile.sport,
                   goal: user.profile.goal,
                   experience: user.profile.experience,
@@ -183,6 +191,17 @@ Usa questo tool quando l'utente fornisce nuove informazioni sul proprio
 sport, obiettivi, livello di esperienza o altri dettagli del profilo.`,
       inputSchema: z.object({
         name: z.string().optional().describe("Nome dell'utente"),
+        age: z
+          .number()
+          .int()
+          .min(1)
+          .max(120)
+          .optional()
+          .describe("Età dell'utente"),
+        occupation: z
+          .string()
+          .optional()
+          .describe("Lavoro o ambito di studio dell'utente"),
         sport: z.string().optional().describe("Sport praticato dall'utente"),
         goal: z
           .string()
@@ -362,6 +381,8 @@ export async function formatUserContextForPrompt(
       // Profile section
       if (
         row.profileName ||
+        row.profileAge ||
+        row.profileOccupation ||
         row.profileSport ||
         row.profileGoal ||
         row.profileExperience ||
@@ -370,11 +391,14 @@ export async function formatUserContextForPrompt(
       ) {
         lines.push("## Profilo Utente:");
         if (row.profileName) lines.push(`- **Nome**: ${row.profileName}`);
+        if (row.profileAge) lines.push(`- **Età**: ${row.profileAge} anni`);
+        if (row.profileOccupation)
+          lines.push(`- **Lavoro o studio**: ${row.profileOccupation}`);
         if (row.profileSport) lines.push(`- **Sport**: ${row.profileSport}`);
         if (row.profileGoal) lines.push(`- **Obiettivo**: ${row.profileGoal}`);
         if (row.profileExperience)
           lines.push(`- **Esperienza**: ${row.profileExperience}`);
-        if (row.profileBirthday) {
+        if (!row.profileAge && row.profileBirthday) {
           const age = Math.floor(
             (Date.now() - row.profileBirthday.getTime()) /
               (365.25 * 24 * 60 * 60 * 1000),
@@ -440,6 +464,12 @@ export async function formatTinyUserSnapshotForPrompt(
       }
       if (firstRow.profileSport) {
         lines.push(`Sport: ${firstRow.profileSport}`);
+      }
+      if (firstRow.profileAge) {
+        lines.push(`Età: ${firstRow.profileAge} anni`);
+      }
+      if (firstRow.profileOccupation) {
+        lines.push(`Lavoro o studio: ${firstRow.profileOccupation}`);
       }
       if (firstRow.profileGoal) {
         lines.push(`Obiettivo: ${firstRow.profileGoal}`);

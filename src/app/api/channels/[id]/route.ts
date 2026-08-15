@@ -11,6 +11,10 @@ import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import {
+  isOnboardingRequired,
+  onboardingRequiredResponse,
+} from "@/lib/onboarding/gate";
 
 const channelsLogger = createLogger("webhook");
 
@@ -31,6 +35,8 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
       { status: 401 },
     );
   }
+  if (isOnboardingRequired(user))
+    return onboardingRequiredResponse("/channels");
 
   const { id } = await params;
 

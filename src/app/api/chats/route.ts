@@ -10,6 +10,10 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { convertGuestForAuthenticatedUser } from "@/lib/guest-conversion";
 import { createLogger } from "@/lib/logger";
+import {
+  isOnboardingRequired,
+  onboardingRequiredResponse,
+} from "@/lib/onboarding/gate";
 
 const chatsLogger = createLogger("ai");
 
@@ -23,6 +27,7 @@ export async function GET() {
   if (error || !user) {
     return Response.json({ error: error || "Unauthorized" }, { status: 401 });
   }
+  if (isOnboardingRequired(user)) return onboardingRequiredResponse("/chat");
 
   try {
     await convertGuestForAuthenticatedUser(user.id);
@@ -70,6 +75,7 @@ export async function POST(request: Request) {
   if (error || !user) {
     return Response.json({ error: error || "Unauthorized" }, { status: 401 });
   }
+  if (isOnboardingRequired(user)) return onboardingRequiredResponse("/chat");
 
   try {
     // Optional: parse body for initial title or visibility

@@ -31,6 +31,7 @@ import { connectDatabase, prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { withRequestLogContext } from "@/lib/logger";
 import { tryCreateModelComparisonResponse } from "@/lib/model-experiments/runtime";
+import { onboardingRequiredResponse } from "@/lib/onboarding/gate";
 import { checkRateLimit, reconcileAiUsageForRecovery } from "@/lib/rate-limit";
 import {
   createServerTraceCollector,
@@ -161,6 +162,7 @@ export async function handleWebChatPost(request: Request) {
                   id: true,
                   role: true,
                   isGuest: true,
+                  onboardingCompletedAt: true,
                   billingSyncedAt: true,
                   subscription: {
                     select: {
@@ -188,6 +190,7 @@ export async function handleWebChatPost(request: Request) {
                   id: true,
                   role: true,
                   isGuest: true,
+                  onboardingCompletedAt: true,
                   billingSyncedAt: true,
                   subscription: {
                     select: {
@@ -207,6 +210,10 @@ export async function handleWebChatPost(request: Request) {
             "🌐 Chat API Request",
           ),
         );
+
+        if (!user.isGuest && user.onboardingCompletedAt === null) {
+          return onboardingRequiredResponse(`/chat/${chatId}`);
+        }
 
         const routineProposalAllowedPromise = isRoutineFeatureEnabled({
           distinctId: clerkId,

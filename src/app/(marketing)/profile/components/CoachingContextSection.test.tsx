@@ -35,6 +35,8 @@ vi.mock("@/components/ui/confirm-dialog", () => ({
 
 const context = {
   profile: {
+    age: 24,
+    occupation: "Studentessa di medicina",
     sport: "Tennis",
     goal: "Restare lucido",
     experience: "Agonista",
@@ -69,6 +71,8 @@ describe("CoachingContextSection", () => {
   it("renders only user-facing profile and memory content", async () => {
     render(<CoachingContextSection />);
     expect(await screen.findByDisplayValue("Tennis")).toBeTruthy();
+    expect(screen.getByDisplayValue("24")).toBeTruthy();
+    expect(screen.getByDisplayValue("Studentessa di medicina")).toBeTruthy();
     expect(screen.getByText("Mi alleno il martedì")).toBeTruthy();
     expect(screen.queryByText("memory-1")).toBeNull();
   });

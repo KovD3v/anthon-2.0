@@ -10,6 +10,10 @@ import {
   isBillingSyncStale,
   syncPersonalSubscriptionFromClerk,
 } from "@/lib/billing/personal-subscription";
+import {
+  isOnboardingRequired,
+  onboardingRequiredResponse,
+} from "@/lib/onboarding/gate";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import { getDailyUsage } from "@/lib/rate-limit";
 import { getEffectivePlanId } from "@/lib/rate-limit/config";
@@ -20,6 +24,7 @@ export async function GET(_request: Request) {
   if (error || !user) {
     return unauthorized(error || "Unauthorized");
   }
+  if (isOnboardingRequired(user)) return onboardingRequiredResponse();
 
   try {
     // Get full user with subscription

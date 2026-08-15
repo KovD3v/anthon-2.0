@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 type CoachingProfile = {
+  age: number | null;
+  occupation: string | null;
   sport: string | null;
   goal: string | null;
   experience: string | null;
@@ -187,6 +189,34 @@ export function CoachingContextSection() {
         </div>
 
         <div className="space-y-5 px-5 pb-7 pt-3 sm:px-8 sm:pb-8">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="coaching-age">Età</Label>
+              <Input
+                id="coaching-age"
+                type="number"
+                min={1}
+                max={120}
+                value={draft.age ?? ""}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    age: event.target.value
+                      ? Number.parseInt(event.target.value, 10)
+                      : null,
+                  })
+                }
+                placeholder="Es. 24"
+              />
+            </div>
+            <ProfileInput
+              id="coaching-occupation"
+              label="Lavoro o ambito di studio"
+              value={draft.occupation ?? ""}
+              placeholder="Es. studentessa di medicina"
+              onChange={(occupation) => setDraft({ ...draft, occupation })}
+            />
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <ProfileInput
               id="coaching-sport"
