@@ -202,6 +202,7 @@ describe("/api/chat/messages route", () => {
             generationTimeMs: 180,
             model: "gpt-4o-mini",
             executedProfile: "standard",
+            messageId: "m2",
             serverTrace: serverTraceFixture,
             clientTrace: clientTraceFixture,
           },
@@ -317,6 +318,7 @@ describe("/api/chat/messages route", () => {
       },
       serverTrace: serverTraceFixture,
       clientTrace: clientTraceFixture,
+      messageId: "m1",
     });
   });
 
@@ -327,6 +329,16 @@ describe("/api/chat/messages route", () => {
         role: "ADMIN",
         isGuest: false,
         preferences: { showTechnicalMetrics: null },
+      },
+      chat: { visibility: "PRIVATE", userId: "user-1" },
+      includesTechnicalMetrics: true,
+    },
+    {
+      name: "a private USER chat with an explicit override",
+      user: {
+        role: "USER",
+        isGuest: false,
+        preferences: { showTechnicalMetrics: true },
       },
       chat: { visibility: "PRIVATE", userId: "user-1" },
       includesTechnicalMetrics: true,
@@ -430,6 +442,11 @@ describe("/api/chat/messages route", () => {
           ragUsed: true,
           toolCalls: [{ name: "saveMemory", status: "completed" }],
         });
+        if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") {
+          expect(body.messages[0]?.usage).toHaveProperty("messageId", "m1");
+        } else {
+          expect(body.messages[0]?.usage).not.toHaveProperty("messageId");
+        }
       } else {
         expect(body.messages[0]).not.toHaveProperty("model");
         expect(body.messages[0]).not.toHaveProperty("usage");

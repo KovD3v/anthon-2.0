@@ -477,6 +477,15 @@ describe("lib/chat", () => {
       expected: true,
     },
     {
+      name: "a private SUPER_ADMIN without an override",
+      role: "SUPER_ADMIN",
+      preference: null,
+      isGuest: false,
+      visibility: "PRIVATE",
+      isOwner: true,
+      expected: true,
+    },
+    {
       name: "a guest owner",
       role: "SUPER_ADMIN",
       preference: true,
@@ -568,6 +577,11 @@ describe("lib/chat", () => {
         ragUsed: true,
         toolCalls: [{ name: "saveMemory", status: "completed" }],
       });
+      if (testCase.role === "ADMIN" || testCase.role === "SUPER_ADMIN") {
+        expect(message?.usage).toHaveProperty("messageId", "assistant-1");
+      } else {
+        expect(message?.usage).not.toHaveProperty("messageId");
+      }
     } else {
       expect(message).not.toHaveProperty("model");
       expect(message).not.toHaveProperty("usage");

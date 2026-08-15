@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import {
   buildTechnicalUsage,
+  isAdminRole,
   resolveTechnicalDiagnosticsVisibility,
   resolveTechnicalMetricsVisibility,
 } from "@/lib/technical-metrics";
@@ -141,6 +142,7 @@ export async function GET(request: Request) {
       const usage = includeTechnicalMetrics
         ? buildTechnicalUsage(msg, {
             includeDiagnostics: includeTechnicalDiagnostics,
+            messageId: isAdminRole(user.role) ? msg.id : undefined,
           })
         : undefined;
 

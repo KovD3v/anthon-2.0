@@ -11,6 +11,7 @@ const completeProfilerUsage = {
   reasoningTokens: 48,
   cost: 0.00314,
   generationTimeMs: 1_420,
+  messageId: "message-admin-1",
   model: "deepseek/deepseek-v4-flash-0731",
   provider: "Together",
   executedProfile: "standard" as const,
@@ -143,6 +144,8 @@ describe("TechnicalMetricsDetails", () => {
     expect(screen.getAllByText("Risposta completa").length).toBeGreaterThan(0);
     expect(screen.getByText("Fine persistenza")).toBeTruthy();
     expect(screen.getByText("320 token/s")).toBeTruthy();
+    expect(screen.getByText("ID messaggio")).toBeTruthy();
+    expect(screen.getByText("message-admin-1")).toBeTruthy();
     expect(screen.getByText("Timeline backend")).toBeTruthy();
     expect(screen.getByText("Totale backend")).toBeTruthy();
     expect(screen.getByText("20 ms → 200 ms")).toBeTruthy();

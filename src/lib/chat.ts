@@ -8,6 +8,7 @@ import type { ModelComparisonData } from "@/lib/model-experiments/types";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import {
   buildTechnicalUsage,
+  isAdminRole,
   resolveTechnicalDiagnosticsVisibility,
   resolveTechnicalMetricsVisibility,
 } from "@/lib/technical-metrics";
@@ -319,6 +320,7 @@ async function getSharedChatUncached(
       ? buildTechnicalUsage(m, {
           includeDiagnostics:
             canReceiveTechnicalDiagnostics && !modelComparisonCanonical,
+          messageId: isAdminRole(userData?.role) ? m.id : undefined,
         })
       : undefined;
 

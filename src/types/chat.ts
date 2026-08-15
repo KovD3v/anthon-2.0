@@ -98,6 +98,8 @@ export interface Usage {
   inputTokens: number;
   outputTokens: number;
   cost: number;
+  /** Durable message ID exposed only in admin technical details. */
+  messageId?: string;
   generationTimeMs?: number;
   reasoningTimeMs?: number;
   serverTrace?: ServerTraceV1;

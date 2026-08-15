@@ -155,6 +155,24 @@ describe("resolveTechnicalMetricsVisibility", () => {
 });
 
 describe("buildTechnicalUsage", () => {
+  it("includes a message ID only when the caller explicitly supplies one", () => {
+    const message = {
+      model: "model",
+      inputTokens: 10,
+      outputTokens: 5,
+      costUsd: 0.01,
+      generationTimeMs: 120,
+      reasoningTimeMs: null,
+      ragUsed: false,
+      toolCalls: null,
+    };
+
+    expect(
+      buildTechnicalUsage(message, { messageId: "message-admin-1" }),
+    ).toMatchObject({ messageId: "message-admin-1" });
+    expect(buildTechnicalUsage(message)).not.toHaveProperty("messageId");
+  });
+
   it("reads reasoning duration from the normalized metrics row", () => {
     const usage = buildTechnicalUsage({
       model: "model",

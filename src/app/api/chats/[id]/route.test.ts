@@ -377,6 +377,7 @@ describe("/api/chats/[id] route", () => {
             reasoningTimeMs: 22,
             model: "gpt-4o-mini",
             executedProfile: "standard",
+            messageId: "m3",
             toolCallCount: 1,
             ragUsed: true,
             serverTrace: serverTraceFixture,
@@ -484,6 +485,11 @@ describe("/api/chats/[id] route", () => {
           ragUsed: true,
           toolCalls: [{ name: "saveMemory", status: "completed" }],
         });
+        if (testCase.role === "ADMIN" || testCase.role === "SUPER_ADMIN") {
+          expect(assistant?.usage).toHaveProperty("messageId", "m3");
+        } else {
+          expect(assistant?.usage).not.toHaveProperty("messageId");
+        }
       } else {
         expect(assistant).not.toHaveProperty("model");
         expect(assistant).not.toHaveProperty("usage");

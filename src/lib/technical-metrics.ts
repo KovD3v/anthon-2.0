@@ -128,7 +128,7 @@ function countToolCalls(value: unknown): number | undefined {
 
 export function buildTechnicalUsage(
   message: PersistedTechnicalMessage,
-  options: { includeDiagnostics?: boolean } = {},
+  options: { includeDiagnostics?: boolean; messageId?: string } = {},
 ): Usage | undefined {
   if (message.inputTokens === null) return undefined;
 
@@ -168,6 +168,7 @@ export function buildTechnicalUsage(
     inputTokens: message.inputTokens,
     outputTokens: message.outputTokens ?? 0,
     cost: message.costUsd ?? 0,
+    ...(options.messageId ? { messageId: options.messageId } : {}),
     ...(message.generationTimeMs !== null
       ? { generationTimeMs: message.generationTimeMs }
       : {}),
@@ -219,8 +220,12 @@ export type TechnicalMetricsVisibilityInput = {
   isPrivateOwner: boolean;
 };
 
-export function getDefaultTechnicalMetricsPreference(role: UserRole): boolean {
+export function isAdminRole(role: UserRole | null | undefined): boolean {
   return role === "ADMIN" || role === "SUPER_ADMIN";
+}
+
+export function getDefaultTechnicalMetricsPreference(role: UserRole): boolean {
+  return isAdminRole(role);
 }
 
 export function resolveTechnicalMetricsVisibility(

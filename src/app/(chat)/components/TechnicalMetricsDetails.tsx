@@ -129,7 +129,8 @@ export function TechnicalMetricsDetails({
   const cost = formatCost(usage.cost);
   const profile = routeTrace?.executedProfile ?? usage.executedProfile;
   const hasRichDiagnostics = Boolean(
-    usage.model ||
+    usage.messageId ||
+      usage.model ||
       usage.provider ||
       routeTrace ||
       usage.toolTiming ||
@@ -237,6 +238,18 @@ export function TechnicalMetricsDetails({
           <section className="border-border/60 border-t px-3 py-3">
             <SectionTitle icon={Cpu}>Esecuzione</SectionTitle>
             <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
+              {usage.messageId && (
+                <div className="col-span-2 min-w-0 sm:col-span-4">
+                  <dt className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
+                    ID messaggio
+                  </dt>
+                  <dd className="mt-1 min-w-0">
+                    <code className="block break-all rounded-md bg-background/75 px-2 py-1.5 font-mono text-[11px] text-foreground ring-1 ring-border/60">
+                      {usage.messageId}
+                    </code>
+                  </dd>
+                </div>
+              )}
               {usage.model && (
                 <div className="col-span-2 min-w-0 sm:col-span-4">
                   <dt className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
