@@ -1,0 +1,96 @@
+{
+  "runLabel": "latency-2026-08-15-pinned-deepseek-gemini-luna",
+  "date": "2026-08-15",
+  "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+  "authentication": "OPENROUTER_API_KEY from .env.benchmark",
+  "prompt": "Rispondi in italiano con una sola frase breve: qual è il primo passo per prepararsi mentalmente a una partita importante?",
+  "request": {
+    "stream": true,
+    "maxTokens": 1024,
+    "repetitionsPerModel": 5,
+    "concurrency": 1,
+    "providerPolicy": {
+      "only": "one pinned provider per model",
+      "allowFallbacks": false,
+      "requireParameters": true
+    }
+  },
+  "models": [
+    {
+      "modelId": "google/gemini-3.7-flash",
+      "pinnedProvider": "Google AI Studio",
+      "repetitions": 5,
+      "successful": 5,
+      "providersObserved": ["Google AI Studio"],
+      "firstAnyMs": { "avg": 1730, "p50": 1441, "p95": 2888, "min": 1395, "max": 2888 },
+      "firstContentMs": { "avg": 2276, "p50": 2009, "p95": 3285, "min": 1744, "max": 3285 },
+      "totalMs": { "avg": 2312, "p50": 2051, "p95": 3307, "min": 1794, "max": 3307 },
+      "repetitionsRaw": [
+        { "repetition": 1, "provider": "Google AI Studio", "servedModel": "google/gemini-3.7-flash", "status": 200, "headersMs": 2877, "firstAnyMs": 2888, "firstContentMs": 3285, "totalMs": 3307, "contentChars": 86 },
+        { "repetition": 2, "provider": "Google AI Studio", "servedModel": "google/gemini-3.7-flash", "status": 200, "headersMs": 1429, "firstAnyMs": 1432, "firstContentMs": 1744, "totalMs": 1794, "contentChars": 103 },
+        { "repetition": 3, "provider": "Google AI Studio", "servedModel": "google/gemini-3.7-flash", "status": 200, "headersMs": 1395, "firstAnyMs": 1395, "firstContentMs": 2343, "totalMs": 2375, "contentChars": 121 },
+        { "repetition": 4, "provider": "Google AI Studio", "servedModel": "google/gemini-3.7-flash", "status": 200, "headersMs": 1493, "firstAnyMs": 1494, "firstContentMs": 2001, "totalMs": 2051, "contentChars": 128 },
+        { "repetition": 5, "provider": "Google AI Studio", "servedModel": "google/gemini-3.7-flash", "status": 200, "headersMs": 1440, "firstAnyMs": 1441, "firstContentMs": 2009, "totalMs": 2032, "contentChars": 127 }
+      ]
+    },
+    {
+      "modelId": "deepseek/deepseek-v4-pro-0813",
+      "pinnedProvider": "DeepSeek",
+      "repetitions": 5,
+      "successful": 5,
+      "providersObserved": ["DeepSeek"],
+      "firstAnyMs": { "avg": 1052, "p50": 976, "p95": 1408, "min": 893, "max": 1408 },
+      "firstContentMs": { "avg": 2700, "p50": 2739, "p95": 2829, "min": 2430, "max": 2829 },
+      "totalMs": { "avg": 2892, "p50": 2940, "p95": 2962, "min": 2749, "max": 2962 },
+      "repetitionsRaw": [
+        { "repetition": 1, "provider": "DeepSeek", "servedModel": "deepseek/deepseek-v4-pro-0813", "status": 200, "headersMs": 351, "firstAnyMs": 1011, "firstContentMs": 2739, "totalMs": 2868, "contentChars": 77 },
+        { "repetition": 2, "provider": "DeepSeek", "servedModel": "deepseek/deepseek-v4-pro-0813", "status": 200, "headersMs": 304, "firstAnyMs": 976, "firstContentMs": 2829, "totalMs": 2962, "contentChars": 85 },
+        { "repetition": 3, "provider": "DeepSeek", "servedModel": "deepseek/deepseek-v4-pro-0813", "status": 200, "headersMs": 349, "firstAnyMs": 893, "firstContentMs": 2430, "totalMs": 2749, "contentChars": 92 },
+        { "repetition": 4, "provider": "DeepSeek", "servedModel": "deepseek/deepseek-v4-pro-0813", "status": 200, "headersMs": 380, "firstAnyMs": 1408, "firstContentMs": 2777, "totalMs": 2940, "contentChars": 62 },
+        { "repetition": 5, "provider": "DeepSeek", "servedModel": "deepseek/deepseek-v4-pro-0813", "status": 200, "headersMs": 323, "firstAnyMs": 973, "firstContentMs": 2727, "totalMs": 2941, "contentChars": 95 }
+      ]
+    },
+    {
+      "modelId": "deepseek/deepseek-v4-flash-0731",
+      "pinnedProvider": "CoreWeave",
+      "repetitions": 5,
+      "successful": 5,
+      "providersObserved": ["CoreWeave"],
+      "firstAnyMs": { "avg": 486, "p50": 385, "p95": 914, "min": 356, "max": 914 },
+      "firstContentMs": { "avg": 6601, "p50": 6848, "p95": 11545, "min": 1632, "max": 11545 },
+      "totalMs": { "avg": 6738, "p50": 6919, "p95": 11642, "min": 1874, "max": 11642 },
+      "repetitionsRaw": [
+        { "repetition": 1, "provider": "CoreWeave", "servedModel": "deepseek/deepseek-v4-flash-0731", "status": 200, "headersMs": 398, "firstAnyMs": 398, "firstContentMs": 6848, "totalMs": 6919, "contentChars": 62 },
+        { "repetition": 2, "provider": "CoreWeave", "servedModel": "deepseek/deepseek-v4-flash-0731", "status": 200, "headersMs": 384, "firstAnyMs": 385, "firstContentMs": 7739, "totalMs": 7875, "contentChars": 60 },
+        { "repetition": 3, "provider": "CoreWeave", "servedModel": "deepseek/deepseek-v4-flash-0731", "status": 200, "headersMs": 769, "firstAnyMs": 914, "firstContentMs": 1632, "totalMs": 1874, "contentChars": 95 },
+        { "repetition": 4, "provider": "CoreWeave", "servedModel": "deepseek/deepseek-v4-flash-0731", "status": 200, "headersMs": 376, "firstAnyMs": 376, "firstContentMs": 11545, "totalMs": 11642, "contentChars": 88 },
+        { "repetition": 5, "provider": "CoreWeave", "servedModel": "deepseek/deepseek-v4-flash-0731", "status": 200, "headersMs": 355, "firstAnyMs": 356, "firstContentMs": 5242, "totalMs": 5378, "contentChars": 72 }
+      ]
+    },
+    {
+      "modelId": "openai/gpt-5.6-luna",
+      "pinnedProvider": "OpenAI",
+      "serviceTier": "priority",
+      "repetitions": 5,
+      "successful": 5,
+      "providersObserved": ["OpenAI"],
+      "firstAnyMs": { "avg": 626, "p50": 598, "p95": 709, "min": 581, "max": 709 },
+      "firstContentMs": { "avg": 626, "p50": 598, "p95": 709, "min": 581, "max": 709 },
+      "totalMs": { "avg": 820, "p50": 793, "p95": 930, "min": 746, "max": 930 },
+      "repetitionsRaw": [
+        { "repetition": 1, "provider": "OpenAI", "servedModel": "openai/gpt-5.6-luna", "status": 200, "headersMs": 559, "firstAnyMs": 709, "firstContentMs": 709, "totalMs": 930, "contentChars": 107 },
+        { "repetition": 2, "provider": "OpenAI", "servedModel": "openai/gpt-5.6-luna", "status": 200, "headersMs": 352, "firstAnyMs": 584, "firstContentMs": 584, "totalMs": 782, "contentChars": 103 },
+        { "repetition": 3, "provider": "OpenAI", "servedModel": "openai/gpt-5.6-luna", "status": 200, "headersMs": 362, "firstAnyMs": 598, "firstContentMs": 598, "totalMs": 793, "contentChars": 81 },
+        { "repetition": 4, "provider": "OpenAI", "servedModel": "openai/gpt-5.6-luna", "status": 200, "headersMs": 342, "firstAnyMs": 581, "firstContentMs": 581, "totalMs": 746, "contentChars": 89 },
+        { "repetition": 5, "provider": "OpenAI", "servedModel": "openai/gpt-5.6-luna", "status": 200, "headersMs": 422, "firstAnyMs": 658, "firstContentMs": 658, "totalMs": 847, "contentChars": 68 }
+      ]
+    }
+  ],
+  "notes": [
+    "All 20 requests returned HTTP 200.",
+    "The provider was pinned per model and confirmed in the response metadata.",
+    "No request was allowed to fall back to another provider.",
+    "Luna used service_tier=priority to match Anthon's current routing.",
+    "DeepSeek Flash remained on CoreWeave but showed a high streaming tail in today's sample."
+  ]
+}
