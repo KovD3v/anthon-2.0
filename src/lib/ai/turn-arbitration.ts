@@ -43,6 +43,12 @@ export type TurnArbitrationInput = Omit<
   estimatedInputTokens: number;
   requestedOutputTokens: number;
   hasRecentContext: boolean;
+  /**
+   * Chat requests keep this disabled: profile routing is deterministic and
+   * the standard model chooses tools agentically. Cold evaluations may opt in
+   * to the remote classifier without changing the request-critical path.
+   */
+  liveClassifierEnabled?: boolean;
   measureClassifierCall?: (
     operation: () => Promise<TurnClassificationResult>,
   ) => Promise<TurnClassificationResult>;
@@ -119,30 +125,34 @@ export async function arbitrateTurn(
 ): Promise<TurnArbitrationResult> {
   let classification: TurnClassificationResult;
   try {
+    const liveClassifierEnabled = input.liveClassifierEnabled !== false;
     const measureClassifierCall =
       input.measureClassifierCall ??
       ((operation: () => Promise<TurnClassificationResult>) => operation());
     const deterministicClassification =
       input.plannerMode === "agentic"
-        ? resolveDeterministicTurnClassification({
-            userMessage: input.userMessage,
-            explicitWebRule: input.explicitWebRule,
-            requireClassifierRoutineProposal:
-              input.requireClassifierRoutineProposal ?? false,
-            hasPendingMemoryApproval: input.hasPendingApproval,
-            hasDeterministicCoachingIntent:
-              input.hasDeterministicCoachingIntent,
-            requiresExternalKnowledge: input.requiresExternalKnowledge,
-            inputOrigin: input.inputOrigin,
-            responseMode: input.responseMode,
-            estimatedInputTokens: input.estimatedInputTokens,
-            requestedOutputTokens: input.requestedOutputTokens,
-            hasRecentContext: input.hasRecentContext,
-          })
+        ? resolveDeterministicTurnClassification(
+            {
+              userMessage: input.userMessage,
+              explicitWebRule: input.explicitWebRule,
+              requireClassifierRoutineProposal:
+                input.requireClassifierRoutineProposal ?? false,
+              hasPendingMemoryApproval: input.hasPendingApproval,
+              hasDeterministicCoachingIntent:
+                input.hasDeterministicCoachingIntent,
+              requiresExternalKnowledge: input.requiresExternalKnowledge,
+              inputOrigin: input.inputOrigin,
+              responseMode: input.responseMode,
+              estimatedInputTokens: input.estimatedInputTokens,
+              requestedOutputTokens: input.requestedOutputTokens,
+              hasRecentContext: input.hasRecentContext,
+            },
+            { fallbackToStandard: !liveClassifierEnabled },
+          )
         : null;
     classification =
       deterministicClassification ??
-      (input.plannerMode === "agentic"
+      (input.plannerMode === "agentic" && liveClassifierEnabled
         ? await measureClassifierCall(() =>
             classifyTurn({
               userId: input.userId,
@@ -174,6 +184,7 @@ export async function arbitrateTurn(
     requireClassifierRoutineProposal: input.requireClassifierRoutineProposal,
     hasPendingMemoryApproval: input.hasPendingMemoryApproval,
     resolvedMemoryTarget: input.resolvedMemoryTarget,
+    classifierSource: classification.classificationSource,
     classifier: toCapabilityClassifierAdapter(
       proposal?.capabilities ?? null,
       proposal?.capabilityConfidence ?? 0,

@@ -19,7 +19,7 @@ export type CapabilityDecision = {
   routineProposal: boolean;
   userContext: boolean;
   voiceOutput: boolean;
-  source: "fallback" | "classifier" | "mixed";
+  source: "fallback" | "rule" | "classifier" | "mixed";
   reasonCodes: string[];
 };
 
@@ -34,6 +34,7 @@ export type CapabilityArbitrationInput = {
   requireClassifierRoutineProposal?: boolean;
   hasPendingMemoryApproval?: boolean;
   resolvedMemoryTarget?: string | null;
+  classifierSource?: "classifier" | "rule";
   classifier: Partial<CapabilityDecision> | null;
 };
 
@@ -179,9 +180,11 @@ export function normalizeCapabilityDecision(
     input.responseMode === "voice";
   const source = !classifier
     ? "fallback"
-    : hasClassifierProposal && deterministicSelection
-      ? "mixed"
-      : "classifier";
+    : input.classifierSource === "rule"
+      ? "rule"
+      : hasClassifierProposal && deterministicSelection
+        ? "mixed"
+        : "classifier";
 
   return freezeCapabilityDecision({
     rag,

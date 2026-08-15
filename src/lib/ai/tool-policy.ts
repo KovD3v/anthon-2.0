@@ -152,13 +152,17 @@ export function resolveToolPolicy(
     isGuest: boolean;
     recallActive: boolean;
     capabilities: Partial<CapabilityDecision>;
+    modelSelectsTools?: boolean;
   },
 ): ToolPolicy | null {
   const entry = registry[name];
+  const modelSelectsTools = state.modelSelectsTools === true;
   if (!entry) return null;
   if (
     state.isGuest &&
     (entry.sideEffect === "user_data" ||
+      name === "getMemories" ||
+      name === "getUserContext" ||
       name.includes("Conversation") ||
       name === "recallFacts")
   )
@@ -170,19 +174,33 @@ export function resolveToolPolicy(
     return null;
   if (
     ["rememberFact", "saveMemory"].includes(name) &&
-    state.capabilities.memoryWrite !== true
+    state.capabilities.memoryWrite !== true &&
+    !modelSelectsTools
   )
     return null;
   if (
     ["forgetFact", "deleteMemory"].includes(name) &&
-    state.capabilities.memoryDelete !== true
+    state.capabilities.memoryDelete !== true &&
+    !modelSelectsTools
   )
     return null;
-  if (name === "proposeRoutine" && state.capabilities.routineProposal !== true)
+  if (
+    name === "proposeRoutine" &&
+    state.capabilities.routineProposal !== true &&
+    !modelSelectsTools
+  )
     return null;
-  if (name === "tinyfishSearch" && state.capabilities.webSearch !== true)
+  if (
+    name === "tinyfishSearch" &&
+    state.capabilities.webSearch !== true &&
+    !modelSelectsTools
+  )
     return null;
-  if (name === "tinyfishFetch" && state.capabilities.webFetch !== true)
+  if (
+    name === "tinyfishFetch" &&
+    state.capabilities.webFetch !== true &&
+    !modelSelectsTools
+  )
     return null;
   return Object.freeze({
     name,

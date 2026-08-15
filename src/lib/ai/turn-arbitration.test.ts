@@ -337,6 +337,28 @@ describe("turn arbitration", () => {
     });
   });
 
+  it("keeps deterministic light routing when live classification is disabled", async () => {
+    const result = await arbitrateTurn(
+      agenticInput({
+        liveClassifierEnabled: false,
+        hasRecentContext: true,
+        userMessage: "Rendi questo testo più breve: prova lunga",
+      }),
+    );
+
+    expect(result).toMatchObject({
+      classificationLatencyMs: 0,
+      decision: {
+        capabilities: { source: "rule" },
+        execution: {
+          eligibleProfile: "light",
+          source: "rule",
+        },
+      },
+    });
+    expect(mocks.classifyTurn).not.toHaveBeenCalled();
+  });
+
   it("preserves capability uncertainty when the turn is not deterministically routable", async () => {
     mocks.classifyTurn.mockResolvedValueOnce({
       proposal: {

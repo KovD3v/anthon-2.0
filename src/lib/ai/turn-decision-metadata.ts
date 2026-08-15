@@ -28,7 +28,7 @@ const safeCapabilityDecisionSchema = z
     routineProposal: z.boolean(),
     userContext: z.boolean(),
     voiceOutput: z.boolean(),
-    source: z.enum(["fallback", "classifier", "mixed"]),
+    source: z.enum(["fallback", "rule", "classifier", "mixed"]),
     reasonCodes: z.array(z.enum(CAPABILITY_REASON_CODES)).max(32),
   })
   .strict();

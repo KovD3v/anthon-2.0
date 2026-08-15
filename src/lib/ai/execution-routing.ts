@@ -47,6 +47,8 @@ export type RoutingMode = "off" | "shadow" | "active";
 export const EXECUTION_REASON_CODES = [
   "classifier_light",
   "classifier_standard",
+  "rule_light",
+  "rule_standard",
   "task_allowlisted",
   "task_not_allowlisted",
   "low_confidence",
@@ -308,9 +310,15 @@ export function normalizeExecutionDecision(
   }
 
   if (workload?.suggestedProfile === "light") {
-    addReason(reasonCodes, "classifier_light");
+    addReason(
+      reasonCodes,
+      classificationSource === "rule" ? "rule_light" : "classifier_light",
+    );
   } else {
-    addReason(reasonCodes, "classifier_standard");
+    addReason(
+      reasonCodes,
+      classificationSource === "rule" ? "rule_standard" : "classifier_standard",
+    );
   }
 
   if (isLightTaskKind(taskKind)) {

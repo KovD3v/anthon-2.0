@@ -40,9 +40,12 @@ export function filterCapabilityUsageByDecision(
   value: unknown,
   decision: CapabilityDecision | undefined,
   plannerMode: "legacy" | "agentic",
+  modelSelectsTools = false,
 ): CapabilityUsage[] {
   const capabilities = normalizeCapabilityUsage(value);
-  if (!decision || plannerMode === "legacy") return capabilities;
+  if (!decision || plannerMode === "legacy" || modelSelectsTools) {
+    return capabilities;
+  }
 
   return capabilities.filter((capability) => {
     switch (capability) {

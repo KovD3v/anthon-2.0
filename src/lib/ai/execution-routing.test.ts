@@ -20,6 +20,8 @@ import type {
 const ALL_REASON_CODES = [
   "classifier_light",
   "classifier_standard",
+  "rule_light",
+  "rule_standard",
   "task_allowlisted",
   "task_not_allowlisted",
   "low_confidence",

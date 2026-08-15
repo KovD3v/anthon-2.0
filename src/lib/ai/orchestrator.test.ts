@@ -652,11 +652,11 @@ describe("ai/orchestrator", () => {
     expect(streamInput).not.toHaveProperty("prepareStep");
   });
 
-  it("forwards abort signals to experiment prompt preparation", async () => {
+  it("does not invoke the live classifier during experiment prompt preparation", async () => {
     const abortController = new AbortController();
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
 
-    await prepareChatTurn({
+    const prepared = await prepareChatTurn({
       userId: "user-1",
       abortSignal: abortController.signal,
       chatId: "chat-1",
@@ -667,9 +667,9 @@ describe("ai/orchestrator", () => {
       skipConversationHistory: true,
     });
 
-    expect(mocks.classifyCapabilities).toHaveBeenCalledWith(
-      expect.objectContaining({ abortSignal: abortController.signal }),
-    );
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
+    expect(prepared.classificationLatencyMs).toBe(0);
+    expect(prepared.capabilityDecision.source).toBe("rule");
   });
 
   it("plans once and freezes the capability decision in a prepared turn", async () => {
@@ -702,7 +702,7 @@ describe("ai/orchestrator", () => {
       skipConversationHistory: true,
     });
 
-    expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
     expect(Object.isFrozen(prepared.capabilityDecision)).toBe(true);
     expect(Object.isFrozen(prepared.capabilityDecision.reasonCodes)).toBe(true);
     expect(Object.isFrozen(prepared.messages)).toBe(true);
@@ -715,12 +715,13 @@ describe("ai/orchestrator", () => {
     expect(Object.isFrozen(prepared.turnPlan.history)).toBe(true);
     expect(Object.isFrozen(prepared.turnDecision)).toBe(true);
     expect(Object.isFrozen(prepared.turnDecision.execution)).toBe(true);
-    expect(prepared.classificationLatencyMs).toBe(25);
+    expect(prepared.classificationLatencyMs).toBe(0);
     expect(prepared.plannedExecution).toEqual(prepared.turnPlan.execution);
     expect(prepared.capabilityDecision).toMatchObject({
       rag: true,
-      memoryWrite: true,
+      memoryWrite: false,
       routineProposal: true,
+      source: "rule",
     });
 
     executePreparedChatTurn({
@@ -741,7 +742,7 @@ describe("ai/orchestrator", () => {
     expect(prepared.messages[0]?.content).not.toBe("provider mutation");
   });
 
-  it("classifies once in shadow mode while executing the existing standard bundle", async () => {
+  it("keeps shadow mode standard while skipping live classification", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
     vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "shadow");
     vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
@@ -755,7 +756,7 @@ describe("ai/orchestrator", () => {
       effectiveEntitlements: baseEntitlements,
     });
 
-    expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
     expect(result.turnDecision.execution.eligibleProfile).toBe("light");
     expect(result.turnPlan.execution).toMatchObject({
       routingMode: "shadow",
@@ -793,6 +794,7 @@ describe("ai/orchestrator", () => {
       eligibleProfile: "standard",
       reasonCodes: expect.arrayContaining(["legacy_mode"]),
     });
+    expect(result.classificationLatencyMs).toBe(0);
   });
 
   it("does not create a profiler classification span for deterministic routing", async () => {
@@ -813,6 +815,46 @@ describe("ai/orchestrator", () => {
     expect(
       traceCollector.snapshot("partial").spans.map((span) => span.name),
     ).not.toContain("classification");
+    expect(mocks.buildConversationContext).not.toHaveBeenCalled();
+  });
+
+  it("routes ambiguous agentic turns directly to standard and exposes tools for model selection", async () => {
+    vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
+    vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
+    vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
+    vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "social");
+
+    const result = await streamChat({
+      userId: "user-1",
+      chatId: "chat-standard-agentic-tools",
+      userMessage: "Aiutami a capire cosa mi blocca",
+      effectiveEntitlements: baseEntitlements,
+    });
+
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
+    expect(result.classificationLatencyMs).toBe(0);
+    expect(result.turnDecision.execution).toMatchObject({
+      eligibleProfile: "standard",
+      source: "rule",
+    });
+
+    const streamInput = mocks.streamText.mock.calls.at(-1)?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+    };
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        searchRag: "rag-tool",
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+        getMemories: "memory-read-tool",
+        saveMemory: "memory-tool",
+        requestMemoryApproval: "memory-approval-request-tool",
+        getUserContext: "context-read-tool",
+        proposeRoutine: "routine-proposal-tool",
+      }),
+    );
+    expect(streamInput.instructions).toContain("AGENTIC TOOL SELECTION");
   });
 
   it("executes active light with bounded history, no tools, and minimal reasoning", async () => {
@@ -905,6 +947,10 @@ describe("ai/orchestrator", () => {
       effectiveEntitlements: baseEntitlements,
     });
 
+    expect(result.turnDecision.execution).toMatchObject({
+      eligibleProfile: "light",
+      source: "rule",
+    });
     await expect(readTextStream(result.textStream)).resolves.toBe("Breve");
     expect(mocks.getModelById).toHaveBeenCalledTimes(1);
     expect(mocks.getModelById).toHaveBeenCalledWith("candidate/model");
@@ -988,8 +1034,15 @@ describe("ai/orchestrator", () => {
 
     expect(result.turnDecision.execution).toMatchObject({
       eligibleProfile: "standard",
-      reasonCodes: expect.arrayContaining(["deep_context"]),
+      source: "rule",
     });
+    expect(result.turnDecision.execution.reasonCodes).toContain(
+      "rule_standard",
+    );
+    expect(result.turnDecision.execution.reasonCodes).not.toContain(
+      "classifier_standard",
+    );
+    expect(result.classificationLatencyMs).toBe(0);
     expect(mocks.streamText).toHaveBeenCalledTimes(1);
     expect(mocks.streamText.mock.calls[0]?.[0]?.maxOutputTokens).not.toBe(600);
   });
@@ -1248,8 +1301,6 @@ describe("ai/orchestrator", () => {
     const route =
       mocks.captureAiExecutionRouting.mock.calls[0]?.[0]?.executionRoute;
     expect(route).toMatchObject({
-      classifierModel: "nvidia/nemotron-3.5-lightning",
-      classifierProvider: "DeepInfra",
       totalRequestTimeToFirstTokenMs: 35,
       attempts: [
         expect.objectContaining({
@@ -1457,12 +1508,11 @@ describe("ai/orchestrator", () => {
     expect(mocks.streamText.mock.calls[0]?.[0]?.maxOutputTokens).not.toBe(600);
   });
 
-  it("keeps classifier failures on standard and records one terminal route", async () => {
+  it("keeps ambiguous turns on standard and records one terminal route", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
     vi.stubEnv("AI_EXECUTION_ROUTING_MODE", "active");
     vi.stubEnv("AI_EXECUTION_ROUTING_ALLOCATION_PERCENT", "100");
     vi.stubEnv("AI_EXECUTION_ROUTING_TASKS", "rewrite");
-    mocks.classifyCapabilities.mockResolvedValueOnce(null);
 
     const result = await streamChat({
       userId: "user-1",
@@ -1473,8 +1523,16 @@ describe("ai/orchestrator", () => {
 
     expect(result.turnDecision.execution).toMatchObject({
       eligibleProfile: "standard",
-      reasonCodes: expect.arrayContaining(["classifier_failure"]),
+      source: "rule",
     });
+    expect(result.turnDecision.execution.reasonCodes).toContain(
+      "rule_standard",
+    );
+    expect(result.turnDecision.execution.reasonCodes).not.toContain(
+      "classifier_standard",
+    );
+    expect(result.classificationLatencyMs).toBe(0);
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
     const input = mocks.streamText.mock.calls.at(-1)?.[0] as {
       onChunk: (event: { chunk: { type: string; text?: string } }) => void;
       onEnd: (event: Record<string, unknown>) => Promise<void>;
@@ -1584,9 +1642,20 @@ describe("ai/orchestrator", () => {
       },
     });
 
-    const streamInput = mocks.streamText.mock.calls.at(-1)?.[0];
+    const streamInput = mocks.streamText.mock.calls.at(-1)?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+      prepareStep?: (input: { steps: unknown[] }) => unknown;
+    };
     expect(streamInput.instructions).toContain("gioca a tennis");
     expect(streamInput.tools).toHaveProperty("recallFacts");
+    expect(streamInput.prepareStep?.({ steps: [] })).toMatchObject({
+      activeTools: expect.arrayContaining([
+        "recallFacts",
+        "searchPastConversations",
+        "expandConversationEvidence",
+      ]),
+    });
     expect(mocks.formatMemoriesForPrompt).not.toHaveBeenCalled();
   });
 
@@ -1640,27 +1709,27 @@ describe("ai/orchestrator", () => {
     expect(Object.isFrozen(finishResult.capabilityDecision)).toBe(true);
     expect(finishResult.capabilityDecision.webSearch).toBe(true);
     expect(finishResult.capabilityPlannerMode).toBe("agentic");
-    expect(finishResult.metrics.capabilitiesUsed).toEqual(["web"]);
+    expect(finishResult.metrics.capabilitiesUsed).toEqual(["web", "memory"]);
   });
 
-  it("does not downgrade an aborted experiment classifier to fallback planning", async () => {
+  it("does not invoke an experiment classifier before prompt preparation", async () => {
     const abortController = new AbortController();
-    const abortReason = new Error("request disconnected");
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    mocks.classifyCapabilities.mockRejectedValueOnce(abortReason);
 
-    await expect(
-      prepareChatTurn({
-        userId: "user-1",
-        abortSignal: abortController.signal,
-        chatId: "chat-1",
-        conversationThreadId: "thread-1",
-        userMessageId: "message-1",
-        userMessage: "Mi aggiorni sulla situazione di Messi?",
-        effectiveEntitlements: baseEntitlements as never,
-        skipConversationHistory: true,
-      }),
-    ).rejects.toBe(abortReason);
+    const prepared = await prepareChatTurn({
+      userId: "user-1",
+      abortSignal: abortController.signal,
+      chatId: "chat-1",
+      conversationThreadId: "thread-1",
+      userMessageId: "message-1",
+      userMessage: "Mi aggiorni sulla situazione di Messi?",
+      effectiveEntitlements: baseEntitlements as never,
+      skipConversationHistory: true,
+    });
+
+    expect(prepared.classificationLatencyMs).toBe(0);
+    expect(prepared.capabilityDecision.source).toBe("rule");
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
     expect(mocks.buildThreadContext).not.toHaveBeenCalled();
   });
 
@@ -3715,7 +3784,17 @@ describe("ai/orchestrator", () => {
     const streamInput = mocks.streamText.mock.calls.at(-1)?.[0] as {
       tools: Record<string, unknown>;
     };
-    expect(streamInput.tools).toEqual({ tinyfishSearch: "tinyfish-tool" });
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+        proposeRoutine: "routine-proposal-tool",
+      }),
+    );
+    expect(streamInput.tools).not.toHaveProperty("getMemories");
+    expect(streamInput.tools).not.toHaveProperty("getUserContext");
+    expect(streamInput.tools).not.toHaveProperty("saveMemory");
+    expect(streamInput.tools).not.toHaveProperty("requestMemoryApproval");
     expect(mocks.createMemoryTools).not.toHaveBeenCalled();
     expect(mocks.createUserContextTools).not.toHaveBeenCalled();
   });
@@ -3776,8 +3855,16 @@ describe("ai/orchestrator", () => {
         tinyfishFetch: "tinyfish-fetch-tool",
       }),
     );
-    expect(streamInput.prepareStep({ steps: [] })).toEqual({
-      activeTools: ["searchRag", "tinyfishSearch"],
+    expect(streamInput.prepareStep({ steps: [] })).toMatchObject({
+      activeTools: expect.arrayContaining([
+        "searchRag",
+        "tinyfishSearch",
+        "getMemories",
+        "getUserContext",
+        "saveMemory",
+        "requestMemoryApproval",
+        "proposeRoutine",
+      ]),
       toolChoice: "auto",
     });
     expect(
@@ -3796,8 +3883,16 @@ describe("ai/orchestrator", () => {
           },
         ],
       }),
-    ).toEqual({
-      activeTools: ["searchRag", "tinyfishFetch"],
+    ).toMatchObject({
+      activeTools: expect.arrayContaining([
+        "searchRag",
+        "tinyfishFetch",
+        "getMemories",
+        "getUserContext",
+        "saveMemory",
+        "requestMemoryApproval",
+        "proposeRoutine",
+      ]),
       toolChoice: "auto",
     });
   });
@@ -3818,10 +3913,18 @@ describe("ai/orchestrator", () => {
       instructions: string;
       tools: Record<string, unknown>;
     };
-    expect(streamInput.tools).toEqual({
-      saveMemory: "memory-tool",
-      requestMemoryApproval: "memory-approval-request-tool",
-    });
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        saveMemory: "memory-tool",
+        requestMemoryApproval: "memory-approval-request-tool",
+        getMemories: "memory-read-tool",
+        getUserContext: "context-read-tool",
+        searchRag: "rag-tool",
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+        proposeRoutine: "routine-proposal-tool",
+      }),
+    );
     expect(mocks.createMemoryTools).toHaveBeenCalledWith("user-1", {
       sourceInboundMessageId: "inbound-1",
     });
@@ -3857,9 +3960,19 @@ describe("ai/orchestrator", () => {
       tools: Record<string, unknown>;
       onEnd: (input: Record<string, unknown>) => Promise<void>;
     };
-    expect(streamInput.tools).toEqual({
-      resolveMemoryApproval: "memory-approval-resolve-tool",
-    });
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        resolveMemoryApproval: "memory-approval-resolve-tool",
+        getMemories: "memory-read-tool",
+        getUserContext: "context-read-tool",
+        searchRag: "rag-tool",
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+        proposeRoutine: "routine-proposal-tool",
+      }),
+    );
+    expect(streamInput.tools).not.toHaveProperty("saveMemory");
+    expect(streamInput.tools).not.toHaveProperty("requestMemoryApproval");
     expect(mocks.createMemoryTools).toHaveBeenCalledWith("user-1", {
       pendingMemoryApproval,
       currentUserMessageId: "inbound-current",
@@ -3893,7 +4006,18 @@ describe("ai/orchestrator", () => {
     };
     expect(mocks.searchTinyfishDirect).not.toHaveBeenCalled();
     expect(streamInput.instructions).not.toContain("WEB SEARCH RESULTS");
-    expect(streamInput.tools).toEqual({ tinyfishSearch: "tinyfish-tool" });
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+        searchRag: "rag-tool",
+        getMemories: "memory-read-tool",
+        getUserContext: "context-read-tool",
+        saveMemory: "memory-tool",
+        requestMemoryApproval: "memory-approval-request-tool",
+        proposeRoutine: "routine-proposal-tool",
+      }),
+    );
   });
 
   it("records successfully injected native RAG context in turn metrics", async () => {
@@ -3998,7 +4122,7 @@ describe("ai/orchestrator", () => {
     );
   });
 
-  it("does not expose routine proposals in agentic mode unless the capability planner selects them", async () => {
+  it("exposes routine proposals as a model-selectable agentic tool", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
     mocks.classifyCapabilities.mockResolvedValueOnce({
       routineProposal: false,
@@ -4014,8 +4138,11 @@ describe("ai/orchestrator", () => {
       instructions: string;
       tools: Record<string, unknown>;
     };
-    expect(streamInput.tools).not.toHaveProperty("proposeRoutine");
-    expect(streamInput.instructions).not.toContain("ROUTINE PROPOSAL");
+    expect(streamInput.tools).toHaveProperty(
+      "proposeRoutine",
+      "routine-proposal-tool",
+    );
+    expect(streamInput.instructions).toContain("ROUTINE PROPOSAL");
   });
 
   it("uses the immutable agentic turn plan for optional routine tool construction", async () => {
@@ -4035,11 +4162,31 @@ describe("ai/orchestrator", () => {
       tools: Record<string, unknown>;
       prepareStep?: (input: { steps: unknown[] }) => unknown;
     };
-    expect(streamInput.tools).toEqual({
-      proposeRoutine: "routine-proposal-tool",
-    });
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        proposeRoutine: "routine-proposal-tool",
+        searchRag: "rag-tool",
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+        getMemories: "memory-read-tool",
+        getUserContext: "context-read-tool",
+        saveMemory: "memory-tool",
+        requestMemoryApproval: "memory-approval-request-tool",
+      }),
+    );
     expect(streamInput.prepareStep).toEqual(expect.any(Function));
-    expect(streamInput.prepareStep?.({ steps: [] })).toBeUndefined();
+    expect(streamInput.prepareStep?.({ steps: [] })).toMatchObject({
+      activeTools: expect.arrayContaining([
+        "searchRag",
+        "tinyfishSearch",
+        "getMemories",
+        "getUserContext",
+        "saveMemory",
+        "requestMemoryApproval",
+        "proposeRoutine",
+      ]),
+      toolChoice: "auto",
+    });
     expect(streamInput.instructions).toContain(
       "may call `proposeRoutine` when a concrete, useful routine would help",
     );
@@ -4165,21 +4312,33 @@ describe("ai/orchestrator", () => {
       }),
     );
     expect(mocks.isStepCount).toHaveBeenCalledWith(5);
-    expect(streamInput.prepareStep({ steps: [] })).toEqual({
-      activeTools: [
+    expect(streamInput.prepareStep({ steps: [] })).toMatchObject({
+      activeTools: expect.arrayContaining([
         "searchRag",
         "tinyfishSearch",
+        "getMemories",
+        "getUserContext",
+        "saveMemory",
+        "requestMemoryApproval",
         "deleteMemory",
         "proposeRoutine",
-      ],
+      ]),
       toolChoice: "auto",
     });
     expect(
       streamInput.prepareStep({
         steps: [{ toolCalls: [{ toolName: "proposeRoutine" }] }],
       }),
-    ).toEqual({
-      activeTools: ["searchRag", "tinyfishSearch", "deleteMemory"],
+    ).toMatchObject({
+      activeTools: expect.arrayContaining([
+        "searchRag",
+        "tinyfishSearch",
+        "getMemories",
+        "getUserContext",
+        "saveMemory",
+        "requestMemoryApproval",
+        "deleteMemory",
+      ]),
       toolChoice: "auto",
     });
     expect(mocks.createMemoryTools).toHaveBeenCalledWith("user-1", {
@@ -4364,7 +4523,7 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).not.toHaveProperty("tinyfishFetch");
   });
 
-  it("uses the capability classifier boundary for ambiguous current-info requests", async () => {
+  it("lets the standard model choose tools for ambiguous current-info requests", async () => {
     const abortController = new AbortController();
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
     mocks.classifyCapabilities.mockResolvedValueOnce({
@@ -4381,13 +4540,7 @@ describe("ai/orchestrator", () => {
       abortSignal: abortController.signal,
     });
 
-    expect(mocks.classifyCapabilities).toHaveBeenCalledWith({
-      userId: "user-1",
-      userMessage: "Mi aggiorni sulla situazione di Messi?",
-      modelId: "nvidia/nemotron-3.5-lightning",
-      context: expect.stringContaining("ambiguous_current_info"),
-      abortSignal: abortController.signal,
-    });
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
 
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       instructions: string;
@@ -4396,13 +4549,17 @@ describe("ai/orchestrator", () => {
     expect(streamInput.tools).toEqual(
       expect.objectContaining({
         tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+        searchRag: "rag-tool",
+        getMemories: "memory-read-tool",
+        getUserContext: "context-read-tool",
       }),
     );
     expect(streamInput.instructions).toContain("WEB SEARCH");
-    expect(streamInput.instructions).not.toContain("USER CONTEXT");
+    expect(streamInput.instructions).toContain("AGENTIC TOOL SELECTION");
   });
 
-  it("uses deterministic fallback when the capability classifier is unavailable", async () => {
+  it("uses deterministic routing without invoking a capability classifier", async () => {
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
     mocks.classifyCapabilities.mockResolvedValueOnce(null);
 
@@ -4412,18 +4569,29 @@ describe("ai/orchestrator", () => {
       userMessage: "Mi aggiorni sulla situazione di Messi?",
     });
 
-    expect(mocks.classifyCapabilities).toHaveBeenCalledTimes(1);
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
     const streamInput = mocks.streamText.mock.calls[0]?.[0] as {
       tools: Record<string, unknown>;
     };
-    expect(streamInput.tools).toEqual({});
+    expect(streamInput.tools).toEqual(
+      expect.objectContaining({
+        tinyfishSearch: "tinyfish-tool",
+        tinyfishFetch: "tinyfish-fetch-tool",
+        searchRag: "rag-tool",
+        getMemories: "memory-read-tool",
+        getUserContext: "context-read-tool",
+        saveMemory: "memory-tool",
+        requestMemoryApproval: "memory-approval-request-tool",
+        proposeRoutine: "routine-proposal-tool",
+      }),
+    );
   });
 
-  it("propagates capability-classifier cancellation instead of falling back", async () => {
+  it("still propagates an already-aborted chat request without invoking classification", async () => {
     const abortController = new AbortController();
     const abortError = new Error("request aborted");
+    abortController.abort(abortError);
     vi.stubEnv("AI_CAPABILITY_PLANNER_MODE", "agentic");
-    mocks.classifyCapabilities.mockRejectedValueOnce(abortError);
 
     await expect(
       streamChat({
@@ -4434,6 +4602,7 @@ describe("ai/orchestrator", () => {
       }),
     ).rejects.toBe(abortError);
 
+    expect(mocks.classifyCapabilities).not.toHaveBeenCalled();
     expect(mocks.streamText).not.toHaveBeenCalled();
   });
 

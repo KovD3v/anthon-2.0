@@ -35,6 +35,7 @@ import {
   parseExecutionRoutingConfig,
   type TurnDecision,
 } from "@/lib/ai/execution-routing";
+import { needsRecentRoutingContext } from "@/lib/ai/fast-routing";
 import {
   evaluateWebSearchRule,
   getWebSearchDomainType,
@@ -98,10 +99,6 @@ import {
   formatUserContextForPrompt,
 } from "@/lib/ai/tools/user-context";
 import { arbitrateTurn } from "@/lib/ai/turn-arbitration";
-import {
-  resolveTurnClassifierModelId,
-  type TurnClassificationResult,
-} from "@/lib/ai/turn-classification";
 import { planLegacyTurn, planTurn, type TurnPlan } from "@/lib/ai/turn-plan";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -121,7 +118,6 @@ import {
 
 const aiLogger = createLogger("ai");
 const MULTIMODAL_ORCHESTRATOR_MODEL_ID = "google/gemini-2.5-flash-lite";
-const PROMPT_MODULE_CLASSIFIER_MODEL_ID = resolveTurnClassifierModelId();
 const WEB_SEARCH_DEFAULT_RESULTS = 4;
 const WEB_SEARCH_DEFAULT_SNIPPET_CHARS = 180;
 const WEB_SEARCH_BRIEF_RESULTS = 3;
@@ -227,7 +223,7 @@ async function loadBoundedRecentContext({
     }
   } catch (error) {
     aiLogger.error(
-      "ai.turn_classification.recent_context_failed",
+      "ai.turn_routing.recent_context_failed",
       "Recent classifier context could not be loaded; recent light routing is disabled",
       { error, userId, chatId, conversationThreadId },
     );
@@ -376,9 +372,11 @@ If the user's most recent message contradicts memories/profile, treat the recent
 function buildToolPolicy({
   webSearchEnabled,
   webFetchEnabled,
+  agenticMode,
 }: {
   webSearchEnabled: boolean;
   webFetchEnabled: boolean;
+  agenticMode: boolean;
 }) {
   return [
     "TOOL POLICY (NEVER MENTION TOOLS)",
@@ -389,6 +387,9 @@ function buildToolPolicy({
       : undefined,
     webFetchEnabled
       ? "- For `tinyfishFetch`, the `urls` argument is MANDATORY and must contain known public URLs."
+      : undefined,
+    agenticMode
+      ? "AGENTIC TOOL SELECTION\n- You decide for each turn whether to use no tools, one tool, or several tools.\n- Use a tool only when it materially improves the answer; do not call tools merely because they are available.\n- You may combine tools when the request genuinely needs multiple kinds of evidence: web for current external information, RAG for the user's uploaded documents, and memory or user context for persistent personal information.\n- After using tools, synthesize the result and answer the user in the same turn."
       : undefined,
     "- Avoid redundant calls. If you need multiple fields, batch them in a single call.",
     "- After using tools, ALWAYS reply to the user in the same turn.",
@@ -633,6 +634,7 @@ type PromptMode = "full" | "guest" | "simple_fast";
 
 type ToolPlan = {
   agentic: boolean;
+  modelSelectsTools: boolean;
   webSearch: boolean;
   webFetch: boolean;
   rag: boolean;
@@ -647,6 +649,8 @@ type ToolPlan = {
   preferenceWrite: boolean;
   notesWrite: boolean;
   routineProposal: boolean;
+  recallFacts: boolean;
+  conversationRecall: boolean;
   voiceOutput: boolean;
   hasAny: boolean;
   hasPersistentWrites: boolean;
@@ -1124,29 +1128,63 @@ function toolPlanFromTurnPlan(
   userMessage: string,
   capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>,
   hasPendingMemoryApproval = false,
+  options: {
+    modelSelectsTools?: boolean;
+    webSearchAvailable?: boolean;
+    webFetchAvailable?: boolean;
+    ragAvailable?: boolean;
+    memoryAvailable?: boolean;
+    routineProposalAvailable?: boolean;
+    recallFactsAvailable?: boolean;
+    conversationRecallAvailable?: boolean;
+  } = {},
 ): ToolPlan {
-  const memoryDelete = turnPlan.capabilities.memoryDelete;
-  const memoryWrite =
-    capabilityPlannerMode === "agentic" &&
-    turnPlan.capabilities.memoryWrite &&
-    !hasPendingMemoryApproval;
+  const modelSelectsTools = options.modelSelectsTools === true;
+  const webSearch = modelSelectsTools
+    ? options.webSearchAvailable === true
+    : turnPlan.capabilities.webSearch;
+  const webFetch = modelSelectsTools
+    ? options.webFetchAvailable === true
+    : turnPlan.capabilities.webFetch;
+  const rag = modelSelectsTools
+    ? options.ragAvailable === true
+    : turnPlan.capabilities.rag;
+  const memoryAvailable = modelSelectsTools && options.memoryAvailable === true;
+  const memoryRead = modelSelectsTools
+    ? memoryAvailable
+    : turnPlan.capabilities.memoryRead;
+  const memoryDelete = modelSelectsTools
+    ? memoryAvailable && turnPlan.capabilities.memoryDelete
+    : turnPlan.capabilities.memoryDelete;
+  const memoryWrite = modelSelectsTools
+    ? memoryAvailable && !hasPendingMemoryApproval
+    : capabilityPlannerMode === "agentic" &&
+      turnPlan.capabilities.memoryWrite &&
+      !hasPendingMemoryApproval;
   const memoryApprovalResolve = hasPendingMemoryApproval;
   const hasPersistentWrites =
-    turnPlan.capabilities.memoryWrite ||
+    (modelSelectsTools ? memoryWrite : turnPlan.capabilities.memoryWrite) ||
     memoryDelete ||
     memoryApprovalResolve ||
     turnPlan.capabilities.profileWrite ||
     turnPlan.capabilities.preferenceWrite ||
     turnPlan.capabilities.notesWrite;
-  const routineProposal = turnPlan.capabilities.routineProposal;
+  const routineProposal = modelSelectsTools
+    ? options.routineProposalAvailable === true
+    : turnPlan.capabilities.routineProposal;
+  const recallFacts = options.recallFactsAvailable === true;
+  const conversationRecall = options.conversationRecallAvailable === true;
   return {
     agentic: capabilityPlannerMode === "agentic",
-    webSearch: turnPlan.capabilities.webSearch,
-    webFetch: turnPlan.capabilities.webSearch && turnPlan.capabilities.webFetch,
-    rag: turnPlan.capabilities.rag,
-    userContext: turnPlan.capabilities.userContext,
+    modelSelectsTools,
+    webSearch,
+    webFetch: webSearch && webFetch,
+    rag,
+    userContext: modelSelectsTools
+      ? memoryAvailable
+      : turnPlan.capabilities.userContext,
     webSearchDomainType: getWebSearchDomainType(userMessage),
-    memoryRead: turnPlan.capabilities.memoryRead,
+    memoryRead,
     memoryWrite,
     memoryDelete,
     memoryDeleteTarget: turnPlan.memoryDeleteTarget,
@@ -1155,14 +1193,18 @@ function toolPlanFromTurnPlan(
     preferenceWrite: turnPlan.capabilities.preferenceWrite,
     notesWrite: turnPlan.capabilities.notesWrite,
     routineProposal,
+    recallFacts,
+    conversationRecall,
     voiceOutput: turnPlan.capabilities.voiceOutput,
     hasPersistentWrites,
     hasAny:
-      turnPlan.capabilities.webSearch ||
-      (capabilityPlannerMode === "agentic" && turnPlan.capabilities.rag) ||
-      turnPlan.capabilities.memoryRead ||
+      webSearch ||
+      (capabilityPlannerMode === "agentic" && rag) ||
+      memoryRead ||
       hasPersistentWrites ||
-      routineProposal,
+      routineProposal ||
+      recallFacts ||
+      conversationRecall,
   };
 }
 
@@ -1290,6 +1332,10 @@ function createAgenticToolLoopPrepareStep(
       ...(toolPlan.profileWrite ? ["updateProfile"] : []),
       ...(toolPlan.preferenceWrite ? ["updatePreferences"] : []),
       ...(toolPlan.notesWrite ? ["addNotes"] : []),
+      ...(toolPlan.recallFacts ? ["recallFacts"] : []),
+      ...(toolPlan.conversationRecall
+        ? ["searchPastConversations", "expandConversationEvidence"]
+        : []),
       ...(toolPlan.routineProposal && !usedTools.has("proposeRoutine")
         ? ["proposeRoutine"]
         : []),
@@ -1683,7 +1729,7 @@ function getExplicitWebRule({
 function toTurnPlanClassifier(
   decision: CapabilityDecision,
 ): NonNullable<Parameters<typeof planTurn>[0]["classifier"]> | null {
-  if (decision.source === "fallback") return null;
+  if (decision.source === "fallback" || decision.source === "rule") return null;
 
   return {
     accepted: true,
@@ -1746,7 +1792,6 @@ async function arbitrateChatTurn({
   capabilityPlannerMode,
   inputOrigin,
   recentContext,
-  measureClassifierCall,
   abortSignal,
   waitUntil,
 }: {
@@ -1762,28 +1807,26 @@ async function arbitrateChatTurn({
   capabilityPlannerMode: ReturnType<typeof getCapabilityPlannerMode>;
   inputOrigin: "text" | "transcribed_voice" | "direct_media";
   recentContext: BoundedRecentContext;
-  measureClassifierCall?: (
-    operation: () => Promise<TurnClassificationResult>,
-  ) => Promise<TurnClassificationResult>;
   abortSignal?: AbortSignal;
   waitUntil?: (promise: Promise<unknown>) => void;
 }) {
   return arbitrateTurn({
     userId,
     userMessage,
-    classifierContext: [
-      `web_search_rule=${webSearchRule.reason}`,
-      recentContext.classifierContext,
-    ].join("\n"),
-    classifierModelId: PROMPT_MODULE_CLASSIFIER_MODEL_ID,
+    classifierContext: `web_search_rule=${webSearchRule.reason}`,
+    classifierModelId: "unused-in-live-chat",
     plannerMode: capabilityPlannerMode,
+    liveClassifierEnabled: false,
     isGuest,
     memoryEnabled,
     voiceAllowed,
     responseMode,
     explicitWebRule: getExplicitWebRule(webSearchRule),
     allowConcurrentRoutineAndWeb: capabilityPlannerMode === "agentic",
-    requireClassifierRoutineProposal: capabilityPlannerMode === "agentic",
+    // Live chat no longer performs a capability-classifier round trip. Known
+    // routine intents remain deterministic; the standard model still chooses
+    // among the other tools exposed for its turn.
+    requireClassifierRoutineProposal: false,
     hasPendingMemoryApproval:
       capabilityPlannerMode === "agentic" && hasPendingMemoryApproval,
     resolvedMemoryTarget,
@@ -1794,7 +1837,6 @@ async function arbitrateChatTurn({
     estimatedInputTokens: estimateInputTokens(userMessage),
     requestedOutputTokens: requestedOutputTokensForRouting(userMessage),
     hasRecentContext: recentContext.available,
-    measureClassifierCall,
     abortSignal,
     waitUntil,
   });
@@ -2015,8 +2057,10 @@ export async function streamChat({
         );
         return planConfig.enabled && (voiceEnabled ?? true);
       })();
-  const recentClassifierContext =
-    preparedTurnContext || capabilityPlannerMode !== "agentic"
+  const recentRoutingContext =
+    preparedTurnContext ||
+    capabilityPlannerMode !== "agentic" ||
+    !needsRecentRoutingContext(userMessage)
       ? EMPTY_BOUNDED_RECENT_CONTEXT
       : await measureTrace(traceCollector, "history", () =>
           loadBoundedRecentContext({
@@ -2051,9 +2095,7 @@ export async function streamChat({
         hasPendingMemoryApproval: Boolean(attributablePendingMemoryApproval),
         capabilityPlannerMode,
         inputOrigin,
-        recentContext: recentClassifierContext,
-        measureClassifierCall: (operation) =>
-          measureTrace(traceCollector, "classification", operation),
+        recentContext: recentRoutingContext,
         abortSignal,
         waitUntil,
       });
@@ -2110,11 +2152,33 @@ export async function streamChat({
       ? planLegacyTurn({ ...turnPlanInput, plannedExecution: execution })
       : planTurn({ ...turnPlanInput, plannedExecution: execution });
   let turnPlan = createTurnPlan(plannedExecution);
+  const agenticToolOptions = {
+    modelSelectsTools:
+      capabilityPlannerMode === "agentic" &&
+      turnPlan.execution.plannedProfile === "standard" &&
+      !benchmarkModelId,
+    webSearchAvailable: webSearchRule.reason !== "explicit_negative_web_search",
+    webFetchAvailable: webSearchRule.reason !== "explicit_negative_web_search",
+    ragAvailable: !isGuest,
+    memoryAvailable: memoryEnabled && !isGuest && !benchmarkModelId,
+    routineProposalAvailable: routineProposalAllowed && !benchmarkModelId,
+    recallFactsAvailable:
+      !isGuest &&
+      Boolean(conversationThreadId) &&
+      memoryRecallDecision.mode === "active" &&
+      (recallPlan.facts.enabled || recallPlan.conversations.enabled),
+    conversationRecallAvailable:
+      !isGuest &&
+      Boolean(conversationThreadId) &&
+      memoryRecallDecision.mode === "active" &&
+      (recallPlan.facts.enabled || recallPlan.conversations.enabled),
+  };
   let toolPlan = toolPlanFromTurnPlan(
     turnPlan,
     userMessage,
     capabilityPlannerMode,
     Boolean(attributablePendingMemoryApproval),
+    agenticToolOptions,
   );
   if (turnPlan.execution.plannedProfile === "light" && toolPlan.hasAny) {
     turnPlan = createTurnPlan(
@@ -2125,6 +2189,10 @@ export async function streamChat({
       userMessage,
       capabilityPlannerMode,
       Boolean(attributablePendingMemoryApproval),
+      {
+        ...agenticToolOptions,
+        modelSelectsTools: capabilityPlannerMode === "agentic",
+      },
     );
   }
   const promptMode: PromptMode =
@@ -2160,8 +2228,8 @@ export async function streamChat({
       ? Promise.resolve<ModelMessage[]>([])
       : turnPlan.execution.plannedProfile === "light" &&
           turnDecision.execution.contextDependency === "recent" &&
-          recentClassifierContext.available
-        ? Promise.resolve(recentClassifierContext.messages)
+          recentRoutingContext.available
+        ? Promise.resolve(recentRoutingContext.messages)
         : measureTrace(traceCollector, "history", () =>
             LatencyLogger.measure(
               "📋 Orchestrator: Get conversation history",
@@ -2688,6 +2756,7 @@ export async function streamChat({
         isGuest,
         recallActive: memoryRecallDecision.mode === "active",
         capabilities: capabilityDecision,
+        modelSelectsTools: toolPlan.modelSelectsTools,
       });
       if (!policy) return false;
       toolPolicies.set(name, policy);
@@ -2852,6 +2921,7 @@ export async function streamChat({
               metrics.capabilitiesUsed,
               capabilityDecision,
               capabilityPlannerMode,
+              toolPlan.modelSelectsTools,
             );
             if (
               memoryRecallDecision.mode === "active" &&
@@ -3070,6 +3140,7 @@ export async function streamChat({
           metrics.capabilitiesUsed,
           capabilityDecision,
           capabilityPlannerMode,
+          toolPlan.modelSelectsTools,
         );
         attachTurnTrace(metrics);
         captureAiGenerationMetadata({ context: telemetryContext, metrics });
@@ -3363,6 +3434,7 @@ export async function streamChat({
         metrics.capabilitiesUsed,
         capabilityDecision,
         capabilityPlannerMode,
+        toolPlan.modelSelectsTools,
       );
       if (
         memoryRecallDecision.mode === "active" &&
@@ -3617,8 +3689,9 @@ export async function prepareChatTurn({
     }));
   const webSearchRule = evaluateWebSearchRule(userMessage);
   const capabilityPlannerMode = getCapabilityPlannerMode();
-  const recentClassifierContext =
-    capabilityPlannerMode === "agentic"
+  const recentRoutingContext =
+    capabilityPlannerMode === "agentic" &&
+    needsRecentRoutingContext(userMessage)
       ? await loadBoundedRecentContext({
           userId,
           chatId,
@@ -3640,7 +3713,7 @@ export async function prepareChatTurn({
     hasPendingMemoryApproval: false,
     capabilityPlannerMode,
     inputOrigin: "text",
-    recentContext: recentClassifierContext,
+    recentContext: recentRoutingContext,
     abortSignal,
   });
   const turnDecision = arbitration.decision;
@@ -3709,8 +3782,8 @@ export async function prepareChatTurn({
       ? []
       : turnPlan.execution.plannedProfile === "light" &&
           turnDecision.execution.contextDependency === "recent" &&
-          recentClassifierContext.available
-        ? recentClassifierContext.messages
+          recentRoutingContext.available
+        ? recentRoutingContext.messages
         : (
             await (
               await import("@/lib/ai/thread-context")

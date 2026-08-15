@@ -127,6 +127,19 @@ function isSimpleSocialMessage(message: string) {
   return SOCIAL_MESSAGES.has(normalizeSocialMessage(message));
 }
 
+/**
+ * Recent history is only needed to resolve an otherwise context-dependent
+ * transform such as "rendilo piu breve". Social turns and transforms that
+ * include their own source can be routed without a history lookup.
+ */
+export function needsRecentRoutingContext(userMessage: string): boolean {
+  return (
+    !isSimpleSocialMessage(userMessage) &&
+    !resolveSelfContainedTransformTaskKind(userMessage) &&
+    Boolean(resolveTransformTaskKind(userMessage))
+  );
+}
+
 function isDeterministicRagIntent(message: string) {
   return matchesRagIntent(message) || ENGLISH_RAG_INTENT.test(message);
 }
@@ -243,7 +256,7 @@ function isSafeLightCandidate(input: DeterministicRoutingInput): boolean {
     input.inputOrigin === "text" &&
     input.responseMode === "text" &&
     !input.hasPendingMemoryApproval &&
-    (!input.hasRecentContext || social || usesRecentContext) &&
+    (!input.hasRecentContext || taskKind || social || usesRecentContext) &&
     input.explicitWebRule !== "required" &&
     !input.requiresExternalKnowledge &&
     !input.hasDeterministicCoachingIntent &&

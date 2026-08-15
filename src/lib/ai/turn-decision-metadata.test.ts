@@ -35,6 +35,16 @@ function turnDecision(): TurnDecision {
   };
 }
 
+function deterministicTurnDecision() {
+  return {
+    ...turnDecision(),
+    capabilities: {
+      ...turnDecision().capabilities,
+      source: "rule" as const,
+    },
+  } satisfies TurnDecision;
+}
+
 describe("safe turn decision metadata", () => {
   it("serializes only closed capability and execution fields", () => {
     const decision = turnDecision() as TurnDecision & {
@@ -107,6 +117,14 @@ describe("safe turn decision metadata", () => {
     expect(Object.isFrozen(parsed?.capabilities.reasonCodes)).toBe(true);
     expect(Object.isFrozen(parsed?.execution)).toBe(true);
     expect(Object.isFrozen(parsed?.execution.reasonCodes)).toBe(true);
+  });
+
+  it("round-trips a deterministic capability source", () => {
+    const parsed = parseSafeTurnDecision(
+      serializeSafeTurnDecision(deterministicTurnDecision()),
+    );
+
+    expect(parsed?.capabilities.source).toBe("rule");
   });
 
   it.each([
