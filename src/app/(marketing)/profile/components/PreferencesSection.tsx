@@ -18,6 +18,75 @@ interface Preferences {
   effectiveShowTechnicalMetrics: boolean;
 }
 
+type WritablePreference = Exclude<
+  keyof Preferences,
+  "effectiveShowTechnicalMetrics"
+>;
+
+const toneOptions = [
+  ["direct", "Diretto"],
+  ["empathetic", "Empatico"],
+  ["technical", "Tecnico"],
+  ["motivational", "Motivazionale"],
+] as const;
+
+const modeOptions = [
+  ["concise", "Conciso"],
+  ["elaborate", "Elaborato"],
+  ["challenging", "Sfidante"],
+  ["supportive", "Supportivo"],
+] as const;
+
+const languageOptions = [
+  ["it", "Italiano"],
+  ["en", "English"],
+] as const;
+
+function PreferenceSelect({
+  id,
+  label,
+  description,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  description: string;
+  value: string | null;
+  options: readonly (readonly [string, string])[];
+  disabled: boolean;
+  onChange: (value: string | null) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-1">
+        <Label htmlFor={id} className="cursor-pointer text-sm font-medium">
+          {label}
+        </Label>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      </div>
+      <select
+        id={id}
+        value={value ?? ""}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value || null)}
+        className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:max-w-52"
+      >
+        <option value="">Automatico</option>
+        {options.map(([optionValue, optionLabel]) => (
+          <option key={optionValue} value={optionValue}>
+            {optionLabel}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export function PreferencesSection() {
   const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,7 +118,10 @@ export function PreferencesSection() {
   }, []);
 
   // Update a preference
-  const updatePreference = async (key: keyof Preferences, value: unknown) => {
+  const updatePreference = async (
+    key: WritablePreference,
+    value: boolean | string | null,
+  ) => {
     setUpdating(true);
     try {
       const response = await fetch("/api/preferences", {
@@ -97,6 +169,9 @@ export function PreferencesSection() {
   const dontSendAudio = preferences?.voiceEnabled === false;
   const showTechnicalMetrics =
     preferences?.effectiveShowTechnicalMetrics ?? false;
+  const tone = preferences?.tone ?? null;
+  const mode = preferences?.mode ?? null;
+  const language = preferences?.language?.toLowerCase() ?? null;
 
   return (
     <Card className="overflow-hidden border-border/70 bg-card/70 shadow-none">
@@ -112,6 +187,35 @@ export function PreferencesSection() {
 
       {/* Preferences List */}
       <div className="divide-y divide-border/70">
+        <PreferenceSelect
+          id="tone-preference"
+          label="Tono di Anthon"
+          description="Scegli la qualità emotiva con cui Anthon ti risponde."
+          value={tone}
+          options={toneOptions}
+          disabled={updating}
+          onChange={(value) => updatePreference("tone", value)}
+        />
+        <PreferenceSelect
+          id="mode-preference"
+          label="Stile delle risposte"
+          description="Decidi se preferisci risposte brevi, ampie o più sfidanti."
+          value={mode}
+          options={modeOptions}
+          disabled={updating}
+          onChange={(value) => updatePreference("mode", value)}
+        />
+        <PreferenceSelect
+          id="language-preference"
+          label="Lingua delle risposte"
+          description="Imposta la lingua preferita quando il contesto è disponibile."
+          value={language}
+          options={languageOptions}
+          disabled={updating}
+          onChange={(value) =>
+            updatePreference("language", value ? value.toUpperCase() : null)
+          }
+        />
         {/* Voice Preference */}
         <div className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-muted/20">
           <div className="flex items-center gap-4">

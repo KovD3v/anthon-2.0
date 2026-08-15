@@ -48,8 +48,9 @@ vi.mock("@/components/ui/confirm-dialog", () => ({
 }));
 
 vi.mock("@/components/ui/label", () => ({
-  Label: ({ children }: { children: React.ReactNode }) => (
-    <span>{children}</span>
+  Label: ({ children, ...props }: React.ComponentProps<"label">) => (
+    // biome-ignore lint/a11y/noLabelWithoutControl: The mock forwards htmlFor to the tested control.
+    <label {...props}>{children}</label>
   ),
 }));
 
@@ -153,5 +154,35 @@ describe("PreferencesSection", () => {
       }),
     );
     expect(mocks.toastSuccess).toHaveBeenCalledWith("Preferenza aggiornata");
+  });
+
+  it("exposes and persists Anthon response preferences", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => preferences,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ...preferences, tone: "direct" }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<PreferencesSection />);
+
+    const toneSelect = await screen.findByLabelText("Tono di Anthon");
+    expect(screen.getByLabelText("Stile delle risposte")).toBeTruthy();
+    expect(screen.getByLabelText("Lingua delle risposte")).toBeTruthy();
+
+    fireEvent.change(toneSelect, { target: { value: "direct" } });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tone: "direct" }),
+      }),
+    );
   });
 });
