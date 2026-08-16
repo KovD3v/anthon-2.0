@@ -107,3 +107,17 @@ export async function listBetaSubscribers(input: {
     metrics: { total: totalSubscribers, updates: updatesSubscribers },
   };
 }
+
+export async function getBetaSubscribersForExport() {
+  return prisma.betaMailingSubscriber.findMany({
+    orderBy: { createdAt: "desc" },
+    select: {
+      email: true,
+      releaseOptInAt: true,
+      updatesOptInAt: true,
+      updatesOptOutAt: true,
+      consentVersion: true,
+      createdAt: true,
+    },
+  });
+}

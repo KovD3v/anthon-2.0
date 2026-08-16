@@ -22,5 +22,9 @@ export default async function AdminLayout({
 
   requireCompletedOnboardingPage(user, "/admin");
 
-  return <AdminLayoutClient>{children}</AdminLayoutClient>;
+  return (
+    <AdminLayoutClient isSuperAdmin={user?.role === "SUPER_ADMIN"}>
+      {children}
+    </AdminLayoutClient>
+  );
 }
