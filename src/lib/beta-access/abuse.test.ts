@@ -18,11 +18,7 @@ vi.mock("./client-fingerprint", () => ({
   getBetaClientFingerprint: mocks.fingerprint,
 }));
 
-import {
-  type BetaAbuseDeniedError,
-  releaseBetaAction,
-  reserveBetaAction,
-} from "./abuse";
+import { releaseBetaAction, reserveBetaAction } from "./abuse";
 
 describe("beta abuse reservations", () => {
   beforeEach(() => {
@@ -77,7 +73,7 @@ describe("beta abuse reservations", () => {
 
     await expect(
       reserveBetaAction(new Request("https://anthon.ai/beta-access"), "UNLOCK"),
-    ).rejects.toMatchObject<BetaAbuseDeniedError>({
+    ).rejects.toMatchObject({
       reason: "identity_unavailable",
       status: 429,
     });
@@ -89,7 +85,7 @@ describe("beta abuse reservations", () => {
 
     await expect(
       reserveBetaAction(new Request("https://anthon.ai/beta-access"), "UNLOCK"),
-    ).rejects.toMatchObject<BetaAbuseDeniedError>({
+    ).rejects.toMatchObject({
       reason: "limit_reached",
       status: 429,
     });

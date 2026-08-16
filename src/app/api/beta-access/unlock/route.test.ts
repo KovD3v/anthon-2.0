@@ -106,7 +106,7 @@ describe("POST /api/beta-access/unlock", () => {
 
   it("returns 429 when abuse control rejects the attempt", async () => {
     const { BetaAbuseDeniedError } = await import("@/lib/beta-access/abuse");
-    mocks.reserve.mockRejectedValue(new BetaAbuseDeniedError());
+    mocks.reserve.mockRejectedValue(new BetaAbuseDeniedError("limit_reached"));
 
     const response = await POST(request({ password: "password" }));
 

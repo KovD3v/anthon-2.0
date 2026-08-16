@@ -82,7 +82,7 @@ describe("POST /api/beta-access/subscribe", () => {
 
   it("returns 429 when the submission limit is reached", async () => {
     const { BetaAbuseDeniedError } = await import("@/lib/beta-access/abuse");
-    mocks.reserve.mockRejectedValue(new BetaAbuseDeniedError());
+    mocks.reserve.mockRejectedValue(new BetaAbuseDeniedError("limit_reached"));
 
     const response = await POST(
       request({

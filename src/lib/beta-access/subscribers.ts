@@ -9,7 +9,11 @@ const betaMailingInputSchema = z.object({
   updatesConsent: z.boolean(),
 });
 
-export type BetaMailingInput = z.input<typeof betaMailingInputSchema>;
+export type BetaMailingInput = {
+  email: string;
+  releaseConsent: boolean;
+  updatesConsent: boolean;
+};
 
 export async function subscribeToBetaMailing(
   input: BetaMailingInput,
