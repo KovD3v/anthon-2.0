@@ -1,5 +1,6 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { applyBetaAccessGate } from "@/lib/beta-access/proxy-gate";
 import { isProtectedRoute } from "@/lib/protected-routes";
 
 export default clerkMiddleware(async (auth, req) => {
@@ -9,6 +10,9 @@ export default clerkMiddleware(async (auth, req) => {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   }
+
+  const betaGateResponse = await applyBetaAccessGate(req);
+  if (betaGateResponse) return betaGateResponse;
 
   // This is an early UX redirect, not the authorization boundary. Protected
   // server resources must continue to check authentication themselves.
