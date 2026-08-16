@@ -483,7 +483,7 @@ describe("/api/chats/[id] route", () => {
           ragUsed: true,
           toolCalls: [{ name: "saveMemory", status: "completed" }],
         });
-        if (testCase.role === "ADMIN" || testCase.role === "SUPER_ADMIN") {
+        if (["ADMIN", "SUPER_ADMIN"].includes(testCase.role)) {
           expect(assistant?.usage).toHaveProperty("messageId", "m3");
         } else {
           expect(assistant?.usage).not.toHaveProperty("messageId");
