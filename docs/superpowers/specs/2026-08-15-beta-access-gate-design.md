@@ -72,7 +72,7 @@ Cookie properties:
 - `Max-Age=180 days`
 - high priority
 
-The proxy first verifies the cookie format, expiry, and HMAC locally. Only a locally valid cookie causes the singleton database lookup used to compare its access version with the current configuration. A password rotation increments that version, so all older cookies fail on their next request. Locked visitors with no cookie do not incur the configuration lookup.
+The proxy reads the singleton configuration to distinguish the initial inactive state from an active gate, then verifies the cookie format, expiry, HMAC, and access version. A password rotation increments that version, so all older cookies fail on their next request. This one-row read is required even for a new browser: without it, an absent cookie cannot distinguish an intentionally inactive gate from a locked active gate. Password derivation never runs in the proxy.
 
 If `BETA_ACCESS_COOKIE_SECRET` is missing or the active configuration cannot be read, the gated site fails closed. Admin and technical exceptions remain reachable for repair. If no configuration record exists, the gate is not active.
 

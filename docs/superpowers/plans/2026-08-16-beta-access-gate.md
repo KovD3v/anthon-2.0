@@ -98,7 +98,7 @@
 3. Write failing subscribe route tests for invalid email/consent, throttling, idempotent success, and neutral failures.
 4. Implement the subscription route; rerun to green.
 5. Write failing proxy-gate tests for missing/invalid/expired/stale/current cookies, page redirect, API `403`, DB failure `503`, public exceptions, and cookie expiry.
-6. Implement the proxy gate. The singleton lookup happens only after local cookie verification.
+6. Implement the proxy gate. Load the singleton state once, then validate the cookie locally against its current version; do not derive passwords in the proxy.
 7. Add orchestration tests proving the beta gate runs before the existing signed-out protected-route redirect while admin/technical exceptions retain current behavior.
 8. Compose the beta gate into `clerkMiddleware` without weakening downstream auth. Rerun proxy and existing protected-route/auth tests.
 9. Run targeted Biome and `git diff --check`.
