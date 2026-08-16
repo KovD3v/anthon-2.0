@@ -1,0 +1,9 @@
+export const BETA_ACCESS_COOKIE_NAME = "anthon_beta_access";
+export const BETA_ACCESS_COOKIE_MAX_AGE_SECONDS = 180 * 24 * 60 * 60;
+export const BETA_ACCESS_CONFIG_ID = "global";
+
+export const BETA_PASSWORD_SCRYPT_COST = 16_384;
+export const BETA_PASSWORD_SCRYPT_BLOCK_SIZE = 8;
+export const BETA_PASSWORD_SCRYPT_PARALLELIZATION = 1;
+export const BETA_PASSWORD_SALT_BYTES = 16;
+export const BETA_PASSWORD_DIGEST_BYTES = 32;
