@@ -31,6 +31,7 @@ describe("applyBetaAccessGate", () => {
     });
     mocks.secret.mockReturnValue("test-cookie-secret-that-is-long-enough");
     mocks.loadConfig.mockResolvedValue({
+      configured: true,
       active: true,
       accessVersion: 4,
       passwordDigest: "not-exposed-to-proxy-consumers",
@@ -66,9 +67,23 @@ describe("applyBetaAccessGate", () => {
   });
 
   it("allows the site while the first password has not been configured", async () => {
-    mocks.loadConfig.mockResolvedValue({ active: false });
+    mocks.loadConfig.mockResolvedValue({ configured: false, active: false });
 
     await expect(applyBetaAccessGate(request("/chat"))).resolves.toBeNull();
+  });
+
+  it("allows the site while a configured gate is temporarily disabled", async () => {
+    mocks.loadConfig.mockResolvedValue({
+      configured: true,
+      active: false,
+      accessVersion: 5,
+      passwordDigest: "digest",
+      activatedAt: new Date(),
+      rotatedAt: new Date(),
+    });
+
+    await expect(applyBetaAccessGate(request("/chat"))).resolves.toBeNull();
+    expect(mocks.currentCookie).not.toHaveBeenCalled();
   });
 
   it("allows a current signed cookie", async () => {

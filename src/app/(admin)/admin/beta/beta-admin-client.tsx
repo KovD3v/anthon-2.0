@@ -36,9 +36,10 @@ import {
 import { cn } from "@/lib/utils";
 
 type BetaConfig =
-  | { active: false }
+  | { configured: false; active: false }
   | {
-      active: true;
+      configured: true;
+      active: boolean;
       accessVersion: number;
       activatedAt: string;
       rotatedAt: string;
@@ -119,6 +120,9 @@ export function BetaAdminClient() {
   const [isRotating, setIsRotating] = useState(false);
   const [rotationError, setRotationError] = useState<string | null>(null);
   const [rotationSuccess, setRotationSuccess] = useState(false);
+  const [isToggling, setIsToggling] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+  const [toggleSuccess, setToggleSuccess] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadSubscribers = useCallback(async () => {
@@ -196,6 +200,44 @@ export function BetaAdminClient() {
     }
   }
 
+  async function toggleAccess() {
+    if (!config?.configured || isToggling) return;
+    const nextActive = !config.active;
+    setToggleError(null);
+    setToggleSuccess(null);
+    setIsToggling(true);
+    try {
+      const response = await fetch("/api/admin/beta-access", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: nextActive }),
+      });
+      const nextConfig = await readJson<BetaConfig>(response);
+      setConfig(nextConfig);
+      setToggleSuccess(
+        nextActive
+          ? "La beta privata è attiva: le pagine operative richiedono la password."
+          : "La beta privata è disattivata e gli accessi esistenti sono stati revocati.",
+      );
+    } catch (error) {
+      setToggleError(
+        error instanceof Error
+          ? error.message
+          : "Impossibile modificare lo stato della beta privata.",
+      );
+    } finally {
+      setIsToggling(false);
+    }
+  }
+
+  const accessState = !config
+    ? "—"
+    : config.active
+      ? "Attiva"
+      : config.configured
+        ? "Disattivata"
+        : "Non configurata";
+
   const activeUpdates = (subscriber: Subscriber) =>
     Boolean(subscriber.updatesOptInAt && !subscriber.updatesOptOutAt);
 
@@ -211,7 +253,7 @@ export function BetaAdminClient() {
       <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard
           label="Stato accesso"
-          value={config?.active ? "Attiva" : "Non configurata"}
+          value={accessState}
           icon={<KeyRound className="size-5" aria-hidden="true" />}
         />
         <MetricCard
@@ -238,13 +280,58 @@ export function BetaAdminClient() {
                 </CardDescription>
               </div>
               <Badge variant={config?.active ? "default" : "secondary"}>
-                {config?.active ? "Attiva" : "Da configurare"}
+                {config?.active
+                  ? "Attiva"
+                  : config?.configured
+                    ? "Disattivata"
+                    : "Da configurare"}
               </Badge>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
+            <div className="rounded-lg border border-border bg-muted/35 px-3.5 py-3 text-sm leading-relaxed">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-medium text-foreground">
+                    Blocco pagine operative
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    {config?.configured
+                      ? config.active
+                        ? "Attivo: gli utenti senza accesso vengono inviati alla pagina beta."
+                        : "Disattivato: il sito è aperto, ma password e iscritti restano salvati."
+                      : "Configura una password prima di poter attivare il blocco."}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant={config?.active ? "outline" : "default"}
+                  disabled={!config?.configured || isToggling}
+                  onClick={toggleAccess}
+                  className="shrink-0"
+                >
+                  {isToggling
+                    ? "Aggiornamento…"
+                    : config?.active
+                      ? "Disattiva beta privata"
+                      : "Attiva beta privata"}
+                </Button>
+              </div>
+              <div className="mt-3">
+                <AuthErrorSummary message={toggleError} />
+                {toggleSuccess ? (
+                  <output className="flex items-start gap-2 rounded-lg bg-primary/10 px-3.5 py-3 text-sm leading-relaxed">
+                    <CheckCircle2
+                      className="mt-0.5 size-4 shrink-0 text-primary"
+                      aria-hidden="true"
+                    />
+                    {toggleSuccess}
+                  </output>
+                ) : null}
+              </div>
+            </div>
             <form onSubmit={rotatePassword} className="space-y-5">
-              {config?.active ? (
+              {config?.configured ? (
                 <div className="rounded-lg border border-border bg-muted/35 px-3.5 py-3 text-sm leading-relaxed text-muted-foreground">
                   <p>Versione accesso: {config.accessVersion}</p>
                   <p>Ultima rotazione: {formatDate(config.rotatedAt)}</p>
@@ -257,7 +344,7 @@ export function BetaAdminClient() {
                     aria-hidden="true"
                   />
                   Il salvataggio revoca immediatamente tutti gli accessi beta
-                  già concessi.
+                  già concessi. Se il blocco è disattivato, resterà disattivato.
                 </p>
               </div>
               <PasswordField
@@ -290,7 +377,7 @@ export function BetaAdminClient() {
                 loading={isRotating}
                 disabled={!password || !confirmation}
               >
-                {config?.active
+                {config?.configured
                   ? "Ruota password e revoca"
                   : "Attiva la beta privata"}
               </AuthSubmitButton>

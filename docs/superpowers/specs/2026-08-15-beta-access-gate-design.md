@@ -6,7 +6,7 @@
 
 ## Objective
 
-Make the beta phase explicit and controlled. A shared beta password gates the site independently of Clerk accounts, persists on the same browser for 180 days, and can be rotated from `/admin`. The same gate screen also collects release-notification subscriptions with a separate optional consent for additional product updates.
+Make the beta phase explicit and controlled. A shared beta password gates the site independently of Clerk accounts, persists on the same browser for 180 days, and can be rotated or temporarily disabled from `/admin`. The same gate screen also collects release-notification subscriptions with a separate optional consent for additional product updates.
 
 The feature must not interrupt Telegram, WhatsApp, Clerk webhooks, queues, cron jobs, or health checks.
 
@@ -20,6 +20,8 @@ The feature must not interrupt Telegram, WhatsApp, Clerk webhooks, queues, cron 
 - `/admin` and its APIs remain outside the beta gate and retain their existing Clerk and database-role authorization.
 - Only `SUPER_ADMIN` can set or rotate the password or view/export mailing subscribers.
 - The first saved password activates the gate. Before that first configuration, the site remains available so deployment cannot lock administrators out.
+- A SUPER_ADMIN can temporarily disable and later re-enable the gate without deleting or rotating the password and without deleting subscribers.
+- Disabling increments the access version and therefore revokes every existing beta cookie. Re-enabling preserves that incremented version, so old cookies do not become valid again.
 - Mailing data remains independent from Clerk accounts and beta access cookies.
 - Anthon stores and exports subscribers in this phase; it does not yet send double-opt-in or campaign email.
 
@@ -55,6 +57,7 @@ Add one singleton `BetaAccessConfig` record with:
 
 - password algorithm metadata, salt, and derived digest;
 - monotonically increasing access version;
+- explicit enabled state, independent from whether a password has been configured;
 - activation and latest-rotation timestamps;
 - the database user ID of the SUPER_ADMIN who last changed it;
 - standard creation and update timestamps.
@@ -72,7 +75,7 @@ Cookie properties:
 - `Max-Age=180 days`
 - high priority
 
-The proxy reads the singleton configuration to distinguish the initial inactive state from an active gate, then verifies the cookie format, expiry, HMAC, and access version. A password rotation increments that version, so all older cookies fail on their next request. This one-row read is required even for a new browser: without it, an absent cookie cannot distinguish an intentionally inactive gate from a locked active gate. Password derivation never runs in the proxy.
+The proxy reads the singleton configuration to distinguish an unconfigured gate, a configured but temporarily disabled gate, and an active gate. Only the active state verifies the cookie format, expiry, HMAC, and access version. A password rotation or gate deactivation increments that version, so all older cookies fail on their next request. This one-row read is required even for a new browser: without it, an absent cookie cannot distinguish an intentionally inactive gate from a locked active gate. Password derivation never runs in the proxy.
 
 If `BETA_ACCESS_COOKIE_SECRET` is missing or the active configuration cannot be read, the gated site fails closed. Admin and technical exceptions remain reachable for repair. If no configuration record exists, the gate is not active.
 
@@ -150,6 +153,7 @@ The route and every backing API call use `requireSuperAdmin`; hiding the navigat
 The page contains:
 
 - current gate status;
+- explicit activate/deactivate control, available after the first password is configured;
 - activation/latest-rotation timestamp;
 - new password and confirmation fields;
 - an explicit warning that saving revokes all current beta access;
@@ -158,7 +162,7 @@ The page contains:
 - filter for optional-updates consent;
 - CSV export with consent timestamps and verification state.
 
-The current password, salt, digest, cookie secret, and fingerprints never appear in admin responses. Updating the password is transactional: derive the new digest, increment the access version, write audit metadata, and commit together. The API does not provide a disable switch in this scope, preventing accidental public reopening.
+The current password, salt, digest, cookie secret, and fingerprints never appear in admin responses. Updating the password is transactional: derive the new digest, increment the access version, write audit metadata, and commit together. Deactivation is an explicit SUPER_ADMIN action that atomically disables enforcement and increments the access version. Reactivation restores enforcement without changing the stored password or version.
 
 CSV fields are quoted and values beginning with spreadsheet formula prefixes are neutralized. Exports are generated only after a fresh SUPER_ADMIN authorization check and are never publicly cacheable.
 

@@ -4,27 +4,50 @@ import { signBetaAccessCookie, verifyBetaAccessCookie } from "./cookie";
 import { hashBetaPassword, verifyBetaPassword } from "./password";
 
 export type BetaAccessConfigState =
-  | { active: false }
+  | { configured: false; active: false }
   | {
-      active: true;
+      configured: true;
+      active: boolean;
       accessVersion: number;
       passwordDigest: string;
       activatedAt: Date;
       rotatedAt: Date;
     };
 
+export type BetaAccessConfigSummary = {
+  configured: true;
+  active: boolean;
+  accessVersion: number;
+  activatedAt: Date;
+  rotatedAt: Date;
+};
+
+type PersistedConfigSummary = Omit<
+  BetaAccessConfigSummary,
+  "configured" | "active"
+> & { enabled: boolean };
+
+function summarizeConfig(
+  config: PersistedConfigSummary,
+): BetaAccessConfigSummary {
+  const { enabled, ...fields } = config;
+  return { configured: true, active: enabled, ...fields };
+}
+
 export async function loadBetaAccessConfig(): Promise<BetaAccessConfigState> {
   const config = await prisma.betaAccessConfig.findUnique({
     where: { id: BETA_ACCESS_CONFIG_ID },
     select: {
+      enabled: true,
       accessVersion: true,
       passwordDigest: true,
       activatedAt: true,
       rotatedAt: true,
     },
   });
-  if (!config) return { active: false };
-  return { active: true, ...config };
+  if (!config) return { configured: false, active: false };
+  const { enabled, ...fields } = config;
+  return { configured: true, active: enabled, ...fields };
 }
 
 export function getBetaAccessCookieSecret(): string | null {
@@ -71,18 +94,14 @@ export async function rotateBetaAccessPassword(
   password: string,
   actorUserId: string,
   now = new Date(),
-): Promise<{
-  active: true;
-  accessVersion: number;
-  activatedAt: Date;
-  rotatedAt: Date;
-}> {
+): Promise<BetaAccessConfigSummary> {
   const passwordDigest = await hashBetaPassword(password);
   const config = await prisma.$transaction((tx) =>
     tx.betaAccessConfig.upsert({
       where: { id: BETA_ACCESS_CONFIG_ID },
       create: {
         id: BETA_ACCESS_CONFIG_ID,
+        enabled: true,
         passwordDigest,
         accessVersion: 1,
         activatedAt: now,
@@ -96,6 +115,7 @@ export async function rotateBetaAccessPassword(
         updatedByUserId: actorUserId,
       },
       select: {
+        enabled: true,
         accessVersion: true,
         activatedAt: true,
         rotatedAt: true,
@@ -103,5 +123,44 @@ export async function rotateBetaAccessPassword(
     }),
   );
 
-  return { active: true, ...config };
+  return summarizeConfig(config);
+}
+
+export async function setBetaAccessEnabled(
+  active: boolean,
+  actorUserId: string,
+): Promise<
+  { status: "unconfigured" } | { status: "ok"; config: BetaAccessConfigSummary }
+> {
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.betaAccessConfig.findUnique({
+      where: { id: BETA_ACCESS_CONFIG_ID },
+      select: {
+        enabled: true,
+        accessVersion: true,
+        activatedAt: true,
+        rotatedAt: true,
+      },
+    });
+    if (!current) return { status: "unconfigured" } as const;
+    if (current.enabled === active) {
+      return { status: "ok", config: summarizeConfig(current) } as const;
+    }
+
+    const config = await tx.betaAccessConfig.update({
+      where: { id: BETA_ACCESS_CONFIG_ID },
+      data: {
+        enabled: active,
+        ...(active ? {} : { accessVersion: { increment: 1 } }),
+        updatedByUserId: actorUserId,
+      },
+      select: {
+        enabled: true,
+        accessVersion: true,
+        activatedAt: true,
+        rotatedAt: true,
+      },
+    });
+    return { status: "ok", config: summarizeConfig(config) } as const;
+  });
 }

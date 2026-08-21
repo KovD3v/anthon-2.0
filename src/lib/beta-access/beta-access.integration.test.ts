@@ -5,6 +5,7 @@ import {
   isCurrentBetaAccessCookie,
   loadBetaAccessConfig,
   rotateBetaAccessPassword,
+  setBetaAccessEnabled,
   unlockBetaAccess,
 } from "./service";
 import { listBetaSubscribers, subscribeToBetaMailing } from "./subscribers";
@@ -35,25 +36,46 @@ describe("integration private beta persistence", () => {
     expect(firstUnlock.status).toBe("ok");
     if (firstUnlock.status !== "ok") throw new Error("Expected first unlock");
 
+    const disabled = await setBetaAccessEnabled(false, actor.id);
+    expect(disabled).toMatchObject({
+      status: "ok",
+      config: { active: false, accessVersion: 2 },
+    });
+    expect(
+      isCurrentBetaAccessCookie(firstUnlock.cookieValue, 2, { secret }),
+    ).toBe(false);
+    await expect(unlockBetaAccess(firstPassword, { secret })).resolves.toEqual({
+      status: "inactive",
+    });
+
+    const enabled = await setBetaAccessEnabled(true, actor.id);
+    expect(enabled).toMatchObject({
+      status: "ok",
+      config: { active: true, accessVersion: 2 },
+    });
+    await expect(
+      unlockBetaAccess(firstPassword, { secret }),
+    ).resolves.toMatchObject({ status: "ok", accessVersion: 2 });
+
     const secondConfig = await rotateBetaAccessPassword(
       secondPassword,
       actor.id,
       new Date("2026-08-16T11:00:00.000Z"),
     );
 
-    expect(secondConfig.accessVersion).toBe(2);
+    expect(secondConfig.accessVersion).toBe(3);
     expect(
-      isCurrentBetaAccessCookie(firstUnlock.cookieValue, 2, { secret }),
+      isCurrentBetaAccessCookie(firstUnlock.cookieValue, 3, { secret }),
     ).toBe(false);
     await expect(unlockBetaAccess(firstPassword, { secret })).resolves.toEqual({
       status: "invalid",
     });
     await expect(
       unlockBetaAccess(secondPassword, { secret }),
-    ).resolves.toMatchObject({ status: "ok", accessVersion: 2 });
+    ).resolves.toMatchObject({ status: "ok", accessVersion: 3 });
     await expect(loadBetaAccessConfig()).resolves.toMatchObject({
       active: true,
-      accessVersion: 2,
+      accessVersion: 3,
       rotatedAt: new Date("2026-08-16T11:00:00.000Z"),
     });
   });

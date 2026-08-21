@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   requireSuperAdmin: vi.fn(),
   loadConfig: vi.fn(),
   rotate: vi.fn(),
+  setEnabled: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -13,15 +14,24 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/beta-access/service", () => ({
   loadBetaAccessConfig: mocks.loadConfig,
   rotateBetaAccessPassword: mocks.rotate,
+  setBetaAccessEnabled: mocks.setEnabled,
 }));
 
-import { GET, PATCH } from "./route";
+import { GET, PATCH, PUT } from "./route";
 
 function patchRequest(body: unknown): Request {
   return new Request("http://localhost/api/admin/beta-access", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  });
+}
+
+function putRequest(active: boolean): Request {
+  return new Request("http://localhost/api/admin/beta-access", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ active }),
   });
 }
 
@@ -34,7 +44,7 @@ describe("/api/admin/beta-access", () => {
       user: { id: "admin-1", role: "SUPER_ADMIN" },
       errorResponse: null,
     });
-    mocks.loadConfig.mockResolvedValue({ active: false });
+    mocks.loadConfig.mockResolvedValue({ configured: false, active: false });
   });
 
   it("protects both reads and rotations with SUPER_ADMIN", async () => {
@@ -48,14 +58,19 @@ describe("/api/admin/beta-access", () => {
     expect(
       (await PATCH(patchRequest({ password: "a", confirmation: "a" }))).status,
     ).toBe(403);
+    expect((await PUT(putRequest(false))).status).toBe(403);
     expect(mocks.loadConfig).not.toHaveBeenCalled();
     expect(mocks.rotate).not.toHaveBeenCalled();
   });
 
   it("returns only safe inactive or active status fields", async () => {
-    await expect((await GET()).json()).resolves.toEqual({ active: false });
+    await expect((await GET()).json()).resolves.toEqual({
+      configured: false,
+      active: false,
+    });
 
     mocks.loadConfig.mockResolvedValue({
+      configured: true,
       active: true,
       accessVersion: 3,
       passwordDigest: "must-not-leak",
@@ -65,6 +80,7 @@ describe("/api/admin/beta-access", () => {
     const active = await GET();
     const activeCopy = active.clone();
     await expect(active.json()).resolves.toEqual({
+      configured: true,
       active: true,
       accessVersion: 3,
       activatedAt: "2026-08-16T10:00:00.000Z",
@@ -91,6 +107,7 @@ describe("/api/admin/beta-access", () => {
 
   it("rotates the shared password with the authorized actor", async () => {
     mocks.rotate.mockResolvedValue({
+      configured: true,
       active: true,
       accessVersion: 2,
       activatedAt: new Date("2026-08-16T10:00:00.000Z"),
@@ -110,5 +127,39 @@ describe("/api/admin/beta-access", () => {
       "admin-1",
     );
     expect(JSON.stringify(await response.json())).not.toContain("password");
+  });
+
+  it("toggles an existing gate with the authorized actor", async () => {
+    mocks.setEnabled.mockResolvedValue({
+      status: "ok",
+      config: {
+        configured: true,
+        active: false,
+        accessVersion: 5,
+        activatedAt: new Date("2026-08-16T10:00:00.000Z"),
+        rotatedAt: new Date("2026-08-16T11:00:00.000Z"),
+      },
+    });
+
+    const response = await PUT(putRequest(false));
+
+    expect(response.status).toBe(200);
+    expect(mocks.setEnabled).toHaveBeenCalledWith(false, "admin-1");
+    await expect(response.json()).resolves.toMatchObject({
+      configured: true,
+      active: false,
+      accessVersion: 5,
+    });
+  });
+
+  it("rejects activation before a password is configured", async () => {
+    mocks.setEnabled.mockResolvedValue({ status: "unconfigured" });
+
+    const response = await PUT(putRequest(true));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "Configura prima una password beta.",
+    });
   });
 });

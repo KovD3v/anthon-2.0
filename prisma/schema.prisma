@@ -1392,6 +1392,7 @@ model BetaAccessConfig {
 
   passwordDigest String
   accessVersion  Int    @default(1)
+  enabled        Boolean @default(false)
 
   activatedAt DateTime @default(now())
   rotatedAt   DateTime @default(now())

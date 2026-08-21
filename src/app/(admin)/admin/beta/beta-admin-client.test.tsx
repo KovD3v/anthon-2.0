@@ -7,16 +7,20 @@ import { BetaAdminClient } from "./beta-admin-client";
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
 
+let configResponse: unknown;
+
 describe("BetaAdminClient", () => {
   beforeEach(() => {
     mocks.fetch.mockReset();
     vi.stubGlobal("fetch", mocks.fetch);
+    configResponse = { configured: false, active: false };
     mocks.fetch.mockImplementation(
       async (input: string, init?: RequestInit) => {
         if (input === "/api/admin/beta-access" && init?.method === "PATCH") {
           return {
             ok: true,
             json: async () => ({
+              configured: true,
               active: true,
               accessVersion: 2,
               activatedAt: "2026-08-16T10:00:00.000Z",
@@ -24,8 +28,23 @@ describe("BetaAdminClient", () => {
             }),
           };
         }
+        if (input === "/api/admin/beta-access" && init?.method === "PUT") {
+          const { active } = JSON.parse(String(init.body)) as {
+            active: boolean;
+          };
+          return {
+            ok: true,
+            json: async () => ({
+              configured: true,
+              active,
+              accessVersion: active ? 5 : 6,
+              activatedAt: "2026-08-16T10:00:00.000Z",
+              rotatedAt: "2026-08-16T12:00:00.000Z",
+            }),
+          };
+        }
         if (input === "/api/admin/beta-access") {
-          return { ok: true, json: async () => ({ active: false }) };
+          return { ok: true, json: async () => configResponse };
         }
         if (input.startsWith("/api/admin/beta-access/subscribers")) {
           return {
@@ -121,6 +140,63 @@ describe("BetaAdminClient", () => {
     });
     expect(screen.getByRole("status").textContent).toContain(
       "accessi precedenti sono stati revocati",
+    );
+  });
+
+  it("re-enables a configured gate without asking for a new password", async () => {
+    configResponse = {
+      configured: true,
+      active: false,
+      accessVersion: 5,
+      activatedAt: "2026-08-16T10:00:00.000Z",
+      rotatedAt: "2026-08-16T12:00:00.000Z",
+    };
+    const user = userEvent.setup();
+    render(<BetaAdminClient />);
+
+    expect(await screen.findAllByText("Disattivata")).toHaveLength(2);
+    await user.click(
+      screen.getByRole("button", { name: "Attiva beta privata" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.fetch).toHaveBeenCalledWith("/api/admin/beta-access", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: true }),
+      }),
+    );
+    expect(screen.getByRole("status").textContent).toContain(
+      "beta privata è attiva",
+    );
+  });
+
+  it("disables the gate and explains that existing access is revoked", async () => {
+    configResponse = {
+      configured: true,
+      active: true,
+      accessVersion: 5,
+      activatedAt: "2026-08-16T10:00:00.000Z",
+      rotatedAt: "2026-08-16T12:00:00.000Z",
+    };
+    const user = userEvent.setup();
+    render(<BetaAdminClient />);
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Disattiva beta privata",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.fetch).toHaveBeenCalledWith("/api/admin/beta-access", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: false }),
+      }),
+    );
+    expect(screen.getByRole("status").textContent).toContain(
+      "accessi esistenti sono stati revocati",
     );
   });
 
