@@ -8,8 +8,19 @@ Version numbers describe the application's user-facing behavior and its document
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-21
+
+Private-beta access control, release mailing consent, and the latest onboarding,
+profile, routing, and response-diagnostics work.
+
 ### Added
 
+- Added a global private-beta gate for guests and registered users, using a
+  shared account-independent password and a signed 180-day browser cookie.
+- Added a release mailing list to the beta entry page, with required release
+  contact consent and separate optional consent for further product updates.
+- Added a `SUPER_ADMIN` beta console for password rotation, reversible gate
+  activation, subscriber counts and filtering, and CSV export.
 - Added mandatory conversational onboarding for new accounts: a resumable
   five-step Italian flow with explicit skips, inline edits, a final review,
   and confirmation before product access.
@@ -80,6 +91,12 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Routed human-facing operational pages and interactive APIs through the
+  central beta gate while keeping legal pages, administrator access, health
+  checks, webhooks, queues, and cron jobs independently reachable.
+- Deactivating the beta gate now revokes existing beta cookies without deleting
+  the shared password or mailing subscribers; reactivation preserves the
+  password and revoked access version.
 - Connected confirmed onboarding data to coaching context and applied the
   onboarding gate consistently across chat and authenticated product routes,
   while preserving access to sign-out and account recovery.
@@ -224,6 +241,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 - Fixed post-signup and OAuth continuation so new users remain on the onboarding
   path until completion without losing the intended destination or saved draft.
+- Fixed an impossible role narrowing in the chat-detail authorization test that
+  blocked Vercel production type checking.
 - Retired the dedicated `/chat/usage` page, moved internal usage links to
   `/profile#utilizzo`, and made the old URL return a real HTTP 404 without a
   redirect.
@@ -569,7 +588,8 @@ Initial web coaching-chat foundation.
 - Database, OpenRouter, Clerk, and Vercel Blob health checks.
 - Database indexes, direct migration connectivity, structured message persistence, and latency instrumentation.
 
-[Unreleased]: https://github.com/KovD3v/anthon-2.0/compare/76213f0...HEAD
+[Unreleased]: https://github.com/KovD3v/anthon-2.0/compare/9f075f7...HEAD
+[0.8.0]: https://github.com/KovD3v/anthon-2.0/compare/76213f0...9f075f7
 [0.5.1]: https://github.com/KovD3v/anthon-2.0/tree/76213f0
 [0.5.0]: https://github.com/KovD3v/anthon-2.0/compare/f90c811d6e9b2aaa76857a862fba85821f45b0c3...a5e410573d6435a2d1ad3207f7ab1dc7669df2e3
 [0.4.0]: https://github.com/KovD3v/anthon-2.0/compare/1f04b9919f88ac9c4e07c9cc71467248571c808a...f90c811d6e9b2aaa76857a862fba85821f45b0c3

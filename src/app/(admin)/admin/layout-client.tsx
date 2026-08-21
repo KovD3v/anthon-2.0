@@ -4,7 +4,9 @@ import {
   Brain,
   Building2,
   FileText,
+  KeyRound,
   LayoutDashboard,
+  type LucideIcon,
   Menu,
   MessageSquare,
   Mic,
@@ -25,7 +27,14 @@ import {
 import { cn } from "@/lib/utils";
 import { SidebarBottom } from "../../(chat)/components/SidebarBottom";
 
-const navItems = [
+type AdminNavItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  superAdminOnly?: boolean;
+};
+
+const navItems: AdminNavItem[] = [
   { href: "/admin", label: "Panoramica", icon: LayoutDashboard },
   { href: "/admin/costs", label: "Costi", icon: Brain },
   { href: "/admin/users", label: "Utenti", icon: Users },
@@ -37,7 +46,17 @@ const navItems = [
   { href: "/admin/rag", label: "Documenti RAG", icon: FileText },
   { href: "/admin/voice", label: "Voce", icon: Mic },
   { href: "/admin/ai-traces", label: "Trace AI", icon: ShieldCheck },
+  {
+    href: "/admin/beta",
+    label: "Beta",
+    icon: KeyRound,
+    superAdminOnly: true,
+  },
 ];
+
+export function getAdminNavItems(isSuperAdmin: boolean) {
+  return navItems.filter((item) => !item.superAdminOnly || isSuperAdmin);
+}
 
 function isActiveRoute(pathname: string, href: string) {
   return href === "/admin" ? pathname === href : pathname.startsWith(href);
@@ -45,14 +64,17 @@ function isActiveRoute(pathname: string, href: string) {
 
 function AdminNavigation({
   pathname,
+  isSuperAdmin,
   mobile = false,
 }: {
   pathname: string;
+  isSuperAdmin: boolean;
   mobile?: boolean;
 }) {
+  const visibleNavItems = getAdminNavItems(isSuperAdmin);
   const links = (
     <ul className="space-y-1">
-      {navItems.map((item) => {
+      {visibleNavItems.map((item) => {
         const isActive = isActiveRoute(pathname, item.href);
         const link = (
           <Link
@@ -127,14 +149,17 @@ function AdminBrand() {
 
 export default function AdminLayout({
   children,
+  isSuperAdmin,
 }: {
   children: React.ReactNode;
+  isSuperAdmin: boolean;
 }) {
   const pathname = usePathname();
+  const visibleNavItems = getAdminNavItems(isSuperAdmin);
   const currentPage =
-    navItems.find(
+    visibleNavItems.find(
       (item) => item.href !== "/admin" && pathname.startsWith(item.href),
-    ) ?? navItems[0];
+    ) ?? visibleNavItems[0];
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-background">
@@ -144,7 +169,7 @@ export default function AdminLayout({
         </div>
 
         <div className="custom-scrollbar flex flex-1 overflow-y-auto">
-          <AdminNavigation pathname={pathname} />
+          <AdminNavigation pathname={pathname} isSuperAdmin={isSuperAdmin} />
         </div>
 
         <SidebarBottom />
@@ -185,7 +210,11 @@ export default function AdminLayout({
                 </SheetDescription>
               </SheetHeader>
               <div className="custom-scrollbar flex min-h-0 flex-1 overflow-y-auto">
-                <AdminNavigation pathname={pathname} mobile />
+                <AdminNavigation
+                  pathname={pathname}
+                  isSuperAdmin={isSuperAdmin}
+                  mobile
+                />
               </div>
               <SidebarBottom />
             </SheetContent>

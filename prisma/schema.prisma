@@ -107,6 +107,7 @@ model User {
   modelExperimentAudits       ModelExperimentAudit[]       @relation("ModelExperimentAuditActor")
   createdModelExperiments     ModelExperiment[]            @relation("ModelExperimentCreator")
   onboardingSessions         OnboardingSession[]
+  betaAccessConfigUpdates    BetaAccessConfig[]            @relation("BetaAccessConfigUpdater")
 
   billingSyncedAt       DateTime?
   onboardingCompletedAt DateTime?
@@ -1374,6 +1375,65 @@ model GuestAbuseBucket {
   updatedAt       DateTime @updatedAt
 
   @@unique([fingerprintHash, windowStart])
+  @@index([windowStart])
+}
+
+// -----------------------------------------------------
+// PRIVATE BETA ACCESS AND RELEASE MAILING LIST
+// -----------------------------------------------------
+
+enum BetaAbuseAction {
+  UNLOCK
+  MAILING_SUBSCRIPTION
+}
+
+model BetaAccessConfig {
+  id String @id @default("global")
+
+  passwordDigest String
+  accessVersion  Int    @default(1)
+  enabled        Boolean @default(false)
+
+  activatedAt DateTime @default(now())
+  rotatedAt   DateTime @default(now())
+
+  updatedByUserId String?
+  updatedByUser   User?   @relation("BetaAccessConfigUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+model BetaMailingSubscriber {
+  id String @id @default(cuid())
+
+  email           String
+  normalizedEmail String @unique
+
+  releaseOptInAt DateTime
+  updatesOptInAt DateTime?
+  updatesOptOutAt DateTime?
+  consentVersion String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([updatesOptInAt])
+}
+
+model BetaAbuseBucket {
+  id String @id @default(cuid())
+
+  fingerprintHash String
+  action          BetaAbuseAction
+  windowStart     DateTime
+  attemptCount    Int             @default(0)
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([fingerprintHash, action, windowStart])
   @@index([windowStart])
 }
 
