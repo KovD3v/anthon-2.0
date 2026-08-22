@@ -1,0 +1,3 @@
+# Separate admin roles and set public launch gates
+
+`ADMIN` may manage operations without conversational content. `SUPER_ADMIN` retains reason-bound access for approved support and investigations, while quality-review projects require an approver different from the reviewer and expire automatically. Public launch requires explicit sign-off on age enforcement, payments by minors, the no-referral policy, legal bases, privacy disclosure, trace auditing, account deletion and export, notification consent, billing cancellation, channel identity security, and critical-path reliability. Any missing gate blocks launch.

@@ -1,8 +1,19 @@
 # Anthon 2.0 Documentation
 
-Welcome to the Anthon 2.0 documentation. Anthon is an AI-powered coaching chat application built with Next.js 16, featuring intelligent conversation management, RAG-based knowledge retrieval, and multi-channel support.
+Anthon 2.0 is a multi-channel mental-performance coaching application built with Next.js 16.
 
-## 📚 Documentation Index
+## Product decisions
+
+Start with the product contract before reading implementation documentation:
+
+| Document | Purpose |
+| --- | --- |
+| [Shared language](../CONTEXT.md) | Canonical product and domain vocabulary |
+| [Decision records](./adr/) | Durable product decisions and supersession history |
+| [Alignment gap analysis](./product-alignment-gap-analysis.md) | Current repository behavior compared with the decisions |
+| [Implementation roadmap](./superpowers/plans/2026-08-22-product-alignment-roadmap.md) | Ordered workstreams and release gates |
+
+## Documentation index
 
 | Document                                | Description                                  |
 | --------------------------------------- | -------------------------------------------- |
@@ -24,7 +35,7 @@ Welcome to the Anthon 2.0 documentation. Anthon is an AI-powered coaching chat a
 | [QA Test Plan](./qa-test-plan.md)       | Test checklist, execution process, and GitHub issue workflow |
 | [Benchmarks](./benchmarks/)             | Model, metadata, voice, and conversational-quality evidence |
 
-## 🛠 Technology Stack
+## Technology stack
 
 | Category           | Technology                         |
 | ------------------ | ---------------------------------- |
@@ -39,7 +50,7 @@ Welcome to the Anthon 2.0 documentation. Anthon is an AI-powered coaching chat a
 | **Styling**        | Tailwind CSS                       |
 | **UI Components**  | Radix UI, Framer Motion            |
 
-## 🚀 Quick Start
+## Quick start
 
 ```bash
 # Install dependencies

@@ -14,6 +14,12 @@ Current product priorities:
 
 When work touches multiple areas, prioritize correctness and regression coverage for chat and channels before admin, marketing, or secondary dashboards.
 
+## Product Decisions
+
+Before planning or changing product behavior, read `CONTEXT.md` completely and then read the relevant records in `docs/adr/`. This applies to coaching scope, coached-person identity, performance contexts, memory, plans, organizations, channels, notifications, age rules, analytics, administrator access, and data lifecycle.
+
+Use `CONTEXT.md` as the language contract and active ADRs as product requirements. If a request or existing implementation conflicts with them, identify the conflict before editing code. A later ADR that explicitly supersedes an earlier one is authoritative.
+
 ## Commands
 
 Prefer `bun run` over `npm run` and `bunx` over `npx` unless a tool specifically requires npm/npx.

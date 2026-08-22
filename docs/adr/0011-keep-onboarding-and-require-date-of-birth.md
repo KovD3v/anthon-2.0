@@ -1,0 +1,3 @@
+# Keep onboarding and require date of birth
+
+Anthon will keep the current five-step onboarding progression, but date of birth will be mandatory. The interface will explain that it is collected to determine whether self-managed access is allowed and to adapt the coaching context appropriately. Date of birth remains visible and correctable in the profile, with changes audited and rate-limited; eligibility is recalculated immediately, and a corrected age below 14 blocks further access. Anthon will never send the raw date of birth into coaching context. It will send the `14–17` age band for minors and an adult's exact derived age only when that precision materially helps the coaching move; otherwise it will use an age band.

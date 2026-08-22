@@ -1,0 +1,3 @@
+# Set self-managed access at age 14
+
+Anthon will allow self-managed accounts only for people aged 14 or older and block younger people until it has a deliberate guardian-consent model. People aged 14–17 receive the same coaching experience and may purchase paid access themselves; there is no distinct minor coaching mode. A mandatory age field is an eligibility control, not guardian consent. Before public launch, Anthon will obtain legal review covering contracts, subscription payments by minors, sensitive disclosures, and the legal bases used for processing. This uses Italy's digital-consent threshold as a product boundary without assuming that the threshold alone resolves every legal or safeguarding question for minors.

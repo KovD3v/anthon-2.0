@@ -1,0 +1,3 @@
+# Make account deletion immediate and retryable
+
+An account deletion request will immediately revoke access without a recovery period, cancel future billing, and then erase the account through a tracked, retryable process. Failure to confirm billing cancellation stops final deletion and provides a clear support path. Deletion overrides ordinary retention windows: active conversations, memories, personal documents, voice files, and readable trace content are erased as soon as operationally possible. Backups expire on a disclosed bounded schedule, while access audits and legally required billing or security records may remain without coaching content. Anthon will confirm completion only after the deletion workflow has cleared every required active store.

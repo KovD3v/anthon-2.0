@@ -1,0 +1,3 @@
+# Propagate deletion and limit guest memory promotion
+
+Deleting source content will remove or rebuild every derived representation, including memory links, summaries, recall chunks, embeddings, caches, and indexes, rather than deleting only the visible source row. Guest Web conversations may survive account conversion as conversation history, but their earlier contents are not silently extracted into durable memory. New facts follow the normal memory policy, and Anthon may explicitly offer to carry forward a particularly useful guest fact or performance context. This preserves continuity without retroactively changing the privacy contract of the guest exchange.

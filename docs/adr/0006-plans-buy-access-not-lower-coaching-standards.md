@@ -1,0 +1,3 @@
+# Plans buy access, not lower coaching standards
+
+Every plan will use the same coaching standards, reasoning policy, and safety boundaries. Paid plans may buy more capacity, continuity, richer input and output options, and longer retention, but lower plans will not receive deliberately less thoughtful or less honest coaching. Launch will have no Trial or ongoing registered Free plan: Guest Web is the unpaid preview, while continued coaching after registration requires Basic, Basic Plus, Pro, or an organization-funded seat. Paid capacity must be strictly monotonic: no lower tier may exceed a higher tier on requests, context, uploads, voice, or retention.
