@@ -15,7 +15,7 @@ These are the personal limits used by the entitlement resolver.
 
 | Tier         | Requests/Day | Input Tokens | Output Tokens | Cost/Day | Max Context Messages |
 | ------------ | ------------ | ------------ | ------------- | -------- | -------------------- |
-| `GUEST`      | 10           | 20,000       | 10,000        | $0.05    | 5                    |
+| `GUEST`      | 4            | 20,000       | 10,000        | $0.05    | 5                    |
 | `TRIAL`      | 75           | 100,000      | 50,000        | $0.50    | 10                   |
 | `basic`      | 50           | 500,000      | 250,000       | $3.00    | 15                   |
 | `basic_plus` | 50           | 800,000      | 400,000       | $5.00    | 30                   |

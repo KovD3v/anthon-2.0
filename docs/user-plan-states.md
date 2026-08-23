@@ -11,7 +11,7 @@ codice Basic Plus è identificato come `BASIC_PLUS`.
 
 | Piano | Utente | Richieste/giorno | Contesto | Upload/giorno | Conservazione | Voce in | Voce out |
 | --- | --- | ---: | ---: | --- | ---: | :---: | --- |
-| **Guest** | Non registrato | 10 | 5 messaggi | Non disponibili | 1 giorno | — | — |
+| **Guest** | Non registrato | 4 | 5 messaggi | Non disponibili | 1 giorno | — | — |
 | **Trial** | Registrato, senza piano riconosciuto | 75 | 10 messaggi | 10 file · 50 MiB | 7 giorni | ✓ | — |
 | **Basic** | Abbonato Basic | 50 | 15 messaggi | 25 file · 250 MiB | 30 giorni | ✓ | 10 audio ogni 12 ore |
 | **Basic Plus** | Abbonato Basic Plus | 50 | 30 messaggi | 50 file · 500 MiB | 60 giorni | ✓ | 20 audio ogni 12 ore |

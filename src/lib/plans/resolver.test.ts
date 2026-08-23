@@ -36,6 +36,16 @@ describe("plans/resolver", () => {
     ).toBe("GUEST");
   });
 
+  it("limits guests to four requests per day", () => {
+    const result = resolveEffectiveEntitlements({
+      subscriptionStatus: "ACTIVE",
+      isGuest: true,
+      planId: "my-pro-plan",
+    });
+
+    expect(result.limits.maxRequestsPerDay).toBe(4);
+  });
+
   it("resolves active personal plans and fails closed on invalid active planId", () => {
     expect(
       resolvePersonalPlan({
