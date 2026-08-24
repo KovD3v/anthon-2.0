@@ -5,7 +5,7 @@ import {
 } from "@openrouter/ai-sdk-provider";
 import { wrapLanguageModel } from "ai";
 import type { OrganizationModelTier } from "@/lib/organizations/types";
-import { resolvePlanSnapshot } from "@/lib/plans";
+import { PLAN_CATALOG, resolvePlanSnapshot } from "@/lib/plans";
 import type { ResolvedPlanPolicies } from "@/lib/plans/types";
 
 // Create the AI SDK 7-compatible OpenRouter provider instance.
@@ -37,6 +37,9 @@ function resolveModelRouting(
   userRole?: string,
   modelTier?: OrganizationModelTier,
 ) {
+  if (!subscriptionStatus && !planId && !userRole && !modelTier) {
+    return PLAN_CATALOG.GUEST.modelRouting;
+  }
   return resolvePlanSnapshot({
     subscriptionStatus,
     planId,
@@ -79,16 +82,16 @@ function getOpenRouterModel(
   return settings ? openrouter(modelId, settings) : openrouter(modelId);
 }
 
-const trialRouting = resolveModelRouting("TRIAL");
-export const ORCHESTRATOR_MODEL_ID = trialRouting.orchestrator;
-export const SUB_AGENT_MODEL_ID = trialRouting.subAgent;
-export const MAINTENANCE_MODEL_ID = trialRouting.maintenance;
+const defaultRouting = PLAN_CATALOG.GUEST.modelRouting;
+export const ORCHESTRATOR_MODEL_ID = defaultRouting.orchestrator;
+export const SUB_AGENT_MODEL_ID = defaultRouting.subAgent;
+export const MAINTENANCE_MODEL_ID = defaultRouting.maintenance;
 
-// Default models (for backward compatibility - uses trial tier)
+// Default models for guest-compatible internal work.
 const _orchestratorModel = withDevTools(
-  getOpenRouterModel(trialRouting, "orchestrator"),
+  getOpenRouterModel(defaultRouting, "orchestrator"),
 );
-export const subAgentModel = withDevTools(openrouter(trialRouting.subAgent));
+export const subAgentModel = withDevTools(openrouter(defaultRouting.subAgent));
 
 /**
  * Get the appropriate model based on the resolved plan snapshot.

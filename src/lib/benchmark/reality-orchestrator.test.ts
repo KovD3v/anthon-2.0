@@ -78,9 +78,9 @@ describe("benchmark/reality orchestrator executor", () => {
     const executor = createStreamChatRealityExecutor({
       userId: "benchmark-user",
       chatId: "benchmark-chat",
-      planId: "trial",
+      planId: "basic",
       userRole: "USER",
-      subscriptionStatus: "TRIAL",
+      subscriptionStatus: "ACTIVE",
     });
 
     const result = await executor({
@@ -106,7 +106,7 @@ describe("benchmark/reality orchestrator executor", () => {
         userId: "benchmark-user",
         chatId: "benchmark-chat",
         userMessage: "Mi serve un piano",
-        planId: "trial",
+        planId: "basic",
         benchmarkModelId: "candidate/model",
         memoryEnabled: true,
         responseMode: "text",
@@ -149,9 +149,9 @@ describe("benchmark/reality orchestrator executor", () => {
 
     const { executor, cleanup } = createDatabaseBackedRealityExecutor({
       runLabel: "prelaunch-test",
-      planId: "trial",
+      planId: "basic",
       userRole: "USER",
-      subscriptionStatus: "TRIAL",
+      subscriptionStatus: "ACTIVE",
     });
     const scenario = {
       id: "scenario",

@@ -11,7 +11,6 @@ export type PersonalPlanKey = CanonicalPlan;
 export const PERSONAL_PLAN_LIMITS: Record<PersonalPlanKey, EntitlementLimits> =
   {
     GUEST: PLAN_CATALOG.GUEST.limits,
-    TRIAL: PLAN_CATALOG.TRIAL.limits,
     BASIC: PLAN_CATALOG.BASIC.limits,
     BASIC_PLUS: PLAN_CATALOG.BASIC_PLUS.limits,
     PRO: PLAN_CATALOG.PRO.limits,

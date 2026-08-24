@@ -1,7 +1,6 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { useClerk } from "@clerk/nextjs";
 import { DefaultChatTransport, safeValidateUIMessages } from "ai";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import Link from "next/link";
@@ -139,7 +138,6 @@ export function ChatConversationClient({
   initialChatData: ChatData;
 }) {
   const shouldReduceMotion = useReducedMotion();
-  const clerk = useClerk();
   const router = useRouter();
   const routerRef = useRef(router);
   routerRef.current = router;
@@ -181,8 +179,6 @@ export function ChatConversationClient({
   const { confirm, isOpen, options, handleConfirm, handleCancel, setIsOpen } =
     useConfirm();
 
-  const trialActivationAttemptedRef = useRef(false);
-  const trialActivationInFlightRef = useRef(false);
   const chatErrorRecoveryKeyRef = useRef<string | null>(null);
   const submitInFlightRef = useRef(false);
   const pendingInitialMessageSubmittedRef = useRef(false);
@@ -1307,78 +1303,6 @@ export function ChatConversationClient({
     };
   }, [chatError, chatId, isGuest, status]);
 
-  const maybeActivateClerkTrial = useCallback(async () => {
-    if (
-      isGuest ||
-      trialActivationAttemptedRef.current ||
-      trialActivationInFlightRef.current
-    ) {
-      return;
-    }
-
-    trialActivationInFlightRef.current = true;
-
-    try {
-      try {
-        const currentSubscription = await clerk.billing.getSubscription({});
-        const hasFreeTrialItem = currentSubscription.subscriptionItems.some(
-          (item) => item.isFreeTrial,
-        );
-
-        if (hasFreeTrialItem || !currentSubscription.eligibleForFreeTrial) {
-          trialActivationAttemptedRef.current = true;
-          return;
-        }
-      } catch {
-        // If subscription lookup fails, continue and try to bootstrap from plans.
-      }
-
-      const plans = await clerk.billing.getPlans({ for: "user" });
-      const trialPlan =
-        plans.data.find(
-          (plan) => plan.freeTrialEnabled && plan.publiclyVisible,
-        ) ?? plans.data.find((plan) => plan.freeTrialEnabled);
-
-      if (!trialPlan) {
-        trialActivationAttemptedRef.current = true;
-        return;
-      }
-
-      let checkout = await clerk.billing.startCheckout({
-        planId: trialPlan.id,
-        planPeriod: "month",
-      });
-
-      if (
-        checkout.status === "needs_confirmation" &&
-        checkout.needsPaymentMethod
-      ) {
-        trialActivationAttemptedRef.current = true;
-        toast.info(
-          "Per attivare la prova gratuita è richiesto un metodo di pagamento.",
-        );
-        router.push("/pricing");
-        return;
-      }
-
-      if (
-        checkout.status === "needs_confirmation" &&
-        !checkout.needsPaymentMethod
-      ) {
-        checkout = await checkout.confirm({});
-      }
-
-      if (checkout.status === "completed") {
-        trialActivationAttemptedRef.current = true;
-        toast.success("Prova gratuita attivata");
-      }
-    } catch (error) {
-      reportClientError(error, { source: "chat.activate_trial" });
-    } finally {
-      trialActivationInFlightRef.current = false;
-    }
-  }, [clerk, isGuest, router]);
-
   const handleSubmit = async (
     e: React.FormEvent,
     attachments?: AttachmentData[],
@@ -1419,8 +1343,6 @@ export function ChatConversationClient({
 
     let clientMessageId: string | undefined;
     try {
-      await maybeActivateClerkTrial();
-
       const parts: AnthonUIMessage["parts"] = [];
       if (submittedInput.trim()) {
         parts.push({ type: "text", text: submittedInput });

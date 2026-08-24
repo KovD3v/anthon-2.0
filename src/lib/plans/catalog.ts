@@ -41,7 +41,7 @@ const DEFAULT_VOICE_CADENCE: VoicePlanConfig["cadence"] = {
 
 export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
   GUEST: {
-    modelTier: "TRIAL",
+    modelTier: "GUEST",
     limits: {
       maxRequestsPerDay: 4,
       maxInputTokensPerDay: 20_000,
@@ -65,34 +65,6 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
       capWindowMs: 0,
       maxPerWindow: 0,
       automaticBudgetRatio: 0,
-      cadence: DEFAULT_VOICE_CADENCE,
-    },
-  },
-  TRIAL: {
-    modelTier: "TRIAL",
-    limits: {
-      maxRequestsPerDay: 75,
-      maxInputTokensPerDay: 100_000,
-      maxOutputTokensPerDay: 50_000,
-      maxCostPerDay: 0.5,
-      maxContextMessages: 10,
-    },
-    uploadLimits: {
-      maxUploadsPerDay: 10,
-      maxUploadBytesPerDay: 50 * 1024 * 1024,
-    },
-    attachmentRetentionDays: 7,
-    modelRouting: {
-      orchestrator: ORCHESTRATOR_MODEL_ID,
-      orchestratorFallbacks: ORCHESTRATOR_FALLBACK_MODEL_IDS,
-      subAgent: "google/gemini-2.5-flash-lite",
-      maintenance: MAINTENANCE_MODEL_ID,
-    },
-    voice: {
-      enabled: false,
-      capWindowMs: 6 * 60 * 60 * 1000,
-      maxPerWindow: 3,
-      automaticBudgetRatio: 0.65,
       cadence: DEFAULT_VOICE_CADENCE,
     },
   },
@@ -211,7 +183,7 @@ export const PLAN_CATALOG: Record<CanonicalPlan, PlanCatalogEntry> = {
 };
 
 export const MODEL_TIER_PRIORITY: Record<OrganizationModelTier, number> = {
-  TRIAL: 0,
+  GUEST: 0,
   BASIC: 1,
   BASIC_PLUS: 2,
   PRO: 3,
@@ -223,7 +195,7 @@ export const MODEL_TIER_TO_CANONICAL_PLAN: Record<
   OrganizationModelTier,
   CanonicalPlan
 > = {
-  TRIAL: "TRIAL",
+  GUEST: "GUEST",
   BASIC: "BASIC",
   BASIC_PLUS: "BASIC_PLUS",
   PRO: "PRO",

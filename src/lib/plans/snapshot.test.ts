@@ -26,7 +26,6 @@ describe("plans/snapshot", () => {
   it("uses GPT-5.6 Luna with cross-provider fallbacks for every runtime plan", () => {
     const plans = [
       { isGuest: true },
-      { subscriptionStatus: "TRIAL" },
       { subscriptionStatus: "ACTIVE", planId: "my-basic-plan" },
       { subscriptionStatus: "ACTIVE", planId: "my-basic_plus-plan" },
       { subscriptionStatus: "ACTIVE", planId: "my-pro-plan" },
@@ -126,6 +125,15 @@ describe("plans/snapshot", () => {
         subscriptionStatus: "ACTIVE",
         userRole: "USER",
         planId: "invalid-plan",
+      }),
+    ).toThrow(PlanResolutionError);
+  });
+
+  it("requires paid access for registered accounts", () => {
+    expect(() =>
+      resolvePlanSnapshot({
+        subscriptionStatus: "EXPIRED",
+        userRole: "USER",
       }),
     ).toThrow(PlanResolutionError);
   });

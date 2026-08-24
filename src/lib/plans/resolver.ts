@@ -49,24 +49,22 @@ export function resolvePersonalPlan(input: PlanResolutionInput): CanonicalPlan {
     return "GUEST";
   }
 
-  if (
-    input.subscriptionStatus === "ACTIVE" ||
-    input.subscriptionStatus === "TRIAL"
-  ) {
+  if (input.subscriptionStatus === "ACTIVE") {
     const parsed = parseCanonicalPlanFromPlanId(input.planId);
     if (parsed) {
       return parsed;
     }
 
-    if (input.subscriptionStatus === "ACTIVE") {
-      throw new PlanResolutionError(
-        "ACTIVE_WITH_INVALID_PLAN_ID",
-        "Active subscription requires a recognized planId",
-      );
-    }
+    throw new PlanResolutionError(
+      "ACTIVE_WITH_INVALID_PLAN_ID",
+      "Active subscription requires a recognized planId",
+    );
   }
 
-  return "TRIAL";
+  throw new PlanResolutionError(
+    "PAID_ACCESS_REQUIRED",
+    "A paid or organization-funded entitlement is required",
+  );
 }
 
 function buildPersonalEntitlements(
@@ -180,10 +178,8 @@ function pickBestEntitlements(
 export function resolveEffectiveEntitlements(
   input: PlanResolutionInput,
 ): ResolvedEntitlements {
-  const personal = buildPersonalEntitlements(input);
-
-  if (input.isGuest || personal.plan === "ADMIN") {
-    return personal;
+  if (input.isGuest || isAdminRole(input.userRole)) {
+    return buildPersonalEntitlements(input);
   }
 
   if (input.modelTier) {
@@ -194,9 +190,24 @@ export function resolveEffectiveEntitlements(
     mapOrganizationSource,
   );
 
-  if (organizationSources.length === 0) {
-    return personal;
+  let personal: ResolvedEntitlements | null = null;
+  try {
+    personal = buildPersonalEntitlements(input);
+  } catch (error) {
+    if (
+      !(error instanceof PlanResolutionError) ||
+      error.reason !== "PAID_ACCESS_REQUIRED"
+    ) {
+      throw error;
+    }
   }
 
-  return pickBestEntitlements([personal, ...organizationSources]);
+  const candidates = personal
+    ? [personal, ...organizationSources]
+    : organizationSources;
+  if (candidates.length === 0) {
+    throw new PlanResolutionError("PAID_ACCESS_REQUIRED");
+  }
+
+  return pickBestEntitlements(candidates);
 }

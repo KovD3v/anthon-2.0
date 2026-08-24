@@ -855,7 +855,7 @@ describe("POST /api/chat", () => {
       isGuest: false,
       billingSyncedAt: new Date(Date.now() - 6 * 60 * 1000),
       subscription: {
-        status: "TRIAL",
+        status: "EXPIRED",
         planId: "my-basic-plan",
       },
       preferences: {
@@ -930,14 +930,14 @@ describe("POST /api/chat", () => {
     expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
 
-  it("skips Clerk sync when trial subscription was synced recently", async () => {
+  it("blocks coaching when expired billing state was synced recently", async () => {
     mocks.userFindUnique.mockResolvedValue({
       id: "user-1",
       role: "USER",
       isGuest: false,
       billingSyncedAt: new Date(),
       subscription: {
-        status: "TRIAL",
+        status: "EXPIRED",
         planId: "my-basic-plan",
       },
     });
@@ -949,18 +949,18 @@ describe("POST /api/chat", () => {
       }),
     );
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(402);
     expect(mocks.syncPersonalSubscriptionFromClerk).not.toHaveBeenCalled();
   });
 
-  it("syncs stale trial subscription before rate-limit check", async () => {
+  it("syncs stale expired subscription before rate-limit check", async () => {
     mocks.userFindUnique.mockResolvedValue({
       id: "user-1",
       role: "USER",
       isGuest: false,
       billingSyncedAt: new Date(Date.now() - 6 * 60 * 1000),
       subscription: {
-        status: "TRIAL",
+        status: "EXPIRED",
         planId: "my-basic-plan",
       },
     });
@@ -981,7 +981,7 @@ describe("POST /api/chat", () => {
       userId: "user-1",
       clerkUserId: "clerk_1",
       current: {
-        status: "TRIAL",
+        status: "EXPIRED",
         planId: "my-basic-plan",
       },
     });
@@ -1000,14 +1000,14 @@ describe("POST /api/chat", () => {
     );
   });
 
-  it("keeps chat flow working when stale sync returns null", async () => {
+  it("blocks coaching when stale sync returns no paid access", async () => {
     mocks.userFindUnique.mockResolvedValue({
       id: "user-1",
       role: "USER",
       isGuest: false,
       billingSyncedAt: new Date(Date.now() - 6 * 60 * 1000),
       subscription: {
-        status: "TRIAL",
+        status: "EXPIRED",
         planId: null,
       },
     });
@@ -1020,11 +1020,11 @@ describe("POST /api/chat", () => {
       }),
     );
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(402);
     expect(mocks.syncPersonalSubscriptionFromClerk).toHaveBeenCalledTimes(1);
     expect(mocks.checkRateLimit).toHaveBeenCalledWith(
       "user-1",
-      "TRIAL",
+      "EXPIRED",
       "USER",
       null,
       false,

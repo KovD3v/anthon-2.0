@@ -7,7 +7,6 @@ import type { VoicePlanConfig } from "@/lib/voice/config";
 
 export const CANONICAL_PLANS = [
   "GUEST",
-  "TRIAL",
   "BASIC",
   "BASIC_PLUS",
   "PRO",

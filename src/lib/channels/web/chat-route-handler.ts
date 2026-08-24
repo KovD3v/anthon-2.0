@@ -32,6 +32,7 @@ import { LatencyLogger } from "@/lib/latency-logger";
 import { withRequestLogContext } from "@/lib/logger";
 import { tryCreateModelComparisonResponse } from "@/lib/model-experiments/runtime";
 import { onboardingRequiredResponse } from "@/lib/onboarding/gate";
+import { PlanResolutionError } from "@/lib/plans";
 import { checkRateLimit, reconcileAiUsageForRecovery } from "@/lib/rate-limit";
 import {
   createServerTraceCollector,
@@ -305,7 +306,7 @@ export async function handleWebChatPost(request: Request) {
         const shouldSyncSubscription =
           !user.isGuest &&
           isBillingSyncStale(user.billingSyncedAt) &&
-          (!subscriptionStatus || !planId || subscriptionStatus === "TRIAL");
+          (!subscriptionStatus || !planId || subscriptionStatus !== "ACTIVE");
 
         if (shouldSyncSubscription) {
           const syncedSubscription = await traceCollector.measure(
@@ -358,7 +359,10 @@ export async function handleWebChatPost(request: Request) {
               limits: rateLimitResult.limits,
               upgradeInfo: rateLimitResult.upgradeInfo,
             },
-            { status: 429 },
+            {
+              status:
+                rateLimitResult.reason === "PAID_ACCESS_REQUIRED" ? 402 : 429,
+            },
           );
         }
 
@@ -693,7 +697,20 @@ export async function handleWebChatPost(request: Request) {
         }
 
         return flowResult.streamResult.toUIMessageStreamResponse();
-      } catch {
+      } catch (error) {
+        if (
+          error instanceof PlanResolutionError &&
+          error.reason === "PAID_ACCESS_REQUIRED"
+        ) {
+          return Response.json(
+            {
+              error: "Paid access required",
+              reason: error.reason,
+              upgradeUrl: "/pricing",
+            },
+            { status: 402 },
+          );
+        }
         return new Response(
           JSON.stringify({ error: "Internal server error" }),
           {

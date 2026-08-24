@@ -300,7 +300,7 @@ Plan-level defaults:
 
 | Tier | Orchestrator | Fallback | Sub-agent |
 | ---- | ------------ | -------- | --------- |
-| `trial` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash-0731` | `google/gemini-2.5-flash-lite` |
+| `guest` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash-0731` | `google/gemini-2.5-flash-lite` |
 | `basic` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash-0731` | `google/gemini-2.5-flash-lite` |
 | `basic_plus` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash-0731` | `google/gemini-2.5-flash` |
 | `pro` | `openai/gpt-5.6-luna` | `deepseek/deepseek-v4-flash-0731` | `google/gemini-2.5-flash-lite` |

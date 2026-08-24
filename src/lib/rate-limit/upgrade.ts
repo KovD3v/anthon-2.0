@@ -7,7 +7,6 @@ import type { UpgradeInfo } from "./types";
 
 const PLAN_HIERARCHY: CanonicalPlan[] = [
   "GUEST",
-  "TRIAL",
   "BASIC",
   "BASIC_PLUS",
   "PRO",
@@ -16,7 +15,6 @@ const PLAN_HIERARCHY: CanonicalPlan[] = [
 
 const PLAN_DISPLAY_NAMES: Record<CanonicalPlan, string> = {
   GUEST: "Ospite",
-  TRIAL: "Prova",
   BASIC: "Basic",
   BASIC_PLUS: "Basic Plus",
   PRO: "Pro",
@@ -37,7 +35,6 @@ export function getUpgradeInfo(
 
   const nextPlanByCurrent: Partial<Record<CanonicalPlan, CanonicalPlan>> = {
     GUEST: "BASIC",
-    TRIAL: "BASIC",
     BASIC: "BASIC_PLUS",
     BASIC_PLUS: "PRO",
   };

@@ -17,7 +17,7 @@ function mapClerkStatus(clerkStatus: string): SubscriptionStatus {
   switch (clerkStatus.toLowerCase()) {
     case "trialing":
     case "trial":
-      return "TRIAL";
+      return "EXPIRED";
     case "active":
       return "ACTIVE";
     case "canceled":
@@ -31,18 +31,18 @@ function mapClerkStatus(clerkStatus: string): SubscriptionStatus {
     default:
       webhookLogger.warn(
         "webhook.subscription.status_unknown",
-        "Unknown Clerk subscription status, defaulting to TRIAL",
+        "Unknown Clerk subscription status, defaulting to EXPIRED",
         {
           clerkStatus,
         },
       );
-      return "TRIAL";
+      return "EXPIRED";
   }
 }
 
 /**
  * Handle subscription.created event.
- * Creates a subscription record and marks trial start.
+ * Creates a subscription record.
  */
 export async function handleSubscriptionCreated(data: SubscriptionData) {
   const clerkUserId = data.user_id;
@@ -72,14 +72,6 @@ export async function handleSubscriptionCreated(data: SubscriptionData) {
   const status = mapClerkStatus(data.status);
   const now = new Date();
 
-  // Calculate trial end date if in trial
-  let trialEndsAt: Date | undefined;
-  if (status === "TRIAL" && data.trial_period_days) {
-    trialEndsAt = new Date(
-      now.getTime() + data.trial_period_days * 24 * 60 * 60 * 1000,
-    );
-  }
-
   // Create or update subscription
   await prisma.subscription.upsert({
     where: { userId: user.id },
@@ -88,8 +80,6 @@ export async function handleSubscriptionCreated(data: SubscriptionData) {
       status,
       planId: data.plan_id,
       planName: data.plan_name,
-      trialStartedAt: status === "TRIAL" ? now : undefined,
-      trialEndsAt,
       convertedAt: status === "ACTIVE" ? now : undefined,
     },
     create: {
@@ -98,8 +88,6 @@ export async function handleSubscriptionCreated(data: SubscriptionData) {
       status,
       planId: data.plan_id,
       planName: data.plan_name,
-      trialStartedAt: status === "TRIAL" ? now : undefined,
-      trialEndsAt,
       convertedAt: status === "ACTIVE" ? now : undefined,
     },
   });
@@ -172,12 +160,11 @@ export async function handleSubscriptionUpdated(data: SubscriptionData) {
     planName: data.plan_name,
   };
 
-  // Trial → Active = Conversion
-  if (subscription.status === "TRIAL" && newStatus === "ACTIVE") {
+  if (subscription.status !== "ACTIVE" && newStatus === "ACTIVE") {
     updateData.convertedAt = now;
     webhookLogger.info(
       "auth.subscription_transition",
-      "User converted from trial",
+      "User started paid access",
       {
         userId: subscription.userId,
         previousStatus: subscription.status,

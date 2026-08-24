@@ -16,7 +16,6 @@ These are the personal limits used by the entitlement resolver.
 | Tier         | Requests/Day | Input Tokens | Output Tokens | Cost/Day | Max Context Messages |
 | ------------ | ------------ | ------------ | ------------- | -------- | -------------------- |
 | `GUEST`      | 4            | 20,000       | 10,000        | $0.05    | 5                    |
-| `TRIAL`      | 75           | 100,000      | 50,000        | $0.50    | 10                   |
 | `basic`      | 50           | 500,000      | 250,000       | $3.00    | 15                   |
 | `basic_plus` | 50           | 800,000      | 400,000       | $5.00    | 30                   |
 | `pro`        | 100          | 2,000,000    | 1,000,000     | $15.00   | 100                  |
@@ -35,7 +34,7 @@ Notes:
 
 1. Guests skip organization resolution entirely.
 2. `ADMIN` and `SUPER_ADMIN` always resolve to admin limits.
-3. Registration fallback entitlements may equal or exceed guest entitlements, but never fall below them.
+3. Registered accounts without personal or organization-funded access fail with `PAID_ACCESS_REQUIRED`.
 4. The `sources` payload returned by `checkRateLimit` reports which source was actually applied (`personal` or `organization`).
 
 ## Seat Limits and Memberships
@@ -86,7 +85,6 @@ winning effective personal or organization plan supplies the limits.
 | Tier | Files/Day | Bytes/Day |
 | ---- | --------- | --------- |
 | `GUEST` | 0 | 0 |
-| `TRIAL` | 10 | 50 MiB |
 | `basic` | 25 | 250 MiB |
 | `basic_plus` | 50 | 500 MiB |
 | `pro` | 100 | 2 GiB |

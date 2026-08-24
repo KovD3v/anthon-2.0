@@ -46,7 +46,7 @@ describe("voice/config", () => {
   });
 
   it("gives admins unlimited voice and disables guests", () => {
-    expect(getVoicePlanConfig("TRIAL", "ADMIN", "basic")).toMatchObject({
+    expect(getVoicePlanConfig("EXPIRED", "ADMIN", "basic")).toMatchObject({
       enabled: true,
       maxPerWindow: Number.POSITIVE_INFINITY,
       automaticBudgetRatio: 1,

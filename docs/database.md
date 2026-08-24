@@ -352,13 +352,11 @@ is redacted; superadmin content access creates an append-only
 
 ### Subscription
 
-User subscription and trial tracking.
+User subscription tracking.
 
 | Field            | Type               | Description                   |
 | ---------------- | ------------------ | ----------------------------- |
-| `status`         | SubscriptionStatus | TRIAL, ACTIVE, CANCELED, etc. |
-| `trialStartedAt` | DateTime?          | Trial start                   |
-| `trialEndsAt`    | DateTime?          | Trial expiration              |
+| `status`         | SubscriptionStatus | ACTIVE, CANCELED, EXPIRED, PAST_DUE |
 | `planId`         | String?            | Clerk plan ID                 |
 | `planName`       | String?            | Plan display name             |
 

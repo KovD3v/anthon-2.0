@@ -64,13 +64,7 @@ export interface UsageEntitlements {
   sources: EntitlementSource[];
 }
 
-export type UsageTier =
-  | "GUEST"
-  | "TRIAL"
-  | "BASIC"
-  | "BASIC_PLUS"
-  | "PRO"
-  | "ADMIN";
+export type UsageTier = "GUEST" | "BASIC" | "BASIC_PLUS" | "PRO" | "ADMIN";
 
 // -----------------------------------------------------
 // Full Usage and Limits (for layout/sidebar)
@@ -80,13 +74,7 @@ export interface UsageData {
   usage: DailyUsage;
   limits: RateLimits;
   tier: UsageTier;
-  subscriptionStatus:
-    | "TRIAL"
-    | "ACTIVE"
-    | "CANCELED"
-    | "EXPIRED"
-    | "PAST_DUE"
-    | null;
+  subscriptionStatus: "ACTIVE" | "CANCELED" | "EXPIRED" | "PAST_DUE" | null;
   entitlements?: UsageEntitlements;
 }
 

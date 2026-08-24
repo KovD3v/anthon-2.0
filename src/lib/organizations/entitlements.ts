@@ -4,7 +4,6 @@ import {
   type OrganizationEntitlementSource as PlanOrganizationEntitlementSource,
   type PlanResolutionInput,
   type ResolvedEntitlements as PlanResolvedEntitlements,
-  resolvePersonalPlan,
   resolveEffectiveEntitlements as resolvePlanEffectiveEntitlements,
   resolvePoliciesForEntitlements,
 } from "@/lib/plans";
@@ -87,10 +86,12 @@ export async function resolveEffectiveEntitlements(
     isGuest: input.isGuest,
   };
 
-  const personalPlan = resolvePersonalPlan(baseInput);
-
   // Guest and admin users do not need organization-level merging.
-  if (input.isGuest || personalPlan === "ADMIN") {
+  if (
+    input.isGuest ||
+    input.userRole === "ADMIN" ||
+    input.userRole === "SUPER_ADMIN"
+  ) {
     const source = resolvePlanEffectiveEntitlements(baseInput);
     return toEffectiveEntitlements(source);
   }

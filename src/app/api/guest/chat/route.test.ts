@@ -162,7 +162,7 @@ const allowedRateLimit = {
       maxCostPerDay: 10,
       maxContextMessages: 20,
     },
-    modelTier: "TRIAL",
+    modelTier: "GUEST",
     sources: [
       {
         type: "personal" as const,
@@ -175,7 +175,7 @@ const allowedRateLimit = {
           maxCostPerDay: 10,
           maxContextMessages: 20,
         },
-        modelTier: "TRIAL" as const,
+        modelTier: "GUEST" as const,
       },
     ],
   },

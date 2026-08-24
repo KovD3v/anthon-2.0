@@ -13,18 +13,18 @@ describe("organizations/plan-defaults", () => {
     expect(isOrganizationBasePlan("BASIC")).toBe(true);
     expect(isOrganizationBasePlan("BASIC_PLUS")).toBe(true);
     expect(isOrganizationBasePlan("PRO")).toBe(true);
-    expect(isOrganizationBasePlan("trial")).toBe(false);
+    expect(isOrganizationBasePlan("invalid")).toBe(false);
     expect(isOrganizationBasePlan(null)).toBe(false);
 
     expect(normalizeOrganizationBasePlan("PRO")).toBe("PRO");
     expect(normalizeOrganizationBasePlan("unknown")).toBe("BASIC");
   });
 
-  it("normalizes model tiers and falls back to TRIAL", () => {
+  it("normalizes model tiers and falls back to BASIC", () => {
     expect(normalizeModelTier("ENTERPRISE")).toBe("ENTERPRISE");
     expect(normalizeModelTier("ADMIN")).toBe("ADMIN");
-    expect(normalizeModelTier("invalid")).toBe("TRIAL");
-    expect(normalizeModelTier(undefined)).toBe("TRIAL");
+    expect(normalizeModelTier("invalid")).toBe("BASIC");
+    expect(normalizeModelTier(undefined)).toBe("BASIC");
   });
 
   it("returns defaults for a base plan", () => {
@@ -75,7 +75,7 @@ describe("organizations/plan-defaults", () => {
 
     expect(result.basePlan).toBe("BASIC");
     expect(result.effective.planLabel).toBe("Basic");
-    expect(result.effective.modelTier).toBe("TRIAL");
+    expect(result.effective.modelTier).toBe("BASIC");
     expect(result.effective.seatLimit).toBe(10);
     expect(result.effective.limits.maxRequestsPerDay).toBe(50);
   });

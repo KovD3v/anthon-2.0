@@ -11,7 +11,6 @@ import type { RateLimits } from "./types";
 
 const _ATTACHMENT_RETENTION_DAYS: Record<CanonicalPlan, number> = {
   GUEST: PLAN_CATALOG.GUEST.attachmentRetentionDays,
-  TRIAL: PLAN_CATALOG.TRIAL.attachmentRetentionDays,
   BASIC: PLAN_CATALOG.BASIC.attachmentRetentionDays,
   BASIC_PLUS: PLAN_CATALOG.BASIC_PLUS.attachmentRetentionDays,
   PRO: PLAN_CATALOG.PRO.attachmentRetentionDays,

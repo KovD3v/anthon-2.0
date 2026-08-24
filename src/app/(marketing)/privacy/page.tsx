@@ -281,9 +281,8 @@ export default function PrivacyPage() {
           </li>
           <li>
             le sessioni concluse possono essere riassunte e i messaggi grezzi
-            rimossi dopo il periodo del piano: 1 giorno per guest, 7 giorni per
-            trial, 30 giorni per Basic, 60 giorni per Basic Plus e 180 giorni
-            per Pro;
+            rimossi dopo il periodo del piano: 1 giorno per guest, 30 giorni per
+            Basic, 60 giorni per Basic Plus e 180 giorni per Pro;
           </li>
           <li>
             gli allegati seguono lo stesso periodo di conservazione del piano e

@@ -5,6 +5,7 @@
 import { createLogger } from "@/lib/logger";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
+import { PlanResolutionError } from "@/lib/plans";
 import { getEffectivePlanId } from "./config";
 import type { RateLimitResult, RateLimits } from "./types";
 import { getUpgradeInfo } from "./upgrade";
@@ -48,16 +49,56 @@ export async function checkRateLimit(
   planId?: string | null,
   isGuest?: boolean,
 ): Promise<RateLimitResult> {
-  const [usage, entitlements] = await Promise.all([
-    getDailyUsage(userId),
-    resolveEffectiveEntitlements({
+  const usagePromise = getDailyUsage(userId);
+  let entitlements: EffectiveEntitlements;
+  try {
+    entitlements = await resolveEffectiveEntitlements({
       userId,
       subscriptionStatus,
       userRole,
       planId,
       isGuest,
-    }),
-  ]);
+    });
+  } catch (error) {
+    if (
+      !(error instanceof PlanResolutionError) ||
+      error.reason !== "PAID_ACCESS_REQUIRED"
+    ) {
+      throw error;
+    }
+
+    return {
+      allowed: false,
+      usage: await usagePromise,
+      limits: {
+        maxRequestsPerDay: 0,
+        maxInputTokensPerDay: 0,
+        maxOutputTokensPerDay: 0,
+        maxCostPerDay: 0,
+        maxContextMessages: 0,
+      },
+      reason: error.reason,
+      percentUsed: {
+        requests: 100,
+        inputTokens: 100,
+        outputTokens: 100,
+        cost: 100,
+      },
+      upgradeInfo: {
+        currentPlan: "Nessun piano",
+        suggestedPlan: "Basic",
+        upgradeUrl: "/pricing",
+        ctaMessage: "Scegli un piano per continuare a usare Anthon.",
+        headline: "Accesso richiesto",
+        primaryCta: {
+          label: "Vedi i piani",
+          url: "/pricing",
+          intent: "upgrade",
+        },
+      },
+    };
+  }
+  const usage = await usagePromise;
 
   const limits: RateLimits = {
     maxRequestsPerDay: entitlements.limits.maxRequestsPerDay,

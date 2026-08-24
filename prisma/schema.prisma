@@ -65,7 +65,7 @@ model User {
   email   String? @unique
 
   // Guest / anonymous mode
-  // Guest users can chat before registering; they should NOT get the full trial.
+  // Guest users can chat before registering.
   isGuest          Boolean   @default(false)
   guestTokenHash   String?   @unique // hash of the HttpOnly session token
   guestAbuseIdHash String? // keyed HMAC of a trusted abuse-control identifier
@@ -150,7 +150,7 @@ enum OrganizationStatus {
 }
 
 enum OrganizationModelTier {
-  TRIAL
+  GUEST
   BASIC
   BASIC_PLUS
   PRO
@@ -1438,11 +1438,10 @@ model BetaAbuseBucket {
 }
 
 // -----------------------------------------------------
-// SUBSCRIPTION (tracking trial/conversioni)
+// SUBSCRIPTION
 // -----------------------------------------------------
 
 enum SubscriptionStatus {
-  TRIAL
   ACTIVE
   CANCELED
   EXPIRED
@@ -1454,15 +1453,10 @@ model Subscription {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  status              SubscriptionStatus @default(TRIAL)
+  status              SubscriptionStatus @default(EXPIRED)
   clerkSubscriptionId String?            @unique // Clerk Billing subscription ID
 
-  // Trial tracking
-  trialStartedAt DateTime? @default(now()) // When trial started
-  trialEndsAt    DateTime? // When trial expires
-
-  // Conversion tracking
-  convertedAt DateTime? // When converted to paid
+  convertedAt DateTime? // When paid access started
   canceledAt  DateTime? // When subscription was canceled
 
   // Plan information
@@ -1473,9 +1467,7 @@ model Subscription {
   updatedAt DateTime @updatedAt
 
   @@index([status])
-  @@index([trialEndsAt])
   @@index([userId, status])
-  @@index([status, trialEndsAt])
 }
 
 // -----------------------------------------------------

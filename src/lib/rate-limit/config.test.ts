@@ -53,11 +53,9 @@ describe("rate-limit/config", () => {
     ).toThrow(PlanResolutionError);
   });
 
-  it("uses paid plan entitlements when trial has a recognized planId", () => {
-    expect(getEffectivePlanId("TRIAL", "USER", "basic")).toBe("BASIC");
-    expect(getRateLimitsForUser("TRIAL", "USER", "basic")).toEqual(
-      PERSONAL_PLAN_LIMITS.BASIC,
+  it("rejects registered accounts without active paid access", () => {
+    expect(() => getEffectivePlanId("EXPIRED", "USER", "basic")).toThrow(
+      PlanResolutionError,
     );
-    expect(getEffectivePlanId("TRIAL", "USER", "unknown")).toBe("TRIAL");
   });
 });

@@ -8,6 +8,14 @@ Version numbers describe the application's user-facing behavior and its document
 
 ## [Unreleased]
 
+### Changed
+
+- Removed the registered Trial plan. Guest Web is now the only unpaid coaching
+  state; registered accounts require Basic, Basic Plus, Pro, or an
+  organization-funded seat to use chat, channels, voice, and uploads.
+- Migrated existing Trial subscriptions to expired access and removed Trial
+  quotas, automatic activation, billing fields, plan copy, and documentation.
+
 ## [0.8.0] - 2026-08-21
 
 Private-beta access control, release mailing consent, and the latest onboarding,

@@ -1,5 +1,5 @@
 export const ORGANIZATION_MODEL_TIERS = [
-  "TRIAL",
+  "GUEST",
   "BASIC",
   "BASIC_PLUS",
   "PRO",

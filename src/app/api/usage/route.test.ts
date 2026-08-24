@@ -27,6 +27,7 @@ vi.mock("@/lib/billing/personal-subscription", () => ({
   syncPersonalSubscriptionFromClerk: mocks.syncPersonalSubscriptionFromClerk,
 }));
 
+import { PlanResolutionError } from "@/lib/plans";
 import { GET } from "./route";
 
 const request = () => new Request("http://localhost/api/usage");
@@ -156,7 +157,7 @@ describe("GET /api/usage", () => {
     });
   });
 
-  it("returns TRIAL tier and null subscriptionStatus when subscription is missing", async () => {
+  it("requires paid access when subscription is missing", async () => {
     mocks.getFullUser.mockResolvedValue({
       id: "user-1",
       clerkId: "clerk_1",
@@ -165,41 +166,40 @@ describe("GET /api/usage", () => {
       subscription: null,
     });
 
+    mocks.resolveEffectiveEntitlements.mockRejectedValue(
+      new PlanResolutionError("PAID_ACCESS_REQUIRED"),
+    );
     const response = await GET(request());
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      tier: "TRIAL",
-      subscriptionStatus: null,
-    });
+    expect(response.status).toBe(402);
   });
 
-  it("skips Clerk sync when trial subscription was synced recently", async () => {
+  it("skips Clerk sync when expired billing state was synced recently", async () => {
     mocks.getFullUser.mockResolvedValue({
       id: "user-1",
       clerkId: "clerk_1",
       isGuest: false,
       billingSyncedAt: new Date(),
       subscription: {
-        status: "TRIAL",
+        status: "EXPIRED",
         planId: "my-basic-plan",
       },
     });
 
     const response = await GET(request());
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(402);
     expect(mocks.syncPersonalSubscriptionFromClerk).not.toHaveBeenCalled();
   });
 
-  it("syncs when trial subscription is stale", async () => {
+  it("syncs when expired subscription state is stale", async () => {
     mocks.getFullUser.mockResolvedValue({
       id: "user-1",
       clerkId: "clerk_1",
       isGuest: false,
       billingSyncedAt: new Date(Date.now() - 6 * 60 * 1000),
       subscription: {
-        status: "TRIAL",
+        status: "EXPIRED",
         planId: "my-basic-plan",
       },
     });
@@ -215,7 +215,7 @@ describe("GET /api/usage", () => {
       userId: "user-1",
       clerkUserId: "clerk_1",
       current: {
-        status: "TRIAL",
+        status: "EXPIRED",
         planId: "my-basic-plan",
       },
     });
@@ -237,13 +237,12 @@ describe("GET /api/usage", () => {
     });
     mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
 
+    mocks.resolveEffectiveEntitlements.mockRejectedValue(
+      new PlanResolutionError("PAID_ACCESS_REQUIRED"),
+    );
     const response = await GET(request());
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      tier: "TRIAL",
-      subscriptionStatus: null,
-    });
+    expect(response.status).toBe(402);
     expect(mocks.syncPersonalSubscriptionFromClerk).toHaveBeenCalledTimes(1);
   });
 

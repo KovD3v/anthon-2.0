@@ -284,7 +284,7 @@ describe("/api/admin/organizations/[organizationId] route", () => {
     const response = await PATCH(
       patchRequest({
         contract: {
-          basePlan: "TRIAL",
+          basePlan: "INVALID",
         },
       }),
       { params: params() },

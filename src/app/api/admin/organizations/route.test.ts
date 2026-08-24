@@ -279,7 +279,7 @@ describe("/api/admin/organizations route", () => {
       postRequest({
         name: "Org",
         ownerEmail: "owner@example.com",
-        contract: validContract({ basePlan: "TRIAL" }),
+        contract: validContract({ basePlan: "INVALID" }),
       }),
     );
 

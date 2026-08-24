@@ -47,7 +47,7 @@ describe("clerk webhook subscription handlers", () => {
     mocks.subscriptionFindUnique.mockResolvedValue({
       id: "sub-1",
       userId: "user-1",
-      status: "TRIAL",
+      status: "EXPIRED",
     });
   });
 
@@ -63,30 +63,27 @@ describe("clerk webhook subscription handlers", () => {
     expect(mocks.subscriptionUpsert).not.toHaveBeenCalled();
   });
 
-  it("handleSubscriptionCreated maps trial status and sets trial dates", async () => {
+  it("handleSubscriptionCreated rejects Clerk trial access", async () => {
     await handleSubscriptionCreated({
       id: "clerk-sub-1",
       user_id: "clerk-1",
       status: "trialing",
       plan_id: "basic",
       plan_name: "Basic",
-      trial_period_days: 7,
     });
 
     expect(mocks.subscriptionUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: "user-1" },
         update: expect.objectContaining({
-          status: "TRIAL",
+          status: "EXPIRED",
           planId: "basic",
           planName: "Basic",
-          trialStartedAt: expect.any(Date),
-          trialEndsAt: expect.any(Date),
           convertedAt: undefined,
         }),
         create: expect.objectContaining({
           userId: "user-1",
-          status: "TRIAL",
+          status: "EXPIRED",
         }),
       }),
     );
@@ -106,7 +103,6 @@ describe("clerk webhook subscription handlers", () => {
         update: expect.objectContaining({
           status: "ACTIVE",
           convertedAt: expect.any(Date),
-          trialStartedAt: undefined,
         }),
       }),
     );
@@ -121,7 +117,7 @@ describe("clerk webhook subscription handlers", () => {
     });
   });
 
-  it("handleSubscriptionCreated defaults unknown status to TRIAL", async () => {
+  it("handleSubscriptionCreated defaults unknown status to EXPIRED", async () => {
     await handleSubscriptionCreated({
       id: "clerk-sub-1",
       user_id: "clerk-1",
@@ -130,7 +126,7 @@ describe("clerk webhook subscription handlers", () => {
 
     expect(mocks.subscriptionUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        update: expect.objectContaining({ status: "TRIAL" }),
+        update: expect.objectContaining({ status: "EXPIRED" }),
       }),
     );
   });
@@ -147,11 +143,11 @@ describe("clerk webhook subscription handlers", () => {
     expect(mocks.subscriptionUpdate).not.toHaveBeenCalled();
   });
 
-  it("handleSubscriptionUpdated tracks TRIAL -> ACTIVE conversion", async () => {
+  it("handleSubscriptionUpdated tracks paid access activation", async () => {
     mocks.subscriptionFindUnique.mockResolvedValue({
       id: "sub-1",
       userId: "user-1",
-      status: "TRIAL",
+      status: "EXPIRED",
     });
 
     await handleSubscriptionUpdated({

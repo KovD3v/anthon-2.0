@@ -7,7 +7,7 @@ describe("rate-limit/upgrade", () => {
     expect(getUpgradeInfo("ADMIN", "general")).toBeNull();
   });
 
-  it("suggests Basic for guest and trial", () => {
+  it("suggests Basic for guests", () => {
     expect(getUpgradeInfo("GUEST", "general")).toMatchObject({
       currentPlan: "Ospite",
       suggestedPlan: "Basic",
@@ -20,17 +20,6 @@ describe("rate-limit/upgrade", () => {
       secondaryCta: {
         label: "Controlla utilizzo",
         url: "/profile#utilizzo",
-      },
-    });
-
-    expect(getUpgradeInfo("TRIAL", "general")).toMatchObject({
-      currentPlan: "Prova",
-      suggestedPlan: "Basic",
-      upgradeUrl: "/pricing",
-      primaryCta: {
-        label: "Passa a Basic",
-        url: "/pricing",
-        intent: "upgrade",
       },
     });
   });

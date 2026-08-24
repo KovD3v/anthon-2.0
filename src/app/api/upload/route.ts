@@ -18,6 +18,7 @@ import {
   onboardingRequiredResponse,
 } from "@/lib/onboarding/gate";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
+import { PlanResolutionError } from "@/lib/plans";
 import {
   commitUploadReservationInTransaction,
   releaseUploadReservation,
@@ -241,6 +242,15 @@ export async function POST(request: Request) {
       createdAt: attachment.createdAt,
     });
   } catch (err) {
+    if (
+      err instanceof PlanResolutionError &&
+      err.reason === "PAID_ACCESS_REQUIRED"
+    ) {
+      return Response.json(
+        { error: "Paid access required", upgradeUrl: "/pricing" },
+        { status: 402 },
+      );
+    }
     if (uploadedBlobUrl) {
       await del(uploadedBlobUrl).catch((cleanupError) =>
         uploadLogger.error(

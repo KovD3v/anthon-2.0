@@ -34,13 +34,7 @@ interface UsageBannerProps {
   /**
    * User's subscription status
    */
-  subscriptionStatus?:
-    | "TRIAL"
-    | "ACTIVE"
-    | "CANCELED"
-    | "EXPIRED"
-    | "PAST_DUE"
-    | null;
+  subscriptionStatus?: "ACTIVE" | "CANCELED" | "EXPIRED" | "PAST_DUE" | null;
   /**
    * Effective entitlement sources (personal or organization)
    */
@@ -189,7 +183,6 @@ export function UsageBanner({
     }
     if (tier === "ADMIN") return "Admin";
     if (subscriptionStatus === "ACTIVE") return "Pro";
-    if (subscriptionStatus === "TRIAL") return "Prova";
     return "Ospite";
   };
 

@@ -148,7 +148,7 @@ the rating and its reason. Guest chats use the same payload at
 Notes:
 
 - Guests cannot upload files in guest chat endpoint.
-- Guest limits differ from authenticated trial limits.
+- Guest is the only unpaid coaching state.
 - New guest-session creation is abuse-limited by a keyed fingerprint of the
   trusted client address. Missing trusted identity fails closed outside local
   development; exhaustion returns `429`.

@@ -87,7 +87,7 @@ describe("syncPersonalSubscriptionFromClerk", () => {
       userId: "user-1",
       clerkUserId: "clerk_1",
       current: {
-        status: "TRIAL",
+        status: "EXPIRED",
         planId: "my-basic-plan",
       },
     });
@@ -213,7 +213,7 @@ describe("syncPersonalSubscriptionFromClerk", () => {
       userId: "user-1",
       clerkUserId: "clerk_1",
       current: {
-        status: "TRIAL",
+        status: "EXPIRED",
         planId: "my-basic-plan",
       },
     });
@@ -229,7 +229,6 @@ describe("syncPersonalSubscriptionFromClerk", () => {
         clerkSubscriptionId: null,
         planId: null,
         planName: null,
-        trialEndsAt: null,
         canceledAt: expect.any(Date),
       },
     });

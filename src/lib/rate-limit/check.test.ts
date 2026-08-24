@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
+import { PlanResolutionError } from "@/lib/plans";
 
 vi.mock("@/lib/rate-limit/usage", () => ({
   getDailyUsage: vi.fn(),
@@ -98,6 +99,29 @@ describe("checkRateLimit", () => {
       ],
     });
     expect(result.effectiveEntitlements).toEqual(baseEntitlements);
+  });
+
+  it("rejects registered users without paid access", async () => {
+    mockResolveEffectiveEntitlements.mockRejectedValue(
+      new PlanResolutionError("PAID_ACCESS_REQUIRED"),
+    );
+
+    const result = await checkRateLimit(
+      "user-1",
+      "EXPIRED",
+      "USER",
+      null,
+      false,
+    );
+
+    expect(result).toMatchObject({
+      allowed: false,
+      reason: "PAID_ACCESS_REQUIRED",
+      upgradeInfo: {
+        suggestedPlan: "Basic",
+        upgradeUrl: "/pricing",
+      },
+    });
   });
 
   it("loads usage and entitlements in parallel", async () => {

@@ -46,7 +46,7 @@ describe("plans/resolver", () => {
     expect(result.limits.maxRequestsPerDay).toBe(4);
   });
 
-  it("resolves active personal plans and fails closed on invalid active planId", () => {
+  it("resolves active personal plans and fails closed without paid access", () => {
     expect(
       resolvePersonalPlan({
         subscriptionStatus: "ACTIVE",
@@ -55,21 +55,13 @@ describe("plans/resolver", () => {
       }),
     ).toBe("BASIC_PLUS");
 
-    expect(
+    expect(() =>
       resolvePersonalPlan({
-        subscriptionStatus: "TRIAL",
+        subscriptionStatus: "EXPIRED",
         userRole: "USER",
         planId: "my-pro-plan",
       }),
-    ).toBe("PRO");
-
-    expect(
-      resolvePersonalPlan({
-        subscriptionStatus: "TRIAL",
-        userRole: "USER",
-        planId: "unknown-plan",
-      }),
-    ).toBe("TRIAL");
+    ).toThrow(PlanResolutionError);
 
     expect(() =>
       resolvePersonalPlan({
@@ -103,7 +95,7 @@ describe("plans/resolver", () => {
 
   it("keeps enterprise contract limits as-is", () => {
     const result = resolveEffectiveEntitlements({
-      subscriptionStatus: "TRIAL",
+      subscriptionStatus: "EXPIRED",
       userRole: "USER",
       organizationSources: [
         {
@@ -133,7 +125,7 @@ describe("plans/resolver", () => {
 
   it("uses deterministic lexical tie-break for equal vectors", () => {
     const result = resolveEffectiveEntitlements({
-      subscriptionStatus: "TRIAL",
+      subscriptionStatus: "EXPIRED",
       userRole: "USER",
       organizationSources: [
         {

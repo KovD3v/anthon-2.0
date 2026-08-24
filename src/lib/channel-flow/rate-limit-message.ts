@@ -4,7 +4,7 @@ type ExternalRateLimitUpgradeInfo = {
 };
 
 const DEFAULT_RATE_LIMIT_MESSAGE =
-  "Limite giornaliero raggiunto. Registrati per sbloccare la prova gratuita e limiti più alti.\n\nhttps://anthon.ai/sign-up";
+  "Limite giornaliero raggiunto. Registrati e scegli un piano per continuare.\n\nhttps://anthon.ai/sign-up";
 
 export function formatExternalRateLimitMessage(
   upgradeInfo: ExternalRateLimitUpgradeInfo | null | undefined,

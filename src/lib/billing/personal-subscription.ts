@@ -86,7 +86,7 @@ function resolveRecognizedPlan(item: ClerkSubscriptionItem): {
 
 function getLifecyclePriority(item: ClerkSubscriptionItem): number {
   if (item.isFreeTrial) {
-    return 2;
+    return 1;
   }
 
   const normalizedStatus = (item.status ?? "").toLowerCase();
@@ -154,7 +154,7 @@ function mapBillingStatus(
   isFreeTrial: boolean,
 ): SubscriptionStatus {
   if (isFreeTrial) {
-    return "TRIAL";
+    return "EXPIRED";
   }
 
   switch ((billingStatus ?? "").toLowerCase()) {
@@ -199,7 +199,6 @@ async function clearLocalSubscriptionState(userId: string): Promise<void> {
       clerkSubscriptionId: null,
       planId: null,
       planName: null,
-      trialEndsAt: null,
       canceledAt: new Date(),
     },
   });
@@ -235,11 +234,6 @@ export async function syncPersonalSubscriptionFromClerk(params: {
       Boolean(selectedItem.item.isFreeTrial),
     );
     const now = new Date();
-    const trialEndsAt =
-      selectedItem.item.isFreeTrial && selectedItem.item.nextPayment?.date
-        ? new Date(selectedItem.item.nextPayment.date)
-        : null;
-
     await prisma.subscription.upsert({
       where: { userId },
       update: {
@@ -247,17 +241,7 @@ export async function syncPersonalSubscriptionFromClerk(params: {
         clerkSubscriptionId: billingSubscription.id,
         planId,
         planName: selectedItem.item.plan?.name ?? null,
-        trialStartedAt:
-          nextStatus === "TRIAL"
-            ? current?.status === "TRIAL"
-              ? undefined
-              : now
-            : null,
-        trialEndsAt: nextStatus === "TRIAL" ? trialEndsAt : null,
-        convertedAt:
-          nextStatus === "ACTIVE" && current?.status === "TRIAL"
-            ? now
-            : undefined,
+        convertedAt: nextStatus === "ACTIVE" ? now : undefined,
       },
       create: {
         userId,
@@ -265,8 +249,6 @@ export async function syncPersonalSubscriptionFromClerk(params: {
         clerkSubscriptionId: billingSubscription.id,
         planId,
         planName: selectedItem.item.plan?.name ?? null,
-        trialStartedAt: nextStatus === "TRIAL" ? now : null,
-        trialEndsAt: nextStatus === "TRIAL" ? trialEndsAt : null,
         convertedAt: nextStatus === "ACTIVE" ? now : null,
       },
     });

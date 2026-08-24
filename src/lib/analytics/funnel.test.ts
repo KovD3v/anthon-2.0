@@ -97,7 +97,7 @@ describe("analytics/funnel", () => {
       userRole: "USER",
       channel: "WEB",
       planId: null,
-      subscriptionStatus: "TRIAL",
+      subscriptionStatus: "EXPIRED",
     });
 
     expect(mocks.posthogCapture).toHaveBeenCalledWith(

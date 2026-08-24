@@ -79,7 +79,7 @@ export function normalizeModelTier(value: unknown): OrganizationModelTier {
   ) {
     return value as OrganizationModelTier;
   }
-  return "TRIAL";
+  return "BASIC";
 }
 
 export function resolveOrgPlanDefaults(

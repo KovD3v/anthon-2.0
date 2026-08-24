@@ -57,24 +57,24 @@ describe("maintenance/retention-policy", () => {
     ).toEqual({ retentionDays: 60 });
   });
 
-  it("falls back to TRIAL retention", () => {
-    expect(
+  it("requires paid access for registered retention policies", () => {
+    expect(() =>
       getRetentionParams({
         role: "USER",
         isGuest: false,
         subscription: {
-          status: "TRIAL",
+          status: "EXPIRED",
           planId: "anything",
         },
       } as never),
-    ).toEqual({ retentionDays: 7 });
+    ).toThrow();
 
-    expect(
+    expect(() =>
       getRetentionParams({
         role: "USER",
         isGuest: false,
         subscription: null,
       } as never),
-    ).toEqual({ retentionDays: 7 });
+    ).toThrow();
   });
 });

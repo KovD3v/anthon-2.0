@@ -67,14 +67,14 @@ describe("organizations/entitlements", () => {
     expect(result).toEqual({
       limits: PERSONAL_PLAN_LIMITS.GUEST,
       uploadLimits: PLAN_CATALOG.GUEST.uploadLimits,
-      modelTier: "TRIAL",
+      modelTier: "GUEST",
       sources: [
         {
           type: "personal",
           sourceId: "personal-subscription",
           sourceLabel: "Guest",
           limits: PERSONAL_PLAN_LIMITS.GUEST,
-          modelTier: "TRIAL",
+          modelTier: "GUEST",
         },
       ],
     });
@@ -153,7 +153,7 @@ describe("organizations/entitlements", () => {
 
     const result = await resolveEffectiveEntitlements({
       userId: "u4",
-      subscriptionStatus: "TRIAL",
+      subscriptionStatus: "EXPIRED",
       userRole: "USER",
     });
 
@@ -196,7 +196,7 @@ describe("organizations/entitlements", () => {
 
     const result = await resolveEffectiveEntitlements({
       userId: "u5",
-      subscriptionStatus: "TRIAL",
+      subscriptionStatus: "EXPIRED",
       userRole: "USER",
     });
 

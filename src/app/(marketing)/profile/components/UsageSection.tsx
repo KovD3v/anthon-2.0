@@ -9,7 +9,6 @@ import type { UsageData, UsageTier } from "@/types/chat";
 
 const tierLabels: Record<UsageTier, string> = {
   GUEST: "Ospite",
-  TRIAL: "Prova",
   BASIC: "Basic",
   BASIC_PLUS: "Basic Plus",
   PRO: "Pro",

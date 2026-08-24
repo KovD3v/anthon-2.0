@@ -23,7 +23,6 @@ export interface SubscriptionData {
   status: string;
   plan_id?: string;
   plan_name?: string;
-  trial_period_days?: number;
   current_period_start?: number;
   current_period_end?: number;
 }

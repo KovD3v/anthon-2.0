@@ -26,7 +26,7 @@ Key enums:
 
 - `OrganizationStatus`: `ACTIVE`, `SUSPENDED`, `ARCHIVED`
 - `OrganizationBasePlan`: `BASIC`, `BASIC_PLUS`, `PRO`
-- `OrganizationModelTier`: `TRIAL`, `BASIC`, `BASIC_PLUS`, `PRO`, `ENTERPRISE`, `ADMIN`
+- `OrganizationModelTier`: `GUEST`, `BASIC`, `BASIC_PLUS`, `PRO`, `ENTERPRISE`, `ADMIN`
 - `OrganizationMemberRole`: `OWNER`, `MEMBER`
 - `OrganizationMembershipStatus`: `ACTIVE`, `REMOVED`, `BLOCKED`
 

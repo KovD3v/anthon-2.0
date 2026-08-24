@@ -490,14 +490,12 @@ function StatusBadge({ status }: { status: string | null }) {
       <span
         className={`${baseStyles} bg-secondary text-secondary-foreground hover:bg-secondary/80 border-transparent`}
       >
-        Gratuito
+        Nessun piano
       </span>
     );
   }
 
   const colors: Record<string, string> = {
-    TRIAL:
-      "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-transparent",
     ACTIVE:
       "bg-green-500/10 text-green-700 dark:text-green-400 border-transparent",
     CANCELED: "bg-destructive/10 text-destructive border-transparent",
@@ -507,7 +505,6 @@ function StatusBadge({ status }: { status: string | null }) {
   };
 
   const labels: Record<string, string> = {
-    TRIAL: "Prova",
     ACTIVE: "Attivo",
     CANCELED: "Annullato",
     EXPIRED: "Scaduto",

@@ -15,6 +15,7 @@ import {
   onboardingRequiredResponse,
 } from "@/lib/onboarding/gate";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
+import { PlanResolutionError } from "@/lib/plans";
 import { getDailyUsage } from "@/lib/rate-limit";
 import { getEffectivePlanId } from "@/lib/rate-limit/config";
 
@@ -36,7 +37,7 @@ export async function GET(_request: Request) {
       Boolean(fullUser?.clerkId) &&
       !fullUser?.isGuest &&
       isBillingSyncStale(fullUser?.billingSyncedAt) &&
-      (!subscriptionStatus || !planId || subscriptionStatus === "TRIAL");
+      (!subscriptionStatus || !planId || subscriptionStatus !== "ACTIVE");
 
     if (shouldSyncSubscription && fullUser?.clerkId) {
       const syncedSubscription = await syncPersonalSubscriptionFromClerk({
@@ -94,7 +95,16 @@ export async function GET(_request: Request) {
         })),
       },
     });
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof PlanResolutionError &&
+      error.reason === "PAID_ACCESS_REQUIRED"
+    ) {
+      return Response.json(
+        { error: "Paid access required", upgradeUrl: "/pricing" },
+        { status: 402 },
+      );
+    }
     return serverError("Failed to fetch usage");
   }
 }

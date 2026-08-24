@@ -1,4 +1,6 @@
-export type PlanResolutionErrorReason = "ACTIVE_WITH_INVALID_PLAN_ID";
+export type PlanResolutionErrorReason =
+  | "ACTIVE_WITH_INVALID_PLAN_ID"
+  | "PAID_ACCESS_REQUIRED";
 
 export class PlanResolutionError extends Error {
   readonly code = "PLAN_RESOLUTION_ERROR";
