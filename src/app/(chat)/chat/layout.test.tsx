@@ -56,6 +56,7 @@ vi.mock("./layout-client", () => ({
   LayoutClient: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+import { PlanResolutionError } from "@/lib/plans";
 import { getChatSidebarData } from "./layout";
 
 describe("chat layout sidebar data", () => {
@@ -178,6 +179,30 @@ describe("chat layout sidebar data", () => {
       guestConversionPending: false,
       isGuest: false,
     });
+  });
+
+  it("keeps chat history available when paid access is required", async () => {
+    mocks.getSharedChats.mockResolvedValue([]);
+    mocks.getSharedUsageData.mockRejectedValue(
+      new PlanResolutionError("PAID_ACCESS_REQUIRED"),
+    );
+
+    await expect(
+      getChatSidebarData({
+        authUser: {
+          id: "user-1",
+          clerkId: "clerk-user-1",
+          email: "user@example.com",
+          role: "USER",
+          isGuest: false,
+          createdAt: new Date("2026-08-25T08:00:00.000Z"),
+          onboardingCompletedAt: new Date("2026-08-25T08:01:00.000Z"),
+        },
+        guestUser: null,
+        guestConversionPending: false,
+        isGuest: false,
+      }),
+    ).resolves.toMatchObject({ chats: [], usageData: null });
   });
 
   it("loads the newest active routine and its latest attempt for a registered user", async () => {

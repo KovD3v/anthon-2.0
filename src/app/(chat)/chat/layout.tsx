@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db";
 import { getGuestTokenFromCookies, hashGuestToken } from "@/lib/guest-auth";
 import { convertGuestForAuthenticatedUser } from "@/lib/guest-conversion";
 import { requireCompletedOnboardingPage } from "@/lib/onboarding/gate";
+import { PlanResolutionError } from "@/lib/plans";
 import { getSharedUsageData } from "@/lib/usage";
 import type { Chat, UsageData } from "@/types/chat";
 import { SidebarSkeleton } from "../../(chat)/components/Skeletons";
@@ -192,7 +193,15 @@ export async function getChatSidebarData(
     // Authenticated user path
     const sidebarData = await Promise.all([
       getSharedChats(authUser.id),
-      getSharedUsageData(authUser.id, authUser.role),
+      getSharedUsageData(authUser.id, authUser.role).catch((error) => {
+        if (
+          error instanceof PlanResolutionError &&
+          error.reason === "PAID_ACCESS_REQUIRED"
+        ) {
+          return null;
+        }
+        throw error;
+      }),
       isRoutineFeatureEnabled({
         distinctId: authUser.clerkId,
         role: authUser.role,
