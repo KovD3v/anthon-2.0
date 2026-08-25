@@ -132,6 +132,14 @@ describe("ai/providers/openrouter", () => {
     ).toBe("openai/gpt-5.6-luna");
   });
 
+  it("routes an already-resolved guest model tier without requiring paid access", async () => {
+    const { getModelIdForPlan } = await import("./openrouter");
+
+    expect(getModelIdForPlan(null, "USER", "orchestrator", "GUEST")).toBe(
+      "openai/gpt-5.6-luna",
+    );
+  });
+
   it("passes orchestrator fallback models to OpenRouter", async () => {
     const { getModelForUser } = await import("./openrouter");
 

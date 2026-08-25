@@ -6,6 +6,7 @@ import {
 import { wrapLanguageModel } from "ai";
 import type { OrganizationModelTier } from "@/lib/organizations/types";
 import { PLAN_CATALOG, resolvePlanSnapshot } from "@/lib/plans";
+import { MODEL_TIER_TO_CANONICAL_PLAN } from "@/lib/plans/catalog";
 import type { ResolvedPlanPolicies } from "@/lib/plans/types";
 
 // Create the AI SDK 7-compatible OpenRouter provider instance.
@@ -37,7 +38,10 @@ function resolveModelRouting(
   userRole?: string,
   modelTier?: OrganizationModelTier,
 ) {
-  if (!subscriptionStatus && !planId && !userRole && !modelTier) {
+  if (modelTier) {
+    return PLAN_CATALOG[MODEL_TIER_TO_CANONICAL_PLAN[modelTier]].modelRouting;
+  }
+  if (!subscriptionStatus && !planId && !userRole) {
     return PLAN_CATALOG.GUEST.modelRouting;
   }
   return resolvePlanSnapshot({
