@@ -173,7 +173,7 @@ describe("lib/chat", () => {
       updatedAt: new Date("2026-08-25T20:05:00.000Z"),
       routineContextMode: null,
       routineContextRoutine: null,
-      messages: [],
+      messages: [{ id: "message-before-onboarding" }],
     });
     mocks.userFindUnique.mockResolvedValue({
       role: "USER",
@@ -184,16 +184,61 @@ describe("lib/chat", () => {
     mocks.resolveEffectiveEntitlements.mockRejectedValue(
       new PlanResolutionError("PAID_ACCESS_REQUIRED"),
     );
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: "message-before-onboarding",
+        clientMessageId: null,
+        sourceInboundMessage: null,
+        role: "USER",
+        parts: [{ type: "text", text: "Obiettivo salvato" }],
+        createdAt: new Date("2026-08-25T20:04:00.000Z"),
+        feedback: null,
+        metadata: null,
+        attachments: [],
+      },
+    ]);
 
     const result = await getSharedChat("chat-unpaid", "user-unpaid");
 
     expect(result).toMatchObject({
       id: "chat-unpaid",
       isOwner: true,
-      messages: [],
+      messages: [
+        expect.objectContaining({
+          id: "message-before-onboarding",
+          content: "Obiettivo salvato",
+        }),
+      ],
       voicePlanEnabled: false,
     });
     expect(mocks.getVoicePlanConfig).not.toHaveBeenCalled();
+  });
+
+  it("does not hide invalid active plan configuration while loading chat", async () => {
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-invalid-plan",
+      title: null,
+      visibility: "PRIVATE",
+      userId: "user-invalid-plan",
+      createdAt: new Date("2026-08-25T20:00:00.000Z"),
+      updatedAt: new Date("2026-08-25T20:05:00.000Z"),
+      messages: [],
+    });
+    mocks.userFindUnique.mockResolvedValue({
+      role: "USER",
+      isGuest: false,
+      preferences: null,
+      subscription: { status: "ACTIVE", planId: "unknown" },
+    });
+    mocks.resolveEffectiveEntitlements.mockRejectedValue(
+      new PlanResolutionError("ACTIVE_WITH_INVALID_PLAN_ID"),
+    );
+
+    await expect(
+      getSharedChat("chat-invalid-plan", "user-invalid-plan"),
+    ).rejects.toMatchObject({
+      reason: "ACTIVE_WITH_INVALID_PLAN_ID",
+    });
   });
 
   it("keeps the default initial message window small for chat navigation", async () => {
