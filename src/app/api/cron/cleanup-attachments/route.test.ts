@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => {
     userFindMany: vi.fn(),
     attachmentFindMany: vi.fn(),
     attachmentDelete: vi.fn(),
+    getRetentionParams: vi.fn(),
   };
 });
 
@@ -21,6 +22,9 @@ vi.mock("@vercel/blob", () => ({
 vi.mock("@/lib/voice/storage", () => ({
   deletePrivateVoiceBlob: mocks.deletePrivateVoiceBlob,
   isPrivateVoiceBlobUrl: mocks.isPrivateVoiceBlobUrl,
+}));
+vi.mock("@/lib/maintenance/retention-policy", () => ({
+  getRetentionParams: mocks.getRetentionParams,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -81,6 +85,9 @@ describe("/api/cron/cleanup-attachments", () => {
     mocks.userFindMany.mockReset();
     mocks.attachmentFindMany.mockReset();
     mocks.attachmentDelete.mockReset();
+    mocks.getRetentionParams.mockReset().mockResolvedValue({
+      retentionDays: 30,
+    });
     cleanupConfigKeys.forEach((key) => {
       delete process.env[key];
     });
@@ -212,6 +219,28 @@ describe("/api/cron/cleanup-attachments", () => {
         resumeCurrentUser: false,
       },
     });
+  });
+
+  it("continues after a registered user loses paid access", async () => {
+    mocks.userFindMany.mockResolvedValue([
+      {
+        id: "user-unpaid",
+        role: "USER",
+        isGuest: false,
+        subscription: { status: "EXPIRED", planId: null },
+      },
+      createUser("user-paid"),
+    ]);
+    mocks.getRetentionParams
+      .mockResolvedValueOnce({ retentionDays: 7 })
+      .mockResolvedValueOnce({ retentionDays: 30 });
+    mocks.attachmentFindMany.mockReset().mockResolvedValue([]);
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.getRetentionParams).toHaveBeenCalledTimes(2);
+    expect(mocks.attachmentFindMany).toHaveBeenCalledTimes(2);
   });
 
   it("uses cursor pagination and stops at configured attachment budget", async () => {

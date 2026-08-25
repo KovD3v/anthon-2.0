@@ -41,7 +41,7 @@ describe("POST /api/queues/archive", () => {
       id: "user-1",
       subscription: { status: "ACTIVE", planId: "basic" },
     });
-    mocks.getRetentionParams.mockReturnValue({ retentionDays: 30 });
+    mocks.getRetentionParams.mockResolvedValue({ retentionDays: 30 });
     mocks.archiveOldSessions.mockResolvedValue(undefined);
   });
 

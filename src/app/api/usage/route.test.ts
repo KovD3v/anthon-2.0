@@ -62,6 +62,7 @@ describe("GET /api/usage", () => {
       totalCostUsd: 0.45,
     });
     mocks.resolveEffectiveEntitlements.mockResolvedValue({
+      plan: "BASIC",
       limits: {
         maxRequestsPerDay: 10,
         maxInputTokensPerDay: 1000,
@@ -148,6 +149,18 @@ describe("GET /api/usage", () => {
       user: { id: "user-1", role: "ADMIN" },
       error: null,
     });
+    mocks.resolveEffectiveEntitlements.mockResolvedValueOnce({
+      plan: "ADMIN",
+      limits: {
+        maxRequestsPerDay: Number.POSITIVE_INFINITY,
+        maxInputTokensPerDay: Number.POSITIVE_INFINITY,
+        maxOutputTokensPerDay: Number.POSITIVE_INFINITY,
+        maxCostPerDay: Number.POSITIVE_INFINITY,
+        maxContextMessages: 100,
+      },
+      modelTier: "ADMIN",
+      sources: [],
+    });
 
     const response = await GET(request());
 
@@ -174,6 +187,54 @@ describe("GET /api/usage", () => {
     expect(response.status).toBe(402);
   });
 
+  it("returns organization-funded usage without personal access", async () => {
+    mocks.getFullUser.mockResolvedValue({
+      id: "user-1",
+      clerkId: "clerk_1",
+      isGuest: false,
+      billingSyncedAt: new Date(),
+      subscription: {
+        status: "EXPIRED",
+        planId: null,
+      },
+    });
+    mocks.resolveEffectiveEntitlements.mockResolvedValue({
+      plan: "PRO",
+      limits: {
+        maxRequestsPerDay: 100,
+        maxInputTokensPerDay: 2_000_000,
+        maxOutputTokensPerDay: 1_000_000,
+        maxCostPerDay: 15,
+        maxContextMessages: 100,
+      },
+      modelTier: "PRO",
+      sources: [
+        {
+          type: "organization",
+          sourceId: "org-pro",
+          sourceLabel: "Organization Pro",
+          limits: {
+            maxRequestsPerDay: 100,
+            maxInputTokensPerDay: 2_000_000,
+            maxOutputTokensPerDay: 1_000_000,
+            maxCostPerDay: 15,
+            maxContextMessages: 100,
+          },
+          modelTier: "PRO",
+        },
+      ],
+    });
+
+    const response = await GET(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      tier: "PRO",
+      subscriptionStatus: "EXPIRED",
+      entitlements: { modelTier: "PRO" },
+    });
+  });
+
   it("skips Clerk sync when expired billing state was synced recently", async () => {
     mocks.getFullUser.mockResolvedValue({
       id: "user-1",
@@ -185,6 +246,9 @@ describe("GET /api/usage", () => {
         planId: "my-basic-plan",
       },
     });
+    mocks.resolveEffectiveEntitlements.mockRejectedValue(
+      new PlanResolutionError("PAID_ACCESS_REQUIRED"),
+    );
 
     const response = await GET(request());
 

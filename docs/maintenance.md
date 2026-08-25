@@ -61,6 +61,10 @@ turn traces, usage reservations, and model-comparison retention.
   4. Archives sessions fully outside retention window to `ArchivedSession`.
   5. Hard-deletes archived raw messages from `Message`.
 
+La retention usa il migliore entitlement personale o organizzativo. Un account
+registrato senza accesso corrente conserva la finestra operativa di 7 giorni,
+senza ottenere accesso al coaching.
+
 ## Trigger and Security Model
 
 - `GET /api/cron/trigger?job=all|consolidate|archive|analyze`
@@ -76,6 +80,8 @@ Attachment cleanup is a separate cron flow:
 - Route: `GET|POST /api/cron/cleanup-attachments`
 - Security: `Authorization: Bearer $CRON_SECRET`
 - Purpose: deletes expired `Attachment` records and corresponding blob objects based on retention policy.
+- A user without paid access cannot abort the batch; the job applies the
+  seven-day no-access window and continues with the next user.
 
 ## Scheduled Vercel Cron Jobs
 

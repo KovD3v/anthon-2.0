@@ -9,13 +9,17 @@ import {
 } from "@/lib/plans";
 import type { RateLimits } from "./types";
 
-const _ATTACHMENT_RETENTION_DAYS: Record<CanonicalPlan, number> = {
+const ATTACHMENT_RETENTION_DAYS: Record<CanonicalPlan, number> = {
   GUEST: PLAN_CATALOG.GUEST.attachmentRetentionDays,
   BASIC: PLAN_CATALOG.BASIC.attachmentRetentionDays,
   BASIC_PLUS: PLAN_CATALOG.BASIC_PLUS.attachmentRetentionDays,
   PRO: PLAN_CATALOG.PRO.attachmentRetentionDays,
   ADMIN: PLAN_CATALOG.ADMIN.attachmentRetentionDays,
 };
+
+export function getAttachmentRetentionDaysForPlan(plan: CanonicalPlan): number {
+  return ATTACHMENT_RETENTION_DAYS[plan];
+}
 
 function resolveSnapshot(
   subscriptionStatus?: string,
@@ -54,7 +58,7 @@ export function getEffectivePlanId(
   isGuest?: boolean,
 ): CanonicalPlan {
   return resolveSnapshot(subscriptionStatus, userRole, planId, isGuest)
-    .personalPlan;
+    .effective.plan;
 }
 
 /**

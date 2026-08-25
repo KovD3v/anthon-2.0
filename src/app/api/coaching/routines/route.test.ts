@@ -362,7 +362,9 @@ describe("GET /api/coaching/routines", () => {
   });
 
   it("returns only the authenticated owner's card-safe active selector", async () => {
-    const response = await GET();
+    const response = await GET(
+      new Request("http://localhost/api/coaching/routines"),
+    );
 
     expect(response.status).toBe(200);
     expect(mocks.getActiveRoutineForReturn).toHaveBeenCalledWith("user-1");
@@ -385,7 +387,9 @@ describe("GET /api/coaching/routines", () => {
       error: null,
     });
 
-    const response = await GET();
+    const response = await GET(
+      new Request("http://localhost/api/coaching/routines"),
+    );
 
     expect(response.status).toBe(403);
     expect(mocks.getActiveRoutineForReturn).not.toHaveBeenCalled();
@@ -397,7 +401,9 @@ describe("GET /api/coaching/routines", () => {
       error: "Not authenticated",
     });
 
-    const response = await GET();
+    const response = await GET(
+      new Request("http://localhost/api/coaching/routines"),
+    );
 
     expect(response.status).toBe(401);
     expect(mocks.getActiveRoutineForReturn).not.toHaveBeenCalled();

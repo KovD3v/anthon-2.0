@@ -426,4 +426,35 @@ describe("ChatInput file selection", () => {
     );
     expect(input.value).toBe("");
   });
+
+  it("shows the pricing action when an upload requires paid access", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: "Paid access required",
+            upgradeUrl: "/pricing",
+          }),
+          { status: 402, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+    renderChatInput();
+
+    fireEvent.change(screen.getByLabelText("Scegli un file da allegare"), {
+      target: {
+        files: [new File(["notes"], "notes.txt", { type: "text/plain" })],
+      },
+    });
+
+    await waitFor(() =>
+      expect(mocks.toastError).toHaveBeenCalledWith(
+        "Per allegare file serve un piano attivo.",
+        expect.objectContaining({
+          action: expect.objectContaining({ label: "Vedi i piani" }),
+        }),
+      ),
+    );
+  });
 });

@@ -1,38 +1,57 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const mocks = vi.hoisted(() => ({
+  resolveEffectiveEntitlements: vi.fn(),
+}));
+
+vi.mock("@/lib/organizations/entitlements", () => ({
+  resolveEffectiveEntitlements: mocks.resolveEffectiveEntitlements,
+}));
+
+import { PlanResolutionError } from "@/lib/plans";
 import { getRetentionParams } from "./retention-policy";
 
 describe("maintenance/retention-policy", () => {
-  it("returns ADMIN retention for admin roles", () => {
-    expect(
+  beforeEach(() => {
+    mocks.resolveEffectiveEntitlements.mockReset();
+  });
+
+  it("returns ADMIN retention for admin roles", async () => {
+    mocks.resolveEffectiveEntitlements.mockResolvedValue({ plan: "ADMIN" });
+
+    await expect(
       getRetentionParams({
         role: "ADMIN",
         isGuest: false,
         subscription: null,
       } as never),
-    ).toEqual({ retentionDays: 3650 });
+    ).resolves.toEqual({ retentionDays: 3650 });
 
-    expect(
+    await expect(
       getRetentionParams({
         role: "SUPER_ADMIN",
         isGuest: false,
         subscription: null,
       } as never),
-    ).toEqual({ retentionDays: 3650 });
+    ).resolves.toEqual({ retentionDays: 3650 });
   });
 
-  it("returns GUEST retention for guest users", () => {
-    expect(
+  it("returns GUEST retention for guest users", async () => {
+    mocks.resolveEffectiveEntitlements.mockResolvedValue({ plan: "GUEST" });
+
+    await expect(
       getRetentionParams({
         role: "USER",
         isGuest: true,
         subscription: null,
       } as never),
-    ).toEqual({ retentionDays: 1 });
+    ).resolves.toEqual({ retentionDays: 1 });
   });
 
-  it("returns PRO retention for active pro plans", () => {
-    expect(
+  it("returns PRO retention for active pro plans", async () => {
+    mocks.resolveEffectiveEntitlements.mockResolvedValue({ plan: "PRO" });
+
+    await expect(
       getRetentionParams({
         role: "USER",
         isGuest: false,
@@ -41,24 +60,32 @@ describe("maintenance/retention-policy", () => {
           planId: "my-pro-plan",
         },
       } as never),
-    ).toEqual({ retentionDays: 180 });
+    ).resolves.toEqual({ retentionDays: 180 });
   });
 
-  it("returns BASIC_PLUS retention for active basic_plus plans", () => {
-    expect(
+  it("returns organization-funded retention without a personal plan", async () => {
+    mocks.resolveEffectiveEntitlements.mockResolvedValue({
+      plan: "BASIC_PLUS",
+    });
+
+    await expect(
       getRetentionParams({
         role: "USER",
         isGuest: false,
         subscription: {
-          status: "ACTIVE",
-          planId: "basic_plus",
+          status: "EXPIRED",
+          planId: null,
         },
       } as never),
-    ).toEqual({ retentionDays: 60 });
+    ).resolves.toEqual({ retentionDays: 60 });
   });
 
-  it("requires paid access for registered retention policies", () => {
-    expect(() =>
+  it("keeps a bounded retention window without paid access", async () => {
+    mocks.resolveEffectiveEntitlements.mockRejectedValue(
+      new PlanResolutionError("PAID_ACCESS_REQUIRED"),
+    );
+
+    await expect(
       getRetentionParams({
         role: "USER",
         isGuest: false,
@@ -67,14 +94,14 @@ describe("maintenance/retention-policy", () => {
           planId: "anything",
         },
       } as never),
-    ).toThrow();
+    ).resolves.toEqual({ retentionDays: 7 });
 
-    expect(() =>
+    await expect(
       getRetentionParams({
         role: "USER",
         isGuest: false,
         subscription: null,
       } as never),
-    ).toThrow();
+    ).resolves.toEqual({ retentionDays: 7 });
   });
 });

@@ -42,7 +42,10 @@ token e costo.
 
 Gli stati `CANCELED`, `EXPIRED` e `PAST_DUE` non concedono coaching. I dati
 dell'account restano di proprietà dell'account holder secondo le regole di
-conservazione e cancellazione.
+conservazione e cancellazione. Se non esiste un entitlement attivo, messaggi
+grezzi e allegati mantengono una finestra di conservazione di 7 giorni; un
+posto organizzativo attivo applica invece la conservazione del piano
+finanziato.
 
 ## Routing
 

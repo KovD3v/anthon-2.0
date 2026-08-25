@@ -288,6 +288,7 @@ const rateLimitAllowed = {
     cost: 1,
   },
   effectiveEntitlements: {
+    plan: "BASIC",
     limits: {
       maxRequestsPerDay: 10,
       maxInputTokensPerDay: 1000,
@@ -941,6 +942,10 @@ describe("POST /api/chat", () => {
         planId: "my-basic-plan",
       },
     });
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: false,
+      reason: "PAID_ACCESS_REQUIRED",
+    });
 
     const response = await POST(
       buildRequest({
@@ -1012,6 +1017,10 @@ describe("POST /api/chat", () => {
       },
     });
     mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
+    mocks.checkRateLimit.mockResolvedValue({
+      allowed: false,
+      reason: "PAID_ACCESS_REQUIRED",
+    });
 
     const response = await POST(
       buildRequest({

@@ -37,6 +37,7 @@ export interface EffectiveEntitlementSource {
 }
 
 export interface EffectiveEntitlements {
+  plan: Exclude<OrganizationModelTier, "ENTERPRISE">;
   limits: EntitlementLimits;
   uploadLimits: UploadLimits;
   modelTier: OrganizationModelTier;

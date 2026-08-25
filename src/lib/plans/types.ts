@@ -55,7 +55,6 @@ export interface ResolvedPlanPolicies {
 }
 
 export interface ResolvedPlanSnapshot {
-  personalPlan: CanonicalPlan;
   effective: ResolvedEntitlements;
   policies: ResolvedPlanPolicies;
 }

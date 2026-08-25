@@ -10,7 +10,6 @@ describe("plans/snapshot", () => {
       planId: "my-basic_plus-plan",
     });
 
-    expect(snapshot.personalPlan).toBe("BASIC_PLUS");
     expect(snapshot.effective.plan).toBe("BASIC_PLUS");
     expect(snapshot.policies.modelRouting.orchestrator).toBe(
       "openai/gpt-5.6-luna",
@@ -74,6 +73,32 @@ describe("plans/snapshot", () => {
       "deepseek/deepseek-v4-flash-0731",
       "google/gemini-2.5-flash-lite",
     ]);
+    expect(snapshot.policies.voice.maxPerWindow).toBe(50);
+  });
+
+  it("builds policies from an organization when personal access is expired", () => {
+    const snapshot = resolvePlanSnapshot({
+      subscriptionStatus: "EXPIRED",
+      userRole: "USER",
+      organizationSources: [
+        {
+          sourceId: "org-pro",
+          sourceLabel: "organization:Pro Org:PRO",
+          plan: "PRO",
+          modelTier: "PRO",
+          limits: {
+            maxRequestsPerDay: 100,
+            maxInputTokensPerDay: 2_000_000,
+            maxOutputTokensPerDay: 1_000_000,
+            maxCostPerDay: 15,
+            maxContextMessages: 100,
+          },
+        },
+      ],
+    });
+
+    expect(snapshot.effective.plan).toBe("PRO");
+    expect(snapshot.policies.attachmentRetentionDays).toBe(180);
     expect(snapshot.policies.voice.maxPerWindow).toBe(50);
   });
 

@@ -61,6 +61,7 @@ vi.mock("@/lib/voice/generation-jobs", () => ({
   scheduleVoiceGenerationJob: mocks.scheduleVoiceGenerationJob,
 }));
 
+import { PlanResolutionError } from "@/lib/plans";
 import { POST } from "./route";
 
 function buildRequest(body: unknown): Request {
@@ -246,6 +247,28 @@ describe("POST /api/voice/generate", () => {
       blockedAt: "plan",
       reason: "No voice credits left",
     });
+  });
+
+  it("returns 402 when paid access is required", async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      role: "USER",
+      isGuest: false,
+      subscription: { status: "EXPIRED", planId: null },
+      preferences: { voiceEnabled: true },
+    });
+    mocks.getVoicePlanConfig.mockImplementation(() => {
+      throw new PlanResolutionError("PAID_ACCESS_REQUIRED");
+    });
+
+    const response = await POST(buildRequest({ messageId: "msg-1" }));
+
+    expect(response.status).toBe(402);
+    await expect(response.json()).resolves.toEqual({
+      error: "Paid access required",
+      upgradeUrl: "/pricing",
+    });
+    expect(mocks.shouldGenerateVoice).not.toHaveBeenCalled();
   });
 
   it("defers to the durable job instead of generating a duplicate voice asset", async () => {

@@ -76,11 +76,9 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
-export async function GET(request?: Request) {
+export async function GET(request: Request) {
   try {
-    const url = new URL(
-      request?.url ?? "http://localhost/api/coaching/routines",
-    );
+    const url = new URL(request.url);
     const mode = url.searchParams.get("mode");
     if (mode === "collection") {
       const parsedQuery = collectionQuerySchema.safeParse({

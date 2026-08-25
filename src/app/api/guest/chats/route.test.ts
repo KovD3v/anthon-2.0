@@ -99,7 +99,7 @@ describe("/api/guest/chats route", () => {
   });
 
   it("GET returns mapped guest chats", async () => {
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/guest/chats"));
 
     expect(response.status).toBe(200);
     expect(mocks.chatFindMany).toHaveBeenCalledWith({
@@ -146,7 +146,7 @@ describe("/api/guest/chats route", () => {
   it("GET returns 500 on authentication errors", async () => {
     mocks.authenticateGuest.mockRejectedValue(new Error("bad token"));
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/guest/chats"));
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({

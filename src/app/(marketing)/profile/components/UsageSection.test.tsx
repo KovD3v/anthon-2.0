@@ -74,6 +74,33 @@ describe("UsageSection", () => {
     expect(screen.getByRole("alert")).toBeTruthy();
   });
 
+  it("shows the pricing action when paid access is required", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: "Paid access required",
+            upgradeUrl: "/pricing",
+          }),
+          { status: 402, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    render(<UsageSection />);
+
+    expect(
+      await screen.findByText(
+        "Per continuare a usare Anthon, scegli un piano.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Vedi i piani" }).getAttribute("href"),
+    ).toBe("/pricing");
+    expect(screen.queryByText("Riprova tra qualche istante.")).toBeNull();
+  });
+
   it("keeps an empty allowance at zero without an invalid progress value", async () => {
     vi.stubGlobal(
       "fetch",

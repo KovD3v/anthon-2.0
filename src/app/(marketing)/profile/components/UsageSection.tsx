@@ -36,6 +36,7 @@ export function UsageSection() {
   const [data, setData] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [paidAccessRequired, setPaidAccessRequired] = useState(false);
   const [countdown, setCountdown] = useState("—");
 
   useEffect(() => {
@@ -44,12 +45,20 @@ export function UsageSection() {
     async function loadUsage() {
       try {
         const response = await fetch("/api/usage", { cache: "no-store" });
+        if (response.status === 402) {
+          if (active) {
+            setPaidAccessRequired(true);
+            setFailed(false);
+          }
+          return;
+        }
         if (!response.ok) throw new Error("Unable to load usage");
 
         const usageData = (await response.json()) as UsageData;
         if (!active) return;
 
         setData(usageData);
+        setPaidAccessRequired(false);
         setFailed(false);
       } catch {
         if (active) setFailed(true);
@@ -98,6 +107,15 @@ export function UsageSection() {
           <div className="h-5 w-28 animate-pulse rounded bg-muted" />
           <div className="h-2 w-full animate-pulse rounded-full bg-muted" />
           <div className="h-4 w-44 animate-pulse rounded bg-muted" />
+        </div>
+      ) : paidAccessRequired ? (
+        <div className="space-y-4 px-5 pb-7 pt-3 sm:px-8 sm:pb-8">
+          <p className="text-sm text-muted-foreground">
+            Per continuare a usare Anthon, scegli un piano.
+          </p>
+          <Button asChild size="sm">
+            <Link href="/pricing">Vedi i piani</Link>
+          </Button>
         </div>
       ) : failed || !data ? (
         <div className="px-5 pb-7 pt-3 sm:px-8 sm:pb-8" role="alert">

@@ -18,6 +18,15 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Restored attachment cleanup and session archiving for registered accounts
+  without a current plan. Maintenance now keeps their seven-day data-retention
+  window, continues the batch, and applies organization-funded retention when
+  a seat is active.
+- Kept organization-funded accounts usable without a personal subscription
+  across rate limits, usage reporting, model policies, and voice.
+- Replaced generic profile, upload, audio, and voice errors for unpaid accounts
+  with the pricing action and HTTP 402 behavior, and preserved the original
+  conversion timestamp during repeated active billing synchronization.
 - Kept chat history accessible after onboarding or sign-in when a registered
   account has no paid entitlement, instead of failing the Server Component
   render with React error #441. Coaching requests still require paid or
@@ -26,6 +35,8 @@ Version numbers describe the application's user-facing behavior and its document
   OAuth accounts no longer trigger unsupported cache revalidation while the
   onboarding page is rendering; the existing 60-second cache expiry refreshes
   the profile data.
+- Updated the routines and guest-chat GET handlers to the Next.js 16 request
+  signature so production builds type-check correctly.
 
 ## [0.8.0] - 2026-08-21
 

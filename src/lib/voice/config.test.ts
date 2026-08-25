@@ -64,6 +64,9 @@ describe("voice/config", () => {
     expect(
       getVoicePlanConfig("ACTIVE", "USER", "basic_plus", false, "ENTERPRISE"),
     ).toMatchObject({ enabled: true, maxPerWindow: 50 });
+    expect(
+      getVoicePlanConfig("EXPIRED", "USER", null, false, "PRO"),
+    ).toMatchObject({ enabled: true, maxPerWindow: 50 });
   });
 
   it("fails closed for an unknown active plan", () => {

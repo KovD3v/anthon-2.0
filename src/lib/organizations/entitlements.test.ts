@@ -40,6 +40,7 @@ describe("organizations/entitlements", () => {
 
     expect(mocks.findMany).not.toHaveBeenCalled();
     expect(result).toEqual({
+      plan: "ADMIN",
       limits: PERSONAL_PLAN_LIMITS.ADMIN,
       uploadLimits: PLAN_CATALOG.ADMIN.uploadLimits,
       modelTier: "ADMIN",
@@ -65,6 +66,7 @@ describe("organizations/entitlements", () => {
 
     expect(mocks.findMany).not.toHaveBeenCalled();
     expect(result).toEqual({
+      plan: "GUEST",
       limits: PERSONAL_PLAN_LIMITS.GUEST,
       uploadLimits: PLAN_CATALOG.GUEST.uploadLimits,
       modelTier: "GUEST",
@@ -232,6 +234,7 @@ describe("organizations/entitlements", () => {
     });
 
     expect(result).toEqual({
+      plan: "BASIC",
       limits: PERSONAL_PLAN_LIMITS.BASIC,
       uploadLimits: PLAN_CATALOG.BASIC.uploadLimits,
       modelTier: "BASIC",

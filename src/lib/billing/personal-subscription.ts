@@ -241,7 +241,10 @@ export async function syncPersonalSubscriptionFromClerk(params: {
         clerkSubscriptionId: billingSubscription.id,
         planId,
         planName: selectedItem.item.plan?.name ?? null,
-        convertedAt: nextStatus === "ACTIVE" ? now : undefined,
+        convertedAt:
+          nextStatus === "ACTIVE" && current?.status !== "ACTIVE"
+            ? now
+            : undefined,
       },
       create: {
         userId,

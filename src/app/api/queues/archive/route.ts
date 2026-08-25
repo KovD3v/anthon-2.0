@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       return new NextResponse("User not found", { status: 404 });
     }
 
-    const { retentionDays } = getRetentionParams(user);
+    const { retentionDays } = await getRetentionParams(user);
 
     // Run Logic
     await archiveOldSessions(userId, retentionDays);

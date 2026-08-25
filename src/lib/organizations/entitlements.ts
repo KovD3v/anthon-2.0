@@ -41,6 +41,7 @@ function toEffectiveEntitlements(
   }
 
   return {
+    plan: source.plan,
     limits: source.limits,
     uploadLimits: resolvePoliciesForEntitlements(source).uploadLimits,
     modelTier: source.modelTier,

@@ -270,6 +270,7 @@ describe("channel-flow/run", () => {
       rateLimit: {
         allowed: true,
         effectiveEntitlements: {
+          plan: "BASIC",
           modelTier: "BASIC",
           uploadLimits: {
             maxUploadsPerDay: 25,
@@ -890,6 +891,7 @@ describe("channel-flow/run", () => {
       rateLimit: {
         allowed: true,
         effectiveEntitlements: {
+          plan: "BASIC",
           modelTier: "BASIC",
           uploadLimits: {
             maxUploadsPerDay: 25,
@@ -970,6 +972,7 @@ describe("channel-flow/run", () => {
       rateLimit: {
         allowed: true,
         effectiveEntitlements: {
+          plan: "BASIC",
           modelTier: "BASIC",
           uploadLimits: {
             maxUploadsPerDay: 25,
@@ -1053,6 +1056,7 @@ describe("channel-flow/run", () => {
       rateLimit: {
         allowed: true,
         effectiveEntitlements: {
+          plan: "BASIC",
           modelTier: "BASIC",
           uploadLimits: {
             maxUploadsPerDay: 25,
@@ -1128,6 +1132,7 @@ describe("channel-flow/run", () => {
         rateLimit: {
           allowed: true,
           effectiveEntitlements: {
+            plan: "BASIC",
             modelTier: "BASIC",
             uploadLimits: {
               maxUploadsPerDay: 25,
@@ -1198,6 +1203,7 @@ describe("channel-flow/run", () => {
       rateLimit: {
         allowed: true,
         effectiveEntitlements: {
+          plan: "BASIC",
           modelTier: "BASIC",
           uploadLimits: {
             maxUploadsPerDay: 25,
@@ -1640,6 +1646,7 @@ describe("channel-flow/run", () => {
       rateLimit: {
         allowed: true,
         effectiveEntitlements: {
+          plan: "BASIC",
           modelTier: "BASIC",
           uploadLimits: {
             maxUploadsPerDay: 25,
@@ -1756,6 +1763,7 @@ describe("channel-flow/run", () => {
       rateLimit: {
         allowed: true,
         effectiveEntitlements: {
+          plan: "BASIC",
           modelTier: "BASIC",
           uploadLimits: {
             maxUploadsPerDay: 25,
@@ -2554,6 +2562,7 @@ describe("channel-flow/run", () => {
         rateLimit: {
           allowed: true,
           effectiveEntitlements: {
+            plan: "BASIC",
             modelTier: "BASIC",
             uploadLimits: {
               maxUploadsPerDay: 25,
@@ -2878,6 +2887,7 @@ describe("channel-flow/run", () => {
       rateLimit: {
         allowed: true,
         effectiveEntitlements: {
+          plan: "BASIC",
           modelTier: "BASIC",
           uploadLimits: {
             maxUploadsPerDay: 25,
@@ -2966,6 +2976,7 @@ describe("channel-flow/run", () => {
       rateLimit: {
         allowed: true,
         effectiveEntitlements: {
+          plan: "BASIC",
           modelTier: "BASIC",
           uploadLimits: {
             maxUploadsPerDay: 25,
@@ -3072,6 +3083,7 @@ describe("channel-flow/run", () => {
       rateLimit: {
         allowed: true,
         effectiveEntitlements: {
+          plan: "BASIC",
           modelTier: "BASIC",
           uploadLimits: {
             maxUploadsPerDay: 25,
@@ -3163,6 +3175,7 @@ describe("channel-flow/run", () => {
       rateLimit: {
         allowed: true,
         effectiveEntitlements: {
+          plan: "BASIC",
           modelTier: "BASIC",
           uploadLimits: {
             maxUploadsPerDay: 25,
@@ -3240,6 +3253,7 @@ describe("channel-flow/run", () => {
       rateLimit: {
         allowed: true,
         effectiveEntitlements: {
+          plan: "BASIC",
           modelTier: "BASIC",
           uploadLimits: {
             maxUploadsPerDay: 25,
@@ -3299,6 +3313,7 @@ describe("channel-flow/run", () => {
         rateLimit: {
           allowed: true,
           effectiveEntitlements: {
+            plan: "BASIC",
             modelTier: "BASIC",
             uploadLimits: {
               maxUploadsPerDay: 25,
@@ -3402,6 +3417,7 @@ describe("channel-flow/run", () => {
       rateLimit: {
         allowed: true,
         effectiveEntitlements: {
+          plan: "BASIC",
           modelTier: "BASIC",
           uploadLimits: {
             maxUploadsPerDay: 25,

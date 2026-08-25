@@ -118,6 +118,16 @@ export function AudioRecorder({
           });
 
           if (!response.ok) {
+            if (response.status === 402) {
+              setRecordingState("error");
+              toast.error(CHAT_REACTIVITY_COPY.audioPaidAccessRequired, {
+                action: {
+                  label: CHAT_REACTIVITY_COPY.viewPlans,
+                  onClick: () => window.location.assign("/pricing"),
+                },
+              });
+              return;
+            }
             throw new Error("Upload failed");
           }
 

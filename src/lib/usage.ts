@@ -3,7 +3,6 @@ import type { UserRole } from "@/generated/prisma";
 import { getFullUser } from "@/lib/auth";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import { getDailyUsage } from "@/lib/rate-limit";
-import { getEffectivePlanId } from "@/lib/rate-limit/config";
 
 export const getSharedUsageData = cache(
   async (userId: string, userRole: UserRole) => {
@@ -28,12 +27,7 @@ export const getSharedUsageData = cache(
       maxContextMessages: effectiveEntitlements.limits.maxContextMessages,
     };
 
-    const tier = getEffectivePlanId(
-      subscriptionStatus ?? undefined,
-      userRole,
-      planId,
-      fullUser?.isGuest,
-    );
+    const tier = effectiveEntitlements.plan;
 
     return {
       usage: {

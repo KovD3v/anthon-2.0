@@ -20,6 +20,7 @@ const mockResolveEffectiveEntitlements = vi.mocked(
 );
 
 const baseEntitlements: EffectiveEntitlements = {
+  plan: "BASIC",
   limits: {
     maxRequestsPerDay: 10,
     maxInputTokensPerDay: 100,
@@ -122,6 +123,34 @@ describe("checkRateLimit", () => {
         upgradeUrl: "/pricing",
       },
     });
+  });
+
+  it("allows organization-funded access without a personal subscription", async () => {
+    mockResolveEffectiveEntitlements.mockResolvedValue({
+      ...baseEntitlements,
+      plan: "PRO",
+      modelTier: "PRO",
+      sources: [
+        {
+          ...baseEntitlements.sources[0],
+          type: "organization",
+          sourceId: "org-pro",
+          sourceLabel: "Organization Pro",
+          modelTier: "PRO",
+        },
+      ],
+    });
+
+    const result = await checkRateLimit(
+      "user-1",
+      "EXPIRED",
+      "USER",
+      null,
+      false,
+    );
+
+    expect(result.allowed).toBe(true);
+    expect(result.entitlements).toMatchObject({ modelTier: "PRO" });
   });
 
   it("loads usage and entitlements in parallel", async () => {

@@ -126,6 +126,7 @@ import {
 } from "./orchestrator";
 
 const entitlements = {
+  plan: "BASIC" as const,
   limits: {
     maxRequestsPerDay: 100,
     maxInputTokensPerDay: 10_000,

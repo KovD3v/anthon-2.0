@@ -170,6 +170,7 @@ function runtimeInput() {
     userMessage: "Aiutami a pianificare la giornata",
     hasAttachments: false,
     effectiveEntitlements: {
+      plan: "BASIC" as const,
       limits: {
         maxRequestsPerDay: 20,
         maxInputTokensPerDay: 100_000,

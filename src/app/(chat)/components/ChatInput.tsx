@@ -162,6 +162,16 @@ export function ChatInput({
     }
 
     if (!response.ok) {
+      if (response.status === 402) {
+        toast.error(CHAT_REACTIVITY_COPY.uploadPaidAccessRequired, {
+          action: {
+            label: CHAT_REACTIVITY_COPY.viewPlans,
+            onClick: () => window.location.assign("/pricing"),
+          },
+        });
+        resetFileUploadState();
+        return;
+      }
       toast.error(CHAT_REACTIVITY_COPY.uploadFailed);
       resetFileUploadState();
       return;

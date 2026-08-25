@@ -18,7 +18,7 @@ const guestLogger = createLogger("auth");
 // GET - List all chats for guest user
 // -----------------------------------------------------
 
-export async function GET(request?: Request) {
+export async function GET(request: Request) {
   try {
     const { user } = await LatencyLogger.measure(
       "Guest Chats: Authenticate guest",

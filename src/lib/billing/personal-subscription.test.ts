@@ -206,6 +206,25 @@ describe("syncPersonalSubscriptionFromClerk", () => {
     );
   });
 
+  it("preserves the original conversion time during ACTIVE sync", async () => {
+    await syncPersonalSubscriptionFromClerk({
+      userId: "user-1",
+      clerkUserId: "clerk_1",
+      current: {
+        status: "ACTIVE",
+        planId: "my-basic-plan",
+      },
+    });
+
+    expect(mocks.subscriptionUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          convertedAt: undefined,
+        }),
+      }),
+    );
+  });
+
   it("downgrades stale local subscription when Clerk subscription is not found", async () => {
     mocks.getUserBillingSubscription.mockRejectedValue({ status: 404 });
 

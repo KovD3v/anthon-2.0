@@ -13,7 +13,7 @@ import { BlobNotFoundError, del } from "@vercel/blob";
 
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
-import { getAttachmentRetentionDays } from "@/lib/rate-limit/config";
+import { getRetentionParams } from "@/lib/maintenance/retention-policy";
 import {
   deletePrivateVoiceBlob,
   isPrivateVoiceBlobUrl,
@@ -253,12 +253,7 @@ export async function POST(request: Request) {
       }
 
       // Determine retention days for this user
-      const retentionDays = getAttachmentRetentionDays(
-        user.subscription?.status ?? undefined,
-        user.role ?? undefined,
-        user.subscription?.planId ?? null,
-        user.isGuest ?? false,
-      );
+      const { retentionDays } = await getRetentionParams(user);
 
       // Calculate cutoff date
       const cutoffDate = new Date();

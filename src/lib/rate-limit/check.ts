@@ -6,7 +6,6 @@ import { createLogger } from "@/lib/logger";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import type { EffectiveEntitlements } from "@/lib/organizations/types";
 import { PlanResolutionError } from "@/lib/plans";
-import { getEffectivePlanId } from "./config";
 import type { RateLimitResult, RateLimits } from "./types";
 import { getUpgradeInfo } from "./upgrade";
 import { getDailyUsage } from "./usage";
@@ -109,12 +108,7 @@ export async function checkRateLimit(
   };
 
   // Determine effective plan ID for upgrade suggestions
-  const effectivePlanId = getEffectivePlanId(
-    subscriptionStatus,
-    userRole,
-    planId,
-    isGuest,
-  );
+  const effectivePlanId = entitlements.plan;
 
   const percentUsed = {
     requests: (usage.requestCount / limits.maxRequestsPerDay) * 100,

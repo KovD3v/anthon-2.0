@@ -10,6 +10,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
+import { PlanResolutionError } from "@/lib/plans";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 import {
   generateVoice,
@@ -386,6 +387,16 @@ export async function POST(request: Request) {
           );
         }
       } catch (error) {
+        if (
+          error instanceof PlanResolutionError &&
+          error.reason === "PAID_ACCESS_REQUIRED"
+        ) {
+          requestTimer.end();
+          return Response.json(
+            { error: "Paid access required", upgradeUrl: "/pricing" },
+            { status: 402 },
+          );
+        }
         logger.error("voice.request.failed", "Unexpected voice API error", {
           errorName: error instanceof Error ? error.name : "unknown",
         });

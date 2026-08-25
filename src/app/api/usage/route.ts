@@ -17,7 +17,6 @@ import {
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
 import { PlanResolutionError } from "@/lib/plans";
 import { getDailyUsage } from "@/lib/rate-limit";
-import { getEffectivePlanId } from "@/lib/rate-limit/config";
 
 export async function GET(_request: Request) {
   const { user, error } = await getAuthUser();
@@ -64,12 +63,7 @@ export async function GET(_request: Request) {
       isGuest: fullUser?.isGuest,
     });
 
-    const tier = getEffectivePlanId(
-      subscriptionStatus ?? undefined,
-      userRole,
-      planId,
-      fullUser?.isGuest,
-    );
+    const tier = effectiveEntitlements.plan;
 
     return jsonOk({
       usage: {
