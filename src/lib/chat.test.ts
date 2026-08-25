@@ -50,6 +50,7 @@ vi.mock("@/lib/voice", () => ({
 }));
 
 import { getSharedChat, getSharedChats, getSharedChatWithRetry } from "./chat";
+import { PlanResolutionError } from "./plans";
 
 const serverTraceFixture = {
   version: 1,
@@ -159,6 +160,40 @@ describe("lib/chat", () => {
     expect(result).toBeNull();
     expect(mocks.messageFindMany).not.toHaveBeenCalled();
     expect(mocks.resolveEffectiveEntitlements).not.toHaveBeenCalled();
+  });
+
+  it("keeps chat history readable when registered access requires payment", async () => {
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-unpaid",
+      title: "Obiettivo iniziale",
+      icon: null,
+      visibility: "PRIVATE",
+      userId: "user-unpaid",
+      createdAt: new Date("2026-08-25T20:00:00.000Z"),
+      updatedAt: new Date("2026-08-25T20:05:00.000Z"),
+      routineContextMode: null,
+      routineContextRoutine: null,
+      messages: [],
+    });
+    mocks.userFindUnique.mockResolvedValue({
+      role: "USER",
+      isGuest: false,
+      preferences: { voiceEnabled: true, showTechnicalMetrics: false },
+      subscription: null,
+    });
+    mocks.resolveEffectiveEntitlements.mockRejectedValue(
+      new PlanResolutionError("PAID_ACCESS_REQUIRED"),
+    );
+
+    const result = await getSharedChat("chat-unpaid", "user-unpaid");
+
+    expect(result).toMatchObject({
+      id: "chat-unpaid",
+      isOwner: true,
+      messages: [],
+      voicePlanEnabled: false,
+    });
+    expect(mocks.getVoicePlanConfig).not.toHaveBeenCalled();
   });
 
   it("keeps the default initial message window small for chat navigation", async () => {
@@ -974,13 +1009,7 @@ describe("lib/chat", () => {
     const result = await getSharedChat("chat-public", "viewer-1", "msg-9", 50);
 
     expect(mocks.resolveEffectiveEntitlements).not.toHaveBeenCalled();
-    expect(mocks.getVoicePlanConfig).toHaveBeenCalledWith(
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-    );
+    expect(mocks.getVoicePlanConfig).not.toHaveBeenCalled();
     expect(mocks.messageFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         take: 51,
@@ -992,7 +1021,7 @@ describe("lib/chat", () => {
       id: "chat-public",
       isOwner: false,
       voiceEnabled: true,
-      voicePlanEnabled: true,
+      voicePlanEnabled: false,
       pagination: {
         hasMore: false,
         nextCursor: null,

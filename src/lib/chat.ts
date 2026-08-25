@@ -6,6 +6,7 @@ import { toRoutineCardData } from "@/lib/coaching/routine";
 import { prisma } from "@/lib/db";
 import type { ModelComparisonData } from "@/lib/model-experiments/types";
 import { resolveEffectiveEntitlements } from "@/lib/organizations/entitlements";
+import { PlanResolutionError } from "@/lib/plans";
 import {
   buildTechnicalUsage,
   isAdminRole,
@@ -153,28 +154,32 @@ async function getSharedChatUncached(
 
   if (!chat) return null;
 
-  const entitlements = userData?.isGuest
-    ? null
-    : userData
-      ? await resolveEffectiveEntitlements({
-          userId,
-          subscriptionStatus: userData.subscription?.status,
-          userRole: userData.role,
-          planId: userData.subscription?.planId,
-          isGuest: userData.isGuest,
-        })
-      : null;
-
-  // Compute voice plan config
-  const voicePlanConfig = userData?.isGuest
-    ? { enabled: false }
-    : getVoicePlanConfig(
-        userData?.subscription?.status ?? undefined,
-        userData?.role,
-        userData?.subscription?.planId,
-        userData?.isGuest,
+  let voicePlanEnabled = false;
+  if (userData && !userData.isGuest) {
+    try {
+      const entitlements = await resolveEffectiveEntitlements({
+        userId,
+        subscriptionStatus: userData.subscription?.status,
+        userRole: userData.role,
+        planId: userData.subscription?.planId,
+        isGuest: userData.isGuest,
+      });
+      voicePlanEnabled = getVoicePlanConfig(
+        userData.subscription?.status ?? undefined,
+        userData.role,
+        userData.subscription?.planId,
+        userData.isGuest,
         entitlements?.modelTier,
-      );
+      ).enabled;
+    } catch (error) {
+      if (
+        !(error instanceof PlanResolutionError) ||
+        error.reason !== "PAID_ACCESS_REQUIRED"
+      ) {
+        throw error;
+      }
+    }
+  }
 
   const messages =
     !hasPersistedChatMessages(chat) && !cursor
@@ -423,7 +428,7 @@ async function getSharedChatUncached(
     },
     // Include voice preferences for client-side optimization
     voiceEnabled: userData?.preferences?.voiceEnabled ?? true,
-    voicePlanEnabled: voicePlanConfig.enabled,
+    voicePlanEnabled,
   };
 }
 
