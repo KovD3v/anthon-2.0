@@ -494,7 +494,11 @@ export function OnboardingClient({
                       disabled={pending}
                       onChange={(event) => setInput(event.target.value)}
                       onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
+                        if (
+                          event.key === "Enter" &&
+                          !event.shiftKey &&
+                          window.innerWidth >= 768
+                        ) {
                           event.preventDefault();
                           event.currentTarget.form?.requestSubmit();
                         }

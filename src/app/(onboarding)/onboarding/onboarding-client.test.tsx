@@ -1,11 +1,20 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OnboardingClient } from "./onboarding-client";
 
 const mocks = vi.hoisted(() => ({ replace: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks }));
+
+const defaultInnerWidth = window.innerWidth;
+
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: width,
+  });
+}
 
 const initialState = {
   status: "IN_PROGRESS" as const,
@@ -40,6 +49,7 @@ describe("OnboardingClient", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    setViewportWidth(defaultInnerWidth);
   });
 
   it("renders the isolated first step and profile panel", () => {
@@ -93,6 +103,22 @@ describe("OnboardingClient", () => {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
+    );
+  });
+
+  it("keeps Enter available for a new line on mobile", () => {
+    setViewportWidth(390);
+    render(<OnboardingClient initialState={initialState} nextPath="/chat" />);
+    const textarea = screen.getByLabelText("La tua risposta");
+
+    expect(fireEvent.keyDown(textarea, { key: "Enter" })).toBe(true);
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+
+    fireEvent.change(textarea, {
+      target: { value: "Prima riga\nSeconda riga" },
+    });
+    expect((textarea as HTMLTextAreaElement).value).toBe(
+      "Prima riga\nSeconda riga",
     );
   });
 
