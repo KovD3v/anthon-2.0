@@ -5,7 +5,7 @@
 
 import { clerkClient } from "@clerk/nextjs/server";
 import { waitUntil } from "@vercel/functions";
-import { revalidateTag, unstable_cache } from "next/cache";
+import { unstable_cache } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import type { UserRole } from "@/generated/prisma";
 import { resolveAuthenticatedClerkId } from "@/lib/auth-identity";
@@ -199,7 +199,6 @@ async function syncUserFromClerk(
         where: { id: userId },
         data: { email },
       });
-      revalidateTag("user-auth", "max");
       authLogger.info(
         "auth.user_sync.email_completed",
         "Synced email from Clerk",

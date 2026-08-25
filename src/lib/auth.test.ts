@@ -234,8 +234,24 @@ describe("lib/auth", () => {
         select: { name: true },
       });
       expect(mocks.profileUpsert).not.toHaveBeenCalled();
-      expect(mocks.revalidateTag).toHaveBeenCalledWith("user-auth", "max");
     });
+  });
+
+  it("does not revalidate auth cache from a render-scheduled Clerk sync", async () => {
+    mocks.userFindUnique.mockResolvedValue({
+      id: "user-1",
+      clerkId: "clerk-1",
+      email: null,
+      isGuest: false,
+      role: "USER",
+      createdAt: "2026-02-16T10:00:00.000Z",
+    });
+
+    await getAuthUser();
+    const syncPromise = mocks.waitUntil.mock.calls[0]?.[0] as Promise<void>;
+    await syncPromise;
+
+    expect(mocks.revalidateTag).not.toHaveBeenCalled();
   });
 
   it("rethrows Next.js dynamic server usage interruptions", async () => {
