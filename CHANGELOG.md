@@ -16,6 +16,17 @@ Version numbers describe the application's user-facing behavior and its document
 - Migrated existing Trial subscriptions to expired access and removed Trial
   quotas, automatic activation, billing fields, plan copy, and documentation.
 
+### Fixed
+
+- Kept chat history accessible after onboarding or sign-in when a registered
+  account has no paid entitlement, instead of failing the Server Component
+  render with React error #441. Coaching requests still require paid or
+  organization-funded access.
+- Removed auth-cache invalidation from the background Clerk profile sync. New
+  OAuth accounts no longer trigger unsupported cache revalidation while the
+  onboarding page is rendering; the existing 60-second cache expiry refreshes
+  the profile data.
+
 ## [0.8.0] - 2026-08-21
 
 Private-beta access control, release mailing consent, and the latest onboarding,
