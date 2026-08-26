@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   preferencesUpsert: vi.fn(),
 }));
 
-vi.mock("ai", () => ({
+vi.mock("ai", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("ai")>()),
   tool: mocks.tool,
 }));
 
@@ -34,6 +35,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+import { modelMessageSchema } from "ai";
 import {
   createUserContextTools,
   formatTinyUserSnapshotForPrompt,
@@ -138,6 +140,40 @@ describe("ai/tools/user-context", () => {
       lastName: "Doe",
     });
   });
+
+  it.each([
+    ["updateProfile", mocks.profileUpsert, { sport: "Tennis" }],
+    ["updatePreferences", mocks.preferencesUpsert, { language: "IT" }],
+  ] as const)(
+    "%s returns JSON-safe tool output",
+    async (toolName, upsert, input) => {
+      upsert.mockResolvedValue({
+        id: "saved-1",
+        createdAt: new Date("2026-08-26T19:03:38.000Z"),
+        updatedAt: new Date("2026-08-26T19:03:38.000Z"),
+      });
+
+      const tools = createUserContextTools("user-json-safe");
+      const execute = tools[toolName].execute as unknown as (
+        args: typeof input,
+      ) => Promise<unknown>;
+      const result = await execute(input);
+
+      expect(
+        modelMessageSchema.safeParse({
+          role: "tool",
+          content: [
+            {
+              type: "tool-result",
+              toolCallId: "call-1",
+              toolName,
+              output: { type: "json", value: result },
+            },
+          ],
+        }).success,
+      ).toBe(true);
+    },
+  );
 
   it("formatUserContextForPrompt caches output and updatePreferences invalidates it", async () => {
     const userId = "user-ctx-cache";

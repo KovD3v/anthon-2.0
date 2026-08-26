@@ -217,11 +217,10 @@ sport, obiettivi, livello di esperienza o altri dettagli del profilo.`,
       }),
       execute: async (params) => {
         try {
-          const profile = await updateCanonicalProfile(userId, params);
+          await updateCanonicalProfile(userId, params);
 
           return {
             success: true,
-            data: profile,
             message: "Profilo aggiornato con successo.",
           };
         } catch (error) {
@@ -274,11 +273,10 @@ CRITICAL: You MUST provide at least one parameter. Do not call with empty argume
             };
           }
 
-          const preferences = await updateCanonicalPreferences(userId, params);
+          await updateCanonicalPreferences(userId, params);
 
           return {
             success: true,
-            data: preferences,
             message: "Preferenze aggiornate con successo.",
           };
         } catch (error) {
