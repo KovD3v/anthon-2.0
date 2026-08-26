@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
+import { unstable_rethrow } from "next/navigation";
 import { E2E_SESSION_COOKIE_NAME, verifyE2ESessionValue } from "./e2e-runtime";
 
 function readCookieHeader(cookieHeader: string | null) {
@@ -20,7 +21,8 @@ export async function resolveAuthenticatedClerkId(request?: Request) {
   } else {
     try {
       e2eCookie = (await cookies()).get(E2E_SESSION_COOKIE_NAME)?.value;
-    } catch {
+    } catch (error) {
+      unstable_rethrow(error);
       // Unit tests and non-request server contexts may not expose headers.
     }
   }

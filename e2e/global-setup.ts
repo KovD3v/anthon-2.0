@@ -1,6 +1,24 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/index.js";
 
+export const E2E_ACCESS_USERS = {
+  paid: {
+    clerkId: "e2e-playwright-user",
+    chatId: "e2e-paid-chat",
+  },
+  noAccess: {
+    clerkId: "e2e-no-access-user",
+    chatId: "e2e-no-access-chat",
+  },
+  removedSeat: {
+    clerkId: "e2e-removed-seat-user",
+    chatId: "e2e-removed-seat-chat",
+  },
+  onboarding: {
+    clerkId: "e2e-onboarding-user",
+  },
+} as const;
+
 export function assertEphemeralE2EBranch() {
   const ephemeralBranchId = process.env.E2E_EPHEMERAL_BRANCH_ID?.trim();
   if (!ephemeralBranchId?.startsWith("br-")) {
@@ -31,11 +49,13 @@ export async function seedAuthenticatedE2EUser() {
         email: "e2e-playwright-user@example.test",
         isGuest: false,
         guestConvertedAt: null,
+        onboardingCompletedAt: new Date(),
       },
       create: {
         clerkId,
         email: "e2e-playwright-user@example.test",
         isGuest: false,
+        onboardingCompletedAt: new Date(),
       },
       select: { id: true },
     });
@@ -50,6 +70,113 @@ export async function seedAuthenticatedE2EUser() {
       where: { userId: user.id },
       update: { status: "ACTIVE", planId: "BASIC" },
       create: { userId: user.id, status: "ACTIVE", planId: "BASIC" },
+    });
+
+    const noAccessUser = await prisma.user.upsert({
+      where: { clerkId: E2E_ACCESS_USERS.noAccess.clerkId },
+      update: {
+        email: "e2e-no-access-user@example.test",
+        isGuest: false,
+        onboardingCompletedAt: new Date(),
+      },
+      create: {
+        clerkId: E2E_ACCESS_USERS.noAccess.clerkId,
+        email: "e2e-no-access-user@example.test",
+        isGuest: false,
+        onboardingCompletedAt: new Date(),
+      },
+      select: { id: true },
+    });
+    await prisma.subscription.deleteMany({
+      where: { userId: noAccessUser.id },
+    });
+    await seedChat(prisma, {
+      id: E2E_ACCESS_USERS.noAccess.chatId,
+      userId: noAccessUser.id,
+      title: "Cronologia senza piano",
+      userMessage: "Il messaggio resta mio anche senza un piano.",
+      assistantMessage: "La cronologia resta disponibile.",
+    });
+
+    await seedChat(prisma, {
+      id: E2E_ACCESS_USERS.paid.chatId,
+      userId: user.id,
+      title: "Coaching con piano attivo",
+      userMessage: "Questa conversazione ha accesso attivo.",
+      assistantMessage: "Puoi continuare il coaching.",
+    });
+
+    const removedSeatUser = await prisma.user.upsert({
+      where: { clerkId: E2E_ACCESS_USERS.removedSeat.clerkId },
+      update: {
+        email: "e2e-removed-seat-user@example.test",
+        isGuest: false,
+        onboardingCompletedAt: new Date(),
+      },
+      create: {
+        clerkId: E2E_ACCESS_USERS.removedSeat.clerkId,
+        email: "e2e-removed-seat-user@example.test",
+        isGuest: false,
+        onboardingCompletedAt: new Date(),
+      },
+      select: { id: true },
+    });
+    await prisma.subscription.deleteMany({
+      where: { userId: removedSeatUser.id },
+    });
+    const organization = await prisma.organization.upsert({
+      where: { clerkOrganizationId: "e2e-removed-seat-organization" },
+      update: { createdByUserId: user.id, status: "ACTIVE" },
+      create: {
+        clerkOrganizationId: "e2e-removed-seat-organization",
+        name: "Organizzazione E2E",
+        slug: "e2e-removed-seat-organization",
+        status: "ACTIVE",
+        createdByUserId: user.id,
+      },
+      select: { id: true },
+    });
+    await prisma.organizationMembership.upsert({
+      where: { clerkMembershipId: "e2e-removed-seat-membership" },
+      update: {
+        organizationId: organization.id,
+        userId: removedSeatUser.id,
+        status: "REMOVED",
+        leftAt: new Date(),
+      },
+      create: {
+        clerkMembershipId: "e2e-removed-seat-membership",
+        organizationId: organization.id,
+        userId: removedSeatUser.id,
+        status: "REMOVED",
+        leftAt: new Date(),
+      },
+    });
+    await seedChat(prisma, {
+      id: E2E_ACCESS_USERS.removedSeat.chatId,
+      userId: removedSeatUser.id,
+      title: "Cronologia dopo rimozione posto",
+      userMessage: "Questa chat precede la rimozione del posto.",
+      assistantMessage: "I dati restano accessibili al titolare.",
+    });
+
+    const onboardingUser = await prisma.user.upsert({
+      where: { clerkId: E2E_ACCESS_USERS.onboarding.clerkId },
+      update: {
+        email: "e2e-onboarding-user@example.test",
+        isGuest: false,
+        onboardingCompletedAt: null,
+      },
+      create: {
+        clerkId: E2E_ACCESS_USERS.onboarding.clerkId,
+        email: "e2e-onboarding-user@example.test",
+        isGuest: false,
+        onboardingCompletedAt: null,
+      },
+      select: { id: true },
+    });
+    await prisma.onboardingSession.deleteMany({
+      where: { userId: onboardingUser.id },
     });
 
     await prisma.routine.deleteMany({
@@ -70,6 +197,44 @@ export async function seedAuthenticatedE2EUser() {
   } finally {
     await prisma.$disconnect();
   }
+}
+
+async function seedChat(
+  prisma: PrismaClient,
+  input: {
+    id: string;
+    userId: string;
+    title: string;
+    userMessage: string;
+    assistantMessage: string;
+  },
+) {
+  await prisma.chat.upsert({
+    where: { id: input.id },
+    update: { userId: input.userId, title: input.title, deletedAt: null },
+    create: { id: input.id, userId: input.userId, title: input.title },
+  });
+  await prisma.message.deleteMany({ where: { chatId: input.id } });
+  await prisma.message.createMany({
+    data: [
+      {
+        userId: input.userId,
+        chatId: input.id,
+        channel: "WEB",
+        direction: "INBOUND",
+        role: "USER",
+        parts: [{ type: "text", text: input.userMessage }],
+      },
+      {
+        userId: input.userId,
+        chatId: input.id,
+        channel: "WEB",
+        direction: "OUTBOUND",
+        role: "ASSISTANT",
+        parts: [{ type: "text", text: input.assistantMessage }],
+      },
+    ],
+  });
 }
 
 export async function warmGuestChatRoute(fetcher: typeof fetch = fetch) {

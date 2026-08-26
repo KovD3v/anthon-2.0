@@ -3,10 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   cookies: vi.fn(),
+  unstableRethrow: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mocks.auth }));
 vi.mock("next/headers", () => ({ cookies: mocks.cookies }));
+vi.mock("next/navigation", () => ({
+  unstable_rethrow: mocks.unstableRethrow,
+}));
 
 import { resolveAuthenticatedClerkId } from "./auth-identity";
 import { createE2ESessionValue, E2E_SESSION_COOKIE_NAME } from "./e2e-runtime";
@@ -24,6 +28,13 @@ describe("authenticated identity resolver", () => {
     vi.stubEnv("E2E_AUTH_SECRET", enabledEnv.E2E_AUTH_SECRET);
     mocks.auth.mockReset().mockResolvedValue({ userId: "clerk-user" });
     mocks.cookies.mockReset();
+    mocks.unstableRethrow.mockReset().mockImplementation((error: unknown) => {
+      if (
+        (error as Error & { digest?: string }).digest === "DYNAMIC_SERVER_USAGE"
+      ) {
+        throw error;
+      }
+    });
   });
 
   it("prefers a valid signed E2E cookie without calling Clerk", async () => {
@@ -63,6 +74,17 @@ describe("authenticated identity resolver", () => {
     await expect(resolveAuthenticatedClerkId()).resolves.toBe(
       "e2e-server-user",
     );
+    expect(mocks.auth).not.toHaveBeenCalled();
+  });
+
+  it("does not swallow Next.js prerender interruptions", async () => {
+    const dynamicAccess = Object.assign(new Error("dynamic access"), {
+      digest: "DYNAMIC_SERVER_USAGE",
+    });
+    mocks.cookies.mockRejectedValue(dynamicAccess);
+
+    await expect(resolveAuthenticatedClerkId()).rejects.toBe(dynamicAccess);
+    expect(mocks.unstableRethrow).toHaveBeenCalledWith(dynamicAccess);
     expect(mocks.auth).not.toHaveBeenCalled();
   });
 });

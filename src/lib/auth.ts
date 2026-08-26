@@ -10,6 +10,7 @@ import { unstable_rethrow } from "next/navigation";
 import type { UserRole } from "@/generated/prisma";
 import { resolveAuthenticatedClerkId } from "@/lib/auth-identity";
 import { prisma } from "@/lib/db";
+import { isE2ERuntimeEnabled } from "@/lib/e2e-runtime";
 import { createLogger, getLogContext } from "@/lib/logger";
 
 export type { UserRole };
@@ -91,7 +92,20 @@ export async function getAuthUser(): Promise<AuthResult> {
     }
 
     // Try cached lookup first
-    let user = await getCachedUserByClerkId(clerkId);
+    let user = isE2ERuntimeEnabled()
+      ? await prisma.user.findUnique({
+          where: { clerkId },
+          select: {
+            id: true,
+            clerkId: true,
+            email: true,
+            isGuest: true,
+            role: true,
+            createdAt: true,
+            onboardingCompletedAt: true,
+          },
+        })
+      : await getCachedUserByClerkId(clerkId);
 
     if (!user) {
       // User not in cache, check database directly

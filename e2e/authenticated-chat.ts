@@ -4,11 +4,16 @@ import {
   E2E_SESSION_COOKIE_NAME,
 } from "../src/lib/e2e-runtime";
 
+export { E2E_ACCESS_USERS } from "./global-setup";
+
 const appUrl =
   process.env.NEXT_PUBLIC_APP_URL?.trim() || "http://localhost:3100";
 
-export async function authenticateE2EPage(page: Page) {
-  const value = createE2ESessionValue("e2e-playwright-user");
+export async function authenticateE2EPage(
+  page: Page,
+  clerkId = "e2e-playwright-user",
+) {
+  const value = createE2ESessionValue(clerkId);
   const url = new URL(appUrl);
   await page.context().addCookies([
     {

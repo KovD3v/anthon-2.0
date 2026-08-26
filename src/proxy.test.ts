@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   applyGate: vi.fn(),
+  verifyE2ESession: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -15,6 +16,11 @@ vi.mock("@clerk/nextjs/server", () => ({
 
 vi.mock("@/lib/beta-access/proxy-gate", () => ({
   applyBetaAccessGate: mocks.applyGate,
+}));
+
+vi.mock("@/lib/e2e-runtime", () => ({
+  E2E_SESSION_COOKIE_NAME: "__anthon_e2e_session",
+  verifyE2ESessionValue: mocks.verifyE2ESession,
 }));
 
 import proxy from "./proxy";
@@ -29,6 +35,7 @@ describe("application proxy", () => {
     mocks.applyGate.mockReset();
     mocks.auth.mockResolvedValue({ userId: null });
     mocks.applyGate.mockResolvedValue(null);
+    mocks.verifyE2ESession.mockReturnValue(null);
   });
 
   it("returns the beta gate response before Clerk protected-route redirects", async () => {
@@ -71,6 +78,21 @@ describe("application proxy", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.applyGate).toHaveBeenCalledTimes(1);
+    expect(mocks.auth).not.toHaveBeenCalled();
+  });
+
+  it("lets a valid isolated E2E session cross the beta and Clerk gates", async () => {
+    mocks.verifyE2ESession.mockReturnValue("e2e-no-access-user");
+
+    const response = await runProxy(
+      new NextRequest("https://anthon.ai/profile", {
+        headers: { cookie: "__anthon_e2e_session=signed" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.verifyE2ESession).toHaveBeenCalledWith("signed");
+    expect(mocks.applyGate).not.toHaveBeenCalled();
     expect(mocks.auth).not.toHaveBeenCalled();
   });
 });
