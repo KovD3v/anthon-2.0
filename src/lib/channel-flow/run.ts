@@ -794,9 +794,8 @@ export async function runChannelFlow(
       : Promise.resolve(null),
   ]);
 
-  let streamResult: Awaited<ReturnType<typeof streamChat>>;
-  try {
-    streamResult = await streamChat({
+  const startStreamChat = async () => {
+    const result = await streamChat({
       userId: ctx.userId,
       chatId: ctx.chatId,
       conversationThreadId: ctx.conversationThreadId,
@@ -893,17 +892,20 @@ export async function runChannelFlow(
         }
       },
     });
-    if (
-      "turnDecision" in streamResult ||
-      "capabilityDecision" in streamResult
-    ) {
+    if ("turnDecision" in result || "capabilityDecision" in result) {
       applyTurnMetadata({
-        candidateTurnDecision: streamResult.turnDecision,
-        candidateCapabilityDecision: streamResult.capabilityDecision,
-        candidateCapabilityPlannerMode: streamResult.capabilityPlannerMode,
+        candidateTurnDecision: result.turnDecision,
+        candidateCapabilityDecision: result.capabilityDecision,
+        candidateCapabilityPlannerMode: result.capabilityPlannerMode,
       });
-      memoryRecallDecision = streamResult.memoryRecallDecision;
+      memoryRecallDecision = result.memoryRecallDecision;
     }
+    return result;
+  };
+
+  let streamResult: Awaited<ReturnType<typeof streamChat>>;
+  try {
+    streamResult = await startStreamChat();
   } catch (error) {
     detachRequestAbort();
     await releaseUsageReservationOnce();
@@ -928,21 +930,30 @@ export async function runChannelFlow(
       streamResult: {
         textStream: streamResult.textStream,
         toUIMessageStreamResponse: () => {
-          const streamable = streamResult as typeof streamResult & {
+          type StreamableResult = typeof streamResult & {
             toUIMessageStream?: (options: {
               sendFinish?: boolean;
               sendReasoning?: boolean;
             }) => ReadableStream<UIMessageChunk>;
           };
-          if (!streamable.toUIMessageStream) {
-            detachRequestAbort();
-            generationAbortController.abort(
-              new Error("Missing durable UI stream primitive"),
-            );
-            throw new Error(
-              "AI stream does not expose the durable UI stream primitive",
-            );
-          }
+          const requireStreamable = (
+            result: typeof streamResult,
+          ): StreamableResult => {
+            const streamable = result as StreamableResult;
+            if (!streamable.toUIMessageStream) {
+              detachRequestAbort();
+              if (!generationAbortController.signal.aborted) {
+                generationAbortController.abort(
+                  new Error("Missing durable UI stream primitive"),
+                );
+              }
+              throw new Error(
+                "AI stream does not expose the durable UI stream primitive",
+              );
+            }
+            return streamable;
+          };
+          let streamable = requireStreamable(streamResult);
 
           let sourceReader:
             | ReadableStreamDefaultReader<UIMessageChunk>
@@ -951,77 +962,115 @@ export async function runChannelFlow(
           const durableStream = createUIMessageStream<UIMessage>({
             async execute({ writer }) {
               let sourceErrored = false;
+              let retryAttempted = false;
               try {
-                const source = streamable.toUIMessageStream?.({
-                  sendFinish: false,
-                  // Keep chain-of-thought private while forwarding a transient
-                  // phase marker so the web client can explain the wait.
-                  sendReasoning: true,
-                });
-                if (!source) throw new Error("Missing UI stream");
-                const reader = source.getReader();
-                sourceReader = reader;
-                let reasoningActive = false;
-                const writeAssistantPhase = (
-                  phase: "preparing" | "reasoning",
-                ) => {
-                  const write = writer.write as (part: unknown) => void;
-                  write({
-                    type: "data-aiPhase",
-                    data: { phase },
-                    transient: true,
+                while (true) {
+                  const source = streamable.toUIMessageStream?.({
+                    sendFinish: false,
+                    // Keep chain-of-thought private while forwarding a transient
+                    // phase marker so the web client can explain the wait.
+                    sendReasoning: true,
                   });
-                };
-                try {
-                  while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    if (value.type === "reasoning-start") {
-                      if (!reasoningActive) {
-                        reasoningActive = true;
-                        writeAssistantPhase("reasoning");
+                  if (!source) throw new Error("Missing UI stream");
+                  const reader = source.getReader();
+                  sourceReader = reader;
+                  let reasoningActive = false;
+                  let retrySafe = true;
+                  let shouldRetry = false;
+                  const writeAssistantPhase = (
+                    phase: "preparing" | "reasoning",
+                  ) => {
+                    writer.write({
+                      type: "data-aiPhase",
+                      data: { phase },
+                      transient: true,
+                    } as UIMessageChunk);
+                  };
+                  try {
+                    while (true) {
+                      const { done, value } = await reader.read();
+                      if (done) break;
+                      if (value.type === "reasoning-start") {
+                        if (!reasoningActive) {
+                          reasoningActive = true;
+                          writeAssistantPhase("reasoning");
+                        }
+                        continue;
                       }
-                      continue;
-                    }
-                    if (
-                      value.type === "reasoning-delta" ||
-                      value.type === "reasoning-file"
-                    ) {
-                      continue;
-                    }
-                    if (value.type === "reasoning-end") {
-                      if (reasoningActive) {
+                      if (
+                        value.type === "reasoning-delta" ||
+                        value.type === "reasoning-file"
+                      ) {
+                        continue;
+                      }
+                      if (value.type === "reasoning-end") {
+                        if (reasoningActive) {
+                          reasoningActive = false;
+                          writeAssistantPhase("preparing");
+                        }
+                        continue;
+                      }
+                      if (
+                        reasoningActive &&
+                        (value.type === "text-start" ||
+                          value.type === "text-delta")
+                      ) {
                         reasoningActive = false;
                         writeAssistantPhase("preparing");
                       }
-                      continue;
-                    }
-                    if (
-                      reasoningActive &&
-                      (value.type === "text-start" ||
-                        value.type === "text-delta")
-                    ) {
-                      reasoningActive = false;
-                      writeAssistantPhase("preparing");
-                    }
-                    if (value.type === "error" || value.type === "abort") {
-                      sourceErrored = true;
-                      if (value.type === "abort") {
-                        ctx.execution?.traceCollector?.markCancelled();
+                      if (
+                        value.type === "error" &&
+                        retrySafe &&
+                        !retryAttempted &&
+                        !generationAbortController.signal.aborted
+                      ) {
+                        shouldRetry = true;
+                        break;
                       }
-                      if (!generationAbortController.signal.aborted) {
-                        generationAbortController.abort(value.type);
+                      if (value.type === "error" || value.type === "abort") {
+                        sourceErrored = true;
+                        if (value.type === "abort") {
+                          ctx.execution?.traceCollector?.markCancelled();
+                        }
+                        if (!generationAbortController.signal.aborted) {
+                          generationAbortController.abort(value.type);
+                        }
+                        await releaseUsageReservationOnce();
                       }
-                      await releaseUsageReservationOnce();
+                      if (
+                        value.type === "text-start" ||
+                        value.type === "text-delta" ||
+                        value.type.startsWith("tool-") ||
+                        value.type.startsWith("data-") ||
+                        value.type === "file" ||
+                        value.type === "source-url" ||
+                        value.type === "source-document"
+                      ) {
+                        retrySafe = false;
+                      }
+                      const safeChunk = redactToolStreamChunk(value);
+                      if (safeChunk) {
+                        writer.write(safeChunk as UIMessageChunk);
+                      }
                     }
-                    const safeChunk = redactToolStreamChunk(value);
-                    if (safeChunk) {
-                      writer.write(safeChunk as UIMessageChunk);
+                  } finally {
+                    if (shouldRetry) {
+                      await reader
+                        .cancel("retrying provider stream")
+                        .catch(() => undefined);
                     }
+                    sourceReader = undefined;
+                    reader.releaseLock();
                   }
-                } finally {
-                  sourceReader = undefined;
-                  reader.releaseLock();
+
+                  if (!shouldRetry) break;
+                  retryAttempted = true;
+                  runLogger.warn(
+                    "ai.stream.retry_before_content",
+                    "Retrying AI stream after failure before content",
+                    { userId: ctx.userId, chatId: ctx.chatId },
+                  );
+                  streamable = requireStreamable(await startStreamChat());
                 }
 
                 if (sourceErrored || !finalMetrics) {

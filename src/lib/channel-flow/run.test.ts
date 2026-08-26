@@ -3463,4 +3463,106 @@ describe("channel-flow/run", () => {
     });
     expect(mocks.releaseAiUsageReservation).not.toHaveBeenCalled();
   });
+
+  it("retries once when the provider stream fails before producing content", async () => {
+    mocks.reserveAiUsage.mockResolvedValue({
+      allowed: true,
+      reservationId: "reservation-1",
+      claimToken: "claim-1",
+    });
+    mocks.streamChat
+      .mockResolvedValueOnce({
+        textStream: (async function* () {})(),
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue({ type: "start", messageId: "failed" });
+              controller.enqueue({
+                type: "error",
+                errorText: "provider stream failed",
+              });
+              controller.close();
+            },
+          }),
+      })
+      .mockImplementationOnce(async ({ onFinish }) => ({
+        textStream: (async function* () {
+          yield "recovered answer";
+        })(),
+        toUIMessageStream: () =>
+          new ReadableStream({
+            async start(controller) {
+              controller.enqueue({ type: "start", messageId: "recovered" });
+              controller.enqueue({ type: "start-step" });
+              controller.enqueue({ type: "text-start", id: "text-1" });
+              controller.enqueue({
+                type: "text-delta",
+                id: "text-1",
+                delta: "recovered answer",
+              });
+              controller.enqueue({ type: "text-end", id: "text-1" });
+              await onFinish?.({
+                text: "recovered answer",
+                metrics: {
+                  model: "test-model",
+                  inputTokens: 3,
+                  outputTokens: 2,
+                  reasoningTokens: null,
+                  reasoningContent: null,
+                  toolCalls: null,
+                  ragUsed: false,
+                  ragChunksCount: 0,
+                  costUsd: 0.01,
+                  generationTimeMs: 100,
+                  reasoningTimeMs: null,
+                },
+              });
+              controller.close();
+            },
+          }),
+      }));
+
+    const result = await runChannelFlow({
+      channel: "WEB",
+      userId: "user-1",
+      chatId: "chat-1",
+      userMessageId: "inbound-1",
+      userMessageText: "hello",
+      parts: [{ type: "text", text: "hello" }],
+      rateLimit: {
+        allowed: true,
+        effectiveEntitlements: {
+          plan: "BASIC",
+          modelTier: "BASIC",
+          uploadLimits: {
+            maxUploadsPerDay: 25,
+            maxUploadBytesPerDay: 250 * 1024 * 1024,
+          },
+          limits: {
+            maxRequestsPerDay: 10,
+            maxInputTokensPerDay: 1_000,
+            maxOutputTokensPerDay: 1_000,
+            maxCostPerDay: 1,
+            maxContextMessages: 20,
+          },
+          sources: [],
+        },
+      },
+      options: {
+        allowAttachments: true,
+        allowMemoryExtraction: true,
+        allowVoiceOutput: true,
+      },
+      execution: { mode: "stream" },
+      persistence: { channel: "WEB", saveAssistantMessage: false },
+    });
+
+    const body = await result.streamResult?.toUIMessageStreamResponse().text();
+
+    expect(mocks.streamChat).toHaveBeenCalledTimes(2);
+    expect(body).toContain("recovered answer");
+    expect(body).not.toContain('"type":"error"');
+    expect(body).toContain('"type":"finish"');
+    expect(mocks.releaseAiUsageReservation).not.toHaveBeenCalled();
+  });
 });
