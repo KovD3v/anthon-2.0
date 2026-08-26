@@ -1137,6 +1137,22 @@ describe("ChatConversationClient pagination and recovery", () => {
     await waitFor(() => expect(mocks.captureException).not.toHaveBeenCalled());
 
     mocks.chatState.error = new Error(
+      JSON.stringify({
+        error: "Il servizio AI non ha risposto. Riprova tra poco.",
+        code: "AI_GENERATION_FAILED",
+        retryable: true,
+      }),
+    );
+    rerender(
+      <ChatConversationClient
+        chatId="chat-1"
+        initialChatData={initialChatData}
+      />,
+    );
+
+    await waitFor(() => expect(mocks.captureException).not.toHaveBeenCalled());
+
+    mocks.chatState.error = new Error(
       JSON.stringify({ error: "Rate limit exceeded" }),
     );
     rerender(

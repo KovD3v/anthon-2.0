@@ -177,7 +177,14 @@ export function createToolStreamRedactor() {
           : { type: record.type };
       }
       case "error":
-        return { type: record.type, errorText: "An error occurred." };
+        return {
+          type: record.type,
+          errorText: JSON.stringify({
+            error: "Il servizio AI non ha risposto. Riprova tra poco.",
+            code: "AI_GENERATION_FAILED",
+            retryable: true,
+          }),
+        };
       case "abort":
         return { type: record.type };
       case "tool-input-start": {

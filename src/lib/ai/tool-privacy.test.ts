@@ -101,6 +101,24 @@ describe("ai/tool-privacy", () => {
     ).toBeNull();
   });
 
+  it("turns provider failures into a safe retryable chat error", () => {
+    const redactToolStreamChunk = createToolStreamRedactor();
+
+    expect(
+      redactToolStreamChunk({
+        type: "error",
+        errorText: "Provider request failed with secret details",
+      }),
+    ).toEqual({
+      type: "error",
+      errorText: JSON.stringify({
+        error: "Il servizio AI non ha risposto. Riprova tra poco.",
+        code: "AI_GENERATION_FAILED",
+        retryable: true,
+      }),
+    });
+  });
+
   it("keeps text protocol content with synthetic IDs and no provider metadata", () => {
     const redactToolStreamChunk = createToolStreamRedactor();
 

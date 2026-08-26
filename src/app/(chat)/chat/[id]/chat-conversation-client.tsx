@@ -122,6 +122,7 @@ function isExpectedChatRejection(error: Error, isGuest: boolean) {
 
     return (
       getPaywallCardContent(payload, isGuest) !== null ||
+      payload?.code === "AI_GENERATION_FAILED" ||
       (payload?.retryable === true &&
         payload?.error === "Generation already in progress")
     );

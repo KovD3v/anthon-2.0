@@ -2392,7 +2392,7 @@ export async function streamChat({
     },
     onError: ({ error }: { error: unknown }) => {
       modelAttemptTrace.fail();
-      aiLogger.warn("ai.stream.execution_failed", "AI stream failed", {
+      aiLogger.error("ai.stream.execution_failed", "AI stream failed", {
         error,
         userId,
         chatId,
