@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   markMemoryApprovalPresented: vi.fn(),
   captureAiTurnTrace: vi.fn(),
   revalidateTag: vi.fn(),
+  loggerInfo: vi.fn(),
   loggerWarn: vi.fn(),
   loggerError: vi.fn(),
 }));
@@ -39,6 +40,7 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/lib/logger", () => ({
   createLogger: () => ({
+    info: mocks.loggerInfo,
     warn: mocks.loggerWarn,
     error: mocks.loggerError,
   }),
@@ -136,6 +138,7 @@ describe("channel-flow/persistence", () => {
     mocks.markMemoryApprovalPresented.mockReset();
     mocks.captureAiTurnTrace.mockReset();
     mocks.revalidateTag.mockReset();
+    mocks.loggerInfo.mockReset();
     mocks.loggerWarn.mockReset();
     mocks.loggerError.mockReset();
 
@@ -274,6 +277,17 @@ describe("channel-flow/persistence", () => {
     expect(waitUntil).toHaveBeenCalledTimes(2);
     await Promise.all(scheduled);
     expect(mocks.revalidateTag).toHaveBeenCalledTimes(2);
+    expect(mocks.loggerInfo).toHaveBeenCalledWith(
+      "memory.consolidation_completed",
+      "Post-turn memory consolidation completed",
+      {
+        userId: "user-1",
+        considered: 0,
+        persisted: 0,
+        approvalsCreated: 0,
+        rejected: 0,
+      },
+    );
   });
 
   it("does not block assistant persistence on chat freshness and tag work", async () => {

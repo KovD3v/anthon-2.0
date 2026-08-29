@@ -39,6 +39,9 @@ function candidate(overrides: Record<string, unknown> = {}) {
     explicitSetting: false,
     durability: "DURABLE",
     evidence: "mi alleno ogni martedì sera",
+    subject: "ACCOUNT_HOLDER",
+    subjectName: null,
+    subjectRelationship: null,
     ...overrides,
   };
 }
@@ -149,6 +152,68 @@ describe("ai/memory-consolidator", () => {
       tone: "diretto",
     });
     expect(mocks.rememberFact).not.toHaveBeenCalled();
+  });
+
+  it("stores facts about referenced people in the account memory without changing its profile", async () => {
+    mocks.extractMemoryCandidates.mockResolvedValue([
+      candidate({
+        key: "user_sport",
+        value: "Basket",
+        category: "sport",
+        evidence: "Matteo gioca a basket",
+        subject: "REFERENCED_PERSON",
+        subjectName: "Matteo",
+        subjectRelationship: "figlio",
+      }),
+      candidate({
+        key: "user_sport",
+        value: "Calcio",
+        category: "sport",
+        evidence: "Nicola gioca a calcio",
+        subject: "REFERENCED_PERSON",
+        subjectName: "Nicola",
+        subjectRelationship: "figlio",
+      }),
+    ]);
+
+    await expect(
+      consolidateTurnMemory({
+        ...input,
+        userText:
+          "Ho due figli: Matteo gioca a basket e Nicola gioca a calcio.",
+      }),
+    ).resolves.toEqual({
+      considered: 2,
+      persisted: 2,
+      approvalsCreated: 0,
+      rejected: 0,
+    });
+    expect(mocks.updateCanonicalProfile).not.toHaveBeenCalled();
+    expect(mocks.updateCanonicalPreferences).not.toHaveBeenCalled();
+    expect(mocks.rememberFact).toHaveBeenNthCalledWith(1, {
+      userId: "user-1",
+      key: "person_matteo_user_sport",
+      value: "Matteo (figlio): Basket",
+      category: "sport",
+      confidence: 0.94,
+      sensitivity: "LOW",
+      origin: "EXPLICIT",
+      sourceMessageId: "inbound-1",
+      sourceThreadId: "thread-1",
+      dedupeKey: "memory:inbound-1:person_matteo_user_sport",
+    });
+    expect(mocks.rememberFact).toHaveBeenNthCalledWith(2, {
+      userId: "user-1",
+      key: "person_nicola_user_sport",
+      value: "Nicola (figlio): Calcio",
+      category: "sport",
+      confidence: 0.94,
+      sensitivity: "LOW",
+      origin: "EXPLICIT",
+      sourceMessageId: "inbound-1",
+      sourceThreadId: "thread-1",
+      dedupeKey: "memory:inbound-1:person_nicola_user_sport",
+    });
   });
 
   it("rejects inferred settings, transient details, low confidence, and unsupported evidence", async () => {

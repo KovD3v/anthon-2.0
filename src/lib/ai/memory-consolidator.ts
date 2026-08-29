@@ -55,6 +55,33 @@ function isEligibleCandidate(candidate: MemoryCandidate, userText: string) {
   );
 }
 
+function attributeReferencedPerson(
+  candidate: MemoryCandidate,
+  canonical: NonNullable<ReturnType<typeof canonicalizeKnowledgeCandidate>>,
+) {
+  if (candidate.subject === "ACCOUNT_HOLDER") return canonical;
+
+  const subject = candidate.subjectName ?? candidate.subjectRelationship;
+  if (!subject) return null;
+  const subjectKey = subject
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  if (!subjectKey) return null;
+
+  const descriptor = candidate.subjectName
+    ? `${candidate.subjectName}${candidate.subjectRelationship ? ` (${candidate.subjectRelationship})` : ""}`
+    : candidate.subjectRelationship;
+  return {
+    destination: "memory" as const,
+    key: `person_${subjectKey}_${canonical.key}`.slice(0, 80),
+    value: `${descriptor}: ${canonical.value}`,
+    category: canonical.category,
+  };
+}
+
 export async function consolidateTurnMemory(input: {
   userId: string;
   inboundMessageId: string;
@@ -100,7 +127,10 @@ export async function consolidateTurnMemory(input: {
       report.rejected += 1;
       continue;
     }
-    const canonical = canonicalizeKnowledgeCandidate(candidate);
+    const baseCanonical = canonicalizeKnowledgeCandidate(candidate);
+    const canonical = baseCanonical
+      ? attributeReferencedPerson(candidate, baseCanonical)
+      : null;
     if (
       !canonical ||
       (canonical.destination === "preferences" && !candidate.explicitSetting)

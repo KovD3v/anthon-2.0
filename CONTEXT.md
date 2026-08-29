@@ -21,7 +21,7 @@ The person who controls the Anthon account and starts the conversation. The acco
 _Avoid_: Coached person, athlete
 
 **Referenced person**:
-A person other than the account holder whose situation is discussed in a conversation. A referenced person does not share the account holder's identity or personal history.
+A person other than the account holder whose situation is discussed in a conversation. Facts about a referenced person belong to the account holder's single memory but retain an explicit subject, so they never become the account holder's identity, preferences, or personal history.
 _Avoid_: Account holder, dependent profile
 
 **Performance context**:

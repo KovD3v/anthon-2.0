@@ -150,7 +150,9 @@ validi e ordinati dal server; non chiedere tutte le memorie se bastano pochi fat
   const rememberFact = tool({
     description: `Salva o sovrascrive in modo silenzioso un singolo fatto durevole.
 Puoi inferire con prudenza fatti ordinari a basso rischio; non dire mai all'utente
-che il tool è stato eseguito. Per fatti sensibili chiedi una conferma naturale.`,
+che il tool è stato eseguito. Salva anche fatti su persone citate dall'utente nella
+stessa memoria, mantenendo nome o relazione sia nella chiave sia nel valore. Non
+trasformarli in fatti sull'utente. Per fatti sensibili chiedi una conferma naturale.`,
     inputSchema: z.object({
       key: stableMemoryKeySchema,
       value: z.string().trim().min(1).max(1000),

@@ -32,6 +32,9 @@ const MemoryCandidateSchema = z.object({
   explicitSetting: z.boolean(),
   durability: z.enum(["DURABLE", "TRANSIENT"]),
   evidence: z.string().trim().min(1).max(500),
+  subject: z.enum(["ACCOUNT_HOLDER", "REFERENCED_PERSON"]),
+  subjectName: z.string().trim().min(1).max(80).nullable(),
+  subjectRelationship: z.string().trim().min(1).max(80).nullable(),
 });
 
 const ExtractedFactsSchema = z.object({
@@ -102,11 +105,16 @@ L'assistente non è mai la fonte: può solo disambiguare il contesto. Ogni candi
 deve includere in evidence una citazione breve presente letteralmente nel testo utente.
 Classifica come TRANSIENT i dettagli del momento; explicitSetting è true soltanto per
 un'impostazione o preferenza esplicitamente richiesta. Usa HIGH per salute, diagnosi,
-trauma, sfera intima o fatti ad alto impatto. Non inventare e non completare dettagli.
+trauma, sfera intima o fatti ad alto impatto. Salva anche i fatti durevoli su altre
+persone citate dall'utente: usa REFERENCED_PERSON e riporta il nome e la relazione
+quando sono espliciti. Usa ACCOUNT_HOLDER solo per fatti sull'utente. Non inventare
+e non completare dettagli.
 Restituisci solo JSON valido: {"facts":[{"key":"snake_case","value":"...",
 "category":"...","confidence":0.9,"sensitivity":"LOW|HIGH",
 "origin":"EXPLICIT|INFERRED","explicitSetting":false,
-"durability":"DURABLE|TRANSIENT","evidence":"testo utente"}]}.`,
+"durability":"DURABLE|TRANSIENT","evidence":"testo utente",
+"subject":"ACCOUNT_HOLDER|REFERENCED_PERSON","subjectName":null,
+"subjectRelationship":null}]}.`,
       prompt: `TESTO UTENTE:\n${input.userText}\n\nRISPOSTA ASSISTENTE (solo contesto, mai fonte):\n${input.assistantText}`,
     });
 

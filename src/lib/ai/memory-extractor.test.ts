@@ -57,6 +57,9 @@ describe("ai/memory-extractor", () => {
             explicitSetting: false,
             durability: "DURABLE",
             evidence: "mi alleno ogni martedì sera",
+            subject: "ACCOUNT_HOLDER",
+            subjectName: null,
+            subjectRelationship: null,
           },
         ],
       }),
@@ -75,6 +78,7 @@ describe("ai/memory-extractor", () => {
         key: "training_schedule",
         value: "Martedì sera",
         evidence: "mi alleno ogni martedì sera",
+        subject: "ACCOUNT_HOLDER",
       }),
     ]);
     expect(mocks.generateText).toHaveBeenCalledWith(
@@ -82,7 +86,7 @@ describe("ai/memory-extractor", () => {
         temperature: 0,
         maxOutputTokens: 700,
         instructions: expect.stringContaining(
-          "L'assistente non è mai la fonte",
+          "Salva anche i fatti durevoli su altre",
         ),
       }),
     );
@@ -108,6 +112,9 @@ describe("ai/memory-extractor", () => {
             explicitSetting: false,
             durability: "DURABLE",
             evidence: "preferisci la terra rossa",
+            subject: "ACCOUNT_HOLDER",
+            subjectName: null,
+            subjectRelationship: null,
           },
         ],
       }),

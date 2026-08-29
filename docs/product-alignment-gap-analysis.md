@@ -35,7 +35,7 @@ The safest sequence is to remove direct launch-policy conflicts first, then add 
 | ADR | Status | Current evidence | Required result |
 | --- | --- | --- | --- |
 | 0001 General mental performance | **Conflict** | `src/lib/ai/orchestrator.ts` defines Anthon as a sports-performance coach; marketing is also sport-specific. | Generalize the runtime identity and examples while keeping athlete-first acquisition copy. |
-| 0002 Referenced people | **Missing** | Profile and memory writes have no coached-subject distinction. | Detect referenced-person discussions and prevent their facts from entering account memory or profile. |
+| 0002 Referenced people | **Superseded** | ADR-0028 replaces the exclusion rule. | No implementation should target ADR-0002. |
 | 0003 Multiple performance contexts | **Missing** | `Profile`, `Memory`, `Chat`, and experimental `Routine` records are user-scoped without a performance-context relation. | Add one identity with context-owned goals, pressures, attempts, and evidence; an experimental routine may reference a context without becoming a core dependency. |
 | 0004 Organization privacy | **Partial** | Organization routes manage contracts and memberships, not coaching content. | Preserve that boundary, remove any member-facing Clerk surface that implies organization access, and constrain future reporting to aggregate data. |
 | 0005 Context inference and knowledge partition | **Missing** | No context inference or context-aware persistence contract exists. | Infer one dominant context, ask only when ambiguity changes the coaching move, and require confirmation for person-wide promotion. |
@@ -61,6 +61,7 @@ The safest sequence is to remove direct launch-policy conflicts first, then add 
 | 0025 Admin separation and launch gates | **Partial** | `ADMIN` and `SUPER_ADMIN` roles exist, and trace content is already super-admin-only. | Add approval separation for quality review and a release checklist that cannot pass with an unsigned legal, privacy, identity, billing, deletion, or reliability gate. |
 | 0026 Quota completion and retention | **Partial** | Usage reservation happens before generation, but old raw sessions are converted into hidden long-term `ArchivedSession` summaries. | Finish accepted turns, expose exact reset time, and delete hidden summaries or convert them into visible contextual knowledge when raw history expires. |
 | 0027 Bounded routine experiment | **Conflict** | Routine access is cohort-gated and fails closed, but landing-page copy presents routines as a public product promise and routine events are tracked as a product funnel. | Remove public routine claims and primary-metric treatment; keep optional context ownership inside the experiment and promote only from completed-loop evidence. |
+| 0028 Referenced-person memory | **Aligned** | Post-turn extraction identifies the subject; consolidation keeps referenced-person facts in `Memory` with attributed keys and values instead of changing `Profile` or `Preferences`. | Preserve one account-owned memory and explicit subject attribution. |
 
 ## Priority order
 
@@ -78,7 +79,7 @@ The safest sequence is to remove direct launch-policy conflicts first, then add 
 ### P1 — required product foundation
 
 1. Performance contexts and context-owned knowledge.
-2. Referenced-person memory exclusion.
+2. Referenced-person attribution in the account holder's single memory.
 3. Memory expiry, revision restore, save visibility, and derived deletion.
 4. Follow-up commitments and notification delivery.
 5. Per-channel voice modes and channel-history deletion.

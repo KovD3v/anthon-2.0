@@ -554,13 +554,21 @@ export async function persistAssistantOutput({
     ...(conversationThreadId ? { conversationThreadId } : {}),
     userText: userMessageText,
     assistantText: text,
-  }).catch((error) => {
-    persistenceLogger.error(
-      "memory.consolidation_failed",
-      "Post-turn memory consolidation failed",
-      { errorName: error instanceof Error ? error.name : "unknown", userId },
-    );
-  });
+  })
+    .then((report) => {
+      persistenceLogger.info(
+        "memory.consolidation_completed",
+        "Post-turn memory consolidation completed",
+        { userId, ...report },
+      );
+    })
+    .catch((error) => {
+      persistenceLogger.error(
+        "memory.consolidation_failed",
+        "Post-turn memory consolidation failed",
+        { errorName: error instanceof Error ? error.name : "unknown", userId },
+      );
+    });
 
   scheduleBackground(waitUntil, memoryTask);
 
