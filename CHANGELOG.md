@@ -10,6 +10,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Replaced the unmaintained `cnfast` class-merging dependency with shadcn's
+  maintained `cn` engine without changing component call sites.
 - Removed the registered Trial plan. Guest Web is now the only unpaid coaching
   state; registered accounts require Basic, Basic Plus, Pro, or an
   organization-funded seat to use chat, channels, voice, and uploads.
