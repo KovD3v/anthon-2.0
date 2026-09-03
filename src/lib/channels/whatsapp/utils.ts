@@ -164,6 +164,49 @@ export async function sendWhatsAppMessage(
   return true;
 }
 
+export async function sendWhatsAppTypingIndicator(
+  messageId: string,
+): Promise<void> {
+  if (process.env.WHATSAPP_DISABLE_SEND === "true") return;
+
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!token || !phoneId) return;
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${phoneId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          status: "read",
+          message_id: messageId,
+          typing_indicator: { type: "text" },
+        }),
+        signal: AbortSignal.timeout(5_000),
+      },
+    );
+    if (!res.ok) {
+      whatsappLogger.warn(
+        "send.typing_indicator_failed",
+        "Typing indicator failed",
+        { status: res.status },
+      );
+    }
+  } catch (error) {
+    whatsappLogger.warn(
+      "send.typing_indicator_failed",
+      "Typing indicator failed",
+      { error },
+    );
+  }
+}
+
 export async function sendWhatsAppVoice(
   to: string,
   audioBuffer: Buffer,

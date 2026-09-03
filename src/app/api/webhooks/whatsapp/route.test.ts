@@ -2254,6 +2254,7 @@ describe("/api/webhooks/whatsapp", () => {
 
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(new Response("{}"))
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ id: "media_voice_1" })),
       )
@@ -2346,9 +2347,9 @@ describe("/api/webhooks/whatsapp", () => {
         memoryEnabled: true,
       }),
     );
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
+      3,
       "https://graph.facebook.com/v21.0/phone_1/messages",
       expect.objectContaining({
         method: "POST",
@@ -2392,7 +2393,7 @@ describe("/api/webhooks/whatsapp", () => {
     process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
     process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
 
-    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("{}"));
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
     vi.stubGlobal("fetch", fetchMock);
 
     mocks.prismaMessageFindFirst.mockResolvedValue(null);
@@ -2454,7 +2455,19 @@ describe("/api/webhooks/whatsapp", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://graph.facebook.com/v21.0/phone_1/messages",
+      expect.objectContaining({
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          status: "read",
+          message_id: "wamid_1",
+          typing_indicator: { type: "text" },
+        }),
+      }),
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       "https://graph.facebook.com/v21.0/phone_1/messages",
       expect.objectContaining({
@@ -2476,7 +2489,7 @@ describe("/api/webhooks/whatsapp", () => {
     process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
     process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
 
-    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("{}"));
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
     vi.stubGlobal("fetch", fetchMock);
 
     mocks.prismaMessageFindFirst.mockResolvedValue(null);
@@ -2540,7 +2553,7 @@ describe("/api/webhooks/whatsapp", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenCalledWith(
       "https://graph.facebook.com/v21.0/phone_1/messages",
       expect.objectContaining({

@@ -24,6 +24,7 @@ import {
   getPublicAppUrl,
   isConnectCommand,
   sendWhatsAppMessage,
+  sendWhatsAppTypingIndicator,
   sendWhatsAppVoice,
   verifySignature,
 } from "@/lib/channels/whatsapp/utils";
@@ -663,6 +664,7 @@ async function handleMessage(
       role: user.role,
       isGuest: user.isGuest,
     });
+    await sendWhatsAppTypingIndicator(messageId);
     try {
       const flowResult = await runChannelFlow({
         channel: "WHATSAPP",
