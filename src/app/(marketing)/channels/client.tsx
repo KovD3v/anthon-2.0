@@ -371,21 +371,41 @@ export function ChannelsPageClient({
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-muted-foreground">
-                        {channelType === "TELEGRAM" && (
-                          <>
-                            Usa{" "}
+                    <div className="space-y-3 py-4 text-center">
+                      {channelType === "TELEGRAM" && (
+                        <p className="text-sm text-muted-foreground">
+                          Usa{" "}
+                          <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                            /connect
+                          </code>{" "}
+                          nel bot Telegram
+                        </p>
+                      )}
+                      {channelType === "WHATSAPP" && (
+                        <>
+                          <p className="text-sm text-muted-foreground">
+                            Invia{" "}
                             <code className="rounded bg-muted px-1 py-0.5 text-xs">
-                              /connect
+                              collega
                             </code>{" "}
-                            nel bot Telegram
-                          </>
-                        )}
-                        {channelType === "WHATSAPP" && "Presto disponibile"}
-                        {channelType === "WEB" &&
-                          "Collegamento automatico al login"}
-                      </p>
+                            al numero <span>+39 351 389 4441</span>
+                          </p>
+                          <Button asChild size="sm">
+                            <a
+                              href="https://wa.me/393513894441?text=collega"
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Collega WhatsApp
+                            </a>
+                          </Button>
+                        </>
+                      )}
+                      {channelType === "WEB" && (
+                        <p className="text-sm text-muted-foreground">
+                          Collegamento automatico al login
+                        </p>
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -482,8 +502,8 @@ export function ChannelsPageClient({
               <div>
                 <p className="font-medium">WhatsApp</p>
                 <p className="text-sm text-muted-foreground">
-                  Il supporto WhatsApp sarà disponibile a breve. Resta
-                  sintonizzato per gli aggiornamenti.
+                  Scrivi “collega” al numero +39 351 389 4441. Riceverai un link
+                  per collegare il tuo account.
                 </p>
               </div>
             </div>
