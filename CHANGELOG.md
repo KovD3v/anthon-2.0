@@ -8,6 +8,10 @@ Version numbers describe the application's user-facing behavior and its document
 
 ## [Unreleased]
 
+### Added
+
+- Added WhatsApp's native typing indicator while Anthon prepares an AI reply.
+
 ### Changed
 
 - Replaced the unmaintained `cnfast` class-merging dependency with shadcn's
@@ -20,6 +24,8 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Fixed
 
+- Corrected the registration link sent by Telegram and WhatsApp when a guest
+  reaches the daily limit.
 - Restored attachment cleanup and session archiving for registered accounts
   without a current plan. Maintenance now keeps their seven-day data-retention
   window, continues the batch, and applies organization-funded retention when
