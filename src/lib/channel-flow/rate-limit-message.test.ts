@@ -10,7 +10,7 @@ describe("channel-flow/rate-limit-message", () => {
         ctaMessage: "Hai raggiunto il limite guest.",
       }),
     ).toBe(
-      "Hai raggiunto il limite guest.\n\nRegistrati qui: https://anthon.ai/sign-up",
+      "Hai raggiunto il limite guest.\n\nRegistrati qui: https://www.tryanthon.com/sign-up",
     );
   });
 
@@ -27,7 +27,7 @@ describe("channel-flow/rate-limit-message", () => {
 
   it("uses the default guest sign-up message without upgrade info", () => {
     expect(formatExternalRateLimitMessage(null)).toBe(
-      "Limite giornaliero raggiunto. Registrati e scegli un piano per continuare.\n\nhttps://anthon.ai/sign-up",
+      "Limite giornaliero raggiunto. Registrati e scegli un piano per continuare.\n\nhttps://www.tryanthon.com/sign-up",
     );
   });
 });

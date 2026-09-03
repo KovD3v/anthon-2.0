@@ -4,7 +4,7 @@ type ExternalRateLimitUpgradeInfo = {
 };
 
 const DEFAULT_RATE_LIMIT_MESSAGE =
-  "Limite giornaliero raggiunto. Registrati e scegli un piano per continuare.\n\nhttps://anthon.ai/sign-up";
+  "Limite giornaliero raggiunto. Registrati e scegli un piano per continuare.\n\nhttps://www.tryanthon.com/sign-up";
 
 export function formatExternalRateLimitMessage(
   upgradeInfo: ExternalRateLimitUpgradeInfo | null | undefined,
@@ -19,7 +19,7 @@ export function formatExternalRateLimitMessage(
 
   const isGuest = upgradeInfo.currentPlan === "Ospite";
   const link = isGuest
-    ? "Registrati qui: https://anthon.ai/sign-up"
+    ? "Registrati qui: https://www.tryanthon.com/sign-up"
     : "Vedi i piani: https://anthon.ai/pricing";
 
   return `${upgradeInfo.ctaMessage}\n\n${link}`;
