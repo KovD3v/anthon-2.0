@@ -409,20 +409,21 @@ async function handleMessage(
 
   if (preparedInbound.status === "duplicate") return;
 
-  if (preparedInbound.createdGuest) {
-    await handleConnectCommand({
-      externalMessageId: messageId,
-      from,
-      guestNotice: true,
-    });
-  }
-
   const { user, conversationThread, inbound, claimToken } = preparedInbound;
-  const completeInbound = () =>
-    markExternalChannelInboundCompleted({
+  const completeInbound = async () => {
+    const completed = await markExternalChannelInboundCompleted({
       inboundId: inbound.id,
       claimToken,
     });
+    if (completed && preparedInbound.createdGuest) {
+      await handleConnectCommand({
+        externalMessageId: messageId,
+        from,
+        guestNotice: true,
+      });
+    }
+    return completed;
+  };
   const failInbound = (error: unknown) =>
     markExternalChannelInboundFailed({
       inboundId: inbound.id,
@@ -673,6 +674,20 @@ async function handleMessage(
           : "L'utente ha inviato questo file.",
         files,
       });
+
+    const storedInbound = await prisma.message.updateMany({
+      where: {
+        id: inbound.id,
+        userId: user.id,
+        externalInboundStatus: "PROCESSING",
+        externalInboundClaimToken: claimToken,
+      },
+      data: { parts: messageParts as Prisma.InputJsonValue },
+    });
+    if (storedInbound.count !== 1) {
+      await failInbound("inbound_content_persistence_failed");
+      return;
+    }
 
     // Generate Response
     let assistantText = "";

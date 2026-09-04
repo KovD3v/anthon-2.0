@@ -773,6 +773,7 @@ describe("/api/webhooks/whatsapp", () => {
     });
     mocks.prismaMessageUpdateMany.mockImplementation(async ({ data }) => {
       if (!state) return { count: 0 };
+      if (data.parts) return { count: 1 };
       if (data.externalInboundAttempts) {
         if (state.externalInboundStatus !== "FAILED") return { count: 0 };
         Object.assign(state, {
@@ -911,6 +912,13 @@ describe("/api/webhooks/whatsapp", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.prismaMessageUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          externalInboundStatus: "COMPLETED",
+        }),
+      }),
+    );
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.text.body).toMatch(
@@ -1544,6 +1552,15 @@ describe("/api/webhooks/whatsapp", () => {
       }),
     );
     expect(mocks.prismaMessageCreate).toHaveBeenCalledTimes(2);
+    expect(mocks.prismaMessageUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: "wa_in_1",
+        userId: "user_1",
+        externalInboundStatus: "PROCESSING",
+        externalInboundClaimToken: expect.any(String),
+      },
+      data: { parts: [{ type: "text", text: "ciao wa ai" }] },
+    });
     expect(mocks.prismaMessageCreate).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({

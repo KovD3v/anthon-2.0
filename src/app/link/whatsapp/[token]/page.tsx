@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { connection } from "next/server";
+import { after, connection } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { backfillLinkedWhatsAppMemories } from "@/lib/channels/whatsapp/memory-backfill";
 import { prisma } from "@/lib/db";
 import { migrateGuestToUser } from "@/lib/guest-migration";
 import { createLogger } from "@/lib/logger";
@@ -218,6 +219,7 @@ export default async function WhatsAppLinkTokenPage({
       },
       include: { user: true },
     });
+    let migratedGuest = false;
 
     if (existingIdentity?.userId && existingIdentity.userId !== dbUser.id) {
       if (existingIdentity.user?.isGuest) {
@@ -226,6 +228,7 @@ export default async function WhatsAppLinkTokenPage({
           dbUser.id,
         );
         if (!res.success) return { status: "conflict" as const };
+        migratedGuest = true;
       } else {
         return { status: "conflict" as const };
       }
@@ -241,15 +244,45 @@ export default async function WhatsAppLinkTokenPage({
       });
     }
 
+    const linkedAt = new Date();
     await tx.channelLinkToken.update({
       where: { id: linkToken.id },
-      data: { consumedAt: new Date(), consumedByUserId: dbUser.id },
+      data: { consumedAt: linkedAt, consumedByUserId: dbUser.id },
     });
 
-    return { status: "ok" as const, phone: linkToken.externalId };
+    return {
+      status: "ok" as const,
+      phone: linkToken.externalId,
+      migratedGuest,
+      linkedAt,
+    };
   });
 
   if (outcome.status === "ok" && outcome.phone) {
+    if (outcome.migratedGuest) {
+      const userId = dbUser.id;
+      const externalThreadId = outcome.phone;
+      after(async () => {
+        try {
+          const report = await backfillLinkedWhatsAppMemories({
+            userId,
+            externalThreadId,
+            before: outcome.linkedAt,
+          });
+          whatsappLinkLogger.info(
+            "webhook.whatsapp_link.memory_backfill_completed",
+            "WhatsApp guest memory backfill completed",
+            { userId, ...report },
+          );
+        } catch (error) {
+          whatsappLinkLogger.error(
+            "webhook.whatsapp_link.memory_backfill_failed",
+            "WhatsApp guest memory backfill failed",
+            { userId, error },
+          );
+        }
+      });
+    }
     await sendWhatsAppMessage(
       outcome.phone,
       "✅ Account collegato con successo! Ora puoi chattare direttamente da qui.",

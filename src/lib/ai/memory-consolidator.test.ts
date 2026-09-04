@@ -292,4 +292,46 @@ describe("ai/memory-consolidator", () => {
       rejected: 0,
     });
   });
+
+  it("limits candidates for bounded history backfills", async () => {
+    mocks.extractMemoryCandidates.mockResolvedValue([
+      candidate(),
+      candidate({ key: "second_fact" }),
+    ]);
+
+    await expect(
+      consolidateTurnMemory({ ...input, maxCandidates: 1 }),
+    ).resolves.toEqual({
+      considered: 1,
+      persisted: 1,
+      approvalsCreated: 0,
+      rejected: 0,
+    });
+    expect(mocks.rememberFact).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not overwrite profile fields during a history backfill", async () => {
+    mocks.extractMemoryCandidates.mockResolvedValue([
+      candidate({
+        key: "user_sport",
+        value: "Tennis",
+        category: "sport",
+        evidence: "gioco a tennis",
+      }),
+    ]);
+
+    await expect(
+      consolidateTurnMemory({
+        ...input,
+        userText: "Da molti anni gioco a tennis.",
+        memoryOnly: true,
+      }),
+    ).resolves.toEqual({
+      considered: 1,
+      persisted: 0,
+      approvalsCreated: 0,
+      rejected: 1,
+    });
+    expect(mocks.updateCanonicalProfile).not.toHaveBeenCalled();
+  });
 });

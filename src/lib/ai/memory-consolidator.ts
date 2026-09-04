@@ -88,6 +88,8 @@ export async function consolidateTurnMemory(input: {
   conversationThreadId?: string;
   userText: string;
   assistantText: string;
+  maxCandidates?: number;
+  memoryOnly?: boolean;
 }): Promise<MemoryConsolidationReport> {
   const emptyReport: MemoryConsolidationReport = {
     considered: 0,
@@ -110,11 +112,15 @@ export async function consolidateTurnMemory(input: {
   });
   if (!sourceMessage) return emptyReport;
 
-  const candidates = await extractMemoryCandidates({
+  const extractedCandidates = await extractMemoryCandidates({
     userId: input.userId,
     userText: input.userText,
     assistantText: input.assistantText,
   });
+  const candidates =
+    input.maxCandidates === undefined
+      ? extractedCandidates
+      : extractedCandidates.slice(0, input.maxCandidates);
   const report: MemoryConsolidationReport = {
     considered: candidates.length,
     persisted: 0,
@@ -133,6 +139,7 @@ export async function consolidateTurnMemory(input: {
       : null;
     if (
       !canonical ||
+      (input.memoryOnly && canonical.destination !== "memory") ||
       (canonical.destination === "preferences" && !candidate.explicitSetting)
     ) {
       report.rejected += 1;

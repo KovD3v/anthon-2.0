@@ -1,0 +1,3 @@
+# Backfill a small memory set after verified WhatsApp linking
+
+When a WhatsApp guest identity is verified and merged into an account with an active personal or organization-funded entitlement, Anthon will automatically evaluate a bounded set of its most recent completed guest turns and carry forward at most three durable facts. The normal memory policy still applies: candidates require user-authored evidence, transient details are rejected, sensitive facts require confirmation, referenced-person facts retain explicit attribution, and every saved fact keeps source-message provenance. This supersedes ADR-0021 only for verified WhatsApp guest conversion; other guest history is not silently promoted into durable memory.

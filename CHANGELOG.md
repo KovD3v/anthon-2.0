@@ -11,6 +11,10 @@ Version numbers describe the application's user-facing behavior and its document
 ### Added
 
 - Added WhatsApp's native typing indicator while Anthon prepares an AI reply.
+- Added an explicit first-contact guest notice with a verified account-linking
+  URL on WhatsApp.
+- Added a bounded automatic import of up to three durable WhatsApp guest facts
+  when the history is linked to a paid or organization-funded account.
 
 ### Changed
 
