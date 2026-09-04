@@ -2534,6 +2534,25 @@ describe("/api/webhooks/whatsapp", () => {
     );
     expect(mocks.generateVoice).not.toHaveBeenCalled();
     expect(mocks.trackVoiceUsage).not.toHaveBeenCalled();
+    expect(mocks.prismaMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wa_in_1" },
+        data: {
+          metadata: expect.objectContaining({
+            whatsapp: expect.objectContaining({
+              latency: expect.objectContaining({
+                totalMs: expect.any(Number),
+                outboundType: "text",
+                typingIndicatorMs: expect.any(Number),
+                aiFlowMs: expect.any(Number),
+                voiceDecisionMs: expect.any(Number),
+                outboundSendMs: expect.any(Number),
+              }),
+            }),
+          }),
+        },
+      }),
+    );
   });
 
   it("explains an explicit WhatsApp voice request when TTS generation fails", async () => {

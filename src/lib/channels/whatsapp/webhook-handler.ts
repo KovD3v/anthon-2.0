@@ -122,6 +122,60 @@ function safeWaitUntil(promise: Promise<unknown>) {
   }
 }
 
+type WhatsAppLatency = { startedAt: number } & Partial<
+  Record<
+    | "transcriptionMs"
+    | "typingIndicatorMs"
+    | "aiFlowMs"
+    | "voiceDecisionMs"
+    | "voiceGenerationMs"
+    | "outboundSendMs",
+    number
+  >
+>;
+
+function elapsedMs(startedAt: number) {
+  return Math.round(performance.now() - startedAt);
+}
+
+function recordWhatsAppLatency({
+  inboundId,
+  message,
+  context,
+  latency,
+  outboundType,
+}: {
+  inboundId: string;
+  message: WhatsAppMessage;
+  context: WhatsAppChangeValue;
+  latency: WhatsAppLatency;
+  outboundType: "text" | "audio";
+}) {
+  const { startedAt, ...timings } = latency;
+  safeWaitUntil(
+    prisma.message
+      .update({
+        where: { id: inboundId },
+        data: {
+          metadata: {
+            whatsapp: {
+              id: message.id,
+              timestamp: message.timestamp,
+              type: message.type,
+              name: context.contacts?.[0]?.profile?.name,
+              latency: {
+                ...timings,
+                totalMs: elapsedMs(startedAt),
+                outboundType,
+              },
+            },
+          } as Prisma.InputJsonValue,
+        },
+      })
+      .catch(() => undefined),
+  );
+}
+
 async function recordWhatsAppInboundError({
   inboundId,
   message,
@@ -348,6 +402,7 @@ async function handleMessage(
   message: WhatsAppMessage,
   context: WhatsAppChangeValue,
 ) {
+  const latency: WhatsAppLatency = { startedAt: performance.now() };
   const from = message.from; // Sender phone number (wa_id)
   const messageId = message.id; // WAMID
 
@@ -516,12 +571,14 @@ async function handleMessage(
         }
 
         try {
+          const transcriptionStartedAt = performance.now();
           transcribedText = await transcribeAudioWithOpenRouter({
             ...audioData,
             title: "WhatsApp Bot",
             userId: user.id,
             source: "WHATSAPP",
           });
+          latency.transcriptionMs = elapsedMs(transcriptionStartedAt);
         } catch (err) {
           whatsappLogger.error("transcription.failed", "Transcription failed", {
             err,
@@ -697,8 +754,11 @@ async function handleMessage(
       role: user.role,
       isGuest: user.isGuest,
     });
+    const typingIndicatorStartedAt = performance.now();
     await sendWhatsAppTypingIndicator(messageId);
+    latency.typingIndicatorMs = elapsedMs(typingIndicatorStartedAt);
     try {
+      const aiFlowStartedAt = performance.now();
       const flowResult = await runChannelFlow({
         channel: "WHATSAPP",
         userId: user.id,
@@ -742,6 +802,7 @@ async function handleMessage(
           externalInboundClaimToken: claimToken,
         },
       });
+      latency.aiFlowMs = elapsedMs(aiFlowStartedAt);
       if (flowResult.rateLimit) {
         const sent = await sendWhatsAppMessage(
           from,
@@ -838,6 +899,7 @@ async function handleMessage(
     let voiceFallbackNotice: string | undefined;
     if (isElevenLabsConfigured()) {
       try {
+        const voiceDecisionStartedAt = performance.now();
         const preferences = await prisma.preferences.findUnique({
           where: { userId: user.id },
           select: { voiceEnabled: true },
@@ -861,6 +923,7 @@ async function handleMessage(
           systemLoad: getSystemLoad,
           planId: user.subscription?.planId,
         });
+        latency.voiceDecisionMs = elapsedMs(voiceDecisionStartedAt);
 
         whatsappLogger.info(
           "voice.delivery_decision",
@@ -876,10 +939,21 @@ async function handleMessage(
 
         if (voiceResult.shouldGenerateVoice) {
           try {
+            const voiceGenerationStartedAt = performance.now();
             const audio = await generateVoice(assistantText);
+            latency.voiceGenerationMs = elapsedMs(voiceGenerationStartedAt);
+            const outboundSendStartedAt = performance.now();
             const success = await sendWhatsAppVoice(from, audio.audioBuffer);
+            latency.outboundSendMs = elapsedMs(outboundSendStartedAt);
 
             if (success) {
+              recordWhatsAppLatency({
+                inboundId: inbound.id,
+                message,
+                context,
+                latency,
+                outboundType: "audio",
+              });
               if (assistantMessageId) {
                 await markVoiceCapabilityDelivered(assistantMessageId).catch(
                   (error) =>
@@ -949,12 +1023,23 @@ async function handleMessage(
     }
 
     // Text fallback
+    const outboundSendStartedAt = performance.now();
     const sent = await sendWhatsAppMessage(
       from,
       voiceFallbackNotice
         ? `${voiceFallbackNotice}\n\n${assistantText}`
         : assistantText,
     );
+    latency.outboundSendMs = elapsedMs(outboundSendStartedAt);
+    if (sent) {
+      recordWhatsAppLatency({
+        inboundId: inbound.id,
+        message,
+        context,
+        latency,
+        outboundType: "text",
+      });
+    }
     // Persisted assistant output lets a retried provider webhook resend this
     // response without regenerating or charging for it again.
     if (sent) await completeInbound();
