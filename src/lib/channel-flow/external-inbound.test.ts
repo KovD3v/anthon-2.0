@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   messageCreate: vi.fn(),
   messageUpdateMany: vi.fn(),
   channelIdentityFindUnique: vi.fn(),
-  channelIdentityUpsert: vi.fn(),
+  channelIdentityCreate: vi.fn(),
   ensureConversationThread: vi.fn(),
   checkRateLimit: vi.fn(),
   trackInboundUserMessageFunnelProgress: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock("@/lib/db", () => ({
     },
     channelIdentity: {
       findUnique: mocks.channelIdentityFindUnique,
-      upsert: mocks.channelIdentityUpsert,
+      create: mocks.channelIdentityCreate,
     },
   },
 }));
@@ -86,7 +86,7 @@ describe("external inbound lifecycle", () => {
     mocks.messageCreate.mockResolvedValue({ id: "inbound_1" });
     mocks.messageUpdateMany.mockResolvedValue({ count: 1 });
     mocks.channelIdentityFindUnique.mockResolvedValue({ user });
-    mocks.channelIdentityUpsert.mockResolvedValue({ user });
+    mocks.channelIdentityCreate.mockResolvedValue({ user });
     mocks.ensureConversationThread.mockResolvedValue(thread);
     mocks.checkRateLimit.mockResolvedValue({ allowed: true });
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
@@ -295,6 +295,7 @@ describe("external inbound lifecycle", () => {
 
     expect(result).toMatchObject({
       status: "accepted",
+      createdGuest: false,
       user,
       conversationThread: thread,
       inbound: { id: "inbound_1" },
@@ -360,18 +361,27 @@ describe("external inbound lifecycle", () => {
 
   it("converges concurrent first deliveries on one identity-owned guest", async () => {
     mocks.channelIdentityFindUnique.mockResolvedValue(null);
-    let upsertsAtBarrier = 0;
+    let createsAtBarrier = 0;
     let releaseBarrier: () => void;
-    const bothUpsertsStarted = new Promise<void>((resolve) => {
+    const bothCreatesStarted = new Promise<void>((resolve) => {
       releaseBarrier = resolve;
     });
     const winner = { ...user, id: "guest_winner" };
-    mocks.channelIdentityUpsert.mockImplementation(async () => {
-      upsertsAtBarrier += 1;
-      if (upsertsAtBarrier === 2) releaseBarrier();
-      await bothUpsertsStarted;
+    let identityCreated = false;
+    mocks.channelIdentityCreate.mockImplementation(async () => {
+      createsAtBarrier += 1;
+      if (createsAtBarrier === 2) releaseBarrier();
+      await bothCreatesStarted;
+      if (identityCreated) {
+        throw Object.assign(new Error("unique"), { code: "P2002" });
+      }
+      identityCreated = true;
       return { user: winner };
     });
+    mocks.channelIdentityFindUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue({ user: winner });
     mocks.messageCreate.mockImplementation(async ({ data }) => ({
       id: `inbound_${data.externalMessageId}`,
     }));
@@ -393,7 +403,12 @@ describe("external inbound lifecycle", () => {
       status: "accepted",
       user: { id: "guest_winner" },
     });
-    expect(mocks.channelIdentityUpsert).toHaveBeenCalledTimes(2);
+    expect(mocks.channelIdentityCreate).toHaveBeenCalledTimes(2);
+    expect(
+      [first, second].filter(
+        (result) => result.status === "accepted" && result.createdGuest,
+      ),
+    ).toHaveLength(1);
     expect(mocks.messageCreate).toHaveBeenCalledTimes(2);
     expect(mocks.messageCreate.mock.calls).toEqual(
       expect.arrayContaining([
@@ -406,12 +421,12 @@ describe("external inbound lifecycle", () => {
     );
   });
 
-  it("re-reads the winner when a nested identity upsert loses a unique race", async () => {
+  it("re-reads the winner when nested identity creation loses a unique race", async () => {
     const winner = { ...user, id: "guest_winner" };
     mocks.channelIdentityFindUnique
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ user: winner });
-    mocks.channelIdentityUpsert.mockRejectedValue(
+    mocks.channelIdentityCreate.mockRejectedValue(
       Object.assign(new Error("unique"), { code: "P2002" }),
     );
 
@@ -419,6 +434,7 @@ describe("external inbound lifecycle", () => {
 
     expect(result).toMatchObject({
       status: "accepted",
+      createdGuest: false,
       user: { id: "guest_winner" },
     });
     expect(mocks.channelIdentityFindUnique).toHaveBeenCalledTimes(2);

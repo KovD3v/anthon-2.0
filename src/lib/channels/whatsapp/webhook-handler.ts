@@ -233,6 +233,7 @@ function hashWhatsAppLinkToken(rawToken: string) {
 function whatsAppConnectResponse(
   responseKind: "LINK" | "ALREADY_LINKED" | "UNAVAILABLE",
   externalMessageId: string,
+  guestNotice = false,
 ) {
   if (responseKind === "ALREADY_LINKED") {
     return "Il tuo account è già collegato.";
@@ -248,15 +249,20 @@ function whatsAppConnectResponse(
   }
 
   const baseUrl = getPublicAppUrl().replace(/\/$/, "");
+  if (guestNotice) {
+    return `Stai usando Anthon come ospite su WhatsApp. Se hai già un account, collegalo qui. Se devi registrarti, puoi farlo dallo stesso link. Questa conversazione verrà conservata.\n\n${baseUrl}/link/whatsapp/${rawToken}`;
+  }
   return `Per collegare il tuo account, usa questo link:\n${baseUrl}/link/whatsapp/${rawToken}`;
 }
 
 async function handleConnectCommand({
   externalMessageId,
   from,
+  guestNotice = false,
 }: {
   externalMessageId: string;
   from: string;
+  guestNotice?: boolean;
 }) {
   const rawToken = createWhatsAppConnectToken(externalMessageId);
   const connectRequest = await prepareChannelConnectRequest({
@@ -292,7 +298,11 @@ async function handleConnectCommand({
   try {
     const sent = await sendWhatsAppMessage(
       from,
-      whatsAppConnectResponse(connectRequest.responseKind, externalMessageId),
+      whatsAppConnectResponse(
+        connectRequest.responseKind,
+        externalMessageId,
+        guestNotice,
+      ),
       AbortSignal.timeout(CONNECT_DELIVERY_TIMEOUT_MS),
     );
     if (!sent) throw new Error("WhatsApp connect response was not accepted");
@@ -398,6 +408,14 @@ async function handleMessage(
   });
 
   if (preparedInbound.status === "duplicate") return;
+
+  if (preparedInbound.createdGuest) {
+    await handleConnectCommand({
+      externalMessageId: messageId,
+      from,
+      guestNotice: true,
+    });
+  }
 
   const { user, conversationThread, inbound, claimToken } = preparedInbound;
   const completeInbound = () =>

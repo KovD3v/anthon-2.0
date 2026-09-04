@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   prismaMessageFindFirst: vi.fn(),
   prismaMessageFindUnique: vi.fn(),
   prismaChannelIdentityFindUnique: vi.fn(),
-  prismaChannelIdentityUpsert: vi.fn(),
   prismaChannelLinkTokenFindUnique: vi.fn(),
   prismaChannelLinkTokenCreate: vi.fn(),
   prismaChannelLinkTokenUpdate: vi.fn(),
@@ -72,7 +71,6 @@ vi.mock("@/lib/db", () => ({
     },
     channelIdentity: {
       findUnique: mocks.prismaChannelIdentityFindUnique,
-      upsert: mocks.prismaChannelIdentityUpsert,
       create: mocks.prismaChannelIdentityCreate,
     },
     channelLinkToken: {
@@ -413,7 +411,6 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.prismaMessageFindUnique.mockReset();
     mocks.prismaMessageFindUnique.mockResolvedValue(null);
     mocks.prismaChannelIdentityFindUnique.mockReset();
-    mocks.prismaChannelIdentityUpsert.mockReset();
     mocks.prismaChannelLinkTokenFindUnique.mockReset();
     mocks.prismaChannelLinkTokenCreate.mockReset();
     mocks.prismaChannelLinkTokenUpdate.mockReset();
@@ -474,7 +471,6 @@ describe("/api/webhooks/whatsapp", () => {
         },
         channelIdentity: {
           findUnique: mocks.prismaChannelIdentityFindUnique,
-          upsert: mocks.prismaChannelIdentityUpsert,
           create: mocks.prismaChannelIdentityCreate,
         },
         channelLinkToken: {
@@ -881,6 +877,45 @@ describe("/api/webhooks/whatsapp", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells a newly created WhatsApp guest how to link without losing the conversation", async () => {
+    process.env.WHATSAPP_SYNC_WEBHOOK = "true";
+    process.env.WHATSAPP_DISABLE_AI = "true";
+    process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
+    process.env.NEXT_PUBLIC_APP_URL = "https://anthon.ai";
+
+    const guest = {
+      id: "guest_1",
+      role: "USER",
+      isGuest: true,
+      subscription: null,
+    };
+    mocks.prismaMessageFindFirst.mockResolvedValue(null);
+    mocks.prismaChannelIdentityFindUnique.mockResolvedValue(null);
+    mocks.prismaChannelIdentityCreate.mockResolvedValue({ user: guest });
+    mocks.prismaMessageCreate.mockResolvedValue({ id: "wa_inbound_1" });
+    mocks.prismaChannelLinkTokenCreate.mockResolvedValue({ id: "wa_link_1" });
+    mocks.checkRateLimit.mockResolvedValue({ allowed: true });
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildTextPayload("ciao")),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.prismaChannelLinkTokenCreate).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.text.body).toMatch(
+      /^Stai usando Anthon come ospite su WhatsApp\. Se hai già un account, collegalo qui\. Se devi registrarti, puoi farlo dallo stesso link\. Questa conversazione verrà conservata\.\n\nhttps:\/\/anthon\.ai\/link\/whatsapp\/[a-f0-9]{64}$/,
+    );
   });
 
   it("sync duplicate connect delivery reuses one token and sends one response", async () => {

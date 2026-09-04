@@ -51,6 +51,7 @@ type PreparedExternalChannelInbound =
   | {
       status: "accepted";
       mode: "resend";
+      createdGuest: false;
       claimToken: string;
       reclaimed: boolean;
       user: ExternalChannelUser;
@@ -61,6 +62,7 @@ type PreparedExternalChannelInbound =
   | {
       status: "accepted";
       mode: "generate";
+      createdGuest: boolean;
       claimToken: string;
       reclaimed: boolean;
       user: ExternalChannelUser;
@@ -253,7 +255,7 @@ const externalChannelIdentitySelect = {
  */
 async function resolveExternalChannelUser(
   envelope: ExternalChannelInboundEnvelope,
-): Promise<ExternalChannelUser> {
+): Promise<{ user: ExternalChannelUser; createdGuest: boolean }> {
   const where = {
     channel_externalId: {
       channel: envelope.channel,
@@ -266,7 +268,7 @@ async function resolveExternalChannelUser(
   });
 
   if (existingIdentity?.user) {
-    return existingIdentity.user;
+    return { user: existingIdentity.user, createdGuest: false };
   }
 
   if (existingIdentity) {
@@ -275,11 +277,10 @@ async function resolveExternalChannelUser(
     );
   }
 
+  let createdGuest = true;
   const identity = await prisma.channelIdentity
-    .upsert({
-      where,
-      update: {},
-      create: {
+    .create({
+      data: {
         channel: envelope.channel,
         externalId: envelope.externalId,
         user: {
@@ -289,10 +290,10 @@ async function resolveExternalChannelUser(
       select: externalChannelIdentitySelect,
     })
     .catch(async (error: unknown) => {
-      // Nested writes can make Prisma use an emulated upsert. If another
-      // worker inserted the identity first, re-read its committed winner
-      // rather than creating or attaching another guest user.
+      // If another worker inserted the identity first, re-read its committed
+      // winner rather than creating or attaching another guest user.
       if (!isUniqueConstraintError(error)) throw error;
+      createdGuest = false;
 
       return await prisma.channelIdentity.findUnique({
         where,
@@ -306,7 +307,7 @@ async function resolveExternalChannelUser(
     );
   }
 
-  return identity.user;
+  return { user: identity.user, createdGuest };
 }
 
 /**
@@ -378,6 +379,7 @@ export async function prepareExternalChannelInbound(
       return {
         status: "accepted",
         mode: "resend",
+        createdGuest: false,
         claimToken,
         reclaimed: true,
         user: existing.user,
@@ -411,6 +413,7 @@ export async function prepareExternalChannelInbound(
     return {
       status: "accepted",
       mode: "generate",
+      createdGuest: false,
       claimToken,
       reclaimed: true,
       user: existing.user,
@@ -420,7 +423,7 @@ export async function prepareExternalChannelInbound(
     };
   }
 
-  const user = await resolveExternalChannelUser(envelope);
+  const { user, createdGuest } = await resolveExternalChannelUser(envelope);
   const conversationThread = await ensureConversationThread({
     userId: user.id,
     channel: envelope.channel,
@@ -496,6 +499,7 @@ export async function prepareExternalChannelInbound(
   return {
     status: "accepted",
     mode: "generate",
+    createdGuest,
     claimToken,
     reclaimed: false,
     user,
