@@ -719,6 +719,7 @@ describe("POST /api/chat", () => {
     expect(responseText).toBe("Unauthorized");
     expect(responseText).not.toContain("serverTrace");
     expect(responseText).not.toContain("clientTrace");
+    expect(mocks.isRoutineFeatureEnabled).not.toHaveBeenCalled();
   });
 
   it("returns 429 when rate limit is denied", async () => {
@@ -1328,16 +1329,15 @@ describe("POST /api/chat", () => {
     expect(streamArgs).toMatchObject({ skipConversationHistory: false });
   });
 
-  it("starts routine flag evaluation while chat lookup is pending", async () => {
+  it("starts the routine flag during chat lookup and waits before AI generation", async () => {
     let resolveRoutineFlag: ((value: boolean) => void) | undefined;
+    let resolveChat: ((value: unknown) => void) | undefined;
     mocks.isRoutineFeatureEnabled.mockImplementation(
       () =>
         new Promise<boolean>((resolve) => {
           resolveRoutineFlag = resolve;
         }),
     );
-
-    let resolveChat: ((value: unknown) => void) | undefined;
     mocks.chatFindFirst.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -1356,14 +1356,28 @@ describe("POST /api/chat", () => {
       expect(mocks.isRoutineFeatureEnabled).toHaveBeenCalledTimes(1);
       expect(mocks.chatFindFirst).toHaveBeenCalledTimes(1);
     });
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.isRoutineFeatureEnabled).toHaveBeenCalledWith({
+      distinctId: "clerk_1",
+      role: "USER",
+      isGuest: false,
+    });
 
-    resolveRoutineFlag?.(false);
     resolveChat?.({
       id: "chat-1",
       title: "Chat",
       customTitle: true,
       messages: [],
     });
+
+    await vi.waitFor(() => {
+      expect(mocks.checkRateLimit).toHaveBeenCalledTimes(1);
+      expect(mocks.messageCreate).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+
+    resolveRoutineFlag?.(false);
 
     await expect(responsePromise).resolves.toMatchObject({ status: 200 });
   });

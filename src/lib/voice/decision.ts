@@ -72,6 +72,26 @@ interface CadenceHistory {
   consecutiveAudio: number;
 }
 
+function cadenceBlocked(
+  history: CadenceHistory,
+  cadence: VoicePlanConfig["cadence"],
+  category: "VOICE_STRONG" | "VOICE_NATURAL",
+): boolean {
+  const minTurns =
+    category === "VOICE_STRONG"
+      ? cadence.strongMinTurns
+      : cadence.naturalMinTurns;
+  const cooldownMs =
+    category === "VOICE_STRONG"
+      ? cadence.strongCooldownMs
+      : cadence.naturalCooldownMs;
+  const timeCooldownElapsed =
+    history.millisecondsSinceAudio !== null &&
+    history.millisecondsSinceAudio >= cooldownMs;
+
+  return history.turnsSinceAudio < minTurns && !timeCooldownElapsed;
+}
+
 const REASON_MESSAGES: Record<VoiceDecisionReasonCode, string> = {
   PLAN_NOT_ELIGIBLE: "Voice not enabled for plan",
   QUIET_MODE: "Quiet mode enabled",
@@ -287,6 +307,20 @@ export async function decideVoiceDelivery(
     );
   }
 
+  if (
+    !suitability &&
+    cadenceBlocked(history, params.planConfig.cadence, "VOICE_NATURAL") &&
+    cadenceBlocked(history, params.planConfig.cadence, "VOICE_STRONG")
+  ) {
+    return result(
+      false,
+      "VOICE_NATURAL",
+      capacityState,
+      "CADENCE_COOLDOWN",
+      false,
+    );
+  }
+
   if (!suitability) {
     const passesCadence = (minTurns: number, cooldownMs: number) =>
       history.turnsSinceAudio >= minTurns ||
@@ -336,18 +370,13 @@ export async function decideVoiceDelivery(
     );
   }
 
-  const minTurns =
-    category === "VOICE_STRONG"
-      ? params.planConfig.cadence.strongMinTurns
-      : params.planConfig.cadence.naturalMinTurns;
-  const cooldownMs =
-    category === "VOICE_STRONG"
-      ? params.planConfig.cadence.strongCooldownMs
-      : params.planConfig.cadence.naturalCooldownMs;
-  const timeCooldownElapsed =
-    history.millisecondsSinceAudio !== null &&
-    history.millisecondsSinceAudio >= cooldownMs;
-  if (history.turnsSinceAudio < minTurns && !timeCooldownElapsed) {
+  if (
+    cadenceBlocked(
+      history,
+      params.planConfig.cadence,
+      category === "VOICE_STRONG" ? "VOICE_STRONG" : "VOICE_NATURAL",
+    )
+  ) {
     return result(false, category, capacityState, "CADENCE_COOLDOWN", false);
   }
 

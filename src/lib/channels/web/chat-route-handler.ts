@@ -242,8 +242,9 @@ export async function handleWebChatPost(request: Request) {
         let planId = user.subscription?.planId;
 
         // Verify chat ownership and resolve the canonical conversation thread.
-        const [chatContext, routineProposalAllowed] = await Promise.all([
-          traceCollector.measure("chat_lookup", async () => {
+        const chatContext = await traceCollector.measure(
+          "chat_lookup",
+          async () => {
             const chat = await LatencyLogger.measure(
               "DB: Verify chat ownership",
               () =>
@@ -268,9 +269,8 @@ export async function handleWebChatPost(request: Request) {
               chatId,
             });
             return { chat, conversationThread };
-          }),
-          routineProposalAllowedPromise,
-        ]);
+          },
+        );
 
         if (!chatContext.chat || !chatContext.conversationThread) {
           return Response.json(
@@ -563,6 +563,7 @@ export async function handleWebChatPost(request: Request) {
           });
 
         if (voiceDecision.mode === "VOICE") {
+          const routineProposalAllowed = await routineProposalAllowedPromise;
           const voiceResponse = await handleVoiceFirstWebResponse({
             userId: user.id,
             chatId,
@@ -628,6 +629,8 @@ export async function handleWebChatPost(request: Request) {
         if (comparisonResponse) {
           return comparisonResponse;
         }
+
+        const routineProposalAllowed = await routineProposalAllowedPromise;
 
         const flowResult = await runChannelFlow({
           channel: "WEB",

@@ -72,14 +72,19 @@ describe("voice/decision", () => {
   ])(
     "handles explicit voice at load $load with $expected",
     async ({ load, expected }) => {
+      const classify = vi.fn().mockResolvedValue({
+        category: "VOICE_REQUIRED" as const,
+        confidence: 1,
+      });
       const decision = await decideVoiceDelivery({
         ...baseParams(),
         requestIntent: "VOICE",
-        suitability: { category: "VOICE_REQUIRED", confidence: 1 },
+        suitability: classify,
         systemLoad: load,
       });
 
       expect(decision.reason.code).toBe(expected);
+      expect(classify).not.toHaveBeenCalled();
     },
   );
 
@@ -194,6 +199,80 @@ describe("voice/decision", () => {
 
     expect(decision.reason.code).toBe("CONSECUTIVE_AUDIO_LIMIT");
   });
+
+  it("skips lazy suitability inference when both cadence modes are cooling down", async () => {
+    const classify = vi.fn().mockResolvedValue({
+      category: "VOICE_NATURAL" as const,
+      confidence: 0.9,
+    });
+
+    const decision = await decideVoiceDelivery({
+      ...baseParams(),
+      suitability: classify,
+    });
+
+    expect(decision).toMatchObject({
+      shouldGenerateVoice: false,
+      category: "VOICE_NATURAL",
+      reason: { code: "CADENCE_COOLDOWN" },
+    });
+    expect(classify).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      label: "natural turn cadence",
+      messages: Array.from(
+        { length: config.cadence.naturalMinTurns },
+        (_, index) => ({
+          type: "TEXT" as const,
+          createdAt: new Date(now.getTime() - index * 60_000),
+        }),
+      ),
+      suitability: { category: "VOICE_NATURAL" as const, confidence: 0.8 },
+      reason: "NATURAL_MOMENT",
+    },
+    {
+      label: "strong turn cadence",
+      messages: [
+        {
+          type: "TEXT" as const,
+          createdAt: new Date("2026-07-11T11:59:30.000Z"),
+        },
+        {
+          type: "AUDIO" as const,
+          createdAt: new Date("2026-07-11T11:59:00.000Z"),
+        },
+      ],
+      suitability: { category: "VOICE_STRONG" as const, confidence: 0.9 },
+      reason: "STRONG_MOMENT",
+    },
+    {
+      label: "strong time cooldown",
+      messages: [
+        {
+          type: "AUDIO" as const,
+          createdAt: new Date("2026-07-11T11:50:00.000Z"),
+        },
+      ],
+      suitability: { category: "VOICE_STRONG" as const, confidence: 0.9 },
+      reason: "STRONG_MOMENT",
+    },
+  ])(
+    "keeps lazy suitability inference when $label allows audio",
+    async ({ messages, suitability, reason }) => {
+      mocks.messageFindMany.mockResolvedValue(messages);
+      const classify = vi.fn().mockResolvedValue(suitability);
+
+      const decision = await decideVoiceDelivery({
+        ...baseParams(),
+        suitability: classify,
+      });
+
+      expect(classify).toHaveBeenCalledTimes(1);
+      expect(decision.reason.code).toBe(reason);
+    },
+  );
 
   it("lowers only the natural confidence threshold after a text drought", async () => {
     mocks.messageFindMany.mockResolvedValue(

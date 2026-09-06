@@ -136,18 +136,15 @@ export async function handleGuestChatPost(request: Request) {
       });
 
       // Verify chat ownership (guest user owns this chat)
-      const [chat, routineProposalAllowed] = await Promise.all([
-        prisma.chat.findFirst({
-          where: { id: chatId, userId: user.id },
-          select: {
-            id: true,
-            title: true,
-            customTitle: true,
-            messages: recentWebMessagesQuery,
-          },
-        }),
-        routineProposalAllowedPromise,
-      ]);
+      const chat = await prisma.chat.findFirst({
+        where: { id: chatId, userId: user.id },
+        select: {
+          id: true,
+          title: true,
+          customTitle: true,
+          messages: recentWebMessagesQuery,
+        },
+      });
 
       if (!chat) {
         return Response.json(
@@ -296,6 +293,8 @@ export async function handleGuestChatPost(request: Request) {
           );
         }
       }
+
+      const routineProposalAllowed = await routineProposalAllowedPromise;
 
       const flowResult = await runChannelFlow({
         channel: "WEB_GUEST",

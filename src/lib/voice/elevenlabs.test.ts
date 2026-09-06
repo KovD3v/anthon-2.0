@@ -25,6 +25,7 @@ const originalFlashCost =
 describe("voice/elevenlabs", () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
     mocks.measure.mockReset();
     mocks.measure.mockImplementation(
@@ -136,6 +137,135 @@ describe("voice/elevenlabs", () => {
     expect(second).toEqual(subscription);
     expect(bypassed).toEqual(subscription);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("coalesces concurrent non-bypass cache misses", async () => {
+    const subscription = {
+      character_count: 100,
+      character_limit: 1000,
+      next_character_count_reset_unix: 1739999999,
+    };
+    let resolveFetch!: (response: Response) => void;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { getElevenLabsSubscription } = await import("./elevenlabs");
+    const first = getElevenLabsSubscription();
+    const second = getElevenLabsSubscription();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveFetch(
+      new Response(JSON.stringify(subscription), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      subscription,
+      subscription,
+    ]);
+  });
+
+  it("uses a bounded timeout signal and retries after a failed fetch", async () => {
+    const subscription = {
+      character_count: 100,
+      character_limit: 1000,
+      next_character_count_reset_unix: 1739999999,
+    };
+    const timeoutController = new AbortController();
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce((_url: string, init?: RequestInit) => {
+        const signal = init?.signal;
+        if (!signal) throw new Error("missing timeout signal");
+        return new Promise<Response>((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason), {
+            once: true,
+          });
+        });
+      })
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(subscription), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const timeoutSpy = vi
+      .spyOn(AbortSignal, "timeout")
+      .mockReturnValueOnce(timeoutController.signal);
+
+    const { getElevenLabsSubscription } = await import("./elevenlabs");
+    const timedOut = getElevenLabsSubscription();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    timeoutController.abort(new DOMException("timed out", "TimeoutError"));
+    await expect(timedOut).resolves.toBeNull();
+    await expect(getElevenLabsSubscription()).resolves.toEqual(subscription);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.elevenlabs.io/v1/user/subscription",
+      expect.objectContaining({
+        signal: timeoutController.signal,
+      }),
+    );
+    expect(timeoutSpy).toHaveBeenNthCalledWith(1, 5_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps bypass fetches independent from a pending chat fetch", async () => {
+    const pendingSubscription = {
+      character_count: 100,
+      character_limit: 1000,
+      next_character_count_reset_unix: 1739999999,
+    };
+    const bypassSubscription = {
+      character_count: 200,
+      character_limit: 1000,
+      next_character_count_reset_unix: 1740000000,
+    };
+    let resolvePending!: (response: Response) => void;
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolvePending = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(bypassSubscription), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { getElevenLabsSubscription } = await import("./elevenlabs");
+    const pending = getElevenLabsSubscription();
+    const bypassed = getElevenLabsSubscription(true);
+    const coalesced = getElevenLabsSubscription();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await expect(bypassed).resolves.toEqual(bypassSubscription);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    resolvePending(
+      new Response(JSON.stringify(pendingSubscription), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    await expect(Promise.all([pending, coalesced])).resolves.toEqual([
+      pendingSubscription,
+      pendingSubscription,
+    ]);
   });
 
   it("getSystemLoad returns ratio from subscription usage", async () => {

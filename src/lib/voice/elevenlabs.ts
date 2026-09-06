@@ -53,6 +53,9 @@ let subscriptionCache: {
   expiresAt: number;
 } | null = null;
 const SUBSCRIPTION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const SUBSCRIPTION_FETCH_TIMEOUT_MS = 5_000;
+let subscriptionFetchPending: Promise<ElevenLabsSubscription | null> | null =
+  null;
 
 /**
  * Generate voice audio from text using Eleven Labs API.
@@ -150,15 +153,15 @@ export async function getElevenLabsSubscription(
   }
 
   try {
-    const data = await LatencyLogger.measure(
-      "Voice: Fetch Subscription",
-      async () => {
+    const fetchSubscription = () =>
+      LatencyLogger.measure("Voice: Fetch Subscription", async () => {
         const response = await fetch(
           `${ELEVENLABS_API_BASE}/user/subscription`,
           {
             headers: {
               "xi-api-key": apiKey,
             },
+            signal: AbortSignal.timeout(SUBSCRIPTION_FETCH_TIMEOUT_MS),
           },
         );
 
@@ -172,10 +175,18 @@ export async function getElevenLabsSubscription(
         }
 
         return (await response.json()) as ElevenLabsSubscription;
-      },
-    );
+      });
 
-    // Update cache if we got valid data
+    let data: ElevenLabsSubscription | null;
+    if (bypassCache) {
+      data = await fetchSubscription();
+    } else {
+      subscriptionFetchPending ??= fetchSubscription().finally(() => {
+        subscriptionFetchPending = null;
+      });
+      data = await subscriptionFetchPending;
+    }
+
     if (data) {
       subscriptionCache = {
         data,

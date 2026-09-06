@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   generateChatMetadata: vi.fn(),
   trackInboundUserMessageFunnelProgress: vi.fn(),
   ensureConversationThread: vi.fn(),
+  isRoutineFeatureEnabled: vi.fn(),
 }));
 
 vi.mock("@vercel/functions", () => ({
@@ -79,6 +80,10 @@ vi.mock("@/lib/ai/chat-title", () => ({
 vi.mock("@/lib/analytics/funnel", () => ({
   trackInboundUserMessageFunnelProgress:
     mocks.trackInboundUserMessageFunnelProgress,
+}));
+
+vi.mock("@/lib/coaching/routine-feature", () => ({
+  isRoutineFeatureEnabled: mocks.isRoutineFeatureEnabled,
 }));
 
 import { freezeTurnDecision } from "@/lib/ai/turn-decision";
@@ -228,6 +233,7 @@ describe("POST /api/guest/chat", () => {
     mocks.generateChatMetadata.mockReset();
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
     mocks.ensureConversationThread.mockReset();
+    mocks.isRoutineFeatureEnabled.mockReset();
 
     mocks.start.mockReturnValue({
       end: vi.fn(),
@@ -276,6 +282,7 @@ describe("POST /api/guest/chat", () => {
       icon: "TARGET",
     });
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
+    mocks.isRoutineFeatureEnabled.mockResolvedValue(false);
     mocks.streamChat.mockResolvedValue({
       toUIMessageStream: emptyUiStream,
       toUIMessageStreamResponse: () =>
@@ -347,6 +354,7 @@ describe("POST /api/guest/chat", () => {
     expect(mocks.authenticateGuest).not.toHaveBeenCalled();
     expect(mocks.checkRateLimit).not.toHaveBeenCalled();
     expect(mocks.messageCreate).not.toHaveBeenCalled();
+    expect(mocks.isRoutineFeatureEnabled).not.toHaveBeenCalled();
   });
 
   it("returns 400 for malformed guest message objects before side effects", async () => {
@@ -565,6 +573,59 @@ describe("POST /api/guest/chat", () => {
     );
     const metricsData = mocks.messageMetricsCreate.mock.calls.at(-1)?.[0]?.data;
     expect(metricsData).not.toHaveProperty("executionRoute");
+  });
+
+  it("starts the routine flag during chat lookup and waits before AI generation", async () => {
+    let resolveRoutineFlag: ((value: boolean) => void) | undefined;
+    let resolveChat: ((value: unknown) => void) | undefined;
+    mocks.isRoutineFeatureEnabled.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRoutineFlag = resolve;
+        }),
+    );
+    mocks.chatFindFirst.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveChat = resolve;
+        }),
+    );
+
+    const responsePromise = POST(
+      buildRequest({
+        messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+        chatId: "chat-1",
+      }),
+    );
+
+    await vi.waitFor(() => {
+      expect(mocks.isRoutineFeatureEnabled).toHaveBeenCalledTimes(1);
+      expect(mocks.chatFindFirst).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    expect(mocks.isRoutineFeatureEnabled).toHaveBeenCalledWith({
+      distinctId: "guest-1",
+      role: "USER",
+      isGuest: true,
+    });
+
+    resolveChat?.({
+      id: "chat-1",
+      title: "Guest Chat",
+      customTitle: true,
+      messages: [],
+    });
+
+    await vi.waitFor(() => {
+      expect(mocks.checkRateLimit).toHaveBeenCalledTimes(1);
+      expect(mocks.messageCreate).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+
+    resolveRoutineFlag?.(false);
+
+    await expect(responsePromise).resolves.toMatchObject({ status: 200 });
   });
 
   it("uses the last user message when multiple messages are submitted", async () => {

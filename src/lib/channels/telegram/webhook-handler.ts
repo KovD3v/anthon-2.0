@@ -432,6 +432,12 @@ async function handleUpdate(update: TelegramUpdate) {
       return;
     }
 
+    const routineProposalAllowedPromise = isRoutineFeatureEnabled({
+      distinctId: user.id,
+      role: user.role,
+      isGuest: user.isGuest,
+    });
+
     // If Telegram provides voice/audio, transcribe it BEFORE calling streamChat.
     // OpenRouter/Vercel AI SDK accept TEXT-only input.
     let transcribedText: string | null = null;
@@ -636,11 +642,7 @@ async function handleUpdate(update: TelegramUpdate) {
     // Generate assistant response.
     let assistantText = "";
     let assistantMessageId: string | undefined;
-    const routineProposalAllowed = await isRoutineFeatureEnabled({
-      distinctId: user.id,
-      role: user.role,
-      isGuest: user.isGuest,
-    });
+    const routineProposalAllowed = await routineProposalAllowedPromise;
 
     try {
       const flowResult = await runChannelFlow({

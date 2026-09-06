@@ -52,6 +52,7 @@ const mocks = vi.hoisted(() => ({
   trackVoiceUsage: vi.fn(),
   trackInboundUserMessageFunnelProgress: vi.fn(),
   trackSupportAiUsage: vi.fn(),
+  isRoutineFeatureEnabled: vi.fn(),
 }));
 
 vi.mock("@vercel/functions", () => ({
@@ -155,6 +156,10 @@ vi.mock("@/lib/ai/usage-meter", () => ({
 
 vi.mock("@/lib/conversations/threads", () => ({
   ensureConversationThread: mocks.ensureConversationThread,
+}));
+
+vi.mock("@/lib/coaching/routine-feature", () => ({
+  isRoutineFeatureEnabled: mocks.isRoutineFeatureEnabled,
 }));
 
 import { freezeTurnDecision } from "@/lib/ai/turn-decision";
@@ -348,10 +353,12 @@ describe("/api/webhooks/telegram", () => {
     mocks.trackVoiceUsage.mockReset();
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
     mocks.trackSupportAiUsage.mockReset();
+    mocks.isRoutineFeatureEnabled.mockReset();
 
     mocks.waitUntil.mockImplementation(() => {});
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.isRoutineFeatureEnabled.mockResolvedValue(false);
     mocks.ensureConversationThread.mockResolvedValue({
       id: "thread-telegram-1",
     });
@@ -1296,16 +1303,12 @@ describe("/api/webhooks/telegram", () => {
     process.env.OPENROUTER_API_KEY = "sk-test";
     process.env.TELEGRAM_BOT_TOKEN = "bot-token";
 
+    const media = Promise.withResolvers<Response>();
+    const routine = Promise.withResolvers<boolean>();
+    mocks.isRoutineFeatureEnabled.mockReturnValue(routine.promise);
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            ok: true,
-            result: { file_path: "photos/photo-large.jpg" },
-          }),
-        ),
-      )
+      .mockReturnValueOnce(media.promise)
       .mockResolvedValueOnce(new Response("photo-data"));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -1354,13 +1357,31 @@ describe("/api/webhooks/telegram", () => {
       };
     });
 
-    const response = await POST(
+    const responsePromise = POST(
       new Request("http://localhost/api/webhooks/telegram", {
         method: "POST",
         body: JSON.stringify(buildPhotoUpdate()),
         headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
       }),
     );
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(mocks.isRoutineFeatureEnabled).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    media.resolve(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: { file_path: "photos/photo-large.jpg" },
+        }),
+      ),
+    );
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    routine.resolve(false);
+    const response = await responsePromise;
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });

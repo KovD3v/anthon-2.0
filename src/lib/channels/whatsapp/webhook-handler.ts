@@ -550,6 +550,12 @@ async function handleMessage(
       return;
     }
 
+    const routineProposalAllowedPromise = isRoutineFeatureEnabled({
+      distinctId: user.id,
+      role: user.role,
+      isGuest: user.isGuest,
+    });
+
     // Process Media (Audio, Image, Document)
     let transcribedText: string | null = null;
     const files: ChannelMessagePart[] = [];
@@ -754,11 +760,7 @@ async function handleMessage(
     // Generate Response
     let assistantText = "";
     let assistantMessageId: string | undefined;
-    const routineProposalAllowed = await isRoutineFeatureEnabled({
-      distinctId: user.id,
-      role: user.role,
-      isGuest: user.isGuest,
-    });
+    const routineProposalAllowed = await routineProposalAllowedPromise;
     const typingIndicatorStartedAt = performance.now();
     const typingIndicator = sendWhatsAppTypingIndicator(messageId).then(() => {
       latency.typingIndicatorMs = elapsedMs(typingIndicatorStartedAt);

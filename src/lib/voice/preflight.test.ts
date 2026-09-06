@@ -209,6 +209,8 @@ describe("voice/preflight", () => {
   });
 
   it("does not treat reflective uses of time words as short factual requests", async () => {
+    allowAutomaticVoiceCadence();
+
     await decideWebVoiceMode({
       ...baseParams(),
       userMessage: "Cosa provi quando guardi l'ora prima della gara?",
@@ -256,6 +258,7 @@ describe("voice/preflight", () => {
 
   it("schedules voice classifier accounting through the request scheduler", async () => {
     const waitUntil = vi.fn();
+    allowAutomaticVoiceCadence();
 
     await decideWebVoiceMode({
       ...baseParams(),
@@ -282,6 +285,7 @@ describe("voice/preflight", () => {
   });
 
   it("propagates request cancellation instead of treating it as a classifier fallback", async () => {
+    allowAutomaticVoiceCadence();
     const abortController = new AbortController();
     const abortError = new Error("request aborted");
     mocks.generateText.mockImplementationOnce(async ({ abortSignal }) => {
@@ -299,6 +303,7 @@ describe("voice/preflight", () => {
   });
 
   it("exposes classifier failure details for persisted diagnostics", async () => {
+    allowAutomaticVoiceCadence();
     const timeoutError = new Error("request timed out");
     timeoutError.name = "TimeoutError";
     mocks.generateText.mockRejectedValue(timeoutError);
@@ -323,6 +328,7 @@ describe("voice/preflight", () => {
   });
 
   it("records provider failure details without persisting response content", async () => {
+    allowAutomaticVoiceCadence();
     const providerError = Object.assign(new Error("provider unavailable"), {
       name: "AI_APICallError",
       statusCode: 503,
@@ -347,6 +353,7 @@ describe("voice/preflight", () => {
   });
 
   it("unwraps an AI SDK retry error to record its timeout cause", async () => {
+    allowAutomaticVoiceCadence();
     const timeoutCause = new Error("The operation timed out");
     timeoutCause.name = "TimeoutError";
     const retryError = Object.assign(new Error("Failed after 1 attempt"), {
@@ -368,6 +375,7 @@ describe("voice/preflight", () => {
   });
 
   it("records invalid structured output separately from provider failures", async () => {
+    allowAutomaticVoiceCadence();
     const invalidOutputError = new Error("No object generated");
     invalidOutputError.name = "AI_NoObjectGeneratedError";
     mocks.generateText.mockRejectedValue(invalidOutputError);
@@ -382,6 +390,7 @@ describe("voice/preflight", () => {
   });
 
   it("records empty classifier output as an invalid-output outcome", async () => {
+    allowAutomaticVoiceCadence();
     mocks.generateText.mockResolvedValue({
       output: undefined,
       usage: { inputTokens: 90, outputTokens: 0 },

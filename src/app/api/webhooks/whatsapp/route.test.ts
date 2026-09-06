@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   trackVoiceUsage: vi.fn(),
   trackInboundUserMessageFunnelProgress: vi.fn(),
   trackSupportAiUsage: vi.fn(),
+  isRoutineFeatureEnabled: vi.fn(),
 }));
 
 vi.mock("@vercel/functions", () => ({
@@ -150,6 +151,10 @@ vi.mock("@/lib/ai/usage-meter", () => ({
 
 vi.mock("@/lib/conversations/threads", () => ({
   ensureConversationThread: mocks.ensureConversationThread,
+}));
+
+vi.mock("@/lib/coaching/routine-feature", () => ({
+  isRoutineFeatureEnabled: mocks.isRoutineFeatureEnabled,
 }));
 
 import { freezeTurnDecision } from "@/lib/ai/turn-decision";
@@ -452,10 +457,12 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.trackVoiceUsage.mockReset();
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
     mocks.trackSupportAiUsage.mockReset();
+    mocks.isRoutineFeatureEnabled.mockReset();
 
     mocks.waitUntil.mockImplementation(() => {});
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.isRoutineFeatureEnabled.mockResolvedValue(false);
     mocks.ensureConversationThread.mockResolvedValue({
       id: "thread-whatsapp-1",
     });
@@ -2009,16 +2016,12 @@ describe("/api/webhooks/whatsapp", () => {
     process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
     process.env.WHATSAPP_DISABLE_SEND = "true";
 
+    const media = Promise.withResolvers<Response>();
+    const routine = Promise.withResolvers<boolean>();
+    mocks.isRoutineFeatureEnabled.mockReturnValue(routine.promise);
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            url: "https://example.com/image.jpg",
-            mime_type: "image/jpeg",
-          }),
-        ),
-      )
+      .mockReturnValueOnce(media.promise)
       .mockResolvedValueOnce(new Response("image-data"));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -2060,12 +2063,30 @@ describe("/api/webhooks/whatsapp", () => {
       };
     });
 
-    const response = await POST(
+    const responsePromise = POST(
       new Request("http://localhost/api/webhooks/whatsapp", {
         method: "POST",
         body: JSON.stringify(buildImagePayload("  valuta questa posizione  ")),
       }),
     );
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(mocks.isRoutineFeatureEnabled).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    media.resolve(
+      new Response(
+        JSON.stringify({
+          url: "https://example.com/image.jpg",
+          mime_type: "image/jpeg",
+        }),
+      ),
+    );
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+    routine.resolve(false);
+    const response = await responsePromise;
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
