@@ -6,10 +6,15 @@ const mocks = vi.hoisted(() => ({
   clerkDeleteUser: vi.fn(),
   userDelete: vi.fn(),
   deletePrivateVoiceBlobsForMessages: vi.fn(),
+  invalidateAllDerivedCachesForUser: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
   getAuthUser: mocks.getAuthUser,
+}));
+
+vi.mock("@/lib/ai/deletion-lifecycle", () => ({
+  invalidateAllDerivedCachesForUser: mocks.invalidateAllDerivedCachesForUser,
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -45,6 +50,7 @@ describe("DELETE /api/user/me", () => {
     mocks.clerkDeleteUser.mockReset();
     mocks.userDelete.mockReset();
     mocks.deletePrivateVoiceBlobsForMessages.mockReset();
+    mocks.invalidateAllDerivedCachesForUser.mockReset();
 
     mocks.getAuthUser.mockResolvedValue({ user: authUser, error: null });
     mocks.clerkClient.mockResolvedValue({
@@ -55,6 +61,7 @@ describe("DELETE /api/user/me", () => {
     mocks.clerkDeleteUser.mockResolvedValue(undefined);
     mocks.deletePrivateVoiceBlobsForMessages.mockResolvedValue(0);
     mocks.userDelete.mockResolvedValue({ id: authUser.id });
+    mocks.invalidateAllDerivedCachesForUser.mockReturnValue(undefined);
   });
 
   afterEach(() => {

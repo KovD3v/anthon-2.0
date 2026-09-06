@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   revalidateTag: vi.fn(),
 }));
 
+vi.mock("server-only", () => ({}));
+
 vi.mock("@/lib/auth", () => ({
   getAuthUser: mocks.getAuthUser,
 }));

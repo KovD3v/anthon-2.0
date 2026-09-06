@@ -46,6 +46,7 @@ describe("QStash helpers", () => {
       delay: undefined,
       deduplicationId: undefined,
       retries: undefined,
+      retryDelay: undefined,
     });
   });
 
@@ -64,6 +65,7 @@ describe("QStash helpers", () => {
       delay: undefined,
       deduplicationId: "voice-generation-message-1",
       retries: 4,
+      retryDelay: undefined,
     });
   });
 

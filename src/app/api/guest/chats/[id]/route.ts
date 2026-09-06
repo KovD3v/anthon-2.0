@@ -8,6 +8,7 @@
 
 import { revalidateTag } from "next/cache";
 import { generateChatMetadata } from "@/lib/ai/chat-title";
+import { deleteChatWithDerivedData } from "@/lib/ai/deletion-lifecycle";
 import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
 import type { ChatIcon } from "@/lib/chat-icons";
 import { prisma } from "@/lib/db";
@@ -279,10 +280,8 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
     await deletePrivateVoiceBlobsForMessages({ chatId: id });
 
-    // Delete chat (cascade will delete messages)
-    await prisma.chat.delete({
-      where: { id },
-    });
+    // Delete the chat and its messages together with all derived records.
+    await deleteChatWithDerivedData(id);
 
     try {
       revalidateTag(`chats-${user.id}`, "max");

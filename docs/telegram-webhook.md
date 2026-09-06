@@ -10,10 +10,11 @@ The Telegram webhook receives updates from the Telegram Bot API, processes user 
 flowchart LR
     A[Telegram User] --> B[Telegram Bot API]
     B --> C[Webhook Endpoint]
-    C --> D[Process Message]
-    D --> E[AI Orchestrator]
-    E --> F[Send Response]
-    F --> B
+    C --> D[Signed QStash Queue]
+    D --> E[Inbound Worker]
+    E --> F[AI Orchestrator]
+    F --> G[Send Response]
+    G --> B
     B --> A
 ```
 
@@ -40,6 +41,8 @@ x-telegram-bot-api-secret-token: <TELEGRAM_WEBHOOK_SECRET>
 sequenceDiagram
     participant TG as Telegram
     participant WH as Webhook
+    participant QS as QStash
+    participant WK as Worker
     participant DB as Database
     participant AI as Orchestrator
 
@@ -50,30 +53,36 @@ sequenceDiagram
         WH-->>TG: 401 Unauthorized
     end
 
-    WH-->>TG: 200 OK (immediate)
+    WH->>QS: Publish update (deduplicated)
+    QS-->>WH: Accepted
+    WH-->>TG: 200 OK
 
-    Note over WH: Background processing starts
+    QS->>WK: Signed delivery
 
-    WH->>WH: Parse update
-    WH->>DB: Check idempotency
+    WK->>DB: Claim provider message with lease
 
     alt Already processed
-        WH->>WH: Skip (duplicate)
+        WK->>DB: Acknowledge duplicate
     end
 
-    WH->>DB: Find/create user
-    WH->>DB: Check rate limit
+    WK->>DB: Find/create user and check rate limit
 
     alt Rate limited
-        WH->>TG: Send limit message
+        WK->>TG: Send limit message
     end
 
-    WH->>DB: Save inbound message
-    WH->>AI: streamChat()
-    AI-->>WH: Stream response
-    WH->>DB: Save assistant message
-    WH->>TG: sendMessage()
+    WK->>AI: streamChat()
+    AI-->>WK: Stream response
+    WK->>DB: Save assistant message
+    WK->>TG: sendMessage()
 ```
+
+Production webhook deliveries publish to `POST /api/queues/external-inbound`
+after provider authentication and wait for QStash acceptance before returning
+`200`. The signed worker owns the existing database claim and lease. A failed
+worker or active lease returns `503`, allowing bounded QStash retries; the
+worker acknowledges completed duplicates. Set `TELEGRAM_SYNC_WEBHOOK=true`
+only for local synchronous processing.
 
 ## Message Types
 
@@ -256,6 +265,9 @@ type TelegramUpdate = {
 | `TELEGRAM_SYNC_WEBHOOK`   | No       | Run synchronously (dev mode)     |
 | `TELEGRAM_DISABLE_AI`     | No       | Disable AI responses             |
 | `TELEGRAM_DISABLE_SEND`   | No       | Disable sending messages         |
+
+The queue also requires the shared `QSTASH_URL`, `QSTASH_TOKEN`,
+`QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, and `APP_URL` values.
 
 ## Error Handling
 

@@ -865,6 +865,12 @@ enum AiTurnTraceStatus {
   FAILED
 }
 
+enum AiTraceAccessPurpose {
+  DEBUGGING
+  USER_SUPPORT
+  SAFETY_ABUSE_INVESTIGATION
+}
+
 model AiTurnTrace {
   id String @id @default(cuid())
 
@@ -900,12 +906,14 @@ model AiTurnTrace {
 model AiTraceAccessAudit {
   id String @id @default(cuid())
 
-  traceId String
-  trace   AiTurnTrace @relation(fields: [traceId], references: [id], onDelete: Cascade)
-
+  traceId     String
+  trace       AiTurnTrace           @relation(fields: [traceId], references: [id], onDelete: Cascade)
   actorUserId String
   action      String
-  createdAt   DateTime @default(now())
+  purpose     AiTraceAccessPurpose?
+  reason      String?               @db.Text
+  caseId      String?               @db.Text
+  createdAt   DateTime              @default(now())
 
   @@index([traceId, createdAt(sort: Desc)])
   @@index([actorUserId, createdAt(sort: Desc)])

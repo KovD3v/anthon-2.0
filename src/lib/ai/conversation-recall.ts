@@ -34,6 +34,30 @@ const evidenceRegistry = new Map<
 >();
 const EVIDENCE_TTL_MS = 10 * 60_000;
 
+export type ConversationEvidenceInvalidation = {
+  userId: string;
+  chunkIds?: readonly string[];
+};
+
+/**
+ * Drop opaque evidence handles as soon as their indexed source is deleted.
+ * Expansion still revalidates the database row, but removing the handle here
+ * avoids retaining deleted-source references for the rest of the TTL.
+ */
+export function invalidateConversationRecallEvidence(
+  input: ConversationEvidenceInvalidation,
+) {
+  const chunkIds = input.chunkIds ? new Set(input.chunkIds) : null;
+  for (const [evidenceId, evidence] of evidenceRegistry) {
+    if (
+      evidence.userId === input.userId &&
+      (!chunkIds || chunkIds.has(evidence.chunkId))
+    ) {
+      evidenceRegistry.delete(evidenceId);
+    }
+  }
+}
+
 function registerEvidence(userId: string, chunkId: string): string {
   const now = Date.now();
   if (evidenceRegistry.size > 2_048) {

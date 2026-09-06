@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  transaction: vi.fn(),
+  queryRaw: vi.fn(),
   executeRaw: vi.fn(),
   messageFindMany: vi.fn(),
   messageFindFirst: vi.fn(),
@@ -8,8 +10,14 @@ const mocks = vi.hoisted(() => ({
   generateEmbedding: vi.fn(),
 }));
 
+const transaction = {
+  $queryRaw: mocks.queryRaw,
+  $executeRaw: mocks.executeRaw,
+};
+
 vi.mock("@/lib/db", () => ({
   prisma: {
+    $transaction: mocks.transaction,
     $executeRaw: mocks.executeRaw,
     message: {
       findMany: mocks.messageFindMany,
@@ -27,6 +35,11 @@ describe("conversation index", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    mocks.transaction.mockImplementation(
+      async (callback: (client: typeof transaction) => Promise<unknown>) =>
+        callback(transaction),
+    );
+    mocks.queryRaw.mockResolvedValue([{ id: "message-4" }]);
     mocks.threadFindFirst.mockResolvedValue({ id: "thread-1", channel: "WEB" });
     mocks.messageFindFirst.mockResolvedValue({
       createdAt: new Date("2026-08-11T10:00:00Z"),
@@ -64,5 +77,23 @@ describe("conversation index", () => {
     expect(mocks.executeRaw.mock.calls[0]?.[0].strings.join(" ")).toContain(
       'INSERT INTO "ConversationRecallChunk"',
     );
+  });
+
+  it("skips the write when a source message disappears during embedding", async () => {
+    mocks.queryRaw.mockResolvedValue([]);
+
+    const { indexConversationWindow } = await import("./conversation-index");
+    const result = await indexConversationWindow({
+      userId: "user-1",
+      conversationThreadId: "thread-1",
+      throughMessageId: "message-4",
+    });
+
+    expect(result).toEqual({ status: "skipped" });
+    expect(mocks.queryRaw).toHaveBeenCalledOnce();
+    expect(mocks.queryRaw.mock.calls[0]?.[0].strings.join(" ")).toContain(
+      "FOR KEY SHARE",
+    );
+    expect(mocks.executeRaw).not.toHaveBeenCalled();
   });
 });

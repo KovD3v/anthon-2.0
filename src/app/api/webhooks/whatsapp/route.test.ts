@@ -11,6 +11,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   waitUntil: vi.fn(),
+  enqueueExternalInbound: vi.fn(),
   prismaMessageFindFirst: vi.fn(),
   prismaMessageFindUnique: vi.fn(),
   prismaChannelIdentityFindUnique: vi.fn(),
@@ -56,6 +57,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@vercel/functions", () => ({
   waitUntil: mocks.waitUntil,
+}));
+
+vi.mock("@/lib/channels/external-inbound-queue", () => ({
+  enqueueExternalInbound: mocks.enqueueExternalInbound,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -414,6 +419,7 @@ describe("/api/webhooks/whatsapp", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
 
     mocks.waitUntil.mockReset();
+    mocks.enqueueExternalInbound.mockReset();
     mocks.prismaMessageFindFirst.mockReset();
     mocks.prismaMessageFindUnique.mockReset();
     mocks.prismaMessageFindUnique.mockResolvedValue(null);
@@ -460,6 +466,7 @@ describe("/api/webhooks/whatsapp", () => {
     mocks.isRoutineFeatureEnabled.mockReset();
 
     mocks.waitUntil.mockImplementation(() => {});
+    mocks.enqueueExternalInbound.mockResolvedValue({ messageId: "qstash-1" });
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
     mocks.isRoutineFeatureEnabled.mockResolvedValue(false);
@@ -663,13 +670,40 @@ describe("/api/webhooks/whatsapp", () => {
     const response = await POST(
       new Request("http://localhost/api/webhooks/whatsapp", {
         method: "POST",
-        body: JSON.stringify(buildPayload()),
+        body: JSON.stringify(buildTextPayload("ciao")),
       }),
     );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
-    expect(mocks.waitUntil).toHaveBeenCalledTimes(1);
+    expect(mocks.waitUntil).not.toHaveBeenCalled();
+    expect(mocks.enqueueExternalInbound).toHaveBeenCalledTimes(1);
+    expect(mocks.enqueueExternalInbound).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "WHATSAPP",
+        externalMessageId: "wamid_1",
+        payload: expect.objectContaining({ channel: "WHATSAPP" }),
+      }),
+    );
+  });
+
+  it("returns 503 so WhatsApp can redeliver when queue publication fails", async () => {
+    mocks.enqueueExternalInbound.mockRejectedValueOnce(
+      new Error("QStash down"),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body: JSON.stringify(buildTextPayload("ciao")),
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Unable to enqueue WhatsApp messages",
+    });
   });
 
   it("sync status update without messages is ignored without AI side effects", async () => {
@@ -752,7 +786,9 @@ describe("/api/webhooks/whatsapp", () => {
 
   it("retries a failed inbound once, completes it, and ignores later or concurrent duplicates", async () => {
     process.env.WHATSAPP_SYNC_WEBHOOK = "true";
-    process.env.WHATSAPP_DISABLE_SEND = "true";
+    delete process.env.WHATSAPP_DISABLE_SEND;
+    delete process.env.WHATSAPP_ACCESS_TOKEN;
+    delete process.env.WHATSAPP_PHONE_NUMBER_ID;
     delete process.env.OPENROUTER_API_KEY;
 
     const lifecycleUser = {
@@ -827,6 +863,7 @@ describe("/api/webhooks/whatsapp", () => {
     expect(state).toMatchObject({ externalInboundStatus: "FAILED" });
     expect(mocks.streamChat).not.toHaveBeenCalled();
 
+    process.env.WHATSAPP_DISABLE_SEND = "true";
     process.env.OPENROUTER_API_KEY = "sk-test";
     mocks.incrementUsage.mockResolvedValue(undefined);
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
@@ -1478,6 +1515,14 @@ describe("/api/webhooks/whatsapp", () => {
             }),
           }),
         },
+      }),
+    );
+    expect(mocks.prismaMessageUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "wa_in_1" }),
+        data: expect.objectContaining({
+          externalInboundStatus: "COMPLETED",
+        }),
       }),
     );
     expect(mocks.streamChat).not.toHaveBeenCalled();

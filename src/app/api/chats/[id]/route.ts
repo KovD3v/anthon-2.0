@@ -8,6 +8,7 @@
 
 import { revalidateTag } from "next/cache";
 import { generateChatMetadata } from "@/lib/ai/chat-title";
+import { deleteChatWithDerivedData } from "@/lib/ai/deletion-lifecycle";
 import {
   getMemoryConsolidationStatus,
   getTurnMemoryChanges,
@@ -640,10 +641,8 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
     // failure so this destructive operation can be retried safely.
     await deletePrivateVoiceBlobsForMessages({ chatId: id });
 
-    // Delete chat (related messages are removed by cascading foreign keys)
-    await prisma.chat.delete({
-      where: { id },
-    });
+    // Delete the chat and its messages together with all derived records.
+    await deleteChatWithDerivedData(id);
 
     try {
       revalidateTag(`chats-${user.id}`, "max");

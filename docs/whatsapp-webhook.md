@@ -10,10 +10,11 @@ The WhatsApp webhook receives updates from the WhatsApp Cloud API, processes use
 flowchart LR
     A[WhatsApp User] --> B[WhatsApp Cloud API]
     B --> C[Webhook Endpoint]
-    C --> D[Process Message]
-    D --> E[AI Orchestrator]
-    E --> F[Send Response]
-    F --> B
+    C --> D[Signed QStash Queue]
+    D --> E[Inbound Worker]
+    E --> F[AI Orchestrator]
+    F --> G[Send Response]
+    G --> B
     B --> A
 ```
 
@@ -39,6 +40,8 @@ The webhook is authenticated in two ways:
 sequenceDiagram
     participant WA as WhatsApp
     participant WH as Webhook
+    participant QS as QStash
+    participant WK as Worker
     participant DB as Database
     participant AI as Orchestrator
 
@@ -49,30 +52,35 @@ sequenceDiagram
         WH-->>WA: 401 Unauthorized
     end
 
-    WH-->>WA: 200 OK (immediate)
+    WH->>QS: Publish each WAMID (deduplicated)
+    QS-->>WH: Accepted
+    WH-->>WA: 200 OK
 
-    Note over WH: Background processing starts
+    QS->>WK: Signed delivery
 
-    WH->>WH: Parse update (extract WAMID)
-    WH->>DB: Check idempotency
+    WK->>DB: Claim WAMID with lease
 
     alt Already processed
-        WH->>WH: Skip (duplicate)
+        WK->>DB: Acknowledge duplicate
     end
 
-    WH->>DB: Find/create user (by phone number)
-    WH->>DB: Check rate limit
+    WK->>DB: Find/create user and check rate limit
 
     alt Rate limited
-        WH->>WA: Send limit message
+        WK->>WA: Send limit message
     end
 
-    WH->>DB: Save inbound message
-    WH->>AI: streamChat()
-    AI-->>WH: Stream response
-    WH->>DB: Save assistant message
-    WH->>WA: sendMessage()
+    WK->>AI: streamChat()
+    AI-->>WK: Stream response
+    WK->>DB: Save assistant message
+    WK->>WA: sendMessage()
 ```
+
+Production webhook deliveries publish one queue message per WAMID to
+`POST /api/queues/external-inbound` after HMAC verification and wait for all
+publishes before returning `200`. The signed worker owns the database claim and
+lease; failed or leased work returns `503` for bounded QStash retry. Set
+`WHATSAPP_SYNC_WEBHOOK=true` only for local synchronous processing.
 
 ## Message Types
 
@@ -237,6 +245,9 @@ type WhatsAppPayload = {
 | `WHATSAPP_SYNC_WEBHOOK`    | No       | Run synchronously (dev mode)          |
 | `WHATSAPP_DISABLE_AI`      | No       | Disable AI responses                  |
 | `WHATSAPP_DISABLE_SEND`    | No       | Disable sending messages              |
+
+The queue also requires the shared `QSTASH_URL`, `QSTASH_TOKEN`,
+`QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, and `APP_URL` values.
 
 ## Webhook Setup
 

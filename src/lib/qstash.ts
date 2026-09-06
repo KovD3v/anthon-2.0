@@ -96,6 +96,7 @@ export async function publishToQueue(
     delay?: number;
     deduplicationId?: string;
     retries?: number;
+    retryDelay?: string;
   },
 ) {
   const appUrl = getQueueBaseUrl();
@@ -109,6 +110,7 @@ export async function publishToQueue(
     delay: options?.delay, // seamless delay support
     deduplicationId: options?.deduplicationId?.replaceAll(":", "-"),
     retries: options?.retries,
+    retryDelay: options?.retryDelay,
   });
 }
 

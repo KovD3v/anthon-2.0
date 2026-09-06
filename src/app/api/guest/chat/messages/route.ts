@@ -1,5 +1,5 @@
 import type { Prisma } from "@/generated/prisma";
-import { deleteMessagesWithThreadSummaries } from "@/lib/ai/thread-summary-lifecycle";
+import { deleteMessagesWithDerivedData } from "@/lib/ai/deletion-lifecycle";
 import { prisma } from "@/lib/db";
 import { authenticateGuest } from "@/lib/guest-auth";
 import { createLogger } from "@/lib/logger";
@@ -71,9 +71,8 @@ export async function DELETE(request: Request) {
     );
 
     await deletePrivateVoiceBlobsForMessages(deletedMessageWhere);
-    const deleteResult = await prisma.$transaction((tx) =>
-      deleteMessagesWithThreadSummaries(tx, deletedMessageWhere),
-    );
+    const deleteResult =
+      await deleteMessagesWithDerivedData(deletedMessageWhere);
 
     return Response.json({
       success: true,

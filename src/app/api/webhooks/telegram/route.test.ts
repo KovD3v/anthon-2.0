@@ -10,6 +10,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   waitUntil: vi.fn(),
+  enqueueExternalInbound: vi.fn(),
   prismaMessageFindFirst: vi.fn(),
   prismaMessageFindUnique: vi.fn(),
   prismaChannelIdentityFindUnique: vi.fn(),
@@ -57,6 +58,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@vercel/functions", () => ({
   waitUntil: mocks.waitUntil,
+}));
+
+vi.mock("@/lib/channels/external-inbound-queue", () => ({
+  enqueueExternalInbound: mocks.enqueueExternalInbound,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -308,6 +313,7 @@ describe("/api/webhooks/telegram", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
 
     mocks.waitUntil.mockReset();
+    mocks.enqueueExternalInbound.mockReset();
     mocks.prismaMessageFindFirst.mockReset();
     mocks.prismaMessageFindUnique.mockReset();
     mocks.prismaMessageFindUnique.mockResolvedValue(null);
@@ -356,6 +362,7 @@ describe("/api/webhooks/telegram", () => {
     mocks.isRoutineFeatureEnabled.mockReset();
 
     mocks.waitUntil.mockImplementation(() => {});
+    mocks.enqueueExternalInbound.mockResolvedValue({ messageId: "qstash-1" });
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
     mocks.isRoutineFeatureEnabled.mockResolvedValue(false);
@@ -514,7 +521,35 @@ describe("/api/webhooks/telegram", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
-    expect(mocks.waitUntil).toHaveBeenCalledTimes(1);
+    expect(mocks.waitUntil).not.toHaveBeenCalled();
+    expect(mocks.enqueueExternalInbound).toHaveBeenCalledTimes(1);
+    expect(mocks.enqueueExternalInbound).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "TELEGRAM",
+        externalMessageId: "100:2",
+        payload: expect.objectContaining({ channel: "TELEGRAM" }),
+      }),
+    );
+  });
+
+  it("returns 503 so Telegram can redeliver when queue publication fails", async () => {
+    mocks.enqueueExternalInbound.mockRejectedValueOnce(
+      new Error("QStash down"),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/telegram", {
+        method: "POST",
+        body: JSON.stringify(buildMinimalUpdate()),
+        headers: { "x-telegram-bot-api-secret-token": "tg-secret" },
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Unable to enqueue Telegram update",
+    });
   });
 
   it("sync duplicate externalMessageId returns ok without AI side effects", async () => {
@@ -553,7 +588,8 @@ describe("/api/webhooks/telegram", () => {
 
   it("retries a failed inbound once, completes it, and ignores later or concurrent duplicates", async () => {
     process.env.TELEGRAM_SYNC_WEBHOOK = "true";
-    process.env.TELEGRAM_DISABLE_SEND = "true";
+    delete process.env.TELEGRAM_DISABLE_SEND;
+    delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.OPENROUTER_API_KEY;
 
     const lifecycleUser = {
@@ -628,6 +664,7 @@ describe("/api/webhooks/telegram", () => {
     expect(state).toMatchObject({ externalInboundStatus: "FAILED" });
     expect(mocks.streamChat).not.toHaveBeenCalled();
 
+    process.env.TELEGRAM_DISABLE_SEND = "true";
     process.env.OPENROUTER_API_KEY = "sk-test";
     mocks.incrementUsage.mockResolvedValue(undefined);
     mocks.extractAndSaveMemories.mockResolvedValue(undefined);
@@ -1178,6 +1215,14 @@ describe("/api/webhooks/telegram", () => {
             }),
           }),
         },
+      }),
+    );
+    expect(mocks.prismaMessageUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "msg_in_1" }),
+        data: expect.objectContaining({
+          externalInboundStatus: "COMPLETED",
+        }),
       }),
     );
     expect(mocks.trackInboundUserMessageFunnelProgress).toHaveBeenCalledWith(

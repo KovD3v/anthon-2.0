@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   messageFindUnique: vi.fn(),
   messageDeleteMany: vi.fn(),
   summaryDeleteMany: vi.fn(),
+  deleteMessagesWithDerivedData: vi.fn(),
   deletePrivateVoiceBlobsForMessages: vi.fn(),
 }));
 
@@ -33,6 +34,10 @@ vi.mock("@/lib/db", () => {
   };
 });
 
+vi.mock("@/lib/ai/deletion-lifecycle", () => ({
+  deleteMessagesWithDerivedData: mocks.deleteMessagesWithDerivedData,
+}));
+
 vi.mock("@/lib/voice/attachment-cleanup", () => ({
   deletePrivateVoiceBlobsForMessages: mocks.deletePrivateVoiceBlobsForMessages,
 }));
@@ -44,12 +49,14 @@ describe("/api/guest/chat/messages route", () => {
     mocks.authenticateGuest.mockReset();
     mocks.messageFindUnique.mockReset();
     mocks.messageDeleteMany.mockReset();
+    mocks.deleteMessagesWithDerivedData.mockReset();
     mocks.deletePrivateVoiceBlobsForMessages.mockReset();
 
     mocks.authenticateGuest.mockResolvedValue({
       user: { id: "guest-1", isGuest: true },
     });
     mocks.messageDeleteMany.mockResolvedValue({ count: 2 });
+    mocks.deleteMessagesWithDerivedData.mockResolvedValue({ count: 2 });
     mocks.deletePrivateVoiceBlobsForMessages.mockResolvedValue(0);
   });
 
@@ -122,16 +129,12 @@ describe("/api/guest/chat/messages route", () => {
       chatId: "chat-1",
       OR: [{ createdAt: { gt: createdAt } }, { createdAt, id: { gte: "m1" } }],
     });
-    expect(mocks.messageDeleteMany).toHaveBeenCalledWith({
-      where: {
-        userId: "guest-1",
-        chatId: "chat-1",
-        OR: [
-          { createdAt: { gt: createdAt } },
-          { createdAt, id: { gte: "m1" } },
-        ],
-      },
+    expect(mocks.deleteMessagesWithDerivedData).toHaveBeenCalledWith({
+      userId: "guest-1",
+      chatId: "chat-1",
+      OR: [{ createdAt: { gt: createdAt } }, { createdAt, id: { gte: "m1" } }],
     });
+    expect(mocks.messageDeleteMany).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toEqual({
       success: true,
       deletedCount: 2,

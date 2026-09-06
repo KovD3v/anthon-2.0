@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   messageFindUnique: vi.fn(),
   messageDeleteMany: vi.fn(),
   summaryDeleteMany: vi.fn(),
+  deleteMessagesWithDerivedData: vi.fn(),
   deletePrivateVoiceBlobsForMessages: vi.fn(),
 }));
 
@@ -39,6 +40,10 @@ vi.mock("@/lib/db", () => {
   };
 });
 
+vi.mock("@/lib/ai/deletion-lifecycle", () => ({
+  deleteMessagesWithDerivedData: mocks.deleteMessagesWithDerivedData,
+}));
+
 vi.mock("@/lib/voice/attachment-cleanup", () => ({
   deletePrivateVoiceBlobsForMessages: mocks.deletePrivateVoiceBlobsForMessages,
 }));
@@ -65,6 +70,7 @@ describe("/api/chat/messages route", () => {
     mocks.messageFindMany.mockReset();
     mocks.messageFindUnique.mockReset();
     mocks.messageDeleteMany.mockReset();
+    mocks.deleteMessagesWithDerivedData.mockReset();
     mocks.deletePrivateVoiceBlobsForMessages.mockReset();
 
     mocks.auth.mockResolvedValue({ userId: "clerk_1" });
@@ -75,6 +81,7 @@ describe("/api/chat/messages route", () => {
       preferences: { showTechnicalMetrics: true },
     });
     mocks.messageDeleteMany.mockResolvedValue({ count: 2 });
+    mocks.deleteMessagesWithDerivedData.mockResolvedValue({ count: 2 });
     mocks.deletePrivateVoiceBlobsForMessages.mockResolvedValue(0);
   });
 
@@ -740,16 +747,12 @@ describe("/api/chat/messages route", () => {
       chatId: "chat-1",
       OR: [{ createdAt: { gt: createdAt } }, { createdAt, id: { gte: "m1" } }],
     });
-    expect(mocks.messageDeleteMany).toHaveBeenCalledWith({
-      where: {
-        userId: "user-1",
-        chatId: "chat-1",
-        OR: [
-          { createdAt: { gt: createdAt } },
-          { createdAt, id: { gte: "m1" } },
-        ],
-      },
+    expect(mocks.deleteMessagesWithDerivedData).toHaveBeenCalledWith({
+      userId: "user-1",
+      chatId: "chat-1",
+      OR: [{ createdAt: { gt: createdAt } }, { createdAt, id: { gte: "m1" } }],
     });
+    expect(mocks.messageDeleteMany).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toEqual({
       success: true,
       deletedCount: 2,
@@ -764,7 +767,9 @@ describe("/api/chat/messages route", () => {
       chatId: "chat-1",
       createdAt: new Date("2026-02-16T10:00:00.000Z"),
     });
-    mocks.messageDeleteMany.mockRejectedValue(new Error("delete failed"));
+    mocks.deleteMessagesWithDerivedData.mockRejectedValue(
+      new Error("delete failed"),
+    );
 
     const response = await DELETE(
       new Request("http://localhost/api/chat/messages?id=m1", {
@@ -798,7 +803,7 @@ describe("/api/chat/messages route", () => {
     );
 
     expect(response.status).toBe(500);
-    expect(mocks.messageDeleteMany).not.toHaveBeenCalled();
+    expect(mocks.deleteMessagesWithDerivedData).not.toHaveBeenCalled();
   });
 
   it("PATCH returns 401 when Clerk auth has no userId", async () => {
@@ -949,16 +954,12 @@ describe("/api/chat/messages route", () => {
       chatId: "chat-1",
       OR: [{ createdAt: { gt: createdAt } }, { createdAt, id: { gte: "m1" } }],
     });
-    expect(mocks.messageDeleteMany).toHaveBeenCalledWith({
-      where: {
-        userId: "user-1",
-        chatId: "chat-1",
-        OR: [
-          { createdAt: { gt: createdAt } },
-          { createdAt, id: { gte: "m1" } },
-        ],
-      },
+    expect(mocks.deleteMessagesWithDerivedData).toHaveBeenCalledWith({
+      userId: "user-1",
+      chatId: "chat-1",
+      OR: [{ createdAt: { gt: createdAt } }, { createdAt, id: { gte: "m1" } }],
     });
+    expect(mocks.messageDeleteMany).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toEqual({
       success: true,
       deletedCount: 2,
@@ -1001,7 +1002,9 @@ describe("/api/chat/messages route", () => {
       createdAt: new Date("2026-02-16T10:00:00.000Z"),
       content: "original",
     });
-    mocks.messageDeleteMany.mockRejectedValue(new Error("delete failed"));
+    mocks.deleteMessagesWithDerivedData.mockRejectedValue(
+      new Error("delete failed"),
+    );
 
     const response = await PATCH(
       new Request("http://localhost/api/chat/messages", {

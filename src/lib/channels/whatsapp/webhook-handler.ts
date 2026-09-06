@@ -18,6 +18,11 @@ import {
 import { buildExternalChannelInbound } from "@/lib/channel-flow/inbound";
 import { formatExternalRateLimitMessage } from "@/lib/channel-flow/rate-limit-message";
 import type { ChannelMessagePart } from "@/lib/channel-flow/types";
+import {
+  type ExternalInboundProcessingResult,
+  enqueueExternalInbound,
+  resolveExternalInboundResult,
+} from "@/lib/channels/external-inbound-queue";
 import { transcribeAudioWithOpenRouter } from "@/lib/channels/transcription/openrouter";
 import {
   downloadWhatsAppMedia,
@@ -66,7 +71,7 @@ function safeErrorSummary(err: unknown) {
   }
 }
 
-type WhatsAppMessage = {
+export type WhatsAppMessage = {
   from: string;
   id: string;
   timestamp: string;
@@ -88,7 +93,7 @@ type WhatsAppMessage = {
   };
 };
 
-type WhatsAppChangeValue = {
+export type WhatsAppChangeValue = {
   messaging_product: "whatsapp";
   metadata: {
     display_phone_number: string;
@@ -246,6 +251,13 @@ export async function handleWhatsAppWebhookPost(request: Request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  if (!payload || typeof payload !== "object") {
+    return Response.json(
+      { error: "Invalid WhatsApp payload" },
+      { status: 400 },
+    );
+  }
+
   // Handle updates
   if (payload.object === "whatsapp_business_account") {
     // For local/dev, synchronous execution
@@ -254,16 +266,34 @@ export async function handleWhatsAppWebhookPost(request: Request) {
       return Response.json({ ok: true });
     }
 
-    // Async background execution
-    safeWaitUntil(
-      processPayload(payload).catch((err) => {
-        whatsappLogger.error(
-          "handler.background_error",
-          "Background handler error",
-          { err },
-        );
-      }),
+    const queueMessages = collectWhatsAppInboundMessages(payload);
+    if (queueMessages.length === 0) {
+      return Response.json({ ok: true });
+    }
+
+    const publishResults = await Promise.allSettled(
+      queueMessages.map(({ message, context }) =>
+        enqueueExternalInbound({
+          channel: "WHATSAPP",
+          externalMessageId: message.id,
+          payload: { channel: "WHATSAPP", message, context },
+        }),
+      ),
     );
+    const rejected = publishResults.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (rejected.length > 0) {
+      whatsappLogger.error(
+        "queue.publish_failed",
+        "Failed to enqueue WhatsApp messages",
+        { failedCount: rejected.length, totalCount: publishResults.length },
+      );
+      return Response.json(
+        { ok: false, error: "Unable to enqueue WhatsApp messages" },
+        { status: 503 },
+      );
+    }
 
     return Response.json({ ok: true });
   }
@@ -403,6 +433,34 @@ async function processPayload(payload: WhatsAppPayload) {
   }
 }
 
+function collectWhatsAppInboundMessages(payload: WhatsAppPayload) {
+  const queueMessages: Array<{
+    message: WhatsAppMessage;
+    context: Omit<WhatsAppChangeValue, "messages">;
+  }> = [];
+
+  for (const entry of payload.entry || []) {
+    for (const change of entry.changes || []) {
+      if (
+        change.field !== "messages" ||
+        !change.value ||
+        !Array.isArray(change.value.messages)
+      ) {
+        continue;
+      }
+
+      const { messages: _messages, ...context } = change.value;
+      for (const message of change.value.messages) {
+        if (message.id && message.from) {
+          queueMessages.push({ message, context });
+        }
+      }
+    }
+  }
+
+  return queueMessages;
+}
+
 async function handleMessage(
   message: WhatsAppMessage,
   context: WhatsAppChangeValue,
@@ -490,6 +548,12 @@ async function handleMessage(
       claimToken,
       error,
     });
+  const sendFallback = async (text: string, failure: unknown) => {
+    const sent = await sendWhatsAppMessage(from, text);
+    if (sent) await completeInbound();
+    else await failInbound(failure);
+    return sent;
+  };
   const stopInboundHeartbeat = startExternalInboundLeaseHeartbeat({
     inboundId: inbound.id,
     claimToken,
@@ -542,11 +606,10 @@ async function handleMessage(
         context,
         kind: "ai_configuration_missing",
       });
-      await sendWhatsAppMessage(
-        from,
+      await sendFallback(
         "Servizio AI non configurato. Riprova più tardi.",
+        "ai_configuration_missing",
       );
-      await failInbound("ai_configuration_missing");
       return;
     }
 
@@ -573,11 +636,10 @@ async function handleMessage(
             kind: "audio_download_failed",
           });
 
-          await sendWhatsAppMessage(
-            from,
+          await sendFallback(
             "Non sono riuscito a scaricare il messaggio audio. Riprova.",
+            "audio_download_failed",
           );
-          await failInbound("audio_download_failed");
           return;
         }
 
@@ -601,11 +663,10 @@ async function handleMessage(
             kind: "transcription_failed",
             summary: safeErrorSummary(err),
           });
-          await sendWhatsAppMessage(
-            from,
+          await sendFallback(
             "Non sono riuscito a trascrivere il messaggio audio. Riprova.",
+            err,
           );
-          await failInbound(err);
           return;
         }
 
@@ -617,11 +678,10 @@ async function handleMessage(
             kind: "empty_transcription",
           });
 
-          await sendWhatsAppMessage(
-            from,
+          await sendFallback(
             "Non sono riuscito a trascrivere l'audio. Prova a reinviare il messaggio.",
+            "empty_transcription",
           );
-          await failInbound("empty_transcription");
           return;
         }
       }
@@ -639,11 +699,10 @@ async function handleMessage(
             context,
             kind: "image_download_failed",
           });
-          await sendWhatsAppMessage(
-            from,
+          await sendFallback(
             "Non sono riuscito a scaricare l'immagine. Riprova.",
+            "image_download_failed",
           );
-          await failInbound("image_download_failed");
           return;
         }
         files.push({
@@ -665,11 +724,10 @@ async function handleMessage(
           kind: "image_download_failed",
           summary: safeErrorSummary(err),
         });
-        await sendWhatsAppMessage(
-          from,
+        await sendFallback(
           "Non sono riuscito a scaricare l'immagine. Riprova.",
+          err,
         );
-        await failInbound(err);
         return;
       }
     }
@@ -685,11 +743,10 @@ async function handleMessage(
             context,
             kind: "document_download_failed",
           });
-          await sendWhatsAppMessage(
-            from,
+          await sendFallback(
             "Non sono riuscito a scaricare il documento. Riprova.",
+            "document_download_failed",
           );
-          await failInbound("document_download_failed");
           return;
         }
         if (!text && message.document.filename) {
@@ -716,11 +773,10 @@ async function handleMessage(
           kind: "document_download_failed",
           summary: safeErrorSummary(err),
         });
-        await sendWhatsAppMessage(
-          from,
+        await sendFallback(
           "Non sono riuscito a scaricare il documento. Riprova.",
+          err,
         );
-        await failInbound(err);
         return;
       }
     }
@@ -821,7 +877,7 @@ async function handleMessage(
             >[0],
           ),
         );
-        if (sent && !flowResult.rateLimit.retryable) await completeInbound();
+        if (sent) await completeInbound();
         else await failInbound(flowResult.rateLimit.reason ?? "usage_denied");
         return;
       }
@@ -835,8 +891,10 @@ async function handleMessage(
           kind: "assistant_persistence_failed",
           summary: safeErrorSummary(flowResult.persistence.error),
         });
-        await sendWhatsAppMessage(from, "Errore temporaneo. Riprova.");
-        await failInbound(flowResult.persistence.error);
+        await sendFallback(
+          "Errore temporaneo. Riprova.",
+          flowResult.persistence.error,
+        );
         return;
       }
     } catch (err) {
@@ -866,13 +924,12 @@ async function handleMessage(
           },
         })
         .catch(() => undefined);
-      await sendWhatsAppMessage(
-        from,
+      await sendFallback(
         persistenceFailure
           ? "Errore temporaneo. Riprova."
           : "Si è verificato un errore. Riprova.",
+        err,
       );
-      await failInbound(err);
       return;
     }
 
@@ -896,11 +953,10 @@ async function handleMessage(
         })
         .catch(() => undefined);
 
-      await sendWhatsAppMessage(
-        from,
+      await sendFallback(
         "Non ho generato una risposta. Riprova tra qualche secondo.",
+        "empty_assistant_response",
       );
-      await failInbound("empty_assistant_response");
       return;
     }
 
@@ -1061,6 +1117,65 @@ async function handleMessage(
   } finally {
     await stopInboundHeartbeat();
   }
+}
+
+async function readWhatsAppInboundStatus(
+  externalMessageId: string,
+): Promise<{ externalInboundStatus?: string | null } | null> {
+  return prisma.message.findFirst({
+    where: {
+      channel: "WHATSAPP",
+      externalMessageId,
+    },
+    select: { externalInboundStatus: true },
+  });
+}
+
+async function readWhatsAppConnectStatus(externalMessageId: string) {
+  return prisma.channelConnectRequest.findUnique({
+    where: {
+      channel_externalMessageId: {
+        channel: "WHATSAPP",
+        externalMessageId,
+      },
+    },
+    select: { status: true },
+  });
+}
+
+/**
+ * Runs one WhatsApp message from the durable queue and reports the persisted
+ * outcome to the QStash route.
+ */
+export async function processWhatsAppInboundMessage(
+  message: WhatsAppMessage,
+  context: WhatsAppChangeValue,
+): Promise<ExternalInboundProcessingResult> {
+  const text =
+    message.type === "text"
+      ? message.text?.body?.trim() || ""
+      : message.type === "image"
+        ? message.image?.caption?.trim() || ""
+        : message.type === "document"
+          ? message.document?.caption?.trim() || ""
+          : "";
+  const isConnect = Boolean(text && isConnectCommand(text));
+
+  if (isConnect) {
+    await handleMessage(message, context);
+    const after = await readWhatsAppConnectStatus(message.id);
+    return resolveExternalInboundResult({
+      status: after?.status,
+      completedStatus: "SENT",
+      missingResult: "failed",
+    });
+  }
+
+  await handleMessage(message, context);
+  const after = await readWhatsAppInboundStatus(message.id);
+  return resolveExternalInboundResult({
+    status: after?.externalInboundStatus,
+  });
 }
 
 function buildWhatsAppGuestUserData(

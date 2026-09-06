@@ -65,6 +65,19 @@ La retention usa il migliore entitlement personale o organizzativo. Un account
 registrato senza accesso corrente conserva la finestra operativa di 7 giorni,
 senza ottenere accesso al coaching.
 
+### 4. External inbound delivery
+
+Telegram and WhatsApp webhooks publish authenticated provider messages to
+`POST /api/queues/external-inbound` before acknowledging the provider. The
+worker verifies the QStash signature, claims the persisted inbound message with
+its lease, and runs the normal channel flow. WhatsApp batches are split into one
+queue message per WAMID. Failed work and an active lease return `503` so QStash
+can retry; completed duplicates are acknowledged. The queue uses five bounded
+retries with an exponential delay that extends beyond the five-minute inbound
+lease, allowing a crashed worker to be reclaimed.
+An explicitly delivered fallback response is terminal, so retries do not repeat
+the same error notice. Failed deliveries remain retryable.
+
 ## Trigger and Security Model
 
 - `GET /api/cron/trigger?job=all|consolidate|archive|analyze`
@@ -72,6 +85,10 @@ senza ottenere accesso al coaching.
   - Selects non-guest active users and publishes queue tasks.
 - `POST /api/queues/consolidate|archive|analyze`
   - Verifies `Upstash-Signature` via `verifyQStashAuth()`.
+- `POST /api/queues/external-inbound`
+  - Verifies `Upstash-Signature` and dispatches one Telegram update or WhatsApp
+    WAMID. Provider signatures are checked by the public webhook before queue
+    publication.
 
 ## Attachment Cleanup Cron
 
@@ -82,6 +99,11 @@ Attachment cleanup is a separate cron flow:
 - Purpose: deletes expired `Attachment` records and corresponding blob objects based on retention policy.
 - A user without paid access cannot abort the batch; the job applies the
   seven-day no-access window and continues with the next user.
+- Each bounded batch publishes remaining work to signed
+  `POST /api/queues/cleanup-attachments`. User and attachment cursors advance
+  past scanned records, including failed Blob deletions; those failures are
+  retried during the next daily sweep. QStash must be configured for the sweep
+  to reach users and attachments beyond the first batch.
 
 ## Scheduled Vercel Cron Jobs
 

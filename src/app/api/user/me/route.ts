@@ -5,6 +5,7 @@
 
 import { clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { invalidateAllDerivedCachesForUser } from "@/lib/ai/deletion-lifecycle";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
@@ -31,6 +32,7 @@ export async function DELETE() {
 
     // Delete from DB — cascades to chats, messages, preferences, profile, memberships
     await prisma.user.delete({ where: { id: user.id } });
+    invalidateAllDerivedCachesForUser(user.id);
 
     logger.info("user.deleted", "User deleted own account", {
       userId: user.id,

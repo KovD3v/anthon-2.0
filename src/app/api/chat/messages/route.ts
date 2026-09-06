@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma";
-import { deleteMessagesWithThreadSummaries } from "@/lib/ai/thread-summary-lifecycle";
+import { deleteMessagesWithDerivedData } from "@/lib/ai/deletion-lifecycle";
 import { redactToolCalls } from "@/lib/ai/tool-privacy";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
@@ -253,9 +253,8 @@ export async function DELETE(request: Request) {
     // Delete this message and all subsequent messages in the same chat (cascade)
     // This keeps conversation coherent - deleting a user message also removes
     // the assistant response and any follow-up conversation
-    const deleteResult = await prisma.$transaction((tx) =>
-      deleteMessagesWithThreadSummaries(tx, deletedMessageWhere),
-    );
+    const deleteResult =
+      await deleteMessagesWithDerivedData(deletedMessageWhere);
 
     return NextResponse.json({
       success: true,
@@ -368,9 +367,8 @@ export async function PATCH(request: Request) {
     await deletePrivateVoiceBlobsForMessages(deletedMessageWhere);
 
     // Delete this message and all subsequent messages
-    const deleteResult = await prisma.$transaction((tx) =>
-      deleteMessagesWithThreadSummaries(tx, deletedMessageWhere),
-    );
+    const deleteResult =
+      await deleteMessagesWithDerivedData(deletedMessageWhere);
 
     // Return the new content so the frontend can re-send it
     return NextResponse.json({

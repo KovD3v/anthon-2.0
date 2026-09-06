@@ -216,7 +216,7 @@ uses `/api/admin/rag` for document management.
 | `POST` | `/api/admin/model-experiments/[experimentId]/actions` | Apply a validated experiment lifecycle action. |
 | `GET` | `/api/admin/model-experiments/[experimentId]/results` | Read experiment results and pair aggregates. |
 | `GET` | `/api/admin/ai-traces` | Superadmin-only list of redacted AI turn traces. |
-| `GET` | `/api/admin/ai-traces/[traceId]` | Superadmin-only trace detail with audited access to encrypted content. |
+| `POST` | `/api/admin/ai-traces/[traceId]` | Superadmin-only trace detail with purpose-bound audited access to encrypted content. |
 
 ## Operations and Maintenance API
 
@@ -233,6 +233,7 @@ uses `/api/admin/rag` for document management.
 | `POST` | `/api/queues/archive` | Internal QStash consumer for session archive. |
 | `POST` | `/api/queues/analyze` | Internal QStash consumer for profile analysis. |
 | `POST` | `/api/queues/voice` | Internal QStash consumer for durable web voice generation. |
+| `POST` | `/api/queues/external-inbound` | Signed QStash consumer for Telegram and WhatsApp provider messages. |
 
 ## Webhooks
 

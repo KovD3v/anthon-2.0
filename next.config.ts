@@ -68,11 +68,13 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["pg"],
 };
 
-export default withPostHogConfig(nextConfig, {
-  personalApiKey: getRequiredEnv("POSTHOG_PERSONAL_API_KEY"),
-  projectId: getRequiredEnv("POSTHOG_PROJECT_ID"),
-  host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
-  sourcemaps: {
-    deleteAfterUpload: true,
-  },
-});
+export default process.env.POSTHOG_UPLOAD_SOURCEMAPS === "1"
+  ? withPostHogConfig(nextConfig, {
+      personalApiKey: getRequiredEnv("POSTHOG_PERSONAL_API_KEY"),
+      projectId: getRequiredEnv("POSTHOG_PROJECT_ID"),
+      host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
+      sourcemaps: {
+        deleteAfterUpload: true,
+      },
+    })
+  : nextConfig;

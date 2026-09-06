@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => {
     attachmentFindMany: vi.fn(),
     attachmentDelete: vi.fn(),
     getRetentionParams: vi.fn(),
+    publishToQueue: vi.fn(),
   };
 });
 
@@ -25,6 +26,9 @@ vi.mock("@/lib/voice/storage", () => ({
 }));
 vi.mock("@/lib/maintenance/retention-policy", () => ({
   getRetentionParams: mocks.getRetentionParams,
+}));
+vi.mock("@/lib/qstash", () => ({
+  publishToQueue: mocks.publishToQueue,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -87,6 +91,9 @@ describe("/api/cron/cleanup-attachments", () => {
     mocks.attachmentDelete.mockReset();
     mocks.getRetentionParams.mockReset().mockResolvedValue({
       retentionDays: 30,
+    });
+    mocks.publishToQueue.mockReset().mockResolvedValue({
+      messageId: "cleanup-continuation-1",
     });
     cleanupConfigKeys.forEach((key) => {
       delete process.env[key];
@@ -159,7 +166,7 @@ describe("/api/cron/cleanup-attachments", () => {
           },
         ],
       },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      orderBy: { id: "asc" },
       take: 21,
       select: {
         id: true,
@@ -191,7 +198,7 @@ describe("/api/cron/cleanup-attachments", () => {
           },
         ],
       },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      orderBy: { id: "asc" },
       take: 21,
       select: {
         id: true,
@@ -201,6 +208,7 @@ describe("/api/cron/cleanup-attachments", () => {
 
     expect(mocks.del).toHaveBeenCalledTimes(1);
     expect(mocks.attachmentDelete).toHaveBeenCalledTimes(2);
+    expect(mocks.publishToQueue).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toEqual({
       success: true,
       message: "Attachment cleanup complete",
@@ -263,8 +271,7 @@ describe("/api/cron/cleanup-attachments", () => {
 
     expect(mocks.userFindMany).toHaveBeenCalledWith({
       take: 3,
-      cursor: { id: "user-0" },
-      skip: 1,
+      where: { id: { gt: "user-0" } },
       orderBy: { id: "asc" },
       select: userSelect,
     });
@@ -272,10 +279,18 @@ describe("/api/cron/cleanup-attachments", () => {
     expect(mocks.attachmentFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         take: 4,
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        orderBy: { id: "asc" },
       }),
     );
     expect(mocks.del).toHaveBeenCalledTimes(3);
+    expect(mocks.publishToQueue).toHaveBeenCalledWith(
+      "api/queues/cleanup-attachments",
+      { cursor: "user-2", resumeCurrentUser: true },
+      {
+        deduplicationId: "attachment-cleanup:user-2:resume:start",
+        retries: 5,
+      },
+    );
     await expect(response.json()).resolves.toEqual({
       success: true,
       message: "Attachment cleanup complete",
@@ -312,7 +327,7 @@ describe("/api/cron/cleanup-attachments", () => {
 
     expect(mocks.userFindMany).toHaveBeenCalledWith({
       take: 2,
-      cursor: { id: "user-1" },
+      where: { id: { gte: "user-1" } },
       orderBy: { id: "asc" },
       select: userSelect,
     });
@@ -320,11 +335,66 @@ describe("/api/cron/cleanup-attachments", () => {
       expect.objectContaining({ take: 3 }),
     );
     expect(mocks.del).toHaveBeenCalledTimes(2);
+    expect(mocks.publishToQueue).toHaveBeenCalledWith(
+      "api/queues/cleanup-attachments",
+      {
+        cursor: "user-1",
+        resumeCurrentUser: true,
+        attachmentCursor: "att-2",
+      },
+      {
+        deduplicationId: "attachment-cleanup:user-1:resume:att-2",
+        retries: 5,
+      },
+    );
     await expect(response.json()).resolves.toMatchObject({
       pagination: {
         hasMore: true,
         nextCursor: "user-1",
         resumeCurrentUser: true,
+      },
+    });
+  });
+
+  it("advances the attachment cursor when a Blob deletion fails", async () => {
+    process.env.ATTACHMENT_CLEANUP_USER_BATCH_SIZE = "1";
+    process.env.ATTACHMENT_CLEANUP_ATTACHMENT_BATCH_SIZE = "1";
+    process.env.ATTACHMENT_CLEANUP_MAX_ATTACHMENTS_PER_RUN = "1";
+    mocks.userFindMany.mockResolvedValue([createUser("user-1")]);
+    mocks.attachmentFindMany.mockReset();
+    mocks.attachmentFindMany.mockResolvedValue([
+      { id: "att-failed", blobUrl: "https://blob.test/failed" },
+      { id: "att-next", blobUrl: "https://blob.test/next" },
+    ]);
+    mocks.del.mockRejectedValue(new Error("blob failed"));
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.attachmentDelete).not.toHaveBeenCalled();
+    expect(mocks.publishToQueue).toHaveBeenCalledWith(
+      "api/queues/cleanup-attachments",
+      {
+        cursor: "user-1",
+        resumeCurrentUser: true,
+        attachmentCursor: "att-failed",
+      },
+      {
+        deduplicationId: "attachment-cleanup:user-1:resume:att-failed",
+        retries: 5,
+      },
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      stats: {
+        scannedAttachments: 1,
+        deletedAttachments: 0,
+        errors: 1,
+      },
+      pagination: {
+        hasMore: true,
+        nextCursor: "user-1",
+        resumeCurrentUser: true,
+        attachmentCursor: "att-failed",
       },
     });
   });

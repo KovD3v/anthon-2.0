@@ -275,6 +275,10 @@ describe("integration /api/chats/[id]", () => {
 
   it("DELETE succeeds even when revalidateTag throws", async () => {
     const user = await createUser();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { onboardingCompletedAt: new Date("2026-07-13T09:00:00.000Z") },
+    });
     const chat = await createChat(user.id, { title: "Delete me" });
     await createMessage({
       userId: user.id,

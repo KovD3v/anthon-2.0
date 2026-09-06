@@ -19,6 +19,11 @@ import { buildExternalChannelInbound } from "@/lib/channel-flow/inbound";
 import { formatExternalRateLimitMessage } from "@/lib/channel-flow/rate-limit-message";
 import type { ChannelMessagePart } from "@/lib/channel-flow/types";
 import {
+  type ExternalInboundProcessingResult,
+  enqueueExternalInbound,
+  resolveExternalInboundResult,
+} from "@/lib/channels/external-inbound-queue";
+import {
   downloadTelegramAudio,
   downloadTelegramDocument,
   downloadTelegramPhoto,
@@ -63,7 +68,7 @@ function safeWaitUntil(promise: Promise<unknown>) {
   }
 }
 
-type TelegramUpdate = {
+export type TelegramUpdate = {
   update_id: number;
   message?: {
     message_id: number;
@@ -158,24 +163,48 @@ export async function handleTelegramWebhookPost(request: Request) {
     return Response.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
 
+  if (!Number.isFinite(update?.update_id)) {
+    return Response.json(
+      { ok: false, error: "Invalid Telegram update" },
+      {
+        status: 400,
+      },
+    );
+  }
+
   // For local/dev testing, allow running the handler synchronously.
   if (process.env.TELEGRAM_SYNC_WEBHOOK === "true") {
     await handleUpdate(update);
     return Response.json({ ok: true });
   }
 
-  // Acknowledge ASAP; do the heavy work in background.
-  safeWaitUntil(
-    handleUpdate(update).catch((err) => {
-      telegramLogger.error(
-        "handler.background_error",
-        "Background handler error",
-        { err },
-      );
-    }),
-  );
+  try {
+    await enqueueExternalInbound({
+      channel: "TELEGRAM",
+      externalMessageId: telegramExternalMessageId(update),
+      payload: { channel: "TELEGRAM", update },
+    });
+  } catch (error) {
+    telegramLogger.error(
+      "queue.publish_failed",
+      "Failed to enqueue Telegram update",
+      { error },
+    );
+    return Response.json(
+      { ok: false, error: "Unable to enqueue Telegram update" },
+      { status: 503 },
+    );
+  }
 
   return Response.json({ ok: true });
+}
+
+function telegramExternalMessageId(update: TelegramUpdate) {
+  const message = update.message;
+  if (message?.chat?.id !== undefined && message.message_id !== undefined) {
+    return `${message.chat.id}:${message.message_id}`;
+  }
+  return `update:${update.update_id}`;
 }
 
 function createTelegramConnectToken(externalMessageId: string) {
@@ -368,6 +397,12 @@ async function handleUpdate(update: TelegramUpdate) {
       claimToken,
       error,
     });
+  const sendFallback = async (text: string, failure: unknown) => {
+    const sent = await sendTelegramMessage(chatId, text);
+    if (sent) await completeInbound();
+    else await failInbound(failure);
+    return sent;
+  };
   const stopInboundHeartbeat = startExternalInboundLeaseHeartbeat({
     inboundId: inbound.id,
     claimToken,
@@ -424,11 +459,10 @@ async function handleUpdate(update: TelegramUpdate) {
         message,
         kind: "ai_configuration_missing",
       });
-      await sendTelegramMessage(
-        chatId,
+      await sendFallback(
         "Servizio AI non configurato. Riprova più tardi.",
+        "ai_configuration_missing",
       );
-      await failInbound("ai_configuration_missing");
       return;
     }
 
@@ -456,11 +490,10 @@ async function handleUpdate(update: TelegramUpdate) {
           kind: "audio_download_failed",
         });
 
-        await sendTelegramMessage(
-          chatId,
+        await sendFallback(
           "Non sono riuscito a scaricare il messaggio audio. Riprova.",
+          "audio_download_failed",
         );
-        await failInbound("audio_download_failed");
         return;
       }
 
@@ -486,11 +519,10 @@ async function handleUpdate(update: TelegramUpdate) {
           summary: safeErrorSummary(err),
         });
 
-        await sendTelegramMessage(
-          chatId,
+        await sendFallback(
           "Non sono riuscito a trascrivere l'audio in questo momento. Riprova.",
+          err,
         );
-        await failInbound(err);
         return;
       }
 
@@ -504,11 +536,10 @@ async function handleUpdate(update: TelegramUpdate) {
           kind: "empty_transcription",
         });
 
-        await sendTelegramMessage(
-          chatId,
+        await sendFallback(
           "Non sono riuscito a trascrivere l'audio. Prova a reinviare il messaggio.",
+          "empty_transcription",
         );
-        await failInbound("empty_transcription");
         return;
       }
     }
@@ -529,11 +560,10 @@ async function handleUpdate(update: TelegramUpdate) {
             message,
             kind: "photo_download_failed",
           });
-          await sendTelegramMessage(
-            chatId,
+          await sendFallback(
             "Non sono riuscito a scaricare l'immagine. Riprova.",
+            "photo_download_failed",
           );
-          await failInbound("photo_download_failed");
           return;
         }
         files.push({
@@ -557,11 +587,10 @@ async function handleUpdate(update: TelegramUpdate) {
           kind: "photo_download_failed",
           summary: safeErrorSummary(err),
         });
-        await sendTelegramMessage(
-          chatId,
+        await sendFallback(
           "Non sono riuscito a scaricare l'immagine. Riprova.",
+          err,
         );
-        await failInbound(err);
         return;
       }
     }
@@ -579,11 +608,10 @@ async function handleUpdate(update: TelegramUpdate) {
             message,
             kind: "document_download_failed",
           });
-          await sendTelegramMessage(
-            chatId,
+          await sendFallback(
             "Non sono riuscito a scaricare il documento. Riprova.",
+            "document_download_failed",
           );
-          await failInbound("document_download_failed");
           return;
         }
         if (!text && docData.fileName) {
@@ -612,11 +640,10 @@ async function handleUpdate(update: TelegramUpdate) {
           kind: "document_download_failed",
           summary: safeErrorSummary(err),
         });
-        await sendTelegramMessage(
-          chatId,
+        await sendFallback(
           "Non sono riuscito a scaricare il documento. Riprova.",
+          err,
         );
-        await failInbound(err);
         return;
       }
     }
@@ -700,7 +727,7 @@ async function handleUpdate(update: TelegramUpdate) {
             >[0],
           ),
         );
-        if (sent && !flowResult.rateLimit.retryable) await completeInbound();
+        if (sent) await completeInbound();
         else await failInbound(flowResult.rateLimit.reason ?? "usage_denied");
         return;
       }
@@ -716,11 +743,10 @@ async function handleUpdate(update: TelegramUpdate) {
           kind: "assistant_persistence_failed",
           summary: safeErrorSummary(flowResult.persistence.error),
         });
-        await sendTelegramMessage(
-          chatId,
+        await sendFallback(
           "Errore temporaneo. Riprova tra qualche secondo.",
+          flowResult.persistence.error,
         );
-        await failInbound(flowResult.persistence.error);
         return;
       }
     } catch (err) {
@@ -754,11 +780,10 @@ async function handleUpdate(update: TelegramUpdate) {
         })
         .catch(() => undefined);
 
-      await sendTelegramMessage(
-        chatId,
+      await sendFallback(
         "Errore temporaneo. Riprova tra qualche secondo.",
+        err,
       );
-      await failInbound(err);
       return;
     }
 
@@ -783,11 +808,10 @@ async function handleUpdate(update: TelegramUpdate) {
         })
         .catch(() => undefined);
 
-      await sendTelegramMessage(
-        chatId,
+      await sendFallback(
         "Non ho generato una risposta. Riprova tra qualche secondo.",
+        "empty_assistant_response",
       );
-      await failInbound("empty_assistant_response");
       return;
     }
 
@@ -907,6 +931,61 @@ async function handleUpdate(update: TelegramUpdate) {
   } finally {
     await stopInboundHeartbeat();
   }
+}
+
+async function readTelegramInboundStatus(
+  externalMessageId: string,
+): Promise<{ externalInboundStatus?: string | null } | null> {
+  return prisma.message.findFirst({
+    where: {
+      channel: "TELEGRAM",
+      externalMessageId,
+    },
+    select: { externalInboundStatus: true },
+  });
+}
+
+async function readTelegramConnectStatus(externalMessageId: string) {
+  return prisma.channelConnectRequest.findUnique({
+    where: {
+      channel_externalMessageId: {
+        channel: "TELEGRAM",
+        externalMessageId,
+      },
+    },
+    select: { status: true },
+  });
+}
+
+/**
+ * Runs one already-authenticated Telegram update from the durable queue and
+ * reports its persisted outcome to the QStash route.
+ */
+export async function processTelegramWebhookUpdate(
+  update: TelegramUpdate,
+): Promise<ExternalInboundProcessingResult> {
+  const externalMessageId = telegramExternalMessageId(update);
+  const messageText =
+    update.message?.text?.trim() || update.message?.caption?.trim();
+  const isConnect = Boolean(
+    messageText && isTelegramConnectCommand(messageText),
+  );
+
+  if (isConnect) {
+    await handleUpdate(update);
+    const after = await readTelegramConnectStatus(externalMessageId);
+    return resolveExternalInboundResult({
+      status: after?.status,
+      completedStatus: "SENT",
+      missingResult: "failed",
+    });
+  }
+
+  await handleUpdate(update);
+  const after = await readTelegramInboundStatus(externalMessageId);
+  return resolveExternalInboundResult({
+    status: after?.externalInboundStatus,
+  });
 }
 
 async function sendTelegramMessage(

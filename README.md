@@ -40,6 +40,10 @@ bun run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+Local builds and verification do not upload sourcemaps. `bun run vercel:build`
+enables PostHog sourcemap uploads with `POSTHOG_UPLOAD_SOURCEMAPS=1` and requires
+`POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` in the deployment environment.
+
 ## 📚 Documentation
 
 | Document                                     | Description                                |

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   chatDelete: vi.fn(),
   messageFindMany: vi.fn(),
   messageFindFirst: vi.fn(),
+  deleteChatWithDerivedData: vi.fn(),
   deletePrivateVoiceBlobsForMessages: vi.fn(),
 }));
 
@@ -22,6 +23,10 @@ vi.mock("@/lib/ai/chat-title", () => ({
 
 vi.mock("@/lib/guest-auth", () => ({
   authenticateGuest: mocks.authenticateGuest,
+}));
+
+vi.mock("@/lib/ai/deletion-lifecycle", () => ({
+  deleteChatWithDerivedData: mocks.deleteChatWithDerivedData,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -58,6 +63,7 @@ describe("/api/guest/chats/[id] route", () => {
     mocks.chatDelete.mockReset();
     mocks.messageFindMany.mockReset();
     mocks.messageFindFirst.mockReset();
+    mocks.deleteChatWithDerivedData.mockReset();
     mocks.deletePrivateVoiceBlobsForMessages.mockReset();
 
     mocks.authenticateGuest.mockResolvedValue({
@@ -141,6 +147,14 @@ describe("/api/guest/chats/[id] route", () => {
       updatedAt: new Date("2026-02-16T12:00:00.000Z"),
     });
     mocks.chatDelete.mockResolvedValue({ id: "chat-1" });
+    mocks.deleteChatWithDerivedData.mockResolvedValue({
+      messageCount: 2,
+      userIds: ["guest-1"],
+      threadIds: [],
+      chunkIds: [],
+      memoryIds: [],
+      revisionIds: [],
+    });
     mocks.deletePrivateVoiceBlobsForMessages.mockResolvedValue(0);
   });
 
@@ -502,7 +516,8 @@ describe("/api/guest/chats/[id] route", () => {
     expect(mocks.deletePrivateVoiceBlobsForMessages).toHaveBeenCalledWith({
       chatId: "chat-1",
     });
-    expect(mocks.chatDelete).toHaveBeenCalledWith({ where: { id: "chat-1" } });
+    expect(mocks.deleteChatWithDerivedData).toHaveBeenCalledWith("chat-1");
+    expect(mocks.chatDelete).not.toHaveBeenCalled();
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chats-guest-1", "max");
     expect(mocks.revalidateTag).toHaveBeenCalledWith("chat-chat-1", "max");
     await expect(response.json()).resolves.toEqual({ success: true });
@@ -525,7 +540,9 @@ describe("/api/guest/chats/[id] route", () => {
   });
 
   it("DELETE returns 500 when delete fails", async () => {
-    mocks.chatDelete.mockRejectedValue(new Error("delete failed"));
+    mocks.deleteChatWithDerivedData.mockRejectedValue(
+      new Error("delete failed"),
+    );
 
     const response = await DELETE(
       new Request("http://localhost/api/guest/chats/chat-1", {

@@ -8,4 +8,5 @@ if [[ "${VERCEL_ENV:-}" == "production" ]]; then
   ./node_modules/.bin/prisma migrate deploy
 fi
 
+export POSTHOG_UPLOAD_SOURCEMAPS=1
 exec bun run build

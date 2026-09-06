@@ -13,6 +13,7 @@
       "!.next",
       "!dist",
       "!build",
+      "!.impeccable",
       "!docs/benchmarks/runs/*.json"
     ]
   },

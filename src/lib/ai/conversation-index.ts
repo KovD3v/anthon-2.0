@@ -87,27 +87,53 @@ export async function indexConversationWindow(input: {
   const last = chronological.at(-1);
   if (!first || !last) return { status: "skipped" };
 
-  await prisma.$executeRaw(
-    Prisma.sql`
-      INSERT INTO "ConversationRecallChunk" (
-        "id", "userId", "conversationThreadId", "channel",
-        "startMessageId", "endMessageId", "throughMessageId", "content",
-        "sourceCreatedAt", "embedding", "indexVersion", "createdAt", "updatedAt"
-      ) VALUES (
-        ${chunkId}, ${input.userId}, ${input.conversationThreadId}, ${thread.channel}::"Channel",
-        ${first.id}, ${last.id}, ${input.throughMessageId}, ${content},
-        ${last.createdAt}, ${vector}::vector, ${input.indexVersion ?? DEFAULT_INDEX_VERSION}, NOW(), NOW()
-      )
-      ON CONFLICT ("conversationThreadId", "throughMessageId", "indexVersion")
-      DO UPDATE SET
-        "startMessageId" = EXCLUDED."startMessageId",
-        "endMessageId" = EXCLUDED."endMessageId",
-        "content" = EXCLUDED."content",
-        "sourceCreatedAt" = EXCLUDED."sourceCreatedAt",
-        "embedding" = EXCLUDED."embedding",
-        "updatedAt" = NOW()
-    `,
-  );
+  const sourceMessageIds = [
+    ...new Set([
+      input.throughMessageId,
+      ...chronological.map((message) => message.id),
+    ]),
+  ].sort();
+  const indexed = await prisma.$transaction(async (transaction) => {
+    const lockedSourceMessages = await transaction.$queryRaw<
+      Array<{ id: string }>
+    >(
+      Prisma.sql`
+        SELECT "id"
+        FROM "Message"
+        WHERE "id" IN (${Prisma.join(sourceMessageIds)})
+          AND "userId" = ${input.userId}
+          AND "conversationThreadId" = ${input.conversationThreadId}
+          AND "deletedAt" IS NULL
+        ORDER BY "id" ASC
+        FOR KEY SHARE
+      `,
+    );
+    if (lockedSourceMessages.length !== sourceMessageIds.length) return false;
+
+    await transaction.$executeRaw(
+      Prisma.sql`
+        INSERT INTO "ConversationRecallChunk" (
+          "id", "userId", "conversationThreadId", "channel",
+          "startMessageId", "endMessageId", "throughMessageId", "content",
+          "sourceCreatedAt", "embedding", "indexVersion", "createdAt", "updatedAt"
+        ) VALUES (
+          ${chunkId}, ${input.userId}, ${input.conversationThreadId}, ${thread.channel}::"Channel",
+          ${first.id}, ${last.id}, ${input.throughMessageId}, ${content},
+          ${last.createdAt}, ${vector}::vector, ${input.indexVersion ?? DEFAULT_INDEX_VERSION}, NOW(), NOW()
+        )
+        ON CONFLICT ("conversationThreadId", "throughMessageId", "indexVersion")
+        DO UPDATE SET
+          "startMessageId" = EXCLUDED."startMessageId",
+          "endMessageId" = EXCLUDED."endMessageId",
+          "content" = EXCLUDED."content",
+          "sourceCreatedAt" = EXCLUDED."sourceCreatedAt",
+          "embedding" = EXCLUDED."embedding",
+          "updatedAt" = NOW()
+      `,
+    );
+    return true;
+  });
+  if (!indexed) return { status: "skipped" };
   return { status: "indexed", chunkId };
 }
 
