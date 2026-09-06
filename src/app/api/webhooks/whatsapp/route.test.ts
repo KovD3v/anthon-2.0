@@ -2440,12 +2440,16 @@ describe("/api/webhooks/whatsapp", () => {
     );
   });
 
-  it("uses one text response when deterministic cadence suppresses WhatsApp audio", async () => {
+  it("delivers the reply while the WhatsApp typing request is still pending", async () => {
     process.env.WHATSAPP_SYNC_WEBHOOK = "true";
     process.env.WHATSAPP_ACCESS_TOKEN = "wa-token";
     process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_1";
 
-    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    const typing = Promise.withResolvers<Response>();
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(typing.promise)
+      .mockResolvedValue(new Response("{}"));
     vi.stubGlobal("fetch", fetchMock);
 
     mocks.prismaMessageFindFirst.mockResolvedValue(null);
@@ -2499,13 +2503,20 @@ describe("/api/webhooks/whatsapp", () => {
       };
     });
 
-    const response = await POST(
+    const responsePromise = POST(
       new Request("http://localhost/api/webhooks/whatsapp", {
         method: "POST",
         body: JSON.stringify(buildTextPayload("come posso affrontarlo?")),
       }),
     );
 
+    try {
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    } finally {
+      typing.resolve(new Response("{}"));
+    }
+    const response = await responsePromise;
+    await Promise.all(mocks.waitUntil.mock.calls.map(([promise]) => promise));
     expect(response.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenNthCalledWith(

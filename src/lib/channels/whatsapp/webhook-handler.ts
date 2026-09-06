@@ -144,35 +144,40 @@ function recordWhatsAppLatency({
   context,
   latency,
   outboundType,
+  typingIndicator,
 }: {
   inboundId: string;
   message: WhatsAppMessage;
   context: WhatsAppChangeValue;
   latency: WhatsAppLatency;
   outboundType: "text" | "audio";
+  typingIndicator: Promise<void>;
 }) {
-  const { startedAt, ...timings } = latency;
+  const totalMs = elapsedMs(latency.startedAt);
   safeWaitUntil(
-    prisma.message
-      .update({
-        where: { id: inboundId },
-        data: {
-          metadata: {
-            whatsapp: {
-              id: message.id,
-              timestamp: message.timestamp,
-              type: message.type,
-              name: context.contacts?.[0]?.profile?.name,
-              latency: {
-                ...timings,
-                totalMs: elapsedMs(startedAt),
-                outboundType,
+    typingIndicator.then(() => {
+      const { startedAt: _startedAt, ...timings } = latency;
+      return prisma.message
+        .update({
+          where: { id: inboundId },
+          data: {
+            metadata: {
+              whatsapp: {
+                id: message.id,
+                timestamp: message.timestamp,
+                type: message.type,
+                name: context.contacts?.[0]?.profile?.name,
+                latency: {
+                  ...timings,
+                  totalMs,
+                  outboundType,
+                },
               },
-            },
-          } as Prisma.InputJsonValue,
-        },
-      })
-      .catch(() => undefined),
+            } as Prisma.InputJsonValue,
+          },
+        })
+        .catch(() => undefined);
+    }),
   );
 }
 
@@ -755,8 +760,10 @@ async function handleMessage(
       isGuest: user.isGuest,
     });
     const typingIndicatorStartedAt = performance.now();
-    await sendWhatsAppTypingIndicator(messageId);
-    latency.typingIndicatorMs = elapsedMs(typingIndicatorStartedAt);
+    const typingIndicator = sendWhatsAppTypingIndicator(messageId).then(() => {
+      latency.typingIndicatorMs = elapsedMs(typingIndicatorStartedAt);
+    });
+    safeWaitUntil(typingIndicator);
     try {
       const aiFlowStartedAt = performance.now();
       const flowResult = await runChannelFlow({
@@ -953,6 +960,7 @@ async function handleMessage(
                 context,
                 latency,
                 outboundType: "audio",
+                typingIndicator,
               });
               if (assistantMessageId) {
                 await markVoiceCapabilityDelivered(assistantMessageId).catch(
@@ -1038,6 +1046,7 @@ async function handleMessage(
         context,
         latency,
         outboundType: "text",
+        typingIndicator,
       });
     }
     // Persisted assistant output lets a retried provider webhook resend this
