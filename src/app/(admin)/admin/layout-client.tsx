@@ -4,7 +4,6 @@ import {
   Brain,
   Building2,
   FileText,
-  KeyRound,
   LayoutDashboard,
   type LucideIcon,
   Menu,
@@ -31,7 +30,6 @@ type AdminNavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-  superAdminOnly?: boolean;
 };
 
 const navItems: AdminNavItem[] = [
@@ -46,17 +44,7 @@ const navItems: AdminNavItem[] = [
   { href: "/admin/rag", label: "Documenti RAG", icon: FileText },
   { href: "/admin/voice", label: "Voce", icon: Mic },
   { href: "/admin/ai-traces", label: "Trace AI", icon: ShieldCheck },
-  {
-    href: "/admin/beta",
-    label: "Beta",
-    icon: KeyRound,
-    superAdminOnly: true,
-  },
 ];
-
-export function getAdminNavItems(isSuperAdmin: boolean) {
-  return navItems.filter((item) => !item.superAdminOnly || isSuperAdmin);
-}
 
 function isActiveRoute(pathname: string, href: string) {
   return href === "/admin" ? pathname === href : pathname.startsWith(href);
@@ -64,17 +52,14 @@ function isActiveRoute(pathname: string, href: string) {
 
 function AdminNavigation({
   pathname,
-  isSuperAdmin,
   mobile = false,
 }: {
   pathname: string;
-  isSuperAdmin: boolean;
   mobile?: boolean;
 }) {
-  const visibleNavItems = getAdminNavItems(isSuperAdmin);
   const links = (
     <ul className="space-y-1">
-      {visibleNavItems.map((item) => {
+      {navItems.map((item) => {
         const isActive = isActiveRoute(pathname, item.href);
         const link = (
           <Link
@@ -149,17 +134,14 @@ function AdminBrand() {
 
 export default function AdminLayout({
   children,
-  isSuperAdmin,
 }: {
   children: React.ReactNode;
-  isSuperAdmin: boolean;
 }) {
   const pathname = usePathname();
-  const visibleNavItems = getAdminNavItems(isSuperAdmin);
   const currentPage =
-    visibleNavItems.find(
+    navItems.find(
       (item) => item.href !== "/admin" && pathname.startsWith(item.href),
-    ) ?? visibleNavItems[0];
+    ) ?? navItems[0];
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-background">
@@ -169,7 +151,7 @@ export default function AdminLayout({
         </div>
 
         <div className="custom-scrollbar flex flex-1 overflow-y-auto">
-          <AdminNavigation pathname={pathname} isSuperAdmin={isSuperAdmin} />
+          <AdminNavigation pathname={pathname} />
         </div>
 
         <SidebarBottom />
@@ -210,11 +192,7 @@ export default function AdminLayout({
                 </SheetDescription>
               </SheetHeader>
               <div className="custom-scrollbar flex min-h-0 flex-1 overflow-y-auto">
-                <AdminNavigation
-                  pathname={pathname}
-                  isSuperAdmin={isSuperAdmin}
-                  mobile
-                />
+                <AdminNavigation pathname={pathname} mobile />
               </div>
               <SidebarBottom />
             </SheetContent>

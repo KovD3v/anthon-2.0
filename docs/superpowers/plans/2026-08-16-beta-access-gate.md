@@ -1,5 +1,7 @@
 # Beta Access Gate Implementation Plan
 
+**Status:** Retired; private-beta functionality removed. Retained as implementation history, not current instructions.
+
 **Goal:** Gate every human-facing Anthon surface behind one persistent shared beta password, add a release mailing list, and provide SUPER_ADMIN password/subscriber management without coupling access to Clerk accounts.
 
 **Architecture:** A singleton Prisma configuration stores a versioned scrypt password digest. A signed 180-day HttpOnly cookie carries only the configuration version and expiry. The Next.js proxy classifies routes, verifies the cookie, and checks the current singleton version so rotation revokes all prior access. Public unlock/subscription APIs and SUPER_ADMIN APIs use focused beta-access services. The beta screen and admin console remain separate clients over those APIs.

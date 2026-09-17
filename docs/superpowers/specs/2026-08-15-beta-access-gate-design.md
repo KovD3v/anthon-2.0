@@ -1,7 +1,7 @@
 # Beta access gate and release mailing list
 
 **Date:** 2026-08-15  
-**Status:** Approved design  
+**Status:** Retired; private-beta functionality removed. Historical design only.
 **Scope:** All human-facing Anthon surfaces for guests and registered users, with a separate SUPER_ADMIN console
 
 ## Objective

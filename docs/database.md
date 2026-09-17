@@ -111,6 +111,17 @@ reservations, attachments, and durable voice jobs.
 
 ## Core Models
 
+### Retired private-beta data
+
+The private-beta gate, release signup form, and admin console/API have been
+removed. `BetaAccessConfig`, `BetaAbuseBucket`, and `BetaMailingSubscriber`
+remain in the schema and migration history to preserve existing records,
+including email consent timestamps. Application code no longer reads or writes
+these tables. Their presence or configuration cannot restrict site access.
+`BETA_ACCESS_COOKIE_SECRET` is no longer used; existing beta cookies are ignored
+and expire naturally. Removing the retained data is a separate data-lifecycle
+decision, not part of opening the site.
+
 ### User
 
 Central identity for all user data across channels.

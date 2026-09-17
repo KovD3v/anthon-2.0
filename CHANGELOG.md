@@ -18,6 +18,9 @@ Version numbers describe the application's user-facing behavior and its document
 
 ### Changed
 
+- Removed the private-beta password gate, entry screen, release signup form,
+  and admin console/API. Public access now follows the ordinary authentication
+  and plan rules; existing subscriber records and consents are preserved.
 - Replaced the unmaintained `cnfast` class-merging dependency with shadcn's
   maintained `cn` engine without changing component call sites.
 - Removed the registered Trial plan. Guest Web is now the only unpaid coaching

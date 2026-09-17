@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
-  applyGate: vi.fn(),
   verifyE2ESession: vi.fn(),
 }));
 
@@ -12,10 +11,6 @@ vi.mock("@clerk/nextjs/server", () => ({
     (handler: (auth: typeof mocks.auth, request: NextRequest) => unknown) =>
     (request: NextRequest) =>
       handler(mocks.auth, request),
-}));
-
-vi.mock("@/lib/beta-access/proxy-gate", () => ({
-  applyBetaAccessGate: mocks.applyGate,
 }));
 
 vi.mock("@/lib/e2e-runtime", () => ({
@@ -32,28 +27,11 @@ const runProxy = proxy as unknown as (
 describe("application proxy", () => {
   beforeEach(() => {
     mocks.auth.mockReset();
-    mocks.applyGate.mockReset();
     mocks.auth.mockResolvedValue({ userId: null });
-    mocks.applyGate.mockResolvedValue(null);
     mocks.verifyE2ESession.mockReturnValue(null);
   });
 
-  it("returns the beta gate response before Clerk protected-route redirects", async () => {
-    mocks.applyGate.mockResolvedValue(
-      NextResponse.redirect("https://anthon.ai/beta-access"),
-    );
-
-    const response = await runProxy(
-      new NextRequest("https://anthon.ai/profile"),
-    );
-
-    expect(response.headers.get("location")).toBe(
-      "https://anthon.ai/beta-access",
-    );
-    expect(mocks.auth).not.toHaveBeenCalled();
-  });
-
-  it("retains the existing signed-out redirect after beta access passes", async () => {
+  it("retains the signed-out redirect and its original destination", async () => {
     const response = await runProxy(
       new NextRequest("https://anthon.ai/profile?tab=security"),
     );
@@ -70,18 +48,53 @@ describe("application proxy", () => {
     );
 
     expect(response.status).toBe(404);
-    expect(mocks.applyGate).not.toHaveBeenCalled();
-  });
-
-  it("continues normally for an allowed public chat request", async () => {
-    const response = await runProxy(new NextRequest("https://anthon.ai/chat"));
-
-    expect(response.status).toBe(200);
-    expect(mocks.applyGate).toHaveBeenCalledTimes(1);
     expect(mocks.auth).not.toHaveBeenCalled();
   });
 
-  it("lets a valid isolated E2E session cross the beta and Clerk gates", async () => {
+  it.each([
+    "/",
+    "/chat",
+    "/pricing",
+    "/sign-in",
+    "/sign-up",
+    "/api/chat",
+    "/api/guest/chat",
+  ])("passes %s to its handler without a beta credential", async (path) => {
+    const response = await runProxy(
+      new NextRequest(`https://anthon.ai${path}`),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("location")).toBeNull();
+    expect(mocks.auth).not.toHaveBeenCalled();
+  });
+
+  it.each(["/profile", "/admin", "/admin/users", "/channels", "/organization"])(
+    "still requires sign-in for %s",
+    async (path) => {
+      const response = await runProxy(
+        new NextRequest(`https://anthon.ai${path}`),
+      );
+
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toBe(
+        `https://anthon.ai/sign-in?redirect_url=${encodeURIComponent(path)}`,
+      );
+      expect(mocks.auth).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("lets signed-in requests reach downstream authorization without a beta credential", async () => {
+    mocks.auth.mockResolvedValue({ userId: "user-1" });
+    const response = await runProxy(new NextRequest("https://anthon.ai/admin"));
+
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("location")).toBeNull();
+    expect(mocks.auth).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets a valid isolated E2E session cross the Clerk gate", async () => {
     mocks.verifyE2ESession.mockReturnValue("e2e-no-access-user");
 
     const response = await runProxy(
@@ -92,7 +105,6 @@ describe("application proxy", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.verifyE2ESession).toHaveBeenCalledWith("signed");
-    expect(mocks.applyGate).not.toHaveBeenCalled();
     expect(mocks.auth).not.toHaveBeenCalled();
   });
 });

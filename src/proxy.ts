@@ -1,6 +1,5 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { applyBetaAccessGate } from "@/lib/beta-access/proxy-gate";
 import {
   E2E_SESSION_COOKIE_NAME,
   verifyE2ESessionValue,
@@ -18,11 +17,6 @@ export default clerkMiddleware(async (auth, req) => {
   const e2eClerkId = verifyE2ESessionValue(
     req.cookies.get(E2E_SESSION_COOKIE_NAME)?.value,
   );
-  if (!e2eClerkId) {
-    const betaGateResponse = await applyBetaAccessGate(req);
-    if (betaGateResponse) return betaGateResponse;
-  }
-
   // This is an early UX redirect, not the authorization boundary. Protected
   // server resources must continue to check authentication themselves.
   if (!e2eClerkId && isProtectedRoute(req.nextUrl.pathname)) {
