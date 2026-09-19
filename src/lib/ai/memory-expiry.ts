@@ -151,10 +151,26 @@ export function resolveMemoryExpiry(input: {
     "\\$&",
   );
   const sourceText = normalize(input.sourceText);
-  if (!new RegExp(`\\b${escapedExpression}\\b`).test(sourceText)) return null;
+  const matches = [
+    ...sourceText.matchAll(new RegExp(`\\b${escapedExpression}\\b`, "g")),
+  ];
+  if (!matches.length) return null;
+  // A copied substring is insufficient evidence if it drops part of the date.
+  // Reject unsupported qualifiers instead of extending a deadline or moving a
+  // past event into the future. Every occurrence must be unambiguous.
   if (
-    normalizedExpression === "tomorrow" &&
-    /day after tomorrow/.test(sourceText)
+    matches.some((match) => {
+      const before = sourceText.slice(0, match.index);
+      const after = sourceText.slice(match.index + match[0].length);
+      return (
+        /\b(?:last|past|previous|next|scors[oa]|passat[oa]|prossim[oa]|precedente|day after|before|after|prima di|dopo|\d{1,2}:\d{2}(?::\d{2})?(?:\s*(?:am|pm))?)\s*$/.test(
+          before,
+        ) ||
+        /^[\s,(]*(?:(?:last|past|previous|next|scors[oa]|passat[oa]|prossim[oa]|precedente|am|pm|morning|afternoon|evening|night|mattina|pomeriggio|sera)\b|(?:alle?|at|ore)\s+(?:\d|noon|midnight|mezzogiorno|mezzanotte)|\d|[.:]\d|[+-]\d{2}:?\d{2})/.test(
+          after,
+        )
+      );
+    })
   )
     return null;
   const now = input.now ?? new Date();
@@ -201,13 +217,6 @@ export function resolveMemoryExpiry(input: {
           names.includes(dateText.replace(/^(?:this|questo|questa) /, "")),
         );
         if (weekday >= 0) {
-          const dayName = dateText.replace(/^(?:this|questo|questa) /, "");
-          if (
-            new RegExp(
-              `(?:next|prossimo|prossima) ${dayName}|${dayName} (?:prossimo|prossima)`,
-            ).test(normalize(input.sourceText))
-          )
-            return null;
           days =
             (weekday -
               new Date(calendarUtc(source.slice(0, 3))).getUTCDay() +

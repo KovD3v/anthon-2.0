@@ -80,6 +80,51 @@ describe("temporary memory date resolution", () => {
   });
 
   it.each([
+    ["Esame domani alle 18:00", "domani"],
+    ["Exam tomorrow at 18:00", "tomorrow"],
+    ["Exam Friday, at 18:00", "Friday"],
+    ["Esame alle 18:00 domani", "domani"],
+    ["Ho avuto l'esame venerdì scorso", "venerdì"],
+    ["Exam last Friday", "Friday"],
+    ["Exam previous Friday", "Friday"],
+    ["Esame il prossimo venerdì", "venerdì"],
+    ["Exam Friday next week", "Friday"],
+    ["Esame domani alle 18:00:30", "domani alle 18:00"],
+    ["Exam 2026-10-24T18:00:00+02:00", "2026-10-24T18:00:00"],
+  ])("rejects date expression %s shortened to %s", (sourceText, expression) => {
+    expect(
+      resolveMemoryExpiry({
+        sourceText,
+        expiry: { expression },
+        observedAt: new Date("2026-09-19T10:00:00Z"),
+        timeZone: "Europe/Rome",
+      }),
+    ).toBeNull();
+  });
+
+  it.each([
+    [
+      "Esame domani alle 18:00",
+      "domani alle 18:00",
+      "2026-09-20T16:00:00.000Z",
+    ],
+    ["Exam Friday at 18:00", "Friday at 18:00", "2026-09-25T16:00:00.000Z"],
+    ["Exam this Friday", "this Friday", "2026-09-25T22:00:00.000Z"],
+  ])(
+    "preserves the complete date expression in %s",
+    (sourceText, expression, expected) => {
+      expect(
+        resolveMemoryExpiry({
+          sourceText,
+          expiry: { expression },
+          observedAt: new Date("2026-09-19T10:00:00Z"),
+          timeZone: "Europe/Rome",
+        })?.toISOString(),
+      ).toBe(expected);
+    },
+  );
+
+  it.each([
     "next Friday",
     "venerdì prossimo",
     "24 ottobre",
