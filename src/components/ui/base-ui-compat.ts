@@ -33,10 +33,7 @@ export function useBaseUIRootFocus(open: boolean) {
   const restoreFocus = useCallback(() => {
     const handler = closeHandlerRef.current;
     if (handler) {
-      const focusTarget = runAutoFocusHandler(handler);
-      if (focusTarget instanceof HTMLElement) {
-        focusTarget.focus();
-      }
+      runAutoFocusHandler(handler);
       return;
     }
     if (returnFocusRef.current?.isConnected) {
@@ -72,7 +69,6 @@ export function useBaseUIRootFocus(open: boolean) {
 }
 
 export function runAutoFocusHandler(handler: (event: AutoFocusEvent) => void) {
-  const activeBefore = document.activeElement;
   const event: AutoFocusEvent = {
     defaultPrevented: false,
     preventDefault() {
@@ -82,14 +78,9 @@ export function runAutoFocusHandler(handler: (event: AutoFocusEvent) => void) {
 
   handler(event);
 
-  if (!event.defaultPrevented) {
-    return true;
-  }
-
-  const activeAfter = document.activeElement;
-  return activeAfter instanceof HTMLElement && activeAfter !== activeBefore
-    ? activeAfter
-    : false;
+  // A prevented handler already owns focus. Returning its focused element would
+  // make Base UI queue a second focus and override a Tab before the next frame.
+  return !event.defaultPrevented;
 }
 
 export function trapTabKey(event: ReactKeyboardEvent<HTMLElement>) {

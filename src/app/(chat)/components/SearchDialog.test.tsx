@@ -1,14 +1,19 @@
 // @vitest-environment jsdom
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SearchDialog } from "./SearchDialog";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 function SearchDialogHarness() {
   const [isOpen, setIsOpen] = useState(false);
@@ -24,6 +29,32 @@ function SearchDialogHarness() {
 }
 
 describe("SearchDialog", () => {
+  it("does not refocus the input after the user tabs before the next animation frame", async () => {
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      const id = ++nextFrameId;
+      frames.set(id, callback);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
+    const user = userEvent.setup();
+    render(<SearchDialogHarness />);
+    await user.click(screen.getByRole("button", { name: "Apri ricerca" }));
+    const input = screen.getByRole("textbox", { name: "Cerca nei messaggi" });
+    expect(document.activeElement).toBe(input);
+    await user.tab();
+    const close = screen.getByRole("button", { name: "Chiudi ricerca" });
+    expect(document.activeElement).toBe(close);
+
+    act(() => {
+      const pendingFrames = [...frames.values()];
+      frames.clear();
+      for (const callback of pendingFrames) callback(performance.now());
+    });
+
+    expect(document.activeElement).toBe(close);
+  });
   it("keeps a centered mobile inset without the default vertical translation", async () => {
     const user = userEvent.setup();
     render(<SearchDialogHarness />);
