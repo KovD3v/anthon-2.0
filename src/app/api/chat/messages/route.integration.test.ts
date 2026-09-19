@@ -52,8 +52,14 @@ describe("integration /api/chat/messages", () => {
   });
 
   it("returns only persisted messages owned by the authenticated user", async () => {
-    const owner = await createUser({ clerkId: "clerk-messages-owner" });
-    const other = await createUser({ clerkId: "clerk-messages-other" });
+    const owner = await createUser({
+      clerkId: "clerk-messages-owner",
+      onboardingCompletedAt: new Date(),
+    });
+    const other = await createUser({
+      clerkId: "clerk-messages-other",
+      onboardingCompletedAt: new Date(),
+    });
     const ownerChat = await createChat(owner.id);
     const otherChat = await createChat(other.id);
 
@@ -98,8 +104,14 @@ describe("integration /api/chat/messages", () => {
   });
 
   it("does not delete a persisted message owned by another authenticated user", async () => {
-    const owner = await createUser({ clerkId: "clerk-delete-owner" });
-    const other = await createUser({ clerkId: "clerk-delete-other" });
+    const owner = await createUser({
+      clerkId: "clerk-delete-owner",
+      onboardingCompletedAt: new Date(),
+    });
+    const other = await createUser({
+      clerkId: "clerk-delete-other",
+      onboardingCompletedAt: new Date(),
+    });
     const ownerChat = await createChat(owner.id);
     const ownerMessage = await createMessage({
       userId: owner.id,
@@ -126,7 +138,10 @@ describe("integration /api/chat/messages", () => {
   });
 
   it("deletes only the selected message and later messages in total order", async () => {
-    const owner = await createUser({ clerkId: "clerk-delete-collision" });
+    const owner = await createUser({
+      clerkId: "clerk-delete-collision",
+      onboardingCompletedAt: new Date(),
+    });
     const chat = await createChat(owner.id);
     const collisionTime = new Date("2026-07-13T10:00:00.000Z");
     const laterTime = new Date("2026-07-13T10:01:00.000Z");
@@ -176,7 +191,10 @@ describe("integration /api/chat/messages", () => {
   });
 
   it("editing preserves an earlier message with the same timestamp", async () => {
-    const owner = await createUser({ clerkId: "clerk-patch-collision" });
+    const owner = await createUser({
+      clerkId: "clerk-patch-collision",
+      onboardingCompletedAt: new Date(),
+    });
     const chat = await createChat(owner.id);
     const collisionTime = new Date("2026-07-13T10:00:00.000Z");
     const laterTime = new Date("2026-07-13T10:01:00.000Z");

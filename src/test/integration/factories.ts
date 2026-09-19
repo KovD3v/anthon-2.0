@@ -50,6 +50,7 @@ export async function createUser(
     isGuest: boolean;
     guestTokenHash: string | null;
     guestAbuseIdHash: string | null;
+    onboardingCompletedAt: Date | null;
   }> = {},
 ) {
   return prisma.user.create({
@@ -60,6 +61,7 @@ export async function createUser(
       isGuest: overrides.isGuest ?? false,
       guestTokenHash: overrides.guestTokenHash ?? null,
       guestAbuseIdHash: overrides.guestAbuseIdHash ?? null,
+      onboardingCompletedAt: overrides.onboardingCompletedAt ?? null,
     },
   });
 }
