@@ -49,7 +49,7 @@ if (!args.includes("--planner-only")) {
   try {
     const reportPath = path.join(directory, "report.json");
     await promisify(execFile)(
-      process.execPath,
+      "node",
       [
         "node_modules/vitest/vitest.mjs",
         "run",

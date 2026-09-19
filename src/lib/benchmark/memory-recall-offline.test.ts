@@ -134,9 +134,14 @@ const database = vi.hoisted(() => {
         operation: (transaction: {
           memory: typeof memory;
           memoryRevision: typeof memoryRevision;
+          $executeRaw: () => Promise<number>;
         }) => Promise<unknown>,
       ) {
-        return operation({ memory, memoryRevision });
+        return operation({
+          memory,
+          memoryRevision,
+          $executeRaw: async () => 0,
+        });
       },
     },
   };
