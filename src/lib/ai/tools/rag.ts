@@ -1,6 +1,7 @@
 import { type Tool, tool } from "ai";
 import { z } from "zod";
 import { getRagContext } from "@/lib/ai/rag";
+import type { RetrievalDecisionOptions } from "@/lib/ai/retrieval-decisions";
 import { createLogger } from "@/lib/logger";
 import type { DeveloperDiagnosticsCollector } from "@/lib/response-profiler/developer-diagnostics";
 import type { ServerTraceCollector } from "@/lib/response-profiler/server-trace";
@@ -18,6 +19,7 @@ export function createRagTools(options?: {
   maxQueryCharacters?: number;
   traceCollector?: ServerTraceCollector;
   developerDiagnostics?: DeveloperDiagnosticsCollector;
+  retrievalOptions?: RetrievalDecisionOptions;
 }): {
   searchRag: Tool;
 } {
@@ -53,9 +55,15 @@ export function createRagTools(options?: {
         searchCalls += 1;
 
         try {
-          const result = options?.traceCollector
-            ? await getRagContext(boundedQuery, options.traceCollector)
-            : await getRagContext(boundedQuery);
+          const result = options?.retrievalOptions
+            ? await getRagContext(
+                boundedQuery,
+                options.traceCollector,
+                options.retrievalOptions,
+              )
+            : options?.traceCollector
+              ? await getRagContext(boundedQuery, options.traceCollector)
+              : await getRagContext(boundedQuery);
           if (result.failed) {
             options?.developerDiagnostics?.recordRagFailure({
               query: boundedQuery,
@@ -96,6 +104,7 @@ export function createRagTools(options?: {
             context: result.text,
           };
         } catch (error) {
+          options?.retrievalOptions?.abortSignal?.throwIfAborted();
           options?.developerDiagnostics?.recordRagFailure({
             query: boundedQuery,
             error,

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { canonicalizeKnowledgeCandidate } from "./memory-canonicalization";
 import { lockMemoryMutations } from "./memory-mutation-lock";
-import { snapshotMemory } from "./memory-revision";
+import { memoryValueRevisionId, snapshotMemory } from "./memory-revision";
 
 const memoryLogger = createLogger("ai");
 const DEFAULT_RECALL_LIMIT = 4;
@@ -68,6 +68,13 @@ export type FactMutationInput = {
   dedupeKey: string;
   observedAt?: Date;
   expiresAt?: Date | null;
+  /** Snapshot used by a semantic decision; rechecked under the account mutation lock. */
+  semanticMatch?: {
+    kind: "equivalent" | "correction";
+    id: string;
+    updatedAt: Date;
+    revisionId?: string;
+  };
 };
 
 export type FactMutationResult = {
@@ -341,6 +348,34 @@ export async function rememberFactInTransaction(
   const previous = await transaction.memory.findFirst({
     where: { userId: input.userId, key: input.key },
   });
+  if (input.semanticMatch) {
+    if (
+      !previous ||
+      previous.userId !== input.userId ||
+      previous.status !== "ACTIVE" ||
+      previous.id !== input.semanticMatch.id ||
+      previous.updatedAt.getTime() !==
+        input.semanticMatch.updatedAt.getTime() ||
+      memoryValueRevisionId(previous.value) !==
+        input.semanticMatch.revisionId ||
+      !input.observedAt ||
+      !Number.isFinite(input.observedAt.getTime()) ||
+      previous.observedAt > input.observedAt ||
+      (previous.expiresAt && previous.expiresAt <= new Date()) ||
+      previous.sensitivity === "HIGH" ||
+      input.sensitivity === "HIGH"
+    )
+      return { status: "rejected" };
+    if (input.semanticMatch.kind === "equivalent") {
+      if (
+        (previous.expiresAt?.getTime() ?? null) !==
+        (input.expiresAt?.getTime() ?? null)
+      )
+        return { status: "rejected" };
+      return { status: "duplicate", factId: previous.id };
+    }
+    if (input.origin !== "EXPLICIT") return { status: "rejected" };
+  }
   // The tool and post-turn consolidation can report the same fact for one turn.
   if (
     previous?.status === "ACTIVE" &&

@@ -525,4 +525,107 @@ describe("durable fact recall", () => {
       select: { id: true },
     });
   });
+
+  const semanticInput = {
+    userId: "user-1",
+    key: "training_schedule",
+    value: "Giovedì mattina",
+    category: "schedule",
+    confidence: 0.99,
+    sensitivity: "LOW" as const,
+    origin: "EXPLICIT" as const,
+    sourceMessageId: "correction-1",
+    observedAt: new Date("2026-09-18T00:00:00Z"),
+    expiresAt: null,
+    dedupeKey: "semantic:correction-1",
+    semanticMatch: {
+      kind: "correction" as const,
+      id: "memory-1",
+      updatedAt: new Date("2026-08-10T18:00:00Z"),
+    },
+  };
+
+  it("reuses the fact and snapshots revision/expiry for a current semantic correction", async () => {
+    mocks.memoryFindFirst.mockResolvedValue(
+      buildFact({ expiresAt: new Date("2099-01-01T00:00:00Z") }),
+    );
+    mocks.memoryUpsert.mockResolvedValue({ id: "memory-1" });
+    expect(await rememberFact(semanticInput)).toEqual({
+      status: "saved",
+      factId: "memory-1",
+    });
+    expect(mocks.executeRaw).toHaveBeenCalledOnce();
+    expect(mocks.memoryUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId_key: { userId: "user-1", key: "training_schedule" } },
+        update: expect.objectContaining({ expiresAt: null }),
+      }),
+    );
+    expect(mocks.revisionCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        previousValue: expect.objectContaining({
+          content: "Martedì sera",
+          _undoState: expect.objectContaining({
+            expiresAt: "2099-01-01T00:00:00.000Z",
+          }),
+        }),
+      }),
+    });
+  });
+
+  it("checks the snapshot before discarding a semantic duplicate", async () => {
+    mocks.memoryFindFirst.mockResolvedValue(buildFact());
+    expect(
+      await rememberFact({
+        ...semanticInput,
+        semanticMatch: { ...semanticInput.semanticMatch, kind: "equivalent" },
+      }),
+    ).toEqual({ status: "duplicate", factId: "memory-1" });
+    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    expect(mocks.revisionCreate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { updatedAt: new Date("2026-09-18T01:00:00Z") },
+    { value: { content: "Martedì sera", revisionId: "concurrent-revision" } },
+    { observedAt: new Date("2026-09-19T01:00:00Z") },
+    { id: "replacement-row" },
+    { userId: "other-user" },
+    { status: "DELETED" },
+    { expiresAt: new Date(0) },
+    { sensitivity: "HIGH" },
+  ])(
+    "rejects a semantic target changed or invalidated since review: %o",
+    async (overrides) => {
+      mocks.memoryFindFirst.mockResolvedValue({ ...buildFact(), ...overrides });
+      expect(await rememberFact(semanticInput)).toEqual({ status: "rejected" });
+      expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+      expect(mocks.revisionCreate).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not create a missing semantic target or accept an inferred correction", async () => {
+    mocks.memoryFindFirst.mockResolvedValue(null);
+    expect((await rememberFact(semanticInput)).status).toBe("rejected");
+    mocks.memoryFindFirst.mockResolvedValue(buildFact());
+    expect(
+      (await rememberFact({ ...semanticInput, origin: "INFERRED" })).status,
+    ).toBe("rejected");
+    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+  });
+
+  it("does not discard a semantic duplicate with a changed expiry", async () => {
+    mocks.memoryFindFirst.mockResolvedValue(
+      buildFact({ expiresAt: new Date("2099-01-01T00:00:00Z") }),
+    );
+    expect(
+      (
+        await rememberFact({
+          ...semanticInput,
+          semanticMatch: { ...semanticInput.semanticMatch, kind: "equivalent" },
+        })
+      ).status,
+    ).toBe("rejected");
+    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+  });
 });

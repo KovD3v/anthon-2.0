@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   updateCanonicalPreferences: vi.fn(),
   messageFindFirst: vi.fn(),
   memoryFindFirst: vi.fn(),
+  memoryFindMany: vi.fn(),
+  requestTypedDecisions: vi.fn(),
 }));
 
 vi.mock("@/lib/ai/memory-extractor", () => ({
@@ -26,8 +28,18 @@ vi.mock("@/lib/ai/user-knowledge", () => ({
 vi.mock("@/lib/db", () => ({
   prisma: {
     message: { findFirst: mocks.messageFindFirst },
-    memory: { findFirst: mocks.memoryFindFirst },
+    memory: {
+      findFirst: mocks.memoryFindFirst,
+      findMany: mocks.memoryFindMany,
+    },
   },
+}));
+vi.mock("@/lib/ai/typed-decisions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ai/typed-decisions")>()),
+  requestTypedDecisions: mocks.requestTypedDecisions,
+}));
+vi.mock("@/lib/ai/usage-meter", () => ({
+  scheduleTypedDecisionUsage: vi.fn(),
 }));
 
 import { consolidateTurnMemory } from "./memory-consolidator";
@@ -64,6 +76,8 @@ describe("ai/memory-consolidator", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-19T12:00:00Z"));
     vi.clearAllMocks();
+    vi.stubEnv("AI_MEMORY_REVIEW_MODE", "off");
+    vi.stubEnv("AI_JEV_ALLOWED_USER_IDS", "user-1");
     mocks.extractMemoryCandidates.mockResolvedValue([]);
     mocks.rememberFact.mockResolvedValue({
       status: "saved",
@@ -79,8 +93,12 @@ describe("ai/memory-consolidator", () => {
       metadata: { timeZone: "Europe/Rome" },
     });
     mocks.memoryFindFirst.mockResolvedValue(null);
+    mocks.memoryFindMany.mockResolvedValue([]);
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
 
   it("persists one ordinary durable fact with source provenance", async () => {
     mocks.extractMemoryCandidates.mockResolvedValue([candidate()]);
@@ -105,6 +123,8 @@ describe("ai/memory-consolidator", () => {
       observedAt: sourceCreatedAt,
       expiresAt: null,
     });
+    expect(mocks.memoryFindMany).not.toHaveBeenCalled();
+    expect(mocks.requestTypedDecisions).not.toHaveBeenCalled();
   });
 
   it("skips deleted, foreign, or mismatched source messages before extraction", async () => {
@@ -469,4 +489,144 @@ describe("ai/memory-consolidator", () => {
     });
     expect(mocks.updateCanonicalProfile).not.toHaveBeenCalled();
   });
+
+  function enableReview(overrides: Record<string, string> = {}) {
+    vi.stubEnv("AI_MEMORY_REVIEW_MODE", "active");
+    mocks.requestTypedDecisions.mockImplementation(async ({ questions }) => ({
+      ok: true,
+      attempted: true,
+      modelId: "typesafe/jev-1.13",
+      durationMs: 5,
+      answers: Object.fromEntries(
+        Object.keys(questions).map((key) => [
+          key,
+          {
+            choice:
+              overrides[key] ??
+              (key.startsWith("sensitivity_")
+                ? "ordinary"
+                : key.startsWith("match_")
+                  ? "distinct"
+                  : "supported"),
+            confidence: 0.99,
+          },
+        ]),
+      ),
+    }));
+  }
+
+  it.each(["support_0", "subject_0"])(
+    "rejects a reviewed %s failure before any profile or memory write",
+    async (key) => {
+      enableReview({ [key]: "unsupported" });
+      mocks.extractMemoryCandidates.mockResolvedValue([candidate()]);
+      expect((await consolidateTurnMemory(input)).rejected).toBe(1);
+      expect(mocks.rememberFact).not.toHaveBeenCalled();
+      expect(mocks.createMemoryApproval).not.toHaveBeenCalled();
+    },
+  );
+
+  it("retains exact source-evidence safeguards before making a review request", async () => {
+    enableReview();
+    mocks.extractMemoryCandidates.mockResolvedValue([
+      candidate({ evidence: "The assistant invented this" }),
+    ]);
+    expect((await consolidateTurnMemory(input)).rejected).toBe(1);
+    expect(mocks.requestTypedDecisions).not.toHaveBeenCalled();
+  });
+
+  it("requires confirmation and preserves expiry when review elevates sensitivity", async () => {
+    enableReview({ sensitivity_0: "sensitive" });
+    mocks.extractMemoryCandidates.mockResolvedValue([
+      candidate({
+        key: "financial_deadline",
+        category: "other",
+        value: "Pagamento domani",
+        evidence: "devo pagare domani",
+        durability: "TEMPORARY",
+        expiry: { expression: "domani" },
+      }),
+    ]);
+    expect(
+      (
+        await consolidateTurnMemory({
+          ...input,
+          userText: "Devo pagare domani.",
+        })
+      ).approvalsCreated,
+    ).toBe(1);
+    expect(mocks.createMemoryApproval).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "financial_deadline",
+        observedAt: sourceCreatedAt,
+        memoryExpiresAt: new Date("2026-09-19T22:00:00Z"),
+      }),
+    );
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
+  });
+
+  it("never lowers an extracted HIGH sensitivity when the reviewer says ordinary", async () => {
+    enableReview();
+    mocks.extractMemoryCandidates.mockResolvedValue([
+      candidate({ sensitivity: "HIGH" }),
+    ]);
+    expect((await consolidateTurnMemory(input)).approvalsCreated).toBe(1);
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
+  });
+
+  it("passes only a version-guarded explicit correction to the original stable fact key", async () => {
+    enableReview({ match_0_0: "correction" });
+    const updatedAt = new Date("2026-09-01T00:00:00Z");
+    mocks.memoryFindMany.mockResolvedValue([
+      {
+        id: "old-fact",
+        key: "weekly_schedule",
+        value: { content: "Mi alleno giovedì" },
+        category: "schedule",
+        sensitivity: "LOW",
+        observedAt: updatedAt,
+        updatedAt,
+        expiresAt: null,
+      },
+    ]);
+    const evidence = "Correggi: mi alleno ogni martedì sera";
+    mocks.extractMemoryCandidates.mockResolvedValue([candidate({ evidence })]);
+    mocks.rememberFact.mockResolvedValue({ status: "rejected" });
+    expect(
+      (await consolidateTurnMemory({ ...input, userText: evidence })).rejected,
+    ).toBe(1);
+    expect(mocks.rememberFact).toHaveBeenCalledOnce();
+    expect(mocks.rememberFact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "weekly_schedule",
+        semanticMatch: { kind: "correction", id: "old-fact", updatedAt },
+        observedAt: sourceCreatedAt,
+      }),
+    );
+    expect(mocks.memoryFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: "user-1", status: "ACTIVE" }),
+        take: 32,
+      }),
+    );
+  });
+
+  it.each(["timeout", "invalid_output"])(
+    "keeps the extraction path working after a review %s",
+    async (failureCode) => {
+      enableReview();
+      mocks.requestTypedDecisions.mockResolvedValue({
+        ok: false,
+        attempted: true,
+        failureCode,
+        modelId: "typesafe/jev-1.13",
+        durationMs: 5,
+      });
+      mocks.extractMemoryCandidates.mockResolvedValue([candidate()]);
+      expect((await consolidateTurnMemory(input)).persisted).toBe(1);
+      expect(mocks.rememberFact).toHaveBeenCalledWith(
+        expect.objectContaining({ key: "training_schedule" }),
+      );
+    },
+  );
 });

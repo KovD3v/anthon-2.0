@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   measure: vi.fn(),
   trackSupportAiUsage: vi.fn(),
   scheduleSupportAiUsage: vi.fn(),
+  requestTypedDecisions: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -56,6 +57,11 @@ vi.mock("@/lib/latency-logger", () => ({
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
   scheduleSupportAiUsage: mocks.scheduleSupportAiUsage,
+  scheduleTypedDecisionUsage: vi.fn(),
+}));
+vi.mock("@/lib/ai/typed-decisions", async (original) => ({
+  ...(await original<typeof import("./typed-decisions")>()),
+  requestTypedDecisions: mocks.requestTypedDecisions,
 }));
 
 const originalOpenRouterKey = process.env.OPENROUTER_API_KEY;
@@ -89,6 +95,8 @@ describe("ai/rag", () => {
     mocks.measure.mockReset();
     mocks.trackSupportAiUsage.mockReset();
     mocks.scheduleSupportAiUsage.mockReset();
+    mocks.requestTypedDecisions.mockReset();
+    vi.stubEnv("AI_RETRIEVAL_DECISIONS_MODE", "off");
 
     mocks.openrouter.mockReturnValue("rag-classifier-model");
     mocks.outputObject.mockImplementation(
@@ -485,6 +493,52 @@ describe("ai/rag", () => {
     expect(result).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(mocks.queryRawUnsafe).not.toHaveBeenCalled();
+  });
+
+  it("ranks coaching context at the shared boundary while raw admin search stays unchanged", async () => {
+    vi.stubEnv("AI_RETRIEVAL_DECISIONS_MODE", "active");
+    vi.stubEnv("AI_JEV_ALLOWED_USER_IDS", "user-1");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(
+        async () =>
+          new Response(
+            JSON.stringify({
+              data: [{ embedding: embeddingVector(0.5, 0.6) }],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+      ),
+    );
+    const chunks = [
+      { content: "Physical technique", title: "Other topic", similarity: 0.9 },
+      { content: "Mental preparation", title: "Relevant", similarity: 0.8 },
+    ];
+    mocks.queryRawUnsafe.mockResolvedValue(chunks);
+    mocks.requestTypedDecisions.mockResolvedValue({
+      ok: true,
+      modelId: "typesafe/jev-1.13",
+      durationMs: 10,
+      attempted: true,
+      answers: {
+        candidate_0: { choice: "irrelevant", confidence: 0.99 },
+        candidate_1: { choice: "relevant", confidence: 0.95 },
+      },
+    });
+    const { getRagContext, searchDocuments } = await loadModule();
+    expect(await searchDocuments("prepare for a presentation")).toEqual(chunks);
+    expect(mocks.requestTypedDecisions).not.toHaveBeenCalled();
+    const result = await getRagContext(
+      "prepare for a presentation",
+      undefined,
+      { userId: "user-1" },
+    );
+    expect(result.chunkCount).toBe(1);
+    expect(result.text).toContain("Mental preparation");
+    expect(result.text).not.toContain("Physical technique");
+    expect(mocks.requestTypedDecisions.mock.calls[0][0].state.source).toBe(
+      "document",
+    );
   });
 
   it("getRagContext formats search results for prompt injection", async () => {

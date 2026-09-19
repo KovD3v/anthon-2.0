@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   buildConversationContext: vi.fn(),
   buildThreadContext: vi.fn(),
   buildRecallContext: vi.fn(),
+  getRagContext: vi.fn(),
   resolveMemoryRecallMode: vi.fn(),
   getModelForUser: vi.fn(),
   getModelById: vi.fn(),
@@ -48,7 +49,7 @@ vi.mock("@/lib/ai/recall-context", () => ({
 }));
 
 vi.mock("@/lib/ai/rag", () => ({
-  getRagContext: vi.fn(),
+  getRagContext: mocks.getRagContext,
   shouldUseRag: vi.fn(() => false),
 }));
 
@@ -182,6 +183,10 @@ describe("ai/orchestrator", () => {
     mocks.arbitrateTurn.mockResolvedValue({ decision });
     mocks.buildConversationContext.mockResolvedValue([]);
     mocks.buildThreadContext.mockResolvedValue({ messages: [] });
+    mocks.getRagContext.mockResolvedValue({
+      text: "Curated knowledge",
+      chunkCount: 1,
+    });
     mocks.buildRecallContext.mockResolvedValue({
       prompt: "",
       factCount: 0,
@@ -285,6 +290,12 @@ describe("ai/orchestrator", () => {
   });
 
   it("does not add tools to a prepared model-comparison generation", async () => {
+    mocks.arbitrateTurn.mockResolvedValue({
+      decision: {
+        ...decision,
+        capabilities: { ...decision.capabilities, rag: true },
+      },
+    });
     const prepared = await prepareChatTurn({
       userId: "user-1",
       chatId: "chat-1",
@@ -311,6 +322,89 @@ describe("ai/orchestrator", () => {
     >;
     expect(streamInput).not.toHaveProperty("tools");
     expect(streamInput.instructions).toContain("MENTAL COACHING SCOPE");
+    executePreparedChatTurn({
+      prepared,
+      modelId: "provider/challenger",
+      generationConfig: { fallbacks: false },
+      clerkId: "clerk-1",
+      traceId: "trace-2",
+      experimentId: "experiment-1",
+      pairId: "pair-1",
+      role: "CANDIDATE",
+    });
+    expect(mocks.buildRecallContext).toHaveBeenCalledTimes(1);
+    expect(mocks.getRagContext).toHaveBeenCalledTimes(1);
+    expect(mocks.getRagContext).toHaveBeenCalledWith(
+      "Aiutami a concentrarmi",
+      undefined,
+      expect.objectContaining({
+        userId: "user-1",
+        recentMessages: expect.any(Promise),
+      }),
+    );
+    expect(await mocks.getRagContext.mock.calls[0][2].recentMessages).toEqual(
+      [],
+    );
+  });
+
+  it("shares existing thread context with prompt and live retrieval decisions", async () => {
+    const recentMessages = [
+      { role: "assistant", content: "How did the preparation exercise feel?" },
+    ];
+    mocks.buildThreadContext.mockResolvedValue({ messages: recentMessages });
+    mocks.resolveMemoryRecallMode.mockResolvedValue({
+      mode: "active",
+      reason: "configured",
+    });
+    mocks.createMemoryTools.mockReturnValue({
+      recallFacts: {},
+      getMemories: {},
+    });
+    const controller = new AbortController();
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-1",
+      conversationThreadId: "thread-1",
+      userMessage: "That approach made it worse",
+      effectiveEntitlements: entitlements,
+      abortSignal: controller.signal,
+    });
+    const contextOptions = mocks.buildRecallContext.mock.calls[0][0];
+    const toolOptions = mocks.createRagTools.mock.calls[0][0].retrievalOptions;
+    expect(await contextOptions.recentMessages).toEqual(recentMessages);
+    expect(toolOptions.recentMessages).toBe(contextOptions.recentMessages);
+    expect(toolOptions).toMatchObject({
+      userId: "user-1",
+      abortSignal: controller.signal,
+    });
+    expect(mocks.createMemoryTools).toHaveBeenCalledWith(
+      "user-1",
+      expect.objectContaining({ retrievalOptions: toolOptions }),
+    );
+    expect(mocks.buildThreadContext).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes the same retrieval context to the prepared legacy prefetch path", async () => {
+    await streamChat({
+      userId: "user-1",
+      userMessage: "Aiutami a preparare la gara",
+      effectiveEntitlements: entitlements,
+      preparedTurnContext: {
+        capabilityPlannerMode: "legacy",
+        turnDecision: {
+          ...decision,
+          capabilities: { ...decision.capabilities, rag: true },
+        },
+      },
+    });
+    expect(mocks.getRagContext).toHaveBeenCalledWith(
+      "Aiutami a preparare la gara",
+      undefined,
+      expect.objectContaining({
+        userId: "user-1",
+        recentMessages: expect.any(Promise),
+      }),
+    );
   });
 
   it.each([false, true])(

@@ -7,7 +7,10 @@ import {
   scheduleCostAttribution,
 } from "./cost-attribution";
 import { calculateCost } from "./tokenlens";
-import type { TypedDecisionResult } from "./typed-decisions";
+import type {
+  TypedDecisionResult,
+  TypedDecisionsResult,
+} from "./typed-decisions";
 
 const usageMeterLogger = createLogger("usage");
 
@@ -119,10 +122,15 @@ export function scheduleSupportAiUsage(
 }
 
 export function scheduleTypedDecisionUsage(
-  decision: TypedDecisionResult<string>,
+  decision: TypedDecisionResult<string> | TypedDecisionsResult,
   input: {
-    userId: string;
-    operation: "memory_gate" | "voice_classification";
+    userId?: string;
+    operation:
+      | "memory_gate"
+      | "memory_review"
+      | "retrieval_planning"
+      | "retrieval_ranking"
+      | "voice_classification";
     waitUntil?: (promise: Promise<unknown>) => void;
   },
 ): void {

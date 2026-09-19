@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { requestTypedDecision } from "./typed-decisions";
+import {
+  getJevDecisionMode,
+  requestTypedDecision,
+  requestTypedDecisions,
+} from "./typed-decisions";
 
 vi.mock("./providers/openrouter-routing", () => ({
   getOpenRouterProviderOptionsForModel: () => ({
@@ -95,6 +99,119 @@ describe("OpenRouter typed decisions", () => {
       choice: "no",
       confidence: 0.99,
     });
+  });
+
+  it("evaluates independent questions in one request with one usage observation", async () => {
+    const questions = {
+      supported: {
+        instructions: "Is the fact supported?",
+        criteria: input.criteria,
+      },
+      relation: {
+        instructions: "How does the new fact relate to the stored fact?",
+        criteria: { duplicate: "Same fact", distinct: "Different fact" },
+      },
+    };
+    vi.mocked(fetch).mockResolvedValue(
+      Response.json({
+        ...payload,
+        answers: {
+          supported: { type: "choice", choice: "yes", confidence: 0.99 },
+          relation: { type: "choice", choice: "distinct", confidence: 0.96 },
+        },
+      }),
+    );
+    expect(
+      await requestTypedDecisions({ state: input.state, questions }),
+    ).toMatchObject({
+      ok: true,
+      answers: {
+        supported: { choice: "yes", confidence: 0.99 },
+        relation: { choice: "distinct", confidence: 0.96 },
+      },
+      usage: payload.usage,
+    });
+    expect(fetch).toHaveBeenCalledOnce();
+    const request = JSON.parse(
+      vi.mocked(fetch).mock.calls[0][1]?.body as string,
+    );
+    expect(request.questions).toEqual({
+      supported: { type: "choice", ...questions.supported },
+      relation: { type: "choice", ...questions.relation },
+    });
+  });
+
+  it.each([
+    {},
+    { type: "choice", choice: "yes", confidence: 0.99 },
+    { type: "choice", choice: "distinct", confidence: -1 },
+  ])(
+    "rejects an incomplete batch or a choice from another question",
+    async (relation) => {
+      vi.mocked(fetch).mockResolvedValue(
+        Response.json({
+          ...payload,
+          answers: {
+            supported: { type: "choice", choice: "yes", confidence: 0.99 },
+            ...(Object.keys(relation).length ? { relation } : {}),
+          },
+        }),
+      );
+      expect(
+        await requestTypedDecisions({
+          state: input.state,
+          questions: {
+            supported: {
+              instructions: input.instructions,
+              criteria: input.criteria,
+            },
+            relation: {
+              instructions: "Compare facts",
+              criteria: { distinct: "Different facts" },
+            },
+          },
+        }),
+      ).toMatchObject({
+        ok: false,
+        failureCode: "invalid_output",
+        usage: payload.usage,
+      });
+      expect(fetch).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("rejects an unbounded question batch before making a paid request", async () => {
+    const questions = Object.fromEntries(
+      Array.from({ length: 65 }, (_, index) => [
+        String(index),
+        {
+          instructions: input.instructions,
+          criteria: input.criteria,
+        },
+      ]),
+    );
+    expect(
+      await requestTypedDecisions({ state: input.state, questions }),
+    ).toMatchObject({
+      ok: false,
+      attempted: false,
+      failureCode: "configuration_error",
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("requires both a valid rollout mode and an exact cohort member", () => {
+    vi.stubEnv("AI_JEV_ALLOWED_USER_IDS", "user-1, user-2, *");
+    expect(getJevDecisionMode("active", "user-1")).toBe("active");
+    expect(getJevDecisionMode("shadow", "user-2")).toBe("shadow");
+    expect(getJevDecisionMode("off", "user-1")).toBe("off");
+    expect(getJevDecisionMode(undefined, "user-1")).toBe("off");
+    expect(getJevDecisionMode("invalid", "user-1")).toBe("off");
+    expect(getJevDecisionMode("active", "user-10")).toBe("off");
+    expect(getJevDecisionMode("active", "*")).toBe("off");
+    expect(getJevDecisionMode("active")).toBe("off");
+    vi.stubEnv("AI_JEV_ALLOWED_USER_IDS", "");
+    expect(getJevDecisionMode("active", "user-1")).toBe("off");
   });
 
   it("retains the provider's served snapshot for cost attribution", async () => {

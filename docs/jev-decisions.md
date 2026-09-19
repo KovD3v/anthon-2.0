@@ -1,0 +1,96 @@
+# Jev decisions
+
+Anthon uses Jev for bounded classifications. Reply generation, fact extraction,
+date resolution and database mutations keep their existing implementations.
+
+## Shared cores
+
+`src/lib/ai/typed-decisions.ts` sends independent Choice questions in one
+OpenRouter Decisions request. Every requested answer must have a valid choice
+and confidence. Missing or malformed answers fail the batch; callers retain
+their existing fallback. Usage is recorded once per request, including known
+supplier costs on failures.
+
+| Core | Before the operation | After the operation |
+| --- | --- | --- |
+| `memory-decisions.ts` | Existing gate decides whether extraction is useful. | Reviews extracted support, person, sensitivity and semantic matches together. |
+| `retrieval-decisions.ts` | Supplements unresolved references that may need earlier context. | Ranks already authorized facts and document chunks. |
+
+The phases remain separate because later questions depend on extracted or
+retrieved data. Batching does not combine dependent decisions.
+
+Memory review handles at most eight candidates and three matching peers per
+candidate from 32 recent facts. It checks against the original user message.
+Uncertain matches do not merge facts; sensitive information retains the existing
+approval flow. Corrections require explicit user evidence and recheck the stored
+fact's owner, ID, timestamp, revision and source freshness under the existing
+account lock. Revisions and undo use the existing storage model.
+
+Retrieval ranking handles at most 12 candidates. Confident irrelevant items can
+be removed; uncertain items stay. Semantic continuation can enable current-thread
+recall only, within existing permissions. Expiry is checked again after ranking.
+Raw admin document search retains its vector ordering.
+
+## Activation and rollback
+
+New behavior defaults off, as required by [ADR 0024](adr/0024-gate-real-user-experiments-and-ai-changes.md).
+Both an explicit mode and exact account IDs are required:
+
+```dotenv
+AI_MEMORY_REVIEW_MODE="shadow"
+AI_RETRIEVAL_DECISIONS_MODE="shadow"
+AI_JEV_ALLOWED_USER_IDS="account-id-1,account-id-2"
+```
+
+`shadow` records decisions and costs while preserving existing results. `active`
+applies decisions for the listed accounts. An empty allowlist enables nobody;
+wildcards do not enable a broad rollout. Set a mode to `off` or remove an account
+to roll back. The existing `AI_MEMORY_GATE_MODE` and voice behavior are unchanged.
+Memory retrieval still requires the existing memory-recall release gate.
+
+Memory review has a 1,500 ms provider timeout and runs after the reply. Retrieval
+planning allows 450 ms and ranking 600 ms per call, without retries. The prompt
+recall path can add up to 1,050 ms of Jev work; a newly enabled thread search also
+uses its existing 100 ms database budget. Each existing read-tool call can add
+600 ms independently. These are timeout bounds, not measured latency gains.
+
+Costs appear under `memory_review`, `retrieval_planning` and `retrieval_ranking`.
+Decision logs contain counts, timing and failure codes, without conversation text.
+
+## Offline answer checks
+
+The evaluator checks saved answers for repeated questions, ignored corrections,
+unsupported personal facts and unaddressed explicit requests. It accepts grouped
+questions when the information is still needed. It runs outside the chat path,
+does not write to the database and does not produce or rewrite answers.
+
+```bash
+# Validate the built-in synthetic evaluation plan; no provider calls.
+bun run eval:answer-checks
+
+# Inspect a saved synthetic run before spending on evaluation.
+bun run eval:answer-checks --input baseline.json --input-scope synthetic
+
+# Evaluate saved baseline and candidate answers with the same checks.
+bun run eval:answer-checks --live \
+  --input baseline.json --candidate candidate.json --input-scope synthetic \
+  --max-calls 60 --output answer-check-report.json
+```
+
+Use `--model` and `--candidate-model` to select answer models from mixed runs.
+Reality summaries and conversation benchmark results/replicas are supported.
+Missing history or personal context remains explicitly incomplete. Reports
+separate flags, uncertainty, non-applicable checks and failures, with denominators,
+matched comparison pairs, observed latency and provider-reported or unknown cost.
+Output files exclude answer text and must not already exist.
+
+`--live` without input evaluates the labelled synthetic fixtures. Unit checks and
+a dry run establish evaluator behavior; only an actual provider run can establish
+agreement with those labels. That run reports matches, disagreements, uncertainty
+and failures separately. The fixtures are narrow checks, not evidence of
+overall coaching quality or real-user value.
+
+Real-user exports require an approved, unexpired quality-review project under
+[ADR 0025](adr/0025-separate-admin-roles-and-set-public-launch-gates.md), supplied as
+`--input-scope approved-review --review-project ID`. The CLI does not grant access
+or verify that external approval. Use authorized exports only.

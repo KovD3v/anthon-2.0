@@ -26,6 +26,10 @@ import {
   isDeletableStableMemoryKey,
   isExactStableMemoryKey,
 } from "@/lib/ai/memory-target";
+import {
+  type RetrievalDecisionOptions,
+  rankRetrievedItems,
+} from "@/lib/ai/retrieval-decisions";
 import { prisma } from "@/lib/db";
 import type { ServerTraceCollector } from "@/lib/response-profiler/server-trace";
 import { getTextFromParts } from "@/lib/utils/message-parts";
@@ -97,6 +101,7 @@ type CreateMemoryToolsOptions = {
   memoryWriteOrigin?: "EXPLICIT" | "INFERRED";
   pendingMemoryApproval?: PendingMemoryApproval;
   currentUserMessageId?: string;
+  retrievalOptions?: RetrievalDecisionOptions;
 };
 
 function requiresServerApproval(input: {
@@ -185,7 +190,23 @@ validi e ordinati dal server; non chiedere tutte le memorie se bastano pochi fat
           message: "Errore nel recuperare le memorie.",
         };
       }
-      if (result.facts.length === 0) {
+      const rankedFacts = options?.retrievalOptions
+        ? await rankRetrievedItems({
+            ...options.retrievalOptions,
+            userId,
+            query: query?.trim() || (category === "all" ? "" : category) || "",
+            source: "memory",
+            items: result.facts.filter(
+              (fact) => !fact.expiresAt || fact.expiresAt > new Date(),
+            ),
+            describe: (fact) =>
+              `[${fact.category}] ${fact.key}: ${fact.content}${formatMemoryValidity(fact)}`,
+          })
+        : result.facts;
+      const validFacts = rankedFacts.filter(
+        (fact) => !fact.expiresAt || fact.expiresAt > new Date(),
+      );
+      if (validFacts.length === 0) {
         return {
           success: true,
           data: null,
@@ -194,7 +215,7 @@ validi e ordinati dal server; non chiedere tutte le memorie se bastano pochi fat
       }
       return {
         success: true,
-        data: result.facts.map((fact) => ({
+        data: validFacts.map((fact) => ({
           key: fact.key,
           value: fact.content,
           category: fact.category,
@@ -202,7 +223,7 @@ validi e ordinati dal server; non chiedere tutte le memorie se bastano pochi fat
           expiresAt: fact.expiresAt?.toISOString() ?? null,
           observedAt: fact.observedAt?.toISOString(),
         })),
-        message: `Trovate ${result.facts.length} memorie pertinenti.`,
+        message: `Trovate ${validFacts.length} memorie pertinenti.`,
       };
     },
   });

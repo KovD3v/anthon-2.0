@@ -175,4 +175,33 @@ describe("ai/tools/rag", () => {
       "success",
     ]);
   });
+
+  it("passes authorized retrieval context to the same ranking boundary and propagates cancellation", async () => {
+    const controller = new AbortController();
+    const retrievalOptions = {
+      userId: "user-1",
+      abortSignal: controller.signal,
+    };
+    mocks.getRagContext.mockResolvedValue({
+      text: "Relevant context",
+      chunkCount: 1,
+    });
+    const { createRagTools } = await import("./rag");
+    await executeSearch(createRagTools({ retrievalOptions }), {
+      query: "prepare",
+    });
+    expect(mocks.getRagContext).toHaveBeenCalledWith(
+      "prepare",
+      undefined,
+      retrievalOptions,
+    );
+
+    mocks.getRagContext.mockImplementation(async () => {
+      controller.abort();
+      throw controller.signal.reason;
+    });
+    await expect(
+      executeSearch(createRagTools({ retrievalOptions }), { query: "prepare" }),
+    ).rejects.toThrow();
+  });
 });

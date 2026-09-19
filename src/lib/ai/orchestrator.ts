@@ -56,6 +56,7 @@ import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrou
 import { getRagContext, shouldUseRag } from "@/lib/ai/rag";
 import { buildRecallContext } from "@/lib/ai/recall-context";
 import { planRecall } from "@/lib/ai/recall-planner";
+import type { RetrievalDecisionOptions } from "@/lib/ai/retrieval-decisions";
 import { buildConversationContext } from "@/lib/ai/session-manager";
 import {
   type AiGenerationTelemetryContext,
@@ -687,6 +688,7 @@ function createToolsWithContext(
     recallToolsEnabled?: boolean;
     traceCollector?: ServerTraceCollector;
     developerDiagnostics?: DeveloperDiagnosticsCollector;
+    retrievalOptions?: RetrievalDecisionOptions;
   },
 ) {
   const toolPlan = options.toolPlan;
@@ -724,6 +726,7 @@ function createToolsWithContext(
       ? createRagTools({
           traceCollector: options.traceCollector,
           developerDiagnostics: options.developerDiagnostics,
+          retrievalOptions: options.retrievalOptions,
         })
       : {}),
     ...webTools,
@@ -744,7 +747,9 @@ function createToolsWithContext(
         allowedEvidenceIds: options.allowedEvidenceIds,
       }),
     );
-    tools.recallFacts = createMemoryTools(userId).recallFacts;
+    tools.recallFacts = createMemoryTools(userId, {
+      retrievalOptions: options.retrievalOptions,
+    }).recallFacts;
   }
 
   if (toolPlan.routineProposal) {
@@ -758,6 +763,9 @@ function createToolsWithContext(
     toolPlan.memoryApprovalResolve
   ) {
     const memoryToolOptions = {
+      ...(options.memoryRecallDecision?.mode === "active"
+        ? { retrievalOptions: options.retrievalOptions }
+        : {}),
       ...(toolPlan.memoryDelete
         ? { deleteTargetKey: toolPlan.memoryDeleteTarget }
         : {}),
@@ -1737,24 +1745,6 @@ export async function streamChat({
     agenticToolOptions,
   );
   const promptMode: PromptMode = turnPlan.promptProfile;
-  const recallContextPromise = conversationThreadId
-    ? buildRecallContext({
-        userId,
-        conversationThreadId,
-        query: userMessage,
-        plan: recallPlan,
-        decision: memoryRecallDecision,
-        traceCollector,
-      })
-    : Promise.resolve({
-        prompt: "",
-        factCount: 0,
-        evidenceCount: 0,
-        factRecallMs: 0,
-        conversationRecallMs: 0,
-        degraded: false,
-        allowedEvidenceIds: new Set<string>(),
-      });
   const deterministicRagEnabled =
     capabilityDecision.source !== "fallback" && capabilityDecision.rag;
   const userContextEnabled = turnPlan.capabilities.userContext;
@@ -1800,6 +1790,31 @@ export async function streamChat({
           );
           return [];
         });
+  const retrievalOptions: RetrievalDecisionOptions = {
+    userId: isGuest ? undefined : userId,
+    recentMessages: conversationHistoryPromise,
+    abortSignal,
+    waitUntil,
+  };
+  const recallContextPromise = conversationThreadId
+    ? buildRecallContext({
+        conversationThreadId,
+        query: userMessage,
+        plan: recallPlan,
+        decision: memoryRecallDecision,
+        traceCollector,
+        ...retrievalOptions,
+        userId,
+      })
+    : Promise.resolve({
+        prompt: "",
+        factCount: 0,
+        evidenceCount: 0,
+        factRecallMs: 0,
+        conversationRecallMs: 0,
+        degraded: false,
+        allowedEvidenceIds: new Set<string>(),
+      });
   const userContextPromise = !userContextEnabled
     ? Promise.resolve("")
     : measureTrace(traceCollector, "user_context", () =>
@@ -1919,7 +1934,8 @@ export async function streamChat({
               ragAttempted = true;
               const ragResult = await LatencyLogger.measure(
                 "📚 RAG: Get context",
-                () => getRagContext(userMessage, traceCollector),
+                () =>
+                  getRagContext(userMessage, traceCollector, retrievalOptions),
               );
               ragChunksCount = ragResult.chunkCount;
               if (ragResult.diagnostics?.failed) {
@@ -1965,6 +1981,7 @@ export async function streamChat({
     directWebSearchPromise,
     recallContextPromise,
   ]);
+  abortSignal?.throwIfAborted();
   const ragUsage = {
     attempted: ragAttempted,
     used: ragUsed,
@@ -2237,6 +2254,7 @@ export async function streamChat({
           recallPlan.facts.enabled || recallPlan.conversations.enabled,
         traceCollector,
         developerDiagnostics,
+        retrievalOptions,
       });
   const toolOutcomes = new ToolOutcomeTracker(Object.keys(rawTools));
   const toolPolicies = new Map<string, ToolPolicy>();
@@ -2770,13 +2788,6 @@ export async function prepareChatTurn({
     decision: memoryRecallDecision,
     isGuest: false,
   });
-  const recallContextPromise = buildRecallContext({
-    userId,
-    conversationThreadId,
-    query: userMessage,
-    plan: recallPlan,
-    decision: memoryRecallDecision,
-  });
   abortSignal?.throwIfAborted();
   const turnPlanInput = {
     userMessage,
@@ -2801,26 +2812,40 @@ export async function prepareChatTurn({
   const turnPlan = planTurn(turnPlanInput);
   const promptMode: PromptMode = turnPlan.promptProfile;
 
-  const conversationHistory =
+  const conversationHistoryPromise =
     turnPlan.history.scope === "none"
-      ? []
-      : (
-          await (
-            await import("@/lib/ai/thread-context")
-          ).buildThreadContext(
-            conversationThreadId,
-            {
-              includeSummary: turnPlan.history.includeSummary,
-              maxRawTurns: turnPlan.history.maxRawTurns,
-              maxRawChars: turnPlan.history.maxRawChars,
-            },
-            userMessageId,
-          )
-        ).messages;
+      ? Promise.resolve<ModelMessage[]>([])
+      : (async () =>
+          (
+            await (
+              await import("@/lib/ai/thread-context")
+            ).buildThreadContext(
+              conversationThreadId,
+              {
+                includeSummary: turnPlan.history.includeSummary,
+                maxRawTurns: turnPlan.history.maxRawTurns,
+                maxRawChars: turnPlan.history.maxRawChars,
+              },
+              userMessageId,
+            )
+          ).messages)();
+  const retrievalOptions: RetrievalDecisionOptions = {
+    userId,
+    recentMessages: conversationHistoryPromise,
+    abortSignal,
+  };
+  const recallContextPromise = buildRecallContext({
+    ...retrievalOptions,
+    userId,
+    conversationThreadId,
+    query: userMessage,
+    plan: recallPlan,
+    decision: memoryRecallDecision,
+  });
   const deterministicRagEnabled =
     capabilityDecision.source !== "fallback" && capabilityDecision.rag;
-  const ragResult = turnPlan.capabilities.rag
-    ? await (async () => {
+  const ragPromise = turnPlan.capabilities.rag
+    ? (async () => {
         try {
           const needsRag =
             deterministicRagEnabled ||
@@ -2828,13 +2853,18 @@ export async function prepareChatTurn({
           if (!needsRag) {
             return { text: undefined, chunkCount: 0, attempted: false };
           }
-          const result = await getRagContext(userMessage);
+          const result = await getRagContext(
+            userMessage,
+            undefined,
+            retrievalOptions,
+          );
           return {
             text: result.chunkCount > 0 ? result.text : undefined,
             chunkCount: result.chunkCount,
             attempted: true,
           };
         } catch (error) {
+          abortSignal?.throwIfAborted();
           aiLogger.warn(
             "model_comparison.rag_failed",
             "Paired comparison RAG preparation failed",
@@ -2843,7 +2873,13 @@ export async function prepareChatTurn({
           return { text: undefined, chunkCount: 0, attempted: true };
         }
       })()
-    : { text: undefined, chunkCount: 0, attempted: false };
+    : Promise.resolve({ text: undefined, chunkCount: 0, attempted: false });
+  const [ragResult, recallContext, conversationHistory] = await Promise.all([
+    ragPromise,
+    recallContextPromise,
+    conversationHistoryPromise,
+  ]);
+  abortSignal?.throwIfAborted();
   const ragUsed = ragResult.chunkCount > 0;
   const currentDate = new Date().toLocaleDateString("it-IT", {
     weekday: "long",
@@ -2852,7 +2888,6 @@ export async function prepareChatTurn({
     day: "numeric",
   });
   const userStyle = analyzeUserStyle(conversationHistory);
-  const recallContext = await recallContextPromise;
   const [userContext, userMemories] = await Promise.all([
     turnPlan.capabilities.userContext
       ? formatUserContextForPrompt(userId).catch(

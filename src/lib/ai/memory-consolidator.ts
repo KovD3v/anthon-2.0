@@ -2,6 +2,12 @@ import { MEMORY } from "@/lib/ai/constants";
 import { createMemoryApproval } from "@/lib/ai/memory-approval";
 import { canonicalizeKnowledgeCandidate } from "@/lib/ai/memory-canonicalization";
 import {
+  MEMORY_REVIEW_FACT_LIMIT,
+  type MemoryCandidateReview,
+  type ReviewableMemory,
+  reviewMemoryCandidates,
+} from "@/lib/ai/memory-decisions";
+import {
   knownMemoryTimeZone,
   messageTimeZone,
   resolveMemoryExpiry,
@@ -11,6 +17,8 @@ import {
   type MemoryCandidate,
 } from "@/lib/ai/memory-extractor";
 import { rememberFact } from "@/lib/ai/memory-facts";
+import { memoryValueRevisionId } from "@/lib/ai/memory-revision";
+import { getJevDecisionMode } from "@/lib/ai/typed-decisions";
 import {
   type CanonicalPreferencesPatch,
   type CanonicalProfilePatch,
@@ -139,6 +147,7 @@ export async function consolidateTurnMemory(input: {
     ? (messageTimeZone(sourceMessage.metadata) ??
       (await knownMemoryTimeZone(input.userId)))
     : null;
+  const prepared: ReviewableMemory[] = [];
 
   for (const candidate of candidates) {
     if (!isEligibleCandidate(candidate, input.userText)) {
@@ -173,9 +182,72 @@ export async function consolidateTurnMemory(input: {
       report.rejected += 1;
       continue;
     }
+    prepared.push({ candidate, canonical, expiresAt });
+  }
+
+  let reviews: MemoryCandidateReview[] = [];
+  if (
+    prepared.length &&
+    getJevDecisionMode(process.env.AI_MEMORY_REVIEW_MODE, input.userId) !==
+      "off"
+  ) {
+    try {
+      const facts = await prisma.memory.findMany({
+        where: {
+          userId: input.userId,
+          status: "ACTIVE",
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+        orderBy: { updatedAt: "desc" },
+        take: MEMORY_REVIEW_FACT_LIMIT,
+        select: {
+          id: true,
+          key: true,
+          value: true,
+          category: true,
+          sensitivity: true,
+          observedAt: true,
+          updatedAt: true,
+          expiresAt: true,
+        },
+      });
+      reviews = await reviewMemoryCandidates({
+        userId: input.userId,
+        userText: input.userText,
+        observedAt: sourceMessage.createdAt,
+        candidates: prepared,
+        existingFacts: facts.flatMap(({ value, ...fact }) => {
+          const content = (value as { content?: unknown } | null)?.content;
+          return typeof content === "string"
+            ? [{ ...fact, content, revisionId: memoryValueRevisionId(value) }]
+            : [];
+        }),
+      });
+    } catch (error) {
+      consolidatorLogger.warn(
+        "ai.memory.review_failed",
+        "Memory review unavailable; retaining extraction safeguards",
+        {
+          userId: input.userId,
+          errorName: error instanceof Error ? error.name : "unknown",
+        },
+      );
+    }
+  }
+
+  for (const [
+    index,
+    { candidate, canonical, expiresAt },
+  ] of prepared.entries()) {
+    const review = reviews[index];
+    if (review?.reject) {
+      report.rejected += 1;
+      continue;
+    }
 
     try {
       if (
+        review?.requiresApproval ||
         candidate.sensitivity === "HIGH" ||
         sensitiveCategories.has(candidate.category)
       ) {
@@ -210,7 +282,7 @@ export async function consolidateTurnMemory(input: {
 
       const result = await rememberFact({
         userId: input.userId,
-        key: canonical.key,
+        key: review?.match?.fact.key ?? canonical.key,
         value: canonical.value,
         category: canonical.category,
         confidence: candidate.confidence,
@@ -221,6 +293,16 @@ export async function consolidateTurnMemory(input: {
         dedupeKey: `memory:${input.inboundMessageId}:${canonical.key}`,
         observedAt: sourceMessage.createdAt,
         expiresAt,
+        ...(review?.match
+          ? {
+              semanticMatch: {
+                kind: review.match.kind,
+                id: review.match.fact.id,
+                updatedAt: review.match.fact.updatedAt,
+                revisionId: review.match.fact.revisionId,
+              },
+            }
+          : {}),
       });
       if (result.status === "saved") report.persisted += 1;
       else if (result.status !== "duplicate") report.rejected += 1;

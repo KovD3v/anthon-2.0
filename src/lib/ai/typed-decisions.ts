@@ -16,17 +16,43 @@ export type TypedDecisionFailure =
   | "timeout"
   | "provider_error"
   | "invalid_output";
-type DecisionMetadata = {
+export type DecisionMetadata = {
   modelId: string;
   durationMs: number;
   attempted: boolean;
   usage?: TypedDecisionUsage;
 };
+export type TypedDecisionQuestion = {
+  instructions: string;
+  criteria: Record<string, string>;
+};
+export type TypedDecisionAnswer = { choice: string; confidence: number };
+type DecisionFailure = {
+  ok: false;
+  failureCode: TypedDecisionFailure;
+  statusCode?: number;
+};
 export type TypedDecisionResult<Choice extends string> = DecisionMetadata &
+  ({ ok: true; choice: Choice; confidence: number } | DecisionFailure);
+export type TypedDecisionsResult = DecisionMetadata &
   (
-    | { ok: true; choice: Choice; confidence: number }
-    | { ok: false; failureCode: TypedDecisionFailure; statusCode?: number }
+    | { ok: true; answers: Record<string, TypedDecisionAnswer> }
+    | DecisionFailure
   );
+
+/** New decision features require both an explicit mode and a staged cohort. */
+export function getJevDecisionMode(
+  configuredMode: string | undefined,
+  userId?: string,
+): "off" | "shadow" | "active" {
+  if (!userId || (configuredMode !== "shadow" && configuredMode !== "active"))
+    return "off";
+  const allowed = (process.env.AI_JEV_ALLOWED_USER_IDS ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => id && id !== "*");
+  return allowed.includes(userId) ? configuredMode : "off";
+}
 
 export interface TypedDecisionInput<Choice extends string> {
   modelId?: string;
@@ -37,13 +63,63 @@ export interface TypedDecisionInput<Choice extends string> {
   abortSignal?: AbortSignal;
 }
 
+export type TypedDecisionsInput = Omit<
+  TypedDecisionInput<string>,
+  "instructions" | "criteria"
+> & { questions: Record<string, TypedDecisionQuestion> };
+
+const questionsSchema = z
+  .record(
+    z.string().min(1).max(120),
+    z.object({
+      instructions: z.string().trim().min(1),
+      criteria: z
+        .record(z.string().min(1), z.string().trim().min(1))
+        .refine((criteria) => Object.keys(criteria).length > 0),
+    }),
+  )
+  .refine((questions) => {
+    const count = Object.keys(questions).length;
+    return count > 0 && count <= 64;
+  });
+
+const answersSchema = z.object({
+  model: z.string().min(1),
+  answers: z.record(
+    z.string(),
+    z.object({
+      type: z.literal("choice"),
+      choice: z.string(),
+      confidence: probability.optional(),
+      probabilities: z.record(z.string(), probability).optional(),
+    }),
+  ),
+});
+
+export async function requestTypedDecision<Choice extends string>(
+  input: TypedDecisionInput<Choice>,
+): Promise<TypedDecisionResult<Choice>> {
+  const { instructions, criteria, ...shared } = input;
+  const result = await requestTypedDecisions({
+    ...shared,
+    questions: { decision: { instructions, criteria } },
+  });
+  if (!result.ok) return result;
+  const { answers, ...metadata } = result;
+  return {
+    ...metadata,
+    choice: answers.decision.choice as Choice,
+    confidence: answers.decision.confidence,
+  };
+}
+
 /** Dedicated Decisions transport. It returns only typed values and usage,
  * never response text or error bodies. Callers schedule their existing meter.
  * Contract: OpenRouterTeam/typescript-sdk, alphaDecisionsCreate + decisionsresponse.
  */
-export async function requestTypedDecision<Choice extends string>(
-  input: TypedDecisionInput<Choice>,
-): Promise<TypedDecisionResult<Choice>> {
+export async function requestTypedDecisions(
+  input: TypedDecisionsInput,
+): Promise<TypedDecisionsResult> {
   input.abortSignal?.throwIfAborted();
   const startedAt = performance.now();
   const modelId = input.modelId ?? JEV_MODEL_ID;
@@ -53,10 +129,17 @@ export async function requestTypedDecision<Choice extends string>(
     attempted: false,
   });
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
+  const questions = questionsSchema.safeParse(input.questions);
+  const timeoutMs = input.timeoutMs ?? 1500;
+  if (
+    !apiKey ||
+    !questions.success ||
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs <= 0
+  ) {
     return { ...metadata(), ok: false, failureCode: "configuration_error" };
   }
-  const timeout = AbortSignal.timeout(input.timeoutMs ?? 1500);
+  const timeout = AbortSignal.timeout(timeoutMs);
   const signal = input.abortSignal
     ? AbortSignal.any([input.abortSignal, timeout])
     : timeout;
@@ -79,13 +162,12 @@ export async function requestTypedDecision<Choice extends string>(
           model: modelId,
           ...(provider ? { provider } : {}),
           state: input.state,
-          questions: {
-            decision: {
-              type: "choice",
-              instructions: input.instructions,
-              criteria: input.criteria,
-            },
-          },
+          questions: Object.fromEntries(
+            Object.entries(questions.data).map(([id, question]) => [
+              id,
+              { type: "choice", ...question },
+            ]),
+          ),
         }),
         signal,
       },
@@ -111,21 +193,8 @@ export async function requestTypedDecision<Choice extends string>(
         usage,
       };
     }
-    const parsed = z
-      .object({
-        model: z.string().min(1),
-        answers: z.object({
-          decision: z.object({
-            type: z.literal("choice"),
-            choice: z.string(),
-            confidence: probability.optional(),
-            probabilities: z.record(z.string(), probability).optional(),
-          }),
-        }),
-      })
-      .safeParse(raw);
-    const answer = parsed.success ? parsed.data.answers.decision : undefined;
-    if (!answer || !Object.hasOwn(input.criteria, answer.choice)) {
+    const parsed = answersSchema.safeParse(raw);
+    if (!parsed.success) {
       return {
         ...metadata(),
         attempted: true,
@@ -134,24 +203,35 @@ export async function requestTypedDecision<Choice extends string>(
         usage,
       };
     }
-    const confidence =
-      answer.confidence ?? answer.probabilities?.[answer.choice];
-    if (confidence === undefined) {
-      return {
-        ...metadata(),
-        attempted: true,
-        ok: false,
-        failureCode: "invalid_output",
-        usage,
-      };
+    const answers: Record<string, TypedDecisionAnswer> = Object.create(null);
+    for (const [id, question] of Object.entries(questions.data)) {
+      const answer = Object.hasOwn(parsed.data.answers, id)
+        ? parsed.data.answers[id]
+        : undefined;
+      const confidence =
+        answer?.confidence ?? answer?.probabilities?.[answer.choice];
+      if (
+        !answer ||
+        !Object.hasOwn(question.criteria, answer.choice) ||
+        confidence === undefined
+      ) {
+        return {
+          ...metadata(),
+          modelId: parsed.data.model,
+          attempted: true,
+          ok: false,
+          failureCode: "invalid_output",
+          usage,
+        };
+      }
+      answers[id] = { choice: answer.choice, confidence };
     }
     return {
       ...metadata(),
-      modelId: parsed.success ? parsed.data.model : modelId,
+      modelId: parsed.data.model,
       attempted: true,
       ok: true,
-      choice: answer.choice as Choice,
-      confidence,
+      answers,
       usage,
     };
   } catch {

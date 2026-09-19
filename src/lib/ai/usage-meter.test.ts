@@ -191,4 +191,32 @@ describe("ai/usage-meter", () => {
       expect.objectContaining({ failed: true, operation: "memory_gate" }),
     );
   });
+
+  it("meters a decision batch once rather than once per answer", () => {
+    mocks.incrementTokenUsage.mockResolvedValue({});
+    const waitUntil = vi.fn();
+    scheduleTypedDecisionUsage(
+      {
+        ok: true,
+        modelId: "typesafe/jev-1.13",
+        durationMs: 250,
+        attempted: true,
+        usage: { input_tokens: 1000, output_tokens: 40, cost: 0.000042 },
+        answers: {
+          support: { choice: "supported", confidence: 0.99 },
+          relationship: { choice: "new", confidence: 0.98 },
+        },
+      },
+      { userId: "user-1", operation: "memory_review", waitUntil },
+    );
+    expect(mocks.incrementTokenUsage).toHaveBeenCalledExactlyOnceWith(
+      "user-1",
+      1000,
+      40,
+      0.000042,
+      0,
+    );
+    expect(recordAiOperation).toHaveBeenCalledOnce();
+    expect(waitUntil).toHaveBeenCalledOnce();
+  });
 });

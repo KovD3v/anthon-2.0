@@ -7,6 +7,10 @@
 import { RAG, RAG_KEYWORDS, RAG_NEGATIVE_KEYWORDS } from "@/lib/ai/constants";
 import { generateEmbedding, generateEmbeddings } from "@/lib/ai/embeddings";
 import { withRagRead } from "@/lib/ai/rag-database";
+import {
+  type RetrievalDecisionOptions,
+  rankRetrievedItems,
+} from "@/lib/ai/retrieval-decisions";
 import { prisma } from "@/lib/db";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -157,20 +161,28 @@ function formatRagContext(results: RagSearchResult[]): string {
 export async function getRagContext(
   query: string,
   traceCollector?: ServerTraceCollector,
+  retrievalOptions?: RetrievalDecisionOptions,
 ): Promise<RagContext> {
   const outcome = await searchDocumentsWithOutcome(
     query,
     undefined,
     traceCollector,
   );
+  const results = await rankRetrievedItems({
+    ...retrievalOptions,
+    query,
+    source: "document",
+    items: outcome.results,
+    describe: (chunk) => `${chunk.title}\n${chunk.content}`,
+  });
   return {
-    ...buildRagContext(outcome.results),
+    ...buildRagContext(results),
     failed: outcome.failed,
     ...(isDeveloperDiagnosticsEnabled()
       ? {
           diagnostics: {
             query,
-            chunks: outcome.results,
+            chunks: results,
             failed: outcome.failed,
             ...(outcome.error !== undefined ? { error: outcome.error } : {}),
           },

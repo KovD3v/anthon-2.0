@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   findActiveFactIdByKey: vi.fn(),
   createMemoryApproval: vi.fn(),
   resolveMemoryApproval: vi.fn(),
+  rankRetrievedItems: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -45,6 +46,9 @@ vi.mock("@/lib/ai/memory-facts", () => ({
   forgetFact: mocks.forgetFact,
   findActiveFactIdByKey: mocks.findActiveFactIdByKey,
 }));
+vi.mock("@/lib/ai/retrieval-decisions", () => ({
+  rankRetrievedItems: mocks.rankRetrievedItems,
+}));
 
 import {
   createMemoryTools,
@@ -73,6 +77,7 @@ describe("ai/tools/memory", () => {
     mocks.findActiveFactIdByKey.mockReset();
     mocks.createMemoryApproval.mockReset();
     mocks.resolveMemoryApproval.mockReset();
+    mocks.rankRetrievedItems.mockReset();
   });
   afterEach(() => vi.useRealTimers());
 
@@ -500,6 +505,37 @@ describe("ai/tools/memory", () => {
     expect(result.success).toBe(false);
     expect(result.message).toContain("Errore nel recuperare");
     expect(mocks.memoryFindMany).not.toHaveBeenCalled();
+  });
+
+  it("ranks only authorized live fact reads and preserves expiry filtering", async () => {
+    const facts = [
+      { key: "event", content: "Expired", expiresAt: new Date(0) },
+      { key: "my_work", content: "Useful", expiresAt: null },
+      { key: "sister_sport", content: "Unrelated", expiresAt: null },
+    ];
+    mocks.recallFacts.mockResolvedValue({ facts, degraded: false });
+    mocks.rankRetrievedItems.mockResolvedValue([facts[1]]);
+    const recall = createMemoryTools("user-1", {
+      retrievalOptions: { userId: "other-user", recentMessages: [] },
+    }).recallFacts as unknown as ToolDefinition<{ data: { value: string }[] }>;
+    const result = await recall.execute({ query: "my presentation" });
+    expect(mocks.rankRetrievedItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        source: "memory",
+        query: "my presentation",
+        items: facts.slice(1),
+      }),
+    );
+    expect(result.data.map((fact) => fact.value)).toEqual(["Useful"]);
+
+    mocks.rankRetrievedItems.mockClear();
+    const legacy = createMemoryTools("user-1")
+      .recallFacts as unknown as ToolDefinition<{ data: { value: string }[] }>;
+    expect(
+      (await legacy.execute({ query: "my presentation" })).data,
+    ).toHaveLength(2);
+    expect(mocks.rankRetrievedItems).not.toHaveBeenCalled();
   });
 
   it("exposes modern fact tools with legacy aliases during rollout", () => {
