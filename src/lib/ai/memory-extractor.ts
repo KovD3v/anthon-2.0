@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import { z } from "zod";
 import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
+import { shouldExtractMemory } from "@/lib/ai/memory-candidate-gate";
 import { memoryExpirySchema } from "@/lib/ai/memory-expiry";
 import {
   SUB_AGENT_MODEL_ID,
@@ -90,8 +91,7 @@ export async function extractMemoryCandidates(input: {
   userText: string;
   assistantText: string;
 }): Promise<MemoryCandidate[]> {
-  const trimmedUserText = input.userText.trim();
-  if (trimmedUserText.length < 10 || trimmedUserText.split(/\s+/).length < 3) {
+  if (!input.userText.trim() || !(await shouldExtractMemory(input))) {
     return [];
   }
 

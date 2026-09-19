@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
   loggerError: vi.fn(),
   trackSupportAiUsage: vi.fn(),
+  shouldExtractMemory: vi.fn(),
 }));
 
 vi.mock("@/lib/ai/cost-attribution", () => ({
@@ -14,6 +15,9 @@ vi.mock("@/lib/ai/cost-attribution", () => ({
 }));
 
 vi.mock("ai", () => ({ generateText: mocks.generateText }));
+vi.mock("@/lib/ai/memory-candidate-gate", () => ({
+  shouldExtractMemory: mocks.shouldExtractMemory,
+}));
 vi.mock("@/lib/logger", () => ({
   createLogger: () => ({
     debug: vi.fn(),
@@ -36,17 +40,31 @@ describe("ai/memory-extractor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
+    mocks.shouldExtractMemory.mockResolvedValue(true);
   });
 
-  it("skips messages too short to contain a supported durable fact", async () => {
+  it("skips extraction when the candidate gate rejects an empty acknowledgment", async () => {
+    mocks.shouldExtractMemory.mockResolvedValue(false);
     await expect(
       extractMemoryCandidates({
         userId: "user-1",
-        userText: "ciao",
-        assistantText: "Ciao!",
+        userText: "grazie mille a presto",
+        assistantText: "A presto!",
       }),
     ).resolves.toEqual([]);
     expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
+  it("lets short corrections reach extraction instead of applying a length cutoff", async () => {
+    mocks.generateText.mockResolvedValue({ text: '{"facts":[]}', usage: {} });
+    const input = {
+      userId: "user-1",
+      userText: "No, 18.",
+      assistantText: "Correggo la tua età.",
+    };
+    await extractMemoryCandidates(input);
+    expect(mocks.shouldExtractMemory).toHaveBeenCalledWith(input);
+    expect(mocks.generateText).toHaveBeenCalledTimes(1);
   });
 
   it("extracts strict user-supported candidates and records model usage", async () => {
