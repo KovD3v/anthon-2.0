@@ -10,6 +10,55 @@ import { prisma } from "@/lib/db";
 const MAX_WEB_CLIENT_MESSAGE_ID_LENGTH = 128;
 const WEB_CLIENT_MESSAGE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
+// This bounded projection also supplies the early title cadence and voice
+// context, without trusting browser history or counting a growing transcript.
+export const recentWebMessagesQuery = {
+  where: { deletedAt: null, role: { in: ["USER", "ASSISTANT"] } },
+  orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  take: 6,
+  select: { id: true, role: true, parts: true },
+} satisfies Prisma.MessageFindManyArgs;
+
+export function webRequestContext(
+  messages: { id: string; role: string; parts: unknown }[] | undefined,
+  inboundId: string,
+  userText: string,
+): { role: "user" | "assistant"; text: string }[] {
+  const history = (messages ?? [])
+    .filter((message) => message.id !== inboundId)
+    .toReversed()
+    .flatMap((message) => {
+      if (message.role !== "USER" && message.role !== "ASSISTANT") return [];
+      const text = textFromPersistedAssistant({
+        id: message.id,
+        parts: message.parts as Prisma.JsonValue,
+      }).trim();
+      return text
+        ? [
+            {
+              role:
+                message.role === "USER"
+                  ? ("user" as const)
+                  : ("assistant" as const),
+              text,
+            },
+          ]
+        : [];
+    });
+  return [...history, { role: "user" as const, text: userText }].slice(-6);
+}
+
+export function parseWebTimeZone(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > 100 || !value.trim())
+    return null;
+  try {
+    return new Intl.DateTimeFormat("en", { timeZone: value }).resolvedOptions()
+      .timeZone;
+  } catch {
+    return null;
+  }
+}
+
 const webInboundSelect = {
   id: true,
   userId: true,
@@ -158,6 +207,7 @@ export async function claimWebInboundMessage({
   payloadHash,
   parts,
   attachmentIds = [],
+  timeZone,
 }: {
   userId: string;
   chatId: string;
@@ -166,6 +216,7 @@ export async function claimWebInboundMessage({
   payloadHash: string;
   parts: Prisma.InputJsonValue;
   attachmentIds?: string[];
+  timeZone?: string;
 }): Promise<{ message: WebInboundMessage; created: boolean }> {
   const where = webInboundWhere({ userId, clientMessageId });
   const uniqueAttachmentIds = [...new Set(attachmentIds)];
@@ -187,6 +238,7 @@ export async function claimWebInboundMessage({
           clientMessageId,
           clientMessagePayloadHash: payloadHash,
           parts,
+          ...(timeZone ? { metadata: { timeZone } } : {}),
         },
         select: webInboundSelect,
       });

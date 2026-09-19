@@ -18,8 +18,11 @@ import {
   findExistingWebInboundMessage,
   getWebClientPayloadHash,
   isValidWebClientMessageId,
+  parseWebTimeZone,
+  recentWebMessagesQuery,
   textFromPersistedAssistant,
   WebInboundConflictError,
+  webRequestContext,
 } from "@/lib/channel-flow/web-inbound";
 import {
   resolveOwnedWebMessageParts,
@@ -89,9 +92,14 @@ export async function handleWebChatPost(request: Request) {
           return Response.json({ error: "Invalid JSON body" }, { status: 400 });
         }
 
-        const { messages, chatId } = body as {
+        const {
+          messages,
+          chatId,
+          timeZone: suppliedTimeZone,
+        } = (body ?? {}) as {
           messages: UIMessage[];
           chatId?: string;
+          timeZone?: unknown;
         };
 
         // Validate structural request input before DB/rate-limit work.
@@ -102,11 +110,19 @@ export async function handleWebChatPost(request: Request) {
           );
         }
 
-        if (!chatId) {
+        if (typeof chatId !== "string" || !chatId.trim()) {
           return Response.json(
             { error: "chatId is required" },
             { status: 400 },
           );
+        }
+
+        const timeZone =
+          suppliedTimeZone === undefined
+            ? undefined
+            : parseWebTimeZone(suppliedTimeZone);
+        if (timeZone === null) {
+          return Response.json({ error: "Invalid timeZone" }, { status: 400 });
         }
 
         // Get and validate the last user message before DB/rate-limit work.
@@ -238,10 +254,7 @@ export async function handleWebChatPost(request: Request) {
                     title: true,
                     customTitle: true,
                     visibility: true,
-                    messages: {
-                      take: 1,
-                      select: { id: true },
-                    },
+                    messages: recentWebMessagesQuery,
                   },
                 }),
               "🌐 Chat API Request",
@@ -366,9 +379,8 @@ export async function handleWebChatPost(request: Request) {
           );
         }
 
-        const requestConversationMessageCount = messages.filter(
-          (message) => message.role === "user" || message.role === "assistant",
-        ).length;
+        const requestConversationMessageCount =
+          (chat.messages?.length ?? 0) + 1;
 
         let resolvedMessageParts: Awaited<
           ReturnType<typeof resolveOwnedWebMessageParts>
@@ -415,6 +427,7 @@ export async function handleWebChatPost(request: Request) {
                       conversationThreadId: conversationThread.id,
                       clientMessageId,
                       payloadHash: clientPayloadHash,
+                      timeZone,
                       parts:
                         resolvedMessageParts.persistedParts as Prisma.InputJsonValue,
                       attachmentIds: resolvedMessageParts.attachmentIds,
@@ -482,6 +495,12 @@ export async function handleWebChatPost(request: Request) {
           );
         }
 
+        const recentContext = webRequestContext(
+          chat.messages,
+          message.id,
+          aiUserMessageText,
+        );
+
         // Auto-generate or refresh chat title if not manually set by user
         if (inboundClaim.created && !chat.customTitle) {
           const shouldRefresh = [1, 2, 4].includes(
@@ -489,24 +508,8 @@ export async function handleWebChatPost(request: Request) {
           );
 
           if (shouldRefresh) {
-            const metadataMessages = messages
-              .map((m) => {
-                const text =
-                  m.parts
-                    ?.map((p) =>
-                      p.type === "text" ? (p as { text: string }).text : "",
-                    )
-                    .join("")
-                    .trim() || "";
-                if ((m.role !== "user" && m.role !== "assistant") || !text) {
-                  return null;
-                }
-                return { role: m.role, text };
-              })
-              .filter((message) => message !== null);
-
             waitUntil(
-              generateChatMetadata(metadataMessages, aiUserMessageText, {
+              generateChatMetadata(recentContext, aiUserMessageText, {
                 userId: user.id,
               }).then(({ title, icon }) => {
                 prisma.chat
@@ -531,7 +534,10 @@ export async function handleWebChatPost(request: Request) {
           userId: user.id,
           chatId,
           userMessage: aiUserMessageText,
-          recentMessages: getRecentTextMessages(messages),
+          recentMessages: recentContext.map(({ role, text }) => ({
+            role,
+            content: text.slice(0, 500),
+          })),
           userPreferences: {
             voiceEnabled: user.preferences?.voiceEnabled ?? true,
           },
@@ -817,17 +823,6 @@ function hasUnsupportedFilePayload(part: UIMessage["parts"][number]) {
   return (
     typeof filePart.attachmentId !== "string" || !filePart.attachmentId.trim()
   );
-}
-
-function getRecentTextMessages(messages: UIMessage[]) {
-  return messages.slice(-6).map((message) => ({
-    role: message.role,
-    content:
-      message.parts
-        ?.map((part) => (part.type === "text" ? part.text : ""))
-        .join("")
-        .slice(0, 500) || "",
-  }));
 }
 
 function buildVoiceDecisionMetadata(

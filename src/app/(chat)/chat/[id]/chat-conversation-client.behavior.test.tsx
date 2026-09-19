@@ -177,7 +177,8 @@ vi.mock("@/hooks/use-confirm", () => ({
   },
 }));
 
-vi.mock("@/lib/chat-client", () => ({
+vi.mock("@/lib/chat-client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/chat-client")>()),
   convertToUIMessages: (messages: ChatData["messages"]) =>
     messages.map((message) => ({
       id: message.id,

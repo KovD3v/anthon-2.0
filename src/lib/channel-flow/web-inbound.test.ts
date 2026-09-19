@@ -30,7 +30,9 @@ import {
   findExistingWebInboundMessage,
   getWebClientPayloadHash,
   isValidWebClientMessageId,
+  parseWebTimeZone,
   textFromPersistedAssistant,
+  webRequestContext,
 } from "./web-inbound";
 
 function inbound(overrides: Record<string, unknown> = {}) {
@@ -70,6 +72,50 @@ describe("web inbound idempotency", () => {
     expect(isValidWebClientMessageId("")).toBe(false);
     expect(isValidWebClientMessageId(" contains spaces ")).toBe(false);
     expect(isValidWebClientMessageId("x".repeat(129))).toBe(false);
+  });
+
+  it("validates message-local timezones without inventing one", () => {
+    expect(parseWebTimeZone("Europe/Rome")).toBe("Europe/Rome");
+    for (const value of [
+      undefined,
+      null,
+      4,
+      "",
+      "Mars/Olympus",
+      "x".repeat(101),
+    ]) {
+      expect(parseWebTimeZone(value)).toBeNull();
+    }
+  });
+
+  it("builds chronological context from stored parts without duplicating a retried inbound", () => {
+    expect(
+      webRequestContext(
+        [
+          {
+            id: "inbound",
+            role: "USER",
+            parts: [{ type: "text", text: "old transcription" }],
+          },
+          {
+            id: "assistant",
+            role: "ASSISTANT",
+            parts: [{ type: "text", text: "Stored answer" }],
+          },
+          {
+            id: "user",
+            role: "USER",
+            parts: [{ type: "text", text: "Stored prompt" }],
+          },
+        ],
+        "inbound",
+        "Canonical current text",
+      ),
+    ).toEqual([
+      { role: "user", text: "Stored prompt" },
+      { role: "assistant", text: "Stored answer" },
+      { role: "user", text: "Canonical current text" },
+    ]);
   });
 
   it("hashes canonical payloads independent of object key order", () => {
@@ -138,6 +184,7 @@ describe("web inbound idempotency", () => {
         ...claimInput,
         parts: [{ type: "text", text: "canonical persisted text" }],
         attachmentIds: ["attachment-1", "attachment-2", "attachment-1"],
+        timeZone: "Europe/Rome",
       }),
     ).resolves.toEqual({ message: inbound(), created: true });
 
@@ -155,6 +202,7 @@ describe("web inbound idempotency", () => {
         clientMessageId: "client-message-1",
         clientMessagePayloadHash: "payload-hash",
         parts: [{ type: "text", text: "canonical persisted text" }],
+        metadata: { timeZone: "Europe/Rome" },
       },
       select: expect.any(Object),
     });

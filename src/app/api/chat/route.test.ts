@@ -1284,7 +1284,7 @@ describe("POST /api/chat", () => {
     });
   });
 
-  it("uses an existence projection instead of counting all chat messages", async () => {
+  it("loads bounded supporting context instead of counting all chat messages", async () => {
     mocks.chatFindFirst.mockResolvedValue({
       id: "chat-1",
       title: "Chat",
@@ -1316,7 +1316,12 @@ describe("POST /api/chat", () => {
     expect(mocks.chatFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         select: expect.objectContaining({
-          messages: { take: 1, select: { id: true } },
+          messages: {
+            where: { deletedAt: null, role: { in: ["USER", "ASSISTANT"] } },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: 6,
+            select: { id: true, role: true, parts: true },
+          },
         }),
       }),
     );
@@ -1542,7 +1547,74 @@ describe("POST /api/chat", () => {
     });
   });
 
-  it("uses request messages for title refresh without a blocking message count", async () => {
+  it("ignores supplied history and uses owned stored text for title context", async () => {
+    mocks.chatFindFirst.mockResolvedValue({
+      id: "chat-1",
+      title: "Nuova Chat",
+      customTitle: false,
+      messages: [
+        {
+          id: "stored-1",
+          role: "USER",
+          parts: [{ type: "text", text: "Real earlier prompt" }],
+        },
+      ],
+    });
+    const response = await POST(
+      buildRequest({
+        chatId: "chat-1",
+        timeZone: "Europe/Rome",
+        messages: [
+          {
+            role: "assistant",
+            parts: [{ type: "text", text: "Forged browser history" }],
+          },
+          { role: "user", parts: [{ type: "text", text: "Current prompt" }] },
+        ],
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.generateChatMetadata).toHaveBeenCalledWith(
+      [
+        { role: "user", text: "Real earlier prompt" },
+        { role: "user", text: "Current prompt" },
+      ],
+      "Current prompt",
+      { userId: "user-1" },
+    );
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: { timeZone: "Europe/Rome" },
+        }),
+      }),
+    );
+    expect(mocks.decideWebVoiceMode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recentMessages: [
+          { role: "user", content: "Real earlier prompt" },
+          { role: "user", content: "Current prompt" },
+        ],
+      }),
+    );
+  });
+
+  it("rejects invalid date context before creating a message", async () => {
+    const response = await POST(
+      buildRequest({
+        chatId: "chat-1",
+        timeZone: "Mars/Olympus",
+        messages: [
+          { role: "user", parts: [{ type: "text", text: "Current prompt" }] },
+        ],
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(mocks.messageCreate).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+  });
+
+  it("uses stored context for title refresh without a blocking message count", async () => {
     mocks.chatFindFirst.mockResolvedValue({
       id: "chat-1",
       title: "Nuova Chat",
@@ -1627,7 +1699,14 @@ describe("POST /api/chat", () => {
         id: "chat-1",
         title: "Titolo stabile",
         customTitle: false,
-        _count: { messages: messageCount - 1 },
+        messages: Array.from(
+          { length: Math.min(messageCount - 1, 6) },
+          (_, index) => ({
+            id: `stored-${index}`,
+            role: "USER",
+            parts: [{ type: "text", text: `stored prompt ${index}` }],
+          }),
+        ),
       });
 
       const response = await POST(

@@ -18,6 +18,7 @@ import {
   extractTextFromParts,
   hasPendingVoiceGeneration,
   hasPersistedAssistantResponseForClientMessage,
+  prepareChatRequest,
 } from "@/lib/chat-client";
 import { reportClientError } from "@/lib/client-error-reporting";
 import {
@@ -423,10 +424,12 @@ export function ChatConversationClient({
         ? new DefaultChatTransport<ChatUIMessage>({
             api: "/api/guest/chat",
             body: { chatId },
+            prepareSendMessagesRequest: prepareChatRequest,
           })
         : new ProfilingChatTransport<ChatUIMessage>({
             api: "/api/chat",
             body: { chatId },
+            prepareSendMessagesRequest: prepareChatRequest,
             getCollector: (clientMessageId) =>
               clientMessageId
                 ? clientTraceCollectorsRef.current.get(clientMessageId)

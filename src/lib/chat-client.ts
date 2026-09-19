@@ -1,4 +1,4 @@
-import type { UIMessage } from "ai";
+import type { PrepareSendMessagesRequest, UIMessage } from "ai";
 import type { AnthonUIMessage } from "@/lib/model-experiments/types";
 import type {
   ChatMessage,
@@ -16,6 +16,29 @@ export type ChatUIMessage = AnthonUIMessage & {
   feedbackReason?: MessageFeedbackReason;
   memoryChanges?: ChatMessage["memoryChanges"];
   memoryConsolidation?: ChatMessage["memoryConsolidation"];
+};
+
+// History is loaded from the owned thread on the server. Preserve the latest
+// turn's ID and attachment references so retries keep the same durable identity.
+export const prepareChatRequest: PrepareSendMessagesRequest<ChatUIMessage> = ({
+  id,
+  messages,
+  body,
+  trigger,
+  messageId,
+}) => {
+  const latest = messages.findLast((message) => message.role === "user");
+  if (!latest) throw new Error("No user message to send");
+  return {
+    body: {
+      ...body,
+      id,
+      trigger,
+      messageId,
+      messages: [{ id: latest.id, role: latest.role, parts: latest.parts }],
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    },
+  };
 };
 
 /**

@@ -123,12 +123,15 @@ test("keeps the next draft editable throughout a slow streamed reply", async ({
   await page.goto(`/chat/${chat.id}`);
   const input = page.getByRole("textbox", { name: "Scrivi un messaggio" });
   let sends = 0;
+  const payloads: Record<string, unknown>[] = [];
   page.on("request", (request) => {
     if (
       new URL(request.url()).pathname === "/api/chat" &&
       request.method() === "POST"
-    )
+    ) {
       sends += 1;
+      payloads.push(request.postDataJSON());
+    }
   });
   await input.fill("risposta-lenta-e2e");
   await page.getByRole("button", { name: "Invia messaggio" }).click();
@@ -146,6 +149,13 @@ test("keeps the next draft editable throughout a slow streamed reply", async ({
     isMobile ? "La mia prossima domanda\n" : "La mia prossima domanda",
   );
   expect(sends).toBe(1);
+  expect(payloads[0].messages).toEqual([
+    expect.objectContaining({
+      role: "user",
+      parts: [{ type: "text", text: "risposta-lenta-e2e" }],
+    }),
+  ]);
+  expect(payloads[0].timeZone).toBeTruthy();
 });
 
 test("keeps text typed while a send later fails", async ({ page }) => {

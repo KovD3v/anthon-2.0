@@ -1,5 +1,5 @@
-import type { UIMessage } from "ai";
-import { describe, expect, it } from "vitest";
+import { DefaultChatTransport, type UIMessage } from "ai";
+import { describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/types/chat";
 import {
   convertToUIMessages,
@@ -7,9 +7,62 @@ import {
   hasPendingVoiceGeneration,
   hasPersistedAssistantResponseForClientMessage,
   normalizeFilePartForPreview,
+  prepareChatRequest,
 } from "./chat-client";
 
 describe("chat-client", () => {
+  it.each(["submit-message", "regenerate-message"] as const)(
+    "sends only the current turn for %s, preserving retry identity and attachments",
+    async (trigger) => {
+      const fetch = vi.fn().mockResolvedValue(new Response("data: [DONE]\n\n"));
+      const transport = new DefaultChatTransport({
+        api: "/api/chat",
+        body: { chatId: "chat-1" },
+        prepareSendMessagesRequest: prepareChatRequest,
+        fetch,
+      });
+      const latest = {
+        id: "current-user",
+        role: "user" as const,
+        parts: [
+          { type: "text" as const, text: "New prompt" },
+          {
+            type: "file" as const,
+            attachmentId: "owned-file",
+            mediaType: "image/png",
+            url: "/api/attachments/owned-file",
+          },
+        ],
+      };
+      const history = Array.from({ length: 1000 }, (_, index) => ({
+        id: `old-${index}`,
+        role: "assistant" as const,
+        parts: [
+          { type: "text" as const, text: "Never upload this old answer" },
+        ],
+      }));
+      await transport.sendMessages({
+        trigger,
+        chatId: "chat-1",
+        messageId: latest.id,
+        messages: [...history, latest],
+        abortSignal: undefined,
+        body: { retry: true },
+      });
+      const payload = JSON.parse(fetch.mock.calls[0][1].body);
+      expect(payload).toEqual({
+        chatId: "chat-1",
+        id: "chat-1",
+        trigger,
+        messageId: latest.id,
+        retry: true,
+        messages: [latest],
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+      expect(fetch.mock.calls[0][1].body).not.toContain("old answer");
+    },
+  );
+
   it("converts messages with explicit parts and usage metadata", () => {
     const messages: ChatMessage[] = [
       {

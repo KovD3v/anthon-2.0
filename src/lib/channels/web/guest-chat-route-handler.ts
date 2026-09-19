@@ -21,8 +21,11 @@ import {
   findExistingWebInboundMessage,
   getWebClientPayloadHash,
   isValidWebClientMessageId,
+  parseWebTimeZone,
+  recentWebMessagesQuery,
   textFromPersistedAssistant,
   WebInboundConflictError,
+  webRequestContext,
 } from "@/lib/channel-flow/web-inbound";
 import { isRoutineFeatureEnabled } from "@/lib/coaching/routine-feature";
 import { ensureConversationThread } from "@/lib/conversations/threads";
@@ -54,9 +57,14 @@ export async function handleGuestChatPost(request: Request) {
         return Response.json({ error: "Invalid JSON body" }, { status: 400 });
       }
 
-      const { messages, chatId } = body as {
+      const {
+        messages,
+        chatId,
+        timeZone: suppliedTimeZone,
+      } = (body ?? {}) as {
         messages: UIMessage[];
         chatId?: string;
+        timeZone?: unknown;
       };
 
       // Validate structural request input before rate-limit work.
@@ -67,8 +75,16 @@ export async function handleGuestChatPost(request: Request) {
         );
       }
 
-      if (!chatId) {
+      if (typeof chatId !== "string" || !chatId.trim()) {
         return Response.json({ error: "chatId is required" }, { status: 400 });
+      }
+
+      const timeZone =
+        suppliedTimeZone === undefined
+          ? undefined
+          : parseWebTimeZone(suppliedTimeZone);
+      if (timeZone === null) {
+        return Response.json({ error: "Invalid timeZone" }, { status: 400 });
       }
 
       // Validate guest message semantics before rate-limit work.
@@ -127,10 +143,7 @@ export async function handleGuestChatPost(request: Request) {
             id: true,
             title: true,
             customTitle: true,
-            messages: {
-              take: 1,
-              select: { id: true },
-            },
+            messages: recentWebMessagesQuery,
           },
         }),
         routineProposalAllowedPromise,
@@ -216,6 +229,7 @@ export async function handleGuestChatPost(request: Request) {
               conversationThreadId: conversationThread.id,
               clientMessageId,
               payloadHash: clientPayloadHash,
+              timeZone,
               parts: lastUserMessage.parts as Prisma.InputJsonValue,
             });
       } catch (error) {
@@ -239,9 +253,7 @@ export async function handleGuestChatPost(request: Request) {
         );
       }
 
-      const requestConversationMessageCount = messages.filter(
-        (message) => message.role === "user" || message.role === "assistant",
-      ).length;
+      const requestConversationMessageCount = (chat.messages?.length ?? 0) + 1;
       if (inboundClaim.created) {
         waitUntil(
           trackInboundUserMessageFunnelProgress({
@@ -257,6 +269,12 @@ export async function handleGuestChatPost(request: Request) {
         );
       }
 
+      const recentContext = webRequestContext(
+        chat.messages,
+        message.id,
+        userMessageText,
+      );
+
       // Auto-generate or refresh chat title if not manually set by user
       if (inboundClaim.created && !chat.customTitle) {
         const shouldRefresh = [1, 2, 4].includes(
@@ -264,24 +282,8 @@ export async function handleGuestChatPost(request: Request) {
         );
 
         if (shouldRefresh) {
-          const metadataMessages = messages
-            .map((m) => {
-              const text =
-                m.parts
-                  ?.map((p) =>
-                    p.type === "text" ? (p as { text: string }).text : "",
-                  )
-                  .join("")
-                  .trim() || "";
-              if ((m.role !== "user" && m.role !== "assistant") || !text) {
-                return null;
-              }
-              return { role: m.role, text };
-            })
-            .filter((message) => message !== null);
-
           waitUntil(
-            generateChatMetadata(metadataMessages, userMessageText, {
+            generateChatMetadata(recentContext, userMessageText, {
               userId: user.id,
             }).then(({ title, icon }) => {
               prisma.chat
