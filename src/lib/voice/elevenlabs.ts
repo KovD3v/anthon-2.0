@@ -7,6 +7,10 @@
 
 const ELEVENLABS_API_BASE = "https://api.elevenlabs.io/v1";
 
+import {
+  recordAiOperation,
+  recordAiOperationFailure,
+} from "@/lib/ai/cost-attribution";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
 
@@ -102,11 +106,20 @@ export async function generateVoice(
     const arrayBuffer = await response.arrayBuffer();
     const audioBuffer = Buffer.from(arrayBuffer);
 
+    const costUsd = estimateVoiceCostUsd(text.length);
+    await recordAiOperation({
+      operation: "voice_synthesis",
+      modelId: TTS_MODEL,
+      estimatedCostUsd: costUsd,
+    });
     return {
       audioBuffer,
       characterCount: text.length,
-      costUsd: estimateVoiceCostUsd(text.length),
+      costUsd,
     };
+  }).catch(async (error: unknown) => {
+    await recordAiOperationFailure("voice_synthesis", TTS_MODEL, error);
+    throw error;
   });
 }
 

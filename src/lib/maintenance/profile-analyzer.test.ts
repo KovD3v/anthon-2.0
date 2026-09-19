@@ -8,6 +8,12 @@ const mocks = vi.hoisted(() => ({
   trackSupportAiUsage: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/cost-attribution", () => ({
+  recordAiOperation: vi.fn().mockResolvedValue(undefined),
+  recordAiOperationFailure: vi.fn().mockResolvedValue(undefined),
+  scheduleCostAttribution: vi.fn(),
+}));
+
 vi.mock("ai", () => ({
   generateText: mocks.generateText,
   Output: {
@@ -78,6 +84,7 @@ describe("maintenance/profile-analyzer", () => {
 
     expect(mocks.generateText).toHaveBeenCalledTimes(1);
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      operation: "profile_analysis",
       userId: "user-1",
       modelId: "maintenance-model-id",
       usage: { inputTokens: 20, outputTokens: 2 },
@@ -126,6 +133,7 @@ describe("maintenance/profile-analyzer", () => {
       }),
     );
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      operation: "profile_analysis",
       userId: "user-1",
       modelId: "maintenance-model-id",
       usage: { inputTokens: 50, outputTokens: 12 },

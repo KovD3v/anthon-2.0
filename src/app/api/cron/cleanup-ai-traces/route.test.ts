@@ -3,6 +3,11 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   deleteExpiredAiTurnTraces: vi.fn(),
   cleanupExpiredAiUsageReservations: vi.fn(),
+  deleteExpiredCostAttribution: vi.fn(),
+}));
+
+vi.mock("@/lib/ai/cost-attribution", () => ({
+  deleteExpiredCostAttribution: mocks.deleteExpiredCostAttribution,
 }));
 
 vi.mock("@/lib/ai/trace", () => ({
@@ -29,6 +34,7 @@ describe("/api/cron/cleanup-ai-traces", () => {
     vi.clearAllMocks();
     process.env.CRON_SECRET = "cron-secret";
     mocks.deleteExpiredAiTurnTraces.mockResolvedValue(7);
+    mocks.deleteExpiredCostAttribution.mockResolvedValue({ count: 2 });
     mocks.cleanupExpiredAiUsageReservations.mockResolvedValue({
       expired: 3,
       recoveryCleared: 2,
@@ -51,6 +57,7 @@ describe("/api/cron/cleanup-ai-traces", () => {
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
     expect(mocks.deleteExpiredAiTurnTraces).not.toHaveBeenCalled();
     expect(mocks.cleanupExpiredAiUsageReservations).not.toHaveBeenCalled();
+    expect(mocks.deleteExpiredCostAttribution).not.toHaveBeenCalled();
   });
 
   it("runs trace and usage retention and reports both count groups", async () => {
@@ -62,6 +69,7 @@ describe("/api/cron/cleanup-ai-traces", () => {
     await expect(response.json()).resolves.toEqual({
       success: true,
       deleted: 7,
+      costAttribution: { count: 2 },
       usageReservations: { expired: 3, recoveryCleared: 2, deleted: 4 },
     });
   });

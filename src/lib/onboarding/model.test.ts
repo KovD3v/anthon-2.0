@@ -7,6 +7,12 @@ const mocks = vi.hoisted(() => ({
   trackSupportAiUsage: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/cost-attribution", () => ({
+  recordAiOperation: vi.fn().mockResolvedValue(undefined),
+  recordAiOperationFailure: vi.fn().mockResolvedValue(undefined),
+  scheduleCostAttribution: vi.fn(),
+}));
+
 vi.mock("ai", async () => {
   const actual = await vi.importActual<typeof import("ai")>("ai");
   return { ...actual, generateText: mocks.generateText };

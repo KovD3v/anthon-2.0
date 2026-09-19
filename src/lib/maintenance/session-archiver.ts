@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import type { Message } from "@/generated/prisma/client";
 import { SESSION } from "@/lib/ai/constants"; // GAP_MS
+import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
 import {
   MAINTENANCE_MODEL_ID,
   maintenanceModel,
@@ -114,10 +115,18 @@ Includi: argomenti trattati, decisioni prese, fatti importanti.
 Ignora: saluti, chiacchiere inutili.
 Sii conciso ma completo.`,
       prompt: transcript,
+    }).catch(async (error: unknown) => {
+      await recordAiOperationFailure(
+        "session_archive",
+        MAINTENANCE_MODEL_ID,
+        error,
+      );
+      throw error;
     });
     const { text: summary } = result;
 
     await trackSupportAiUsage({
+      operation: "session_archive",
       userId,
       modelId: MAINTENANCE_MODEL_ID,
       usage: result.usage,

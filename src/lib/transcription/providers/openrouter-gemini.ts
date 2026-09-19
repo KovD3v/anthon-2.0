@@ -1,3 +1,4 @@
+import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import type {
   TranscriptionInput,
@@ -67,14 +68,33 @@ async function transcribeWithOpenRouterGemini({
         ],
       }),
     },
-  );
+  ).catch(async (error: unknown) => {
+    await recordAiOperationFailure(
+      "transcription",
+      OPENROUTER_GEMINI_TRANSCRIPTION_MODEL_ID,
+      error,
+    );
+    throw error;
+  });
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
+    await recordAiOperationFailure(
+      "transcription",
+      OPENROUTER_GEMINI_TRANSCRIPTION_MODEL_ID,
+      { responseBody: body },
+    );
     throw new Error(`OpenRouter API failed: ${response.status} ${body}`);
   }
 
-  const data = (await response.json()) as {
+  const data = (await response.json().catch(async (error: unknown) => {
+    await recordAiOperationFailure(
+      "transcription",
+      OPENROUTER_GEMINI_TRANSCRIPTION_MODEL_ID,
+      error,
+    );
+    throw error;
+  })) as {
     choices?: Array<{ message?: { content?: string } }>;
     usage?: {
       prompt_tokens?: number;
@@ -87,16 +107,20 @@ async function transcribeWithOpenRouterGemini({
 
   const text = data.choices?.[0]?.message?.content?.trim();
   if (!text) {
+    await recordAiOperationFailure(
+      "transcription",
+      OPENROUTER_GEMINI_TRANSCRIPTION_MODEL_ID,
+      { providerMetadata: toOpenRouterProviderMetadata(data.usage) },
+    );
     throw new Error("OpenRouter returned no text output");
   }
 
-  if (userId) {
-    await trackSupportAiUsage({
-      userId,
-      modelId: OPENROUTER_GEMINI_TRANSCRIPTION_MODEL_ID,
-      providerMetadata: toOpenRouterProviderMetadata(data.usage),
-    });
-  }
+  await trackSupportAiUsage({
+    operation: "transcription",
+    userId,
+    modelId: OPENROUTER_GEMINI_TRANSCRIPTION_MODEL_ID,
+    providerMetadata: toOpenRouterProviderMetadata(data.usage),
+  });
 
   return {
     text,

@@ -1,3 +1,4 @@
+import { deleteExpiredCostAttribution } from "@/lib/ai/cost-attribution";
 import { deleteExpiredAiTurnTraces } from "@/lib/ai/trace";
 import { createLogger } from "@/lib/logger";
 import { cleanupExpiredAiUsageReservations } from "@/lib/rate-limit/reservation-retention";
@@ -13,16 +14,22 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const [deleted, usageReservations] = await Promise.all([
+    const [deleted, usageReservations, costAttribution] = await Promise.all([
       deleteExpiredAiTurnTraces(),
       cleanupExpiredAiUsageReservations(),
+      deleteExpiredCostAttribution(),
     ]);
     cronLogger.info(
       "trace_cleanup.complete",
       "Expired AI traces and usage reservations removed",
-      { deleted, usageReservations },
+      { deleted, usageReservations, costAttribution },
     );
-    return Response.json({ success: true, deleted, usageReservations });
+    return Response.json({
+      success: true,
+      deleted,
+      usageReservations,
+      costAttribution,
+    });
   } catch (error) {
     cronLogger.error(
       "trace_cleanup.failed",

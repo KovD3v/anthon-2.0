@@ -1,6 +1,7 @@
 import { generateText, type ModelMessage } from "ai";
 import type { Message } from "@/generated/prisma/client";
 import { SESSION } from "@/lib/ai/constants";
+import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
 import {
   SUB_AGENT_MODEL_ID,
   subAgentModel,
@@ -99,10 +100,18 @@ Mantieni il contesto importante per continuare la conversazione.`,
     providerOptions: {
       openrouter: getOpenRouterProviderOptionsForModel(SUB_AGENT_MODEL_ID),
     },
+  }).catch(async (error: unknown) => {
+    await recordAiOperationFailure(
+      "session_summary",
+      SUB_AGENT_MODEL_ID,
+      error,
+    );
+    throw error;
   });
   const { text } = result;
 
   await trackSupportAiUsage({
+    operation: "session_summary",
     userId,
     modelId: SUB_AGENT_MODEL_ID,
     usage: result.usage,

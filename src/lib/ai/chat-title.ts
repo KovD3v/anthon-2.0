@@ -9,6 +9,7 @@ import {
   CHAT_METADATA_MODEL_ID,
   getChatMetadataProviderOptions,
 } from "@/lib/ai/chat-metadata-model";
+import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import type { ChatIcon } from "@/lib/chat-icons";
@@ -92,20 +93,26 @@ export async function generateChatMetadata(
       providerOptions: {
         openrouter: getChatMetadataProviderOptions(CHAT_METADATA_MODEL_ID),
       },
+    }).catch(async (error: unknown) => {
+      await recordAiOperationFailure(
+        "chat_metadata",
+        CHAT_METADATA_MODEL_ID,
+        error,
+      );
+      throw error;
     });
     const rawOutput = result.output as { title?: unknown; icon?: unknown };
     const title =
       typeof rawOutput.title === "string" ? cleanupTitle(rawOutput.title) : "";
     const generated = chatMetadataSchema.parse({ ...rawOutput, title });
 
-    if (options?.userId) {
-      await trackSupportAiUsage({
-        userId: options.userId,
-        modelId: CHAT_METADATA_MODEL_ID,
-        usage: result.usage,
-        providerMetadata: result.providerMetadata,
-      });
-    }
+    await trackSupportAiUsage({
+      operation: "chat_metadata",
+      userId: options?.userId,
+      modelId: CHAT_METADATA_MODEL_ID,
+      usage: result.usage,
+      providerMetadata: result.providerMetadata,
+    });
 
     return { title: generated.title, icon: generated.icon };
   } catch (error) {

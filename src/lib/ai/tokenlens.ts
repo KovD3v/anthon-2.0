@@ -19,6 +19,7 @@ export interface CostResult {
   outputCost: number;
   totalCost: number;
   model: string;
+  pricingKnown?: boolean;
 }
 
 /**
@@ -48,6 +49,7 @@ export function calculateCost(
       outputCost: cost.outputUSD ?? 0,
       totalCost: cost.totalUSD ?? 0,
       model: modelId,
+      pricingKnown: cost.totalUSD !== undefined,
     };
   } catch (error) {
     tokenlensLogger.error("cost.calculation_failed", "Error calculating cost", {
@@ -59,6 +61,7 @@ export function calculateCost(
       outputCost: 0,
       totalCost: 0,
       model: modelId,
+      pricingKnown: false,
     };
   }
 }

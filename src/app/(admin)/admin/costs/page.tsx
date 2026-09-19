@@ -17,6 +17,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { AnimatedPageHeader } from "@/components/ui/animated-page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { OperationCostBreakdown } from "@/lib/ai/cost-attribution";
 import { cn } from "@/lib/utils";
 
 const CostsCharts = dynamic(() => import("./_components/CostsCharts"), {
@@ -29,6 +30,7 @@ const CostsCharts = dynamic(() => import("./_components/CostsCharts"), {
 });
 
 interface CostData {
+  attribution: OperationCostBreakdown;
   summary: {
     totalAiCost: number;
     totalVoiceCost: number;
@@ -179,6 +181,117 @@ export default function AdminCostsPage() {
 
       <CostsCharts aiHistory={data.history.ai} aiBreakdown={data.aiBreakdown} />
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Costi osservati per operazione</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Aggregati anonimi degli ultimi {data.attribution.retentionDays}{" "}
+            giorni.
+            {data.attribution.observedFrom &&
+              ` Dati dal ${new Date(data.attribution.observedFrom).toLocaleDateString("it-IT")}.`}{" "}
+            Questo dettaglio si sovrappone ai totali sopra: non sommarli.
+            Include anche il lavoro in background.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            I costi mancanti non valgono zero. Sono visibili solo i tentativi
+            esposti dai fornitori; i retry interni possono non comparire. La
+            cache è misurata solo quando il fornitore restituisce i contatori.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {data.attribution.operations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nessuna operazione osservata nel periodo.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <caption className="sr-only">
+                  Costi operativi osservati, separati tra importi comunicati,
+                  stimati e mancanti
+                </caption>
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    {[
+                      "Operazione / modello",
+                      "Chiamate",
+                      "Fornitore USD",
+                      "Stima USD",
+                      "Costo mancante",
+                      "Token input / output",
+                      "Cache lettura / scrittura",
+                    ].map((label) => (
+                      <th
+                        key={label}
+                        scope="col"
+                        className="px-3 py-2 font-medium"
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.attribution.operations.map((operation) => (
+                    <tr
+                      key={`${operation.operation}:${operation.model}`}
+                      className="border-b last:border-0"
+                    >
+                      <th
+                        scope="row"
+                        className="px-3 py-3 text-left font-normal"
+                      >
+                        <span className="block">
+                          {OPERATION_LABELS[operation.operation] ??
+                            operation.operation}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {operation.model}
+                        </span>
+                      </th>
+                      <td className="px-3 py-3 tabular-nums">
+                        {operation.calls ?? 0}
+                        {!!operation.failedCalls && (
+                          <span className="block text-xs text-muted-foreground">
+                            {operation.failedCalls} fallite
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 tabular-nums">
+                        ${(operation.providerReportedCostUsd ?? 0).toFixed(6)}
+                      </td>
+                      <td className="px-3 py-3 tabular-nums">
+                        ${(operation.estimatedCostUsd ?? 0).toFixed(6)}
+                      </td>
+                      <td className="px-3 py-3 tabular-nums">
+                        {operation.unknownCostCalls ?? 0} chiamate
+                      </td>
+                      <td className="px-3 py-3 tabular-nums">
+                        {operation.inputTokens ?? 0} /{" "}
+                        {operation.outputTokens ?? 0}
+                      </td>
+                      <td className="px-3 py-3 tabular-nums">
+                        {operation.cacheReadObservedCalls
+                          ? operation.cacheReadTokens
+                          : "n/d"}{" "}
+                        /{" "}
+                        {operation.cacheWriteObservedCalls
+                          ? operation.cacheWriteTokens
+                          : "n/d"}
+                        <span className="block text-xs text-muted-foreground">
+                          Rilevati in {operation.cacheReadObservedCalls ?? 0} /{" "}
+                          {operation.cacheWriteObservedCalls ?? 0} chiamate
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Infrastructure Section */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <InfraCard
@@ -229,6 +342,24 @@ export default function AdminCostsPage() {
     </div>
   );
 }
+
+const OPERATION_LABELS: Record<string, string> = {
+  coaching: "Coaching",
+  model_comparison: "Confronto modelli",
+  benchmark: "Benchmark",
+  memory_extraction: "Estrazione memoria",
+  thread_summary: "Riassunto conversazione",
+  session_summary: "Riassunto sessione",
+  session_archive: "Archiviazione sessione",
+  memory_consolidation: "Consolidamento memoria",
+  profile_analysis: "Analisi profilo",
+  chat_metadata: "Titolo e icona chat",
+  onboarding: "Onboarding",
+  voice_classification: "Scelta formato vocale",
+  transcription: "Trascrizione",
+  embeddings: "Embedding",
+  voice_synthesis: "Sintesi vocale",
+};
 
 function KPICard({
   title,

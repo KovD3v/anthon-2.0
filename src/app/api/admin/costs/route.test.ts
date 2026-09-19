@@ -5,6 +5,11 @@ const mocks = vi.hoisted(() => ({
   messageAggregate: vi.fn(),
   messageGroupBy: vi.fn(),
   voiceUsageAggregate: vi.fn(),
+  getOperationCostBreakdown: vi.fn(),
+}));
+
+vi.mock("@/lib/ai/cost-attribution", () => ({
+  getOperationCostBreakdown: mocks.getOperationCostBreakdown,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -31,6 +36,12 @@ describe("GET /api/admin/costs", () => {
     mocks.messageAggregate.mockReset();
     mocks.messageGroupBy.mockReset();
     mocks.voiceUsageAggregate.mockReset();
+    mocks.getOperationCostBreakdown.mockReset();
+    mocks.getOperationCostBreakdown.mockResolvedValue({
+      retentionDays: 90,
+      observedFrom: null,
+      operations: [],
+    });
 
     mocks.requireAdmin.mockResolvedValue({ errorResponse: null });
     mocks.messageAggregate.mockResolvedValue({
@@ -78,6 +89,7 @@ describe("GET /api/admin/costs", () => {
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: "Forbidden" });
+    expect(mocks.getOperationCostBreakdown).not.toHaveBeenCalled();
   });
 
   it("returns aggregated cost analysis payload", async () => {
@@ -87,6 +99,7 @@ describe("GET /api/admin/costs", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
+      attribution: { retentionDays: 90, observedFrom: null, operations: [] },
       summary: {
         totalAiCost: 12.5,
         totalVoiceCost: 1.25,

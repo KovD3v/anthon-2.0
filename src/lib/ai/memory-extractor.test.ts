@@ -7,6 +7,12 @@ const mocks = vi.hoisted(() => ({
   trackSupportAiUsage: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/cost-attribution", () => ({
+  recordAiOperation: vi.fn().mockResolvedValue(undefined),
+  recordAiOperationFailure: vi.fn().mockResolvedValue(undefined),
+  scheduleCostAttribution: vi.fn(),
+}));
+
 vi.mock("ai", () => ({ generateText: mocks.generateText }));
 vi.mock("@/lib/logger", () => ({
   createLogger: () => ({
@@ -91,6 +97,7 @@ describe("ai/memory-extractor", () => {
       }),
     );
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      operation: "memory_extraction",
       userId: "user-1",
       modelId: "sub-agent-model-id",
       usage: { inputTokens: 80, outputTokens: 20 },

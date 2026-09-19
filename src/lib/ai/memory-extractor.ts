@@ -1,5 +1,6 @@
 import { generateText } from "ai";
 import { z } from "zod";
+import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
 import {
   SUB_AGENT_MODEL_ID,
   subAgentModel,
@@ -116,9 +117,17 @@ Restituisci solo JSON valido: {"facts":[{"key":"snake_case","value":"...",
 "subject":"ACCOUNT_HOLDER|REFERENCED_PERSON","subjectName":null,
 "subjectRelationship":null}]}.`,
       prompt: `TESTO UTENTE:\n${input.userText}\n\nRISPOSTA ASSISTENTE (solo contesto, mai fonte):\n${input.assistantText}`,
+    }).catch(async (error: unknown) => {
+      await recordAiOperationFailure(
+        "memory_extraction",
+        SUB_AGENT_MODEL_ID,
+        error,
+      );
+      throw error;
     });
 
     await trackSupportAiUsage({
+      operation: "memory_extraction",
       userId: input.userId,
       modelId: SUB_AGENT_MODEL_ID,
       usage: result.usage,

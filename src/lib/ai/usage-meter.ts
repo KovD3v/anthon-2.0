@@ -1,6 +1,7 @@
 import type { LanguageModelUsage } from "ai";
 import { createLogger } from "@/lib/logger";
 import { incrementTokenUsage } from "@/lib/rate-limit";
+import { type AiOperation, recordAiOperation } from "./cost-attribution";
 import { calculateCost } from "./tokenlens";
 
 const usageMeterLogger = createLogger("usage");
@@ -8,7 +9,8 @@ const usageMeterLogger = createLogger("usage");
 type ProviderMetadata = Record<string, unknown> | undefined;
 
 export interface SupportAiUsageInput {
-  userId: string;
+  userId?: string;
+  operation: AiOperation;
   modelId: string;
   usage?: Partial<LanguageModelUsage> & {
     promptTokens?: number;
@@ -30,12 +32,13 @@ function getOpenRouterUsage(providerMetadata: ProviderMetadata) {
   return openrouter?.usage as Record<string, unknown> | undefined;
 }
 
-export async function trackSupportAiUsage({
+async function trackQuotaUsage({
   userId,
   modelId,
   usage,
   providerMetadata,
 }: SupportAiUsageInput): Promise<void> {
+  if (!userId) return;
   const openrouterUsage = getOpenRouterUsage(providerMetadata);
   const inputTokens =
     asNumber(openrouterUsage?.promptTokens) ??
@@ -85,6 +88,12 @@ export async function trackSupportAiUsage({
       { error, userId, modelId },
     );
   }
+}
+
+export async function trackSupportAiUsage(
+  input: SupportAiUsageInput,
+): Promise<void> {
+  await Promise.all([trackQuotaUsage(input), recordAiOperation(input)]);
 }
 
 export function scheduleSupportAiUsage(

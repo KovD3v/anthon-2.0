@@ -1,5 +1,6 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
+import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
 import {
   MAINTENANCE_MODEL_ID,
   maintenanceModel,
@@ -73,10 +74,18 @@ Se rilevi queste informazioni, AGGIORNALE. Non esitare.
 Se l'utente dice "mi piace X", aggiorna le preferenze.
 Se parla di "tennis", aggiorna lo sport.`,
       prompt: `Messaggi recenti dell'utente:\n${textAnalysis}`,
+    }).catch(async (error: unknown) => {
+      await recordAiOperationFailure(
+        "profile_analysis",
+        MAINTENANCE_MODEL_ID,
+        error,
+      );
+      throw error;
     });
     const { output } = result;
 
     await trackSupportAiUsage({
+      operation: "profile_analysis",
       userId,
       modelId: MAINTENANCE_MODEL_ID,
       usage: result.usage,

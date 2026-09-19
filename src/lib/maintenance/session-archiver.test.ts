@@ -8,6 +8,12 @@ const mocks = vi.hoisted(() => ({
   deletePrivateVoiceBlobsForMessages: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/cost-attribution", () => ({
+  recordAiOperation: vi.fn().mockResolvedValue(undefined),
+  recordAiOperationFailure: vi.fn().mockResolvedValue(undefined),
+  scheduleCostAttribution: vi.fn(),
+}));
+
 vi.mock("ai", () => ({
   generateText: mocks.generateText,
 }));
@@ -104,6 +110,7 @@ describe("maintenance/session-archiver", () => {
 
     expect(mocks.generateText).toHaveBeenCalledTimes(1);
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      operation: "session_archive",
       userId: "user-1",
       modelId: "maintenance-model-id",
       usage: { inputTokens: 30, outputTokens: 8 },

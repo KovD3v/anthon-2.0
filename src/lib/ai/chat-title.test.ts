@@ -7,6 +7,12 @@ const mocks = vi.hoisted(() => ({
   trackSupportAiUsage: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/cost-attribution", () => ({
+  recordAiOperation: vi.fn().mockResolvedValue(undefined),
+  recordAiOperationFailure: vi.fn().mockResolvedValue(undefined),
+  scheduleCostAttribution: vi.fn(),
+}));
+
 vi.mock("ai", () => ({
   generateText: mocks.generateText,
   Output: { object: mocks.objectOutput },
@@ -59,6 +65,7 @@ describe("ai/chat-title", () => {
       icon: "REFRESH_CCW",
     });
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      operation: "chat_metadata",
       userId: "user-1",
       modelId: "deepseek/deepseek-v4-flash",
       usage: { inputTokens: 40, outputTokens: 8 },

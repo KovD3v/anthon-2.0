@@ -1296,6 +1296,28 @@ model DailyUsage {
   @@unique([userId, date])
 }
 
+// Anonymous operational counters only. No account, turn, or content references.
+// Retained for 90 days by the existing telemetry cleanup job.
+model DailyAiOperationUsage {
+  date                    DateTime @db.Date
+  operation               String
+  model                   String
+  calls                   Int      @default(0)
+  failedCalls             Int      @default(0)
+  inputTokens             Int      @default(0)
+  outputTokens            Int      @default(0)
+  reasoningTokens         Int      @default(0)
+  cacheReadTokens         Int      @default(0)
+  cacheWriteTokens        Int      @default(0)
+  cacheReadObservedCalls   Int      @default(0)
+  cacheWriteObservedCalls  Int      @default(0)
+  providerReportedCostUsd  Float    @default(0)
+  estimatedCostUsd         Float    @default(0)
+  unknownCostCalls         Int      @default(0)
+
+  @@id([date, operation, model])
+}
+
 model AiUsageReservation {
   id     String @id @default(cuid())
   userId String

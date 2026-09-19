@@ -1,5 +1,6 @@
 import { generateText, type ModelMessage } from "ai";
 import type { Message } from "@/generated/prisma";
+import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
 import {
   SUB_AGENT_MODEL_ID,
   subAgentModel,
@@ -153,8 +154,12 @@ async function refreshConversationThreadSummary(
     providerOptions: {
       openrouter: getOpenRouterProviderOptionsForModel(SUB_AGENT_MODEL_ID),
     },
+  }).catch(async (error: unknown) => {
+    await recordAiOperationFailure("thread_summary", SUB_AGENT_MODEL_ID, error);
+    throw error;
   });
   await trackSupportAiUsage({
+    operation: "thread_summary",
     userId,
     modelId: SUB_AGENT_MODEL_ID,
     usage: result.usage,

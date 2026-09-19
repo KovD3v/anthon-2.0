@@ -1,5 +1,6 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
+import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
 import { getModelById } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
@@ -92,9 +93,13 @@ originale: per esempio "secondo anno" e "università" vanno estratti come
 quando l'utente rinuncia esplicitamente e non hai estratto alcun valore. Non
 raccogliere sintomi, diagnosi o dati sanitari.`,
       prompt: buildPrompt(input),
+    }).catch(async (error: unknown) => {
+      await recordAiOperationFailure("onboarding", ONBOARDING_MODEL_ID, error);
+      throw error;
     });
 
     await trackSupportAiUsage({
+      operation: "onboarding",
       userId: input.userId,
       modelId: ONBOARDING_MODEL_ID,
       usage: result.usage,

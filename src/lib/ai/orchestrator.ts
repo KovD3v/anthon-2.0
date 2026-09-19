@@ -19,6 +19,12 @@ import {
   analyzeUserStyle,
   PROMPT_ANTHON_CONVERSATIONAL_VOICE,
 } from "@/lib/ai/communication-style";
+import {
+  type AiOperation,
+  recordAiOperation,
+  recordAiOperationFailure,
+  scheduleCostAttribution,
+} from "@/lib/ai/cost-attribution";
 import { type AIMetrics, extractAIMetrics } from "@/lib/ai/cost-calculator";
 import {
   evaluateWebSearchRule,
@@ -1294,6 +1300,7 @@ async function runOpenRouterMultimodalCompletion({
   onFinish,
   abortSignal,
   traceCollector,
+  costOperation,
 }: {
   modelId: string;
   systemPrompt: string;
@@ -1307,6 +1314,7 @@ async function runOpenRouterMultimodalCompletion({
   onFinish?: (result: { text: string; metrics: AIMetrics }) => void;
   abortSignal?: AbortSignal;
   traceCollector?: ServerTraceCollector;
+  costOperation: AiOperation;
 }): Promise<DirectMultimodalCompletion> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -1345,12 +1353,19 @@ async function runOpenRouterMultimodalCompletion({
       signal: abortSignal,
     });
   } catch (error) {
+    await recordAiOperationFailure(costOperation, modelId, error);
     if (abortSignal?.aborted) attemptTrace.cancel();
     else attemptTrace.fail();
     throw error;
   }
 
   const payload = await response.json().catch(() => ({}));
+  await recordAiOperation({
+    operation: costOperation,
+    modelId,
+    failed: !response.ok || !extractOpenRouterResponseText(payload).trim(),
+    providerMetadata: { openrouter: { usage: payload.usage } },
+  });
   if (!response.ok) {
     attemptTrace.fail();
     throw new Error(
@@ -1575,6 +1590,10 @@ export async function streamChat({
 }: StreamChatOptions) {
   // Record start time for performance tracking
   const startTime = Date.now();
+  const costOperation: AiOperation = benchmarkModelId
+    ? "benchmark"
+    : "coaching";
+  const costTasks: Promise<void>[] = [];
   const developerDiagnostics = createDeveloperDiagnosticsCollector({
     enabled: includeTechnicalDiagnostics,
   });
@@ -2267,6 +2286,7 @@ export async function streamChat({
 
   if (hasDirectMultimodalMedia) {
     const completionPromise = runOpenRouterMultimodalCompletion({
+      costOperation,
       modelId,
       systemPrompt: effectiveSystemPrompt,
       messages: effectiveMessages,
@@ -2391,6 +2411,13 @@ export async function streamChat({
       }
     },
     onError: ({ error }: { error: unknown }) => {
+      const task = recordAiOperationFailure(
+        costOperation,
+        executedModelId,
+        error,
+      );
+      costTasks.push(task);
+      scheduleCostAttribution(task);
       modelAttemptTrace.fail();
       aiLogger.error("ai.stream.execution_failed", "AI stream failed", {
         error,
@@ -2413,6 +2440,7 @@ export async function streamChat({
         totalTokens?: number;
       };
     }) => {
+      await Promise.all(costTasks);
       const meteredUsage = totalUsage ?? usage;
       const selectedProvider = extractSelectedProvider(
         providerMetadata as Record<string, unknown>,
@@ -2504,6 +2532,17 @@ export async function streamChat({
       const stepModelId = step.model?.modelId?.trim();
       if (stepModelId) {
         executedModelId = stepModelId;
+      }
+      // Stream errors are accounted for by onError, including exposed retries.
+      if (step.finishReason !== "error") {
+        const task = recordAiOperation({
+          operation: costOperation,
+          modelId: executedModelId,
+          usage: step.usage,
+          providerMetadata: step.providerMetadata,
+        });
+        costTasks.push(task);
+        scheduleCostAttribution(task);
       }
       const stepElapsedMs = Math.max(
         0,
@@ -2976,6 +3015,12 @@ export function executePreparedChatTurn({
       }
     },
     onEnd: async ({ text, usage, totalUsage, providerMetadata }) => {
+      await recordAiOperation({
+        operation: "model_comparison",
+        modelId,
+        usage: totalUsage ?? usage,
+        providerMetadata,
+      });
       const meteredUsage = totalUsage ?? usage;
       const metrics = await extractAIMetrics(modelId, startTime, {
         text,
@@ -3009,6 +3054,9 @@ export function executePreparedChatTurn({
         };
         await onFinish({ text, metrics });
       }
+    },
+    onError: async ({ error }) => {
+      await recordAiOperationFailure("model_comparison", modelId, error);
     },
   });
 }

@@ -1,4 +1,9 @@
 import { RAG } from "@/lib/ai/constants";
+import {
+  recordAiOperation,
+  recordAiOperationFailure,
+  scheduleCostAttribution,
+} from "@/lib/ai/cost-attribution";
 import { createLogger } from "@/lib/logger";
 
 export const EMBEDDING_MODEL_ID = "openai/text-embedding-3-small";
@@ -41,6 +46,7 @@ async function requestEmbeddings(
 
   let lastStatus: number | undefined;
   for (let attempt = 0; attempt < RAG.MAX_RETRIES; attempt++) {
+    let recorded = false;
     try {
       const response = await fetch(OPENROUTER_EMBEDDINGS_URL, {
         method: "POST",
@@ -55,14 +61,28 @@ async function requestEmbeddings(
         signal: requestSignal(options),
       });
       lastStatus = response.status;
+      const body = (
+        response.ok
+          ? await response.json()
+          : await response.json().catch(() => ({}))
+      ) as {
+        data?: Array<{ index?: number; embedding?: unknown }>;
+        usage?: Record<string, unknown>;
+      };
+      scheduleCostAttribution(
+        recordAiOperation({
+          operation: "embeddings",
+          modelId: EMBEDDING_MODEL_ID,
+          failed: !response.ok,
+          providerMetadata: { openrouter: { usage: body?.usage } },
+        }),
+      );
+      recorded = true;
       if (!response.ok) {
         if (response.status < 500 && response.status !== 429) break;
         continue;
       }
 
-      const body = (await response.json()) as {
-        data?: Array<{ index?: number; embedding?: unknown }>;
-      };
       const output = inputs.map((): number[] | null => null);
       for (const [position, item] of (body.data ?? []).entries()) {
         const index = Number.isInteger(item.index) ? item.index : position;
@@ -72,6 +92,11 @@ async function requestEmbeddings(
       }
       return output;
     } catch (error) {
+      if (!recorded) {
+        scheduleCostAttribution(
+          recordAiOperationFailure("embeddings", EMBEDDING_MODEL_ID, error),
+        );
+      }
       if (
         options?.abortSignal?.aborted ||
         (error instanceof DOMException && error.name === "AbortError")

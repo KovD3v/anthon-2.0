@@ -5,6 +5,12 @@ const mocks = vi.hoisted(() => ({
   incrementTokenUsage: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/cost-attribution", () => ({
+  recordAiOperation: vi.fn().mockResolvedValue(undefined),
+  recordAiOperationFailure: vi.fn().mockResolvedValue(undefined),
+  scheduleCostAttribution: vi.fn(),
+}));
+
 vi.mock("@/lib/ai/tokenlens", () => ({
   calculateCost: mocks.calculateCost,
 }));
@@ -13,6 +19,7 @@ vi.mock("@/lib/rate-limit", () => ({
   incrementTokenUsage: mocks.incrementTokenUsage,
 }));
 
+import { recordAiOperation } from "./cost-attribution";
 import { scheduleSupportAiUsage, trackSupportAiUsage } from "./usage-meter";
 
 describe("ai/usage-meter", () => {
@@ -26,6 +33,7 @@ describe("ai/usage-meter", () => {
     mocks.incrementTokenUsage.mockResolvedValue({});
 
     await trackSupportAiUsage({
+      operation: "memory_extraction",
       userId: "user-1",
       modelId: "model-a",
       usage: {
@@ -43,12 +51,15 @@ describe("ai/usage-meter", () => {
       0.004,
       3,
     );
+    expect(mocks.incrementTokenUsage).toHaveBeenCalledTimes(1);
+    expect(recordAiOperation).toHaveBeenCalledTimes(1);
   });
 
   it("prefers provider cost metadata when available", async () => {
     mocks.incrementTokenUsage.mockResolvedValue({});
 
     await trackSupportAiUsage({
+      operation: "memory_extraction",
       userId: "user-1",
       modelId: "model-a",
       usage: {
@@ -80,6 +91,7 @@ describe("ai/usage-meter", () => {
     mocks.incrementTokenUsage.mockResolvedValue({});
 
     await trackSupportAiUsage({
+      operation: "memory_extraction",
       userId: "user-1",
       modelId: "model-a",
       providerMetadata: {
@@ -105,12 +117,23 @@ describe("ai/usage-meter", () => {
 
   it("skips when there are no billable tokens or cost", async () => {
     await trackSupportAiUsage({
+      operation: "memory_extraction",
       userId: "user-1",
       modelId: "model-a",
       usage: {},
     });
 
     expect(mocks.incrementTokenUsage).not.toHaveBeenCalled();
+  });
+
+  it("attributes anonymous work without creating quota usage", async () => {
+    await trackSupportAiUsage({
+      operation: "chat_metadata",
+      modelId: "model-a",
+      usage: { inputTokens: 100, outputTokens: 20 },
+    });
+    expect(mocks.incrementTokenUsage).not.toHaveBeenCalled();
+    expect(recordAiOperation).toHaveBeenCalledTimes(1);
   });
 
   it("hands support usage accounting to the request scheduler without awaiting it", () => {
@@ -122,6 +145,7 @@ describe("ai/usage-meter", () => {
 
     scheduleSupportAiUsage(
       {
+        operation: "memory_extraction",
         userId: "user-1",
         modelId: "model-a",
         usage: { inputTokens: 100, outputTokens: 20 },

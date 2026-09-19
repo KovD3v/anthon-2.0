@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { generateText, Output } from "ai";
 import { z } from "zod";
+import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
 import {
   forgetFact,
   listActiveFacts,
@@ -92,10 +93,18 @@ Regole di consolidamento:
 Devi restituire un array di oggetti con 'originalKeys' (da eliminare) e 'newKey'/'newValue' (da creare/aggiornare).
 NON aver paura di unire.`,
       prompt: `Analizza e consolida queste memorie:\n\n${memoryList}`,
+    }).catch(async (error: unknown) => {
+      await recordAiOperationFailure(
+        "memory_consolidation",
+        MAINTENANCE_MODEL_ID,
+        error,
+      );
+      throw error;
     });
     const { output } = result;
 
     await trackSupportAiUsage({
+      operation: "memory_consolidation",
       userId,
       modelId: MAINTENANCE_MODEL_ID,
       usage: result.usage,

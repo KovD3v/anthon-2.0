@@ -1,4 +1,5 @@
 import { generateText, Output } from "ai";
+import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForClassifier } from "@/lib/ai/providers/openrouter-routing";
 import { scheduleSupportAiUsage } from "@/lib/ai/usage-meter";
@@ -315,9 +316,17 @@ export async function classifyVoiceSuitability(
           ? "nemotron_a"
           : "baseline",
       ),
+    }).catch(async (error: unknown) => {
+      await recordAiOperationFailure(
+        "voice_classification",
+        DEFAULT_SUITABILITY_MODEL,
+        error,
+      );
+      throw error;
     });
     scheduleSupportAiUsage(
       {
+        operation: "voice_classification",
         userId: params.userId,
         modelId: DEFAULT_SUITABILITY_MODEL,
         usage: result.usage,

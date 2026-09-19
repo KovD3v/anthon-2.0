@@ -13,6 +13,12 @@ const mocks = vi.hoisted(() => ({
   scheduleSupportAiUsage: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/cost-attribution", () => ({
+  recordAiOperation: vi.fn().mockResolvedValue(undefined),
+  recordAiOperationFailure: vi.fn().mockResolvedValue(undefined),
+  scheduleCostAttribution: vi.fn(),
+}));
+
 vi.mock("ai", () => ({
   generateText: mocks.generateText,
   Output: { object: mocks.outputObject },

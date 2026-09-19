@@ -4,6 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { getOperationCostBreakdown } from "@/lib/ai/cost-attribution";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
@@ -97,6 +98,7 @@ export async function GET(req: Request) {
     );
 
     return NextResponse.json({
+      attribution: await getOperationCostBreakdown(startDate),
       summary: {
         totalAiCost: aiCosts._sum.costUsd || 0,
         totalVoiceCost: voiceCosts._sum.costUsd || 0,

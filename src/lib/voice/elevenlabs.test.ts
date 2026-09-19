@@ -4,6 +4,12 @@ const mocks = vi.hoisted(() => ({
   measure: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/cost-attribution", () => ({
+  recordAiOperation: vi.fn().mockResolvedValue(undefined),
+  recordAiOperationFailure: vi.fn().mockResolvedValue(undefined),
+  scheduleCostAttribution: vi.fn(),
+}));
+
 vi.mock("@/lib/latency-logger", () => ({
   LatencyLogger: {
     measure: mocks.measure,

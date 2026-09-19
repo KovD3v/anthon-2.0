@@ -7,6 +7,12 @@ import {
 
 const originalEnv = { ...process.env };
 
+vi.mock("@/lib/ai/cost-attribution", () => ({
+  recordAiOperation: vi.fn().mockResolvedValue(undefined),
+  recordAiOperationFailure: vi.fn().mockResolvedValue(undefined),
+  scheduleCostAttribution: vi.fn(),
+}));
+
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: vi.fn(),
 }));

@@ -11,6 +11,12 @@ const mocks = vi.hoisted(() => ({
   trackSupportAiUsage: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/cost-attribution", () => ({
+  recordAiOperation: vi.fn().mockResolvedValue(undefined),
+  recordAiOperationFailure: vi.fn().mockResolvedValue(undefined),
+  scheduleCostAttribution: vi.fn(),
+}));
+
 vi.mock("ai", () => ({
   generateText: mocks.generateText,
   Output: { object: mocks.outputObject },
@@ -97,6 +103,7 @@ describe("maintenance/memory-consolidation", () => {
     await consolidateMemories("user-1");
 
     expect(mocks.trackSupportAiUsage).toHaveBeenCalledWith({
+      operation: "memory_consolidation",
       userId: "user-1",
       modelId: "maintenance-model-id",
       usage: { inputTokens: 40, outputTokens: 5 },

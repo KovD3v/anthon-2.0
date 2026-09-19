@@ -27,6 +27,12 @@ const mocks = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/cost-attribution", () => ({
+  recordAiOperation: vi.fn().mockResolvedValue(undefined),
+  recordAiOperationFailure: vi.fn().mockResolvedValue(undefined),
+  scheduleCostAttribution: vi.fn(),
+}));
+
 vi.mock("ai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("ai")>()),
   isStepCount: vi.fn(() => "stop"),
@@ -119,6 +125,10 @@ vi.mock("@/lib/logger", () => ({
   }),
 }));
 
+import {
+  recordAiOperation,
+  recordAiOperationFailure,
+} from "./cost-attribution";
 import {
   executePreparedChatTurn,
   prepareChatTurn,
@@ -330,4 +340,55 @@ describe("ai/orchestrator", () => {
       );
     },
   );
+  it("attributes each completed model step once, without adding the final total again", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-1",
+      userMessage: "Aiutami a concentrarmi",
+      effectiveEntitlements: entitlements,
+    });
+    const callbacks = mocks.streamText.mock.calls.at(-1)?.[0];
+    for (const cost of [0.001, 0.002]) {
+      callbacks.onStepEnd({
+        finishReason: "stop",
+        text: "answer",
+        model: { modelId: "provider/executed-model" },
+        usage: { inputTokens: 100, outputTokens: 20 },
+        providerMetadata: { openrouter: { usage: { cost } } },
+      });
+    }
+    await callbacks.onEnd({
+      text: "answer",
+      usage: { inputTokens: 100, outputTokens: 20 },
+      totalUsage: { inputTokens: 200, outputTokens: 40 },
+    });
+
+    expect(recordAiOperation).toHaveBeenCalledTimes(2);
+    expect(recordAiOperation).toHaveBeenLastCalledWith({
+      operation: "coaching",
+      modelId: "provider/executed-model",
+      usage: { inputTokens: 100, outputTokens: 20 },
+      providerMetadata: { openrouter: { usage: { cost: 0.002 } } },
+    });
+  });
+
+  it("counts an exposed stream error once when the same step ends with error", async () => {
+    await streamChat({
+      userId: "user-1",
+      chatId: "chat-1",
+      userMessage: "Aiutami a concentrarmi",
+      effectiveEntitlements: entitlements,
+    });
+    const callbacks = mocks.streamText.mock.calls.at(-1)?.[0];
+    const error = new Error("provider unavailable");
+    callbacks.onError({ error });
+    callbacks.onStepEnd({ finishReason: "error", text: "" });
+
+    expect(recordAiOperationFailure).toHaveBeenCalledExactlyOnceWith(
+      "coaching",
+      "provider/model",
+      error,
+    );
+    expect(recordAiOperation).not.toHaveBeenCalled();
+  });
 });
