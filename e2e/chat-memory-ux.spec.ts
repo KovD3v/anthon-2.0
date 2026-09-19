@@ -116,6 +116,7 @@ async function seedChat(kind?: "saved" | "updated") {
 
 test("keeps the next draft editable throughout a slow streamed reply", async ({
   page,
+  isMobile,
 }) => {
   const { chat } = await seedChat();
   await authenticateE2EPage(page);
@@ -141,7 +142,9 @@ test("keeps the next draft editable throughout a slow streamed reply", async ({
   await expect(
     page.getByRole("button", { name: "Invia messaggio" }),
   ).toBeVisible({ timeout: 20_000 });
-  await expect(input).toHaveValue("La mia prossima domanda");
+  await expect(input).toHaveValue(
+    isMobile ? "La mia prossima domanda\n" : "La mia prossima domanda",
+  );
   expect(sends).toBe(1);
 });
 
