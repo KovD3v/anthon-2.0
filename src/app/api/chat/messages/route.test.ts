@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   messageFindMany: vi.fn(),
   messageFindUnique: vi.fn(),
   messageDeleteMany: vi.fn(),
+  summaryDeleteMany: vi.fn(),
   deletePrivateVoiceBlobsForMessages: vi.fn(),
 }));
 
@@ -13,18 +14,30 @@ vi.mock("@clerk/nextjs/server", () => ({
   auth: mocks.auth,
 }));
 
-vi.mock("@/lib/db", () => ({
-  prisma: {
-    user: {
-      findUnique: mocks.userFindUnique,
+vi.mock("@/lib/db", () => {
+  const tx = {
+    $queryRaw: vi.fn(async () => []),
+    conversationThread: { findMany: vi.fn(async () => [{ id: "thread-1" }]) },
+    conversationThreadSummary: { deleteMany: mocks.summaryDeleteMany },
+    message: { deleteMany: mocks.messageDeleteMany },
+  };
+  return {
+    prisma: {
+      $transaction: vi.fn(
+        async (callback: (client: typeof tx) => Promise<unknown>) =>
+          callback(tx),
+      ),
+      user: {
+        findUnique: mocks.userFindUnique,
+      },
+      message: {
+        findMany: mocks.messageFindMany,
+        findUnique: mocks.messageFindUnique,
+        deleteMany: mocks.messageDeleteMany,
+      },
     },
-    message: {
-      findMany: mocks.messageFindMany,
-      findUnique: mocks.messageFindUnique,
-      deleteMany: mocks.messageDeleteMany,
-    },
-  },
-}));
+  };
+});
 
 vi.mock("@/lib/voice/attachment-cleanup", () => ({
   deletePrivateVoiceBlobsForMessages: mocks.deletePrivateVoiceBlobsForMessages,

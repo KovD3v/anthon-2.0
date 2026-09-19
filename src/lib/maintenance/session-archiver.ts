@@ -7,6 +7,7 @@ import {
   maintenanceModel,
 } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
+import { deleteMessagesWithThreadSummaries } from "@/lib/ai/thread-summary-lifecycle";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
@@ -156,10 +157,8 @@ Sii conciso ma completo.`,
       // PERMANENT DELETE (Hard delete as per policy)
       // Or Soft delete? Policy said "permanently deleting old raw message content".
       // Let's hard delete to save space.
-      await tx.message.deleteMany({
-        where: {
-          id: { in: session.messages.map((m) => m.id) },
-        },
+      await deleteMessagesWithThreadSummaries(tx, {
+        id: { in: session.messages.map((m) => m.id) },
       });
     });
   }

@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   authenticateGuest: vi.fn(),
   messageFindUnique: vi.fn(),
   messageDeleteMany: vi.fn(),
+  summaryDeleteMany: vi.fn(),
   deletePrivateVoiceBlobsForMessages: vi.fn(),
 }));
 
@@ -11,14 +12,26 @@ vi.mock("@/lib/guest-auth", () => ({
   authenticateGuest: mocks.authenticateGuest,
 }));
 
-vi.mock("@/lib/db", () => ({
-  prisma: {
-    message: {
-      findUnique: mocks.messageFindUnique,
-      deleteMany: mocks.messageDeleteMany,
+vi.mock("@/lib/db", () => {
+  const tx = {
+    $queryRaw: vi.fn(async () => []),
+    conversationThread: { findMany: vi.fn(async () => [{ id: "thread-1" }]) },
+    conversationThreadSummary: { deleteMany: mocks.summaryDeleteMany },
+    message: { deleteMany: mocks.messageDeleteMany },
+  };
+  return {
+    prisma: {
+      $transaction: vi.fn(
+        async (callback: (client: typeof tx) => Promise<unknown>) =>
+          callback(tx),
+      ),
+      message: {
+        findUnique: mocks.messageFindUnique,
+        deleteMany: mocks.messageDeleteMany,
+      },
     },
-  },
-}));
+  };
+});
 
 vi.mock("@/lib/voice/attachment-cleanup", () => ({
   deletePrivateVoiceBlobsForMessages: mocks.deletePrivateVoiceBlobsForMessages,

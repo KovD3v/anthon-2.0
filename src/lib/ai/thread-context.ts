@@ -1,19 +1,65 @@
 import { generateText, type ModelMessage } from "ai";
-import type { Message } from "@/generated/prisma";
+import type { Message, Prisma } from "@/generated/prisma";
 import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
 import {
   SUB_AGENT_MODEL_ID,
   subAgentModel,
 } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForModel } from "@/lib/ai/providers/openrouter-routing";
+import { lockThreadSummaries } from "@/lib/ai/thread-summary-lifecycle";
 import { trackSupportAiUsage } from "@/lib/ai/usage-meter";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
+import { publishToQueue } from "@/lib/qstash";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 
 const contextLogger = createLogger("ai");
 const MAX_MESSAGE_CHARS = 2_000;
 const SUMMARY_WORD_LIMIT = 250;
+const SUMMARY_BATCH_MESSAGES = 40;
+const MAX_SUMMARY_TRANSCRIPT_CHARS = 24_000;
+const MAX_SUMMARY_CHARS = 4_000;
+const MAX_SUMMARY_OUTPUT_TOKENS = 768;
+const SUMMARY_TIMEOUT_MS = 45_000;
+
+const messageSelect = {
+  id: true,
+  role: true,
+  parts: true,
+  createdAt: true,
+} as const;
+
+const summarySelect = {
+  id: true,
+  version: true,
+  summary: true,
+  throughMessageId: true,
+  throughMessageCreatedAt: true,
+} as const;
+
+type SummarySnapshot = Prisma.ConversationThreadSummaryGetPayload<{
+  select: typeof summarySelect;
+}>;
+
+type Checkpoint = { id: string; createdAt: Date };
+
+export type ThreadSummaryJob = {
+  conversationThreadId: string;
+  userId: string;
+  continuation?: {
+    summaryId: string | null;
+    version: number;
+    // A separate scan cursor lets a bounded job cross orphan/incomplete rows
+    // without claiming that they were included in the summary.
+    after?: { id: string; createdAt: string };
+    pendingUserId?: string;
+  };
+};
+
+const activeThreadWhere: Prisma.ConversationThreadWhereInput = {
+  user: { deletedAt: null },
+  OR: [{ chatId: null }, { chat: { deletedAt: null } }],
+};
 
 type ContextMessage = Pick<Message, "id" | "role" | "parts" | "createdAt">;
 
@@ -54,7 +100,10 @@ export async function buildThreadContext(
   const [summary, recentMessages] = await Promise.all([
     policy.includeSummary
       ? prisma.conversationThreadSummary.findUnique({
-          where: { conversationThreadId },
+          where: {
+            conversationThreadId,
+            conversationThread: activeThreadWhere,
+          },
           select: {
             summary: true,
             throughMessageId: true,
@@ -65,18 +114,14 @@ export async function buildThreadContext(
     prisma.message.findMany({
       where: {
         conversationThreadId,
+        conversationThread: activeThreadWhere,
         deletedAt: null,
         role: { in: ["USER", "ASSISTANT"] },
         ...(excludeMessageId ? { id: { not: excludeMessageId } } : {}),
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: Math.max(policy.maxRawTurns * 8, 40),
-      select: {
-        id: true,
-        role: true,
-        parts: true,
-        createdAt: true,
-      },
+      select: messageSelect,
     }),
   ]);
 
@@ -84,16 +129,43 @@ export async function buildThreadContext(
   const selected = selectRecentTurns(turns, policy);
   const rawMessages = selected.flatMap((turn) => [turn.user, turn.assistant]);
   const oldestRaw = rawMessages[0];
-  const summaryIsBeforeRaw =
-    summary?.throughMessageCreatedAt && oldestRaw
-      ? summary.throughMessageCreatedAt < oldestRaw.createdAt
-      : Boolean(summary?.throughMessageId && rawMessages.length === 0);
+  const checkpointIsInRaw = rawMessages.some(
+    (message) => message.id === summary?.throughMessageId,
+  );
+  // Check the source still exists, and compare ties in the database's ordering
+  // rather than relying on the JavaScript locale's string comparison.
+  const summaryIsBeforeRaw = Boolean(
+    summary?.throughMessageId &&
+      summary.throughMessageCreatedAt &&
+      !checkpointIsInRaw &&
+      (!oldestRaw || summary.throughMessageCreatedAt <= oldestRaw.createdAt) &&
+      (await prisma.message.findFirst({
+        where: {
+          id: summary.throughMessageId,
+          createdAt: summary.throughMessageCreatedAt,
+          conversationThreadId,
+          deletedAt: null,
+          ...(oldestRaw
+            ? {
+                OR: [
+                  { createdAt: { lt: oldestRaw.createdAt } },
+                  {
+                    createdAt: oldestRaw.createdAt,
+                    id: { lt: oldestRaw.id },
+                  },
+                ],
+              }
+            : {}),
+        },
+        select: { id: true },
+      })),
+  );
   const messages: ModelMessage[] = [];
 
   if (summary && summaryIsBeforeRaw) {
     messages.push({
       role: "system",
-      content: `[Riassunto del thread precedente]\n${summary.summary}`,
+      content: `[Riassunto del thread precedente]\n${summary.summary.slice(0, MAX_SUMMARY_CHARS)}`,
     } as ModelMessage);
   }
   messages.push(...rawMessages.map(toModelMessage));
@@ -109,48 +181,117 @@ export async function buildThreadContext(
   };
 }
 
-async function refreshConversationThreadSummary(
-  conversationThreadId: string,
-  userId: string,
-): Promise<void> {
+/** One model call at most. QStash deliveries continue a backlog in bounded jobs. */
+export async function processThreadSummaryJob(job: ThreadSummaryJob) {
+  const { conversationThreadId, userId, continuation } = job;
+  const ownerWhere: Prisma.ConversationThreadWhereInput = {
+    id: conversationThreadId,
+    userId,
+    user: { deletedAt: null },
+    OR: [{ chatId: null }, { chat: { userId, deletedAt: null } }],
+  };
+  if (
+    !(await prisma.conversationThread.findFirst({
+      where: ownerWhere,
+      select: { id: true },
+    }))
+  ) {
+    return "unavailable";
+  }
   const existing = await prisma.conversationThreadSummary.findUnique({
     where: { conversationThreadId },
-    select: { summary: true, throughMessageCreatedAt: true },
+    select: summarySelect,
   });
+  const sourceWhere = {
+    conversationThreadId,
+    userId,
+    deletedAt: null,
+  };
+  const checkpoint =
+    existing?.throughMessageId && existing.throughMessageCreatedAt
+      ? await prisma.message.findFirst({
+          where: {
+            ...sourceWhere,
+            id: existing.throughMessageId,
+            createdAt: existing.throughMessageCreatedAt,
+            role: "ASSISTANT",
+          },
+          select: { id: true, createdAt: true },
+        })
+      : null;
+  // A missing/legacy checkpoint cannot prove that the previous summary's
+  // sources survive. Rebuild from the remaining messages instead of reusing it.
+  let after: Checkpoint | null = checkpoint;
+  let pendingUser: ContextMessage | null = null;
+  if (
+    continuation?.after &&
+    continuation.summaryId === (existing?.id ?? null) &&
+    continuation.version === (existing?.version ?? 0)
+  ) {
+    const scanCheckpoint = await prisma.message.findFirst({
+      where: {
+        ...sourceWhere,
+        id: continuation.after.id,
+        createdAt: new Date(continuation.after.createdAt),
+        ...(checkpoint ? afterCheckpoint(checkpoint) : {}),
+      },
+      select: { id: true, createdAt: true },
+    });
+    if (scanCheckpoint) {
+      after = scanCheckpoint;
+      if (continuation.pendingUserId) {
+        pendingUser = await prisma.message.findFirst({
+          where: {
+            ...sourceWhere,
+            id: continuation.pendingUserId,
+            role: "USER",
+            ...(checkpoint ? afterCheckpoint(checkpoint) : {}),
+          },
+          select: messageSelect,
+        });
+      }
+    }
+  }
   const messages = await prisma.message.findMany({
     where: {
-      conversationThreadId,
-      deletedAt: null,
+      ...sourceWhere,
       role: { in: ["USER", "ASSISTANT"] },
-      ...(existing?.throughMessageCreatedAt
-        ? { createdAt: { gt: existing.throughMessageCreatedAt } }
-        : {}),
+      ...(after ? afterCheckpoint(after) : {}),
     },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      role: true,
-      parts: true,
-      createdAt: true,
-    },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    take: SUMMARY_BATCH_MESSAGES,
+    select: messageSelect,
   });
-  const turns = toCompleteTurns(messages);
+  const candidates = pendingUser ? [pendingUser, ...messages] : messages;
+  const turns = selectSummaryTurns(toCompleteTurns(candidates));
   const chars = turns.reduce((total, turn) => total + turn.chars, 0);
-  if (turns.length < 6 && chars < 8_000) return;
-
   const lastMessage = turns.at(-1)?.assistant;
-  if (!lastMessage) return;
-  const transcript = turns
-    .flatMap((turn) => [turn.user, turn.assistant])
-    .map(
-      (message) =>
-        `${message.role === "USER" ? "Utente" : "Assistente"}: ${contextText(message)}`,
-    )
-    .join("\n");
+  if (!lastMessage) {
+    const scanEnd = messages.at(-1);
+    if (scanEnd && messages.length === SUMMARY_BATCH_MESSAGES) {
+      await continueSummary(job, existing, {
+        after: { id: scanEnd.id, createdAt: scanEnd.createdAt.toISOString() },
+        ...(scanEnd.role === "USER" ? { pendingUserId: scanEnd.id } : {}),
+      });
+      return "continued";
+    }
+    return "unchanged";
+  }
+  if (
+    !continuation &&
+    messages.length < SUMMARY_BATCH_MESSAGES &&
+    turns.length < 6 &&
+    chars < 8_000
+  ) {
+    return "unchanged";
+  }
+  const transcript = turns.map(turnTranscript).join("\n");
   const result = await generateText({
     model: subAgentModel,
     instructions: `Aggiorna un riassunto di un singolo thread di coaching. Mantieni obiettivi, decisioni, vincoli e richieste aperte. Non inventare dati. Scrivi in italiano, massimo ${SUMMARY_WORD_LIMIT} parole.`,
-    prompt: `Riassunto precedente:\n${existing?.summary ?? "(nessuno)"}\n\nNuovi turni:\n${transcript}`,
+    prompt: `Riassunto precedente:\n${checkpoint ? existing?.summary.slice(0, MAX_SUMMARY_CHARS) : "(nessuno)"}\n\nNuovi turni:\n${transcript}`,
+    maxOutputTokens: MAX_SUMMARY_OUTPUT_TOKENS,
+    abortSignal: AbortSignal.timeout(SUMMARY_TIMEOUT_MS),
     providerOptions: {
       openrouter: getOpenRouterProviderOptionsForModel(SUB_AGENT_MODEL_ID),
     },
@@ -165,21 +306,121 @@ async function refreshConversationThreadSummary(
     usage: result.usage,
     providerMetadata: result.providerMetadata,
   });
-  await prisma.conversationThreadSummary.upsert({
-    where: { conversationThreadId },
-    update: {
-      summary: result.text,
+  const committed = await prisma.$transaction(async (tx) => {
+    await lockThreadSummaries(tx, [conversationThreadId]);
+    if (
+      !(await tx.conversationThread.findFirst({
+        where: ownerWhere,
+        select: { id: true },
+      }))
+    ) {
+      return null;
+    }
+    const current = await tx.conversationThreadSummary.findUnique({
+      where: { conversationThreadId },
+      select: { id: true, version: true },
+    });
+    if (
+      current?.id !== existing?.id ||
+      current?.version !== existing?.version
+    ) {
+      return null;
+    }
+    const sourceIds = turns.flatMap((turn) => [
+      turn.user.id,
+      turn.assistant.id,
+    ]);
+    if (checkpoint) sourceIds.push(checkpoint.id);
+    if (
+      (await tx.message.count({
+        where: { ...sourceWhere, id: { in: sourceIds } },
+      })) !== sourceIds.length
+    ) {
+      return null;
+    }
+    const data = {
+      summary: result.text.trim().slice(0, MAX_SUMMARY_CHARS),
       throughMessageId: lastMessage.id,
       throughMessageCreatedAt: lastMessage.createdAt,
-      version: 1,
-    },
-    create: {
-      conversationThreadId,
-      summary: result.text,
-      throughMessageId: lastMessage.id,
-      throughMessageCreatedAt: lastMessage.createdAt,
-    },
+    };
+    if (existing) {
+      const updated = await tx.conversationThreadSummary.updateMany({
+        where: { id: existing.id, version: existing.version },
+        data: { ...data, version: { increment: 1 } },
+      });
+      return updated.count === 1
+        ? { id: existing.id, version: existing.version + 1 }
+        : null;
+    }
+    // The parent-thread lock also serializes concurrent first creation. The
+    // unique thread key remains the database backstop; there is no upsert that
+    // could overwrite another worker's newly created summary.
+    return tx.conversationThreadSummary.create({
+      data: { ...data, conversationThreadId },
+      select: { id: true, version: true },
+    });
   });
+  if (!committed) return "stale";
+
+  if (
+    messages.length === SUMMARY_BATCH_MESSAGES ||
+    lastMessage.id !== messages.at(-1)?.id
+  ) {
+    await continueSummary(job, committed);
+  }
+  return "updated";
+}
+
+function afterCheckpoint(checkpoint: Checkpoint): Prisma.MessageWhereInput {
+  return {
+    OR: [
+      { createdAt: { gt: checkpoint.createdAt } },
+      { createdAt: checkpoint.createdAt, id: { gt: checkpoint.id } },
+    ],
+  };
+}
+
+async function continueSummary(
+  job: ThreadSummaryJob,
+  snapshot: Pick<SummarySnapshot, "id" | "version"> | null,
+  scan: Pick<
+    NonNullable<ThreadSummaryJob["continuation"]>,
+    "after" | "pendingUserId"
+  > = {},
+) {
+  const continuation = {
+    summaryId: snapshot?.id ?? null,
+    version: snapshot?.version ?? 0,
+    ...scan,
+  };
+  await publishToQueue(
+    "api/queues/thread-summary",
+    {
+      conversationThreadId: job.conversationThreadId,
+      userId: job.userId,
+      continuation,
+    } satisfies ThreadSummaryJob,
+    {
+      retries: 3,
+      deduplicationId: `thread-summary-${job.conversationThreadId}-${continuation.summaryId ?? "initial"}-${continuation.version}-${scan.after?.id ?? "next"}`,
+    },
+  );
+}
+
+function turnTranscript(turn: Turn) {
+  return `Utente: ${contextText(turn.user)}\nAssistente: ${contextText(turn.assistant)}`;
+}
+
+function selectSummaryTurns(turns: Turn[]): Turn[] {
+  const selected: Turn[] = [];
+  let chars = 0;
+  for (const turn of turns) {
+    const nextChars = turnTranscript(turn).length + (selected.length ? 1 : 0);
+    if (chars + nextChars > MAX_SUMMARY_TRANSCRIPT_CHARS) break;
+    selected.push(turn);
+    chars += nextChars;
+  }
+  return selected;
 }
 
 function toCompleteTurns(messages: ContextMessage[]): Turn[] {
@@ -234,13 +475,13 @@ export async function safelyRefreshConversationThreadSummary(
   userId: string,
 ) {
   try {
-    await refreshConversationThreadSummary(conversationThreadId, userId);
+    await processThreadSummaryJob({ conversationThreadId, userId });
   } catch (error) {
     contextLogger.error(
       "thread_summary.refresh_failed",
       "Failed refreshing conversation thread summary",
       {
-        error,
+        errorName: error instanceof Error ? error.name : "unknown",
         conversationThreadId,
         userId,
       },

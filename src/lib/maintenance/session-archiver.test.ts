@@ -92,6 +92,13 @@ describe("maintenance/session-archiver", () => {
     ]);
 
     const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      conversationThread: {
+        findMany: vi.fn().mockResolvedValue([{ id: "thread-1" }]),
+      },
+      conversationThreadSummary: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
       archivedSession: {
         create: vi.fn().mockResolvedValue({}),
       },
@@ -132,6 +139,9 @@ describe("maintenance/session-archiver", () => {
       where: {
         id: { in: ["m1", "m2"] },
       },
+    });
+    expect(tx.conversationThreadSummary.deleteMany).toHaveBeenCalledWith({
+      where: { conversationThreadId: { in: ["thread-1"] } },
     });
   });
 
