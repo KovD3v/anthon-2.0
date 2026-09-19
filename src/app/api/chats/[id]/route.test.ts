@@ -290,6 +290,7 @@ describe("/api/chats/[id] route", () => {
       select: {
         id: true,
         clientMessageId: true,
+        sourceInboundMessageId: true,
         sourceInboundMessage: {
           select: { clientMessageId: true },
         },
@@ -364,6 +365,7 @@ describe("/api/chats/[id] route", () => {
         {
           id: "m3",
           sourceClientMessageId: "client-turn-1",
+          memoryChanges: [],
           role: "assistant",
           parts: [{ type: "text", text: "third" }],
           createdAt: "2026-02-16T11:00:03.000Z",

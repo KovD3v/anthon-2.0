@@ -424,6 +424,7 @@ describe("lib/chat", () => {
       select: {
         id: true,
         clientMessageId: true,
+        sourceInboundMessageId: true,
         sourceInboundMessage: {
           select: { clientMessageId: true },
         },

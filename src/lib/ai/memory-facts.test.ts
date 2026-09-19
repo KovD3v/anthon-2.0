@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  executeRaw: vi.fn(),
   memoryFindMany: vi.fn(),
   memoryFindFirst: vi.fn(),
   memoryUpsert: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock("@/lib/db", () => ({
     },
     $transaction: vi.fn(async (operation) =>
       operation({
+        $executeRaw: mocks.executeRaw,
         memory: {
           findFirst: mocks.memoryFindFirst,
           upsert: mocks.memoryUpsert,
@@ -56,11 +58,18 @@ function buildFact(
 ) {
   return {
     id: overrides.id ?? "memory-1",
+    userId: "user-1",
     key: overrides.key ?? "training_schedule",
     category: overrides.category ?? "schedule",
     value: { content: overrides.content ?? "Martedì sera" },
     origin: overrides.origin ?? "EXPLICIT",
     confidence: overrides.confidence ?? 0.96,
+    status: "ACTIVE" as const,
+    sensitivity: "LOW" as const,
+    sourceMessageId: null,
+    sourceThreadId: null,
+    lastConfirmedAt: null,
+    expiresAt: null,
     observedAt: overrides.observedAt ?? new Date("2026-08-10T18:00:00.000Z"),
     updatedAt: overrides.updatedAt ?? new Date("2026-08-10T18:00:00.000Z"),
   };
@@ -71,6 +80,23 @@ describe("durable fact recall", () => {
     for (const mock of Object.values(mocks)) mock.mockReset();
     mocks.revisionFindUnique.mockResolvedValue(null);
     invalidateFactCache("user-1");
+  });
+
+  it("does not rewarm the cache from a read started before invalidation", async () => {
+    let finishRead!: (facts: ReturnType<typeof buildFact>[]) => void;
+    mocks.memoryFindMany
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishRead = resolve;
+        }),
+      )
+      .mockResolvedValue([]);
+    const inFlight = listActiveFacts({ userId: "user-1" });
+    invalidateFactCache("user-1");
+    finishRead([buildFact()]);
+    await inFlight;
+    expect((await listActiveFacts({ userId: "user-1" })).facts).toEqual([]);
+    expect(mocks.memoryFindMany).toHaveBeenCalledTimes(2);
   });
 
   it("returns only current active user facts as bounded prompt projections", async () => {
@@ -227,6 +253,59 @@ describe("durable fact recall", () => {
     expect(mocks.memoryUpsert).not.toHaveBeenCalled();
   });
 
+  it("does not create a second revision for an identical tool and consolidation fact", async () => {
+    mocks.memoryFindFirst.mockResolvedValue({
+      ...buildFact(),
+      sourceMessageId: "source-1",
+    });
+    const result = await rememberFact({
+      userId: "user-1",
+      key: "training_schedule",
+      value: "Martedì sera",
+      category: "schedule",
+      confidence: 0.96,
+      sensitivity: "LOW",
+      origin: "INFERRED",
+      sourceMessageId: "source-1",
+      dedupeKey: "consolidation:source-1",
+    });
+    expect(result).toEqual({ status: "duplicate", factId: "memory-1" });
+    expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+  });
+
+  it("retains original evidence while attributing a sensitive confirmation to its current turn", async () => {
+    mocks.memoryFindFirst.mockResolvedValue({
+      ...buildFact(),
+      sourceMessageId: "source-1",
+    });
+    mocks.memoryUpsert.mockResolvedValue({ id: "memory-1" });
+    const result = await rememberFact({
+      userId: "user-1",
+      key: "training_schedule",
+      value: "Martedì sera",
+      category: "schedule",
+      confidence: 1,
+      sensitivity: "HIGH",
+      origin: "CONFIRMED",
+      sourceMessageId: "source-1",
+      revisionSourceMessageId: "confirmation-1",
+      dedupeKey: "approval:source-1",
+    });
+    expect(result.status).toBe("saved");
+    expect(mocks.memoryUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          sourceMessageId: "source-1",
+          sensitivity: "HIGH",
+          origin: "CONFIRMED",
+        }),
+      }),
+    );
+    expect(mocks.revisionCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ sourceMessageId: "confirmation-1" }),
+    });
+  });
+
   it("returns a duplicate result without mutating the current fact", async () => {
     mocks.revisionFindUnique.mockResolvedValue({ memoryId: "memory-1" });
 
@@ -273,7 +352,13 @@ describe("durable fact recall", () => {
     });
     expect(mocks.revisionCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        previousValue: { content: "Martedì sera" },
+        previousValue: expect.objectContaining({
+          content: "Martedì sera",
+          _undoState: expect.objectContaining({
+            status: "ACTIVE",
+            sensitivity: "LOW",
+          }),
+        }),
         nextValue: expect.objectContaining({ content: "Giovedì mattina" }),
         reason: "revise",
       }),

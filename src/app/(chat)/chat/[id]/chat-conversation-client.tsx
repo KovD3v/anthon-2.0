@@ -160,7 +160,12 @@ export function ChatConversationClient({
   const apiBase = isGuest ? "/api/guest" : "/api";
 
   const [chatData, setChatData] = useState<ChatData>(initialChatData);
-  const [input, setInput] = useState("");
+  const [input, setInputState] = useState("");
+  const draftVersionRef = useRef(0);
+  const setInput = useCallback((value: string) => {
+    draftVersionRef.current += 1;
+    setInputState(value);
+  }, []);
   const [focusRequestId, setFocusRequestId] = useState(0);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(
     null,
@@ -336,6 +341,16 @@ export function ChatConversationClient({
       if (response.ok) {
         const data = await response.json();
         const olderRoutines = (data.routines ?? []) as ChatData["routines"];
+        setMessages((current) => {
+          const byId = new Map(
+            convertToUIMessages(data.messages).map((message) => [
+              message.id,
+              message,
+            ]),
+          );
+          for (const message of current) byId.set(message.id, message);
+          return [...byId.values()];
+        });
         setChatData((prev) => {
           const messagesById = new Map(
             prev.messages.map((message) => [message.id, message]),
@@ -1010,17 +1025,78 @@ export function ChatConversationClient({
     [handleSaveRoutine],
   );
 
-  const handleAdaptRoutine = useCallback((routineId: string, title: string) => {
-    const prompt = `Vorrei adattare la routine "${title}" dopo l'ultimo tentativo. Aiutami a renderla più efficace.`;
-    pendingRoutineAdaptationRef.current = null;
-    routineAdaptationDraftRef.current = { routineId, prompt };
-    setInput(prompt);
-    setFocusRequestId((current) => current + 1);
-  }, []);
+  const handleAdaptRoutine = useCallback(
+    (routineId: string, title: string) => {
+      const prompt = `Vorrei adattare la routine "${title}" dopo l'ultimo tentativo. Aiutami a renderla più efficace.`;
+      pendingRoutineAdaptationRef.current = null;
+      routineAdaptationDraftRef.current = { routineId, prompt };
+      setInput(prompt);
+      setFocusRequestId((current) => current + 1);
+    },
+    [setInput],
+  );
 
   const hasUnresolvedVoiceGeneration = hasPendingVoiceGeneration(
     chatData.messages,
   );
+  const pendingMemoryIds =
+    !isGuest && chatData.isOwner && chatData.visibility === "PRIVATE"
+      ? chatData.messages
+          .filter((message) => message.memoryConsolidation === "pending")
+          .map((message) => message.id)
+          .join(",")
+      : "";
+  useEffect(() => {
+    if (!pendingMemoryIds) return;
+    let cancelled = false;
+    let timeout: number;
+    let attempts = 0;
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/chats/${chatId}`);
+        if (response.ok) {
+          const data: ChatData = await response.json();
+          if (cancelled) return;
+          const updates = new Map(
+            data.messages.map((message) => [
+              message.id,
+              {
+                memoryChanges: message.memoryChanges,
+                memoryConsolidation: message.memoryConsolidation,
+              },
+            ]),
+          );
+          // Patch only memory state: a late poll must not replace a new stream or loaded history.
+          setChatData((current) => ({
+            ...current,
+            messages: current.messages.map((message) => ({
+              ...message,
+              ...updates.get(message.id),
+            })),
+          }));
+          setMessages((current) =>
+            current.map((message) => ({
+              ...message,
+              ...updates.get(message.id),
+            })),
+          );
+        }
+      } catch {
+        // A later bounded retry or reload can observe durable revisions.
+      }
+      attempts += 1;
+      if (!cancelled && attempts < 20)
+        timeout = window.setTimeout(
+          poll,
+          Math.min(1_000 * 2 ** attempts, 5_000),
+        );
+    };
+    timeout = window.setTimeout(poll, 1_000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [chatId, pendingMemoryIds, setMessages]);
 
   // Voice jobs are durable and eventually attach their file to the existing
   // assistant message. Poll only while one is unresolved so reconnects receive
@@ -1122,6 +1198,7 @@ export function ChatConversationClient({
     });
     const clientMessageId = isGuest ? undefined : createWebClientMessageId();
     if (clientMessageId) beginClientTrace(clientMessageId);
+    const initialDraftVersion = draftVersionRef.current;
     sendMessage({
       ...(clientMessageId ? { id: clientMessageId } : {}),
       role: "user",
@@ -1132,7 +1209,9 @@ export function ChatConversationClient({
       }
       pendingInitialMessageSubmittedRef.current = false;
       submittedRoutineAdaptationRef.current = null;
-      setInput(pendingInitialMessage ?? "");
+      if (draftVersionRef.current === initialDraftVersion) {
+        setInput(pendingInitialMessage ?? "");
+      }
       reportClientError(error, { source: "chat.send_initial_message" });
       toast.error("Invio messaggio fallito");
     });
@@ -1146,6 +1225,7 @@ export function ChatConversationClient({
     isGuest,
     releaseClientTrace,
     sendMessage,
+    setInput,
     status,
   ]);
 
@@ -1169,7 +1249,7 @@ export function ChatConversationClient({
       setInput(savedDraft);
       window.sessionStorage.removeItem(draftKey);
     }
-  }, [chatId]);
+  }, [chatId, setInput]);
 
   // Sync local changes back to layout cache
   useEffect(() => {
@@ -1343,6 +1423,7 @@ export function ChatConversationClient({
       : null;
 
     let clientMessageId: string | undefined;
+    let submittedDraftVersion = draftVersionRef.current;
     try {
       const parts: AnthonUIMessage["parts"] = [];
       if (submittedInput.trim()) {
@@ -1363,6 +1444,7 @@ export function ChatConversationClient({
         });
       }
       setInput("");
+      submittedDraftVersion = draftVersionRef.current;
       clientMessageId = isGuest ? undefined : createWebClientMessageId();
       if (clientMessageId) beginClientTrace(clientMessageId);
       await sendMessage({
@@ -1377,7 +1459,9 @@ export function ChatConversationClient({
       pendingRoutineAdaptationRef.current = null;
       submittedRoutineAdaptationRef.current = null;
       setIsResponseSettling(false);
-      setInput(submittedInput);
+      if (draftVersionRef.current === submittedDraftVersion) {
+        setInput(submittedInput);
+      }
       if (error instanceof Error && isExpectedChatRejection(error, isGuest)) {
         return;
       }
@@ -1688,6 +1772,11 @@ export function ChatConversationClient({
                 isGuest ? "/api/guest/chat/feedback" : "/api/chat/feedback"
               }
               canSubmitFeedback={chatData.isOwner}
+              canManageMemories={
+                !isGuest &&
+                chatData.isOwner &&
+                chatData.visibility === "PRIVATE"
+              }
               feedbackMessageIds={persistedMessageIds}
               comparisonDeltas={comparisonDeltas}
               onModelComparisonResolved={handleModelComparisonResolved}

@@ -108,6 +108,19 @@ afterEach(() => {
 });
 
 describe("ChatInput keyboard behavior", () => {
+  it("allows the next draft during streaming while blocking another submission", () => {
+    const { props, rerender } = renderChatInput("Bozza successiva");
+    rerender(<ChatInput {...props} isLoading />);
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Scrivi un messaggio",
+    });
+    expect(textarea.disabled).toBe(false);
+    fireEvent.change(textarea, { target: { value: "Bozza modificata" } });
+    expect(props.setInput).toHaveBeenCalledWith("Bozza modificata");
+    fireEvent.keyDown(textarea, { key: "Enter", code: "Enter" });
+    fireEvent.submit(textarea.closest("form") as HTMLFormElement);
+    expect(props.onSubmit).not.toHaveBeenCalled();
+  });
   it("focuses the textarea when a new external focus request arrives", () => {
     const props = {
       input: "Inizio ora la routine",

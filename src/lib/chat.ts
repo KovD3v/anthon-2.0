@@ -1,5 +1,9 @@
 import { unstable_cache } from "next/cache";
 import { cache } from "react";
+import {
+  getMemoryConsolidationStatus,
+  getTurnMemoryChanges,
+} from "@/lib/ai/memory-changes";
 import { redactToolCalls } from "@/lib/ai/tool-privacy";
 import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
 import { toRoutineCardData } from "@/lib/coaching/routine";
@@ -195,6 +199,7 @@ async function getSharedChatUncached(
           select: {
             id: true,
             clientMessageId: true,
+            sourceInboundMessageId: true,
             sourceInboundMessage: {
               select: { clientMessageId: true },
             },
@@ -271,6 +276,17 @@ async function getSharedChatUncached(
   );
   const canReceivePrivateCoachingData =
     canReceiveRoutineProposal && userData?.isGuest === false;
+  const memoryChanges = canReceivePrivateCoachingData
+    ? await getTurnMemoryChanges(
+        userId,
+        chatId,
+        messagesToReturn.flatMap((message) =>
+          message.sourceInboundMessageId
+            ? [message.sourceInboundMessageId]
+            : [],
+        ),
+      )
+    : new Map();
   const returnedAssistantMessageIds = messagesToReturn
     .filter((message) => message.role === "ASSISTANT")
     .map((message) => message.id);
@@ -354,6 +370,15 @@ async function getSharedChatUncached(
         : {}),
       feedback: normalizeMessageFeedback(m.feedback),
       feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
+      ...(canReceivePrivateCoachingData && m.role === "ASSISTANT"
+        ? {
+            memoryChanges: memoryChanges.get(m.sourceInboundMessageId) ?? [],
+            memoryConsolidation: getMemoryConsolidationStatus(
+              m.metadata,
+              m.createdAt,
+            ),
+          }
+        : {}),
       voice:
         m.voiceGenerationJob || voiceReasonCode
           ? {

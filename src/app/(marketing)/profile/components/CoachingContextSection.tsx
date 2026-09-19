@@ -178,7 +178,7 @@ export function CoachingContextSection() {
 
   return (
     <>
-      <section className="border-t border-border/70">
+      <section id="memoria" className="scroll-mt-8 border-t border-border/70">
         <div className="px-5 pb-4 pt-7 sm:px-8 sm:pt-8">
           <h2 className="font-display text-[1.75rem] font-bold uppercase leading-none tracking-tight sm:text-3xl">
             Memoria

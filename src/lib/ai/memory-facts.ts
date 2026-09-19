@@ -1,7 +1,10 @@
-import type { Prisma } from "@/generated/prisma";
+import { randomUUID } from "node:crypto";
+import type { Memory, Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { canonicalizeKnowledgeCandidate } from "./memory-canonicalization";
+import { lockMemoryMutations } from "./memory-mutation-lock";
+import { snapshotMemory } from "./memory-revision";
 
 const memoryLogger = createLogger("ai");
 const DEFAULT_RECALL_LIMIT = 4;
@@ -19,10 +22,11 @@ type FactCacheEntry = {
 };
 
 type MemoryFactTransaction = {
+  $executeRaw: Prisma.TransactionClient["$executeRaw"];
   memory: {
     findFirst: (args: {
       where: { userId: string; key: string };
-    }) => PromiseLike<{ value: Prisma.JsonValue } | null>;
+    }) => PromiseLike<Memory | null>;
     upsert: (args: Prisma.MemoryUpsertArgs) => PromiseLike<{ id: string }>;
   };
   memoryRevision: {
@@ -35,6 +39,7 @@ type MemoryFactTransaction = {
 };
 
 const factCache = new Map<string, FactCacheEntry>();
+let factCacheGeneration = 0;
 
 export type RecalledFact = {
   id: string;
@@ -56,6 +61,8 @@ export type FactMutationInput = {
   sensitivity: "LOW" | "HIGH";
   origin: "EXPLICIT" | "INFERRED" | "CONFIRMED" | "MIGRATED";
   sourceMessageId?: string;
+  /** The turn that authorized this revision, when distinct from the fact's evidence. */
+  revisionSourceMessageId?: string;
   sourceThreadId?: string;
   dedupeKey: string;
   observedAt?: Date;
@@ -68,6 +75,7 @@ export type FactMutationResult = {
 };
 
 export function invalidateFactCache(userId: string) {
+  factCacheGeneration += 1;
   factCache.delete(userId);
 }
 
@@ -99,6 +107,7 @@ function projectFact(memory: {
 async function loadFactSnapshot(userId: string, now: Date) {
   const cached = factCache.get(userId);
   if (cached && cached.expiresAt > Date.now()) return cached.facts;
+  const generation = factCacheGeneration;
 
   const memories = await prisma.memory.findMany({
     where: {
@@ -123,10 +132,12 @@ async function loadFactSnapshot(userId: string, now: Date) {
     const fact = projectFact(memory);
     return fact ? [fact] : [];
   });
-  factCache.set(userId, {
-    facts,
-    expiresAt: Date.now() + FACT_CACHE_TTL_MS,
-  });
+  if (generation === factCacheGeneration) {
+    factCache.set(userId, {
+      facts,
+      expiresAt: Date.now() + FACT_CACHE_TTL_MS,
+    });
+  }
   return facts;
 }
 
@@ -260,12 +271,17 @@ export async function findActiveFactIdByKey(
   return fact?.id ?? null;
 }
 
-function storedValue(input: FactMutationInput, timestamp: string) {
+function storedValue(
+  input: FactMutationInput,
+  timestamp: string,
+  revisionId: string,
+) {
   return {
     content: input.value.trim(),
     category: input.category,
     confidence: input.confidence,
     updatedAt: timestamp,
+    revisionId,
   } satisfies Prisma.InputJsonObject;
 }
 
@@ -296,6 +312,8 @@ export async function rememberFactInTransaction(
     return { status: "rejected" };
   }
 
+  await lockMemoryMutations(transaction, input.userId);
+
   const duplicate = await transaction.memoryRevision.findUnique({
     where: { dedupeKey: input.dedupeKey },
     select: { memoryId: true },
@@ -307,8 +325,21 @@ export async function rememberFactInTransaction(
   const previous = await transaction.memory.findFirst({
     where: { userId: input.userId, key: input.key },
   });
+  // The tool and post-turn consolidation can report the same fact for one turn.
+  if (
+    previous?.status === "ACTIVE" &&
+    input.sourceMessageId &&
+    previous.sourceMessageId === input.sourceMessageId &&
+    previous.category === input.category &&
+    previous.sensitivity === input.sensitivity &&
+    (input.origin !== "CONFIRMED" || previous.origin === "CONFIRMED") &&
+    (previous.value as StoredMemoryValue)?.content === input.value.trim()
+  ) {
+    return { status: "duplicate", factId: previous.id };
+  }
   const timestamp = new Date().toISOString();
-  const nextValue = storedValue(input, timestamp);
+  const revisionId = randomUUID();
+  const nextValue = storedValue(input, timestamp, revisionId);
   const memory = await transaction.memory.upsert({
     where: { userId_key: { userId: input.userId, key: input.key } },
     update: {
@@ -342,10 +373,11 @@ export async function rememberFactInTransaction(
   });
   await transaction.memoryRevision.create({
     data: {
+      id: revisionId,
       userId: input.userId,
       memoryId: memory.id,
-      sourceMessageId: input.sourceMessageId,
-      previousValue: previous?.value as Prisma.InputJsonValue | undefined,
+      sourceMessageId: input.revisionSourceMessageId ?? input.sourceMessageId,
+      previousValue: previous ? snapshotMemory(previous) : undefined,
       nextValue,
       origin: input.origin,
       reason: "remember",
@@ -385,6 +417,7 @@ export async function reviseFact(
   const input = { ...canonicalInput, factId: requestedInput.factId };
   try {
     const result = await prisma.$transaction(async (transaction) => {
+      await lockMemoryMutations(transaction, input.userId);
       const duplicate = await transaction.memoryRevision.findUnique({
         where: { dedupeKey: input.dedupeKey },
         select: { memoryId: true },
@@ -397,7 +430,12 @@ export async function reviseFact(
       });
       if (!previous) return { status: "not_found" } as const;
 
-      const nextValue = storedValue(input, new Date().toISOString());
+      const revisionId = randomUUID();
+      const nextValue = storedValue(
+        input,
+        new Date().toISOString(),
+        revisionId,
+      );
       const memory = await transaction.memory.update({
         where: { id: input.factId },
         data: {
@@ -419,10 +457,11 @@ export async function reviseFact(
       });
       await transaction.memoryRevision.create({
         data: {
+          id: revisionId,
           userId: input.userId,
           memoryId: memory.id,
           sourceMessageId: input.sourceMessageId,
-          previousValue: previous.value as Prisma.InputJsonValue,
+          previousValue: snapshotMemory(previous),
           nextValue,
           origin: input.origin,
           reason: "revise",
@@ -454,6 +493,7 @@ export async function forgetFact(input: {
 }): Promise<FactMutationResult> {
   try {
     const result = await prisma.$transaction(async (transaction) => {
+      await lockMemoryMutations(transaction, input.userId);
       const duplicate = await transaction.memoryRevision.findUnique({
         where: { dedupeKey: input.dedupeKey },
         select: { memoryId: true },

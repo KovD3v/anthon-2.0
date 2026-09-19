@@ -8,6 +8,10 @@
 
 import { revalidateTag } from "next/cache";
 import { generateChatMetadata } from "@/lib/ai/chat-title";
+import {
+  getMemoryConsolidationStatus,
+  getTurnMemoryChanges,
+} from "@/lib/ai/memory-changes";
 import { redactToolCalls } from "@/lib/ai/tool-privacy";
 import { getAuthUser } from "@/lib/auth";
 import { getFeedbackReasonFromMetadata } from "@/lib/chat-feedback";
@@ -173,6 +177,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       select: {
         id: true,
         clientMessageId: true,
+        sourceInboundMessageId: true,
         sourceInboundMessage: {
           select: { clientMessageId: true },
         },
@@ -336,6 +341,17 @@ export async function GET(request: Request, { params }: RouteParams) {
       });
     }
 
+    const memoryChanges = canReceivePrivateCoachingData
+      ? await getTurnMemoryChanges(
+          user.id,
+          id,
+          messagesToReturn.flatMap((message) =>
+            message.sourceInboundMessageId
+              ? [message.sourceInboundMessageId]
+              : [],
+          ),
+        )
+      : new Map();
     return Response.json({
       id: chat.id,
       title: chat.title ?? "Nuova Chat",
@@ -375,6 +391,16 @@ export async function GET(request: Request, { params }: RouteParams) {
             : {}),
           feedback: m.feedback,
           feedbackReason: getFeedbackReasonFromMetadata(m.metadata),
+          ...(canReceivePrivateCoachingData && m.role === "ASSISTANT"
+            ? {
+                memoryChanges:
+                  memoryChanges.get(m.sourceInboundMessageId) ?? [],
+                memoryConsolidation: getMemoryConsolidationStatus(
+                  m.metadata,
+                  m.createdAt,
+                ),
+              }
+            : {}),
           voice: m.voiceGenerationJob
             ? {
                 status: m.voiceGenerationJob.status,

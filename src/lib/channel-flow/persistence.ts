@@ -28,6 +28,7 @@ import {
   reconcileAiUsageInTransaction,
 } from "@/lib/rate-limit";
 import type { ServerTraceV1 } from "@/lib/response-profiler/contracts";
+import { patchMessageMetadata } from "@/lib/utils/message-metadata";
 import { getExternalInboundLeaseExpiry } from "./external-inbound-lease";
 import type { PersistAssistantOutputInput } from "./types";
 
@@ -176,16 +177,20 @@ export async function markVoiceCapabilityDelivered(messageId: string) {
     });
     if (!message) throw new Error("Assistant message not found");
 
+    const metadata = appendDeliveredCapabilityToMetadata(
+      message.metadata,
+      "voice",
+      message.parts,
+    );
+    await patchMessageMetadata(tx, messageId, {
+      ai: metadata.ai as Prisma.InputJsonValue,
+    });
+
     return tx.message.update({
       where: { id: messageId },
       data: {
         type: "AUDIO",
         mediaType: "audio/mpeg",
-        metadata: appendDeliveredCapabilityToMetadata(
-          message.metadata,
-          "voice",
-          message.parts,
-        ) as Prisma.InputJsonValue,
         parts: appendDeliveredCapabilityToParts(
           message.parts,
           "voice",
@@ -258,7 +263,19 @@ export async function persistAssistantOutput({
         ),
       }
     : metrics;
-  const assistantMetadata = buildAssistantMetadata(metadata, persistedMetrics);
+  const baseMetadata = buildAssistantMetadata(metadata, persistedMetrics);
+  const consolidateMemory =
+    allowMemoryExtraction && Boolean(userMessageId && userMessageText.trim());
+  const assistantMetadata = consolidateMemory
+    ? {
+        ...(baseMetadata &&
+        typeof baseMetadata === "object" &&
+        !Array.isArray(baseMetadata)
+          ? baseMetadata
+          : {}),
+        memoryConsolidation: "pending",
+      }
+    : baseMetadata;
   const directRoutineProposal = storedRoutineProposalSchema.safeParse(
     metrics.routineProposal,
   );
@@ -548,6 +565,10 @@ export async function persistAssistantOutput({
     return message;
   }
 
+  const markMemoryConsolidation = async (status: "completed" | "failed") =>
+    prisma.$executeRaw`UPDATE "Message"
+      SET "metadata" = jsonb_set(CASE WHEN jsonb_typeof("metadata") = 'object' THEN "metadata" ELSE '{}'::jsonb END, '{memoryConsolidation}', to_jsonb(${status}::text), true)
+      WHERE "id" = ${message.id} AND "userId" = ${userId}`;
   const memoryTask = consolidateTurnMemory({
     userId,
     inboundMessageId: userMessageId,
@@ -555,14 +576,16 @@ export async function persistAssistantOutput({
     userText: userMessageText,
     assistantText: text,
   })
-    .then((report) => {
+    .then(async (report) => {
+      await markMemoryConsolidation("completed");
       persistenceLogger.info(
         "memory.consolidation_completed",
         "Post-turn memory consolidation completed",
         { userId, ...report },
       );
     })
-    .catch((error) => {
+    .catch(async (error) => {
+      await markMemoryConsolidation("failed").catch(() => undefined);
       persistenceLogger.error(
         "memory.consolidation_failed",
         "Post-turn memory consolidation failed",

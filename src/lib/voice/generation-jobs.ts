@@ -7,6 +7,7 @@ import {
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { publishToQueue } from "@/lib/qstash";
+import { patchMessageMetadata } from "@/lib/utils/message-metadata";
 import { getTextFromParts } from "@/lib/utils/message-parts";
 import { generateVoice } from "./elevenlabs";
 import {
@@ -225,13 +226,10 @@ async function failPendingVoiceGenerationJob(
         claimToken: null,
       },
     });
-    await tx.message.update({
-      where: { id: job.message.id },
-      data: {
-        metadata: withVoiceGenerationStatus(job.message.metadata, "failed", {
-          errorCode,
-        }),
-      },
+    await patchMessageMetadata(tx, job.message.id, {
+      voice: withVoiceGenerationStatus(job.message.metadata, "failed", {
+        errorCode,
+      }).voice,
     });
   });
 }
@@ -288,18 +286,11 @@ async function releaseOrFailVoiceGenerationJob(
       include: { message: { select: { id: true, metadata: true } } },
     });
     if (persisted) {
-      await prisma.message
-        .update({
-          where: { id: persisted.message.id },
-          data: {
-            metadata: withVoiceGenerationStatus(
-              persisted.message.metadata,
-              "failed",
-              { errorCode },
-            ),
-          },
-        })
-        .catch(() => undefined);
+      await patchMessageMetadata(prisma, persisted.message.id, {
+        voice: withVoiceGenerationStatus(persisted.message.metadata, "failed", {
+          errorCode,
+        }).voice,
+      }).catch(() => undefined);
     }
   }
 
@@ -686,6 +677,17 @@ export async function processVoiceGenerationJob(
         });
       }
 
+      const metadata = appendDeliveredCapabilityToMetadata(
+        withVoiceGenerationStatus(current.message.metadata, "ready", {
+          costUsd,
+        }),
+        "voice",
+        current.message.parts,
+      );
+      await patchMessageMetadata(tx, current.message.id, {
+        voice: metadata.voice as Prisma.InputJsonValue,
+        ai: metadata.ai as Prisma.InputJsonValue,
+      });
       await tx.message.update({
         where: { id: current.message.id },
         data: {
@@ -695,13 +697,6 @@ export async function processVoiceGenerationJob(
           parts: appendDeliveredCapabilityToParts(
             current.message.parts,
             "voice",
-          ) as Prisma.InputJsonValue,
-          metadata: appendDeliveredCapabilityToMetadata(
-            withVoiceGenerationStatus(current.message.metadata, "ready", {
-              costUsd,
-            }),
-            "voice",
-            current.message.parts,
           ) as Prisma.InputJsonValue,
         },
       });

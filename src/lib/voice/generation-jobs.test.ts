@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   putPrivateVoiceBlob: vi.fn(),
   deletePrivateVoiceBlob: vi.fn(),
   transaction: vi.fn(),
+  executeRaw: vi.fn(),
   jobFindUnique: vi.fn(),
   jobFindFirst: vi.fn(),
   jobUpdate: vi.fn(),
@@ -21,6 +22,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({
   prisma: {
     $transaction: mocks.transaction,
+    $executeRaw: mocks.executeRaw,
     voiceGenerationJob: {
       findUnique: mocks.jobFindUnique,
       findFirst: mocks.jobFindFirst,
@@ -110,6 +112,7 @@ function configureReadyTransaction() {
   mocks.messageUpdate.mockResolvedValue({ id: "message-1" });
   mocks.transaction.mockImplementation(async (callback) =>
     callback({
+      $executeRaw: mocks.executeRaw,
       voiceGenerationJob: {
         findFirst: mocks.txJobFindFirst,
         updateMany: mocks.txJobUpdateMany,
@@ -267,12 +270,16 @@ describe("voice generation jobs", () => {
               data: { capabilities: ["memory", "voice"] },
             },
           ],
-          metadata: expect.objectContaining({
-            voice: expect.objectContaining({ status: "ready" }),
-            ai: { capabilitiesUsed: ["memory", "voice"] },
-          }),
         }),
       }),
+    );
+    expect(mocks.executeRaw).toHaveBeenCalledWith(
+      expect.any(Array),
+      JSON.stringify({
+        voice: { status: "ready", costUsd: 0.0018 },
+        ai: { capabilitiesUsed: ["memory", "voice"] },
+      }),
+      "message-1",
     );
   });
 

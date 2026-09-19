@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   prismaChannelIdentityCreate: vi.fn(),
   prismaChatUpsert: vi.fn(),
   prismaTransaction: vi.fn(),
+  prismaExecuteRaw: vi.fn().mockResolvedValue(1),
   prismaMessageCreate: vi.fn(),
   prismaMessageMetricsCreate: vi.fn(),
   prismaMessageUpdate: vi.fn(),
@@ -60,6 +61,7 @@ vi.mock("@vercel/functions", () => ({
 vi.mock("@/lib/db", () => ({
   prisma: {
     $transaction: mocks.prismaTransaction,
+    $executeRaw: mocks.prismaExecuteRaw,
     message: {
       findFirst: mocks.prismaMessageFindFirst,
       findUnique: mocks.prismaMessageFindUnique,
@@ -355,6 +357,7 @@ describe("/api/webhooks/telegram", () => {
     });
     mocks.prismaTransaction.mockImplementation(async (callback) =>
       callback({
+        $executeRaw: mocks.prismaExecuteRaw,
         message: {
           findFirst: mocks.prismaMessageFindFirst,
           findUnique: mocks.prismaMessageFindUnique,
@@ -2054,9 +2057,6 @@ describe("/api/webhooks/telegram", () => {
       data: {
         type: "AUDIO",
         mediaType: "audio/mpeg",
-        metadata: {
-          ai: { capabilitiesUsed: ["memory", "voice"] },
-        },
         parts: [
           { type: "text", text: "risposta vocale" },
           {

@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   captureException: vi.fn(),
   chatState: {
     error: null as Error | null,
-    status: "ready" as "ready" | "error",
+    status: "ready" as "ready" | "error" | "submitted" | "streaming",
   },
   clearError: vi.fn(),
   isGuest: true,
@@ -642,6 +642,7 @@ function deferredResponse() {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -697,6 +698,100 @@ beforeEach(() => {
 });
 
 describe("ChatConversationClient pagination and recovery", () => {
+  it("polls asynchronous memory changes without replacing streamed content or loaded history", async () => {
+    vi.useFakeTimers();
+    mocks.isGuest = false;
+    const pendingData: ChatData = {
+      ...initialChatData,
+      messages: initialChatData.messages.map((message) =>
+        message.role === "assistant"
+          ? { ...message, memoryConsolidation: "pending" }
+          : message,
+      ),
+    };
+    const changes = [
+      {
+        memoryId: "memory-1",
+        revisionId: "revision-1",
+        content: "Martedì",
+        kind: "saved" as const,
+        canUndo: true,
+      },
+    ];
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...initialChatData,
+          messages: initialChatData.messages.map((message) =>
+            message.role === "assistant"
+              ? {
+                  ...message,
+                  memoryConsolidation: "completed",
+                  memoryChanges: changes,
+                }
+              : message,
+          ),
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderConversation(pendingData);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    const patch = mocks.setMessages.mock.calls.find(
+      ([value]) => typeof value === "function",
+    )?.[0];
+    expect(patch).toBeTypeOf("function");
+    const older = {
+      id: "older",
+      role: "user",
+      parts: [{ type: "text", text: "Pagina precedente" }],
+    };
+    const streaming = {
+      id: "streaming",
+      role: "assistant",
+      parts: [{ type: "text", text: "Risposta in corso" }],
+    };
+    const result = patch([
+      older,
+      { id: "assistant-new", role: "assistant", parts: [] },
+      streaming,
+    ]);
+    expect(result[0]).toEqual(older);
+    expect(result[1]).toMatchObject({
+      memoryChanges: changes,
+      memoryConsolidation: "completed",
+    });
+    expect(result[2]).toEqual(streaming);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000);
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("bounds memory polling when the refresh endpoint stays unavailable", async () => {
+    vi.useFakeTimers();
+    mocks.isGuest = false;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 503 }));
+    vi.stubGlobal("fetch", fetchMock);
+    renderConversation({
+      ...initialChatData,
+      messages: initialChatData.messages.map((message) =>
+        message.role === "assistant"
+          ? { ...message, memoryConsolidation: "pending" }
+          : message,
+      ),
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(180_000);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(20);
+  });
+
   it("anchors the empty state above the mobile composer", () => {
     renderConversation({ ...initialChatData, messages: [] });
 
@@ -1092,6 +1187,74 @@ describe("ChatConversationClient pagination and recovery", () => {
         expect.objectContaining({ id: "persisted-assistant" }),
       ]),
     );
+  });
+
+  it.each([false, true])(
+    "preserves a new draft when a pending send fails (initial=%s)",
+    async (initial) => {
+      let rejectSend!: (error: Error) => void;
+      mocks.sendMessage.mockReturnValueOnce(
+        new Promise((_resolve, reject) => {
+          rejectSend = reject;
+        }),
+      );
+      if (initial)
+        mocks.consumePendingInitialMessage.mockReturnValueOnce(
+          "Primo messaggio",
+        );
+      const user = userEvent.setup();
+      renderConversation();
+      const input = screen.getByRole<HTMLInputElement>("textbox", {
+        name: "Messaggio di test",
+      });
+      if (!initial) {
+        await user.type(input, "Primo messaggio");
+        await user.click(screen.getByRole("button", { name: "Invia test" }));
+      }
+      await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce());
+      await user.type(input, "Bozza successiva");
+      await act(async () => {
+        rejectSend(new Error("offline"));
+      });
+      expect(input.value).toBe("Bozza successiva");
+    },
+  );
+
+  it("preserves the next draft across streaming completion and persisted refresh", async () => {
+    const user = userEvent.setup();
+    const view = renderConversation();
+    const input = screen.getByRole<HTMLInputElement>("textbox", {
+      name: "Messaggio di test",
+    });
+    await user.type(input, "Primo messaggio");
+    await user.click(screen.getByRole("button", { name: "Invia test" }));
+    mocks.chatState.status = "streaming";
+    view.rerender(
+      <ChatConversationClient
+        chatId="chat-1"
+        initialChatData={initialChatData}
+      />,
+    );
+    await user.type(input, "Bozza durante la risposta");
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Invia test" })
+        .disabled,
+    ).toBe(true);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify(initialChatData), { status: 200 }),
+        ),
+    );
+    const options = mocks.captureChatOptions.mock.calls.at(-1)?.[0] as {
+      onFinish: () => Promise<void>;
+    };
+    await act(async () => {
+      await options.onFinish();
+    });
+    expect(input.value).toBe("Bozza durante la risposta");
   });
 
   it("does not log or toast an expected rate-limit rejection", async () => {

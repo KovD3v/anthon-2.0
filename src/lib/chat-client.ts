@@ -14,6 +14,8 @@ export type ChatUIMessage = AnthonUIMessage & {
   voice?: ChatMessage["voice"];
   feedback?: -1 | 0 | 1 | null;
   feedbackReason?: MessageFeedbackReason;
+  memoryChanges?: ChatMessage["memoryChanges"];
+  memoryConsolidation?: ChatMessage["memoryConsolidation"];
 };
 
 /**
@@ -68,6 +70,8 @@ export function convertToUIMessages(messages: ChatMessage[]): ChatUIMessage[] {
     voice: msg.voice,
     feedback: msg.feedback,
     feedbackReason: msg.feedbackReason,
+    memoryChanges: msg.memoryChanges,
+    memoryConsolidation: msg.memoryConsolidation,
   }));
 }
 

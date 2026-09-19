@@ -190,6 +190,16 @@ export interface ChatMessage {
   };
   feedback?: -1 | 0 | 1 | null;
   feedbackReason?: MessageFeedbackReason;
+  memoryChanges?: MemoryChange[];
+  memoryConsolidation?: "pending" | "completed" | "failed";
+}
+
+export interface MemoryChange {
+  revisionId: string;
+  memoryId: string;
+  content: string;
+  kind: "saved" | "updated";
+  canUndo: boolean;
 }
 
 // -----------------------------------------------------

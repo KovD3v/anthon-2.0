@@ -61,8 +61,7 @@ export function ChatInput({
     isTextareaAvailable &&
     !isRecorderBusy &&
     !externallyDisabled &&
-    !isUploading &&
-    !isLoading;
+    !isUploading;
   const cannotSubmit =
     externallyDisabled ||
     isRecorderBusy ||
@@ -327,7 +326,7 @@ export function ChatInput({
             placeholder={disabledReason ?? "Scrivi un messaggio…"}
             rows={1}
             className="min-w-0 flex-1 max-w-full resize-none overflow-y-auto overscroll-y-none bg-transparent px-2 py-2.5 text-base outline-none placeholder:text-muted-foreground/50 scrollbar-none max-h-[132px] sm:max-h-[200px] sm:py-3 sm:text-sm"
-            disabled={externallyDisabled || isLoading || isUploading}
+            disabled={externallyDisabled || isUploading}
           />
         )}
         {!isRecorderBusy && (

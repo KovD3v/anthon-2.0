@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   chatFindFirst: vi.fn(),
   chatUpdate: vi.fn(),
   transaction: vi.fn(),
+  executeRaw: vi.fn().mockResolvedValue(1),
   messageFindUnique: vi.fn(),
   modelExperimentPairFindUnique: vi.fn(),
   messageCreate: vi.fn(),
@@ -78,6 +79,7 @@ vi.mock("@/lib/db", () => ({
   warmDatabaseConnection: mocks.warmDatabaseConnection,
   prisma: {
     $transaction: mocks.transaction,
+    $executeRaw: mocks.executeRaw,
     user: {
       findUnique: mocks.userFindUnique,
       upsert: mocks.userUpsert,
@@ -374,6 +376,7 @@ describe("POST /api/chat", () => {
     mocks.chatFindFirst.mockReset();
     mocks.chatUpdate.mockReset();
     mocks.transaction.mockReset();
+    mocks.executeRaw.mockReset().mockResolvedValue(1);
     mocks.messageFindUnique.mockReset();
     mocks.modelExperimentPairFindUnique.mockReset();
     mocks.messageCreate.mockReset();

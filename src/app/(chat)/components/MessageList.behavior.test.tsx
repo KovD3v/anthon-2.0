@@ -2,6 +2,7 @@
 
 import {
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -167,6 +168,247 @@ beforeEach(() => {
 });
 
 describe("MessageList rendered interactions", () => {
+  it("shows the actual saved fact with exact-revision undo and memory controls", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ undone: true }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    renderMessageList({
+      canManageMemories: true,
+      messages: [
+        userMessage,
+        {
+          ...assistantMessage,
+          memoryChanges: [
+            {
+              memoryId: "memory-1",
+              revisionId: "revision-1",
+              content: "Luca si allena martedì.",
+              kind: "saved",
+              canUndo: true,
+            },
+          ],
+        },
+      ],
+    });
+    expect(screen.getByText("Salvato in memoria:")).toBeTruthy();
+    expect(screen.getByText(/Luca si allena martedì/)).toBeTruthy();
+    expect(
+      screen
+        .getByRole("link", { name: "Gestisci memoria" })
+        .getAttribute("href"),
+    ).toBe("/profile#memoria");
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /^Annulla$/ }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/coaching-context/memories/memory-1/undo",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ revisionId: "revision-1" }),
+      }),
+    );
+    expect(
+      await screen.findByText("Modifica alla memoria annullata."),
+    ).toBeTruthy();
+  });
+
+  it("explains a refused undo after a newer change", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 409 })),
+    );
+    renderMessageList({
+      canManageMemories: true,
+      messages: [
+        {
+          ...assistantMessage,
+          memoryChanges: [
+            {
+              memoryId: "memory-1",
+              revisionId: "revision-1",
+              content: "Giovedì",
+              kind: "updated",
+              canUndo: true,
+            },
+          ],
+        },
+      ],
+    });
+    expect(screen.getByText("Memoria aggiornata:")).toBeTruthy();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /^Annulla$/ }));
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Questa memoria è già cambiata",
+    );
+  });
+
+  it.each([
+    { canManageMemories: false, isGuest: false },
+    { canManageMemories: true, isGuest: true },
+  ])(
+    "hides fact notifications outside the private owner surface (%j)",
+    (privacy) => {
+      renderMessageList({
+        ...privacy,
+        messages: [
+          {
+            ...assistantMessage,
+            memoryChanges: [
+              {
+                memoryId: "memory-1",
+                revisionId: "revision-1",
+                content: "Fatto privato",
+                kind: "saved",
+                canUndo: true,
+              },
+            ],
+          },
+        ],
+      });
+      expect(screen.queryByText(/Fatto privato/)).toBeNull();
+    },
+  );
+
+  it("keeps a visible row at the same viewport offset when history is prepended", () => {
+    const view = renderMessageList({ hasMoreMessages: true });
+    const container = document.querySelector<HTMLElement>(
+      "[data-chat-scroll]",
+    ) as HTMLElement;
+    let height = 1000;
+    Object.defineProperty(container, "scrollHeight", {
+      configurable: true,
+      get: () => height,
+    });
+    Object.defineProperty(container, "clientHeight", {
+      configurable: true,
+      value: 400,
+    });
+    container.scrollTop = 120;
+    const row = container.querySelector<HTMLElement>(
+      "[data-message-key]",
+    ) as HTMLElement;
+    let rowTop = 20;
+    row.getBoundingClientRect = () =>
+      ({ top: rowTop, bottom: rowTop + 100 }) as DOMRect;
+    fireEvent.scroll(container);
+    height = 1300;
+    rowTop = 320;
+    view.rerender(
+      <MessageList
+        {...view.props}
+        messages={[
+          {
+            ...userMessage,
+            id: "older-user",
+            parts: [{ type: "text", text: "Domanda precedente" }],
+          },
+          ...view.props.messages,
+        ]}
+      />,
+    );
+    expect(container.scrollTop).toBe(420);
+  });
+
+  it("follows appended content only at the bottom and resumes for a new outgoing message", () => {
+    const view = renderMessageList();
+    const container = document.querySelector<HTMLElement>(
+      "[data-chat-scroll]",
+    ) as HTMLElement;
+    let height = 1000;
+    Object.defineProperty(container, "scrollHeight", {
+      configurable: true,
+      get: () => height,
+    });
+    Object.defineProperty(container, "clientHeight", {
+      configurable: true,
+      value: 400,
+    });
+    container.scrollTop = 120;
+    fireEvent.scroll(container);
+    let messages = [
+      userMessage,
+      {
+        ...assistantMessage,
+        parts: [{ type: "text" as const, text: "Risposta lunga" }],
+      },
+    ];
+    height = 1200;
+    view.rerender(<MessageList {...view.props} messages={messages} />);
+    expect(container.scrollTop).toBe(120);
+    container.scrollTop = 800;
+    fireEvent.scroll(container);
+    height = 1400;
+    messages = [
+      userMessage,
+      {
+        ...assistantMessage,
+        parts: [{ type: "text" as const, text: "Risposta ancora più lunga" }],
+      },
+    ];
+    view.rerender(<MessageList {...view.props} messages={messages} />);
+    expect(container.scrollTop).toBe(1400);
+    container.scrollTop = 120;
+    fireEvent.scroll(container);
+    view.rerender(
+      <MessageList
+        {...view.props}
+        messages={[...messages, { ...userMessage, id: "next-user" }]}
+      />,
+    );
+    expect(container.scrollTop).toBe(1400);
+  });
+
+  it("attaches resize following when an initially empty conversation receives messages", () => {
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe = observe;
+        disconnect = disconnect;
+      },
+    );
+    const view = renderMessageList({ messages: [] });
+    expect(observe).not.toHaveBeenCalled();
+    view.rerender(
+      <MessageList
+        {...view.props}
+        messages={[userMessage, assistantMessage]}
+      />,
+    );
+    expect(observe).toHaveBeenCalledOnce();
+    view.unmount();
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("uses instant scrolling for the jump-to-bottom action with reduced motion", async () => {
+    renderMessageList();
+    const container = document.querySelector<HTMLElement>(
+      "[data-chat-scroll]",
+    ) as HTMLElement;
+    Object.defineProperty(container, "scrollHeight", {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(container, "clientHeight", {
+      configurable: true,
+      value: 400,
+    });
+    container.scrollTo = vi.fn();
+    fireEvent.scroll(container);
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Vai in fondo" }));
+    expect(container.scrollTo).toHaveBeenCalledWith({
+      top: 1000,
+      behavior: "instant",
+    });
+  });
+
   it("renders the signed-in user's profile picture in user message avatars", () => {
     renderMessageList();
 
@@ -265,16 +507,10 @@ describe("MessageList rendered interactions", () => {
     const indicators = screen.getByRole("list", {
       name: "Capacità usate",
     });
-    for (const label of [
-      "Contesto",
-      "Ricerca",
-      "Memoria",
-      "Ricordo",
-      "Routine",
-      "Voce",
-    ]) {
+    for (const label of ["Contesto", "Ricerca", "Ricordo", "Routine", "Voce"]) {
       expect(within(indicators).getByText(label)).toBeTruthy();
     }
+    expect(within(indicators).queryByText("Memoria")).toBeNull();
     expect(within(indicators).queryByRole("button")).toBeNull();
     expect(within(indicators).queryByRole("link")).toBeNull();
     expect(within(indicators).queryByRole("menu")).toBeNull();

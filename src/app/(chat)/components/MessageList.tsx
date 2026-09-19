@@ -23,7 +23,14 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -74,6 +81,7 @@ import {
 import { AttachmentPreview } from "./Attachments";
 import { AudioPlayer } from "./AudioPlayer";
 import { MemoizedMarkdown } from "./MemoizedMarkdown";
+import { MemoryChangeNotice } from "./MemoryChangeNotice";
 import { ModelComparisonCard } from "./ModelComparisonCard";
 import { RoutineCard } from "./RoutineCard";
 import type {
@@ -167,6 +175,7 @@ interface MessageListProps {
   onRegenerate: () => void;
   feedbackEndpoint: string;
   canSubmitFeedback?: boolean;
+  canManageMemories?: boolean;
   feedbackMessageIds?: ReadonlySet<string>;
   comparisonDeltas?: Record<
     string,
@@ -263,6 +272,7 @@ export function MessageList({
   onRegenerate,
   feedbackEndpoint,
   canSubmitFeedback = true,
+  canManageMemories = false,
   feedbackMessageIds,
   comparisonDeltas = {},
   onModelComparisonResolved,
@@ -349,6 +359,29 @@ export function MessageList({
     [pendingAssistantMessage, visibleMessages],
   );
   const parentRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const followingBottomRef = useRef(true);
+  const previousLayoutRef = useRef<{
+    firstKey: string;
+    lastUserKey: string | undefined;
+    height: number;
+    loadingMore: boolean;
+    anchor?: { key: string; top: number };
+  } | null>(null);
+  const captureScrollAnchor = useCallback(() => {
+    const container = parentRef.current;
+    if (!container) return undefined;
+    const top = container.getBoundingClientRect().top;
+    const row = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-message-key]"),
+    ).find((element) => element.getBoundingClientRect().bottom > top);
+    return row?.dataset.messageKey
+      ? {
+          key: row.dataset.messageKey,
+          top: row.getBoundingClientRect().top - top,
+        }
+      : undefined;
+  }, []);
   const routineBySourceMessageId = useMemo(() => {
     const byMessageId = new Map<string, RoutineCardData>();
     for (const routine of routines) {
@@ -492,42 +525,102 @@ export function MessageList({
     }
   }
 
-  // Auto-scroll to bottom when messages load or new message arrives
-  useEffect(() => {
-    // Scroll to bottom on initial load or when new messages are added
-    if (messages.length > 0 && parentRef.current) {
-      // Let the newly rendered message finish layout before scrolling.
-      const timeoutId = setTimeout(() => {
-        if (parentRef.current) {
-          parentRef.current.scrollTop = parentRef.current.scrollHeight;
-        }
-      }, 50);
-      return () => clearTimeout(timeoutId);
+  useLayoutEffect(() => {
+    const container = parentRef.current;
+    if (!container || messages.length === 0) return;
+    const firstKey = getMessageRenderKey(messages, 0);
+    const lastUserIndex = messages.findLastIndex(
+      (message) => message.role === "user",
+    );
+    const lastUserKey =
+      lastUserIndex < 0
+        ? undefined
+        : getMessageRenderKey(messages, lastUserIndex);
+    const previous = previousLayoutRef.current;
+    const prepended =
+      previous &&
+      firstKey !== previous.firstKey &&
+      messages.some(
+        (_, index) =>
+          getMessageRenderKey(messages, index) === previous.firstKey,
+      );
+    if (
+      prepended ||
+      (previous &&
+        previous.loadingMore !== isLoadingMore &&
+        !followingBottomRef.current)
+    ) {
+      const anchor = Array.from(
+        container.querySelectorAll<HTMLElement>("[data-message-key]"),
+      ).find((element) => element.dataset.messageKey === previous.anchor?.key);
+      container.scrollTop +=
+        anchor && previous.anchor
+          ? anchor.getBoundingClientRect().top -
+            container.getBoundingClientRect().top -
+            previous.anchor.top
+          : container.scrollHeight - previous.height;
+      followingBottomRef.current = false;
+    } else if (
+      !previous ||
+      (lastUserKey !== previous.lastUserKey &&
+        (!previous.lastUserKey ||
+          messages.some(
+            (_, index) =>
+              getMessageRenderKey(messages, index) === previous.lastUserKey,
+          ))) ||
+      followingBottomRef.current
+    ) {
+      container.scrollTop = container.scrollHeight;
+      followingBottomRef.current = true;
     }
-  }, [messages.length]);
+    previousLayoutRef.current = {
+      firstKey,
+      lastUserKey,
+      height: container.scrollHeight,
+      loadingMore: isLoadingMore,
+      anchor: captureScrollAnchor(),
+    };
+    setShowScrollButton(
+      container.scrollHeight - container.scrollTop - container.clientHeight >
+        200,
+    );
+  }, [messages, isLoadingMore, captureScrollAnchor]);
+
+  const hasMessages = messages.length > 0;
+  useEffect(() => {
+    if (!hasMessages) return;
+    const content = contentRef.current;
+    if (!content || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      const container = parentRef.current;
+      if (container && followingBottomRef.current)
+        container.scrollTop = container.scrollHeight;
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [hasMessages]);
 
   const handleScroll = useCallback(() => {
     if (!parentRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = parentRef.current;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    followingBottomRef.current = distanceFromBottom < 80;
+    if (previousLayoutRef.current) {
+      previousLayoutRef.current.anchor = captureScrollAnchor();
+      previousLayoutRef.current.height = scrollHeight;
+    }
     setShowScrollButton(distanceFromBottom > 200);
 
     if (scrollTop < 100 && hasMoreMessages && !isLoadingMore && onLoadMore) {
       onLoadMore();
     }
-  }, [hasMoreMessages, isLoadingMore, onLoadMore]);
-
-  useEffect(() => {
-    const container = parentRef.current;
-    if (!container) return;
-    container.addEventListener("scroll", handleScroll, { passive: true });
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
+  }, [hasMoreMessages, isLoadingMore, onLoadMore, captureScrollAnchor]);
 
   function scrollToBottom() {
+    followingBottomRef.current = true;
     parentRef.current?.scrollTo({
       top: parentRef.current.scrollHeight,
-      behavior: "smooth",
+      behavior: shouldReduceMotion ? "instant" : "smooth",
     });
   }
 
@@ -582,9 +675,12 @@ export function MessageList({
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div
         ref={parentRef}
+        onScroll={handleScroll}
+        data-chat-scroll
+        style={{ overflowAnchor: "none" }}
         className="min-w-0 flex-1 overflow-y-auto overscroll-y-none px-4 pt-6 pb-20 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
       >
-        <div className="mx-auto w-full min-w-0 max-w-3xl">
+        <div ref={contentRef} className="mx-auto w-full min-w-0 max-w-3xl">
           {/* Loading indicator for older messages */}
           {isLoadingMore && (
             <div className="flex justify-center py-4">
@@ -642,7 +738,9 @@ export function MessageList({
               });
               const capabilitiesUsed =
                 message.role === "assistant"
-                  ? getCapabilityUsage(message.parts)
+                  ? getCapabilityUsage(message.parts).filter(
+                      (capability) => capability !== "memory",
+                    )
                   : [];
               const shouldAnimateMount = shouldAnimateAssistantMessageMount({
                 message,
@@ -728,6 +826,10 @@ export function MessageList({
                   key={getMessageRenderKey(displayedMessages, messageIndex)}
                   data-index={messageIndex}
                   data-message-role={message.role}
+                  data-message-key={getMessageRenderKey(
+                    displayedMessages,
+                    messageIndex,
+                  )}
                 >
                   <m.div
                     initial={
@@ -982,6 +1084,15 @@ export function MessageList({
                         )}
                       </div>
 
+                      {canManageMemories &&
+                        !isGuest &&
+                        !isUser &&
+                        message.memoryChanges?.map((change) => (
+                          <MemoryChangeNotice
+                            key={change.revisionId}
+                            change={change}
+                          />
+                        ))}
                       {capabilitiesUsed.length > 0 && (
                         <ul
                           aria-label="Capacità usate"

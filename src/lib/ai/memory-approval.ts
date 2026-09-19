@@ -567,6 +567,7 @@ export async function resolveMemoryApproval(input: {
       sensitivity: "HIGH",
       origin: "CONFIRMED",
       sourceMessageId: approval.sourceInboundMessageId,
+      revisionSourceMessageId: currentMessage.id,
       sourceThreadId: presentationInbound.conversationThreadId,
       dedupeKey: `approval:${approval.id}`,
     });

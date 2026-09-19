@@ -426,6 +426,7 @@ describe("ai/memory-approval", () => {
         sensitivity: "HIGH",
         origin: "CONFIRMED",
         sourceMessageId: "inbound-source",
+        revisionSourceMessageId: "inbound-current",
         sourceThreadId: "thread-1",
         dedupeKey: "approval:approval-1",
       }),

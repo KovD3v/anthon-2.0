@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
+  executeRaw: vi.fn(),
   messageCreate: vi.fn(),
   messageFindUnique: vi.fn(),
   messageUpdate: vi.fn(),
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({
   prisma: {
     $transaction: mocks.transaction,
+    $executeRaw: mocks.executeRaw,
     message: {
       create: mocks.messageCreate,
       findUnique: mocks.messageFindUnique,
@@ -125,6 +127,7 @@ describe("channel-flow/persistence", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
     mocks.transaction.mockReset();
+    mocks.executeRaw.mockReset().mockResolvedValue(1);
     mocks.messageCreate.mockReset();
     mocks.messageFindUnique.mockReset();
     mocks.messageUpdate.mockReset();
@@ -144,6 +147,7 @@ describe("channel-flow/persistence", () => {
 
     mocks.transaction.mockImplementation(async (callback) =>
       callback({
+        $executeRaw: mocks.executeRaw,
         message: {
           create: mocks.messageCreate,
           findUnique: mocks.messageFindUnique,
@@ -209,13 +213,6 @@ describe("channel-flow/persistence", () => {
       data: {
         type: "AUDIO",
         mediaType: "audio/mpeg",
-        metadata: {
-          voice: { status: "processing" },
-          ai: {
-            capabilitiesUsed: ["rag", "memory", "voice"],
-            toolCallCount: 1,
-          },
-        },
         parts: [
           { type: "text", text: "assistant" },
           {
@@ -228,6 +225,13 @@ describe("channel-flow/persistence", () => {
     expect(
       JSON.stringify(mocks.messageUpdate.mock.calls[0]?.[0]),
     ).not.toContain("SECRET_PROVIDER_PAYLOAD");
+    expect(mocks.executeRaw).toHaveBeenCalledWith(
+      expect.any(Array),
+      JSON.stringify({
+        ai: { capabilitiesUsed: ["rag", "memory", "voice"], toolCallCount: 1 },
+      }),
+      "msg-1",
+    );
   });
 
   it("persists assistant message and post-process steps", async () => {
@@ -276,6 +280,19 @@ describe("channel-flow/persistence", () => {
     });
     expect(waitUntil).toHaveBeenCalledTimes(2);
     await Promise.all(scheduled);
+    expect(mocks.messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: expect.objectContaining({ memoryConsolidation: "pending" }),
+        }),
+      }),
+    );
+    expect(mocks.executeRaw).toHaveBeenCalledWith(
+      expect.any(Array),
+      "completed",
+      "msg-1",
+      "user-1",
+    );
     expect(mocks.revalidateTag).toHaveBeenCalledTimes(2);
     expect(mocks.loggerInfo).toHaveBeenCalledWith(
       "memory.consolidation_completed",
@@ -341,41 +358,55 @@ describe("channel-flow/persistence", () => {
     expect(mocks.revalidateTag).toHaveBeenCalledTimes(2);
   });
 
-  it("schedules consolidation for an agentic turn with no memory tool call", async () => {
-    const waitUntil = vi.fn();
+  it.each([false, true])(
+    "schedules and settles consolidation without a memory tool call (failure=%s)",
+    async (failed) => {
+      const waitUntil = vi.fn();
+      if (failed)
+        mocks.consolidateTurnMemory.mockRejectedValueOnce(
+          new Error("consolidation failed"),
+        );
 
-    await persistAssistantOutput({
-      userId: "user-1",
-      userMessageId: "inbound-agentic",
-      chatId: "chat-1",
-      channel: "WEB",
-      text: "assistant",
-      userMessageText: "I train on Tuesday and Thursday.",
-      metrics: {
-        model: "test-model",
-        inputTokens: 5,
-        outputTokens: 8,
-        reasoningTokens: 0,
-        toolCalls: [],
-        ragUsed: false,
-        ragChunksCount: 0,
-        costUsd: 0.02,
-        generationTimeMs: 111,
-        reasoningTimeMs: null,
-      },
-      allowMemoryExtraction: true,
-      capabilityPlannerMode: "agentic",
-      waitUntil,
-    });
+      await persistAssistantOutput({
+        userId: "user-1",
+        userMessageId: "inbound-agentic",
+        chatId: "chat-1",
+        channel: "WEB",
+        text: "assistant",
+        userMessageText: "I train on Tuesday and Thursday.",
+        metrics: {
+          model: "test-model",
+          inputTokens: 5,
+          outputTokens: 8,
+          reasoningTokens: 0,
+          toolCalls: [],
+          ragUsed: false,
+          ragChunksCount: 0,
+          costUsd: 0.02,
+          generationTimeMs: 111,
+          reasoningTimeMs: null,
+        },
+        allowMemoryExtraction: true,
+        capabilityPlannerMode: "agentic",
+        waitUntil,
+      });
 
-    expect(mocks.consolidateTurnMemory).toHaveBeenCalledWith({
-      userId: "user-1",
-      inboundMessageId: "inbound-agentic",
-      userText: "I train on Tuesday and Thursday.",
-      assistantText: "assistant",
-    });
-    expect(waitUntil).toHaveBeenCalledTimes(2);
-  });
+      expect(mocks.consolidateTurnMemory).toHaveBeenCalledWith({
+        userId: "user-1",
+        inboundMessageId: "inbound-agentic",
+        userText: "I train on Tuesday and Thursday.",
+        assistantText: "assistant",
+      });
+      expect(waitUntil).toHaveBeenCalledTimes(2);
+      await Promise.all(waitUntil.mock.calls.map(([promise]) => promise));
+      expect(mocks.executeRaw).toHaveBeenCalledWith(
+        expect.any(Array),
+        failed ? "failed" : "completed",
+        "msg-1",
+        "user-1",
+      );
+    },
+  );
 
   it("schedules conversation indexing after a linked turn is persisted", async () => {
     const waitUntil = vi.fn();
