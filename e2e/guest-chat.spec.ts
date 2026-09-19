@@ -69,7 +69,11 @@ test.describe("guest chat smoke", () => {
 
     const secondPrompt = "Secondo turno consecutivo E2E";
     await sendMessage(page, secondPrompt);
-    await expect(page.getByText(secondPrompt, { exact: true })).toBeVisible();
+    await expect(
+      page
+        .locator('[data-message-role="user"]')
+        .getByText(secondPrompt, { exact: true }),
+    ).toBeVisible();
     await waitForResponsePersisted(page, "token-119");
     await expect(page).toHaveURL(chatUrl);
     await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(
@@ -86,7 +90,11 @@ test.describe("guest chat smoke", () => {
     const firstPrompt = "La parola chiave del test è zaffiro. Confermala.";
     await sendMessage(page, firstPrompt);
 
-    await expect(page.getByText(firstPrompt, { exact: true })).toBeVisible();
+    await expect(
+      page
+        .locator('[data-message-role="user"]')
+        .getByText(firstPrompt, { exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByText("Ho memorizzato la parola chiave zaffiro.", {
         exact: true,
@@ -98,7 +106,11 @@ test.describe("guest chat smoke", () => {
     );
 
     await page.reload();
-    await expect(page.getByText(firstPrompt, { exact: true })).toBeVisible();
+    await expect(
+      page
+        .locator('[data-message-role="user"]')
+        .getByText(firstPrompt, { exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByText("Ho memorizzato la parola chiave zaffiro.", {
         exact: true,
