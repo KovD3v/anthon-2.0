@@ -4,17 +4,16 @@ async function openEmptyGuestChat(page: Page) {
   await page.goto("/chat");
   await expect(page.getByRole("heading", { name: "Benvenuto!" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Conversazione libera" }).click();
-  await expect(page).toHaveURL(/\/chat\/[^/]+$/);
   await expect(
     page.getByRole("textbox", { name: "Scrivi un messaggio" }),
-  ).toBeVisible();
+  ).toBeEditable();
 }
 
 async function sendMessage(page: Page, text: string) {
   const input = page.getByRole("textbox", { name: "Scrivi un messaggio" });
   await input.fill(text);
   await page.getByRole("button", { name: "Invia messaggio" }).click();
+  await expect(page).toHaveURL(/\/chat\/[^/?#]+$/);
 }
 
 async function waitForResponsePersisted(page: Page, text: string) {
@@ -22,41 +21,39 @@ async function waitForResponsePersisted(page: Page, text: string) {
     .locator('[data-message-role="assistant"]')
     .filter({ hasText: text });
   await expect(
-    response.getByRole("button", { name: "Segna la risposta come utile" }),
+    response.getByRole("button", { name: "Pollice su: risposta utile" }),
   ).toBeVisible();
 }
 
-test.describe("guest chat beta smoke", () => {
-  test("allows scrolling through the mobile chat launcher", async ({
+test.describe("guest chat smoke", () => {
+  test("keeps the mobile launcher usable and scrolls when its content overflows", async ({
     page,
     isMobile,
   }) => {
     test.skip(!isMobile, "Mobile launcher regression");
 
-    await page.goto("/chat");
-    await expect(
-      page.getByRole("heading", { name: "Benvenuto!" }),
-    ).toBeVisible();
-
-    const lastStarter = page.getByRole("button", {
-      name: /Voglio ritrovare fiducia/,
-    });
-    const initialBox = await lastStarter.boundingBox();
-    expect(initialBox).not.toBeNull();
-
-    const gestureTarget = await page
-      .getByRole("button", { name: /Mi blocco dopo un errore/ })
-      .boundingBox();
-    expect(gestureTarget).not.toBeNull();
-    await page.mouse.move(
-      (gestureTarget?.x ?? 0) + (gestureTarget?.width ?? 0) / 2,
-      (gestureTarget?.y ?? 0) + (gestureTarget?.height ?? 0) / 2,
+    await openEmptyGuestChat(page);
+    const heading = page.getByRole("heading", { name: "Benvenuto!" });
+    const launcher = page
+      .getByRole("main")
+      .locator("div.overflow-y-auto")
+      .filter({ has: heading });
+    await expect(launcher).toHaveCount(1);
+    const overflows = await launcher.evaluate(
+      (element) => element.scrollHeight > element.clientHeight + 1,
     );
-    await page.mouse.wheel(0, 700);
-
-    await expect
-      .poll(async () => (await lastStarter.boundingBox())?.y)
-      .toBeLessThan(initialBox?.y ?? 0);
+    if (overflows) {
+      await launcher.hover();
+      await page.mouse.wheel(0, 700);
+      await expect
+        .poll(() => launcher.evaluate((element) => element.scrollTop))
+        .toBeGreaterThan(0);
+    } else {
+      await expect(heading).toBeInViewport();
+    }
+    await expect(
+      page.getByRole("textbox", { name: "Scrivi un messaggio" }),
+    ).toBeInViewport();
   });
 
   test("supports consecutive turns without reloading", async ({ page }) => {
@@ -68,11 +65,13 @@ test.describe("guest chat beta smoke", () => {
       page.getByText("Risposta E2E completata.", { exact: true }),
     ).toBeVisible();
     await waitForResponsePersisted(page, "Risposta E2E completata.");
+    const chatUrl = page.url();
 
     const secondPrompt = "Secondo turno consecutivo E2E";
     await sendMessage(page, secondPrompt);
     await expect(page.getByText(secondPrompt, { exact: true })).toBeVisible();
     await waitForResponsePersisted(page, "token-119");
+    await expect(page).toHaveURL(chatUrl);
     await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(
       2,
     );
@@ -115,7 +114,7 @@ test.describe("guest chat beta smoke", () => {
       .locator('[data-message-role="assistant"]')
       .filter({ hasText: "La parola chiave era zaffiro." });
     const usefulButton = contextualResponse.getByRole("button", {
-      name: "Segna la risposta come utile",
+      name: "Pollice su: risposta utile",
     });
     const feedbackResponse = page.waitForResponse(
       (response) =>
@@ -132,7 +131,7 @@ test.describe("guest chat beta smoke", () => {
       .filter({ hasText: "La parola chiave era zaffiro." });
     await expect(
       restoredContextualResponse.getByRole("button", {
-        name: "Segna la risposta come utile",
+        name: "Pollice su: risposta utile",
       }),
     ).toHaveAttribute("aria-pressed", "true");
   });
